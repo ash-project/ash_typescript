@@ -98,17 +98,23 @@ defmodule AshTypescript.RPC do
           :create ->
             resource
             |> Ash.Changeset.for_create(action.name, params["input"], opts)
+            |> Ash.Changeset.select(select)
+            |> Ash.Changeset.load(load)
             |> Ash.create()
 
           :update ->
             resource
             |> Ash.Changeset.for_update(action.name, params["input"], opts)
+            |> Ash.Changeset.select(select)
+            |> Ash.Changeset.load(load)
             |> Ash.update()
 
           :destroy ->
             resource
             |> Ash.Changeset.for_destroy(action.name, params["input"], opts)
-            |> Ash.update()
+            |> Ash.Changeset.select(select)
+            |> Ash.Changeset.load(load)
+            |> Ash.destroy()
         end
         |> case do
           {:ok, result} ->
