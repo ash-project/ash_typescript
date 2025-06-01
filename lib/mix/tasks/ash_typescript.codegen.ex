@@ -16,15 +16,24 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
 
     {opts, _remaining, _invalid} =
       OptionParser.parse(args,
-        switches: [files: :string, output: :string],
-        aliases: [f: :files, o: :string]
+        switches: [
+          files: :string,
+          output: :string,
+          process_endpoint: :string,
+          validate_endpoint: :string
+        ],
+        aliases: [f: :files, o: :string, p: :process_endpoint, v: :validate_endpoint]
       )
 
     otp_app = Mix.Project.config()[:app]
 
-    pattern = Keyword.get(opts, :files) || "assets/js/ash_rpc/*.json"
-    output_file = Keyword.get(opts, :output) || "assets/js/ash_rpc.ts"
+    pattern = Keyword.get(opts, :files, "assets/js/ash_rpc/*.json")
+    output_file = Keyword.get(opts, :output, "assets/js/ash_rpc.ts")
+    process_endpoint = Keyword.get(opts, :process_endpoint, "/rpc/run")
+    validate_endpoint = Keyword.get(opts, :validate_endpoint, "/rpc/validate")
 
+    endpoint_process_arg = "endpoint: string = \"#{process_endpoint}\""
+    endpoint_validate_arg = "endpoint: string = \"#{validate_endpoint}\""
     patterns = String.split(pattern, ",", trim: true)
     files = Enum.flat_map(patterns, &Path.wildcard/1) |> Enum.uniq()
 
@@ -39,6 +48,15 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
         AshTypescript.RPC.Info.rpc(domain)
       end)
 
+    load_type = """
+    type AshLoadList = Array<string | { [key: string]: AshLoadList }>;
+
+    function getCSRFToken(): string | null {
+      const metaElement = document.querySelector('meta[name="csrf-token"]');
+      return metaElement ? metaElement.getAttribute('content') : null;
+    }
+    """
+
     types =
       files
       |> Enum.flat_map(fn file ->
@@ -47,7 +65,7 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
         |> Jason.decode!()
         |> List.wrap()
       end)
-      |> Enum.reduce("", fn rpc_spec, content ->
+      |> Enum.reduce(load_type, fn rpc_spec, content ->
         {resource, rpc_action} =
           Enum.find_value(resources_and_actions, fn %{
                                                       resource: resource,
@@ -118,23 +136,182 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
           }#{if action.type == :read and not action.get?, do: "[]", else: ""}
           """
 
-        function =
-          """
-          export async function #{snake_to_camel(rpc_action.name)}(endpoint: string#{if input_type == "", do: "", else: ", input: #{input_type_name}"}): Promise<#{return_type_name}> {
-            return await fetch(endpoint, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({action: "#{rpc_action.name}"#{if input_type == "", do: ", input: {}", else: ", input"}#{if Enum.empty?(rpc_spec["select"] || []), do: "select: []", else: ", select: #{Jason.encode!(rpc_spec["select"])}"}#{if Enum.empty?(rpc_spec["load"] || []), do: ", load: []", else: ", load: #{Jason.encode!(rpc_spec["load"])}"}})
-            }).then(response => response.json())
-          }
-          """
+        validate_function =
+          if action.type == :read or not action_has_input?(action) do
+            ""
+          else
+            build_validate_function(rpc_spec, endpoint_validate_arg)
+          end
 
-        Enum.join([content, input_type, return_type, function], "\n")
+        Enum.join(
+          [
+            content,
+            input_type,
+            return_type,
+            build_payload_function(rpc_spec, action),
+            build_process_function(rpc_spec, action, endpoint_process_arg),
+            validate_function
+          ],
+          "\n"
+        )
       end)
 
     File.write!(output_file, types)
+  end
+
+  defp action_has_input?(action) do
+    case action.type do
+      :read -> not Enum.empty?(action.arguments)
+      _ -> not Enum.empty?(action.arguments) or not Enum.empty?(action.accept)
+    end
+  end
+
+  defp build_rpc_action_input_type_name(rpc_action_name),
+    do: "#{snake_to_pascal(rpc_action_name)}Input"
+
+  defp build_rpc_action_return_type_name(rpc_action_name),
+    do: "#{snake_to_pascal(rpc_action_name)}Return"
+
+  defp build_payload(rpc_spec, action) do
+    action_payload = "action: \"#{rpc_spec["action"]}\""
+
+    input =
+      if action_has_input?(action) do
+        "input"
+      else
+        "input: {}"
+      end
+
+    select =
+      if Map.get(rpc_spec, "select", []) |> Enum.empty?() do
+        "select: []"
+      else
+        "select: #{Jason.encode!(rpc_spec["select"])}"
+      end
+
+    load =
+      if Map.get(rpc_spec, "load", []) |> Enum.empty?() do
+        "load: []"
+      else
+        "load: #{Jason.encode!(rpc_spec["load"])}"
+      end
+
+    Enum.join([action_payload, input, select, load], ", ")
+  end
+
+  defp build_payload_function(rpc_spec, action) do
+    input_type = build_rpc_action_input_type_name(rpc_spec["action"])
+
+    input_arg =
+      if action_has_input?(action) do
+        "input: #{input_type}"
+      else
+        ""
+      end
+
+    payload = build_payload(rpc_spec, action)
+
+    return_type =
+      if action_has_input?(action) do
+        "{action: string, input: #{input_type}, select: string[], load: AshLoadList}"
+      else
+        "{action: string, input: {}, select: string[], load: AshLoadList}"
+      end
+
+    """
+    export function build#{snake_to_pascal(rpc_spec["action"])}Payload(#{input_arg}): #{return_type} {
+      return {#{payload}}
+    }
+    """
+  end
+
+  defp build_process_function(rpc_spec, action, endpoint_process_arg) do
+    input_type = build_rpc_action_input_type_name(rpc_spec["action"])
+
+    function_args =
+      if action_has_input?(action) do
+        "input: #{input_type}, #{endpoint_process_arg}"
+      else
+        endpoint_process_arg
+      end
+
+    payload = build_payload(rpc_spec, action)
+
+    return_type = build_rpc_action_return_type_name(rpc_spec["action"])
+
+    """
+    export async function #{snake_to_camel(rpc_spec["action"])}(#{function_args}): Promise<{success: true, data: #{return_type}, error: null} | {success: false, data: null, error: Record<string, string>}> {
+      const csrfToken = getCSRFToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+
+      return await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({#{payload}})
+      }).then(async (response) => {
+        if (response.ok) {
+          return response.json();
+        } else {
+          let errorMessage = `HTTP error ${response.status}`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || JSON.stringify(errorData);
+          } catch {
+            // fallback if response is not JSON
+            const text = await response.text();
+            if (text) errorMessage = text;
+          }
+          throw new Error(errorMessage);
+        }
+      })
+    }
+    """
+  end
+
+  defp build_validate_function(rpc_spec, endpoint_validate_arg) do
+    input_type = build_rpc_action_input_type_name(rpc_spec["action"])
+
+    function_args = "input: #{input_type}, #{endpoint_validate_arg}"
+
+    """
+    export async function validate#{snake_to_pascal(rpc_spec["action"])}(#{function_args}): Promise<{success: true, errors: Record<string, string>}> {
+      const csrfToken = getCSRFToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+
+      return await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({action: "#{rpc_spec["action"]}", input})
+      }).then(async (response) => {
+        if (response.ok) {
+          return response.json();
+        } else {
+          let errorMessage = `HTTP error ${response.status}`;
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || JSON.stringify(errorData);
+          } catch {
+            // fallback if response is not JSON
+            const text = await response.text();
+            if (text) errorMessage = text;
+          }
+          throw new Error(errorMessage);
+        }
+      })
+    }
+    """
   end
 
   defp snake_to_pascal(snake) when is_atom(snake) do
@@ -180,7 +357,7 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
     with nil <- Enum.find(attributes, &(&1.name == field)),
          nil <- Enum.find(calculations, &(&1.name == field)),
          nil <- Enum.find(aggregates, &(&1.name == field)) do
-      throw("Field not found: #{resource}.#{field}")
+      throw("Field not found: #{resource}.#{field}" |> String.replace("Elixir.", ""))
     else
       %Ash.Resource.Attribute{} = attr ->
         if attr.allow_nil? do
@@ -282,6 +459,7 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
   end
 
   defp get_ts_type(:count), do: "number"
+  defp get_ts_type(:map), do: "Record<string, any>"
   defp get_ts_type(Ash.Type.Atom), do: "string"
   defp get_ts_type(Ash.Type.UUID), do: "string"
   defp get_ts_type(AshDoubleEntry.ULID), do: "string"

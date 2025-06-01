@@ -51,9 +51,9 @@ defmodule AshTypescript.RPC do
 
   use Spark.Dsl.Extension, sections: [@rpc]
 
-  @spec process_action(otp_app :: atom, conn :: Plug.Conn.t(), params :: map) ::
-          {:ok, map} | {:error, String.t()}
-  def process_action(otp_app, conn, params) do
+  @spec run_action(otp_app :: atom, conn :: Plug.Conn.t(), params :: map) ::
+          %{success: boolean, data: map() | nil, error: map() | nil}
+  def run_action(otp_app, conn, params) do
     rpc_action =
       otp_app
       |> Ash.Info.domains()
@@ -118,14 +118,81 @@ defmodule AshTypescript.RPC do
         end
         |> case do
           {:ok, result} ->
-            if is_list(result) do
-              {:ok, Enum.map(result, fn res -> Map.take(res, fields_to_take) end)}
-            else
-              {:ok, Map.take(result, fields_to_take)}
-            end
+            result =
+              if is_list(result) do
+                Enum.map(result, fn res -> Map.take(res, fields_to_take) end)
+              else
+                Map.take(result, fields_to_take)
+              end
+
+            %{success: true, data: result, error: nil}
 
           {:error, error} ->
-            {:error, error}
+            %{success: false, data: nil, error: error}
+        end
+    end
+  end
+
+  def validate_action(otp_app, conn, params) do
+    IO.inspect(params, label: "PARAMS")
+
+    rpc_action =
+      otp_app
+      |> Ash.Info.domains()
+      |> Enum.flat_map(fn domain ->
+        AshTypescript.RPC.Info.rpc(domain)
+      end)
+      |> Enum.find_value(fn %{resource: resource, rpc_actions: rpc_actions} ->
+        Enum.find_value(rpc_actions, fn action ->
+          if to_string(action.name) == params["action"] do
+            {resource, action}
+          end
+        end)
+      end)
+
+    case rpc_action do
+      nil ->
+        raise "not found"
+
+      {resource, %{action: action}} ->
+        action = Ash.Resource.Info.action(resource, action)
+
+        opts = [
+          actor: Ash.PlugHelpers.get_actor(conn),
+          tenant: Ash.PlugHelpers.get_tenant(conn),
+          context: Ash.PlugHelpers.get_context(conn) || %{}
+        ]
+
+        case action.type do
+          :read ->
+            {:error, "Cannot validate a read action"}
+
+          :create ->
+            resource
+            |> AshPhoenix.Form.for_action(action.name, opts)
+            |> AshPhoenix.Form.validate(params["input"])
+            |> AshPhoenix.Form.errors()
+            |> Enum.into(%{})
+
+          _ ->
+            primary_key = Ash.Resource.Info.primary_key(resource)
+            primary_key_as_strings = Enum.map(primary_key, &to_string/1)
+            params_pkey_fields = Map.keys(params["primary_key"])
+
+            with true <-
+                   Enum.all?(primary_key_as_strings, fn pkey ->
+                     pkey in params_pkey_fields
+                   end),
+                 pkey <- Map.take(params["primary_key"], primary_key_as_strings),
+                 {:ok, record} <- Ash.get(resource, pkey, opts) do
+              {:ok,
+               record
+               |> AshPhoenix.Form.for_action(action.name, opts)
+               |> AshPhoenix.Form.validate(params["input"])}
+            else
+              false -> {:error, "Invalid primary key"}
+              {:error, _} -> {:error, "Record not found"}
+            end
         end
     end
   end
