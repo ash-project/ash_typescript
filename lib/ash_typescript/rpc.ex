@@ -115,6 +115,11 @@ defmodule AshTypescript.RPC do
             |> Ash.Changeset.select(select)
             |> Ash.Changeset.load(load)
             |> Ash.destroy()
+
+          :action ->
+            resource
+            |> Ash.Changeset.for_action(action.name, params["input"], opts)
+            |> Ash.run_action()
         end
         |> case do
           {:ok, result} ->

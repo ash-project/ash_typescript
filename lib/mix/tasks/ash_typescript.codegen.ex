@@ -525,6 +525,10 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
         """
 
       true ->
+        if select != [] do
+          raise "Cannot use select with generic action #{action.name}, since it does not return a resource or a map."
+        end
+
         if load != [] do
           raise "Cannot use load with generic action #{action.name}, since it does not return a resource."
         end
