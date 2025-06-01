@@ -89,9 +89,9 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
 
         action = Ash.Resource.Info.action(resource, rpc_action.action)
         primary_key = Ash.Resource.Info.primary_key(resource)
-        loads = Helpers.parse_json_select_and_load(rpc_spec["load"] || [])
+        load = Helpers.parse_json_select_and_load(rpc_spec["load"] || [])
         select = Helpers.parse_json_select_and_load(rpc_spec["select"] || [])
-        fields = (select ++ loads) |> Enum.uniq()
+        fields = (select ++ load) |> Enum.uniq()
 
         input_type_name = "#{snake_to_pascal(rpc_action.name)}Input"
 
@@ -116,6 +116,17 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
               }
               """
 
+            :action ->
+              if Enum.empty?(action.arguments) do
+                ""
+              else
+                """
+                export type #{input_type_name} = {
+                #{Enum.map_join(action.arguments, "\n", &get_action_argument_spec(&1))}
+                }
+                """
+              end
+
             _ ->
               """
               export type #{input_type_name} = {
@@ -128,16 +139,20 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
         return_type_name = "#{snake_to_pascal(rpc_action.name)}Return"
 
         return_type =
-          """
-          export type #{return_type_name} = {
-          #{Enum.map_join(fields,
-          "\n",
-          &get_field_spec(&1, resource))}
-          }#{if action.type == :read and not action.get?, do: "[]", else: ""}
-          """
+          if action.type == :action do
+            build_generic_action_return_type(action, return_type_name, select, load, otp_app)
+          else
+            """
+            export type #{return_type_name} = {
+            #{Enum.map_join(fields,
+            "\n",
+            &get_field_spec(&1, resource))}
+            }#{if action.type == :read and not action.get?, do: "[]", else: ""}
+            """
+          end
 
         validate_function =
-          if action.type == :read or not action_has_input?(action) do
+          if action.type in [:read, :action] or not action_has_input?(action) do
             ""
           else
             build_validate_function(rpc_spec, endpoint_validate_arg)
@@ -162,6 +177,7 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
   defp action_has_input?(action) do
     case action.type do
       :read -> not Enum.empty?(action.arguments)
+      :action -> not Enum.empty?(action.arguments)
       _ -> not Enum.empty?(action.arguments) or not Enum.empty?(action.accept)
     end
   end
@@ -361,16 +377,16 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
     else
       %Ash.Resource.Attribute{} = attr ->
         if attr.allow_nil? do
-          "  #{field}?: #{get_ts_type(attr.type)} | null;"
+          "  #{field}?: #{get_ts_type(attr)} | null;"
         else
-          "  #{field}: #{get_ts_type(attr.type)};"
+          "  #{field}: #{get_ts_type(attr)};"
         end
 
       %Ash.Resource.Calculation{} = calc ->
         if calc.allow_nil? do
-          "  #{field}?: #{get_ts_type(calc.type)} | null;"
+          "  #{field}?: #{get_ts_type(calc)} | null;"
         else
-          "  #{field}: #{get_ts_type(calc.type)};"
+          "  #{field}: #{get_ts_type(calc)};"
         end
 
       %Ash.Resource.Aggregate{} = agg ->
@@ -430,23 +446,22 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
     attribute = Ash.Resource.Info.attribute(resource, attr)
 
     if attribute.allow_nil? or attribute.default != nil do
-      "  #{attr}?: #{get_ts_type(attribute.type)} | null;"
+      "  #{attr}?: #{get_ts_type(attribute)} | null;"
     else
-      "  #{attr}: #{get_ts_type(attribute.type)};"
+      "  #{attr}: #{get_ts_type(attribute)};"
     end
   end
 
   defp get_action_argument_spec(argument) do
     if argument.allow_nil? or argument.default != nil do
-      "  #{argument.name}?: #{get_ts_type(argument.type)} | null;"
+      "  #{argument.name}?: #{get_ts_type(argument)} | null;"
     else
-      "  #{argument.name}: #{get_ts_type(argument.type)};"
+      "  #{argument.name}: #{get_ts_type(argument)};"
     end
   end
 
   defp lookup_aggregate_type(current_resource, [], field) do
     Ash.Resource.Info.attribute(current_resource, field)
-    |> Map.get(:type)
   end
 
   defp lookup_aggregate_type(current_resource, relationship_path, field) do
@@ -458,30 +473,100 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
     lookup_aggregate_type(relationship.destination, rest, field)
   end
 
-  defp get_ts_type(:count), do: "number"
-  defp get_ts_type(:map), do: "Record<string, any>"
-  defp get_ts_type(Ash.Type.Atom), do: "string"
-  defp get_ts_type(Ash.Type.UUID), do: "string"
-  defp get_ts_type(AshDoubleEntry.ULID), do: "string"
-  defp get_ts_type(Ash.Type.String), do: "string"
-  defp get_ts_type(Ash.Type.UtcDatetime), do: "string"
-  defp get_ts_type(Ash.Type.UtcDatetimeUsec), do: "string"
-  defp get_ts_type(Ash.Type.Date), do: "string"
-  defp get_ts_type(Ash.Type.DateTime), do: "string"
-  defp get_ts_type(Ash.Type.Time), do: "string"
-  defp get_ts_type(Ash.Type.Map), do: "Record<string, any>"
-  defp get_ts_type(Ash.Type.CiString), do: "string"
-  defp get_ts_type(Ash.Type.Integer), do: "number"
-  defp get_ts_type(Ash.Type.Boolean), do: "boolean"
-  defp get_ts_type(Ash.Type.Float), do: "number"
-  defp get_ts_type(Ash.Type.Keyword), do: "string"
-  defp get_ts_type(AshMoney.Types.Money), do: "{currency: string, amount: string}"
+  defp build_generic_action_return_type(action, return_type_name, select, load, otp_app) do
+    cond do
+      action.returns in [Ash.Type.Struct, {:array, Ash.Type.Struct}] ->
+        instance_of = action.constraints[:instance_of]
 
-  defp get_ts_type(maybe_enum) when is_atom(maybe_enum) do
-    if Spark.implements_behaviour?(maybe_enum, Ash.Type.Enum) do
-      maybe_enum.values() |> Enum.map(&"\"#{to_string(&1)}\"") |> Enum.join(" | ")
-    else
-      raise "Unknown type: #{inspect(maybe_enum)}"
+        is_array = is_tuple(action.returns)
+
+        app_resources =
+          otp_app
+          |> Ash.Info.domains()
+          |> Enum.flat_map(fn d -> Ash.Domain.Info.resources(d) end)
+
+        resource = Enum.find(app_resources, &(&1 == instance_of))
+
+        if resource do
+          """
+          export type #{return_type_name} = {
+          #{Enum.map_join(select ++ load,
+          "\n",
+          &get_field_spec(&1, resource))}
+          }#{if is_array, do: "[]", else: ""}
+          """
+        else
+          if load != [] do
+            raise "Cannot use load with generic action #{action.name}, since it does not return a resource."
+          end
+
+          """
+          export type #{return_type_name} = {
+          #{Enum.map_join(select,
+          "\n",
+          &"#{&1}?: any")}
+          }#{if is_array, do: "[]", else: ""}
+          """
+        end
+
+      action.returns in [:map, Ash.Type.Map, {:array, :map}, {:array, Ash.Type.Map}] ->
+        if load != [] do
+          raise "Cannot use load with generic action #{action.name}, since it does not return a resource."
+        end
+
+        is_array = is_tuple(action.returns)
+
+        """
+        export type #{return_type_name} = {
+          #{Enum.map_join(select,
+        "\n",
+        &"#{&1}?: any")}
+        }#{if is_array, do: "[]", else: ""}
+        """
+
+      true ->
+        if load != [] do
+          raise "Cannot use load with generic action #{action.name}, since it does not return a resource."
+        end
+
+        get_ts_type(%{type: action.returns, constraints: action.constraints})
+    end
+  end
+
+  defp get_ts_type(%{type: nil}), do: "null"
+  defp get_ts_type(%{type: :sum}), do: "number"
+  defp get_ts_type(%{type: :count}), do: "number"
+  defp get_ts_type(%{type: :map}), do: "Record<string, any>"
+  defp get_ts_type(%{type: Ash.Type.Atom}), do: "string"
+  defp get_ts_type(%{type: Ash.Type.UUID}), do: "string"
+  defp get_ts_type(%{type: Ash.Type.String}), do: "string"
+  defp get_ts_type(%{type: Ash.Type.UtcDatetime}), do: "string"
+  defp get_ts_type(%{type: Ash.Type.UtcDatetimeUsec}), do: "string"
+  defp get_ts_type(%{type: Ash.Type.Date}), do: "string"
+  defp get_ts_type(%{type: Ash.Type.DateTime}), do: "string"
+  defp get_ts_type(%{type: Ash.Type.Time}), do: "string"
+  defp get_ts_type(%{type: Ash.Type.Map}), do: "Record<string, any>"
+  defp get_ts_type(%{type: Ash.Type.CiString}), do: "string"
+  defp get_ts_type(%{type: Ash.Type.Integer}), do: "number"
+  defp get_ts_type(%{type: Ash.Type.Boolean}), do: "boolean"
+  defp get_ts_type(%{type: Ash.Type.Float}), do: "number"
+  defp get_ts_type(%{type: Ash.Type.Keyword}), do: "string"
+  defp get_ts_type(%{type: AshDoubleEntry.ULID}), do: "string"
+  defp get_ts_type(%{type: AshMoney.Types.Money}), do: "{currency: string, amount: string}"
+
+  defp get_ts_type(%{type: type, constraints: constraints} = attr) do
+    cond do
+      Ash.Type.NewType.new_type?(type) ->
+        sub_type_constraints = Ash.Type.NewType.constraints(type, constraints)
+        subtype = Ash.Type.NewType.subtype_of(type)
+
+        get_ts_type(%{attr | type: subtype, constraints: sub_type_constraints})
+
+      Spark.implements_behaviour?(type, Ash.Type.Enum) ->
+        type.values() |> Enum.map(&"\"#{to_string(&1)}\"") |> Enum.join(" | ")
+
+      true ->
+        raise "unsupported type #{inspect(type)}"
     end
   end
 end

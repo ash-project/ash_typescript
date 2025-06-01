@@ -134,8 +134,6 @@ defmodule AshTypescript.RPC do
   end
 
   def validate_action(otp_app, conn, params) do
-    IO.inspect(params, label: "PARAMS")
-
     rpc_action =
       otp_app
       |> Ash.Info.domains()
@@ -167,6 +165,9 @@ defmodule AshTypescript.RPC do
           :read ->
             {:error, "Cannot validate a read action"}
 
+          :action ->
+            {:error, "Cannot validate a generic action"}
+
           :create ->
             resource
             |> AshPhoenix.Form.for_action(action.name, opts)
@@ -185,10 +186,11 @@ defmodule AshTypescript.RPC do
                    end),
                  pkey <- Map.take(params["primary_key"], primary_key_as_strings),
                  {:ok, record} <- Ash.get(resource, pkey, opts) do
-              {:ok,
-               record
-               |> AshPhoenix.Form.for_action(action.name, opts)
-               |> AshPhoenix.Form.validate(params["input"])}
+              record
+              |> AshPhoenix.Form.for_action(action.name, opts)
+              |> AshPhoenix.Form.validate(params["input"])
+              |> AshPhoenix.Form.errors()
+              |> Enum.into(%{})
             else
               false -> {:error, "Invalid primary key"}
               {:error, _} -> {:error, "Record not found"}
