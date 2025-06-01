@@ -524,6 +524,9 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
         }#{if is_array, do: "[]", else: ""}
         """
 
+      is_tuple(action.returns) and elem(action.returns, 0) == :array ->
+        "Array<#{get_ts_type(%{type: action.returns, constraints: action.constraints})}>"
+
       true ->
         if select != [] do
           raise "Cannot use select with generic action #{action.name}, since it does not return a resource or a map."
