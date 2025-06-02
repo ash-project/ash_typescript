@@ -1,0 +1,264 @@
+defmodule AshTypescript.Test.TodoStatus do
+  use Ash.Type.Enum, values: [:pending, :ongoing, :finished, :cancelled]
+end
+
+defmodule AshTypescript.Test.Comment do
+  use Ash.Resource,
+    domain: AshTypescript.Test.Domain,
+    data_layer: Ash.DataLayer.Ets,
+    primary_read_warning?: false
+
+  attributes do
+    uuid_primary_key :id
+
+    attribute :content, :string do
+      allow_nil? false
+      public? true
+    end
+
+    attribute :author_name, :string do
+      allow_nil? false
+      public? true
+    end
+
+    attribute :rating, :integer do
+      constraints min: 1, max: 5
+      public? true
+    end
+
+    attribute :is_helpful, :boolean do
+      default false
+      public? true
+    end
+
+    create_timestamp :created_at
+    update_timestamp :updated_at
+  end
+
+  relationships do
+    belongs_to :todo, AshTypescript.Test.Todo do
+      allow_nil? false
+      public? true
+    end
+  end
+
+  actions do
+    defaults [:read, :create, :update, :destroy]
+  end
+end
+
+defmodule AshTypescript.Test.Todo do
+  use Ash.Resource,
+    domain: AshTypescript.Test.Domain,
+    data_layer: Ash.DataLayer.Ets,
+    primary_read_warning?: false
+
+  attributes do
+    uuid_primary_key :id
+
+    attribute :title, :string do
+      allow_nil? false
+      public? true
+    end
+
+    attribute :description, :string do
+      public? true
+    end
+
+    attribute :completed, :boolean do
+      default false
+      public? true
+    end
+
+    attribute :status, AshTypescript.Test.TodoStatus do
+      default :pending
+      public? true
+    end
+
+    attribute :priority, :atom do
+      constraints one_of: [:low, :medium, :high, :urgent]
+      default :medium
+      public? true
+    end
+
+    attribute :due_date, :date do
+      public? true
+    end
+
+    attribute :tags, {:array, :string} do
+      default []
+      public? true
+    end
+
+    attribute :metadata, :map do
+      public? true
+    end
+
+    create_timestamp :created_at
+    update_timestamp :updated_at
+  end
+
+  relationships do
+    has_many :comments, AshTypescript.Test.Comment
+  end
+
+  aggregates do
+    count :comment_count, :comments
+
+    count :helpful_comment_count, :comments do
+      filter expr(is_helpful == true)
+    end
+
+    exists :has_comments, :comments
+
+    avg :average_rating, :comments, :rating
+
+    max :highest_rating, :comments, :rating
+
+    first :latest_comment_content, :comments, :content do
+      sort created_at: :desc
+    end
+
+    list :comment_authors, :comments, :author_name
+  end
+
+  calculations do
+    calculate :is_overdue, :boolean, expr(not is_nil(due_date) and due_date < today()) do
+      public? true
+    end
+
+    calculate :days_until_due,
+              :integer,
+              expr(if(is_nil(due_date), nil, date_diff(due_date, today(), :day))) do
+      public? true
+    end
+  end
+
+  actions do
+    defaults [:destroy]
+
+    read :read do
+      primary? true
+      argument :filter_completed, :boolean
+
+      argument :priority_filter, :atom do
+        constraints one_of: [:low, :medium, :high, :urgent]
+      end
+
+      filter expr(
+               if not is_nil(^arg(:filter_completed)) do
+                 completed == ^arg(:filter_completed)
+               else
+                 true
+               end and
+                 if not is_nil(^arg(:priority_filter)) do
+                   priority == ^arg(:priority_filter)
+                 else
+                   true
+                 end
+             )
+    end
+
+    read :get do
+      get? true
+      argument :id, :uuid, allow_nil?: false
+      filter expr(id == ^arg(:id))
+    end
+
+    create :create do
+      primary? true
+      accept [:title, :description, :status, :priority, :due_date, :tags, :metadata]
+
+      argument :auto_complete, :boolean do
+        default false
+      end
+
+      change set_attribute(:completed, arg(:auto_complete))
+    end
+
+    update :update do
+      primary? true
+      accept [:title, :description, :completed, :status, :priority, :due_date, :tags, :metadata]
+    end
+
+    update :complete do
+      accept []
+      change set_attribute(:completed, true)
+    end
+
+    update :set_priority do
+      argument :priority, :atom do
+        allow_nil? false
+        constraints one_of: [:low, :medium, :high, :urgent]
+      end
+
+      change set_attribute(:priority, arg(:priority))
+    end
+
+    action :bulk_complete, {:array, :uuid} do
+      argument :todo_ids, {:array, :uuid}, allow_nil?: false
+
+      run fn input, _context ->
+        # This would normally update multiple todos, but for testing we'll just return the IDs
+        {:ok, input.arguments.todo_ids}
+      end
+    end
+
+    action :get_statistics, :map do
+      constraints fields: [
+                    total: [type: :integer, allow_nil?: false],
+                    completed: [type: :integer, allow_nil?: false],
+                    pending: [type: :integer, allow_nil?: false],
+                    overdue: [type: :integer, allow_nil?: false]
+                  ]
+
+      run fn _input, _context ->
+        {:ok,
+         %{
+           total: 10,
+           completed: 6,
+           pending: 4,
+           overdue: 2
+         }}
+      end
+    end
+
+    action :search, {:array, Ash.Type.Struct} do
+      constraints instance_of: __MODULE__
+
+      argument :query, :string, allow_nil?: false
+      argument :include_completed, :boolean, default: true
+
+      run fn _input, _context ->
+        # This would normally search todos, but for testing we'll return empty
+        {:ok, []}
+      end
+    end
+  end
+end
+
+defmodule AshTypescript.Test.Domain do
+  use Ash.Domain,
+    otp_app: :ash_typescript,
+    extensions: [AshTypescript.RPC]
+
+  rpc do
+    resource AshTypescript.Test.Todo do
+      rpc_action :read_todo, :read
+      rpc_action :get_todo, :get
+      rpc_action :create_todo, :create
+      rpc_action :update_todo, :update
+      rpc_action :complete_todo, :complete
+      rpc_action :set_priority_todo, :set_priority
+      rpc_action :bulk_complete_todo, :bulk_complete
+      rpc_action :get_statistics_todo, :get_statistics
+      rpc_action :search_todo, :search
+      rpc_action :destroy_todo, :destroy
+    end
+  end
+
+  resources do
+    resource AshTypescript.Test.Todo
+    resource AshTypescript.Test.Comment
+  end
+end

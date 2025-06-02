@@ -1,19 +1,32 @@
 defmodule AshTypescript.Helpers do
-  def parse_json_select_and_load(list) when is_list(list) do
-    list
-    |> Enum.map(&transform/1)
-    |> reorder_atoms_and_keywords()
+  def snake_to_pascal(snake) when is_atom(snake) do
+    snake
+    |> Atom.to_string()
+    |> snake_to_pascal()
   end
 
-  defp transform(%{} = map) when map_size(map) == 1 do
-    [{k, v}] = Map.to_list(map)
-    {String.to_atom(k), parse_json_select_and_load(v)}
+  def snake_to_pascal(snake) when is_binary(snake) do
+    snake
+    |> String.split("_")
+    |> Enum.with_index()
+    |> Enum.map(fn {part, _} -> String.capitalize(part) end)
+    |> Enum.join()
   end
 
-  defp transform(str) when is_binary(str), do: String.to_atom(str)
+  def snake_to_camel(snake) when is_atom(snake) do
+    snake
+    |> Atom.to_string()
+    |> snake_to_camel()
+  end
 
-  defp reorder_atoms_and_keywords(items) do
-    {atoms, keywords} = Enum.split_with(items, &is_atom/1)
-    atoms ++ keywords
+  def snake_to_camel(snake) when is_binary(snake) do
+    snake
+    |> String.split("_")
+    |> Enum.with_index()
+    |> Enum.map(fn
+      {part, 0} -> String.downcase(part)
+      {part, _} -> String.capitalize(part)
+    end)
+    |> Enum.join()
   end
 end

@@ -1,5 +1,5 @@
 defmodule AshTypescript.RPC do
-  alias AshTypescript.Helpers
+  import AshTypescript.RPC.Helpers
 
   defmodule RPCAction do
     defstruct [:name, :action]
@@ -81,19 +81,26 @@ defmodule AshTypescript.RPC do
           context: Ash.PlugHelpers.get_context(conn) || %{}
         ]
 
-        select = Helpers.parse_json_select_and_load(params["select"])
-        load = Helpers.parse_json_select_and_load(params["load"])
+        select = parse_json_select_and_load(params["select"])
+        load = parse_json_select_and_load(params["load"])
 
         root_loads = Enum.reject(load, &is_tuple/1)
         fields_to_take = select ++ root_loads
 
         case action.type do
           :read ->
-            resource
-            |> Ash.Query.for_read(action.name, params["input"], opts)
-            |> Ash.Query.select(select)
-            |> Ash.Query.load(load)
-            |> Ash.read()
+            result =
+              resource
+              |> Ash.Query.for_read(action.name, params["input"], opts)
+              |> Ash.Query.select(select)
+              |> Ash.Query.load(load)
+              |> Ash.read()
+
+            # Handle get actions that should return a single item
+            case result do
+              {:ok, [single_item]} when action.get? -> {:ok, single_item}
+              other -> other
+            end
 
           :create ->
             resource
@@ -103,40 +110,69 @@ defmodule AshTypescript.RPC do
             |> Ash.create()
 
           :update ->
-            resource
-            |> Ash.Changeset.for_update(action.name, params["input"], opts)
-            |> Ash.Changeset.select(select)
-            |> Ash.Changeset.load(load)
-            |> Ash.update()
+            # For update actions, we need to get the record first
+            primary_key = Ash.Resource.Info.primary_key(resource)
+            input = params["input"]
+
+            with {:ok, record} <- Ash.get(resource, params["primary_key"], opts) do
+              record
+              |> Ash.Changeset.for_update(action.name, input, opts)
+              |> Ash.Changeset.select(select)
+              |> Ash.Changeset.load(load)
+              |> Ash.update()
+            end
 
           :destroy ->
-            resource
-            |> Ash.Changeset.for_destroy(action.name, params["input"], opts)
-            |> Ash.Changeset.select(select)
-            |> Ash.Changeset.load(load)
-            |> Ash.destroy()
+            # For destroy actions, we need to get the record first
+            primary_key = Ash.Resource.Info.primary_key(resource)
+            input = params["input"]
+
+            with {:ok, record} <- Ash.get(resource, params["primary_key"], opts) do
+              record
+              |> Ash.Changeset.for_destroy(action.name, input, opts)
+              |> Ash.Changeset.select(select)
+              |> Ash.Changeset.load(load)
+              |> Ash.destroy()
+            end
 
           :action ->
             resource
-            |> Ash.Changeset.for_action(action.name, params["input"], opts)
+            |> Ash.ActionInput.for_action(action.name, params["input"], opts)
             |> Ash.run_action()
         end
         |> case do
-          {:ok, result} ->
-            result =
-              if is_list(result) do
-                Enum.map(result, fn res -> Map.take(res, fields_to_take) end)
-              else
-                Map.take(result, fields_to_take)
-              end
+          :ok ->
+            %{success: true, data: %{}, error: nil}
 
-            %{success: true, data: result, error: nil}
+          {:ok, result} ->
+            return_value = extract_return_value(result, fields_to_take)
+
+            %{success: true, data: return_value, error: nil}
 
           {:error, error} ->
             %{success: false, data: nil, error: error}
         end
     end
   end
+
+  defp extract_return_value(result, fields_to_take) when is_struct(result) do
+    Map.take(result, fields_to_take)
+  end
+
+  defp extract_return_value(result, fields_to_take) when is_map(result) do
+    Map.take(result, fields_to_take)
+  end
+
+  defp extract_return_value(result, fields_to_take) when is_list(result) do
+    Enum.map(result, fn res -> extract_return_value(res, fields_to_take) end)
+  end
+
+  defp extract_return_value(return_value, []), do: return_value
+
+  defp extract_return_value(_return_value, _list),
+    do:
+      {:error,
+       "select and load lists must be empty when returning other values than a struct or map."}
 
   def validate_action(otp_app, conn, params) do
     rpc_action =
@@ -181,24 +217,16 @@ defmodule AshTypescript.RPC do
             |> Enum.into(%{})
 
           _ ->
-            primary_key = Ash.Resource.Info.primary_key(resource)
-            primary_key_as_strings = Enum.map(primary_key, &to_string/1)
-            params_pkey_fields = Map.keys(params["primary_key"])
+            case Ash.get(resource, params["primary_key"], opts) do
+              {:ok, record} ->
+                record
+                |> AshPhoenix.Form.for_action(action.name, opts)
+                |> AshPhoenix.Form.validate(params["input"])
+                |> AshPhoenix.Form.errors()
+                |> Enum.into(%{})
 
-            with true <-
-                   Enum.all?(primary_key_as_strings, fn pkey ->
-                     pkey in params_pkey_fields
-                   end),
-                 pkey <- Map.take(params["primary_key"], primary_key_as_strings),
-                 {:ok, record} <- Ash.get(resource, pkey, opts) do
-              record
-              |> AshPhoenix.Form.for_action(action.name, opts)
-              |> AshPhoenix.Form.validate(params["input"])
-              |> AshPhoenix.Form.errors()
-              |> Enum.into(%{})
-            else
-              false -> {:error, "Invalid primary key"}
-              {:error, _} -> {:error, "Record not found"}
+              {:error, _} ->
+                {:error, "Record not found"}
             end
         end
     end
