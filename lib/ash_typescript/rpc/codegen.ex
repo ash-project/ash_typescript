@@ -2,6 +2,7 @@ defmodule AshTypescript.RPC.Codegen do
   import AshTypescript.Helpers
   import AshTypescript.RPC.Helpers
   import AshTypescript.TS.Codegen
+  alias AshTypescript.TS.Filter
 
   def generate_typescript_types(otp_app, rpc_specs, opts \\ []) do
     process_endpoint = Keyword.get(opts, :process_endpoint, "/rpc/run")
@@ -36,6 +37,9 @@ defmodule AshTypescript.RPC.Codegen do
         endpoint_validate_arg,
         otp_app
       ) do
+    # Generate filter types for all resources
+    filter_types = Filter.generate_all_filter_types(otp_app)
+
     load_type = """
     type AshLoadList = Array<string | { [key: string]: AshLoadList }>;
 
@@ -43,6 +47,8 @@ defmodule AshTypescript.RPC.Codegen do
       const metaElement = document.querySelector('meta[name="csrf-token"]');
       return metaElement ? metaElement.getAttribute('content') : null;
     }
+
+    #{filter_types}
     """
 
     rpc_specs
@@ -91,6 +97,9 @@ defmodule AshTypescript.RPC.Codegen do
         build_validate_function(rpc_spec, endpoint_validate_arg)
       end
 
+    # Store resources_and_actions in process dictionary for build_payload_function
+    Process.put(:resources_and_actions, resources_and_actions)
+
     Enum.join(
       [
         content,
@@ -125,15 +134,24 @@ defmodule AshTypescript.RPC.Codegen do
   def generate_input_type(action, input_type_name, primary_key, resource) do
     case action.type do
       :read ->
-        if Enum.empty?(action.arguments) do
-          ""
-        else
-          """
-          export type #{input_type_name} = {
-          #{Enum.map_join(action.arguments, "\n", &get_action_argument_spec(&1))}
-          }
-          """
-        end
+        resource_name = resource |> Module.split() |> List.last()
+        filter_type_name = "#{resource_name}FilterInput"
+        arguments_specs = Enum.map_join(action.arguments, "\n", &get_action_argument_spec(&1))
+
+        filter_field = "  filter?: #{filter_type_name};"
+
+        fields =
+          if Enum.empty?(action.arguments) do
+            filter_field
+          else
+            arguments_specs <> "\n" <> filter_field
+          end
+
+        """
+        export type #{input_type_name} = {
+        #{fields}
+        }
+        """
 
       :update ->
         """
@@ -219,26 +237,52 @@ defmodule AshTypescript.RPC.Codegen do
         "load: #{Jason.encode!(rpc_spec["load"])}"
       end
 
-    Enum.join([action_payload, input, select, load], ", ")
+    if action.type == :read do
+      filter = "filter: filter || {}"
+      Enum.join([action_payload, input, select, load, filter], ", ")
+    else
+      Enum.join([action_payload, input, select, load], ", ")
+    end
   end
 
   def build_payload_function(rpc_spec, action) do
+    resources_and_actions = Process.get(:resources_and_actions)
+    {resource, _rpc_action} = find_resource_and_action(rpc_spec, resources_and_actions)
+    resource_name = resource |> Module.split() |> List.last()
+    filter_type = "#{resource_name}FilterInput"
+
     input_type = build_rpc_action_input_type_name(rpc_spec["action"])
 
     input_arg =
-      if action_has_input?(action) do
-        "input: #{input_type}"
+      if action.type == :read do
+        if action_has_input?(action) do
+          "input: #{input_type}, filter?: #{filter_type}"
+        else
+          "filter?: #{filter_type}"
+        end
       else
-        ""
+        if action_has_input?(action) do
+          "input: #{input_type}"
+        else
+          ""
+        end
       end
 
     payload = build_payload(rpc_spec, action)
 
     return_type =
-      if action_has_input?(action) do
-        "{action: string, input: #{input_type}, select: string[], load: AshLoadList}"
+      if action.type == :read do
+        if action_has_input?(action) do
+          "{action: string, input: #{input_type}, select: string[], load: AshLoadList, filter?: #{filter_type}}"
+        else
+          "{action: string, input: {}, select: string[], load: AshLoadList, filter?: #{filter_type}}"
+        end
       else
-        "{action: string, input: {}, select: string[], load: AshLoadList}"
+        if action_has_input?(action) do
+          "{action: string, input: #{input_type}, select: string[], load: AshLoadList}"
+        else
+          "{action: string, input: {}, select: string[], load: AshLoadList}"
+        end
       end
 
     """
@@ -249,13 +293,26 @@ defmodule AshTypescript.RPC.Codegen do
   end
 
   def build_process_function(rpc_spec, action, endpoint_process_arg) do
+    resources_and_actions = Process.get(:resources_and_actions)
+    {resource, _rpc_action} = find_resource_and_action(rpc_spec, resources_and_actions)
+    resource_name = resource |> Module.split() |> List.last()
+    filter_type = "#{resource_name}FilterInput"
+
     input_type = build_rpc_action_input_type_name(rpc_spec["action"])
 
     function_args =
-      if action_has_input?(action) do
-        "input: #{input_type}, #{endpoint_process_arg}"
+      if action.type == :read do
+        if action_has_input?(action) do
+          "input: #{input_type}, filter?: #{filter_type}, #{endpoint_process_arg}"
+        else
+          "filter?: #{filter_type}, #{endpoint_process_arg}"
+        end
       else
-        endpoint_process_arg
+        if action_has_input?(action) do
+          "input: #{input_type}, #{endpoint_process_arg}"
+        else
+          endpoint_process_arg
+        end
       end
 
     payload = build_payload(rpc_spec, action)
@@ -298,6 +355,10 @@ defmodule AshTypescript.RPC.Codegen do
   end
 
   def build_validate_function(rpc_spec, endpoint_validate_arg) do
+    resources_and_actions = Process.get(:resources_and_actions)
+    {resource, _rpc_action} = find_resource_and_action(rpc_spec, resources_and_actions)
+    resource_name = resource |> Module.split() |> List.last()
+
     input_type = build_rpc_action_input_type_name(rpc_spec["action"])
 
     function_args = "input: #{input_type}, #{endpoint_validate_arg}"

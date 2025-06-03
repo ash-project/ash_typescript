@@ -1,5 +1,7 @@
 defmodule AshTypescript.RPC do
   import AshTypescript.RPC.Helpers
+  alias AshTypescript.TS.Filter
+  require Ash.Query
 
   defmodule RPCAction do
     defstruct [:name, :action]
@@ -83,18 +85,31 @@ defmodule AshTypescript.RPC do
 
         select = parse_json_select_and_load(params["select"])
         load = parse_json_select_and_load(params["load"])
+        filter = params["filter"]
 
         root_loads = Enum.reject(load, &is_tuple/1)
         fields_to_take = select ++ root_loads
 
         case action.type do
           :read ->
-            result =
+            query =
               resource
               |> Ash.Query.for_read(action.name, params["input"], opts)
               |> Ash.Query.select(select)
               |> Ash.Query.load(load)
-              |> Ash.read()
+
+            # Apply filter if provided
+            query =
+              if filter do
+                case Filter.translate_filter(filter, resource) do
+                  nil -> query
+                  ash_filter -> Ash.Query.filter(query, ^ash_filter)
+                end
+              else
+                query
+              end
+
+            result = Ash.read(query)
 
             # Handle get actions that should return a single item
             case result do
@@ -146,7 +161,6 @@ defmodule AshTypescript.RPC do
 
           {:ok, result} ->
             return_value = extract_return_value(result, fields_to_take)
-
             %{success: true, data: return_value, error: nil}
 
           {:error, error} ->
