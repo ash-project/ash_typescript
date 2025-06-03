@@ -499,8 +499,9 @@ defmodule AshTypescript.RPCTest do
 
       if is_list(data) and length(data) > 0 do
         first_todo = List.first(data)
-        expected_keys = [:id, :title, :completed, :comment_count, :has_comments] |> Enum.sort()
-        assert Map.keys(first_todo) |> Enum.sort() == expected_keys
+        expected_keys = [:id, :title, :completed, :comment_count, :has_comments]
+        assert Enum.all?(expected_keys, &Map.has_key?(first_todo, &1))
+        assert Map.keys(first_todo) |> Enum.count() == 5
       end
     end
 
@@ -565,6 +566,485 @@ defmodule AshTypescript.RPCTest do
       result = RPC.run_action(:ash_typescript, conn_with_context, params)
 
       assert %{success: true, data: _data, error: nil} = result
+    end
+  end
+
+  describe "filtering functionality" do
+    setup %{conn: conn} do
+      # Create test data with specific attributes for filtering tests
+      # First create some todos that should be completed
+      completed_todos_data = [
+        %{
+          title: "Medium Priority Task",
+          priority: "medium",
+          description: "Regular work",
+          auto_complete: true
+        },
+        %{
+          title: "Urgent Task",
+          priority: "urgent",
+          description: "Critical work",
+          auto_complete: true
+        },
+        %{
+          title: "Another High Task",
+          priority: "high",
+          description: "More important work",
+          auto_complete: true
+        }
+      ]
+
+      # Create some todos that should not be completed
+      uncompleted_todos_data = [
+        %{
+          title: "High Priority Task",
+          priority: "high",
+          description: "Important work",
+          auto_complete: false
+        },
+        %{
+          title: "Low Priority Task",
+          priority: "low",
+          description: "Nice to have",
+          auto_complete: false
+        }
+      ]
+
+      all_todos_data = completed_todos_data ++ uncompleted_todos_data
+
+      created_todos =
+        Enum.map(all_todos_data, fn todo_attrs ->
+          params = %{
+            "action" => "create_todo",
+            "input" => todo_attrs,
+            "select" => ["id", "title", "priority", "completed", "description"],
+            "load" => []
+          }
+
+          result = RPC.run_action(:ash_typescript, conn, params)
+          assert %{success: true, data: data} = result
+          data
+        end)
+
+      {:ok, created_todos: created_todos}
+    end
+
+    test "filters by simple equality (debug)", %{conn: conn} do
+      # Create a single todo for debugging
+      create_params = %{
+        "action" => "create_todo",
+        "input" => %{
+          "title" => "Debug High Priority Todo",
+          "priority" => "high",
+          "description" => "Debug test"
+        },
+        "select" => ["id", "title", "priority"],
+        "load" => []
+      }
+
+      create_result = RPC.run_action(:ash_typescript, conn, create_params)
+      assert %{success: true, data: created_todo} = create_result
+      assert created_todo.priority == :high
+
+      # Now try to filter for high priority todos
+      filter_params = %{
+        "action" => "read_todo",
+        "input" => %{},
+        "select" => ["id", "title", "priority"],
+        "load" => [],
+        "filter" => %{
+          "priority" => %{
+            "eq" => "high"
+          }
+        }
+      }
+
+      result = RPC.run_action(:ash_typescript, conn, filter_params)
+
+      assert %{success: true, data: data, error: nil} = result
+      assert is_list(data)
+
+      # Should find at least our created todo
+      found_our_todo = Enum.any?(data, fn todo -> todo.id == created_todo.id end)
+      assert found_our_todo, "Should find the high priority todo we just created"
+
+      # All returned todos should be high priority
+      Enum.each(data, fn todo ->
+        assert todo.priority == :high
+      end)
+    end
+
+    test "filters by simple equality", %{conn: conn} do
+      params = %{
+        "action" => "read_todo",
+        "input" => %{},
+        "select" => ["id", "title", "priority", "completed"],
+        "load" => [],
+        "filter" => %{
+          "priority" => %{
+            "eq" => "high"
+          }
+        }
+      }
+
+      result = RPC.run_action(:ash_typescript, conn, params)
+
+      assert %{success: true, data: data, error: nil} = result
+      assert is_list(data)
+
+      # Should only return todos with high priority
+      Enum.each(data, fn todo ->
+        assert todo.priority == :high
+      end)
+
+      # Should have exactly 2 high priority todos from our test data
+      high_priority_count = Enum.count(data)
+      assert high_priority_count >= 2
+    end
+
+    test "filters by boolean equality", %{conn: conn} do
+      params = %{
+        "action" => "read_todo",
+        "input" => %{},
+        "select" => ["id", "title", "completed"],
+        "load" => [],
+        "filter" => %{
+          "completed" => %{
+            "eq" => true
+          }
+        }
+      }
+
+      result = RPC.run_action(:ash_typescript, conn, params)
+
+      assert %{success: true, data: data, error: nil} = result
+      assert is_list(data)
+
+      # Should only return completed todos
+      Enum.each(data, fn todo ->
+        assert todo.completed == true
+      end)
+    end
+
+    test "filters by not equal", %{conn: conn} do
+      params = %{
+        "action" => "read_todo",
+        "input" => %{},
+        "select" => ["id", "title", "priority"],
+        "load" => [],
+        "filter" => %{
+          "priority" => %{
+            "not_eq" => "low"
+          }
+        }
+      }
+
+      result = RPC.run_action(:ash_typescript, conn, params)
+
+      assert %{success: true, data: data, error: nil} = result
+      assert is_list(data)
+
+      # Should not return any todos with low priority
+      Enum.each(data, fn todo ->
+        assert todo.priority != :low
+      end)
+    end
+
+    test "filters by in array", %{conn: conn} do
+      params = %{
+        "action" => "read_todo",
+        "input" => %{},
+        "select" => ["id", "title", "priority"],
+        "load" => [],
+        "filter" => %{
+          "priority" => %{
+            "in" => ["high", "urgent"]
+          }
+        }
+      }
+
+      result = RPC.run_action(:ash_typescript, conn, params)
+
+      assert %{success: true, data: data, error: nil} = result
+      assert is_list(data)
+
+      # Should only return todos with high or urgent priority
+      Enum.each(data, fn todo ->
+        assert todo.priority in [:high, :urgent]
+      end)
+    end
+
+    @tag :only
+    test "filters by not in array", %{conn: conn} do
+      params = %{
+        "action" => "read_todo",
+        "input" => %{},
+        "select" => ["id", "title", "priority"],
+        "load" => [],
+        "filter" => %{
+          "not" => [%{"priority" => %{"in" => ["low", "medium"]}}]
+        }
+      }
+
+      result = RPC.run_action(:ash_typescript, conn, params)
+
+      assert %{success: true, data: data, error: nil} = result
+      assert is_list(data)
+
+      # Should not return any todos with low or medium priority
+      Enum.each(data, fn todo ->
+        assert todo.priority not in [:low, :medium]
+      end)
+
+      assert not Enum.empty?(data)
+    end
+
+    test "filters with logical AND conditions", %{conn: conn} do
+      params = %{
+        "action" => "read_todo",
+        "input" => %{},
+        "select" => ["id", "title", "priority", "completed"],
+        "load" => [],
+        "filter" => %{
+          "and" => [
+            %{
+              "priority" => %{
+                "eq" => "high"
+              }
+            },
+            %{
+              "completed" => %{
+                "eq" => true
+              }
+            }
+          ]
+        }
+      }
+
+      result = RPC.run_action(:ash_typescript, conn, params)
+
+      assert %{success: true, data: data, error: nil} = result
+      assert is_list(data)
+
+      # Should only return todos that are both high priority AND completed
+      Enum.each(data, fn todo ->
+        assert todo.priority == :high
+        assert todo.completed == true
+      end)
+    end
+
+    test "filters with logical OR conditions", %{conn: conn} do
+      params = %{
+        "action" => "read_todo",
+        "input" => %{},
+        "select" => ["id", "title", "priority", "completed"],
+        "load" => [],
+        "filter" => %{
+          "or" => [
+            %{
+              "priority" => %{
+                "eq" => "urgent"
+              }
+            },
+            %{
+              "completed" => %{
+                "eq" => false
+              }
+            }
+          ]
+        }
+      }
+
+      result = RPC.run_action(:ash_typescript, conn, params)
+
+      assert %{success: true, data: data, error: nil} = result
+      assert is_list(data)
+
+      # Should return todos that are either urgent OR not completed
+      Enum.each(data, fn todo ->
+        assert todo.priority == :urgent or todo.completed == false
+      end)
+    end
+
+    test "filters with logical NOT conditions", %{conn: conn} do
+      params = %{
+        "action" => "read_todo",
+        "input" => %{},
+        "select" => ["id", "title", "completed"],
+        "load" => [],
+        "filter" => %{
+          "not" => [
+            %{
+              "completed" => %{
+                "eq" => true
+              }
+            }
+          ]
+        }
+      }
+
+      result = RPC.run_action(:ash_typescript, conn, params)
+
+      assert %{success: true, data: data, error: nil} = result
+      assert is_list(data)
+
+      # Should only return todos that are NOT completed
+      Enum.each(data, fn todo ->
+        assert todo.completed == false
+      end)
+    end
+
+    test "filters with complex nested conditions", %{conn: conn} do
+      params = %{
+        "action" => "read_todo",
+        "input" => %{},
+        "select" => ["id", "title", "priority", "completed"],
+        "load" => [],
+        "filter" => %{
+          "and" => [
+            %{
+              "or" => [
+                %{
+                  "priority" => %{
+                    "eq" => "high"
+                  }
+                },
+                %{
+                  "priority" => %{
+                    "eq" => "urgent"
+                  }
+                }
+              ]
+            },
+            %{
+              "not" => [
+                %{
+                  "completed" => %{
+                    "eq" => false
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+
+      result = RPC.run_action(:ash_typescript, conn, params)
+
+      assert %{success: true, data: data, error: nil} = result
+      assert is_list(data)
+
+      # Should return todos that are (high OR urgent) AND NOT (not completed)
+      # Which means: (high OR urgent) AND completed
+      Enum.each(data, fn todo ->
+        assert todo.priority in [:high, :urgent]
+        assert todo.completed == true
+      end)
+    end
+
+    test "filters with multiple field conditions", %{conn: conn} do
+      params = %{
+        "action" => "read_todo",
+        "input" => %{},
+        "select" => ["id", "title", "priority", "completed"],
+        "load" => [],
+        "filter" => %{
+          "priority" => %{
+            "in" => ["high", "medium"]
+          },
+          "completed" => %{
+            "eq" => true
+          }
+        }
+      }
+
+      result = RPC.run_action(:ash_typescript, conn, params)
+
+      assert %{success: true, data: data, error: nil} = result
+      assert is_list(data)
+
+      # Should return todos that have high/medium priority AND are completed
+      Enum.each(data, fn todo ->
+        assert todo.priority in [:high, :medium]
+        assert todo.completed == true
+      end)
+    end
+
+    test "returns empty list when no records match filter", %{conn: conn} do
+      params = %{
+        "action" => "read_todo",
+        "input" => %{},
+        "select" => ["id", "title"],
+        "load" => [],
+        "filter" => %{
+          "title" => %{
+            "eq" => "Non-existent Todo"
+          }
+        }
+      }
+
+      result = RPC.run_action(:ash_typescript, conn, params)
+
+      assert %{success: true, data: data, error: nil} = result
+      assert data == []
+    end
+
+    test "handles empty filter gracefully", %{conn: conn} do
+      params = %{
+        "action" => "read_todo",
+        "input" => %{},
+        "select" => ["id", "title"],
+        "load" => [],
+        "filter" => %{}
+      }
+
+      result = RPC.run_action(:ash_typescript, conn, params)
+
+      assert %{success: true, data: data, error: nil} = result
+      assert is_list(data)
+      # Should return all todos when filter is empty
+    end
+
+    test "handles nil filter gracefully", %{conn: conn} do
+      params = %{
+        "action" => "read_todo",
+        "input" => %{},
+        "select" => ["id", "title"],
+        "load" => [],
+        "filter" => nil
+      }
+
+      result = RPC.run_action(:ash_typescript, conn, params)
+
+      assert %{success: true, data: data, error: nil} = result
+      assert is_list(data)
+      # Should return all todos when filter is nil
+    end
+
+    test "combines filters with input arguments", %{conn: conn} do
+      # Test that filters work together with action arguments if the action supports both
+      params = %{
+        "action" => "read_todo",
+        # Assuming read_todo might have arguments
+        "input" => %{},
+        "select" => ["id", "title", "priority"],
+        "load" => [],
+        "filter" => %{
+          "priority" => %{
+            "eq" => "high"
+          }
+        }
+      }
+
+      result = RPC.run_action(:ash_typescript, conn, params)
+
+      assert %{success: true, data: data, error: nil} = result
+      assert is_list(data)
+
+      # Should only return high priority todos
+      Enum.each(data, fn todo ->
+        assert todo.priority == :high
+      end)
     end
   end
 end

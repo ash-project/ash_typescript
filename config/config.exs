@@ -10,4 +10,6 @@ if Mix.env() == :test do
     ash_domains: [
       AshTypescript.Test.Domain
     ]
+
+  config :logger, :console, level: :info
 end

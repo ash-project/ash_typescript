@@ -355,10 +355,6 @@ defmodule AshTypescript.RPC.Codegen do
   end
 
   def build_validate_function(rpc_spec, endpoint_validate_arg) do
-    resources_and_actions = Process.get(:resources_and_actions)
-    {resource, _rpc_action} = find_resource_and_action(rpc_spec, resources_and_actions)
-    resource_name = resource |> Module.split() |> List.last()
-
     input_type = build_rpc_action_input_type_name(rpc_spec["action"])
 
     function_args = "input: #{input_type}, #{endpoint_validate_arg}"

@@ -1,5 +1,7 @@
 defmodule AshTypescript.TS.Codegen do
   def get_ts_type(type_and_constraints, select_and_loads \\ nil)
+  def get_ts_type(:count, _), do: "number"
+  def get_ts_type(:sum, _), do: "number"
   def get_ts_type(%{type: nil}, _), do: "null"
   def get_ts_type(%{type: :sum}, _), do: "number"
   def get_ts_type(%{type: :count}, _), do: "number"

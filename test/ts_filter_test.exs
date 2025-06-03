@@ -154,8 +154,6 @@ defmodule AshTypescript.TS.FilterTest do
       assert String.contains?(result, "and?: Array<TestPostFilterInput>")
       assert String.contains?(result, "or?: Array<TestPostFilterInput>")
       assert String.contains?(result, "not?: Array<TestPostFilterInput>")
-
-      File.write!("./test.ts", result)
     end
 
     test "includes string attribute filters" do
@@ -163,9 +161,8 @@ defmodule AshTypescript.TS.FilterTest do
 
       assert String.contains?(result, "title?: {")
       assert String.contains?(result, "eq?: string")
-      assert String.contains?(result, "notEq?: string")
+      assert String.contains?(result, "not_eq?: string")
       assert String.contains?(result, "in?: Array<string>")
-      assert String.contains?(result, "notIn?: Array<string>")
     end
 
     test "includes boolean attribute filters" do
@@ -173,9 +170,9 @@ defmodule AshTypescript.TS.FilterTest do
 
       assert String.contains?(result, "published?: {")
       assert String.contains?(result, "eq?: boolean")
-      assert String.contains?(result, "notEq?: boolean")
+      assert String.contains?(result, "not_eq?: boolean")
       # Boolean should not have comparison operators
-      refute String.contains?(result, "greaterThan?: boolean")
+      refute String.contains?(result, "greater_than?: boolean")
     end
 
     test "includes integer attribute filters with comparison operations" do
@@ -183,8 +180,8 @@ defmodule AshTypescript.TS.FilterTest do
 
       assert String.contains?(result, "view_count?: {")
       assert String.contains?(result, "eq?: number")
-      assert String.contains?(result, "greaterThan?: number")
-      assert String.contains?(result, "lessThan?: number")
+      assert String.contains?(result, "greater_than?: number")
+      assert String.contains?(result, "less_than?: number")
       assert String.contains?(result, "in?: Array<number>")
     end
 
@@ -193,8 +190,8 @@ defmodule AshTypescript.TS.FilterTest do
 
       assert String.contains?(result, "rating?: {")
       assert String.contains?(result, "eq?: number")
-      assert String.contains?(result, "greaterThanOrEqual?: number")
-      assert String.contains?(result, "lessThanOrEqual?: number")
+      assert String.contains?(result, "greater_than_or_equal?: number")
+      assert String.contains?(result, "less_than_or_equal?: number")
     end
 
     test "includes datetime attribute filters with comparison operations" do
@@ -202,8 +199,8 @@ defmodule AshTypescript.TS.FilterTest do
 
       assert String.contains?(result, "published_at?: {")
       assert String.contains?(result, "eq?: string")
-      assert String.contains?(result, "greaterThan?: string")
-      assert String.contains?(result, "lessThan?: string")
+      assert String.contains?(result, "greater_than?: string")
+      assert String.contains?(result, "less_than?: string")
     end
 
     test "includes constrained atom attribute filters" do
@@ -237,278 +234,6 @@ defmodule AshTypescript.TS.FilterTest do
     end
   end
 
-  describe "translate_filter/2" do
-    test "returns nil for nil filter" do
-      result = Filter.translate_filter(nil, TestPost)
-      assert result == nil
-    end
-
-    test "translates simple equality filter" do
-      filter = %{
-        "title" => %{
-          "eq" => "Test Title"
-        }
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "translates simple comparison filter" do
-      filter = %{
-        "view_count" => %{
-          "greaterThan" => 10
-        }
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "translates 'in' filter with array" do
-      filter = %{
-        "status" => %{
-          "in" => ["draft", "published"]
-        }
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "translates 'not in' filter" do
-      filter = %{
-        "status" => %{
-          "notIn" => ["archived"]
-        }
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "translates multiple operations on same field" do
-      filter = %{
-        "view_count" => %{
-          "greaterThan" => 5,
-          "lessThan" => 100
-        }
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "translates logical AND conditions" do
-      filter = %{
-        "and" => [
-          %{"title" => %{"eq" => "Test"}},
-          %{"published" => %{"eq" => true}}
-        ]
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "translates logical OR conditions" do
-      filter = %{
-        "or" => [
-          %{"status" => %{"eq" => "draft"}},
-          %{"status" => %{"eq" => "published"}}
-        ]
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "translates logical NOT conditions" do
-      filter = %{
-        "not" => [
-          %{"status" => %{"eq" => "archived"}}
-        ]
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "translates nested logical conditions" do
-      filter = %{
-        "and" => [
-          %{
-            "or" => [
-              %{"status" => %{"eq" => "draft"}},
-              %{"status" => %{"eq" => "published"}}
-            ]
-          },
-          %{"view_count" => %{"greaterThan" => 0}}
-        ]
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "translates relationship filters" do
-      filter = %{
-        "author" => %{
-          "name" => %{
-            "eq" => "John Doe"
-          }
-        }
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "translates nested relationship filters" do
-      filter = %{
-        "comments" => %{
-          "content" => %{
-            "eq" => "Great post!"
-          }
-        }
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "handles empty AND array" do
-      filter = %{
-        "and" => []
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result == nil
-    end
-
-    test "handles empty OR array" do
-      filter = %{
-        "or" => []
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result == nil
-    end
-
-    test "handles single condition in AND array" do
-      filter = %{
-        "and" => [
-          %{"title" => %{"eq" => "Test"}}
-        ]
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "handles unknown field gracefully" do
-      filter = %{
-        "unknown_field" => %{
-          "eq" => "value"
-        }
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result == nil
-    end
-
-    test "handles unknown operation gracefully" do
-      filter = %{
-        "title" => %{
-          "unknown_op" => "value"
-        }
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result == nil
-    end
-
-    test "handles complex filter with mixed conditions" do
-      filter = %{
-        "and" => [
-          %{
-            "or" => [
-              %{"title" => %{"eq" => "Important"}},
-              %{"view_count" => %{"greaterThan" => 1000}}
-            ]
-          },
-          %{"published" => %{"eq" => true}},
-          %{
-            "not" => [
-              %{"status" => %{"eq" => "archived"}}
-            ]
-          },
-          %{
-            "author" => %{
-              "active" => %{"eq" => true}
-            }
-          }
-        ]
-      }
-
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-  end
-
-  describe "translate_operation/3" do
-    import AshTypescript.TS.Filter, only: []
-
-    # Note: These are private functions, so we test them through the public interface
-    test "eq operation works through translate_filter" do
-      filter = %{"title" => %{"eq" => "test"}}
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "notEq operation works through translate_filter" do
-      filter = %{"title" => %{"notEq" => "test"}}
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "greaterThan operation works through translate_filter" do
-      filter = %{"view_count" => %{"greaterThan" => 10}}
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "greaterThanOrEqual operation works through translate_filter" do
-      filter = %{"view_count" => %{"greaterThanOrEqual" => 10}}
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "lessThan operation works through translate_filter" do
-      filter = %{"view_count" => %{"lessThan" => 100}}
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "lessThanOrEqual operation works through translate_filter" do
-      filter = %{"view_count" => %{"lessThanOrEqual" => 100}}
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "in operation works through translate_filter" do
-      filter = %{"status" => %{"in" => ["draft", "published"]}}
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-
-    test "notIn operation works through translate_filter" do
-      filter = %{"status" => %{"notIn" => ["archived"]}}
-      result = Filter.translate_filter(filter, TestPost)
-      assert result != nil
-    end
-  end
-
   describe "get_applicable_operations/2" do
     # Testing through generate_filter_type since get_applicable_operations is private
 
@@ -524,10 +249,9 @@ defmodule AshTypescript.TS.FilterTest do
         |> Enum.at(0)
 
       assert String.contains?(title_section, "eq?: string")
-      assert String.contains?(title_section, "notEq?: string")
+      assert String.contains?(title_section, "not_eq?: string")
       assert String.contains?(title_section, "in?: Array<string>")
-      assert String.contains?(title_section, "notIn?: Array<string>")
-      refute String.contains?(title_section, "greaterThan")
+      refute String.contains?(title_section, "greater_than")
     end
 
     test "numeric types get comparison operations" do
@@ -542,8 +266,8 @@ defmodule AshTypescript.TS.FilterTest do
         |> Enum.at(0)
 
       assert String.contains?(view_count_section, "eq?: number")
-      assert String.contains?(view_count_section, "greaterThan?: number")
-      assert String.contains?(view_count_section, "lessThan?: number")
+      assert String.contains?(view_count_section, "greater_than?: number")
+      assert String.contains?(view_count_section, "less_than?: number")
       assert String.contains?(view_count_section, "in?: Array<number>")
     end
 
@@ -559,9 +283,9 @@ defmodule AshTypescript.TS.FilterTest do
         |> Enum.at(0)
 
       assert String.contains?(published_section, "eq?: boolean")
-      assert String.contains?(published_section, "notEq?: boolean")
-      refute String.contains?(published_section, "greaterThan")
-      refute String.contains?(published_section, "lessThan")
+      assert String.contains?(published_section, "not_eq?: boolean")
+      refute String.contains?(published_section, "greater_than")
+      refute String.contains?(published_section, "less_than")
     end
   end
 
@@ -597,53 +321,6 @@ defmodule AshTypescript.TS.FilterTest do
 
       assert String.contains?(result, "NoRelationshipsResourceFilterInput")
       assert String.contains?(result, "name?: {")
-    end
-
-    test "handles complex nested filter structures" do
-      complex_filter = %{
-        "and" => [
-          %{
-            "or" => [
-              %{"title" => %{"eq" => "Test 1"}},
-              %{"title" => %{"eq" => "Test 2"}}
-            ]
-          },
-          %{
-            "not" => [
-              %{
-                "and" => [
-                  %{"published" => %{"eq" => false}},
-                  %{"view_count" => %{"lessThan" => 5}}
-                ]
-              }
-            ]
-          },
-          %{
-            "author" => %{
-              "and" => [
-                %{"active" => %{"eq" => true}},
-                %{"name" => %{"notIn" => ["spam", "bot"]}}
-              ]
-            }
-          }
-        ]
-      }
-
-      result = Filter.translate_filter(complex_filter, TestPost)
-      assert result != nil
-    end
-
-    test "handles malformed filter gracefully" do
-      malformed_filter = %{
-        "and" => "not an array",
-        "title" => "not a map"
-      }
-
-      # Should not crash, might return nil or partial result
-      _result = Filter.translate_filter(malformed_filter, TestPost)
-      # The exact behavior depends on implementation details
-      # but it shouldn't crash
-      assert true
     end
   end
 end

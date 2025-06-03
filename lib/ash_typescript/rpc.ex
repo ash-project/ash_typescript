@@ -1,6 +1,5 @@
 defmodule AshTypescript.RPC do
   import AshTypescript.RPC.Helpers
-  alias AshTypescript.TS.Filter
   require Ash.Query
 
   defmodule RPCAction do
@@ -85,10 +84,7 @@ defmodule AshTypescript.RPC do
 
         select = parse_json_select_and_load(params["select"])
         load = parse_json_select_and_load(params["load"])
-        filter = params["filter"]
-
-        root_loads = Enum.reject(load, &is_tuple/1)
-        fields_to_take = select ++ root_loads
+        fields_to_take = select ++ load
 
         case action.type do
           :read ->
@@ -100,11 +96,8 @@ defmodule AshTypescript.RPC do
 
             # Apply filter if provided
             query =
-              if filter do
-                case Filter.translate_filter(filter, resource) do
-                  nil -> query
-                  ash_filter -> Ash.Query.filter(query, ^ash_filter)
-                end
+              if params["filter"] do
+                Ash.Query.filter_input(query, params["filter"])
               else
                 query
               end
@@ -126,7 +119,6 @@ defmodule AshTypescript.RPC do
 
           :update ->
             # For update actions, we need to get the record first
-            primary_key = Ash.Resource.Info.primary_key(resource)
             input = params["input"]
 
             with {:ok, record} <- Ash.get(resource, params["primary_key"], opts) do
@@ -139,7 +131,6 @@ defmodule AshTypescript.RPC do
 
           :destroy ->
             # For destroy actions, we need to get the record first
-            primary_key = Ash.Resource.Info.primary_key(resource)
             input = params["input"]
 
             with {:ok, record} <- Ash.get(resource, params["primary_key"], opts) do
@@ -170,11 +161,11 @@ defmodule AshTypescript.RPC do
   end
 
   defp extract_return_value(result, fields_to_take) when is_struct(result) do
-    Map.take(result, fields_to_take)
+    extract_fields_from_map(result, fields_to_take)
   end
 
   defp extract_return_value(result, fields_to_take) when is_map(result) do
-    Map.take(result, fields_to_take)
+    extract_fields_from_map(result, fields_to_take)
   end
 
   defp extract_return_value(result, fields_to_take) when is_list(result) do
@@ -187,6 +178,48 @@ defmodule AshTypescript.RPC do
     do:
       {:error,
        "select and load lists must be empty when returning other values than a struct or map."}
+
+  defp extract_fields_from_map(map, fields_to_take) do
+    Enum.reduce(fields_to_take, %{}, fn field_spec, acc ->
+      case field_spec do
+        # Simple field (atom)
+        field when is_atom(field) ->
+          if Map.has_key?(map, field) do
+            Map.put(acc, field, Map.get(map, field))
+          else
+            acc
+          end
+
+        # Nested field as tuple {relation, nested_fields}
+        {relation, nested_fields} when is_atom(relation) and is_list(nested_fields) ->
+          if Map.has_key?(map, relation) do
+            nested_value = Map.get(map, relation)
+            extracted_nested = extract_return_value(nested_value, nested_fields)
+            Map.put(acc, relation, extracted_nested)
+          else
+            acc
+          end
+
+        # Nested field as keyword list entry
+        [{key, nested_fields}] when is_atom(key) and is_list(nested_fields) ->
+          if Map.has_key?(map, key) do
+            nested_value = Map.get(map, key)
+            extracted_nested = extract_return_value(nested_value, nested_fields)
+            Map.put(acc, key, extracted_nested)
+          else
+            acc
+          end
+
+        # Handle any other format by trying to extract as simple field
+        field ->
+          if Map.has_key?(map, field) do
+            Map.put(acc, field, Map.get(map, field))
+          else
+            acc
+          end
+      end
+    end)
+  end
 
   def validate_action(otp_app, conn, params) do
     rpc_action =
