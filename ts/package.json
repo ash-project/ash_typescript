@@ -1,0 +1,16 @@
+{
+  "name": "ts",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "module": "es2022",
+  "scripts": {
+    "test": "tsc endGoal.ts --lib DOM,es2022 --module es2022 --target es2022 -noErrorTruncation "
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

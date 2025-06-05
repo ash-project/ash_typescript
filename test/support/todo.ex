@@ -2,6 +2,42 @@ defmodule AshTypescript.Test.TodoStatus do
   use Ash.Type.Enum, values: [:pending, :ongoing, :finished, :cancelled]
 end
 
+defmodule AshTypescript.Test.User do
+  use Ash.Resource,
+    domain: AshTypescript.Test.Domain,
+    data_layer: Ash.DataLayer.Ets,
+    primary_read_warning?: false
+
+  attributes do
+    uuid_primary_key :id
+
+    attribute :email, :string do
+      allow_nil? false
+      public? true
+    end
+  end
+
+  relationships do
+    has_many :comments, AshTypescript.Test.Comment do
+      allow_nil? false
+      public? true
+    end
+
+    has_many :todos, AshTypescript.Test.Todo do
+      allow_nil? false
+      public? true
+    end
+  end
+
+  actions do
+    defaults [:read, :update, :destroy]
+
+    create :create do
+      accept [:email]
+    end
+  end
+end
+
 defmodule AshTypescript.Test.Comment do
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
@@ -40,10 +76,26 @@ defmodule AshTypescript.Test.Comment do
       allow_nil? false
       public? true
     end
+
+    belongs_to :user, AshTypescript.Test.User do
+      allow_nil? false
+      public? true
+    end
   end
 
   actions do
-    defaults [:read, :create, :update, :destroy]
+    defaults [:read, :update, :destroy]
+
+    create :create do
+      accept [:content, :author_name, :rating, :is_helpful, :todo_id]
+
+      argument :user_id, :uuid do
+        allow_nil? false
+        public? true
+      end
+
+      change manage_relationship(:user_id, :user, type: :append)
+    end
   end
 end
 
@@ -99,6 +151,10 @@ defmodule AshTypescript.Test.Todo do
   end
 
   relationships do
+    belongs_to :user, AshTypescript.Test.User do
+      allow_nil? false
+    end
+
     has_many :comments, AshTypescript.Test.Comment
   end
 
@@ -173,7 +229,12 @@ defmodule AshTypescript.Test.Todo do
         default false
       end
 
+      argument :user_id, :uuid do
+        allow_nil? false
+      end
+
       change set_attribute(:completed, arg(:auto_complete))
+      change manage_relationships(:user_id, :user, type: :append)
     end
 
     update :update do
@@ -260,5 +321,6 @@ defmodule AshTypescript.Test.Domain do
   resources do
     resource AshTypescript.Test.Todo
     resource AshTypescript.Test.Comment
+    resource AshTypescript.Test.User
   end
 end
