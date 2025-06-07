@@ -1,6 +1,10 @@
 defmodule AshTypescript.TS.Filter do
   import AshTypescript.TS.Codegen
 
+  def generate_filter_types(resources) when is_list(resources) do
+    Enum.map(resources, &generate_filter_type/1)
+  end
+
   def generate_filter_type(resource) do
     resource_name = resource |> Module.split() |> List.last()
     filter_type_name = "#{resource_name}FilterInput"

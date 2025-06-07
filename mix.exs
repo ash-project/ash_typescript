@@ -146,7 +146,7 @@ defmodule AshTypescript.MixProject do
       "test.create": "ash_postgres.create",
       "test.reset": ["test.drop", "test.create", "test.migrate", "ash_postgres.migrate --tenants"],
       "test.drop": "ash_postgres.drop",
-      "test.codegen": "mix ash_typescript.codegen --output ./test/ts/generated.ts",
+      "test.codegen": "ash_typescript.codegen --output ./test/ts/generated.ts",
       sobelow: "sobelow --skip",
       docs: [
         "spark.cheat_sheets",

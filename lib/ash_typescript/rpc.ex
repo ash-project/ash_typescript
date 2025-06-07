@@ -55,6 +55,8 @@ defmodule AshTypescript.RPC do
   @spec run_action(otp_app :: atom, conn :: Plug.Conn.t(), params :: map) ::
           %{success: boolean, data: map() | nil, error: map() | nil}
   def run_action(otp_app, conn, params) do
+    IO.inspect(params)
+
     rpc_action =
       otp_app
       |> Ash.Info.domains()

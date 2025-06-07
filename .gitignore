@@ -23,4 +23,5 @@ ash_typescript-*.tar
 /tmp/
 
 test/ts/node_modules/
-test/ts/generated.*
+test/ts/generated.ts
+test/ts/*.js

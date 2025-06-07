@@ -4,6 +4,7 @@ defmodule AshTypescript.RPC.Codegen do
   """
 
   import AshTypescript.TS.Codegen
+  import AshTypescript.TS.Filter
   import AshTypescript.Helpers
 
   def generate_typescript_types(otp_app, opts \\ []) do
@@ -59,6 +60,8 @@ defmodule AshTypescript.RPC.Codegen do
 
     #{generate_resource_schemas(resources, otp_app)}
 
+    #{generate_filter_types(resources)}
+
     #{generate_utility_types()}
 
     #{generate_helper_functions()}
@@ -90,7 +93,8 @@ defmodule AshTypescript.RPC.Codegen do
         calculatedFields?: Record<string, any>;
         aggregateFields?: Record<string, any>;
         load?: Record<string, any>;
-      }
+      },
+      RelationshipSchema extends Record<string, any> = {}
     > = (Config["fields"] extends (keyof Resource)[]
       ? PickFields<Resource, Config["fields"][number]>
       : Resource) &
@@ -101,37 +105,43 @@ defmodule AshTypescript.RPC.Codegen do
         ? Config["aggregateFields"]
         : {}) &
       (Config["load"] extends Record<string, any>
-        ? InferRelationshipsFromMap<Config["load"]>
+        ? InferRelationshipsFromMap<Config["load"], RelationshipSchema>
         : {});
 
-    type InferRelationshipsFromMap<LoadMap> = {
+    type InferRelationshipsFromMap<LoadMap, RelationshipSchema> = {
       [K in keyof LoadMap]: LoadMap[K] extends {
         fields?: any[];
         calculatedFields?: Record<string, any>;
         aggregateFields?: Record<string, any>;
         load?: Record<string, any>;
       }
-        ? LoadMap[K] extends { __array: true }
-          ? Array<
-              InferResourceResult<
-                any,
+        ? K extends keyof RelationshipSchema
+          ? RelationshipSchema[K] extends { __array: true; __resource: infer Resource }
+            ? Array<
+                InferResourceResult<
+                  Resource,
+                  {
+                    fields: LoadMap[K]["fields"];
+                    calculatedFields: LoadMap[K]["calculatedFields"];
+                    aggregateFields: LoadMap[K]["aggregateFields"];
+                    load: LoadMap[K]["load"];
+                  },
+                  Resource extends { __relationshipSchema?: infer RS } ? RS : {}
+                >
+              >
+            : RelationshipSchema[K] extends { __resource: infer Resource }
+            ? InferResourceResult<
+                Resource,
                 {
                   fields: LoadMap[K]["fields"];
                   calculatedFields: LoadMap[K]["calculatedFields"];
                   aggregateFields: LoadMap[K]["aggregateFields"];
                   load: LoadMap[K]["load"];
-                }
+                },
+                Resource extends { __relationshipSchema?: infer RS } ? RS : {}
               >
-            >
-          : InferResourceResult<
-              any,
-              {
-                fields: LoadMap[K]["fields"];
-                calculatedFields: LoadMap[K]["calculatedFields"];
-                aggregateFields: LoadMap[K]["aggregateFields"];
-                load: LoadMap[K]["load"];
-              }
-            >
+            : never
+          : never
         : never;
     };
 
@@ -323,14 +333,12 @@ defmodule AshTypescript.RPC.Codegen do
       case action.type do
         :read ->
           filters =
-            if action.arguments != [] do
-              ["  filters?: {"] ++
-                Enum.map(action.arguments, fn arg ->
-                  "    #{arg.name}?: #{ash_type_to_typescript(arg.type)};"
-                end) ++
-                ["  };"]
-            else
+            if action.get? do
               []
+            else
+              [
+                "  filter?: #{resource_name}FilterInput;"
+              ]
             end
 
           pagination = [
@@ -352,7 +360,7 @@ defmodule AshTypescript.RPC.Codegen do
                 Enum.map(accepts, fn field_name ->
                   attr = Ash.Resource.Info.attribute(resource, field_name)
                   optional = attr.allow_nil? || attr.default != nil
-                  base_type = ash_type_to_typescript(attr.type)
+                  base_type = get_ts_type(attr)
                   field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
 
                   "    #{field_name}#{if optional, do: "?", else: ""}: #{field_type};"
@@ -360,7 +368,7 @@ defmodule AshTypescript.RPC.Codegen do
                 Enum.map(arguments, fn arg ->
                   optional = arg.allow_nil? || arg.default != nil
 
-                  "    #{arg.name}#{if optional, do: "?", else: ""}: #{ash_type_to_typescript(arg.type)};"
+                  "    #{arg.name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
                 end) ++
                 ["  };"]
             else
@@ -369,16 +377,27 @@ defmodule AshTypescript.RPC.Codegen do
 
           input_fields
 
-        :update ->
-          accepts = Ash.Resource.Info.action(resource, action.name).accept || []
-          arguments = action.arguments
+        action_type when action_type in [:update, :destroy] ->
+          primary_key_attrs = Ash.Resource.Info.primary_key(resource)
 
-          id_field = ["  id: UUID;"]
+          primary_key_field =
+            if Enum.count(primary_key_attrs) == 1 do
+              attr_name = Enum.at(primary_key_attrs, 0)
+              attr = Ash.Resource.Info.attribute(resource, attr_name)
+              ["  primaryKey: #{get_ts_type(attr)};"]
+            else
+              ["  primaryKey: {"] ++
+                Enum.map(primary_key_attrs, fn attr_name ->
+                  attr = Ash.Resource.Info.attribute(resource, attr_name)
+                  "    #{attr.name}: #{get_ts_type(attr)};"
+                end) ++
+                ["  };"]
+            end
 
           input_fields =
-            if accepts != [] || arguments != [] do
+            if action.accept != [] || action.arguments != [] do
               ["  input: {"] ++
-                Enum.map(accepts, fn field_name ->
+                Enum.map(action.accept, fn field_name ->
                   attr = Ash.Resource.Info.attribute(resource, field_name)
 
                   if attr.allow_nil? do
@@ -387,22 +406,19 @@ defmodule AshTypescript.RPC.Codegen do
                     "    #{field_name}: #{get_ts_type(attr)};"
                   end
                 end) ++
-                Enum.map(arguments, fn arg ->
+                Enum.map(action.arguments, fn arg ->
                   optional = arg.allow_nil? || arg.default != nil
 
-                  "    #{arg.name}#{if optional, do: "?", else: ""}: #{ash_type_to_typescript(arg.type)};"
+                  "    #{arg.name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
                 end) ++
                 ["  };"]
             else
               []
             end
 
-          id_field ++ input_fields
+          primary_key_field ++ input_fields
 
-        :destroy ->
-          ["  id: UUID;"]
-
-        action_type when action_type in [:action, :generic] ->
+        :action ->
           arguments = action.arguments
 
           if arguments != [] do
@@ -410,7 +426,7 @@ defmodule AshTypescript.RPC.Codegen do
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
 
-                "    #{arg.name}#{if optional, do: "?", else: ""}: #{ash_type_to_typescript(arg.type)};"
+                "    #{arg.name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
               end) ++
               ["  };"]
           else
@@ -418,10 +434,15 @@ defmodule AshTypescript.RPC.Codegen do
           end
       end
 
-    all_fields = input_fields ++ base_fields
+    all_fields =
+      if action.type in [:read, :create, :update] do
+        input_fields ++ base_fields
+      else
+        input_fields
+      end
 
     """
-    type #{config_name} = {
+    export type #{config_name} = {
     #{Enum.join(all_fields, "\n")}
     };
     """
@@ -437,19 +458,19 @@ defmodule AshTypescript.RPC.Codegen do
       :read when action.get? ->
         """
         type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          InferResourceResult<#{resource_name}AttributesSchema, Config> | null;
+          InferResourceResult<#{resource_name}AttributesSchema, Config, #{resource_name}RelationshipSchema> | null;
         """
 
       :read ->
         """
         type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          Array<InferResourceResult<#{resource_name}AttributesSchema, Config>>;
+          Array<InferResourceResult<#{resource_name}AttributesSchema, Config, #{resource_name}RelationshipSchema>>;
         """
 
       action_type when action_type in [:create, :update] ->
         """
         type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          InferResourceResult<#{resource_name}AttributesSchema, Config>;
+          InferResourceResult<#{resource_name}AttributesSchema, Config, #{resource_name}RelationshipSchema>;
         """
 
       :destroy ->
@@ -460,16 +481,7 @@ defmodule AshTypescript.RPC.Codegen do
       action_type when action_type in [:action, :generic] ->
         # For generic actions, use the returns type if specified
         if action.returns do
-          return_type =
-            case action.returns do
-              {:array, Ash.Type.Struct} ->
-                # For struct arrays, assume they return instances of the same resource
-                resource_name = resource |> Module.split() |> List.last()
-                "Array<#{resource_name}AttributesSchema>"
-
-              _ ->
-                ash_type_to_typescript(action.returns)
-            end
+          return_type = get_ts_type(%{type: action.returns, constraints: action.constraints})
 
           """
           type Infer#{rpc_action_name_pascal}Result = #{return_type};
@@ -485,34 +497,172 @@ defmodule AshTypescript.RPC.Codegen do
   defp generate_payload_builder(_rpc_action, action, rpc_action_name) do
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
 
-    """
-    function build#{rpc_action_name_pascal}Payload(
-      config: #{rpc_action_name_pascal}Config
-    ): Record<string, any> {
-      const payload: Record<string, any> = {
-        action: "#{action.name}"
-      };
+    cond do
+      action.type == :read and not action.get? ->
+        """
+        export function build#{rpc_action_name_pascal}Payload(
+          config: #{rpc_action_name_pascal}Config
+        ): Record<string, any> {
+          const payload: Record<string, any> = {
+            action: "#{rpc_action_name}"
+          };
 
-      // Add select fields
-      if (config.fields) {
-        payload.select = config.fields;
-      } else {
-        payload.select = [];
-      }
+          // Add select fields
+          if (config.fields) {
+            payload.select = config.fields;
+          } else {
+            payload.select = [];
+          }
 
-      // Build load array from load configuration
-      if (config.load) {
-        payload.load = buildLoadArray(config.load);
-      } else {
-        payload.load = [];
-      }
+          // Build load array from load configuration
+          if (config.load) {
+            payload.load = buildLoadArray(config.load);
+          } else {
+            payload.load = [];
+          }
 
-      // Handle input based on action type
-      #{generate_payload_input_handling(action)}
+          if (config.filter) {
+            payload.filter = config.filter;
+          } else {
+            payload.filter = {};
+          }
 
-      return payload;
-    }
-    """
+          if (config.page) {
+            payload.page = config.page;
+          }
+
+          if (config.input) {
+            payload.input = config.input;
+          } else {
+            payload.input = {};
+          }
+
+          return payload;
+        }
+        """
+
+      action.type == :read and action.get? ->
+        """
+        export function build#{rpc_action_name_pascal}Payload(
+          config: #{rpc_action_name_pascal}Config
+        ): Record<string, any> {
+          const payload: Record<string, any> = {
+            action: "#{rpc_action_name}"
+          };
+
+          // Add select fields
+          if (config.fields) {
+            payload.select = config.fields;
+          } else {
+            payload.select = [];
+          }
+
+          // Build load array from load configuration
+          if (config.load) {
+            payload.load = buildLoadArray(config.load);
+          } else {
+            payload.load = [];
+          }
+
+          if (config.input) {
+            payload.input = config.input;
+          } else {
+            payload.input = {};
+          }
+
+          return payload;
+        }
+        """
+
+      action.type == :create ->
+        """
+        export function build#{rpc_action_name_pascal}Payload(
+          config: #{rpc_action_name_pascal}Config
+        ): Record<string, any> {
+          const payload: Record<string, any> = {
+            action: "#{rpc_action_name}"
+          };
+
+          // Add select fields
+          if (config.fields) {
+            payload.select = config.fields;
+          } else {
+            payload.select = [];
+          }
+
+          // Build load array from load configuration
+          if (config.load) {
+            payload.load = buildLoadArray(config.load);
+          } else {
+            payload.load = [];
+          }
+
+          if (config.input) {
+            payload.input = config.input;
+          } else {
+            payload.input = {};
+          }
+
+          return payload;
+        }
+        """
+
+      action.type in [:update, :destroy] ->
+        """
+        export function build#{rpc_action_name_pascal}Payload(
+          config: #{rpc_action_name_pascal}Config
+        ): Record<string, any> {
+          const payload: Record<string, any> = {
+            action: "#{rpc_action_name}"
+          };
+
+          if (config.primaryKey) {
+            payload.primary_key = config.primaryKey;
+          }
+
+          if (config.input) {
+            payload.input = config.input;
+          } else {
+            payload.input = {};
+          }
+
+          // Add select fields
+          if (config.fields) {
+            payload.select = config.fields;
+          } else {
+            payload.select = [];
+          }
+
+          // Build load array from load configuration
+          if (config.load) {
+            payload.load = buildLoadArray(config.load);
+          } else {
+            payload.load = [];
+          }
+
+          return payload;
+        }
+        """
+
+      action.type == :action ->
+        """
+        export function build#{rpc_action_name_pascal}Payload(
+          config: #{rpc_action_name_pascal}Config
+        ): Record<string, any> {
+          const payload: Record<string, any> = {
+            action: "#{rpc_action_name}"
+          };
+
+          if (config.input) {
+            payload.input = config.input;
+          } else {
+            payload.input = {};
+          }
+
+          return payload;
+        }
+        """
+    end
   end
 
   defp generate_rpc_execution_function(_rpc_action, action, rpc_action_name, endpoint_process) do
@@ -550,16 +700,26 @@ defmodule AshTypescript.RPC.Codegen do
       end
 
     """
-    async function #{function_name}#{config_type_param}(
+    export async function #{function_name}#{config_type_param}(
       #{config_param}
     ): Promise<#{result_type}> {
       const payload = build#{rpc_action_name_pascal}Payload(config);
 
+      const csrfToken = document
+        ?.querySelector("meta[name='csrf-token']")
+        ?.getAttribute("content");
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (csrfToken) {
+        headers["X-CSRF-Token"] = csrfToken;
+      }
+
       const response = await fetch("#{endpoint_process}", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(payload),
       });
 
@@ -571,196 +731,6 @@ defmodule AshTypescript.RPC.Codegen do
       #{result_handling}
     }
     """
-  end
-
-  defp generate_payload_input_handling(action) do
-    case action.type do
-      :read ->
-        """
-        if ("filters" in config && config.filters) {
-          const filter: Record<string, any> = {};
-
-          for (const [key, value] of Object.entries(config.filters)) {
-            if (value !== undefined) {
-              filter[key] = value;
-            }
-          }
-
-          if (Object.keys(filter).length > 0) {
-            payload.filter = filter;
-          }
-        }
-
-        if ("pagination" in config && config.pagination) {
-          if (config.pagination.limit !== undefined) {
-            payload.limit = config.pagination.limit;
-          }
-          if (config.pagination.offset !== undefined) {
-            payload.offset = config.pagination.offset;
-          }
-        }
-
-        payload.input = {};
-        """
-
-      :create ->
-        """
-        if ("input" in config) {
-          payload.input = config.input;
-        } else {
-          payload.input = {};
-        }
-        """
-
-      :update ->
-        """
-        const updateConfig = config as { id: any; input: any };
-        payload.input = { ...updateConfig.input, id: updateConfig.id };
-        """
-
-      :destroy ->
-        """
-        const destroyConfig = config as { id: any };
-        payload.input = { id: destroyConfig.id };
-        """
-
-      action_type when action_type in [:action, :generic] ->
-        """
-        if ("input" in config) {
-          payload.input = config.input;
-        } else {
-          payload.input = {};
-        }
-        """
-
-      _ ->
-        """
-        payload.input = {};
-        """
-    end
-  end
-
-  defp ash_type_to_typescript(type) do
-    case type do
-      :string ->
-        "string"
-
-      :ci_string ->
-        "string"
-
-      :integer ->
-        "number"
-
-      :float ->
-        "number"
-
-      :decimal ->
-        "number"
-
-      :boolean ->
-        "boolean"
-
-      :date ->
-        "AshDate"
-
-      :time ->
-        "string"
-
-      :datetime ->
-        "DateTime"
-
-      :utc_datetime ->
-        "DateTime"
-
-      :utc_datetime_usec ->
-        "DateTime"
-
-      Ash.Type.UtcDatetimeUsec ->
-        "DateTime"
-
-      :naive_datetime ->
-        "DateTime"
-
-      :uuid ->
-        "UUID"
-
-      :atom ->
-        "string"
-
-      :map ->
-        "Record<string, any>"
-
-      :keyword_list ->
-        "Record<string, any>"
-
-      :term ->
-        "any"
-
-      {:array, inner_type} ->
-        "Array<#{ash_type_to_typescript(inner_type)}>"
-
-      Ash.Type.Term ->
-        "any"
-
-      Ash.Type.String ->
-        "string"
-
-      Ash.Type.Integer ->
-        "number"
-
-      Ash.Type.Boolean ->
-        "boolean"
-
-      Ash.Type.Map ->
-        "Record<string, any>"
-
-      Ash.Type.Atom ->
-        "string"
-
-      Ash.Type.Date ->
-        "AshDate"
-
-      Ash.Type.Struct ->
-        "Record<string, any>"
-
-      Ash.Type.UtcDatetime ->
-        "DateTime"
-
-      Ash.Type.DateTime ->
-        "DateTime"
-
-      module when is_atom(module) ->
-        # Check if it's an Ash.Type.Enum
-        try do
-          # First ensure the module is loaded
-          Code.ensure_loaded!(module)
-
-          # Check if it has the Ash.Type behaviour and values/0 function
-          if function_exported?(module, :values, 0) &&
-               function_exported?(module, :cast_input, 2) do
-            values = apply(module, :values, [])
-
-            if is_list(values) && Enum.all?(values, &is_atom/1) do
-              values
-              |> Enum.map(&"\"#{&1}\"")
-              |> Enum.join(" | ")
-            else
-              # Not a proper enum, fallback to module name
-              module |> Module.split() |> List.last()
-            end
-          else
-            # For custom types, try to get a simple name
-            module |> Module.split() |> List.last()
-          end
-        rescue
-          _ ->
-            # If anything fails, fallback to module name
-            module |> Module.split() |> List.last()
-        end
-
-      _ ->
-        "any"
-    end
   end
 
   defp generate_helper_functions do

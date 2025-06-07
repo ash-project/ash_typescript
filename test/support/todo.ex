@@ -11,6 +11,11 @@ defmodule AshTypescript.Test.User do
   attributes do
     uuid_primary_key :id
 
+    attribute :name, :string do
+      allow_nil? false
+      public? true
+    end
+
     attribute :email, :string do
       allow_nil? false
       public? true
@@ -28,10 +33,18 @@ defmodule AshTypescript.Test.User do
   end
 
   actions do
-    defaults [:read, :update, :destroy]
+    defaults [:read]
 
     create :create do
-      accept [:email]
+      accept [:email, :name]
+    end
+
+    update :update do
+      accept [:name]
+    end
+
+    destroy :destroy do
+      accept []
     end
   end
 end
@@ -82,17 +95,27 @@ defmodule AshTypescript.Test.Comment do
   end
 
   actions do
-    defaults [:read, :update, :destroy]
+    defaults [:read, :destroy]
 
     create :create do
-      accept [:content, :author_name, :rating, :is_helpful, :todo_id]
+      accept [:content, :author_name, :rating, :is_helpful]
 
       argument :user_id, :uuid do
         allow_nil? false
         public? true
       end
 
+      argument :todo_id, :uuid do
+        allow_nil? false
+        public? true
+      end
+
       change manage_relationship(:user_id, :user, type: :append)
+      change manage_relationship(:todo_id, :todo, type: :append)
+    end
+
+    update :update do
+      accept [:content, :author_name, :rating, :is_helpful]
     end
   end
 end
@@ -151,9 +174,12 @@ defmodule AshTypescript.Test.Todo do
   relationships do
     belongs_to :user, AshTypescript.Test.User do
       allow_nil? false
+      public? true
     end
 
-    has_many :comments, AshTypescript.Test.Comment
+    has_many :comments, AshTypescript.Test.Comment do
+      public? true
+    end
   end
 
   aggregates do
@@ -283,7 +309,7 @@ defmodule AshTypescript.Test.Todo do
     end
 
     action :search, {:array, Ash.Type.Struct} do
-      constraints instance_of: __MODULE__
+      constraints items: [instance_of: __MODULE__]
 
       argument :query, :string, allow_nil?: false
       argument :include_completed, :boolean, default: true
@@ -303,7 +329,7 @@ defmodule AshTypescript.Test.Domain do
 
   rpc do
     resource AshTypescript.Test.Todo do
-      rpc_action :read_todo, :read
+      rpc_action :list_todos, :read
       rpc_action :get_todo, :get
       rpc_action :create_todo, :create
       rpc_action :update_todo, :update
@@ -311,8 +337,20 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :set_priority_todo, :set_priority
       rpc_action :bulk_complete_todo, :bulk_complete
       rpc_action :get_statistics_todo, :get_statistics
-      rpc_action :search_todo, :search
+      rpc_action :search_todos, :search
       rpc_action :destroy_todo, :destroy
+    end
+
+    resource AshTypescript.Test.Comment do
+      rpc_action :list_comments, :read
+      rpc_action :create_comment, :create
+      rpc_action :update_comment, :update
+    end
+
+    resource AshTypescript.Test.User do
+      rpc_action :list_users, :read
+      rpc_action :create_user, :create
+      rpc_action :update_user, :update
     end
   end
 
