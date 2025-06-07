@@ -22,4 +22,5 @@ ash_typescript-*.tar
 # Temporary files, for example, from tests.
 /tmp/
 
-ts/node_modules/
+test/ts/node_modules/
+test/ts/generated.*

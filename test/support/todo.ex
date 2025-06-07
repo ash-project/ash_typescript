@@ -19,12 +19,10 @@ defmodule AshTypescript.Test.User do
 
   relationships do
     has_many :comments, AshTypescript.Test.Comment do
-      allow_nil? false
       public? true
     end
 
     has_many :todos, AshTypescript.Test.Todo do
-      allow_nil? false
       public? true
     end
   end
@@ -234,7 +232,7 @@ defmodule AshTypescript.Test.Todo do
       end
 
       change set_attribute(:completed, arg(:auto_complete))
-      change manage_relationships(:user_id, :user, type: :append)
+      change manage_relationship(:user_id, :user, type: :append)
     end
 
     update :update do

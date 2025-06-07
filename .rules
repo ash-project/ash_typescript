@@ -1,0 +1,10 @@
+# Testing AshTypescript RPC codegen
+
+This is the steps to test the output of the codegen task:
+
+Run these commands:
+```bash
+MIX_ENV=test mix ash_typescript.codegen --files "./test/ts/test_spec.json" --output "./test/ts/generated.ts"
+cd test/ts
+npm run validate-generated-output
+```
