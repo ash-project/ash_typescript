@@ -1,7 +1,181 @@
 defmodule AshTypescript.TS.Codegen do
+  def generate_type_aliases(prefix \\ "") do
+    """
+    // Base types
+    type #{prefix}UUID = string;
+    type #{prefix}UUIDv7 = string;
+    type #{prefix}ULID = string;
+    type #{prefix}DateTime = string;
+    type #{prefix}AshDate = string;
+    type #{prefix}Time = string;
+    type #{prefix}TimeUsec = string;
+    type #{prefix}UtcDateTime = string;
+    type #{prefix}UtcDateTimeUsec = string;
+    type #{prefix}NaiveDateTime = string;
+    type #{prefix}Duration = string;
+    type #{prefix}DurationName = string;
+    type #{prefix}Binary = string;
+    type #{prefix}UrlEncodedBinary = string;
+    type #{prefix}Decimal = string;
+    type #{prefix}ModuleName = string;
+    type #{prefix}JsonValue = string | number | boolean | null | #{prefix}JsonValue[] | { [key: string]: #{prefix}JsonValue };
+    type #{prefix}Money = {currency: string, amount: string};
+    """
+  end
+
+  def generate_resource_schemas(resources, otp_app) do
+    resources
+    |> Enum.map(&generate_resource_schema(&1, otp_app))
+    |> Enum.join("\n\n")
+  end
+
+  def generate_resource_schema(resource, otp_app) do
+    resource_name = resource |> Module.split() |> List.last()
+
+    attributes_schema = generate_attributes_schema(resource)
+    calculated_fields_schema = generate_calculated_fields_schema(resource)
+    aggregate_fields_schema = generate_aggregate_fields_schema(resource)
+    relationship_schema = generate_relationship_schema(resource, otp_app)
+
+    """
+    // #{resource_name} Schemas
+    #{attributes_schema}
+
+    #{calculated_fields_schema}
+
+    #{aggregate_fields_schema}
+
+    #{relationship_schema}
+    """
+  end
+
+  def generate_attributes_schema(resource) do
+    resource_name = resource |> Module.split() |> List.last()
+
+    attributes =
+      resource
+      |> Ash.Resource.Info.public_attributes()
+      |> Enum.map(fn attr ->
+        if attr.allow_nil? do
+          "  #{attr.name}?: #{get_ts_type(attr)} | null;"
+        else
+          "  #{attr.name}: #{get_ts_type(attr)};"
+        end
+      end)
+      |> Enum.join("\n")
+
+    """
+    type #{resource_name}AttributesSchema = {
+    #{attributes}
+    };
+    """
+  end
+
+  def generate_calculated_fields_schema(resource) do
+    resource_name = resource |> Module.split() |> List.last()
+
+    calculations =
+      resource
+      |> Ash.Resource.Info.public_calculations()
+      |> Enum.map(fn calc ->
+        if calc.allow_nil? do
+          "  #{calc.name}?: #{get_ts_type(calc)} | null;"
+        else
+          "  #{calc.name}: #{get_ts_type(calc)};"
+        end
+      end)
+
+    if Enum.empty?(calculations) do
+      "type #{resource_name}CalculatedFieldsSchema = {};"
+    else
+      """
+      type #{resource_name}CalculatedFieldsSchema = {
+      #{Enum.join(calculations, "\n")}
+      };
+      """
+    end
+  end
+
+  def generate_aggregate_fields_schema(resource) do
+    resource_name = resource |> Module.split() |> List.last()
+
+    aggregates =
+      resource
+      |> Ash.Resource.Info.public_aggregates()
+      |> Enum.map(fn agg ->
+        type =
+          case agg.kind do
+            :sum ->
+              resource
+              |> lookup_aggregate_type(agg.relationship_path, agg.field)
+              |> get_ts_type()
+
+            :first ->
+              resource
+              |> lookup_aggregate_type(agg.relationship_path, agg.field)
+              |> get_ts_type()
+
+            _ ->
+              get_ts_type(agg.kind)
+          end
+
+        if agg.include_nil? do
+          "  #{agg.name}?: #{type} | null;"
+        else
+          "  #{agg.name}: #{type};"
+        end
+      end)
+
+    if Enum.empty?(aggregates) do
+      "type #{resource_name}AggregateFieldsSchema = {};"
+    else
+      """
+      type #{resource_name}AggregateFieldsSchema = {
+      #{Enum.join(aggregates, "\n")}
+      };
+      """
+    end
+  end
+
+  def generate_relationship_schema(resource, _otp_app) do
+    resource_name = resource |> Module.split() |> List.last()
+
+    relationships =
+      resource
+      |> Ash.Resource.Info.public_relationships()
+      |> Enum.map(fn rel ->
+        related_resource_name = rel.destination |> Module.split() |> List.last()
+
+        case rel.type do
+          :belongs_to ->
+            "  #{rel.name}: #{related_resource_name}Relationship;"
+
+          :has_one ->
+            "  #{rel.name}: #{related_resource_name}Relationship;"
+
+          :has_many ->
+            "  #{rel.name}: #{related_resource_name}ArrayRelationship;"
+
+          :many_to_many ->
+            "  #{rel.name}: #{related_resource_name}ArrayRelationship;"
+        end
+      end)
+
+    if Enum.empty?(relationships) do
+      "type #{resource_name}RelationshipSchema = {};"
+    else
+      """
+      type #{resource_name}RelationshipSchema = {
+      #{Enum.join(relationships, "\n")}
+      };
+      """
+    end
+  end
+
   def get_ts_type(type_and_constraints, select_and_loads \\ nil)
   def get_ts_type(:count, _), do: "number"
   def get_ts_type(:sum, _), do: "number"
+  def get_ts_type(:integer, _), do: "number"
   def get_ts_type(%{type: nil}, _), do: "null"
   def get_ts_type(%{type: :sum}, _), do: "number"
   def get_ts_type(%{type: :count}, _), do: "number"
@@ -19,26 +193,26 @@ defmodule AshTypescript.TS.Codegen do
   def get_ts_type(%{type: Ash.Type.CiString}, _), do: "string"
   def get_ts_type(%{type: Ash.Type.Integer}, _), do: "number"
   def get_ts_type(%{type: Ash.Type.Float}, _), do: "number"
-  def get_ts_type(%{type: Ash.Type.Decimal}, _), do: "string"
+  def get_ts_type(%{type: Ash.Type.Decimal}, _), do: "Decimal"
   def get_ts_type(%{type: Ash.Type.Boolean}, _), do: "boolean"
-  def get_ts_type(%{type: Ash.Type.UUID}, _), do: "string"
-  def get_ts_type(%{type: Ash.Type.UUIDv7}, _), do: "string"
-  def get_ts_type(%{type: Ash.Type.Date}, _), do: "string"
-  def get_ts_type(%{type: Ash.Type.Time}, _), do: "string"
-  def get_ts_type(%{type: Ash.Type.TimeUsec}, _), do: "string"
-  def get_ts_type(%{type: Ash.Type.UtcDatetime}, _), do: "string"
-  def get_ts_type(%{type: Ash.Type.UtcDatetimeUsec}, _), do: "string"
-  def get_ts_type(%{type: Ash.Type.DateTime}, _), do: "string"
-  def get_ts_type(%{type: Ash.Type.NaiveDatetime}, _), do: "string"
-  def get_ts_type(%{type: Ash.Type.Duration}, _), do: "string"
-  def get_ts_type(%{type: Ash.Type.DurationName}, _), do: "string"
-  def get_ts_type(%{type: Ash.Type.Binary}, _), do: "string"
-  def get_ts_type(%{type: Ash.Type.UrlEncodedBinary}, _), do: "string"
+  def get_ts_type(%{type: Ash.Type.UUID}, _), do: "UUID"
+  def get_ts_type(%{type: Ash.Type.UUIDv7}, _), do: "UUIDv7"
+  def get_ts_type(%{type: Ash.Type.Date}, _), do: "AshDate"
+  def get_ts_type(%{type: Ash.Type.Time}, _), do: "Time"
+  def get_ts_type(%{type: Ash.Type.TimeUsec}, _), do: "TimeUsec"
+  def get_ts_type(%{type: Ash.Type.UtcDatetime}, _), do: "UtcDateTime"
+  def get_ts_type(%{type: Ash.Type.UtcDatetimeUsec}, _), do: "UtcDateTimeUsec"
+  def get_ts_type(%{type: Ash.Type.DateTime}, _), do: "DateTime"
+  def get_ts_type(%{type: Ash.Type.NaiveDatetime}, _), do: "NaiveDateTime"
+  def get_ts_type(%{type: Ash.Type.Duration}, _), do: "Duration"
+  def get_ts_type(%{type: Ash.Type.DurationName}, _), do: "DurationName"
+  def get_ts_type(%{type: Ash.Type.Binary}, _), do: "Binary"
+  def get_ts_type(%{type: Ash.Type.UrlEncodedBinary}, _), do: "UrlEncodedBinary"
   def get_ts_type(%{type: Ash.Type.File}, _), do: "File"
   def get_ts_type(%{type: Ash.Type.Function}, _), do: "Function"
   def get_ts_type(%{type: Ash.Type.Term}, _), do: "any"
   def get_ts_type(%{type: Ash.Type.Vector}, _), do: "number[]"
-  def get_ts_type(%{type: Ash.Type.Module}, _), do: "string"
+  def get_ts_type(%{type: Ash.Type.Module}, _), do: "ModuleName"
 
   def get_ts_type(%{type: Ash.Type.Map, constraints: constraints}, select)
       when constraints != [] do
@@ -97,23 +271,23 @@ defmodule AshTypescript.TS.Codegen do
     "Array<#{inner_ts_type}>"
   end
 
-  def get_ts_type(%{type: AshDoubleEntry.ULID}, _), do: "string"
-  def get_ts_type(%{type: AshMoney.Types.Money}, _), do: "{currency: string, amount: string}"
+  def get_ts_type(%{type: AshDoubleEntry.ULID}, _), do: "ULID"
+  def get_ts_type(%{type: AshMoney.Types.Money}, _), do: "Money"
 
   # Handle atom types (shorthand versions)
   def get_ts_type(%{type: :string}, _), do: "string"
   def get_ts_type(%{type: :integer}, _), do: "number"
   def get_ts_type(%{type: :float}, _), do: "number"
-  def get_ts_type(%{type: :decimal}, _), do: "string"
+  def get_ts_type(%{type: :decimal}, _), do: "Decimal"
   def get_ts_type(%{type: :boolean}, _), do: "boolean"
-  def get_ts_type(%{type: :uuid}, _), do: "string"
-  def get_ts_type(%{type: :date}, _), do: "string"
-  def get_ts_type(%{type: :time}, _), do: "string"
-  def get_ts_type(%{type: :datetime}, _), do: "string"
-  def get_ts_type(%{type: :naive_datetime}, _), do: "string"
-  def get_ts_type(%{type: :utc_datetime}, _), do: "string"
-  def get_ts_type(%{type: :utc_datetime_usec}, _), do: "string"
-  def get_ts_type(%{type: :binary}, _), do: "string"
+  def get_ts_type(%{type: :uuid}, _), do: "UUID"
+  def get_ts_type(%{type: :date}, _), do: "Date"
+  def get_ts_type(%{type: :time}, _), do: "Time"
+  def get_ts_type(%{type: :datetime}, _), do: "DateTime"
+  def get_ts_type(%{type: :naive_datetime}, _), do: "NaiveDateTime"
+  def get_ts_type(%{type: :utc_datetime}, _), do: "UtcDateTime"
+  def get_ts_type(%{type: :utc_datetime_usec}, _), do: "UtcDateTimeUsec"
+  def get_ts_type(%{type: :binary}, _), do: "Binary"
 
   def get_ts_type(%{type: type, constraints: constraints} = attr, _) do
     cond do

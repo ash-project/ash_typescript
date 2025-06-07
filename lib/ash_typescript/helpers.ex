@@ -1,11 +1,11 @@
 defmodule AshTypescript.Helpers do
-  def snake_to_pascal(snake) when is_atom(snake) do
+  def snake_to_pascal_case(snake) when is_atom(snake) do
     snake
     |> Atom.to_string()
-    |> snake_to_pascal()
+    |> snake_to_pascal_case()
   end
 
-  def snake_to_pascal(snake) when is_binary(snake) do
+  def snake_to_pascal_case(snake) when is_binary(snake) do
     snake
     |> String.split("_")
     |> Enum.with_index()
@@ -13,13 +13,13 @@ defmodule AshTypescript.Helpers do
     |> Enum.join()
   end
 
-  def snake_to_camel(snake) when is_atom(snake) do
+  def snake_to_camel_case(snake) when is_atom(snake) do
     snake
     |> Atom.to_string()
-    |> snake_to_camel()
+    |> snake_to_camel_case()
   end
 
-  def snake_to_camel(snake) when is_binary(snake) do
+  def snake_to_camel_case(snake) when is_binary(snake) do
     snake
     |> String.split("_")
     |> Enum.with_index()

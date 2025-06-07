@@ -29,7 +29,8 @@ defmodule AshTypescript.MixProject do
         "test.check_migrations": :test,
         "test.drop": :test,
         "test.generate_migrations": :test,
-        "test.reset": :test
+        "test.reset": :test,
+        "test.codegen": :test
       ],
       dialyzer: [
         plt_add_apps: [:mix]
@@ -145,6 +146,7 @@ defmodule AshTypescript.MixProject do
       "test.create": "ash_postgres.create",
       "test.reset": ["test.drop", "test.create", "test.migrate", "ash_postgres.migrate --tenants"],
       "test.drop": "ash_postgres.drop",
+      "test.codegen": "mix ash_typescript.codegen --output ./test/ts/generated.ts",
       sobelow: "sobelow --skip",
       docs: [
         "spark.cheat_sheets",
