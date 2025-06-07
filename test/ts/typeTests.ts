@@ -3,7 +3,7 @@ import { listTodos, createTodo, createUser, updateTodo } from "./generated";
 const listTodosResult = await listTodos({
   fields: ["id"],
   calculatedFields: ["is_overdue"],
-  aggregateFields: ["comment_count"]
+  aggregateFields: ["comment_count"],
   load: {
     comments: {
       fields: ["id"],
@@ -27,6 +27,8 @@ const listTodosResult = await listTodos({
 
 type ExpectedListTodosResultType = Array<{
   id: string;
+  is_overdue?: boolean | null;
+  comment_count: number;
   comments: {
     id: string;
     user: {

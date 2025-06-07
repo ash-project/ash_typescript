@@ -183,9 +183,12 @@ defmodule AshTypescript.Test.Todo do
   end
 
   aggregates do
-    count :comment_count, :comments
+    count :comment_count, :comments do
+      public? true
+    end
 
     count :helpful_comment_count, :comments do
+      public? true
       filter expr(is_helpful == true)
     end
 

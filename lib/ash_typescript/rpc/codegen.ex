@@ -75,71 +75,61 @@ defmodule AshTypescript.RPC.Codegen do
     // Utility Types
     type PickFields<T, K extends keyof T> = Pick<T, K>;
 
-    type ExtractCalculatedFields<
-      T extends Record<string, any>,
-      CalcFields extends Record<string, any>
-    > = {
-      [K in keyof T & keyof CalcFields]: CalcFields[K];
-    };
-
-    type CalculatedFieldsResult<T, CalcFields> = T extends Record<string, any>
-      ? ExtractCalculatedFields<T, CalcFields>
-      : {};
-
     type InferResourceResult<
-      Resource extends Record<string, any>,
+      Resource extends {attributes: Record<string, any>, calculations: Record<string, any>, aggregates: Record<string, any>, relationships: Record<string, any>},
       Config extends {
-        fields?: (keyof Resource)[];
-        calculatedFields?: Record<string, any>;
-        aggregateFields?: Record<string, any>;
+        fields?: (keyof Resource["attributes"])[];
+        calculatedFields?: (keyof Resource["calculations"])[];
+        aggregateFields?: (keyof Resource["aggregates"])[];
         load?: Record<string, any>;
       },
-      RelationshipSchema extends Record<string, any> = {}
-    > = (Config["fields"] extends (keyof Resource)[]
-      ? PickFields<Resource, Config["fields"][number]>
-      : Resource) &
-      (Config["calculatedFields"] extends Record<string, any>
-        ? CalculatedFieldsResult<Config["calculatedFields"], any>
+    > = (Config["fields"] extends (keyof Resource["attributes"])[]
+      ? PickFields<Resource["attributes"], Config["fields"][number]>
+      : Resource["attributes"]) &
+      (Config["calculatedFields"] extends (keyof Resource["calculations"])[]
+        ? PickFields<Resource["calculations"], Config["calculatedFields"][number]>
         : {}) &
-      (Config["aggregateFields"] extends Record<string, any>
-        ? Config["aggregateFields"]
+      (Config["aggregateFields"] extends (keyof Resource["aggregates"])[]
+        ? PickFields<Resource["aggregates"], Config["aggregateFields"][number]>
         : {}) &
       (Config["load"] extends Record<string, any>
-        ? InferRelationshipsFromMap<Config["load"], RelationshipSchema>
+        ? InferRelationshipsFromMap<Config["load"], Resource["relationships"]>
         : {});
 
     type InferRelationshipsFromMap<LoadMap, RelationshipSchema> = {
       [K in keyof LoadMap]: LoadMap[K] extends {
-        fields?: any[];
-        calculatedFields?: Record<string, any>;
-        aggregateFields?: Record<string, any>;
+        fields?: string[];
+        calculatedFields?: string[];
+        aggregateFields?: string[];
         load?: Record<string, any>;
       }
         ? K extends keyof RelationshipSchema
           ? RelationshipSchema[K] extends { __array: true; __resource: infer Resource }
-            ? Array<
-                InferResourceResult<
-                  Resource,
-                  {
-                    fields: LoadMap[K]["fields"];
-                    calculatedFields: LoadMap[K]["calculatedFields"];
-                    aggregateFields: LoadMap[K]["aggregateFields"];
-                    load: LoadMap[K]["load"];
-                  },
-                  Resource extends { __relationshipSchema?: infer RS } ? RS : {}
+            ? Resource extends {attributes: Record<string, any>, calculations: Record<string, any>, aggregates: Record<string, any>, relationships: Record<string, any>}
+              ? Array<
+                  InferResourceResult<
+                    Resource,
+                    {
+                      fields: LoadMap[K]["fields"];
+                      calculatedFields: LoadMap[K]["calculatedFields"];
+                      aggregateFields: LoadMap[K]["aggregateFields"];
+                      load: LoadMap[K]["load"];
+                    }
+                  >
                 >
-              >
-            : RelationshipSchema[K] extends { __resource: infer Resource }
-            ? InferResourceResult<
-                Resource,
-                {
-                  fields: LoadMap[K]["fields"];
-                  calculatedFields: LoadMap[K]["calculatedFields"];
-                  aggregateFields: LoadMap[K]["aggregateFields"];
-                  load: LoadMap[K]["load"];
-                },
-                Resource extends { __relationshipSchema?: infer RS } ? RS : {}
-              >
+              : RelationshipSchema[K] extends { __resource: infer Resource }
+              ? Resource extends {attributes: Record<string, any>, calculations: Record<string, any>, aggregates: Record<string, any>, relationships: Record<string, any>}
+                ? InferResourceResult<
+                    Resource,
+                    {
+                      fields: LoadMap[K]["fields"];
+                      calculatedFields: LoadMap[K]["calculatedFields"];
+                      aggregateFields: LoadMap[K]["aggregateFields"];
+                      load: LoadMap[K]["load"];
+                    }
+                  >
+                :never
+              : never
             : never
           : never
         : never;
@@ -148,32 +138,27 @@ defmodule AshTypescript.RPC.Codegen do
     type InferArrayRelationshipResult<
       RelationshipType,
       Config extends {
-        fields?: any[];
-        calculatedFields?: Record<string, any>;
-        aggregateFields?: Record<string, any>;
+        fields?: string[];
+        calculatedFields?: string[];
+        aggregateFields?: string[];
         load?: Record<string, any>;
       }
     > = RelationshipType extends { __array: true; __resource: infer Resource }
-      ? Array<
-          InferResourceResult<
-            Resource,
-            {
-              fields: Config["fields"];
-              calculatedFields: Config["calculatedFields"];
-              aggregateFields: Config["aggregateFields"];
-              load: Config["load"];
-            }
+      ? Resource extends {attributes: Record<string, any>, calculations: Record<string, any>, aggregates: Record<string, any>, relationships: Record<string, any>}
+        ? Array<
+            InferResourceResult<
+              Resource,
+              {
+                fields: Config["fields"];
+                calculatedFields: Config["calculatedFields"];
+                aggregateFields: Config["aggregateFields"];
+                load: Config["load"];
+              }
+            >
           >
-        >
+        : never
       : never;
 
-    type CalculatedFieldsConfig<T> = {
-      [K in keyof T]?: boolean;
-    };
-
-    type AggregateFieldsConfig<T> = {
-      [K in keyof T]?: boolean;
-    };
 
     type LoadConfig<T> = {
       [K in keyof T]?: T[K] extends { __array: true }
@@ -254,10 +239,10 @@ defmodule AshTypescript.RPC.Codegen do
     # Generate single relationship type
     single_rel = """
     type #{resource_name}Relationship = {
-      __resource: #{resource_name}AttributesSchema;
-      fields?: (keyof #{resource_name}AttributesSchema)[];
-      calculatedFields?: CalculatedFieldsConfig<#{resource_name}CalculatedFieldsSchema>;
-      aggregateFields?: AggregateFieldsConfig<#{resource_name}AggregateFieldsSchema>;
+      __resource: #{resource_name}ResourceSchema;
+      fields?: (keyof #{resource_name}ResourceSchema["attributes"])[];
+      calculatedFields?: (keyof #{resource_name}ResourceSchema["calculations"])[];
+      aggregateFields?: (keyof #{resource_name}ResourceSchema["aggregates"])[];
       load?: LoadConfig<#{resource_name}RelationshipSchema>;
     };
     """
@@ -266,10 +251,10 @@ defmodule AshTypescript.RPC.Codegen do
     array_rel = """
     type #{resource_name}ArrayRelationship = {
       __array: true;
-      __resource: #{resource_name}AttributesSchema;
-      fields?: (keyof #{resource_name}AttributesSchema)[];
-      calculatedFields?: CalculatedFieldsConfig<#{resource_name}CalculatedFieldsSchema>;
-      aggregateFields?: AggregateFieldsConfig<#{resource_name}AggregateFieldsSchema>;
+      __resource: #{resource_name}ResourceSchema;
+      fields?: (keyof #{resource_name}ResourceSchema["attributes"])[];
+      calculatedFields?: (keyof #{resource_name}ResourceSchema["calculations"])[];
+      aggregateFields?: (keyof #{resource_name}ResourceSchema["aggregates"])[];
       load?: LoadConfig<#{resource_name}RelationshipSchema>;
     };
     """
@@ -322,9 +307,9 @@ defmodule AshTypescript.RPC.Codegen do
 
     # Base config fields
     base_fields = [
-      "  fields?: (keyof #{resource_name}AttributesSchema)[];",
-      "  calculatedFields?: CalculatedFieldsConfig<#{resource_name}CalculatedFieldsSchema>;",
-      "  aggregateFields?: AggregateFieldsConfig<#{resource_name}AggregateFieldsSchema>;",
+      "  fields?: (keyof #{resource_name}ResourceSchema[\"attributes\"])[];",
+      "  calculatedFields?: (keyof #{resource_name}ResourceSchema[\"calculations\"])[];",
+      "  aggregateFields?: (keyof #{resource_name}ResourceSchema[\"aggregates\"])[];",
       "  load?: LoadConfig<#{resource_name}RelationshipSchema>;"
     ]
 
@@ -341,14 +326,15 @@ defmodule AshTypescript.RPC.Codegen do
               ]
             end
 
-          pagination = [
-            "  pagination?: {",
+          pagination_and_sort = [
+            "  sort?: string;",
+            "  page?: {",
             "    limit?: number;",
             "    offset?: number;",
             "  };"
           ]
 
-          filters ++ pagination
+          filters ++ pagination_and_sort
 
         :create ->
           accepts = Ash.Resource.Info.action(resource, action.name).accept || []
@@ -458,19 +444,19 @@ defmodule AshTypescript.RPC.Codegen do
       :read when action.get? ->
         """
         type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          InferResourceResult<#{resource_name}AttributesSchema, Config, #{resource_name}RelationshipSchema> | null;
+          InferResourceResult<#{resource_name}ResourceSchema, Config> | null;
         """
 
       :read ->
         """
         type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          Array<InferResourceResult<#{resource_name}AttributesSchema, Config, #{resource_name}RelationshipSchema>>;
+          Array<InferResourceResult<#{resource_name}ResourceSchema, Config>>;
         """
 
       action_type when action_type in [:create, :update] ->
         """
         type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          InferResourceResult<#{resource_name}AttributesSchema, Config, #{resource_name}RelationshipSchema>;
+          InferResourceResult<#{resource_name}ResourceSchema, Config>;
         """
 
       :destroy ->
@@ -514,11 +500,20 @@ defmodule AshTypescript.RPC.Codegen do
             payload.select = [];
           }
 
+          payload.load = [];
+
+          if (config.calculatedFields) {
+            payload.load.push(...config.calculatedFields);
+          }
+
+          if (config.aggregateFields) {
+            payload.load.push(...config.aggregateFields);
+          }
+
           // Build load array from load configuration
           if (config.load) {
-            payload.load = buildLoadArray(config.load);
-          } else {
-            payload.load = [];
+            const loads = buildLoadArray(config.load);
+            payload.load.push(...loads);
           }
 
           if (config.filter) {
@@ -531,7 +526,11 @@ defmodule AshTypescript.RPC.Codegen do
             payload.page = config.page;
           }
 
-          if (config.input) {
+          if (config.sort) {
+            payload.sort = config.sort;
+          }
+
+          if ("input" in config && config.input) {
             payload.input = config.input;
           } else {
             payload.input = {};
@@ -564,7 +563,7 @@ defmodule AshTypescript.RPC.Codegen do
             payload.load = [];
           }
 
-          if (config.input) {
+          if ("input" in config && config.input) {
             payload.input = config.input;
           } else {
             payload.input = {};
@@ -597,7 +596,7 @@ defmodule AshTypescript.RPC.Codegen do
             payload.load = [];
           }
 
-          if (config.input) {
+          if ("input" in config && config.input) {
             payload.input = config.input;
           } else {
             payload.input = {};
@@ -607,7 +606,7 @@ defmodule AshTypescript.RPC.Codegen do
         }
         """
 
-      action.type in [:update, :destroy] ->
+      action.type == :update ->
         """
         export function build#{rpc_action_name_pascal}Payload(
           config: #{rpc_action_name_pascal}Config
@@ -620,7 +619,7 @@ defmodule AshTypescript.RPC.Codegen do
             payload.primary_key = config.primaryKey;
           }
 
-          if (config.input) {
+          if ("input" in config && config.input) {
             payload.input = config.input;
           } else {
             payload.input = {};
@@ -644,6 +643,29 @@ defmodule AshTypescript.RPC.Codegen do
         }
         """
 
+      action.type == :destroy ->
+        """
+        export function build#{rpc_action_name_pascal}Payload(
+          config: #{rpc_action_name_pascal}Config
+        ): Record<string, any> {
+          const payload: Record<string, any> = {
+            action: "#{rpc_action_name}"
+          };
+
+          if (config.primaryKey) {
+            payload.primary_key = config.primaryKey;
+          }
+
+          if ("input" in config && config.input) {
+            payload.input = config.input;
+          } else {
+            payload.input = {};
+          }
+
+          return payload;
+        }
+        """
+
       action.type == :action ->
         """
         export function build#{rpc_action_name_pascal}Payload(
@@ -653,7 +675,7 @@ defmodule AshTypescript.RPC.Codegen do
             action: "#{rpc_action_name}"
           };
 
-          if (config.input) {
+          if ("input" in config && config.input) {
             payload.input = config.input;
           } else {
             payload.input = {};

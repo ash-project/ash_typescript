@@ -54,7 +54,7 @@ defmodule AshTypescript.TS.Filter do
 
     """
       #{attribute.name}?: {
-    #{operations}
+    #{Enum.join(operations, "\n")}
       };
     """
   end
@@ -73,7 +73,7 @@ defmodule AshTypescript.TS.Filter do
 
     """
       #{name}?: {
-    #{operations}
+    #{Enum.join(operations, "\n")}
       };
     """
   end
@@ -91,23 +91,23 @@ defmodule AshTypescript.TS.Filter do
   defp get_applicable_operations(type, base_type) do
     case type do
       t when t in [Ash.Type.String, Ash.Type.CiString, :string] ->
-        """
-        eq?: #{base_type};
-        not_eq?: #{base_type};
-        in?: Array<#{base_type}>;
-        """
+        [
+          "    eq?: #{base_type};",
+          "    not_eq?: #{base_type};",
+          "    in?: Array<#{base_type}>;"
+        ]
 
       t
       when t in [Ash.Type.Integer, Ash.Type.Float, Ash.Type.Decimal, :integer, :float, :decimal] ->
-        """
-        eq?: #{base_type};
-        not_eq?: #{base_type};
-        greater_than?: #{base_type};
-        greater_than_or_equal?: #{base_type};
-        less_than?: #{base_type};
-        less_than_or_equal?: #{base_type};
-        in?: Array<#{base_type}>;
-        """
+        [
+          "    eq?: #{base_type};",
+          "    not_eq?: #{base_type};",
+          "    greater_than?: #{base_type};",
+          "    greater_than_or_equal?: #{base_type};",
+          "    less_than?: #{base_type};",
+          "    less_than_or_equal?: #{base_type};",
+          "    in?: Array<#{base_type}>;"
+        ]
 
       t
       when t in [
@@ -121,45 +121,45 @@ defmodule AshTypescript.TS.Filter do
              :utc_datetime,
              :naive_datetime
            ] ->
-        """
-        eq?: #{base_type};
-        not_eq?: #{base_type};
-        greater_than?: #{base_type};
-        greater_than_or_equal?: #{base_type};
-        less_than?: #{base_type};
-        less_than_or_equal?: #{base_type};
-        in?: Array<#{base_type}>;
-        """
+        [
+          "    eq?: #{base_type};",
+          "    not_eq?: #{base_type};",
+          "    greater_than?: #{base_type};",
+          "    greater_than_or_equal?: #{base_type};",
+          "    less_than?: #{base_type};",
+          "    less_than_or_equal?: #{base_type};",
+          "    in?: Array<#{base_type}>;"
+        ]
 
       t when t in [Ash.Type.Boolean, :boolean] ->
-        """
-        eq?: #{base_type};
-        not_eq?: #{base_type};
-        """
+        [
+          "    eq?: #{base_type};",
+          "    not_eq?: #{base_type};"
+        ]
 
       %{type: Ash.Type.Atom, constraints: constraints} when constraints != [] ->
         case Keyword.get(constraints, :one_of) do
           nil ->
-            """
-            eq?: #{base_type};
-            not_eq?: #{base_type};
-            in?: Array<#{base_type}>;
-            """
+            [
+              "    eq?: #{base_type};",
+              "    not_eq?: #{base_type};",
+              "    in?: Array<#{base_type}>;"
+            ]
 
           _values ->
-            """
-            eq?: #{base_type};
-            not_eq?: #{base_type};
-            in?: Array<#{base_type}>;
-            """
+            [
+              "    eq?: #{base_type};",
+              "    not_eq?: #{base_type};",
+              "    in?: Array<#{base_type}>;"
+            ]
         end
 
       _ ->
-        """
-        eq?: #{base_type};
-        not_eq?: #{base_type};
-        in?: Array<#{base_type}>;
-        """
+        [
+          "    eq?: #{base_type};",
+          "    not_eq?: #{base_type};",
+          "    in?: Array<#{base_type}>;"
+        ]
     end
   end
 

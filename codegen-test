@@ -1,2 +1,0 @@
-#!/usr/bin/env bash
-MIX_ENV=test mix ash_typescript.codegen --output ./test/ts/generated.ts

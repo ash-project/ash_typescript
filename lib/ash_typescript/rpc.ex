@@ -95,14 +95,20 @@ defmodule AshTypescript.RPC do
               |> Ash.Query.for_read(action.name, params["input"], opts)
               |> Ash.Query.select(select)
               |> Ash.Query.load(load)
-
-            # Apply filter if provided
-            query =
-              if params["filter"] do
-                Ash.Query.filter_input(query, params["filter"])
-              else
-                query
-              end
+              |> then(fn query ->
+                if params["filter"] do
+                  Ash.Query.filter_input(query, params["filter"])
+                else
+                  query
+                end
+              end)
+              |> then(fn query ->
+                if params["sort"] do
+                  Ash.Query.sort_input(query, params["sort"])
+                else
+                  query
+                end
+              end)
 
             result = Ash.read(query)
 

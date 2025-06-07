@@ -36,6 +36,7 @@ defmodule AshTypescript.TS.Codegen do
     calculated_fields_schema = generate_calculated_fields_schema(resource)
     aggregate_fields_schema = generate_aggregate_fields_schema(resource)
     relationship_schema = generate_relationship_schema(resource, otp_app)
+    resource_schema = generate_resource_schema(resource)
 
     """
     // #{resource_name} Schemas
@@ -46,6 +47,9 @@ defmodule AshTypescript.TS.Codegen do
     #{aggregate_fields_schema}
 
     #{relationship_schema}
+
+    #{resource_schema}
+
     """
   end
 
@@ -170,6 +174,19 @@ defmodule AshTypescript.TS.Codegen do
       };
       """
     end
+  end
+
+  def generate_resource_schema(resource) do
+    resource_name = resource |> Module.split() |> List.last()
+
+    """
+    type #{resource_name}ResourceSchema = {
+      attributes: #{resource_name}AttributesSchema;
+      calculations: #{resource_name}CalculatedFieldsSchema;
+      aggregates: #{resource_name}AggregateFieldsSchema;
+      relationships: #{resource_name}RelationshipSchema;
+    };
+    """
   end
 
   def get_ts_type(type_and_constraints, select_and_loads \\ nil)
