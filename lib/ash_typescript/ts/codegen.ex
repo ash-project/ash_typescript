@@ -455,7 +455,10 @@ defmodule AshTypescript.TS.Codegen do
 
     case Enum.find(relationships, &(&1.name == field_name)) do
       nil ->
-        throw("Relationship not found on #{resource}: #{field_name}")
+        throw(
+          "Relationship not found on #{resource}: #{field_name}"
+          |> String.replace("Elixir.", "")
+        )
 
       %Ash.Resource.Relationships.HasMany{} = rel ->
         id_fields = Ash.Resource.Info.primary_key(resource)

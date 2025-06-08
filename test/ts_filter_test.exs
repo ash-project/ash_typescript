@@ -198,9 +198,9 @@ defmodule AshTypescript.TS.FilterTest do
       result = Filter.generate_filter_type(TestPost)
 
       assert String.contains?(result, "published_at?: {")
-      assert String.contains?(result, "eq?: string")
-      assert String.contains?(result, "greater_than?: string")
-      assert String.contains?(result, "less_than?: string")
+      assert String.contains?(result, "eq?: UtcDateTime")
+      assert String.contains?(result, "greater_than?: UtcDateTime")
+      assert String.contains?(result, "less_than?: UtcDateTime")
     end
 
     test "includes constrained atom attribute filters" do

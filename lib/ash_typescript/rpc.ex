@@ -55,8 +55,6 @@ defmodule AshTypescript.RPC do
   @spec run_action(otp_app :: atom, conn :: Plug.Conn.t(), params :: map) ::
           %{success: boolean, data: map() | nil, error: map() | nil}
   def run_action(otp_app, conn, params) do
-    IO.inspect(params)
-
     rpc_action =
       otp_app
       |> Ash.Info.domains()
@@ -99,11 +97,13 @@ defmodule AshTypescript.RPC do
 
         fields_to_take = select ++ load
 
+        input = params["input"] || %{}
+
         case action.type do
           :read ->
             query =
               resource
-              |> Ash.Query.for_read(action.name, params["input"], opts)
+              |> Ash.Query.for_read(action.name, input, opts)
               |> Ash.Query.select(select)
               |> Ash.Query.load(load)
               |> then(fn query ->
@@ -131,15 +131,13 @@ defmodule AshTypescript.RPC do
 
           :create ->
             resource
-            |> Ash.Changeset.for_create(action.name, params["input"], opts)
+            |> Ash.Changeset.for_create(action.name, input, opts)
             |> Ash.Changeset.select(select)
             |> Ash.Changeset.load(load)
             |> Ash.create()
 
           :update ->
             # For update actions, we need to get the record first
-            input = params["input"]
-
             with {:ok, record} <- Ash.get(resource, params["primary_key"], opts) do
               record
               |> Ash.Changeset.for_update(action.name, input, opts)
@@ -150,8 +148,6 @@ defmodule AshTypescript.RPC do
 
           :destroy ->
             # For destroy actions, we need to get the record first
-            input = params["input"]
-
             with {:ok, record} <- Ash.get(resource, params["primary_key"], opts) do
               record
               |> Ash.Changeset.for_destroy(action.name, input, opts)
@@ -162,7 +158,7 @@ defmodule AshTypescript.RPC do
 
           :action ->
             resource
-            |> Ash.ActionInput.for_action(action.name, params["input"], opts)
+            |> Ash.ActionInput.for_action(action.name, input, opts)
             |> Ash.run_action()
         end
         |> case do
@@ -174,7 +170,7 @@ defmodule AshTypescript.RPC do
             %{success: true, data: return_value}
 
           {:error, error} ->
-            %{success: false, error: error}
+            %{success: false, errors: error}
         end
     end
   end
@@ -276,20 +272,34 @@ defmodule AshTypescript.RPC do
             {:error, "Cannot validate a generic action"}
 
           :create ->
-            resource
-            |> AshPhoenix.Form.for_action(action.name, opts)
-            |> AshPhoenix.Form.validate(params["input"])
-            |> AshPhoenix.Form.errors()
-            |> Enum.into(%{})
+            result =
+              resource
+              |> AshPhoenix.Form.for_action(action.name, opts)
+              |> AshPhoenix.Form.validate(params["input"])
+              |> AshPhoenix.Form.errors()
+              |> Enum.into(%{})
+
+            if Enum.empty?(result) do
+              %{success: true}
+            else
+              %{success: false, errors: result}
+            end
 
           _ ->
             case Ash.get(resource, params["primary_key"], opts) do
               {:ok, record} ->
-                record
-                |> AshPhoenix.Form.for_action(action.name, opts)
-                |> AshPhoenix.Form.validate(params["input"])
-                |> AshPhoenix.Form.errors()
-                |> Enum.into(%{})
+                result =
+                  record
+                  |> AshPhoenix.Form.for_action(action.name, opts)
+                  |> AshPhoenix.Form.validate(params["input"])
+                  |> AshPhoenix.Form.errors()
+                  |> Enum.into(%{})
+
+                if Enum.empty?(result) do
+                  %{success: true}
+                else
+                  %{success: false, errors: result}
+                end
 
               {:error, _} ->
                 {:error, "Record not found"}
