@@ -1,28 +1,33 @@
 import { listTodos, createTodo, createUser, updateTodo } from "./generated";
 
 const listTodosResult = await listTodos({
-  fields: ["id"],
-  calculatedFields: ["is_overdue"],
-  aggregateFields: ["comment_count"],
-  load: {
-    comments: {
-      fields: ["id"],
-      load: {
-        user: { fields: ["id", "email"] },
-        todo: {
-          fields: ["id", "title", "status"],
-          load: { comments: { fields: ["id", "content"] } },
+  fields: [
+    "id",
+    "comment_count",
+    "is_overdue",
+    {
+      comments: [
+        "id",
+        "content",
+        {
+          user: [
+            "id",
+            "email",
+            {
+              todos: [
+                "id",
+                "title",
+                "status",
+                {
+                  comments: ["id", "content"],
+                },
+              ],
+            },
+          ],
         },
-      },
+      ],
     },
-  },
-  filter: {
-    and: [
-      {
-        status: { eq: "finished" },
-      },
-    ],
-  },
+  ],
 });
 
 type ExpectedListTodosResultType = Array<{
@@ -31,17 +36,18 @@ type ExpectedListTodosResultType = Array<{
   comment_count: number;
   comments: {
     id: string;
+    content: string;
     user: {
       id: string;
       email: string;
-    };
-    todo: {
-      id: string;
-      title: string;
-      status: string;
-      comments: {
+      todos: {
         id: string;
-        content: string;
+        title: string;
+        status?: string | null;
+        comments: {
+          id: string;
+          content: string;
+        }[];
       }[];
     };
   }[];
@@ -71,11 +77,13 @@ const createTodoResult = await createTodo({
     status: "finished",
     user_id: createUserResultTodo.id,
   },
-  load: {
-    user: { fields: ["id", "email"] },
-    comments: { fields: ["id", "content"] },
-  },
-  fields: ["id", "title", "status", "user_id"],
+  fields: [
+    "id",
+    "title",
+    "status",
+    "user_id",
+    { user: ["id", "email"], comments: ["id", "content"] },
+  ],
 });
 
 type ExpectedCreateTodoResultType = {
@@ -101,4 +109,5 @@ const updateTodoResult = await updateTodo({
     title: "Updated Todo",
     tags: ["tag1", "tag2"],
   },
+  fields: ["id", { user: ["id", "email"] }],
 });

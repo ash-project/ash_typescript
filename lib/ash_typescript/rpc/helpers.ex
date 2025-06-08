@@ -1,5 +1,5 @@
 defmodule AshTypescript.RPC.Helpers do
-  def parse_json_select_and_load(list) when is_list(list) do
+  def parse_json_load(list) when is_list(list) do
     list
     |> Enum.map(&transform/1)
     |> reorder_atoms_and_keywords()
@@ -7,7 +7,7 @@ defmodule AshTypescript.RPC.Helpers do
 
   defp transform(%{} = map) when map_size(map) == 1 do
     [{k, v}] = Map.to_list(map)
-    {String.to_atom(k), parse_json_select_and_load(v)}
+    {String.to_existing_atom(k), parse_json_load(v)}
   end
 
   defp transform(str) when is_binary(str), do: String.to_atom(str)

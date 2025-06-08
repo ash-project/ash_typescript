@@ -12,7 +12,7 @@ defmodule AshTypescript.RPC do
     schema: [
       name: [
         type: :atom,
-        doc: "The name of the RPC-action`"
+        doc: "The name of the RPC-action"
       ],
       action: [
         type: :atom,
@@ -84,8 +84,19 @@ defmodule AshTypescript.RPC do
           context: Ash.PlugHelpers.get_context(conn) || %{}
         ]
 
-        select = parse_json_select_and_load(params["select"])
-        load = parse_json_select_and_load(params["load"])
+        attributes =
+          Ash.Resource.Info.public_attributes(resource) |> Enum.map(fn a -> to_string(a.name) end)
+
+        select =
+          params["fields"]
+          |> Enum.filter(fn field -> field in attributes end)
+          |> Enum.map(&String.to_existing_atom/1)
+
+        load =
+          params["fields"]
+          |> Enum.reject(fn field -> field in attributes end)
+          |> parse_json_load()
+
         fields_to_take = select ++ load
 
         case action.type do
@@ -156,14 +167,14 @@ defmodule AshTypescript.RPC do
         end
         |> case do
           :ok ->
-            %{success: true, data: %{}, error: nil}
+            %{success: true, data: %{}}
 
           {:ok, result} ->
             return_value = extract_return_value(result, fields_to_take)
-            %{success: true, data: return_value, error: nil}
+            %{success: true, data: return_value}
 
           {:error, error} ->
-            %{success: false, data: nil, error: error}
+            %{success: false, error: error}
         end
     end
   end
