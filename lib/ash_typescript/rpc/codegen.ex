@@ -119,7 +119,7 @@ defmodule AshTypescript.RPC.Codegen do
       RelationshipsObject extends Record<string, any>,
       AllRelationships extends Record<string, any>
     > = {
-      [K in keyof RelationshipsObject]: K extends keyof AllRelationships
+      [K in keyof RelationshipsObject]-?: K extends keyof AllRelationships
         ? AllRelationships[K] extends { __resource: infer Res extends ResourceBase }
           ? AllRelationships[K] extends { __array: true }
             ? Array<InferResourceResult<Res, RelationshipsObject[K]>>
@@ -208,7 +208,7 @@ defmodule AshTypescript.RPC.Codegen do
     single_rel = """
     type #{resource_name}Relationship = {
       __resource: #{resource_name}ResourceSchema;
-      fields: FieldSelection#{resource_name}[];
+      fields: FieldSelection<#{resource_name}ResourceSchema>[];
     };
     """
 
@@ -217,7 +217,7 @@ defmodule AshTypescript.RPC.Codegen do
     type #{resource_name}ArrayRelationship = {
       __array: true;
       __resource: #{resource_name}ResourceSchema;
-      fields: FieldSelection#{resource_name}[];
+      fields: FieldSelection<#{resource_name}ResourceSchema>[];
     };
     """
 

@@ -44,7 +44,7 @@ type ExpectedListTodosResultType = Array<{
         id: string;
         title: string;
         status?: string | null;
-        comments: {
+        comments?: {
           id: string;
           content: string;
         }[];
