@@ -136,12 +136,6 @@ defmodule AshTypescript.RPC.Codegen do
       InferPickedFields<Resource, ExtractStringFields<SelectedFields>> &
       InferRelationships<ExtractRelationshipObjects<SelectedFields>, Resource["relationships"]>;
 
-    type LoadConfig<T> = {
-      [K in keyof T]?: T[K] extends { __array: true }
-        ? ArrayRelationshipConfig<T[K]>
-        : RelationshipConfig<T[K]>;
-    };
-
     type RelationshipConfig<T> = T extends {
       __resource: infer Resource;
       fields?: any;
