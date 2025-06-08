@@ -22,14 +22,6 @@ defmodule AshTypescript.MixProject do
       source_url: "https://github.com/ash-project/ash_typescript",
       homepage_url: "https://github.com/ash-project/ash_typescript",
       preferred_cli_env: [
-        "test.create": :test,
-        "test.migrate": :test,
-        "test.rollback": :test,
-        "test.migrate_tenants": :test,
-        "test.check_migrations": :test,
-        "test.drop": :test,
-        "test.generate_migrations": :test,
-        "test.reset": :test,
         "test.codegen": :test
       ],
       dialyzer: [
@@ -138,14 +130,6 @@ defmodule AshTypescript.MixProject do
 
   defp aliases do
     [
-      "test.generate_migrations": "ash_postgres.generate_migrations",
-      "test.check_migrations": "ash_postgres.generate_migrations --check",
-      "test.migrate_tenants": "ash_postgres.migrate --tenants",
-      "test.migrate": "ash_postgres.migrate",
-      "test.rollback": "ash_postgres.rollback",
-      "test.create": "ash_postgres.create",
-      "test.reset": ["test.drop", "test.create", "test.migrate", "ash_postgres.migrate --tenants"],
-      "test.drop": "ash_postgres.drop",
       "test.codegen": "ash_typescript.codegen --output ./test/ts/generated.ts",
       sobelow: "sobelow --skip",
       docs: [
