@@ -6,6 +6,11 @@ defmodule AshTypescript.RPC do
     defstruct [:name, :action]
   end
 
+  def codegen(argv) do
+    Mix.Task.reenable("ash_typescript.codegen")
+    Mix.Task.run("ash_typescript.codegen", argv)
+  end
+
   @rpc_action %Spark.Dsl.Entity{
     name: :rpc_action,
     target: RPCAction,
@@ -265,27 +270,7 @@ defmodule AshTypescript.RPC do
         ]
 
         case action.type do
-          :read ->
-            {:error, "Cannot validate a read action"}
-
-          :action ->
-            {:error, "Cannot validate a generic action"}
-
-          :create ->
-            result =
-              resource
-              |> AshPhoenix.Form.for_action(action.name, opts)
-              |> AshPhoenix.Form.validate(params["input"])
-              |> AshPhoenix.Form.errors()
-              |> Enum.into(%{})
-
-            if Enum.empty?(result) do
-              %{success: true}
-            else
-              %{success: false, errors: result}
-            end
-
-          _ ->
+          action when action in [:update, :destroy] ->
             case Ash.get(resource, params["primary_key"], opts) do
               {:ok, record} ->
                 result =
@@ -303,6 +288,20 @@ defmodule AshTypescript.RPC do
 
               {:error, _} ->
                 {:error, "Record not found"}
+            end
+
+          _ ->
+            result =
+              resource
+              |> AshPhoenix.Form.for_action(action.name, opts)
+              |> AshPhoenix.Form.validate(params["input"])
+              |> AshPhoenix.Form.errors()
+              |> Enum.into(%{})
+
+            if Enum.empty?(result) do
+              %{success: true}
+            else
+              %{success: false, errors: result}
             end
         end
     end
