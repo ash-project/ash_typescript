@@ -23,19 +23,19 @@ defmodule AshTypescript.TS.Codegen do
     """
   end
 
-  def generate_resource_schemas(resources, otp_app) do
+  def generate_all_schemas_for_resources(resources, allowed_resources) do
     resources
-    |> Enum.map(&generate_resource_schema(&1, otp_app))
+    |> Enum.map(&generate_all_schemas_for_resource(&1, allowed_resources))
     |> Enum.join("\n\n")
   end
 
-  def generate_resource_schema(resource, otp_app) do
+  def generate_all_schemas_for_resource(resource, allowed_resources) do
     resource_name = resource |> Module.split() |> List.last()
 
     attributes_schema = generate_attributes_schema(resource)
     calculated_fields_schema = generate_calculated_fields_schema(resource)
     aggregate_fields_schema = generate_aggregate_fields_schema(resource)
-    relationship_schema = generate_relationship_schema(resource, otp_app)
+    relationship_schema = generate_relationship_schema(resource, allowed_resources)
     resource_schema = generate_resource_schema(resource)
 
     """
@@ -49,7 +49,6 @@ defmodule AshTypescript.TS.Codegen do
     #{relationship_schema}
 
     #{resource_schema}
-
     """
   end
 
@@ -141,12 +140,51 @@ defmodule AshTypescript.TS.Codegen do
     end
   end
 
-  def generate_relationship_schema(resource, _otp_app) do
+  def generate_relationship_schema(resource) do
     resource_name = resource |> Module.split() |> List.last()
 
     relationships =
       resource
       |> Ash.Resource.Info.public_relationships()
+      |> Enum.map(fn rel ->
+        related_resource_name = rel.destination |> Module.split() |> List.last()
+
+        case rel.type do
+          :belongs_to ->
+            "  #{rel.name}: #{related_resource_name}Relationship;"
+
+          :has_one ->
+            "  #{rel.name}: #{related_resource_name}Relationship;"
+
+          :has_many ->
+            "  #{rel.name}: #{related_resource_name}ArrayRelationship;"
+
+          :many_to_many ->
+            "  #{rel.name}: #{related_resource_name}ArrayRelationship;"
+        end
+      end)
+
+    if Enum.empty?(relationships) do
+      "type #{resource_name}RelationshipSchema = {};"
+    else
+      """
+      type #{resource_name}RelationshipSchema = {
+      #{Enum.join(relationships, "\n")}
+      };
+      """
+    end
+  end
+
+  def generate_relationship_schema(resource, allowed_resources) do
+    resource_name = resource |> Module.split() |> List.last()
+
+    relationships =
+      resource
+      |> Ash.Resource.Info.public_relationships()
+      |> Enum.filter(fn rel ->
+        # Only include relationships to allowed resources
+        Enum.member?(allowed_resources, rel.destination)
+      end)
       |> Enum.map(fn rel ->
         related_resource_name = rel.destination |> Module.split() |> List.last()
 

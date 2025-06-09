@@ -6,6 +6,7 @@ const listTodosResult = await listTodos({
     "comment_count",
     "is_overdue",
     {
+      not_exposed_items: ["id"],
       comments: [
         "id",
         "content",

@@ -5,6 +5,10 @@ defmodule AshTypescript.TS.Filter do
     Enum.map(resources, &generate_filter_type/1)
   end
 
+  def generate_filter_types(resources, allowed_resources) when is_list(resources) do
+    Enum.map(resources, &generate_filter_type(&1, allowed_resources))
+  end
+
   def generate_filter_type(resource) do
     resource_name = resource |> Module.split() |> List.last()
     filter_type_name = "#{resource_name}FilterInput"
@@ -22,6 +26,32 @@ defmodule AshTypescript.TS.Filter do
     #{relationship_filters}
     };
     """
+  end
+
+  def generate_filter_type(resource, allowed_resources) do
+    resource_name = resource |> Module.split() |> List.last()
+    filter_type_name = "#{resource_name}FilterInput"
+
+    attribute_filters = generate_attribute_filters(resource)
+    relationship_filters = generate_relationship_filters(resource, allowed_resources)
+    aggregate_filters = generate_aggregate_filters(resource)
+    logical_operators = generate_logical_operators(filter_type_name)
+
+    """
+    export type #{filter_type_name} = {
+    #{logical_operators}
+    #{attribute_filters}
+    #{aggregate_filters}
+    #{relationship_filters}
+    };
+    """
+  end
+
+  defp generate_relationship_filters(resource) do
+    resource
+    |> Ash.Resource.Info.public_relationships()
+    |> Enum.map(&generate_relationship_filter(&1))
+    |> Enum.join("\n")
   end
 
   defp generate_logical_operators(filter_type_name) do
@@ -163,9 +193,13 @@ defmodule AshTypescript.TS.Filter do
     end
   end
 
-  defp generate_relationship_filters(resource) do
+  defp generate_relationship_filters(resource, allowed_resources) do
     resource
     |> Ash.Resource.Info.public_relationships()
+    |> Enum.filter(fn rel ->
+      # Only include relationships to allowed resources
+      Enum.member?(allowed_resources, rel.destination)
+    end)
     |> Enum.map(&generate_relationship_filter(&1))
     |> Enum.join("\n")
   end

@@ -49,6 +49,49 @@ defmodule AshTypescript.Test.User do
   end
 end
 
+defmodule AshTypescript.Test.NotExposed do
+  use Ash.Resource,
+    domain: AshTypescript.Test.Domain,
+    data_layer: Ash.DataLayer.Ets,
+    primary_read_warning?: false
+
+  attributes do
+    uuid_primary_key :id
+
+    attribute :name, :string do
+      allow_nil? false
+      public? true
+    end
+
+    attribute :email, :string do
+      allow_nil? false
+      public? true
+    end
+  end
+
+  relationships do
+    belongs_to :todo, AshTypescript.Test.Todo do
+      public? true
+    end
+  end
+
+  actions do
+    defaults [:read]
+
+    create :create do
+      accept [:email, :name]
+    end
+
+    update :update do
+      accept [:name]
+    end
+
+    destroy :destroy do
+      accept []
+    end
+  end
+end
+
 defmodule AshTypescript.Test.Comment do
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
@@ -178,6 +221,10 @@ defmodule AshTypescript.Test.Todo do
     end
 
     has_many :comments, AshTypescript.Test.Comment do
+      public? true
+    end
+
+    has_many :not_exposed_items, AshTypescript.Test.NotExposed do
       public? true
     end
   end
@@ -361,5 +408,6 @@ defmodule AshTypescript.Test.Domain do
     resource AshTypescript.Test.Todo
     resource AshTypescript.Test.Comment
     resource AshTypescript.Test.User
+    resource AshTypescript.Test.NotExposed
   end
 end
