@@ -18,6 +18,8 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
       OptionParser.parse(args,
         switches: [
           output: :string,
+          check: :boolean,
+          dry_run: :boolean,
           process_endpoint: :string,
           validate_endpoint: :string
         ],
@@ -35,6 +37,30 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
 
     # Generate TypeScript types and write to file
     typescript_content = generate_typescript_types(otp_app, codegen_opts)
-    File.write!(output_file, typescript_content)
+
+    current_content =
+      if File.exists?(output_file) do
+        File.read!(output_file)
+      else
+        ""
+      end
+
+    cond do
+      opts[:check] ->
+        if typescript_content != current_content do
+          raise Ash.Error.Framework.PendingCodegen,
+            diff: %{
+              output_file => typescript_content
+            }
+        end
+
+      opts[:dry_run] ->
+        if typescript_content != current_content do
+          "##{output_file}:\n\n#{typescript_content}"
+        end
+
+      true ->
+        File.write!(output_file, typescript_content)
+    end
   end
 end
