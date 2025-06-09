@@ -218,7 +218,7 @@ defmodule AshTypescript.TS.Codegen do
     resource_name = resource |> Module.split() |> List.last()
 
     """
-    type #{resource_name}ResourceSchema = {
+    export type #{resource_name}ResourceSchema = {
       attributes: #{resource_name}AttributesSchema;
       calculations: #{resource_name}CalculatedFieldsSchema;
       aggregates: #{resource_name}AggregateFieldsSchema;
