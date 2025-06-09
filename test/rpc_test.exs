@@ -1017,5 +1017,79 @@ defmodule AshTypescript.RPCTest do
       assert String.contains?(typescript_output, "export async function listUsers")
       assert String.contains?(typescript_output, "export async function createUser")
     end
+
+    test "generates validation functions for create, update, and destroy actions only" do
+      # Generate TypeScript types for the test domain
+      typescript_output = AshTypescript.RPC.Codegen.generate_typescript_types(:ash_typescript)
+
+      # Assert validation functions are generated for CREATE actions
+      assert String.contains?(
+               typescript_output,
+               "export async function validateCreateTodo(input: CreateTodoConfig[\"input\"])"
+             )
+
+      assert String.contains?(
+               typescript_output,
+               "export async function validateCreateComment(input: CreateCommentConfig[\"input\"])"
+             )
+
+      assert String.contains?(
+               typescript_output,
+               "export async function validateCreateUser(input: CreateUserConfig[\"input\"])"
+             )
+
+      # Assert validation functions are generated for UPDATE actions
+      assert String.contains?(
+               typescript_output,
+               "export async function validateUpdateTodo(primaryKey: string | number, input: UpdateTodoConfig[\"input\"])"
+             )
+
+      assert String.contains?(
+               typescript_output,
+               "export async function validateUpdateComment(primaryKey: string | number, input: UpdateCommentConfig[\"input\"])"
+             )
+
+      assert String.contains?(
+               typescript_output,
+               "export async function validateUpdateUser(primaryKey: string | number, input: UpdateUserConfig[\"input\"])"
+             )
+
+      # Assert validation functions are generated for other UPDATE actions
+      assert String.contains?(
+               typescript_output,
+               "export async function validateCompleteTodo(primaryKey: string | number)"
+             )
+
+      assert String.contains?(
+               typescript_output,
+               "export async function validateSetPriorityTodo(primaryKey: string | number, input: SetPriorityTodoConfig[\"input\"])"
+             )
+
+      # Assert validation functions are generated for DESTROY actions
+      assert String.contains?(
+               typescript_output,
+               "export async function validateDestroyTodo(primaryKey: string | number)"
+             )
+
+      # Assert validation functions are NOT generated for READ actions
+      refute String.contains?(typescript_output, "validateListTodos")
+      refute String.contains?(typescript_output, "validateGetTodo")
+      refute String.contains?(typescript_output, "validateListComments")
+      refute String.contains?(typescript_output, "validateListUsers")
+
+      # Assert validation functions are NOT generated for GENERIC actions
+      refute String.contains?(typescript_output, "validateBulkCompleteTodo")
+      refute String.contains?(typescript_output, "validateGetStatisticsTodo")
+      refute String.contains?(typescript_output, "validateSearchTodos")
+
+      # Verify validation functions have correct return type
+      assert String.contains?(
+               typescript_output,
+               "Promise<{\n  success: boolean;\n  errors?: Record<string, string[]>;\n}>"
+             )
+
+      # Verify validation functions make calls to correct endpoint
+      assert String.contains?(typescript_output, "await fetch(\"/rpc/validate\", {")
+    end
   end
 end

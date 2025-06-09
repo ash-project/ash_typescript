@@ -1,4 +1,10 @@
-import { listTodos, createTodo, createUser, updateTodo } from "./generated";
+import {
+  listTodos,
+  createTodo,
+  createUser,
+  updateTodo,
+  validateUpdateTodo,
+} from "./generated";
 
 const listTodosResult = await listTodos({
   fields: [
@@ -6,7 +12,6 @@ const listTodosResult = await listTodos({
     "comment_count",
     "is_overdue",
     {
-      not_exposed_items: ["id"],
       comments: [
         "id",
         "content",
@@ -110,5 +115,10 @@ const updateTodoResult = await updateTodo({
     title: "Updated Todo",
     tags: ["tag1", "tag2"],
   },
-  fields: ["id", { user: ["id", "email"] }],
+  fields: [],
+});
+
+const validateUpdateTodoResult = await validateUpdateTodo(createTodoResult.id, {
+  title: "Updated Todo",
+  tags: ["tag1", "tag2"],
 });

@@ -226,7 +226,7 @@ defmodule AshTypescript.RPC.Codegen do
          {resource, action, rpc_action},
          _resources_and_actions,
          endpoint_process,
-         _endpoint_validate,
+         endpoint_validate,
          _otp_app
        ) do
     # Convert RPC action name to camelCase function name (e.g., read_todo -> readTodos)
@@ -245,6 +245,21 @@ defmodule AshTypescript.RPC.Codegen do
     rpc_function =
       generate_rpc_execution_function(rpc_action, action, rpc_action_name, endpoint_process)
 
+    # Generate validation function (for create, update, destroy actions only)
+    validation_function =
+      generate_validation_function(rpc_action, action, rpc_action_name, endpoint_validate)
+
+    functions_section =
+      if validation_function == "" do
+        rpc_function
+      else
+        """
+        #{rpc_function}
+
+        #{validation_function}
+        """
+      end
+
     """
     #{config_type}
 
@@ -252,7 +267,7 @@ defmodule AshTypescript.RPC.Codegen do
 
     #{payload_builder}
 
-    #{rpc_function}
+    #{functions_section}
     """
   end
 
@@ -630,5 +645,103 @@ defmodule AshTypescript.RPC.Codegen do
       #{result_handling}
     }
     """
+  end
+
+  defp generate_validation_function(rpc_action, action, rpc_action_name, endpoint_validate) do
+    # Only generate validation functions for create, update, and destroy actions
+    case action.type do
+      :read ->
+        ""
+
+      :action ->
+        ""
+
+      _ ->
+        # Convert RPC action name to pascal case for validation function name
+        rpc_action_name_pascal = AshTypescript.Helpers.snake_to_pascal_case(rpc_action_name)
+        validation_function_name = "validate#{rpc_action_name_pascal}"
+
+        # Determine if we need primary_key parameter
+        needs_primary_key = action.type in [:update, :destroy]
+
+        # Check if action has input parameters
+        has_input = length(action.accept) > 0 or length(action.arguments) > 0
+
+        # Build function signature
+        params =
+          case {needs_primary_key, has_input} do
+            {true, true} ->
+              "primaryKey: string | number, input: #{rpc_action_name_pascal}Config[\"input\"]"
+
+            {true, false} ->
+              "primaryKey: string | number"
+
+            {false, true} ->
+              "input: #{rpc_action_name_pascal}Config[\"input\"]"
+
+            {false, false} ->
+              ""
+          end
+
+        # Build payload construction
+        base_payload = ["action: \"#{rpc_action.name}\""]
+
+        payload_with_pk =
+          if needs_primary_key do
+            base_payload ++ ["primary_key: primaryKey"]
+          else
+            base_payload
+          end
+
+        payload_lines =
+          if has_input do
+            payload_with_pk ++ ["input: input"]
+          else
+            payload_with_pk ++ ["input: {}"]
+          end
+
+        payload_content = Enum.join(payload_lines, ",\n    ")
+
+        """
+        export async function #{validation_function_name}(#{params}): Promise<{
+          success: boolean;
+          errors?: Record<string, string[]>;
+        }> {
+          const payload = {
+            #{payload_content}
+          };
+
+          const csrfToken = document
+            ?.querySelector("meta[name='csrf-token']")
+            ?.getAttribute("content");
+
+          const headers: Record<string, string> = {
+            "Content-Type": "application/json",
+          };
+
+          if (csrfToken) {
+            headers["X-CSRF-Token"] = csrfToken;
+          }
+
+          const response = await fetch("#{endpoint_validate}", {
+            method: "POST",
+            headers,
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Validation call failed: ${response.statusText}`);
+          }
+
+          const result = await response.json();
+
+          if (result.success) {
+            return { success: true };
+          } else {
+            return { success: false, errors: result.errors };
+          }
+        }
+        """
+    end
   end
 end
