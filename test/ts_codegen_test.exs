@@ -1,11 +1,11 @@
-defmodule AshTypescript.TS.CodegenTest do
+defmodule AshTypescript.CodegenTest do
   use ExUnit.Case, async: true
-  alias AshTypescript.TS.Codegen
+  alias AshTypescript.Codegen
 
   # Test resource definitions for testing
   defmodule Todo do
     use Ash.Resource,
-      domain: AshTypescript.TS.CodegenTest.Domain,
+      domain: AshTypescript.CodegenTest.Domain,
       data_layer: Ash.DataLayer.Ets
 
     attributes do
@@ -54,7 +54,7 @@ defmodule AshTypescript.TS.CodegenTest do
     end
 
     relationships do
-      has_many :comments, AshTypescript.TS.CodegenTest.Comment do
+      has_many :comments, AshTypescript.CodegenTest.Comment do
         public? false
       end
     end
@@ -82,7 +82,7 @@ defmodule AshTypescript.TS.CodegenTest do
 
   defmodule Comment do
     use Ash.Resource,
-      domain: AshTypescript.TS.CodegenTest.Domain,
+      domain: AshTypescript.CodegenTest.Domain,
       data_layer: Ash.DataLayer.Ets
 
     attributes do
@@ -494,7 +494,7 @@ defmodule AshTypescript.TS.CodegenTest do
   describe "get_resource_field_spec/2 - relationships" do
     test "throws error for non-public relationships" do
       assert catch_throw(Codegen.get_resource_field_spec({:comments, [:id, :content]}, Todo)) ==
-               "Relationship not found on AshTypescript.TS.CodegenTest.Todo: comments"
+               "Relationship not found on AshTypescript.CodegenTest.Todo: comments"
     end
   end
 
@@ -526,12 +526,12 @@ defmodule AshTypescript.TS.CodegenTest do
 
     test "throws error for unknown field" do
       assert catch_throw(Codegen.get_resource_field_spec(:unknown_field, Todo)) ==
-               "Field not found: AshTypescript.TS.CodegenTest.Todo.unknown_field"
+               "Field not found: AshTypescript.CodegenTest.Todo.unknown_field"
     end
 
     test "throws error for unknown relationship" do
       assert catch_throw(Codegen.get_resource_field_spec({:unknown_rel, [:id]}, Todo)) ==
-               "Relationship not found on AshTypescript.TS.CodegenTest.Todo: unknown_rel"
+               "Relationship not found on AshTypescript.CodegenTest.Todo: unknown_rel"
     end
   end
 

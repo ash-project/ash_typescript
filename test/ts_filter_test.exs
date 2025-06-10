@@ -1,12 +1,12 @@
-defmodule AshTypescript.TS.FilterTest do
+defmodule AshTypescript.FilterTest do
   use ExUnit.Case, async: true
 
-  alias AshTypescript.TS.Filter
+  alias AshTypescript.Filter
 
   # Test resources for filter testing
   defmodule TestPost do
     use Ash.Resource,
-      domain: AshTypescript.TS.FilterTest.TestDomain,
+      domain: AshTypescript.FilterTest.TestDomain,
       data_layer: Ash.DataLayer.Ets
 
     ets do
@@ -32,9 +32,9 @@ defmodule AshTypescript.TS.FilterTest do
     end
 
     relationships do
-      belongs_to :author, AshTypescript.TS.FilterTest.TestUser, public?: true
+      belongs_to :author, AshTypescript.FilterTest.TestUser, public?: true
 
-      has_many :comments, AshTypescript.TS.FilterTest.TestComment,
+      has_many :comments, AshTypescript.FilterTest.TestComment,
         destination_attribute: :post_id,
         public?: true
     end
@@ -46,7 +46,7 @@ defmodule AshTypescript.TS.FilterTest do
 
   defmodule TestUser do
     use Ash.Resource,
-      domain: AshTypescript.TS.FilterTest.TestDomain,
+      domain: AshTypescript.FilterTest.TestDomain,
       data_layer: Ash.DataLayer.Ets
 
     ets do
@@ -61,7 +61,7 @@ defmodule AshTypescript.TS.FilterTest do
     end
 
     relationships do
-      has_many :posts, AshTypescript.TS.FilterTest.TestPost,
+      has_many :posts, AshTypescript.FilterTest.TestPost,
         destination_attribute: :author_id,
         public?: true
     end
@@ -73,7 +73,7 @@ defmodule AshTypescript.TS.FilterTest do
 
   defmodule TestComment do
     use Ash.Resource,
-      domain: AshTypescript.TS.FilterTest.TestDomain,
+      domain: AshTypescript.FilterTest.TestDomain,
       data_layer: Ash.DataLayer.Ets
 
     ets do
@@ -87,8 +87,8 @@ defmodule AshTypescript.TS.FilterTest do
     end
 
     relationships do
-      belongs_to :post, AshTypescript.TS.FilterTest.TestPost, public?: true
-      belongs_to :author, AshTypescript.TS.FilterTest.TestUser, public?: true
+      belongs_to :post, AshTypescript.FilterTest.TestPost, public?: true
+      belongs_to :author, AshTypescript.FilterTest.TestUser, public?: true
     end
 
     actions do
@@ -98,7 +98,7 @@ defmodule AshTypescript.TS.FilterTest do
 
   defmodule NoRelationshipsResource do
     use Ash.Resource,
-      domain: AshTypescript.TS.FilterTest.TestDomain,
+      domain: AshTypescript.FilterTest.TestDomain,
       data_layer: Ash.DataLayer.Ets
 
     ets do
@@ -117,7 +117,7 @@ defmodule AshTypescript.TS.FilterTest do
 
   defmodule EmptyResource do
     use Ash.Resource,
-      domain: AshTypescript.TS.FilterTest.TestDomain,
+      domain: AshTypescript.FilterTest.TestDomain,
       data_layer: Ash.DataLayer.Ets
 
     ets do

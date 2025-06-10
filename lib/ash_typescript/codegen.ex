@@ -1,26 +1,111 @@
-defmodule AshTypescript.TS.Codegen do
-  def generate_type_aliases(prefix \\ "") do
-    """
-    // Base types
-    type #{prefix}UUID = string;
-    type #{prefix}UUIDv7 = string;
-    type #{prefix}ULID = string;
-    type #{prefix}DateTime = string;
-    type #{prefix}AshDate = string;
-    type #{prefix}Time = string;
-    type #{prefix}TimeUsec = string;
-    type #{prefix}UtcDateTime = string;
-    type #{prefix}UtcDateTimeUsec = string;
-    type #{prefix}NaiveDateTime = string;
-    type #{prefix}Duration = string;
-    type #{prefix}DurationName = string;
-    type #{prefix}Binary = string;
-    type #{prefix}UrlEncodedBinary = string;
-    type #{prefix}Decimal = string;
-    type #{prefix}ModuleName = string;
-    type #{prefix}JsonValue = string | number | boolean | null | #{prefix}JsonValue[] | { [key: string]: #{prefix}JsonValue };
-    type #{prefix}Money = {currency: string, amount: string};
-    """
+defmodule AshTypescript.Codegen do
+  def generate_ash_type_aliases(resources, actions) do
+    resource_types =
+      Enum.reduce(resources, MapSet.new(), fn resource, types ->
+        types =
+          resource
+          |> Ash.Resource.Info.public_attributes()
+          |> Enum.reduce(types, fn attr, types -> MapSet.put(types, attr.type) end)
+
+        types =
+          resource
+          |> Ash.Resource.Info.public_calculations()
+          |> Enum.reduce(types, fn calc, types -> MapSet.put(types, calc.type) end)
+
+        resource
+        |> Ash.Resource.Info.public_aggregates()
+        |> Enum.reduce(types, fn agg, types ->
+          type =
+            case agg.kind do
+              :sum ->
+                resource
+                |> lookup_aggregate_type(agg.relationship_path, agg.field)
+
+              :first ->
+                resource
+                |> lookup_aggregate_type(agg.relationship_path, agg.field)
+
+              _ ->
+                agg.kind
+            end
+
+          if Ash.Type.ash_type?(type) do
+            MapSet.put(types, type)
+          else
+            types
+          end
+        end)
+      end)
+
+    types =
+      Enum.reduce(actions, resource_types, fn action, types ->
+        action.arguments
+        |> Enum.reduce(types, fn argument, types ->
+          if Ash.Type.ash_type?(argument.type) do
+            MapSet.put(types, argument.type)
+          else
+            types
+          end
+        end)
+
+        if action.type == :action do
+          if Ash.Type.ash_type?(action.returns) do
+            case action.returns do
+              {:array, type} -> MapSet.put(types, type)
+              _ -> MapSet.put(types, action.returns)
+            end
+          else
+            types
+          end
+        else
+          types
+        end
+      end)
+
+    Enum.map(types, fn type ->
+      case type do
+        {:array, type} -> generate_ash_type_alias(type)
+        type -> generate_ash_type_alias(type)
+      end
+    end)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n")
+  end
+
+  defp generate_ash_type_alias(Ash.Type.Struct), do: ""
+  defp generate_ash_type_alias(Ash.Type.Atom), do: ""
+  defp generate_ash_type_alias(Ash.Type.Boolean), do: ""
+  defp generate_ash_type_alias(Ash.Type.Integer), do: ""
+  defp generate_ash_type_alias(Ash.Type.Map), do: ""
+  defp generate_ash_type_alias(Ash.Type.String), do: ""
+  defp generate_ash_type_alias(Ash.Type.UUID), do: "type UUID = string;"
+  defp generate_ash_type_alias(Ash.Type.UUIDv7), do: "type UUIDv7 = string;"
+  defp generate_ash_type_alias(Ash.Type.Decimal), do: "type Decimal = string;"
+  defp generate_ash_type_alias(Ash.Type.Date), do: "type AshDate = string;"
+  defp generate_ash_type_alias(Ash.Type.Time), do: "type Time = string;"
+  defp generate_ash_type_alias(Ash.Type.TimeUsec), do: "type TimeUsec = string;"
+  defp generate_ash_type_alias(Ash.Type.UtcDatetime), do: "type UtcDateTime = string;"
+  defp generate_ash_type_alias(Ash.Type.UtcDatetimeUsec), do: "type UtcDateTimeUsec = string;"
+  defp generate_ash_type_alias(Ash.Type.DateTime), do: "type DateTime = string;"
+  defp generate_ash_type_alias(Ash.Type.NaiveDatetime), do: "type NaiveDateTime = string;"
+  defp generate_ash_type_alias(Ash.Type.Duration), do: "type Duration = string;"
+  defp generate_ash_type_alias(Ash.Type.DurationName), do: "type DurationName = string;"
+  defp generate_ash_type_alias(Ash.Type.Binary), do: "type Binary = string;"
+  defp generate_ash_type_alias(Ash.Type.UrlEncodedBinary), do: "type UrlEncodedBinary = string;"
+  defp generate_ash_type_alias(Ash.Type.File), do: "type File = any;"
+  defp generate_ash_type_alias(Ash.Type.Function), do: "type Function = any;"
+  defp generate_ash_type_alias(Ash.Type.Module), do: "type ModuleName = string;"
+  defp generate_ash_type_alias(AshDoubleEntry.ULID), do: "type ULID = string;"
+
+  defp generate_ash_type_alias(AshMoney.Types.Money),
+    do: "type Money = { amount: string; currency: string };"
+
+  defp generate_ash_type_alias(type) do
+    if Ash.Type.NewType.new_type?(type) or Spark.implements_behaviour?(type, Ash.Type.Enum) do
+      ""
+    else
+      raise "Unknown type: #{type}"
+    end
   end
 
   def generate_all_schemas_for_resources(resources, allowed_resources) do
@@ -33,18 +118,14 @@ defmodule AshTypescript.TS.Codegen do
     resource_name = resource |> Module.split() |> List.last()
 
     attributes_schema = generate_attributes_schema(resource)
-    calculated_fields_schema = generate_calculated_fields_schema(resource)
-    aggregate_fields_schema = generate_aggregate_fields_schema(resource)
+    _calculated_fields_schema = generate_calculated_fields_schema(resource)
+    _aggregate_fields_schema = generate_aggregate_fields_schema(resource)
     relationship_schema = generate_relationship_schema(resource, allowed_resources)
     resource_schema = generate_resource_schema(resource)
 
     """
     // #{resource_name} Schemas
     #{attributes_schema}
-
-    #{calculated_fields_schema}
-
-    #{aggregate_fields_schema}
 
     #{relationship_schema}
 
@@ -58,18 +139,60 @@ defmodule AshTypescript.TS.Codegen do
     attributes =
       resource
       |> Ash.Resource.Info.public_attributes()
-      |> Enum.map(fn attr ->
-        if attr.allow_nil? do
-          "  #{attr.name}?: #{get_ts_type(attr)} | null;"
-        else
-          "  #{attr.name}: #{get_ts_type(attr)};"
-        end
+
+    calculations =
+      resource
+      |> Ash.Resource.Info.public_calculations()
+
+    aggregates =
+      resource
+      |> Ash.Resource.Info.public_aggregates()
+
+    fields =
+      Enum.concat([attributes, calculations, aggregates])
+      |> Enum.map(fn
+        %Ash.Resource.Attribute{} = attr ->
+          if attr.allow_nil? do
+            "  #{attr.name}?: #{get_ts_type(attr)} | null;"
+          else
+            "  #{attr.name}: #{get_ts_type(attr)};"
+          end
+
+        %Ash.Resource.Calculation{} = calc ->
+          if calc.allow_nil? do
+            "  #{calc.name}?: #{get_ts_type(calc)} | null;"
+          else
+            "  #{calc.name}: #{get_ts_type(calc)};"
+          end
+
+        %Ash.Resource.Aggregate{} = agg ->
+          type =
+            case agg.kind do
+              :sum ->
+                resource
+                |> lookup_aggregate_type(agg.relationship_path, agg.field)
+                |> get_ts_type()
+
+              :first ->
+                resource
+                |> lookup_aggregate_type(agg.relationship_path, agg.field)
+                |> get_ts_type()
+
+              _ ->
+                get_ts_type(agg.kind)
+            end
+
+          if agg.include_nil? do
+            "  #{agg.name}?: #{type} | null;"
+          else
+            "  #{agg.name}: #{type};"
+          end
       end)
       |> Enum.join("\n")
 
     """
-    type #{resource_name}AttributesSchema = {
-    #{attributes}
+    type #{resource_name}FieldsSchema = {
+    #{fields}
     };
     """
   end
@@ -219,9 +342,7 @@ defmodule AshTypescript.TS.Codegen do
 
     """
     export type #{resource_name}ResourceSchema = {
-      attributes: #{resource_name}AttributesSchema;
-      calculations: #{resource_name}CalculatedFieldsSchema;
-      aggregates: #{resource_name}AggregateFieldsSchema;
+      fields: #{resource_name}FieldsSchema;
       relationships: #{resource_name}RelationshipSchema;
     };
     """

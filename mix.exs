@@ -130,7 +130,7 @@ defmodule AshTypescript.MixProject do
 
   defp aliases do
     [
-      "test.codegen": "ash_typescript.codegen --output ./test/ts/generated.ts",
+      "test.codegen": "ash_typescript.codegen",
       sobelow: "sobelow --skip",
       docs: [
         "spark.cheat_sheets",

@@ -1,7 +1,7 @@
-defmodule AshTypescript.RPCTest do
+defmodule AshTypescript.RpcTest do
   use ExUnit.Case, async: true
   alias Ash.Filter.Runtime
-  alias AshTypescript.RPC
+  alias AshTypescript.Rpc
 
   setup do
     # Mock conn structure
@@ -24,7 +24,7 @@ defmodule AshTypescript.RPCTest do
         "input" => %{}
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert is_list(data)
     end
@@ -38,7 +38,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert is_list(data)
     end
@@ -54,7 +54,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      user_result = RPC.run_action(:ash_typescript, conn, user_params)
+      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
       assert %{success: true, data: user} = user_result
 
       # Then create a todo
@@ -67,7 +67,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      create_result = RPC.run_action(:ash_typescript, conn, create_params)
+      create_result = Rpc.run_action(:ash_typescript, conn, create_params)
       assert %{success: true, data: %{id: id}} = create_result
 
       # Now get it
@@ -79,7 +79,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, get_params)
+      result = Rpc.run_action(:ash_typescript, conn, get_params)
       assert %{success: true, data: %{id: ^id, title: "Test Todo"}} = result
     end
 
@@ -94,7 +94,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      user_result = RPC.run_action(:ash_typescript, conn, user_params)
+      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
       assert %{success: true, data: user} = user_result
 
       params = %{
@@ -106,7 +106,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert data.title == "New Todo"
       assert data.completed == false
@@ -124,7 +124,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      user_result = RPC.run_action(:ash_typescript, conn, user_params)
+      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
       assert %{success: true, data: user} = user_result
 
       params = %{
@@ -137,7 +137,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert data.title == "Auto Completed Todo"
       assert data.completed == true
@@ -154,7 +154,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      user_result = RPC.run_action(:ash_typescript, conn, user_params)
+      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
       assert %{success: true, data: user} = user_result
 
       # Then create a todo
@@ -167,7 +167,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      create_result = RPC.run_action(:ash_typescript, conn, create_params)
+      create_result = Rpc.run_action(:ash_typescript, conn, create_params)
       assert %{success: true, data: %{id: id}} = create_result
 
       # Now update it
@@ -181,7 +181,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, update_params)
+      result = Rpc.run_action(:ash_typescript, conn, update_params)
       assert %{success: true, data: data} = result
       assert data.id == id
       assert data.title == "Updated Todo"
@@ -199,7 +199,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      user_result = RPC.run_action(:ash_typescript, conn, user_params)
+      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
       assert %{success: true, data: user} = user_result
 
       # Then create a todo
@@ -212,7 +212,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      create_result = RPC.run_action(:ash_typescript, conn, create_params)
+      create_result = Rpc.run_action(:ash_typescript, conn, create_params)
       assert %{success: true, data: %{id: id}} = create_result
 
       # Now complete it using the specific action
@@ -223,7 +223,7 @@ defmodule AshTypescript.RPCTest do
         "input" => %{}
       }
 
-      result = RPC.run_action(:ash_typescript, conn, complete_params)
+      result = Rpc.run_action(:ash_typescript, conn, complete_params)
       assert %{success: true, data: data} = result
       assert data.id == id
       assert data.completed == true
@@ -240,7 +240,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      user_result = RPC.run_action(:ash_typescript, conn, user_params)
+      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
       assert %{success: true, data: user} = user_result
 
       # Then create a todo
@@ -253,7 +253,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      create_result = RPC.run_action(:ash_typescript, conn, create_params)
+      create_result = Rpc.run_action(:ash_typescript, conn, create_params)
       assert %{success: true, data: %{id: id}} = create_result
 
       # Now set priority
@@ -266,7 +266,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, priority_params)
+      result = Rpc.run_action(:ash_typescript, conn, priority_params)
       assert %{success: true, data: data} = result
       assert data.id == id
       assert data.priority == :high
@@ -283,7 +283,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      user_result = RPC.run_action(:ash_typescript, conn, user_params)
+      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
       assert %{success: true, data: user} = user_result
 
       # Then create a todo
@@ -296,7 +296,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      create_result = RPC.run_action(:ash_typescript, conn, create_params)
+      create_result = Rpc.run_action(:ash_typescript, conn, create_params)
       assert %{success: true, data: %{id: id}} = create_result
 
       # Now destroy it
@@ -306,7 +306,7 @@ defmodule AshTypescript.RPCTest do
         "primary_key" => id
       }
 
-      result = RPC.run_action(:ash_typescript, conn, destroy_params)
+      result = Rpc.run_action(:ash_typescript, conn, destroy_params)
       assert %{success: true} = result
     end
 
@@ -317,7 +317,7 @@ defmodule AshTypescript.RPCTest do
         "input" => %{}
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert data.total == 10
       assert data.completed == 6
@@ -335,7 +335,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert is_list(data)
     end
@@ -347,7 +347,7 @@ defmodule AshTypescript.RPCTest do
         "input" => %{}
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert is_list(data)
     end
@@ -360,7 +360,7 @@ defmodule AshTypescript.RPCTest do
         "input" => %{}
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert is_list(data)
     end
@@ -373,7 +373,7 @@ defmodule AshTypescript.RPCTest do
       }
 
       assert_raise(RuntimeError, fn ->
-        RPC.run_action(:ash_typescript, conn, params)
+        Rpc.run_action(:ash_typescript, conn, params)
       end)
     end
 
@@ -387,7 +387,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: false, errors: _error} = result
     end
   end
@@ -404,7 +404,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      user_result = RPC.run_action(:ash_typescript, conn, user_params)
+      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
       assert %{success: true, data: user} = user_result
 
       params = %{
@@ -415,7 +415,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.validate_action(:ash_typescript, conn, params)
+      result = Rpc.validate_action(:ash_typescript, conn, params)
       assert %{success: true} = result
     end
 
@@ -428,7 +428,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.validate_action(:ash_typescript, conn, params)
+      result = Rpc.validate_action(:ash_typescript, conn, params)
       assert %{success: false, errors: _error} = result
     end
 
@@ -443,7 +443,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      user_result = RPC.run_action(:ash_typescript, conn, user_params)
+      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
       assert %{success: true, data: user} = user_result
 
       # Then create a todo
@@ -456,7 +456,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      create_result = RPC.run_action(:ash_typescript, conn, create_params)
+      create_result = Rpc.run_action(:ash_typescript, conn, create_params)
       assert %{success: true, data: %{id: id}} = create_result
 
       # Now validate update
@@ -469,7 +469,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.validate_action(:ash_typescript, conn, validate_params)
+      result = Rpc.validate_action(:ash_typescript, conn, validate_params)
       assert %{success: true} = result
     end
 
@@ -484,7 +484,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      user_result = RPC.run_action(:ash_typescript, conn, user_params)
+      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
       assert %{success: true, data: user} = user_result
 
       # Then create a todo
@@ -497,7 +497,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      create_result = RPC.run_action(:ash_typescript, conn, create_params)
+      create_result = Rpc.run_action(:ash_typescript, conn, create_params)
       assert %{success: true, data: %{id: id}} = create_result
 
       # Now validate update with invalid data
@@ -510,7 +510,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.validate_action(:ash_typescript, conn, validate_params)
+      result = Rpc.validate_action(:ash_typescript, conn, validate_params)
       assert %{success: false, errors: %{title: "is required"}} = result
     end
 
@@ -523,7 +523,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.validate_action(:ash_typescript, conn, params)
+      result = Rpc.validate_action(:ash_typescript, conn, params)
       assert {:error, "Record not found"} = result
     end
 
@@ -538,7 +538,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.validate_action(:ash_typescript, conn, params)
+      result = Rpc.validate_action(:ash_typescript, conn, params)
       assert {:error, "Record not found"} = result
     end
 
@@ -548,7 +548,7 @@ defmodule AshTypescript.RPCTest do
         "input" => %{}
       }
 
-      result = RPC.validate_action(:ash_typescript, conn, params)
+      result = Rpc.validate_action(:ash_typescript, conn, params)
       assert {:error, "Cannot validate a read action"} = result
     end
 
@@ -558,7 +558,7 @@ defmodule AshTypescript.RPCTest do
         "input" => %{}
       }
 
-      result = RPC.validate_action(:ash_typescript, conn, params)
+      result = Rpc.validate_action(:ash_typescript, conn, params)
       assert {:error, "Cannot validate a generic action"} = result
     end
 
@@ -569,35 +569,23 @@ defmodule AshTypescript.RPCTest do
       }
 
       assert_raise(RuntimeError, fn ->
-        RPC.validate_action(:ash_typescript, conn, params)
+        Rpc.validate_action(:ash_typescript, conn, params)
       end)
     end
   end
 
   describe "JSON parsing helpers" do
-    test "parses select and load parameters correctly" do
-      _conn = %{assigns: %{}}
-
-      params_with_select = %{
-        "select" => "[\"id\", \"title\"]",
-        "load" => "[\"is_overdue\"]"
-      }
-
-      # Test that the parsing happens correctly in run_action
-      # (These are internal implementation details, but we can test the interface)
-      assert is_map(params_with_select)
-    end
-
     test "handles nil select and load parameters" do
-      _conn = %{assigns: %{}}
+      conn = %{assigns: %{}}
 
-      params_without_select = %{
+      params_without_fields = %{
         "action" => "list_todos",
         "input" => %{}
       }
 
       # Should not crash with missing select/load
-      assert is_map(params_without_select)
+      result = Rpc.run_action(:ash_typescript, conn, params_without_fields)
+      assert %{success: true, data: _data} = result
     end
   end
 
@@ -616,11 +604,11 @@ defmodule AshTypescript.RPCTest do
 
       params = %{
         "action" => "list_todos",
-        "fields" => [],
+        "fields" => ["id", %{"comments" => ["id"]}],
         "input" => %{}
       }
 
-      result = RPC.run_action(:ash_typescript, conn_with_actor, params)
+      result = Rpc.run_action(:ash_typescript, conn_with_actor, params)
       assert %{success: true, data: _data} = result
     end
 
@@ -639,7 +627,7 @@ defmodule AshTypescript.RPCTest do
         "input" => %{}
       }
 
-      result = RPC.run_action(:ash_typescript, conn_with_tenant, params)
+      result = Rpc.run_action(:ash_typescript, conn_with_tenant, params)
       assert %{success: true, data: _data} = result
     end
 
@@ -658,7 +646,7 @@ defmodule AshTypescript.RPCTest do
         "input" => %{}
       }
 
-      result = RPC.run_action(:ash_typescript, conn_with_context, params)
+      result = Rpc.run_action(:ash_typescript, conn_with_context, params)
       assert %{success: true, data: _data} = result
     end
   end
@@ -675,7 +663,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      user_result = RPC.run_action(:ash_typescript, conn, user_params)
+      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
       assert %{success: true, data: user} = user_result
 
       # Create test todos for filtering
@@ -695,7 +683,7 @@ defmodule AshTypescript.RPCTest do
             "input" => Map.put(todo_data, "user_id", user.id)
           }
 
-          result = RPC.run_action(:ash_typescript, conn, create_params)
+          result = Rpc.run_action(:ash_typescript, conn, create_params)
           assert %{success: true, data: todo} = result
           todo
         end)
@@ -712,7 +700,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert Enum.all?(data, &(&1.completed == true))
     end
@@ -726,7 +714,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert Enum.all?(data, &(&1.completed == false))
     end
@@ -740,7 +728,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert Enum.all?(data, &(&1.completed == false))
     end
@@ -754,7 +742,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert Enum.all?(data, fn todo -> todo.priority in [:high, :urgent] end)
     end
@@ -768,7 +756,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert Enum.all?(data, fn todo -> todo.priority != :low end)
     end
@@ -785,7 +773,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
 
       assert Enum.all?(data, fn todo ->
@@ -805,7 +793,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
 
       assert Enum.all?(data, fn todo ->
@@ -824,7 +812,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert Enum.all?(data, &(&1.completed == false))
     end
@@ -846,7 +834,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
 
       assert Enum.all?(data, fn todo ->
@@ -864,7 +852,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
 
       assert Enum.all?(data, fn todo ->
@@ -881,7 +869,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: []} = result
     end
 
@@ -892,7 +880,7 @@ defmodule AshTypescript.RPCTest do
         "filter" => %{}
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert is_list(data)
       assert length(data) >= 0
@@ -905,7 +893,7 @@ defmodule AshTypescript.RPCTest do
         "input" => %{}
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert is_list(data)
     end
@@ -923,7 +911,7 @@ defmodule AshTypescript.RPCTest do
         }
       }
 
-      result = RPC.run_action(:ash_typescript, conn, params)
+      result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
 
       assert Enum.all?(data, fn todo ->
@@ -937,7 +925,7 @@ defmodule AshTypescript.RPCTest do
   describe "TypeScript code generation" do
     test "generates TypeScript types without NotExposed resource" do
       # Generate TypeScript types for the test domain
-      typescript_output = AshTypescript.RPC.Codegen.generate_typescript_types(:ash_typescript)
+      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Verify NotExposed resource is not included in the output
       refute String.contains?(typescript_output, "NotExposed")
@@ -952,28 +940,22 @@ defmodule AshTypescript.RPCTest do
 
     test "generates complete TypeScript types for Todo, Comment, and User resources" do
       # Generate TypeScript types for the test domain
-      typescript_output = AshTypescript.RPC.Codegen.generate_typescript_types(:ash_typescript)
+      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Verify Todo resource types
-      assert String.contains?(typescript_output, "type TodoAttributesSchema")
-      assert String.contains?(typescript_output, "type TodoCalculatedFieldsSchema")
-      assert String.contains?(typescript_output, "type TodoAggregateFieldsSchema")
+      assert String.contains?(typescript_output, "type TodoFieldsSchema")
       assert String.contains?(typescript_output, "type TodoRelationshipSchema")
       assert String.contains?(typescript_output, "export type TodoResourceSchema")
       assert String.contains?(typescript_output, "export type TodoFilterInput")
 
       # Verify Comment resource types
-      assert String.contains?(typescript_output, "type CommentAttributesSchema")
-      assert String.contains?(typescript_output, "type CommentCalculatedFieldsSchema")
-      assert String.contains?(typescript_output, "type CommentAggregateFieldsSchema")
+      assert String.contains?(typescript_output, "type CommentFieldsSchema")
       assert String.contains?(typescript_output, "type CommentRelationshipSchema")
       assert String.contains?(typescript_output, "export type CommentResourceSchema")
       assert String.contains?(typescript_output, "export type CommentFilterInput")
 
       # Verify User resource types
-      assert String.contains?(typescript_output, "type UserAttributesSchema")
-      assert String.contains?(typescript_output, "type UserCalculatedFieldsSchema")
-      assert String.contains?(typescript_output, "type UserAggregateFieldsSchema")
+      assert String.contains?(typescript_output, "type UserFieldsSchema")
       assert String.contains?(typescript_output, "type UserRelationshipSchema")
       assert String.contains?(typescript_output, "export type UserResourceSchema")
       assert String.contains?(typescript_output, "export type UserFilterInput")
@@ -1020,7 +1002,7 @@ defmodule AshTypescript.RPCTest do
 
     test "generates validation functions for create, update, and destroy actions only" do
       # Generate TypeScript types for the test domain
-      typescript_output = AshTypescript.RPC.Codegen.generate_typescript_types(:ash_typescript)
+      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Assert validation functions are generated for CREATE actions
       assert String.contains?(

@@ -1,5 +1,5 @@
-defmodule AshTypescript.TS.Filter do
-  import AshTypescript.TS.Codegen
+defmodule AshTypescript.Filter do
+  import AshTypescript.Codegen
 
   def generate_filter_types(resources) when is_list(resources) do
     Enum.map(resources, &generate_filter_type/1)

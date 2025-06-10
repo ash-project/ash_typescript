@@ -1,8 +1,8 @@
-defmodule AshTypescript.RPC do
-  import AshTypescript.RPC.Helpers
+defmodule AshTypescript.Rpc do
+  import AshTypescript.Rpc.Helpers
   require Ash.Query
 
-  defmodule RPCAction do
+  defmodule RpcAction do
     defstruct [:name, :action]
   end
 
@@ -13,11 +13,11 @@ defmodule AshTypescript.RPC do
 
   @rpc_action %Spark.Dsl.Entity{
     name: :rpc_action,
-    target: RPCAction,
+    target: RpcAction,
     schema: [
       name: [
         type: :atom,
-        doc: "The name of the RPC-action"
+        doc: "The name of the Rpc-action"
       ],
       action: [
         type: :atom,
@@ -34,7 +34,7 @@ defmodule AshTypescript.RPC do
   @resource %Spark.Dsl.Entity{
     name: :resource,
     target: Resource,
-    describe: "Define available RPC-actions for a resource",
+    describe: "Define available Rpc-actions for a resource",
     schema: [
       resource: [
         type: {:spark, Ash.Resource},
@@ -49,7 +49,7 @@ defmodule AshTypescript.RPC do
 
   @rpc %Spark.Dsl.Section{
     name: :rpc,
-    describe: "Define available RPC-actions for resources in this domain.",
+    describe: "Define available Rpc-actions for resources in this domain.",
     entities: [
       @resource
     ]
@@ -64,7 +64,7 @@ defmodule AshTypescript.RPC do
       otp_app
       |> Ash.Info.domains()
       |> Enum.flat_map(fn domain ->
-        AshTypescript.RPC.Info.rpc(domain)
+        AshTypescript.Rpc.Info.rpc(domain)
       end)
       |> Enum.find_value(fn %{resource: resource, rpc_actions: rpc_actions} ->
         Enum.find_value(rpc_actions, fn action ->
@@ -91,18 +91,18 @@ defmodule AshTypescript.RPC do
           Ash.Resource.Info.public_attributes(resource) |> Enum.map(fn a -> to_string(a.name) end)
 
         select =
-          params["fields"]
+          Map.get(params, "fields", [])
           |> Enum.filter(fn field -> field in attributes end)
           |> Enum.map(&String.to_existing_atom/1)
 
         load =
-          params["fields"]
+          Map.get(params, "fields", [])
           |> Enum.reject(fn field -> field in attributes end)
           |> parse_json_load()
 
         fields_to_take = select ++ load
 
-        input = params["input"] || %{}
+        input = Map.get(params, "input", %{})
 
         case action.type do
           :read ->
@@ -246,7 +246,7 @@ defmodule AshTypescript.RPC do
       otp_app
       |> Ash.Info.domains()
       |> Enum.flat_map(fn domain ->
-        AshTypescript.RPC.Info.rpc(domain)
+        AshTypescript.Rpc.Info.rpc(domain)
       end)
       |> Enum.find_value(fn %{resource: resource, rpc_actions: rpc_actions} ->
         Enum.find_value(rpc_actions, fn action ->

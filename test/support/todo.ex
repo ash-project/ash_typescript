@@ -375,7 +375,7 @@ end
 defmodule AshTypescript.Test.Domain do
   use Ash.Domain,
     otp_app: :ash_typescript,
-    extensions: [AshTypescript.RPC]
+    extensions: [AshTypescript.Rpc]
 
   rpc do
     resource AshTypescript.Test.Todo do

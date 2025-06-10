@@ -9,7 +9,8 @@ if Mix.env() == :test do
   config :ash_typescript,
     ash_domains: [
       AshTypescript.Test.Domain
-    ]
+    ],
+    output_file: "./test/ts/generated.ts"
 
   config :logger, :console, level: :info
 end

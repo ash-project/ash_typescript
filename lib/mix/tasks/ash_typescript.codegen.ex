@@ -1,15 +1,15 @@
 defmodule Mix.Tasks.AshTypescript.Codegen do
   @moduledoc """
-  Generates TypeScript types for Ash RPC-calls.
+  Generates TypeScript types for Ash Rpc-calls.
 
   Usage:
     mix ash_typescript.codegen --output "assets/js/ash_generated.ts"
   """
 
-  @shortdoc "Generates TypeScript types for Ash RPC-calls"
+  @shortdoc "Generates TypeScript types for Ash Rpc-calls"
 
   use Mix.Task
-  import AshTypescript.RPC.Codegen
+  import AshTypescript.Rpc.Codegen
 
   def run(args) do
     Mix.Task.run("compile")
@@ -20,19 +20,29 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
           output: :string,
           check: :boolean,
           dry_run: :boolean,
-          process_endpoint: :string,
+          run_endpoint: :string,
           validate_endpoint: :string
         ],
-        aliases: [o: :string, p: :process_endpoint, v: :validate_endpoint]
+        aliases: [o: :string, r: :run_endpoint, v: :validate_endpoint]
       )
 
     otp_app = Mix.Project.config()[:app]
 
-    output_file = Keyword.get(opts, :output, "assets/js/ash_rpc.ts")
+    output_file =
+      Keyword.get(opts, :output) || Application.get_env(:ash_typescript, :output_file) ||
+        "assets/js/ash_rpc.ts"
+
+    run_endpoint =
+      Keyword.get(opts, :run_endpoint) || Application.get_env(:ash_typescript, :run_endpoint) ||
+        "/rpc/run"
+
+    validate_endpoint =
+      Keyword.get(opts, :run_endpoint) || Application.get_env(:ash_typescript, :run_endpoint) ||
+        "/rpc/validate"
 
     codegen_opts = [
-      process_endpoint: Keyword.get(opts, :process_endpoint, "/rpc/run"),
-      validate_endpoint: Keyword.get(opts, :validate_endpoint, "/rpc/validate")
+      run_endpoint: run_endpoint,
+      validate_endpoint: validate_endpoint
     ]
 
     # Generate TypeScript types and write to file

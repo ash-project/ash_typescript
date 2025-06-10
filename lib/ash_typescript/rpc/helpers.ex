@@ -1,4 +1,4 @@
-defmodule AshTypescript.RPC.Helpers do
+defmodule AshTypescript.Rpc.Helpers do
   def parse_json_load(list) when is_list(list) do
     list
     |> Enum.map(&transform/1)
