@@ -85,6 +85,8 @@ defmodule AshTypescript.Rpc.Codegen do
     type ResourceBase = {
       fields: Record<string, any>;
       relationships: Record<string, any>;
+      complexCalculations: Record<string, any>;
+      __complexCalculationsInternal: Record<string, any>;
     };
 
     type FieldSelection<Resource extends ResourceBase> =
@@ -124,19 +126,37 @@ defmodule AshTypescript.Rpc.Codegen do
       [K in keyof RelationshipsObject]-?: K extends keyof AllRelationships
         ? AllRelationships[K] extends { __resource: infer Res extends ResourceBase }
           ? AllRelationships[K] extends { __array: true }
-            ? Array<InferResourceResult<Res, RelationshipsObject[K]>>
-            : InferResourceResult<Res, RelationshipsObject[K]>
+            ? Array<InferResourceResult<Res, RelationshipsObject[K], {}>>
+            : InferResourceResult<Res, RelationshipsObject[K], {}>
           : never
         : never;
     };
 
-    // Main result type that combines picked fields and relationships
+    // Main result type that combines picked fields, relationships, and calculations
     type InferResourceResult<
       Resource extends ResourceBase,
-      SelectedFields extends FieldSelection<Resource>[]
+      SelectedFields extends FieldSelection<Resource>[],
+      CalculationsConfig = {}
     > =
       InferPickedFields<Resource, ExtractStringFields<SelectedFields>> &
-      InferRelationships<ExtractRelationshipObjects<SelectedFields>, Resource["relationships"]>;
+      InferRelationships<ExtractRelationshipObjects<SelectedFields>, Resource["relationships"]> &
+      InferCalculations<CalculationsConfig, Resource["__complexCalculationsInternal"]>;
+
+    // Infer calculation results
+    type InferCalculations<
+      CalculationsConfig extends Record<string, any>,
+      InternalCalculations extends Record<string, any>
+    > = {
+      [K in keyof CalculationsConfig]?: K extends keyof InternalCalculations
+        ? InternalCalculations[K] extends { __returnType: infer ReturnType; fields: infer Fields }
+          ? ReturnType extends ResourceBase
+              ? InferResourceResult<ReturnType, CalculationsConfig[K]["fields"], {}>
+              : ReturnType extends Record<string, any>
+                ? Pick<ReturnType, Extract<ExtractStringFields<CalculationsConfig[K]["fields"]>, keyof ReturnType>>
+                : ReturnType
+          : never
+        : never;
+    };
     """
   end
 
@@ -293,6 +313,11 @@ defmodule AshTypescript.Rpc.Codegen do
     fields_field = [
       "  fields: FieldSelection<#{resource_name}ResourceSchema>[];"
     ]
+    
+    # Add calculations field
+    calculations_field = [
+      "  calculations?: Partial<#{resource_name}ResourceSchema[\"complexCalculations\"]>;"
+    ]
 
     # Add input fields based on action type
     input_fields =
@@ -400,7 +425,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     all_fields =
       if action.type in [:read, :create, :update] do
-        input_fields ++ fields_field
+        input_fields ++ fields_field ++ calculations_field
       else
         input_fields
       end
@@ -422,19 +447,19 @@ defmodule AshTypescript.Rpc.Codegen do
       :read when action.get? ->
         """
         type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]> | null;
+          InferResourceResult<#{resource_name}ResourceSchema, Config["fields"], Config["calculations"]> | null;
         """
 
       :read ->
         """
         type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
+          Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"], Config["calculations"]>>;
         """
 
       action_type when action_type in [:create, :update] ->
         """
         type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>;
+          InferResourceResult<#{resource_name}ResourceSchema, Config["fields"], Config["calculations"]>;
         """
 
       :destroy ->
@@ -486,6 +511,10 @@ defmodule AshTypescript.Rpc.Codegen do
             payload.sort = config.sort;
           }
 
+          if (config.calculations) {
+            payload.calculations = config.calculations;
+          }
+
           if ("input" in config && config.input) {
             payload.input = config.input;
           } else {
@@ -505,6 +534,10 @@ defmodule AshTypescript.Rpc.Codegen do
             action: "#{rpc_action_name}",
             fields: config.fields
           };
+
+          if (config.calculations) {
+            payload.calculations = config.calculations;
+          }
 
           if ("input" in config && config.input) {
             payload.input = config.input;
@@ -526,6 +559,10 @@ defmodule AshTypescript.Rpc.Codegen do
             fields: config.fields
           };
 
+          if (config.calculations) {
+            payload.calculations = config.calculations;
+          }
+
           if ("input" in config && config.input) {
             payload.input = config.input;
           } else {
@@ -546,6 +583,10 @@ defmodule AshTypescript.Rpc.Codegen do
             fields: config.fields,
             primary_key: config.primaryKey
           };
+
+          if (config.calculations) {
+            payload.calculations = config.calculations;
+          }
 
           if ("input" in config && config.input) {
             payload.input = config.input;

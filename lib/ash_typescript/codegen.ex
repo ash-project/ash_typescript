@@ -120,12 +120,15 @@ defmodule AshTypescript.Codegen do
     attributes_schema = generate_attributes_schema(resource)
     _calculated_fields_schema = generate_calculated_fields_schema(resource)
     _aggregate_fields_schema = generate_aggregate_fields_schema(resource)
+    complex_calculations_schema = generate_complex_calculations_schema(resource)
     relationship_schema = generate_relationship_schema(resource, allowed_resources)
     resource_schema = generate_resource_schema(resource)
 
     """
     // #{resource_name} Schemas
     #{attributes_schema}
+
+    #{complex_calculations_schema}
 
     #{relationship_schema}
 
@@ -148,8 +151,12 @@ defmodule AshTypescript.Codegen do
       resource
       |> Ash.Resource.Info.public_aggregates()
 
+    # Filter out complex calculations (those with arguments or complex return types)
+    {simple_calculations, _complex_calculations} =
+      Enum.split_with(calculations, &is_simple_calculation/1)
+
     fields =
-      Enum.concat([attributes, calculations, aggregates])
+      Enum.concat([attributes, simple_calculations, aggregates])
       |> Enum.map(fn
         %Ash.Resource.Attribute{} = attr ->
           if attr.allow_nil? do
@@ -344,6 +351,8 @@ defmodule AshTypescript.Codegen do
     export type #{resource_name}ResourceSchema = {
       fields: #{resource_name}FieldsSchema;
       relationships: #{resource_name}RelationshipSchema;
+      complexCalculations: #{resource_name}ComplexCalculationsSchema;
+      __complexCalculationsInternal: __#{resource_name}ComplexCalculationsInternal;
     };
     """
   end
@@ -427,7 +436,14 @@ defmodule AshTypescript.Codegen do
         build_map_type(fields)
 
       instance_of != nil ->
-        build_resource_type(instance_of, select_and_loads)
+        # Check if instance_of is an Ash resource
+        if Spark.Dsl.is?(instance_of, Ash.Resource) do
+          # Return reference to the resource schema type
+          resource_name = instance_of |> Module.split() |> List.last()
+          "#{resource_name}ResourceSchema"
+        else
+          build_resource_type(instance_of, select_and_loads)
+        end
 
       true ->
         # Fallback to generic record type
@@ -648,5 +664,169 @@ defmodule AshTypescript.Codegen do
       Enum.find(Ash.Resource.Info.relationships(current_resource), &(&1.name == next_resource))
 
     lookup_aggregate_type(relationship.destination, rest, field)
+  end
+
+  # Helper function to determine if a calculation is simple (no arguments, simple return type)
+  defp is_simple_calculation(%Ash.Resource.Calculation{} = calc) do
+    has_arguments = length(calc.arguments) > 0
+    has_complex_return_type = is_complex_return_type(calc.type, calc.constraints)
+
+    not has_arguments and not has_complex_return_type
+  end
+
+  # Determine if a return type is complex (struct with fields or map with field constraints)
+  defp is_complex_return_type(Ash.Type.Struct, constraints) do
+    instance_of = Keyword.get(constraints, :instance_of)
+    fields = Keyword.get(constraints, :fields)
+
+    # Complex if it's a resource instance or has field definitions
+    instance_of != nil or fields != nil
+  end
+
+  defp is_complex_return_type(Ash.Type.Map, constraints) do
+    fields = Keyword.get(constraints, :fields)
+    # Complex if it has field constraints
+    fields != nil
+  end
+
+  defp is_complex_return_type(_, _), do: false
+
+  # Generate schema for complex calculations
+  def generate_complex_calculations_schema(resource) do
+    resource_name = resource |> Module.split() |> List.last()
+
+    complex_calculations =
+      resource
+      |> Ash.Resource.Info.public_calculations()
+      |> Enum.reject(&is_simple_calculation/1)
+
+    # User-facing schema (what users configure)
+    user_calculations =
+      complex_calculations
+      |> Enum.map(fn calc ->
+        arguments_type = generate_calculation_arguments_type(calc)
+        fields_type = generate_calculation_fields_type(calc)
+
+        """
+        #{calc.name}: {
+          calcArgs: #{arguments_type};
+          fields: #{fields_type};
+        };
+        """
+      end)
+
+    # Internal schema with return types for inference
+    internal_calculations =
+      complex_calculations
+      |> Enum.map(fn calc ->
+        arguments_type = generate_calculation_arguments_type(calc)
+        return_type = get_ts_type(calc)
+        fields_type = generate_calculation_fields_type(calc)
+
+        """
+        #{calc.name}: {
+          calcArgs: #{arguments_type};
+          fields: #{fields_type};
+          __returnType: #{return_type};
+        };
+        """
+      end)
+
+    user_schema =
+      if Enum.empty?(user_calculations) do
+        "type #{resource_name}ComplexCalculationsSchema = {};"
+      else
+        """
+        type #{resource_name}ComplexCalculationsSchema = {
+        #{Enum.join(user_calculations, "\n")}
+        };
+        """
+      end
+
+    internal_schema =
+      if Enum.empty?(internal_calculations) do
+        "type __#{resource_name}ComplexCalculationsInternal = {};"
+      else
+        """
+        type __#{resource_name}ComplexCalculationsInternal = {
+        #{Enum.join(internal_calculations, "\n")}
+        };
+        """
+      end
+
+    """
+    #{user_schema}
+
+    #{internal_schema}
+    """
+  end
+
+  # Generate the arguments type for a calculation
+  defp generate_calculation_arguments_type(calc) do
+    if Enum.empty?(calc.arguments) do
+      "{}"
+    else
+      args =
+        calc.arguments
+        |> Enum.map(fn arg ->
+          optional = arg.allow_nil? || arg.default != nil
+          "#{arg.name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
+        end)
+        |> Enum.join("\n    ")
+
+      "{\n    #{args}\n  }"
+    end
+  end
+
+  # Generate the fields type for selecting from a calculation result
+  defp generate_calculation_fields_type(%Ash.Resource.Calculation{
+         type: Ash.Type.Struct,
+         constraints: constraints
+       }) do
+    instance_of = Keyword.get(constraints, :instance_of)
+    fields = Keyword.get(constraints, :fields)
+
+    cond do
+      instance_of != nil ->
+        # If it's a resource instance, use field selection for that resource
+        resource_name = instance_of |> Module.split() |> List.last()
+        "FieldSelection<#{resource_name}ResourceSchema>[]"
+
+      fields != nil ->
+        # If it has field definitions, use the field names as string literals
+        field_names =
+          Keyword.keys(fields)
+          |> Enum.map(&to_string/1)
+          |> Enum.map(&"\"#{&1}\"")
+          |> Enum.join(" | ")
+
+        "(#{field_names})[]"
+
+      true ->
+        "string[]"
+    end
+  end
+
+  defp generate_calculation_fields_type(%Ash.Resource.Calculation{
+         type: Ash.Type.Map,
+         constraints: constraints
+       }) do
+    fields = Keyword.get(constraints, :fields)
+
+    if fields do
+      field_names =
+        Keyword.keys(fields)
+        |> Enum.map(&to_string/1)
+        |> Enum.map(&"\"#{&1}\"")
+        |> Enum.join(" | ")
+
+      "(#{field_names})[]"
+    else
+      "string[]"
+    end
+  end
+
+  defp generate_calculation_fields_type(_calc) do
+    "string[]"
   end
 end

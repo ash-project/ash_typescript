@@ -2,6 +2,22 @@ defmodule AshTypescript.Test.TodoStatus do
   use Ash.Type.Enum, values: [:pending, :ongoing, :finished, :cancelled]
 end
 
+defmodule SelfCalculation do
+  use Ash.Resource.Calculation
+
+  @impl true
+  def load(_query, _opts, _context) do
+    []
+  end
+
+  @impl true
+  def calculate(records, _opts, %{arguments: _arguments}) do
+    # Just return the records unchanged for testing purposes
+    # In a real implementation, you might modify based on the prefix argument
+    records
+  end
+end
+
 defmodule AshTypescript.Test.User do
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
@@ -45,6 +61,18 @@ defmodule AshTypescript.Test.User do
 
     destroy :destroy do
       accept []
+    end
+  end
+
+  calculations do
+    calculate :self, :struct, SelfCalculation do
+      constraints instance_of: __MODULE__
+      public? true
+
+      argument :prefix, :string do
+        allow_nil? true
+        default nil
+      end
     end
   end
 end
@@ -210,7 +238,10 @@ defmodule AshTypescript.Test.Todo do
       public? true
     end
 
-    create_timestamp :created_at
+    create_timestamp :created_at do
+      public? true
+    end
+
     update_timestamp :updated_at
   end
 
@@ -261,6 +292,16 @@ defmodule AshTypescript.Test.Todo do
               :integer,
               expr(if(is_nil(due_date), nil, date_diff(due_date, today(), :day))) do
       public? true
+    end
+
+    calculate :self, :struct, SelfCalculation do
+      constraints instance_of: __MODULE__
+      public? true
+
+      argument :prefix, :string do
+        allow_nil? true
+        default nil
+      end
     end
   end
 

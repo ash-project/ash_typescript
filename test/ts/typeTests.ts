@@ -67,15 +67,38 @@ const createUserResult = await createUser({
     email: "email@example.com",
   },
   fields: ["id", "email", "name"],
+  calculations: {
+    self: {
+      calcArgs: {
+        prefix: "user_",
+      },
+      fields: ["id", "name", { comments: ["id"] }],
+    },
+  },
 });
 
 type ExpectedCreateUserResultType = {
   id: string;
   name: string;
   email: string;
+  self?: {
+    id: string;
+    name: string;
+    comments: {
+      id: string;
+    }[];
+  };
 };
 
 const createUserResultTodo: ExpectedCreateUserResultType = createUserResult;
+const selfId: string = createUserResult.self?.id;
+
+// Test that the calculation result has the correct type
+if (createUserResult.self) {
+  // Should have id and name properties as specified in the field selection
+  const calcId: string = createUserResult.self.id;
+  const calcName: string = createUserResult.self.name;
+}
 
 const createTodoResult = await createTodo({
   input: {

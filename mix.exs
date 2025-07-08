@@ -124,7 +124,8 @@ defmodule AshTypescript.MixProject do
       {:ex_doc, "~> 0.37", only: [:dev, :test], runtime: false},
       {:sobelow, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:picosat_elixir, "~> 0.2", only: [:dev, :test]},
-      {:mix_audit, ">= 0.0.0", only: [:dev, :test], runtime: false}
+      {:mix_audit, ">= 0.0.0", only: [:dev, :test], runtime: false},
+      {:usage_rules, "~> 0.1", only: [:dev]}
     ]
   end
 
@@ -136,6 +137,9 @@ defmodule AshTypescript.MixProject do
         "spark.cheat_sheets",
         "docs",
         "spark.replace_doc_links"
+      ],
+      sync_usage_rules: [
+        "usage_rules.sync CLAUDE.md --all --link-to-folder deps --link-style at"
       ],
       credo: "credo --strict",
       "spark.formatter": "spark.formatter --extensions AshTypescript.RPC",

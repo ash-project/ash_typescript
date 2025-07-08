@@ -1,11 +1,10 @@
 # AshTypescript
 
-A library for generating TypeScript types from Ash resources and actions. AshTypescript provides automatic TypeScript type generation for your Ash APIs, ensuring type safety between your Elixir backend and TypeScript frontend.
+A library for generating TypeScript types and RPC clients from Ash resources and actions. AshTypescript provides automatic TypeScript type generation for your Ash APIs, ensuring type safety between your Elixir backend and TypeScript frontend.
 
 ## Installation
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `ash_typescript` to your list of dependencies in `mix.exs`:
+Add `ash_typescript` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
@@ -15,67 +14,148 @@ def deps do
 end
 ```
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/ash_typescript>.
-
 ## Features
 
-- Automatic TypeScript type generation from Ash resources
-- Support for all Ash action types (read, create, update, destroy, action)
-- Type-safe RPC call generation
-- Support for complex return types with field constraints
-- Relationship and aggregate type generation
+- **Automatic TypeScript type generation** from Ash resources, attributes, and relationships
+- **RPC client generation** with type-safe function calls for all action types (read, create, update, destroy, action)
+- **Comprehensive type support** including:
+  - Enums and custom types
+  - Complex return types with field constraints
+  - Relationships and aggregates
+  - Calculations and validations
+- **Zod schema generation** for runtime validation
+- **Configurable endpoints** for RPC calls
+- **Mix task integration** for easy code generation
 
-## Usage
+## Quick Start
 
-See test/support/todo.ex for an example setup.
+1. **Add the RPC extension to your domain:**
 
-### Creating RPC Specifications
+```elixir
+defmodule MyApp.Domain do
+  use Ash.Domain,
+    extensions: [AshTypescript.Rpc]
 
-Create JSON files in your `assets/js/ash_rpc/` folder to specify which actions you want to generate TypeScript types for and which fields to select. Here are examples based on common Todo resource operations:
+  rpc do
+    resource MyApp.Todo do
+      rpc_action :list_todos, :read
+      rpc_action :get_todo, :get
+      rpc_action :create_todo, :create
+      rpc_action :update_todo, :update
+      rpc_action :destroy_todo, :destroy
+    end
+  end
 
-**Todo Actions (`assets/js/ash_rpc/todo_crud.json`):**
-```json
-[
-  {
-    "action": "read_todo",
-    "select": ["id", "title", "description", "completed", "status", "priority", "due_date", "tags", "created_at"]
-  },
-  {
-    "action": "get_todo",
-    "select": ["id", "title", "description", "completed", "status", "priority", "due_date", "tags", "metadata", "created_at", "updated_at", "is_overdue", "days_until_due"]
-  },
-  {
-    "action": "create_todo",
-    "select": ["id", "title", "description", "completed", "status", "priority", "due_date", "tags", "created_at"]
-  },
-  {
-    "action": "update_todo",
-    "select": ["id", "title", "description", "completed", "status", "priority", "due_date", "tags", "updated_at"],
-    "load": [{"comments": ["id", "content"]}]
-  },
-  {
-    "action": "destroy_todo",
-    "select": []
-  }
-]
+  resources do
+    resource MyApp.Todo
+  end
+end
 ```
 
-
-### Running the Code Generator
-
-Once you have your RPC specification files, run the mix task to generate TypeScript types:
+2. **Generate TypeScript types:**
 
 ```bash
-# Generate from all JSON files in the default directory
-mix ash_typescript.codegen
-
-# Generate from specific files
-mix ash_typescript.codegen --files "assets/js/ash_rpc/todo_crud.json,assets/js/ash_rpc/todo_actions.json" --output "assets/js/generated_types.ts"
-
-# Specify custom RPC endpoints
-mix ash_typescript.codegen --process_endpoint "/api/rpc/run" --validate_endpoint "/api/rpc/validate"
+mix ash_typescript.codegen --output "assets/js/ash_rpc.ts"
 ```
 
-This will generate TypeScript interfaces, zod schemas, and RPC call functions for type-safe communication with your Ash backend.
+3. **Use the generated client in your TypeScript code:**
+
+```typescript
+import { listTodos, createTodo, getTodo } from './ash_rpc';
+
+// Type-safe API calls
+const todos = await listTodos({ filter_completed: false });
+const newTodo = await createTodo({ 
+  title: "Learn AshTypescript", 
+  priority: "high" 
+});
+```
+
+## Configuration
+
+You can configure AshTypescript in your application config:
+
+```elixir
+config :ash_typescript,
+  output_file: "assets/js/ash_rpc.ts",
+  run_endpoint: "/rpc/run",
+  validate_endpoint: "/rpc/validate"
+```
+
+## Mix Tasks
+
+### `mix ash_typescript.codegen`
+
+Generates TypeScript types and RPC clients for your Ash resources.
+
+**Options:**
+- `--output` - Output file path (default: `assets/js/ash_rpc.ts`)
+- `--run_endpoint` - RPC run endpoint (default: `/rpc/run`)
+- `--validate_endpoint` - RPC validate endpoint (default: `/rpc/validate`)
+- `--check` - Check if generated code is up to date
+- `--dry_run` - Print generated code without writing to file
+
+**Examples:**
+```bash
+# Basic generation
+mix ash_typescript.codegen
+
+# Custom output file
+mix ash_typescript.codegen --output "frontend/types/api.ts"
+
+# Custom endpoints
+mix ash_typescript.codegen --run_endpoint "/api/rpc/run" --validate_endpoint "/api/rpc/validate"
+
+# Check if code is up to date (useful in CI)
+mix ash_typescript.codegen --check
+```
+
+## Resource Configuration
+
+Configure which actions are exposed via RPC in your domain:
+
+```elixir
+rpc do
+  resource MyApp.Todo do
+    # Expose standard CRUD actions
+    rpc_action :list_todos, :read
+    rpc_action :get_todo, :get
+    rpc_action :create_todo, :create
+    rpc_action :update_todo, :update
+    rpc_action :destroy_todo, :destroy
+    
+    # Expose custom actions
+    rpc_action :complete_todo, :complete
+    rpc_action :bulk_complete, :bulk_complete
+    rpc_action :get_statistics, :get_statistics
+  end
+end
+```
+
+## Generated Code Structure
+
+AshTypescript generates:
+
+1. **TypeScript interfaces** for all resources and their attributes
+2. **Zod schemas** for runtime validation
+3. **RPC client functions** for each exposed action
+4. **Type definitions** for action arguments and return values
+5. **Enum types** for custom Ash types
+
+## Requirements
+
+- Elixir ~> 1.15
+- Ash ~> 3.5
+- AshPhoenix ~> 2.0 (for RPC endpoints)
+
+## Documentation
+
+For more detailed documentation, visit [hexdocs.pm/ash_typescript](https://hexdocs.pm/ash_typescript).
+
+## Examples
+
+See `test/support/todo.ex` for a complete example implementation with:
+- Resource definitions with various attribute types
+- Relationships and aggregates
+- Custom actions and calculations
+- RPC configuration
