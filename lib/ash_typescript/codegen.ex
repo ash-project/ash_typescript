@@ -78,6 +78,7 @@ defmodule AshTypescript.Codegen do
   defp generate_ash_type_alias(Ash.Type.Integer), do: ""
   defp generate_ash_type_alias(Ash.Type.Map), do: ""
   defp generate_ash_type_alias(Ash.Type.String), do: ""
+  defp generate_ash_type_alias(Ash.Type.CiString), do: ""
   defp generate_ash_type_alias(Ash.Type.UUID), do: "type UUID = string;"
   defp generate_ash_type_alias(Ash.Type.UUIDv7), do: "type UUIDv7 = string;"
   defp generate_ash_type_alias(Ash.Type.Decimal), do: "type Decimal = string;"
