@@ -175,7 +175,7 @@ defmodule AshTypescript.Rpc do
             %{success: true, data: return_value}
 
           {:error, error} ->
-            %{success: false, errors: error}
+            %{success: false, errors: serialize_error(error)}
         end
     end
   end
@@ -270,7 +270,7 @@ defmodule AshTypescript.Rpc do
         ]
 
         case action.type do
-          action when action in [:update, :destroy] ->
+          action_type when action_type in [:update, :destroy] ->
             case Ash.get(resource, params["primary_key"], opts) do
               {:ok, record} ->
                 result =
@@ -286,8 +286,8 @@ defmodule AshTypescript.Rpc do
                   %{success: false, errors: result}
                 end
 
-              {:error, _} ->
-                {:error, "Record not found"}
+              {:error, error} ->
+                %{success: false, error: serialize_error(error)}
             end
 
           _ ->
@@ -305,5 +305,49 @@ defmodule AshTypescript.Rpc do
             end
         end
     end
+  end
+
+  defp serialize_error(error) when is_exception(error) do
+    %{
+      class: error.class,
+      message: Exception.message(error),
+      errors: serialize_nested_errors(error.errors || []),
+      path: error.path || []
+    }
+    |> add_error_fields(error)
+  end
+
+  defp serialize_error(error) when is_binary(error) do
+    %{class: "unknown", message: error, errors: [], path: []}
+  end
+
+  defp serialize_error(error) do
+    %{class: "unknown", message: inspect(error), errors: [], path: []}
+  end
+
+  defp serialize_nested_errors(errors) when is_list(errors) do
+    Enum.map(errors, &serialize_single_error/1)
+  end
+
+  defp serialize_single_error(error) when is_exception(error) do
+    %{
+      message: Exception.message(error),
+      field: Map.get(error, :field),
+      fields: Map.get(error, :fields, []),
+      path: Map.get(error, :path, [])
+    }
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+    |> Map.new()
+  end
+
+  defp serialize_single_error(error) do
+    %{message: inspect(error)}
+  end
+
+  defp add_error_fields(base_map, error) do
+    error
+    |> Map.take([:field, :fields])
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+    |> Enum.into(base_map)
   end
 end
