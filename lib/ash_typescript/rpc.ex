@@ -100,7 +100,13 @@ defmodule AshTypescript.Rpc do
           |> Enum.reject(fn field -> field in attributes end)
           |> parse_json_load()
 
-        fields_to_take = select ++ load
+        # Parse calculations parameter
+        calculations_load = parse_calculations(Map.get(params, "calculations", %{}))
+
+        # Combine regular load and calculations load
+        combined_load = load ++ calculations_load
+
+        fields_to_take = select ++ combined_load
 
         input = Map.get(params, "input", %{})
 
@@ -110,7 +116,7 @@ defmodule AshTypescript.Rpc do
               resource
               |> Ash.Query.for_read(action.name, input, opts)
               |> Ash.Query.select(select)
-              |> Ash.Query.load(load)
+              |> Ash.Query.load(combined_load)
               |> then(fn query ->
                 if params["filter"] do
                   Ash.Query.filter_input(query, params["filter"])
@@ -138,7 +144,7 @@ defmodule AshTypescript.Rpc do
             resource
             |> Ash.Changeset.for_create(action.name, input, opts)
             |> Ash.Changeset.select(select)
-            |> Ash.Changeset.load(load)
+            |> Ash.Changeset.load(combined_load)
             |> Ash.create()
 
           :update ->
@@ -147,7 +153,7 @@ defmodule AshTypescript.Rpc do
               record
               |> Ash.Changeset.for_update(action.name, input, opts)
               |> Ash.Changeset.select(select)
-              |> Ash.Changeset.load(load)
+              |> Ash.Changeset.load(combined_load)
               |> Ash.update()
             end
 
@@ -157,7 +163,7 @@ defmodule AshTypescript.Rpc do
               record
               |> Ash.Changeset.for_destroy(action.name, input, opts)
               |> Ash.Changeset.select(select)
-              |> Ash.Changeset.load(load)
+              |> Ash.Changeset.load(combined_load)
               |> Ash.destroy()
             end
 
@@ -350,4 +356,45 @@ defmodule AshTypescript.Rpc do
     |> Enum.reject(fn {_k, v} -> is_nil(v) end)
     |> Enum.into(base_map)
   end
+
+  # Parse calculations parameter into format suitable for Ash.Query.load/2
+  defp parse_calculations(calculations) when is_map(calculations) do
+    Enum.map(calculations, fn {calc_name, calc_spec} ->
+      calc_atom = String.to_existing_atom(calc_name)
+      
+      case calc_spec do
+        %{"calcArgs" => args, "fields" => fields} ->
+          # Convert string keys to atoms for args
+          args_atomized = 
+            Enum.reduce(args, %{}, fn {k, v}, acc ->
+              Map.put(acc, String.to_existing_atom(k), v)
+            end)
+          
+          # Parse fields using existing logic
+          parsed_fields = parse_json_load(fields)
+          
+          # Return calculation spec in Ash format: {calc_name, [args: args, fields: fields]}
+          {calc_atom, [args: args_atomized, fields: parsed_fields]}
+          
+        %{"fields" => fields} ->
+          # Calculation without arguments, just field selection
+          parsed_fields = parse_json_load(fields)
+          {calc_atom, [fields: parsed_fields]}
+          
+        %{"calcArgs" => args} ->
+          # Calculation with arguments but no field selection
+          args_atomized = 
+            Enum.reduce(args, %{}, fn {k, v}, acc ->
+              Map.put(acc, String.to_existing_atom(k), v)
+            end)
+          {calc_atom, [args: args_atomized]}
+          
+        _ ->
+          # Simple calculation without args or field selection
+          calc_atom
+      end
+    end)
+  end
+  
+  defp parse_calculations(_), do: []
 end
