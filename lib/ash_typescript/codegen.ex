@@ -160,17 +160,19 @@ defmodule AshTypescript.Codegen do
       Enum.concat([attributes, simple_calculations, aggregates])
       |> Enum.map(fn
         %Ash.Resource.Attribute{} = attr ->
+          formatted_name = AshTypescript.FieldFormatter.format_field(attr.name, AshTypescript.Rpc.field_formatter())
           if attr.allow_nil? do
-            "  #{attr.name}?: #{get_ts_type(attr)} | null;"
+            "  #{formatted_name}?: #{get_ts_type(attr)} | null;"
           else
-            "  #{attr.name}: #{get_ts_type(attr)};"
+            "  #{formatted_name}: #{get_ts_type(attr)};"
           end
 
         %Ash.Resource.Calculation{} = calc ->
+          formatted_name = AshTypescript.FieldFormatter.format_field(calc.name, AshTypescript.Rpc.field_formatter())
           if calc.allow_nil? do
-            "  #{calc.name}?: #{get_ts_type(calc)} | null;"
+            "  #{formatted_name}?: #{get_ts_type(calc)} | null;"
           else
-            "  #{calc.name}: #{get_ts_type(calc)};"
+            "  #{formatted_name}: #{get_ts_type(calc)};"
           end
 
         %Ash.Resource.Aggregate{} = agg ->
@@ -190,10 +192,11 @@ defmodule AshTypescript.Codegen do
                 get_ts_type(agg.kind)
             end
 
+          formatted_name = AshTypescript.FieldFormatter.format_field(agg.name, AshTypescript.Rpc.field_formatter())
           if agg.include_nil? do
-            "  #{agg.name}?: #{type} | null;"
+            "  #{formatted_name}?: #{type} | null;"
           else
-            "  #{agg.name}: #{type};"
+            "  #{formatted_name}: #{type};"
           end
       end)
       |> Enum.join("\n")

@@ -69,6 +69,41 @@ defmodule AshTypescript.Rpc do
   end
 
   @doc """
+  Gets the field formatter configuration for TypeScript generation and client responses.
+  
+  Defaults to :camelize. Can be:
+  - Built-in: :camelize, :kebab_case, :pascal_case, :snake_case
+  - Custom: {Module, :function} or {Module, :function, [extra_args]}
+  """
+  def field_formatter do
+    Application.get_env(:ash_typescript, :field_formatter, :camelize)
+  end
+
+  @doc """
+  Gets the input formatter configuration for parsing input parameters from the client.
+  
+  This determines how client field names are converted to internal Elixir field names.
+  Defaults to :camelize. Can be:
+  - Built-in: :camelize, :kebab_case, :pascal_case, :snake_case  
+  - Custom: {Module, :function} or {Module, :function, [extra_args]}
+  """
+  def input_formatter do
+    Application.get_env(:ash_typescript, :input_formatter, :camelize)
+  end
+
+  @doc """
+  Gets the output formatter configuration for formatting field names in responses to the client.
+  
+  This determines how internal Elixir field names are converted for client consumption.
+  Defaults to :camelize. Can be:
+  - Built-in: :camelize, :kebab_case, :pascal_case, :snake_case
+  - Custom: {Module, :function} or {Module, :function, [extra_args]}
+  """
+  def output_formatter do
+    Application.get_env(:ash_typescript, :output_formatter, :camelize)
+  end
+
+  @doc """
   Determines if a resource requires a tenant parameter.
 
   A resource requires a tenant if it has multitenancy configured and global? is false (default).
@@ -137,16 +172,22 @@ defmodule AshTypescript.Rpc do
           context: Ash.PlugHelpers.get_context(conn) || %{}
         ]
 
+        # Parse client field names to internal field names
+        client_fields = Map.get(params, "fields", [])
+        internal_fields = 
+          Enum.map(client_fields, fn field -> 
+            AshTypescript.FieldFormatter.parse_input_field(field, input_formatter())
+          end)
+
         attributes =
-          Ash.Resource.Info.public_attributes(resource) |> Enum.map(fn a -> to_string(a.name) end)
+          Ash.Resource.Info.public_attributes(resource) |> Enum.map(fn a -> a.name end)
 
         select =
-          Map.get(params, "fields", [])
+          internal_fields
           |> Enum.filter(fn field -> field in attributes end)
-          |> Enum.map(&String.to_existing_atom/1)
 
         load =
-          Map.get(params, "fields", [])
+          internal_fields
           |> Enum.reject(fn field -> field in attributes end)
           |> parse_json_load()
 
@@ -162,7 +203,9 @@ defmodule AshTypescript.Rpc do
 
         fields_to_take = select ++ combined_load
 
-        input = Map.get(params, "input", %{})
+        # Parse input fields using the configured input formatter
+        raw_input = Map.get(params, "input", %{})
+        input = AshTypescript.FieldFormatter.parse_input_fields(raw_input, input_formatter())
 
         case action.type do
           :read ->
@@ -232,7 +275,8 @@ defmodule AshTypescript.Rpc do
 
           {:ok, result} ->
             return_value = extract_return_value(result, fields_to_take, calculation_field_specs)
-            %{success: true, data: return_value}
+            formatted_return_value = format_response_fields(return_value, output_formatter())
+            %{success: true, data: formatted_return_value}
 
           {:error, error} ->
             %{success: false, errors: serialize_error(error)}
@@ -519,4 +563,21 @@ defmodule AshTypescript.Rpc do
   end
 
   defp parse_calculations_with_fields(_, _), do: {[], %{}}
+
+  # Format response fields using the configured output formatter
+  defp format_response_fields(data, formatter) when is_map(data) and not is_struct(data) do
+    AshTypescript.FieldFormatter.format_fields(data, formatter)
+  end
+
+  defp format_response_fields(data, formatter) when is_struct(data) do
+    data
+    |> Map.from_struct()
+    |> AshTypescript.FieldFormatter.format_fields(formatter)
+  end
+
+  defp format_response_fields(data, formatter) when is_list(data) do
+    Enum.map(data, &format_response_fields(&1, formatter))
+  end
+
+  defp format_response_fields(data, _formatter), do: data
 end
