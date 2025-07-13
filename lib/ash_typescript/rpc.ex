@@ -100,8 +100,12 @@ defmodule AshTypescript.Rpc do
           |> Enum.reject(fn field -> field in attributes end)
           |> parse_json_load()
 
-        # Parse calculations parameter
-        calculations_load = parse_calculations(Map.get(params, "calculations", %{}))
+        # Parse calculations parameter and enhanced calculations with field selection
+        {calculations_load, calculation_field_specs} =
+          parse_calculations_with_fields(
+            Map.get(params, "calculations", %{}),
+            resource
+          )
 
         # Combine regular load and calculations load
         combined_load = load ++ calculations_load
@@ -177,7 +181,7 @@ defmodule AshTypescript.Rpc do
             %{success: true, data: %{}}
 
           {:ok, result} ->
-            return_value = extract_return_value(result, fields_to_take)
+            return_value = extract_return_value(result, fields_to_take, calculation_field_specs)
             %{success: true, data: return_value}
 
           {:error, error} ->
@@ -186,32 +190,49 @@ defmodule AshTypescript.Rpc do
     end
   end
 
-  defp extract_return_value(result, fields_to_take) when is_struct(result) do
-    extract_fields_from_map(result, fields_to_take)
+  defp extract_return_value(result, fields_to_take, calculation_field_specs)
+       when is_struct(result) do
+    extract_fields_from_map(result, fields_to_take, calculation_field_specs)
   end
 
-  defp extract_return_value(result, fields_to_take) when is_map(result) do
-    extract_fields_from_map(result, fields_to_take)
+  defp extract_return_value(result, fields_to_take, calculation_field_specs)
+       when is_map(result) do
+    extract_fields_from_map(result, fields_to_take, calculation_field_specs)
   end
 
-  defp extract_return_value(result, fields_to_take) when is_list(result) do
-    Enum.map(result, fn res -> extract_return_value(res, fields_to_take) end)
+  defp extract_return_value(result, fields_to_take, calculation_field_specs)
+       when is_list(result) do
+    Enum.map(result, fn res ->
+      extract_return_value(res, fields_to_take, calculation_field_specs)
+    end)
   end
 
-  defp extract_return_value(return_value, []), do: return_value
+  defp extract_return_value(return_value, [], _calculation_field_specs), do: return_value
 
-  defp extract_return_value(_return_value, _list),
+  defp extract_return_value(_return_value, _list, _calculation_field_specs),
     do:
       {:error,
        "select and load lists must be empty when returning other values than a struct or map."}
 
-  defp extract_fields_from_map(map, fields_to_take) do
+  defp extract_fields_from_map(map, fields_to_take, calculation_field_specs) do
     Enum.reduce(fields_to_take, %{}, fn field_spec, acc ->
       case field_spec do
         # Simple field (atom)
         field when is_atom(field) ->
           if Map.has_key?(map, field) do
-            Map.put(acc, field, Map.get(map, field))
+            value = Map.get(map, field)
+
+            # Check if this field is a calculation with specific field selection
+            case Map.get(calculation_field_specs, field) do
+              nil ->
+                # No special field selection for this calculation
+                Map.put(acc, field, value)
+
+              calc_fields ->
+                # Apply field selection to the calculation result
+                filtered_value = extract_return_value(value, calc_fields, calculation_field_specs)
+                Map.put(acc, field, filtered_value)
+            end
           else
             acc
           end
@@ -220,7 +241,10 @@ defmodule AshTypescript.Rpc do
         {relation, nested_fields} when is_atom(relation) and is_list(nested_fields) ->
           if Map.has_key?(map, relation) do
             nested_value = Map.get(map, relation)
-            extracted_nested = extract_return_value(nested_value, nested_fields)
+
+            extracted_nested =
+              extract_return_value(nested_value, nested_fields, calculation_field_specs)
+
             Map.put(acc, relation, extracted_nested)
           else
             acc
@@ -230,7 +254,10 @@ defmodule AshTypescript.Rpc do
         [{key, nested_fields}] when is_atom(key) and is_list(nested_fields) ->
           if Map.has_key?(map, key) do
             nested_value = Map.get(map, key)
-            extracted_nested = extract_return_value(nested_value, nested_fields)
+
+            extracted_nested =
+              extract_return_value(nested_value, nested_fields, calculation_field_specs)
+
             Map.put(acc, key, extracted_nested)
           else
             acc
@@ -357,44 +384,56 @@ defmodule AshTypescript.Rpc do
     |> Enum.into(base_map)
   end
 
-  # Parse calculations parameter into format suitable for Ash.Query.load/2
-  defp parse_calculations(calculations) when is_map(calculations) do
-    Enum.map(calculations, fn {calc_name, calc_spec} ->
-      calc_atom = String.to_existing_atom(calc_name)
-      
-      case calc_spec do
-        %{"calcArgs" => args, "fields" => fields} ->
-          # Convert string keys to atoms for args
-          args_atomized = 
-            Enum.reduce(args, %{}, fn {k, v}, acc ->
-              Map.put(acc, String.to_existing_atom(k), v)
-            end)
-          
-          # Parse fields using existing logic
-          parsed_fields = parse_json_load(fields)
-          
-          # Return calculation spec in Ash format: {calc_name, [args: args, fields: fields]}
-          {calc_atom, [args: args_atomized, fields: parsed_fields]}
-          
-        %{"fields" => fields} ->
-          # Calculation without arguments, just field selection
-          parsed_fields = parse_json_load(fields)
-          {calc_atom, [fields: parsed_fields]}
-          
-        %{"calcArgs" => args} ->
-          # Calculation with arguments but no field selection
-          args_atomized = 
-            Enum.reduce(args, %{}, fn {k, v}, acc ->
-              Map.put(acc, String.to_existing_atom(k), v)
-            end)
-          {calc_atom, [args: args_atomized]}
-          
-        _ ->
-          # Simple calculation without args or field selection
-          calc_atom
-      end
-    end)
+  # Enhanced calculation parsing that separates regular loading from field selection specs
+  defp parse_calculations_with_fields(calculations, resource) when is_map(calculations) do
+    resource_calculations = Ash.Resource.Info.calculations(resource)
+
+    {calculations_load, calculation_field_specs} =
+      Enum.reduce(calculations, {[], %{}}, fn {calc_name, calc_spec}, {load_acc, specs_acc} ->
+        calc_atom = String.to_existing_atom(calc_name)
+        _calc_definition = Enum.find(resource_calculations, &(&1.name == calc_atom))
+
+        case calc_spec do
+          %{"calcArgs" => args, "fields" => fields} ->
+            # For calculations with arguments and field selection, we load without field selection
+            # and store the field spec for later application in extract_return_value
+            args_atomized =
+              Enum.reduce(args, %{}, fn {k, v}, acc ->
+                Map.put(acc, String.to_existing_atom(k), v)
+              end)
+
+            # Store field specification for this calculation
+            parsed_fields = parse_json_load(fields)
+            updated_specs = Map.put(specs_acc, calc_atom, parsed_fields)
+
+            # Return only the args for loading (no fields to avoid Ash validation issues)
+            load_entry = {calc_atom, [args: args_atomized]}
+            {[load_entry | load_acc], updated_specs}
+
+          %{"fields" => fields} ->
+            # Calculation without arguments, field selection can work normally
+            parsed_fields = parse_json_load(fields)
+            load_entry = {calc_atom, [fields: parsed_fields]}
+            {[load_entry | load_acc], specs_acc}
+
+          %{"calcArgs" => args} ->
+            # Calculation with arguments but no field selection
+            args_atomized =
+              Enum.reduce(args, %{}, fn {k, v}, acc ->
+                Map.put(acc, String.to_existing_atom(k), v)
+              end)
+
+            load_entry = {calc_atom, [args: args_atomized]}
+            {[load_entry | load_acc], specs_acc}
+
+          _ ->
+            # Simple calculation without args or field selection
+            {[calc_atom | load_acc], specs_acc}
+        end
+      end)
+
+    {Enum.reverse(calculations_load), calculation_field_specs}
   end
-  
-  defp parse_calculations(_), do: []
+
+  defp parse_calculations_with_fields(_, _), do: {[], %{}}
 end

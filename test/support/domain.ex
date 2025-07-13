@@ -1,0 +1,39 @@
+defmodule AshTypescript.Test.Domain do
+  use Ash.Domain,
+    otp_app: :ash_typescript,
+    extensions: [AshTypescript.Rpc]
+
+  rpc do
+    resource AshTypescript.Test.Todo do
+      rpc_action :list_todos, :read
+      rpc_action :get_todo, :get
+      rpc_action :create_todo, :create
+      rpc_action :update_todo, :update
+      rpc_action :complete_todo, :complete
+      rpc_action :set_priority_todo, :set_priority
+      rpc_action :bulk_complete_todo, :bulk_complete
+      rpc_action :get_statistics_todo, :get_statistics
+      rpc_action :search_todos, :search
+      rpc_action :destroy_todo, :destroy
+    end
+
+    resource AshTypescript.Test.Comment do
+      rpc_action :list_comments, :read
+      rpc_action :create_comment, :create
+      rpc_action :update_comment, :update
+    end
+
+    resource AshTypescript.Test.User do
+      rpc_action :list_users, :read
+      rpc_action :create_user, :create
+      rpc_action :update_user, :update
+    end
+  end
+
+  resources do
+    resource AshTypescript.Test.Todo
+    resource AshTypescript.Test.Comment
+    resource AshTypescript.Test.User
+    resource AshTypescript.Test.NotExposed
+  end
+end

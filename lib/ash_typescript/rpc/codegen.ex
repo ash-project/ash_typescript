@@ -136,7 +136,7 @@ defmodule AshTypescript.Rpc.Codegen do
     type InferResourceResult<
       Resource extends ResourceBase,
       SelectedFields extends FieldSelection<Resource>[],
-      CalculationsConfig = {}
+      CalculationsConfig extends Record<string, any>
     > =
       InferPickedFields<Resource, ExtractStringFields<SelectedFields>> &
       InferRelationships<ExtractRelationshipObjects<SelectedFields>, Resource["relationships"]> &
@@ -313,7 +313,7 @@ defmodule AshTypescript.Rpc.Codegen do
     fields_field = [
       "  fields: FieldSelection<#{resource_name}ResourceSchema>[];"
     ]
-    
+
     # Add calculations field
     calculations_field = [
       "  calculations?: Partial<#{resource_name}ResourceSchema[\"complexCalculations\"]>;"
