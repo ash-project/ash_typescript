@@ -76,6 +76,93 @@ rpc_action :search_todos, :search
 rpc_action :destroy_todo, :destroy
 ```
 
+## Test Connection Setup
+
+### Proper Conn Structure (Important Migration Notes)
+
+⚠️ **Breaking Change**: As of Ash 3.5+, storing tenant and actor information directly in `conn.assigns` is **deprecated** and will generate warnings:
+
+```
+[warning] Storing the tenant in conn assigns is deprecated.
+  deps/ash/lib/ash/plug_helpers.ex:169: Ash.PlugHelpers.get_tenant/1
+```
+
+### ✅ Modern Approach (Recommended)
+
+All test files should use proper `Plug.Conn` structs with Phoenix test helpers:
+
+```elixir
+defmodule AshTypescript.Rpc.SomeTest do
+  use ExUnit.Case, async: true
+  import Phoenix.ConnTest        # For build_conn/0
+  import Plug.Conn              # For put_private/3, assign/3
+  alias AshTypescript.Rpc
+
+  setup do
+    # Create proper Plug.Conn struct
+    conn = build_conn()
+    |> put_private(:ash, %{actor: nil, tenant: nil})
+    |> assign(:context, %{})
+
+    {:ok, conn: conn}
+  end
+  
+  # For setting tenant in tests (connection mode)
+  test "example with tenant", %{conn: conn} do
+    conn_with_tenant = Ash.PlugHelpers.set_tenant(conn, tenant_id)
+    # ... rest of test
+  end
+end
+```
+
+### ❌ Legacy Approach (Deprecated)
+
+```elixir
+# DON'T DO THIS - Generates deprecation warnings
+setup do
+  conn = %{
+    assigns: %{
+      actor: nil,
+      tenant: nil,
+      context: %{}
+    }
+  }
+  
+  # DON'T DO THIS - Manual manipulation
+  conn_with_tenant = put_in(conn.assigns.tenant, tenant_id)
+end
+```
+
+### Required Imports for Test Files
+
+All RPC test files need these imports:
+
+```elixir
+import Phoenix.ConnTest    # Provides build_conn/0
+import Plug.Conn          # Provides put_private/3, assign/3
+```
+
+### Tenant Assignment Best Practices
+
+When testing connection-mode multitenancy, use the official helper:
+
+```elixir
+# ✅ Correct - Uses Ash helper function
+conn_with_tenant = Ash.PlugHelpers.set_tenant(conn, tenant_id)
+
+# ❌ Incorrect - Manual manipulation (deprecated)
+conn_with_tenant = put_in(conn.assigns.private.ash.tenant, tenant_id)
+```
+
+### Migration Checklist
+
+When updating existing test files:
+
+1. Add `import Phoenix.ConnTest` and `import Plug.Conn`
+2. Replace conn map creation with `build_conn() |> put_private(:ash, %{...})`
+3. Replace manual tenant assignment with `Ash.PlugHelpers.set_tenant/2`
+4. Verify tests still pass with proper Plug.Conn structs
+
 ## Test File Organization
 
 Tests organized by functional area in `test/ash_typescript/rpc/`:
@@ -185,7 +272,7 @@ setup do
 end
 
 test "creates resource with tenant in connection" do
-  conn_with_tenant = put_in(conn.assigns.tenant, user1.id)
+  conn_with_tenant = Ash.PlugHelpers.set_tenant(conn, user1.id)
 
   params = %{
     "action" => "create_user_settings",

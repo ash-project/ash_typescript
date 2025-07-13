@@ -1,5 +1,7 @@
 defmodule AshTypescript.Rpc.ContextTest do
   use ExUnit.Case, async: true
+  import Phoenix.ConnTest
+  import Plug.Conn
   alias AshTypescript.Rpc
 
   describe "actor, tenant, and context handling" do
@@ -7,13 +9,9 @@ defmodule AshTypescript.Rpc.ContextTest do
       # Create a mock user
       user = %{id: "test-user-id", name: "Test User"}
 
-      conn_with_actor = %{
-        assigns: %{
-          actor: user,
-          tenant: nil,
-          context: %{}
-        }
-      }
+      conn_with_actor = build_conn()
+      |> put_private(:ash, %{actor: user, tenant: nil})
+      |> assign(:context, %{})
 
       params = %{
         "action" => "list_todos",
@@ -26,13 +24,9 @@ defmodule AshTypescript.Rpc.ContextTest do
     end
 
     test "uses tenant from conn" do
-      conn_with_tenant = %{
-        assigns: %{
-          actor: nil,
-          tenant: "test_tenant",
-          context: %{}
-        }
-      }
+      conn_with_tenant = build_conn()
+      |> put_private(:ash, %{actor: nil, tenant: "test_tenant"})
+      |> assign(:context, %{})
 
       params = %{
         "action" => "list_todos",
@@ -45,13 +39,9 @@ defmodule AshTypescript.Rpc.ContextTest do
     end
 
     test "uses context from conn" do
-      conn_with_context = %{
-        assigns: %{
-          actor: nil,
-          tenant: nil,
-          context: %{"custom_key" => "custom_value"}
-        }
-      }
+      conn_with_context = build_conn()
+      |> put_private(:ash, %{actor: nil, tenant: nil})
+      |> assign(:context, %{"custom_key" => "custom_value"})
 
       params = %{
         "action" => "list_todos",

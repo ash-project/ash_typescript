@@ -172,8 +172,86 @@ config :ash_typescript,
   output_file: "assets/js/ash_rpc.ts",
   run_endpoint: "/rpc/run",
   validate_endpoint: "/rpc/validate",
-  require_tenant_parameters: true  # Default - tenant passed as parameters
+  require_tenant_parameters: true,  # Default - tenant passed as parameters
+  
+  # Field formatting configuration
+  input_field_formatter: :camel_case,   # Format for parsing client input
+  output_field_formatter: :camel_case   # Format for TypeScript generation and responses
 ```
+
+### Field Formatting
+
+AshTypescript supports configurable field name formatting to match your client-side naming conventions. This ensures consistent naming between your Elixir backend and TypeScript frontend.
+
+#### Built-in Formatters
+
+- `:camel_case` (default) - `user_name` → `userName`
+- `:pascal_case` - `user_name` → `UserName`
+- `:snake_case` - `user_name` → `user_name` (no change)
+
+#### Configuration Options
+
+**`input_field_formatter`** - Parses client input field names to internal format:
+```typescript
+// Client sends camelCase, internally converted to snake_case
+await createUser({
+  fields: ["userName", "emailAddress"],  // Client format
+  input: {
+    userName: "John Doe",               // Client format
+    emailAddress: "john@example.com"
+  }
+});
+// Internally: {user_name: "John Doe", email_address: "john@example.com"}
+```
+
+**`output_field_formatter`** - Controls field names in TypeScript generation and API responses:
+```typescript
+// With :camel_case (default)
+type UserFieldsSchema = {
+  userName: string;
+  emailAddress?: string;
+  createdAt: UtcDateTime;
+};
+
+// API responses use the same format
+const user = await createUser({...});
+console.log(user.userName);        // camelCase response
+console.log(user.emailAddress);    // camelCase response
+```
+
+#### Custom Formatters
+
+For advanced use cases, you can provide custom formatter functions:
+
+```elixir
+config :ash_typescript,
+  input_field_formatter: {MyApp.Formatters, :parse_input_field},
+  output_field_formatter: {MyApp.Formatters, :format_output_field, ["extra_arg"]}
+```
+
+Custom formatter functions receive the field name and any extra arguments:
+```elixir
+defmodule MyApp.Formatters do
+  def parse_input_field(field_name) do
+    field_name
+    |> String.replace_leading("input_", "")
+    |> String.to_atom()
+  end
+  
+  def format_output_field(field_name, prefix) do
+    "#{prefix}_#{field_name}"
+  end
+end
+```
+
+#### Formatter Consistency
+
+Both formatters work together to provide seamless field name translation:
+
+1. **Request Processing** - Uses `input_field_formatter` to convert client field names to internal format
+2. **TypeScript Generation & Response Formatting** - Uses `output_field_formatter` for both generated type definitions and API responses
+
+This ensures your TypeScript client can use consistent naming conventions while maintaining compatibility with your Elixir resource definitions. The TypeScript types always match what the API actually returns, eliminating potential mismatches.
 
 ## Mix Tasks
 

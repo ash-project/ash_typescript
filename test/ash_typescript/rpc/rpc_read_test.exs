@@ -1,16 +1,14 @@
 defmodule AshTypescript.Rpc.ReadTest do
   use ExUnit.Case, async: true
+  import Phoenix.ConnTest
+  import Plug.Conn
   alias AshTypescript.Rpc
 
   setup do
-    # Mock conn structure
-    conn = %{
-      assigns: %{
-        actor: nil,
-        tenant: nil,
-        context: %{}
-      }
-    }
+    # Create proper Plug.Conn struct
+    conn = build_conn()
+    |> put_private(:ash, %{actor: nil, tenant: nil})
+    |> assign(:context, %{})
 
     {:ok, conn: conn}
   end
@@ -62,12 +60,12 @@ defmodule AshTypescript.Rpc.ReadTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Test Todo",
-          "user_id" => user.id
+          "userId" => user["id"]
         }
       }
 
       create_result = Rpc.run_action(:ash_typescript, conn, create_params)
-      assert %{success: true, data: %{id: id}} = create_result
+      assert %{success: true, data: %{"id" => id}} = create_result
 
       # Now get it
       get_params = %{
@@ -79,7 +77,9 @@ defmodule AshTypescript.Rpc.ReadTest do
       }
 
       result = Rpc.run_action(:ash_typescript, conn, get_params)
-      assert %{success: true, data: %{id: ^id, title: "Test Todo"}} = result
+      assert %{success: true, data: %{"id" => ^id, "title" => "Test Todo"}} = result
+      # Check that only requested fields are returned
+      assert Map.keys(result.data) |> Enum.sort() == ["id", "title"]
     end
 
     test "handles select parameter correctly", %{conn: conn} do
@@ -92,19 +92,31 @@ defmodule AshTypescript.Rpc.ReadTest do
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert is_list(data)
+      # Check that only requested fields are returned (when data is not empty)
+      if length(data) > 0 do
+        first_item_keys = Map.keys(hd(data)) |> Enum.sort()
+        assert first_item_keys == ["id", "title"]
+      end
     end
 
     test "handles load parameter correctly", %{conn: conn} do
       params = %{
         "action" => "list_todos",
         "fields" => ["id", "title"],
-        "load" => ["is_overdue", "days_until_due"],
+        "load" => ["isOverdue", "daysUntilDue"],
         "input" => %{}
       }
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert is_list(data)
+      # Check that only requested fields plus loaded calculations are returned
+      if length(data) > 0 do
+        first_item_keys = Map.keys(hd(data)) |> Enum.sort()
+        # May include loaded calculations beyond the fields param
+        assert "id" in first_item_keys
+        assert "title" in first_item_keys
+      end
     end
 
     test "validates read actions (allowed by current implementation)", %{conn: conn} do
@@ -129,10 +141,12 @@ defmodule AshTypescript.Rpc.ReadTest do
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
-      assert data.total == 10
-      assert data.completed == 6
-      assert data.pending == 4
-      assert data.overdue == 2
+      assert data["total"] == 10
+      assert data["completed"] == 6
+      assert data["pending"] == 4
+      assert data["overdue"] == 2
+      # Check that only requested fields are returned
+      assert Map.keys(data) |> Enum.sort() == ["completed", "overdue", "pending", "total"]
     end
 
     test "runs generic actions with arguments", %{conn: conn} do
@@ -141,13 +155,15 @@ defmodule AshTypescript.Rpc.ReadTest do
         "fields" => [],
         "input" => %{
           "query" => "test search",
-          "include_completed" => false
+          "includeCompleted" => false
         }
       }
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
       assert is_list(data)
+      # Check that empty fields array returns minimal data structure for list results
+      # (exact behavior may vary based on implementation)
     end
 
     test "validates generic actions (allowed by current implementation)", %{conn: conn} do

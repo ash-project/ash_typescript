@@ -25,6 +25,11 @@ defmodule AshTypescript.Test.User do
       default true
       public? true
     end
+
+    attribute :is_super_admin, :boolean do
+      default false
+      public? true
+    end
   end
 
   relationships do
@@ -45,11 +50,11 @@ defmodule AshTypescript.Test.User do
     defaults [:read]
 
     create :create do
-      accept [:email, :name]
+      accept [:email, :name, :is_super_admin]
     end
 
     update :update do
-      accept [:name]
+      accept [:name, :is_super_admin]
     end
 
     destroy :destroy do

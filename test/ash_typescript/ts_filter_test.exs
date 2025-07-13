@@ -20,7 +20,7 @@ defmodule AshTypescript.FilterTest do
 
       assert String.contains?(result, "title?: {")
       assert String.contains?(result, "eq?: string")
-      assert String.contains?(result, "not_eq?: string")
+      assert String.contains?(result, "notEq?: string")  # formatted with default :camel_case
       assert String.contains?(result, "in?: Array<string>")
     end
 
@@ -29,18 +29,18 @@ defmodule AshTypescript.FilterTest do
 
       assert String.contains?(result, "published?: {")
       assert String.contains?(result, "eq?: boolean")
-      assert String.contains?(result, "not_eq?: boolean")
+      assert String.contains?(result, "notEq?: boolean")  # formatted with default :camel_case
       # Boolean should not have comparison operators
-      refute String.contains?(result, "greater_than?: boolean")
+      refute String.contains?(result, "greaterThan?: boolean")  # formatted with default :camel_case
     end
 
     test "includes integer attribute filters with comparison operations" do
       result = Filter.generate_filter_type(Post)
 
-      assert String.contains?(result, "view_count?: {")
+      assert String.contains?(result, "viewCount?: {")
       assert String.contains?(result, "eq?: number")
-      assert String.contains?(result, "greater_than?: number")
-      assert String.contains?(result, "less_than?: number")
+      assert String.contains?(result, "greaterThan?: number")  # formatted with default :camel_case
+      assert String.contains?(result, "lessThan?: number")  # formatted with default :camel_case
       assert String.contains?(result, "in?: Array<number>")
     end
 
@@ -48,18 +48,18 @@ defmodule AshTypescript.FilterTest do
       result = Filter.generate_filter_type(Post)
 
       assert String.contains?(result, "rating?: {")
-      assert String.contains?(result, "eq?: number")
-      assert String.contains?(result, "greater_than_or_equal?: number")
-      assert String.contains?(result, "less_than_or_equal?: number")
+      assert String.contains?(result, "eq?: Decimal")
+      assert String.contains?(result, "greaterThanOrEqual?: Decimal")  # formatted with default :camel_case
+      assert String.contains?(result, "lessThanOrEqual?: Decimal")  # formatted with default :camel_case
     end
 
     test "includes datetime attribute filters with comparison operations" do
       result = Filter.generate_filter_type(Post)
 
-      assert String.contains?(result, "published_at?: {")
+      assert String.contains?(result, "publishedAt?: {")
       assert String.contains?(result, "eq?: UtcDateTime")
-      assert String.contains?(result, "greater_than?: UtcDateTime")
-      assert String.contains?(result, "less_than?: UtcDateTime")
+      assert String.contains?(result, "greaterThan?: UtcDateTime")  # formatted with default :camel_case
+      assert String.contains?(result, "lessThan?: UtcDateTime")  # formatted with default :camel_case
     end
 
     test "includes constrained atom attribute filters" do
@@ -108,9 +108,9 @@ defmodule AshTypescript.FilterTest do
         |> Enum.at(0)
 
       assert String.contains?(title_section, "eq?: string")
-      assert String.contains?(title_section, "not_eq?: string")
+      assert String.contains?(title_section, "notEq?: string")  # formatted with default :camel_case
       assert String.contains?(title_section, "in?: Array<string>")
-      refute String.contains?(title_section, "greater_than")
+      refute String.contains?(title_section, "greaterThan")  # formatted with default :camel_case
     end
 
     test "numeric types get comparison operations" do
@@ -119,14 +119,14 @@ defmodule AshTypescript.FilterTest do
       # Find the view_count field in the result
       view_count_section =
         result
-        |> String.split("view_count?: {")
+        |> String.split("viewCount?: {")
         |> Enum.at(1)
         |> String.split("};")
         |> Enum.at(0)
 
       assert String.contains?(view_count_section, "eq?: number")
-      assert String.contains?(view_count_section, "greater_than?: number")
-      assert String.contains?(view_count_section, "less_than?: number")
+      assert String.contains?(view_count_section, "greaterThan?: number")  # formatted with default :camel_case
+      assert String.contains?(view_count_section, "lessThan?: number")  # formatted with default :camel_case
       assert String.contains?(view_count_section, "in?: Array<number>")
     end
 
@@ -142,9 +142,9 @@ defmodule AshTypescript.FilterTest do
         |> Enum.at(0)
 
       assert String.contains?(published_section, "eq?: boolean")
-      assert String.contains?(published_section, "not_eq?: boolean")
-      refute String.contains?(published_section, "greater_than")
-      refute String.contains?(published_section, "less_than")
+      assert String.contains?(published_section, "notEq?: boolean")  # formatted with default :camel_case
+      refute String.contains?(published_section, "greaterThan")  # formatted with default :camel_case
+      refute String.contains?(published_section, "lessThan")  # formatted with default :camel_case
     end
   end
 

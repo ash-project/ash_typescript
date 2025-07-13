@@ -1,17 +1,15 @@
 defmodule AshTypescript.Rpc.MultitenancyContextTest do
   use ExUnit.Case, async: false
+  import Phoenix.ConnTest
+  import Plug.Conn
   alias AshTypescript.Rpc
   alias AshTypescript.Test.OrgTodo
 
   setup do
-    # Mock conn structure
-    conn = %{
-      assigns: %{
-        actor: nil,
-        tenant: nil,
-        context: %{}
-      }
-    }
+    # Create proper Plug.Conn struct
+    conn = build_conn()
+    |> put_private(:ash, %{actor: nil, tenant: nil})
+    |> assign(:context, %{})
 
     # Create test users for todos
     user1_params = %{
@@ -80,16 +78,16 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
         "input" => %{
           "title" => "Organization Task",
           "description" => "A task for the organization",
-          "user_id" => user1.id
+          "user_id" => user1["id"]
         },
         "tenant" => org1_id
       }
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: todo} = result
-      assert todo.title == "Organization Task"
-      assert todo.description == "A task for the organization"
-      assert todo.user_id == user1.id
+      assert todo["title"] == "Organization Task"
+      assert todo["description"] == "A task for the organization"
+      assert todo["userId"] == user1["id"]
     end
 
     test "reads org todos with tenant parameter", %{conn: conn, user1: user1, org1_id: org1_id} do
@@ -99,7 +97,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Read Test Todo",
-          "user_id" => user1.id
+          "user_id" => user1["id"]
         },
         "tenant" => org1_id
       }
@@ -118,8 +116,8 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
       result = Rpc.run_action(:ash_typescript, conn, read_params)
       assert %{success: true, data: todos_list} = result
       assert length(todos_list) == 1
-      assert hd(todos_list).title == "Read Test Todo"
-      assert hd(todos_list).user_id == user1.id
+      assert hd(todos_list)["title"] == "Read Test Todo"
+      assert hd(todos_list)["userId"] == user1["id"]
     end
 
     test "updates org todo with tenant parameter", %{conn: conn, user1: user1, org1_id: org1_id} do
@@ -129,20 +127,20 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
         "fields" => ["id", "title"],
         "input" => %{
           "title" => "Update Test Todo",
-          "user_id" => user1.id
+          "user_id" => user1["id"]
         },
         "tenant" => org1_id
       }
 
       create_result = Rpc.run_action(:ash_typescript, conn, create_params)
       assert %{success: true, data: todo} = create_result
-      assert todo.title == "Update Test Todo"
+      assert todo["title"] == "Update Test Todo"
 
       # Update todo
       update_params = %{
         "action" => "update_org_todo",
         "fields" => ["id", "title"],
-        "primary_key" => todo.id,
+        "primary_key" => todo["id"],
         "input" => %{
           "title" => "Updated Organization Task"
         },
@@ -151,7 +149,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
 
       result = Rpc.run_action(:ash_typescript, conn, update_params)
       assert %{success: true, data: updated_todo} = result
-      assert updated_todo.title == "Updated Organization Task"
+      assert updated_todo["title"] == "Updated Organization Task"
     end
 
     test "completes org todo with tenant parameter", %{conn: conn, user1: user1, org1_id: org1_id} do
@@ -161,27 +159,27 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
         "fields" => ["id", "completed"],
         "input" => %{
           "title" => "Complete Test Todo",
-          "user_id" => user1.id
+          "user_id" => user1["id"]
         },
         "tenant" => org1_id
       }
 
       create_result = Rpc.run_action(:ash_typescript, conn, create_params)
       assert %{success: true, data: todo} = create_result
-      assert todo.completed == false
+      assert todo["completed"] == false
 
       # Complete todo
       complete_params = %{
         "action" => "complete_org_todo",
         "fields" => ["id", "completed"],
-        "primary_key" => todo.id,
+        "primary_key" => todo["id"],
         "input" => %{},
         "tenant" => org1_id
       }
 
       result = Rpc.run_action(:ash_typescript, conn, complete_params)
       assert %{success: true, data: completed_todo} = result
-      assert completed_todo.completed == true
+      assert completed_todo["completed"] == true
     end
 
     test "destroys org todo with tenant parameter", %{conn: conn, user1: user1, org1_id: org1_id} do
@@ -191,7 +189,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Destroy Test Todo",
-          "user_id" => user1.id
+          "user_id" => user1["id"]
         },
         "tenant" => org1_id
       }
@@ -203,7 +201,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
       destroy_params = %{
         "action" => "destroy_org_todo",
         "fields" => [],
-        "primary_key" => todo.id,
+        "primary_key" => todo["id"],
         "input" => %{},
         "tenant" => org1_id
       }
@@ -218,7 +216,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Failed Todo",
-          "user_id" => user1.id
+          "user_id" => user1["id"]
         }
         # Missing tenant parameter
       }
@@ -256,22 +254,22 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
       user1: user1,
       org1_id: org1_id
     } do
-      conn_with_tenant = put_in(conn.assigns.tenant, org1_id)
+      conn_with_tenant = Ash.PlugHelpers.set_tenant(conn, org1_id)
 
       params = %{
         "action" => "create_org_todo",
         "fields" => ["id", "title", "user_id"],
         "input" => %{
           "title" => "Connection Mode Todo",
-          "user_id" => user1.id
+          "user_id" => user1["id"]
         }
         # No tenant parameter needed
       }
 
       result = Rpc.run_action(:ash_typescript, conn_with_tenant, params)
       assert %{success: true, data: todo} = result
-      assert todo.title == "Connection Mode Todo"
-      assert todo.user_id == user1.id
+      assert todo["title"] == "Connection Mode Todo"
+      assert todo["userId"] == user1["id"]
     end
 
     test "reads org todos with tenant in connection", %{
@@ -279,7 +277,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
       user1: user1,
       org1_id: org1_id
     } do
-      conn_with_tenant = put_in(conn.assigns.tenant, org1_id)
+      conn_with_tenant = Ash.PlugHelpers.set_tenant(conn, org1_id)
 
       # Create todo first
       create_params = %{
@@ -287,7 +285,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Connection Read Todo",
-          "user_id" => user1.id
+          "user_id" => user1["id"]
         }
       }
 
@@ -304,8 +302,8 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
       result = Rpc.run_action(:ash_typescript, conn_with_tenant, read_params)
       assert %{success: true, data: todos_list} = result
       assert length(todos_list) == 1
-      assert hd(todos_list).title == "Connection Read Todo"
-      assert hd(todos_list).user_id == user1.id
+      assert hd(todos_list)["title"] == "Connection Read Todo"
+      assert hd(todos_list)["userId"] == user1["id"]
     end
 
     test "fails without tenant in connection", %{conn: conn, user1: user1} do
@@ -314,7 +312,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "No Tenant Todo",
-          "user_id" => user1.id
+          "user_id" => user1["id"]
         }
       }
 
@@ -346,7 +344,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Org1 Todo",
-          "user_id" => user1.id
+          "user_id" => user1["id"]
         },
         "tenant" => org1_id
       }
@@ -357,7 +355,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Org2 Todo",
-          "user_id" => user2.id
+          "user_id" => user2["id"]
         },
         "tenant" => org2_id
       }
@@ -376,8 +374,8 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
       result1 = Rpc.run_action(:ash_typescript, conn, org1_read)
       assert %{success: true, data: todos1} = result1
       assert length(todos1) == 1
-      assert hd(todos1).title == "Org1 Todo"
-      assert hd(todos1).user_id == user1.id
+      assert hd(todos1)["title"] == "Org1 Todo"
+      assert hd(todos1)["userId"] == user1["id"]
 
       # Org2 should only see their todos
       org2_read = %{
@@ -390,8 +388,8 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
       result2 = Rpc.run_action(:ash_typescript, conn, org2_read)
       assert %{success: true, data: todos2} = result2
       assert length(todos2) == 1
-      assert hd(todos2).title == "Org2 Todo"
-      assert hd(todos2).user_id == user2.id
+      assert hd(todos2)["title"] == "Org2 Todo"
+      assert hd(todos2)["userId"] == user2["id"]
     end
 
     test "wrong tenant prevents access to other organization's todos", %{
@@ -406,7 +404,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Org1 Private Todo",
-          "user_id" => user1.id
+          "user_id" => user1["id"]
         },
         "tenant" => org1_id
       }
@@ -443,7 +441,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Invalid Tenant Todo",
-          "user_id" => user1.id
+          "user_id" => user1["id"]
         },
         "tenant" => "not-a-uuid-at-all"
       }
@@ -466,7 +464,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Destroy Test Todo",
-          "user_id" => user1.id
+          "user_id" => user1["id"]
         },
         "tenant" => org1_id
       }
@@ -478,7 +476,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
       destroy_params = %{
         "action" => "destroy_org_todo",
         "fields" => [],
-        "primary_key" => todo.id,
+        "primary_key" => todo["id"],
         "input" => %{},
         "tenant" => org2_id
       }
@@ -499,7 +497,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Update Test Todo",
-          "user_id" => user1.id
+          "user_id" => user1["id"]
         },
         "tenant" => org1_id
       }
@@ -511,7 +509,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
       update_params = %{
         "action" => "update_org_todo",
         "fields" => ["id", "title"],
-        "primary_key" => todo.id,
+        "primary_key" => todo["id"],
         "input" => %{
           "title" => "Unauthorized Update"
         },
@@ -543,7 +541,7 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
                "priority?: \"low\" | \"medium\" | \"high\" | \"urgent\""
              )
 
-      assert String.contains?(typescript_output, "due_date?: AshDate")
+      assert String.contains?(typescript_output, "dueDate?: AshDate")
       assert String.contains?(typescript_output, "tags?: Array<string>")
       assert String.contains?(typescript_output, "metadata?: Record<string, any>")
     end
@@ -576,12 +574,12 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
       typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Verify RPC action function names are generated
-      assert String.contains?(typescript_output, "list_org_todos")
-      assert String.contains?(typescript_output, "get_org_todo")
-      assert String.contains?(typescript_output, "create_org_todo")
-      assert String.contains?(typescript_output, "update_org_todo")
-      assert String.contains?(typescript_output, "complete_org_todo")
-      assert String.contains?(typescript_output, "destroy_org_todo")
+      assert String.contains?(typescript_output, "listOrgTodos")
+      assert String.contains?(typescript_output, "getOrgTodo")
+      assert String.contains?(typescript_output, "createOrgTodo")
+      assert String.contains?(typescript_output, "updateOrgTodo")
+      assert String.contains?(typescript_output, "completeOrgTodo")
+      assert String.contains?(typescript_output, "destroyOrgTodo")
     end
   end
 end

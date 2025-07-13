@@ -11,6 +11,7 @@ defmodule AshTypescript.Rpc.Helpers do
   end
 
   defp transform(str) when is_binary(str), do: String.to_atom(str)
+  defp transform(atom) when is_atom(atom), do: atom
 
   defp reorder_atoms_and_keywords(items) do
     {atoms, keywords} = Enum.split_with(items, &is_atom/1)

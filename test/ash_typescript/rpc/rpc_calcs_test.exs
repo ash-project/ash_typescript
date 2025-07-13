@@ -1,16 +1,15 @@
 defmodule AshTypescript.Rpc.CalcsTest do
   use ExUnit.Case, async: true
+  import Phoenix.ConnTest
+  import Plug.Conn
   alias AshTypescript.Rpc
 
   setup do
-    # Mock conn structure
-    conn = %{
-      assigns: %{
-        actor: nil,
-        tenant: nil,
-        context: %{}
-      }
-    }
+    # Create proper Plug.Conn struct
+    conn =
+      build_conn()
+      |> put_private(:ash, %{actor: nil, tenant: nil})
+      |> assign(:context, %{})
 
     {:ok, conn: conn}
   end
@@ -36,8 +35,8 @@ defmodule AshTypescript.Rpc.CalcsTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Test Todo with Due Date",
-          "due_date" => "2024-12-25",
-          "user_id" => user.id
+          "dueDate" => "2024-12-25",
+          "userId" => user["id"]
         }
       }
 
@@ -56,7 +55,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
           comment_params = %{
             "action" => "create_todo_comment",
             "fields" => ["id"],
-            "input" => Map.merge(comment_attrs, %{"user_id" => user.id, "todo_id" => todo.id})
+            "input" => Map.merge(comment_attrs, %{"userId" => user["id"], "todoId" => todo["id"]})
           }
 
           comment_result = Rpc.run_action(:ash_typescript, conn, comment_params)
@@ -70,7 +69,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
     test "loads single calculation via fields parameter", %{conn: conn} do
       params = %{
         "action" => "list_todos",
-        "fields" => ["id", "title", "is_overdue"],
+        "fields" => ["id", "title", "isOverdue"],
         "input" => %{}
       }
 
@@ -81,14 +80,14 @@ defmodule AshTypescript.Rpc.CalcsTest do
 
       # Verify that is_overdue calculation is loaded and is a boolean
       todo = hd(data)
-      assert Map.has_key?(todo, :is_overdue)
-      assert is_boolean(todo.is_overdue)
+      assert Map.has_key?(todo, "isOverdue")
+      assert is_boolean(todo["isOverdue"])
     end
 
     test "loads multiple calculations via fields parameter", %{conn: conn} do
       params = %{
         "action" => "list_todos",
-        "fields" => ["id", "title", "is_overdue", "days_until_due"],
+        "fields" => ["id", "title", "isOverdue", "daysUntilDue"],
         "input" => %{}
       }
 
@@ -99,10 +98,10 @@ defmodule AshTypescript.Rpc.CalcsTest do
 
       # Verify that both calculations are loaded with correct types
       todo = hd(data)
-      assert Map.has_key?(todo, :is_overdue)
-      assert Map.has_key?(todo, :days_until_due)
-      assert is_boolean(todo.is_overdue)
-      assert is_integer(todo.days_until_due) or is_nil(todo.days_until_due)
+      assert Map.has_key?(todo, "isOverdue")
+      assert Map.has_key?(todo, "daysUntilDue")
+      assert is_boolean(todo["isOverdue"])
+      assert is_integer(todo["daysUntilDue"]) or is_nil(todo["daysUntilDue"])
     end
 
     test "loads calculation without arguments via calculations parameter", %{conn: conn} do
@@ -110,7 +109,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
         "action" => "list_todos",
         "fields" => ["id", "title"],
         "calculations" => %{
-          "is_overdue" => %{}
+          "isOverdue" => %{}
         },
         "input" => %{}
       }
@@ -122,25 +121,25 @@ defmodule AshTypescript.Rpc.CalcsTest do
 
       # Verify that calculation is loaded
       todo = hd(data)
-      assert Map.has_key?(todo, :is_overdue)
-      assert is_boolean(todo.is_overdue)
+      assert Map.has_key?(todo, "isOverdue")
+      assert is_boolean(todo["isOverdue"])
     end
 
     test "loads aggregates via fields parameter", %{conn: conn, todo: todo} do
       params = %{
         "action" => "get_todo",
-        "fields" => ["id", "title", "comment_count", "helpful_comment_count"],
-        "input" => %{"id" => todo.id}
+        "fields" => ["id", "title", "commentCount", "helpfulCommentCount"],
+        "input" => %{"id" => todo["id"]}
       }
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
 
       # Verify aggregates are loaded with correct values
-      assert Map.has_key?(data, :comment_count)
-      assert Map.has_key?(data, :helpful_comment_count)
-      assert data.comment_count == 3
-      assert data.helpful_comment_count == 2
+      assert Map.has_key?(data, "commentCount")
+      assert Map.has_key?(data, "helpfulCommentCount")
+      assert data["commentCount"] == 3
+      assert data["helpfulCommentCount"] == 2
     end
 
     test "loads various aggregate types via fields parameter", %{conn: conn, todo: todo} do
@@ -149,35 +148,35 @@ defmodule AshTypescript.Rpc.CalcsTest do
         "fields" => [
           "id",
           "title",
-          "has_comments",
-          "average_rating",
-          "highest_rating",
-          "latest_comment_content",
-          "comment_authors"
+          "hasComments",
+          "averageRating",
+          "highestRating",
+          "latestCommentContent",
+          "commentAuthors"
         ],
-        "input" => %{"id" => todo.id}
+        "input" => %{"id" => todo["id"]}
       }
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
 
       # Verify different aggregate types
-      assert Map.has_key?(data, :has_comments)
-      assert data.has_comments == true
+      assert Map.has_key?(data, "hasComments")
+      assert data["hasComments"] == true
 
-      assert Map.has_key?(data, :average_rating)
-      assert is_number(data.average_rating)
-      assert data.average_rating == 4.0
+      assert Map.has_key?(data, "averageRating")
+      assert is_number(data["averageRating"])
+      assert data["averageRating"] == 4.0
 
-      assert Map.has_key?(data, :highest_rating)
-      assert data.highest_rating == 5
+      assert Map.has_key?(data, "highestRating")
+      assert data["highestRating"] == 5
 
-      assert Map.has_key?(data, :latest_comment_content)
-      assert is_binary(data.latest_comment_content)
+      assert Map.has_key?(data, "latestCommentContent")
+      assert is_binary(data["latestCommentContent"])
 
-      assert Map.has_key?(data, :comment_authors)
-      assert is_list(data.comment_authors)
-      assert length(data.comment_authors) == 3
+      assert Map.has_key?(data, "commentAuthors")
+      assert is_list(data["commentAuthors"])
+      assert length(data["commentAuthors"]) == 3
     end
 
     test "loads calculations and aggregates together", %{conn: conn, todo: todo} do
@@ -186,28 +185,28 @@ defmodule AshTypescript.Rpc.CalcsTest do
         "fields" => [
           "id",
           "title",
-          "is_overdue",
-          "days_until_due",
-          "comment_count",
-          "helpful_comment_count"
+          "isOverdue",
+          "daysUntilDue",
+          "commentCount",
+          "helpfulCommentCount"
         ],
-        "input" => %{"id" => todo.id}
+        "input" => %{"id" => todo["id"]}
       }
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
 
       # Verify both calculations and aggregates are present
-      assert Map.has_key?(data, :is_overdue)
-      assert Map.has_key?(data, :days_until_due)
-      assert Map.has_key?(data, :comment_count)
-      assert Map.has_key?(data, :helpful_comment_count)
+      assert Map.has_key?(data, "isOverdue")
+      assert Map.has_key?(data, "daysUntilDue")
+      assert Map.has_key?(data, "commentCount")
+      assert Map.has_key?(data, "helpfulCommentCount")
 
       # Verify types
-      assert is_boolean(data.is_overdue)
-      assert is_integer(data.days_until_due) or is_nil(data.days_until_due)
-      assert is_integer(data.comment_count)
-      assert is_integer(data.helpful_comment_count)
+      assert is_boolean(data["isOverdue"])
+      assert is_integer(data["daysUntilDue"]) or is_nil(data["daysUntilDue"])
+      assert is_integer(data["commentCount"])
+      assert is_integer(data["helpfulCommentCount"])
     end
 
     test "loads calculations with relationships", %{conn: conn, todo: todo} do
@@ -216,36 +215,36 @@ defmodule AshTypescript.Rpc.CalcsTest do
         "fields" => [
           "id",
           "title",
-          "is_overdue",
+          "isOverdue",
           %{"comments" => ["id", "content"]},
           %{"user" => ["id", "name"]}
         ],
-        "input" => %{"id" => todo.id}
+        "input" => %{"id" => todo["id"]}
       }
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
 
       # Verify calculation is loaded
-      assert Map.has_key?(data, :is_overdue)
-      assert is_boolean(data.is_overdue)
+      assert Map.has_key?(data, "isOverdue")
+      assert is_boolean(data["isOverdue"])
 
       # Verify relationships are loaded
-      assert Map.has_key?(data, :comments)
-      assert is_list(data.comments)
-      assert length(data.comments) == 3
+      assert Map.has_key?(data, "comments")
+      assert is_list(data["comments"])
+      assert length(data["comments"]) == 3
 
-      assert Map.has_key?(data, :user)
-      assert is_map(data.user)
-      assert Map.has_key?(data.user, :name)
+      assert Map.has_key?(data, "user")
+      assert is_map(data["user"])
+      assert Map.has_key?(data["user"], :name)
     end
 
     test "combines calculations parameter with fields parameter", %{conn: conn} do
       params = %{
         "action" => "list_todos",
-        "fields" => ["id", "title", "is_overdue"],
+        "fields" => ["id", "title", "isOverdue"],
         "calculations" => %{
-          "days_until_due" => %{}
+          "daysUntilDue" => %{}
         },
         "input" => %{}
       }
@@ -257,16 +256,16 @@ defmodule AshTypescript.Rpc.CalcsTest do
 
       # Verify both approaches work together
       todo = hd(data)
-      assert Map.has_key?(todo, :is_overdue)
-      assert Map.has_key?(todo, :days_until_due)
-      assert is_boolean(todo.is_overdue)
-      assert is_integer(todo.days_until_due) or is_nil(todo.days_until_due)
+      assert Map.has_key?(todo, "isOverdue")
+      assert Map.has_key?(todo, "daysUntilDue")
+      assert is_boolean(todo["isOverdue"])
+      assert is_integer(todo["daysUntilDue"]) or is_nil(todo["daysUntilDue"])
     end
 
     test "loads calculations on filtered data", %{conn: conn} do
       params = %{
         "action" => "list_todos",
-        "fields" => ["id", "title", "is_overdue", "comment_count"],
+        "fields" => ["id", "title", "isOverdue", "commentCount"],
         "filter" => %{
           "completed" => %{"eq" => false}
         },
@@ -280,10 +279,10 @@ defmodule AshTypescript.Rpc.CalcsTest do
       # Verify calculations work with filtered results
       if length(data) > 0 do
         todo = hd(data)
-        assert Map.has_key?(todo, :is_overdue)
-        assert Map.has_key?(todo, :comment_count)
-        assert is_boolean(todo.is_overdue)
-        assert is_integer(todo.comment_count)
+        assert Map.has_key?(todo, "isOverdue")
+        assert Map.has_key?(todo, "commentCount")
+        assert is_boolean(todo["isOverdue"])
+        assert is_integer(todo["commentCount"])
       end
     end
 
@@ -303,7 +302,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
     test "handles missing calculations parameter gracefully", %{conn: conn} do
       params = %{
         "action" => "list_todos",
-        "fields" => ["id", "title", "is_overdue"],
+        "fields" => ["id", "title", "isOverdue"],
         "input" => %{}
       }
 
@@ -313,12 +312,11 @@ defmodule AshTypescript.Rpc.CalcsTest do
 
       if length(data) > 0 do
         todo = hd(data)
-        assert Map.has_key?(todo, :is_overdue)
-        assert is_boolean(todo.is_overdue)
+        assert Map.has_key?(todo, "isOverdue")
+        assert is_boolean(todo["isOverdue"])
       end
     end
 
-    @tag :complex
     test "calculations parameter can now handle field selection for calculations with arguments",
          %{conn: conn, todo: todo} do
       # This test verifies that the enhanced RPC implementation can properly handle
@@ -333,10 +331,10 @@ defmodule AshTypescript.Rpc.CalcsTest do
         "calculations" => %{
           "self" => %{
             "calcArgs" => %{"prefix" => nil},
-            "fields" => ["id", "title", "completed"]
+            "fields" => ["id", "title", "completed", "dueDate"]
           }
         },
-        "input" => %{"id" => todo.id}
+        "input" => %{"id" => todo["id"]}
       }
 
       # This should now work with the enhanced argument resolution
@@ -344,18 +342,20 @@ defmodule AshTypescript.Rpc.CalcsTest do
       assert %{success: true, data: data} = result
 
       # Verify that the calculation loaded and field selection was applied
-      assert Map.has_key?(data, :self)
-      self_data = data.self
+      assert Map.has_key?(data, "self")
+      self_data = data["self"]
 
       # The field selection should limit what's returned from the calculation
-      assert Map.has_key?(self_data, :id)
-      assert Map.has_key?(self_data, :title)
-      assert Map.has_key?(self_data, :completed)
+      assert Map.has_key?(self_data, "id")
+      assert Map.has_key?(self_data, "title")
+      assert Map.has_key?(self_data, "completed")
+      assert Map.has_key?(self_data, "dueDate")
 
       # Fields not requested should not be present (or should be filtered out)
       # depending on the extract_return_value implementation
     end
 
+    @tag :lol
     test "verifies calculation return values are correct", %{conn: conn} do
       # Create a todo with a specific due date that we can verify calculations against
       user_params = %{
@@ -375,11 +375,11 @@ defmodule AshTypescript.Rpc.CalcsTest do
 
       overdue_todo_params = %{
         "action" => "create_todo",
-        "fields" => ["id", "title", "is_overdue", "days_until_due"],
+        "fields" => ["id", "title", "isOverdue", "daysUntilDue"],
         "input" => %{
           "title" => "Overdue Todo",
-          "due_date" => Date.to_string(yesterday),
-          "user_id" => user.id
+          "dueDate" => Date.to_string(yesterday),
+          "userId" => user["id"]
         }
       }
 
@@ -387,19 +387,19 @@ defmodule AshTypescript.Rpc.CalcsTest do
       assert %{success: true, data: overdue_todo} = result
 
       # Verify the calculation results are correct
-      assert overdue_todo.is_overdue == true
-      assert overdue_todo.days_until_due == -1
+      assert overdue_todo["isOverdue"] == true
+      assert overdue_todo["daysUntilDue"] == -1
 
       # Create todo with future due date (should not be overdue)
       tomorrow = Date.add(Date.utc_today(), 1)
 
       future_todo_params = %{
         "action" => "create_todo",
-        "fields" => ["id", "title", "is_overdue", "days_until_due"],
+        "fields" => ["id", "title", "isOverdue", "daysUntilDue"],
         "input" => %{
           "title" => "Future Todo",
-          "due_date" => Date.to_string(tomorrow),
-          "user_id" => user.id
+          "dueDate" => Date.to_string(tomorrow),
+          "userId" => user["id"]
         }
       }
 
@@ -407,8 +407,8 @@ defmodule AshTypescript.Rpc.CalcsTest do
       assert %{success: true, data: future_todo} = result
 
       # Verify the calculation results are correct
-      assert future_todo.is_overdue == false
-      assert future_todo.days_until_due == 1
+      assert future_todo["isOverdue"] == false
+      assert future_todo["daysUntilDue"] == 1
     end
   end
 end

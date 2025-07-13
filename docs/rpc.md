@@ -469,6 +469,347 @@ Tenant validation happens at the Ash level according to your resource's authoriz
 - Existing TypeScript client code remains unchanged when using default configuration
 - Applications can opt into connection-based mode without breaking changes to non-multitenant resources
 
+## Field Name Formatting
+
+The RPC system provides comprehensive field name formatting to ensure consistent naming conventions between your Elixir backend and TypeScript frontend. This system handles field name conversion at three key points: TypeScript generation, input parsing, and response formatting.
+
+### Overview
+
+Field formatting allows you to:
+- Use camelCase field names in your TypeScript client while keeping snake_case in Elixir
+- Support different naming conventions (kebab-case, PascalCase, etc.)
+- Implement custom formatting logic for specialized requirements
+- Maintain consistency across all API interactions
+
+### Configuration
+
+Field formatting is configured at the application level in your `config.exs`:
+
+```elixir
+config :ash_typescript,
+  input_field_formatter: :camel_case,   # Client input → internal parsing
+  output_field_formatter: :camel_case   # TypeScript generation & response formatting
+```
+
+### Built-in Formatters
+
+AshTypescript includes four built-in formatters:
+
+| Formatter | Example Transform | Use Case |
+|-----------|------------------|----------|
+| `:camel_case` | `user_name` → `userName` | JavaScript/TypeScript standard |
+| `:kebab_case` | `user_name` → `user-name` | HTML attributes, CSS classes |
+| `:pascal_case` | `user_name` → `UserName` | Class names, enum values |
+| `:snake_case` | `user_name` → `user_name` | Keep original Elixir format |
+
+### Custom Formatters
+
+For specialized requirements, you can implement custom formatter functions:
+
+```elixir
+config :ash_typescript,
+  input_field_formatter: {MyApp.Formatters, :parse_custom_input},
+  output_field_formatter: {MyApp.Formatters, :format_output, ["api_v1"]}
+```
+
+Custom formatter function signatures:
+```elixir
+# Simple formatter: field_name -> formatted_name
+def parse_custom_input(field_name) when is_binary(field_name)
+
+# Formatter with extra arguments  
+def format_output(field_name, prefix) when is_binary(field_name)
+```
+
+### Formatter Integration Points
+
+#### 1. Input Parameter Parsing
+
+The `input_field_formatter` converts client field names to internal Elixir atoms:
+
+```elixir
+# RPC request processing
+def run_action(otp_app, conn, params) do
+  # Client input: %{"userName" => "John", "emailAddress" => "john@example.com"}
+  raw_input = Map.get(params, "input", %{})
+  input = AshTypescript.FieldFormatter.parse_input_fields(raw_input, input_field_formatter())
+  # Result: %{user_name: "John", email_address: "john@example.com"}
+  
+  # Field selection parsing
+  client_fields = Map.get(params, "fields", [])
+  internal_fields = Enum.map(client_fields, &AshTypescript.FieldFormatter.parse_input_field(&1, input_field_formatter()))
+  # Client: ["userName", "emailAddress"] → Internal: [:user_name, :email_address]
+end
+```
+
+#### 2. TypeScript Type Generation & Response Formatting
+
+The `output_field_formatter` controls both generated TypeScript types and API response field names:
+
+```elixir
+# Configuration
+config :ash_typescript, output_field_formatter: :camel_case
+```
+
+**Generated TypeScript types:**
+```typescript
+// Generated TypeScript (with :camel_case)
+type UserFieldsSchema = {
+  userName: string;
+  emailAddress?: string;
+  createdAt: UtcDateTime;
+  updatedAt: UtcDateTime;
+};
+
+type CreateUserConfig = {
+  fields: FieldSelection<UserResourceSchema>[];
+  calculations?: Partial<UserResourceSchema["complexCalculations"]>;
+  input: {
+    userName: string;
+    emailAddress?: string;
+  };
+};
+```
+
+**API response formatting:**
+```elixir
+# Response processing
+def run_action(otp_app, conn, params) do
+  # ... action execution ...
+  
+  {:ok, result} ->
+    return_value = extract_return_value(result, fields_to_take, calculation_field_specs)
+    formatted_return_value = format_response_fields(return_value, output_field_formatter())
+    %{success: true, data: formatted_return_value}
+end
+
+# Internal result: %{user_name: "John", email_address: "john@example.com", created_at: ~U[...]}
+# Formatted response: %{"userName" => "John", "emailAddress" => "john@example.com", "createdAt" => "..."}
+```
+
+This unified approach ensures that TypeScript types always match the actual API responses, eliminating potential mismatches between generated types and runtime data.
+
+### Field Formatting Flow
+
+Here's how field names are transformed throughout an RPC request:
+
+```
+1. Client Request (TypeScript)
+   fields: ["userName", "emailAddress"]
+   input: {userName: "John", emailAddress: "john@example.com"}
+   
+2. Input Parsing (input_field_formatter)
+   fields: [:user_name, :email_address]
+   input: %{user_name: "John", email_address: "john@example.com"}
+   
+3. Ash Processing (Internal)
+   Changeset with snake_case atoms: %{user_name: "John", email_address: "john@example.com"}
+   
+4. Response Formatting (output_field_formatter)
+   {userName: "John", emailAddress: "john@example.com", createdAt: "2023-..."}
+   
+5. Client Response (TypeScript) - Matches Generated Types
+   user.userName        // "John" - Same format as TypeScript types
+   user.emailAddress    // "john@example.com" - Same format as TypeScript types
+   user.createdAt       // "2023-..." - Same format as TypeScript types
+```
+
+### Implementation Details
+
+#### Formatter Function Interface
+
+The `AshTypescript.FieldFormatter` module provides the core formatting functionality:
+
+```elixir
+# Format a single field name
+AshTypescript.FieldFormatter.format_field(:user_name, :camel_case)
+# => "userName"
+
+# Parse input field name to internal format
+AshTypescript.FieldFormatter.parse_input_field("userName", :camel_case)
+# => :user_name
+
+# Format all keys in a map
+AshTypescript.FieldFormatter.format_fields(%{user_name: "John"}, :camel_case)
+# => %{"userName" => "John"}
+
+# Parse all keys in an input map
+AshTypescript.FieldFormatter.parse_input_fields(%{"userName" => "John"}, :camel_case)
+# => %{user_name: "John"}
+```
+
+#### Configuration Access
+
+The RPC system provides configuration accessor functions:
+
+```elixir
+# Get current formatter configurations
+AshTypescript.Rpc.input_field_formatter()    # => :camel_case
+AshTypescript.Rpc.output_field_formatter()   # => :camel_case
+```
+
+#### Error Handling
+
+The formatting system includes comprehensive error handling:
+
+```elixir
+# Invalid formatter configuration
+AshTypescript.FieldFormatter.format_field(:user_name, :invalid_formatter)
+# => ArgumentError: "Unsupported formatter: :invalid_formatter"
+
+# Custom formatter function errors
+AshTypescript.FieldFormatter.format_field(:user_name, {MyModule, :broken_function})
+# => Propagates the original error from MyModule.broken_function/1
+```
+
+### TypeScript Payload Builder Integration
+
+Generated payload builders use formatted field names consistently:
+
+```typescript
+// Generated with :camel_case formatter
+export function buildCreateUserPayload(config: CreateUserConfig): Record<string, any> {
+  const payload: Record<string, any> = {
+    action: "create_user",
+    fields: config.fields,  // Uses formatted "fields" name
+    input: config.input
+  };
+
+  if (config.calculations) {
+    payload.calculations = config.calculations;  // Uses formatted "calculations" name
+  }
+
+  return payload;
+}
+```
+
+### Validation and Testing
+
+The field formatting system includes extensive test coverage:
+
+#### Unit Tests
+- All built-in formatters with various input types
+- Custom formatter integration
+- Error handling for invalid configurations
+- Edge cases (empty strings, special characters)
+
+#### Integration Tests  
+- End-to-end RPC calls with different formatters
+- TypeScript generation with formatted field names
+- Input parsing and response formatting
+- Multi-action workflows with consistent formatting
+
+#### Configuration Tests
+- Dynamic configuration changes
+- Default value handling
+- Invalid configuration graceful degradation
+
+### Migration Guide
+
+#### Migrating Existing Applications
+
+For existing applications, field formatting is backward compatible:
+
+```elixir
+# Default configuration maintains existing behavior
+config :ash_typescript,
+  input_field_formatter: :camel_case,   # Default - existing input parsing unchanged
+  output_field_formatter: :camel_case   # Default - existing TS generation & responses unchanged
+```
+
+#### Enabling Different Formatting
+
+To migrate to a different naming convention:
+
+1. **Choose your formatters** based on client requirements:
+   ```elixir
+   config :ash_typescript,
+     input_field_formatter: :kebab_case,    # Match client input naming
+     output_field_formatter: :kebab_case    # HTML/CSS friendly types & responses
+   ```
+
+2. **Regenerate TypeScript types**:
+   ```bash
+   mix ash_typescript.codegen
+   ```
+
+3. **Update client code** to use new field naming convention:
+   ```typescript
+   // Before (camelCase)
+   await createUser({
+     fields: ["userName", "emailAddress"],
+     input: {userName: "John", emailAddress: "john@example.com"}
+   });
+
+   // After (kebab-case)
+   await createUser({
+     fields: ["user-name", "email-address"],
+     input: {"user-name": "John", "email-address": "john@example.com"}
+   });
+   ```
+
+#### Gradual Migration
+
+For gradual migration, you can use different formatters for input and output:
+
+```elixir
+config :ash_typescript,
+  input_field_formatter: :camel_case,       # Still accept camelCase input
+  output_field_formatter: :kebab_case     # New TS types & responses use kebab-case
+```
+
+This allows you to update your TypeScript types and API responses together while maintaining backward compatibility for client input. Since TypeScript types and API responses always match, you'll need to update both client input/output handling and regenerate types simultaneously.
+
+### Troubleshooting
+
+#### Common Issues
+
+**Field Not Found Errors**
+```
+Error: Field 'userName' not found in resource
+```
+**Cause**: Input formatter not converting client field names to internal format
+**Solution**: Verify `input_field_formatter` configuration matches client naming convention
+
+**TypeScript Compilation Errors**
+```
+Property 'user_name' does not exist on type 'UserSchema'
+```
+**Cause**: TypeScript types use different formatting than client code expects  
+**Solution**: Ensure `output_field_formatter` matches your TypeScript naming convention
+
+**Response Field Missing**
+```
+Client code: user.userName // undefined
+Server response: {user_name: "John"}
+```
+**Cause**: Output formatter not converting response field names to match TypeScript types
+**Solution**: Configure `output_field_formatter` to match client expectations
+
+#### Debug Techniques
+
+**Verify Configuration**:
+```elixir
+# In IEx
+AshTypescript.Rpc.input_field_formatter()
+AshTypescript.Rpc.output_field_formatter()
+```
+
+**Test Formatter Functions**:
+```elixir
+# Test field name conversion
+AshTypescript.FieldFormatter.format_field("user_name", :camel_case)
+AshTypescript.FieldFormatter.parse_input_field("userName", :camel_case)
+```
+
+**Trace RPC Processing**:
+```elixir
+# Add logging to see field name transformations
+Logger.info("Client fields: #{inspect(client_fields)}")
+Logger.info("Internal fields: #{inspect(internal_fields)}")
+Logger.info("Response fields: #{inspect(Map.keys(formatted_response))}")
+```
+
 ### RPC Operation Structure
 
 #### Update Operation Structure

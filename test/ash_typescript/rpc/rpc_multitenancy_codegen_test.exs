@@ -1,6 +1,5 @@
 defmodule AshTypescript.Rpc.MultitenancyCodegenTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Test.{UserSettings, OrgTodo}
 
   describe "TypeScript codegen for multitenancy" do
     test "generates TypeScript types for UserSettings resource (attribute strategy)" do
@@ -13,13 +12,13 @@ defmodule AshTypescript.Rpc.MultitenancyCodegenTest do
       assert String.contains?(typescript_output, "export type UserSettingsFilterInput")
 
       # Verify UserSettings attributes are present
-      assert String.contains?(typescript_output, "user_id: UUID")
+      assert String.contains?(typescript_output, "userId: UUID")
       assert String.contains?(typescript_output, "theme?: \"light\" | \"dark\" | \"auto\"")
       assert String.contains?(typescript_output, "language?: string")
-      assert String.contains?(typescript_output, "notifications_enabled?: boolean")
-      assert String.contains?(typescript_output, "email_notifications?: boolean")
+      assert String.contains?(typescript_output, "notificationsEnabled?: boolean")
+      assert String.contains?(typescript_output, "emailNotifications?: boolean")
       assert String.contains?(typescript_output, "timezone?: string")
-      assert String.contains?(typescript_output, "date_format?: string")
+      assert String.contains?(typescript_output, "dateFormat?: string")
       assert String.contains?(typescript_output, "preferences?: Record<string, any>")
     end
 
@@ -42,7 +41,7 @@ defmodule AshTypescript.Rpc.MultitenancyCodegenTest do
                "priority?: \"low\" | \"medium\" | \"high\" | \"urgent\""
              )
 
-      assert String.contains?(typescript_output, "due_date?: AshDate")
+      assert String.contains?(typescript_output, "dueDate?: AshDate")
       assert String.contains?(typescript_output, "tags?: Array<string>")
       assert String.contains?(typescript_output, "metadata?: Record<string, any>")
     end
@@ -51,23 +50,23 @@ defmodule AshTypescript.Rpc.MultitenancyCodegenTest do
       typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Verify RPC action function names are generated
-      assert String.contains?(typescript_output, "list_user_settings")
-      assert String.contains?(typescript_output, "get_user_settings")
-      assert String.contains?(typescript_output, "create_user_settings")
-      assert String.contains?(typescript_output, "update_user_settings")
-      assert String.contains?(typescript_output, "destroy_user_settings")
+      assert String.contains?(typescript_output, "listUserSettings")
+      assert String.contains?(typescript_output, "getUserSettings")
+      assert String.contains?(typescript_output, "createUserSettings")
+      assert String.contains?(typescript_output, "updateUserSettings")
+      assert String.contains?(typescript_output, "destroyUserSettings")
     end
 
     test "generates RPC action interfaces for OrgTodo (context strategy)" do
       typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Verify RPC action function names are generated
-      assert String.contains?(typescript_output, "list_org_todos")
-      assert String.contains?(typescript_output, "get_org_todo")
-      assert String.contains?(typescript_output, "create_org_todo")
-      assert String.contains?(typescript_output, "update_org_todo")
-      assert String.contains?(typescript_output, "complete_org_todo")
-      assert String.contains?(typescript_output, "destroy_org_todo")
+      assert String.contains?(typescript_output, "listOrgTodos")
+      assert String.contains?(typescript_output, "getOrgTodo")
+      assert String.contains?(typescript_output, "createOrgTodo")
+      assert String.contains?(typescript_output, "updateOrgTodo")
+      assert String.contains?(typescript_output, "completeOrgTodo")
+      assert String.contains?(typescript_output, "destroyOrgTodo")
     end
   end
 
@@ -170,10 +169,10 @@ defmodule AshTypescript.Rpc.MultitenancyCodegenTest do
       # Verify that function signatures don't require explicit tenant parameters
       # when require_tenant_parameters is false
       assert String.contains?(typescript_output, "export async function")
-      assert String.contains?(typescript_output, "list_user_settings")
-      assert String.contains?(typescript_output, "create_user_settings")
-      assert String.contains?(typescript_output, "list_org_todos")
-      assert String.contains?(typescript_output, "create_org_todo")
+      assert String.contains?(typescript_output, "listUserSettings")
+      assert String.contains?(typescript_output, "createUserSettings")
+      assert String.contains?(typescript_output, "listOrgTodos")
+      assert String.contains?(typescript_output, "createOrgTodo")
     end
   end
 
@@ -186,7 +185,7 @@ defmodule AshTypescript.Rpc.MultitenancyCodegenTest do
       assert String.contains?(typescript_output, "UpdateUserSettingsConfig")
 
       # Check that input types include the resource's attributes
-      assert String.contains?(typescript_output, "user_id")
+      assert String.contains?(typescript_output, "userId")
       assert String.contains?(typescript_output, "theme")
       assert String.contains?(typescript_output, "language")
     end
@@ -202,7 +201,7 @@ defmodule AshTypescript.Rpc.MultitenancyCodegenTest do
       # Check that input types include the resource's attributes
       assert String.contains?(typescript_output, "title")
       assert String.contains?(typescript_output, "description")
-      assert String.contains?(typescript_output, "user_id")
+      assert String.contains?(typescript_output, "userId")
     end
 
     test "generates proper response types for both strategies" do
@@ -268,7 +267,7 @@ defmodule AshTypescript.Rpc.MultitenancyCodegenTest do
       assert String.contains?(typescript_output, "DestroyOrgTodoConfig")
 
       # Primary key should be properly typed
-      assert String.contains?(typescript_output, "primary_key")
+      assert String.contains?(typescript_output, "primaryKey")
     end
   end
 
@@ -327,8 +326,8 @@ defmodule AshTypescript.Rpc.MultitenancyCodegenTest do
       assert String.contains?(typescript_output, "CreateOrgTodoConfig")
 
       # Both should have similar function patterns - check for the action names in the output
-      assert String.contains?(typescript_output, "list_user_settings")
-      assert String.contains?(typescript_output, "list_org_todos")
+      assert String.contains?(typescript_output, "listUserSettings")
+      assert String.contains?(typescript_output, "listOrgTodos")
     end
 
     test "tenant handling is consistent across both strategies" do

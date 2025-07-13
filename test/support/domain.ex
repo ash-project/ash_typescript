@@ -28,6 +28,7 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :list_users, :read
       rpc_action :create_user, :create
       rpc_action :update_user, :update
+      rpc_action :destroy_user, :destroy
     end
 
     resource AshTypescript.Test.UserSettings do

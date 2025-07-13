@@ -160,7 +160,7 @@ defmodule AshTypescript.Codegen do
       Enum.concat([attributes, simple_calculations, aggregates])
       |> Enum.map(fn
         %Ash.Resource.Attribute{} = attr ->
-          formatted_name = AshTypescript.FieldFormatter.format_field(attr.name, AshTypescript.Rpc.field_formatter())
+          formatted_name = AshTypescript.FieldFormatter.format_field(attr.name, AshTypescript.Rpc.output_field_formatter())
           if attr.allow_nil? do
             "  #{formatted_name}?: #{get_ts_type(attr)} | null;"
           else
@@ -168,7 +168,7 @@ defmodule AshTypescript.Codegen do
           end
 
         %Ash.Resource.Calculation{} = calc ->
-          formatted_name = AshTypescript.FieldFormatter.format_field(calc.name, AshTypescript.Rpc.field_formatter())
+          formatted_name = AshTypescript.FieldFormatter.format_field(calc.name, AshTypescript.Rpc.output_field_formatter())
           if calc.allow_nil? do
             "  #{formatted_name}?: #{get_ts_type(calc)} | null;"
           else
@@ -192,7 +192,7 @@ defmodule AshTypescript.Codegen do
                 get_ts_type(agg.kind)
             end
 
-          formatted_name = AshTypescript.FieldFormatter.format_field(agg.name, AshTypescript.Rpc.field_formatter())
+          formatted_name = AshTypescript.FieldFormatter.format_field(agg.name, AshTypescript.Rpc.output_field_formatter())
           if agg.include_nil? do
             "  #{formatted_name}?: #{type} | null;"
           else
@@ -588,17 +588,19 @@ defmodule AshTypescript.Codegen do
       throw("Field not found: #{resource}.#{field}" |> String.replace("Elixir.", ""))
     else
       %Ash.Resource.Attribute{} = attr ->
+        formatted_field = AshTypescript.FieldFormatter.format_field(field, AshTypescript.Rpc.output_field_formatter())
         if attr.allow_nil? do
-          "  #{field}?: #{get_ts_type(attr)} | null;"
+          "  #{formatted_field}?: #{get_ts_type(attr)} | null;"
         else
-          "  #{field}: #{get_ts_type(attr)};"
+          "  #{formatted_field}: #{get_ts_type(attr)};"
         end
 
       %Ash.Resource.Calculation{} = calc ->
+        formatted_field = AshTypescript.FieldFormatter.format_field(field, AshTypescript.Rpc.output_field_formatter())
         if calc.allow_nil? do
-          "  #{field}?: #{get_ts_type(calc)} | null;"
+          "  #{formatted_field}?: #{get_ts_type(calc)} | null;"
         else
-          "  #{field}: #{get_ts_type(calc)};"
+          "  #{formatted_field}: #{get_ts_type(calc)};"
         end
 
       %Ash.Resource.Aggregate{} = agg ->
@@ -618,10 +620,11 @@ defmodule AshTypescript.Codegen do
               get_ts_type(agg.kind)
           end
 
+        formatted_field = AshTypescript.FieldFormatter.format_field(field, AshTypescript.Rpc.output_field_formatter())
         if agg.include_nil? do
-          "  #{field}?: #{type} | null;"
+          "  #{formatted_field}?: #{type} | null;"
         else
-          "  #{field}: #{type};"
+          "  #{formatted_field}: #{type};"
         end
 
       field ->

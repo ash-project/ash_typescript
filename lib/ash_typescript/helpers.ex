@@ -56,23 +56,4 @@ defmodule AshTypescript.Helpers do
     |> String.trim_leading("_")
   end
 
-  def snake_to_kebab_case(snake) when is_atom(snake) do
-    snake
-    |> Atom.to_string()
-    |> snake_to_kebab_case()
-  end
-
-  def snake_to_kebab_case(snake) when is_binary(snake) do
-    String.replace(snake, "_", "-")
-  end
-
-  def kebab_to_snake_case(kebab) when is_atom(kebab) do
-    kebab
-    |> Atom.to_string()
-    |> kebab_to_snake_case()
-  end
-
-  def kebab_to_snake_case(kebab) when is_binary(kebab) do
-    String.replace(kebab, "-", "_")
-  end
 end

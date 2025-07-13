@@ -1,16 +1,14 @@
 defmodule AshTypescript.Rpc.CreateTest do
   use ExUnit.Case, async: true
+  import Phoenix.ConnTest
+  import Plug.Conn
   alias AshTypescript.Rpc
 
   setup do
-    # Mock conn structure
-    conn = %{
-      assigns: %{
-        actor: nil,
-        tenant: nil,
-        context: %{}
-      }
-    }
+    # Create proper Plug.Conn struct
+    conn = build_conn()
+    |> put_private(:ash, %{actor: nil, tenant: nil})
+    |> assign(:context, %{})
 
     {:ok, conn: conn}
   end
@@ -35,15 +33,17 @@ defmodule AshTypescript.Rpc.CreateTest do
         "fields" => ["id", "title", "completed"],
         "input" => %{
           "title" => "New Todo",
-          "user_id" => user.id
+          "userId" => user["id"]
         }
       }
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
-      assert data.title == "New Todo"
-      assert data.completed == false
-      assert data.id
+      assert data["title"] == "New Todo"
+      assert data["completed"] == false
+      assert data["id"]
+      # Check that only requested fields are returned
+      assert Map.keys(data) |> Enum.sort() == ["completed", "id", "title"]
     end
 
     test "runs create actions with auto_complete argument", %{conn: conn} do
@@ -65,15 +65,17 @@ defmodule AshTypescript.Rpc.CreateTest do
         "fields" => ["id", "title", "completed"],
         "input" => %{
           "title" => "Auto Completed Todo",
-          "auto_complete" => true,
-          "user_id" => user.id
+          "autoComplete" => true,
+          "userId" => user["id"]
         }
       }
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
-      assert data.title == "Auto Completed Todo"
-      assert data.completed == true
+      assert data["title"] == "Auto Completed Todo"
+      assert data["completed"] == true
+      # Check that only requested fields are returned
+      assert Map.keys(data) |> Enum.sort() == ["completed", "id", "title"]
     end
 
     test "handles calculations in create actions", %{conn: conn} do
@@ -92,11 +94,11 @@ defmodule AshTypescript.Rpc.CreateTest do
 
       params = %{
         "action" => "create_todo",
-        "fields" => ["id", "title", "is_overdue", "days_until_due"],
+        "fields" => ["id", "title", "isOverdue", "daysUntilDue"],
         "input" => %{
           "title" => "New Todo with Calculations",
-          "due_date" => "2025-01-01",
-          "user_id" => user.id
+          "dueDate" => "2025-01-01",
+          "userId" => user["id"]
         }
       }
 
@@ -104,10 +106,12 @@ defmodule AshTypescript.Rpc.CreateTest do
       assert %{success: true, data: data} = result
 
       # Verify calculations are loaded on created record
-      assert Map.has_key?(data, :is_overdue)
-      assert Map.has_key?(data, :days_until_due)
-      assert is_boolean(data.is_overdue)
-      assert is_integer(data.days_until_due) or is_nil(data.days_until_due)
+      assert Map.has_key?(data, "isOverdue")
+      assert Map.has_key?(data, "daysUntilDue")
+      assert is_boolean(data["isOverdue"])
+      assert is_integer(data["daysUntilDue"]) or is_nil(data["daysUntilDue"])
+      # Check that only requested fields are returned
+      assert Map.keys(data) |> Enum.sort() == ["daysUntilDue", "id", "isOverdue", "title"]
     end
 
     test "returns error for invalid input", %{conn: conn} do
@@ -145,7 +149,7 @@ defmodule AshTypescript.Rpc.CreateTest do
         "action" => "create_todo",
         "input" => %{
           "title" => "Valid Todo",
-          "user_id" => user.id
+          "user_id" => user["id"]
         }
       }
 

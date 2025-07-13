@@ -1,16 +1,14 @@
 defmodule AshTypescript.Rpc.FilteringTest do
   use ExUnit.Case, async: true
+  import Phoenix.ConnTest
+  import Plug.Conn
   alias AshTypescript.Rpc
 
   setup do
-    # Mock conn structure
-    conn = %{
-      assigns: %{
-        actor: nil,
-        tenant: nil,
-        context: %{}
-      }
-    }
+    # Create proper Plug.Conn struct
+    conn = build_conn()
+    |> put_private(:ash, %{actor: nil, tenant: nil})
+    |> assign(:context, %{})
 
     {:ok, conn: conn}
   end
@@ -32,11 +30,11 @@ defmodule AshTypescript.Rpc.FilteringTest do
 
       # Create test todos for filtering
       todos_data = [
-        %{title: "Complete project", auto_complete: true, priority: :high},
-        %{title: "Review code", auto_complete: false, priority: :medium},
-        %{title: "Write tests", auto_complete: false, priority: :high},
-        %{title: "Deploy app", auto_complete: true, priority: :low},
-        %{title: "Fix bugs", auto_complete: false, priority: :urgent}
+        %{"title" => "Complete project", "autoComplete" => true, "priority" => "high"},
+        %{"title" => "Review code", "autoComplete" => false, "priority" => "medium"},
+        %{"title" => "Write tests", "autoComplete" => false, "priority" => "high"},
+        %{"title" => "Deploy app", "autoComplete" => true, "priority" => "low"},
+        %{"title" => "Fix bugs", "autoComplete" => false, "priority" => "urgent"}
       ]
 
       todos =
@@ -44,7 +42,7 @@ defmodule AshTypescript.Rpc.FilteringTest do
           create_params = %{
             "action" => "create_todo",
             "fields" => ["id", "title", "completed", "priority"],
-            "input" => Map.put(todo_data, "user_id", user.id)
+            "input" => Map.put(todo_data, "userId", user["id"])
           }
 
           result = Rpc.run_action(:ash_typescript, conn, create_params)
@@ -66,7 +64,12 @@ defmodule AshTypescript.Rpc.FilteringTest do
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
-      assert Enum.all?(data, &(&1.completed == true))
+      assert Enum.all?(data, &(&1["completed"] == true))
+      # Check that only requested fields are returned
+      if length(data) > 0 do
+        first_item_keys = Map.keys(hd(data)) |> Enum.sort()
+        assert first_item_keys == ["completed", "id", "title"]
+      end
     end
 
     test "filters by boolean equality", %{conn: conn} do
@@ -80,7 +83,12 @@ defmodule AshTypescript.Rpc.FilteringTest do
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
-      assert Enum.all?(data, &(&1.completed == false))
+      assert Enum.all?(data, &(&1["completed"] == false))
+      # Check that only requested fields are returned
+      if length(data) > 0 do
+        first_item_keys = Map.keys(hd(data)) |> Enum.sort()
+        assert first_item_keys == ["completed", "id", "title"]
+      end
     end
 
     test "filters by not equal", %{conn: conn} do
@@ -94,7 +102,7 @@ defmodule AshTypescript.Rpc.FilteringTest do
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
-      assert Enum.all?(data, &(&1.completed == false))
+      assert Enum.all?(data, &(&1["completed"] == false))
     end
 
     test "filters by in array", %{conn: conn} do
@@ -108,7 +116,7 @@ defmodule AshTypescript.Rpc.FilteringTest do
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
-      assert Enum.all?(data, fn todo -> todo.priority in [:high, :urgent] end)
+      assert Enum.all?(data, fn todo -> todo["priority"] in [:high, :urgent] end)
     end
 
     test "filters by not in array", %{conn: conn} do
@@ -122,7 +130,7 @@ defmodule AshTypescript.Rpc.FilteringTest do
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
-      assert Enum.all?(data, fn todo -> todo.priority != :low end)
+      assert Enum.all?(data, fn todo -> todo["priority"] != "low" end)
     end
 
     test "filters with logical AND conditions", %{conn: conn} do
@@ -141,7 +149,7 @@ defmodule AshTypescript.Rpc.FilteringTest do
       assert %{success: true, data: data} = result
 
       assert Enum.all?(data, fn todo ->
-               todo.completed == false && todo.priority == :high
+               todo["completed"] == false && todo["priority"] == :high
              end)
     end
 
@@ -161,7 +169,7 @@ defmodule AshTypescript.Rpc.FilteringTest do
       assert %{success: true, data: data} = result
 
       assert Enum.all?(data, fn todo ->
-               todo.completed == true || todo.priority == :urgent
+               todo["completed"] == true || todo["priority"] == :urgent
              end)
     end
 
@@ -178,7 +186,7 @@ defmodule AshTypescript.Rpc.FilteringTest do
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
-      assert Enum.all?(data, &(&1.completed == false))
+      assert Enum.all?(data, &(&1["completed"] == false))
     end
 
     test "filters with complex nested conditions", %{conn: conn} do
@@ -202,7 +210,7 @@ defmodule AshTypescript.Rpc.FilteringTest do
       assert %{success: true, data: data} = result
 
       assert Enum.all?(data, fn todo ->
-               (todo.priority == :high || todo.priority == :urgent) && todo.completed == false
+               (todo["priority"] == :high || todo["priority"] == :urgent) && todo["completed"] == false
              end)
     end
 
@@ -220,7 +228,7 @@ defmodule AshTypescript.Rpc.FilteringTest do
       assert %{success: true, data: data} = result
 
       assert Enum.all?(data, fn todo ->
-               todo.completed == false && todo.priority in [:high, :medium]
+               todo["completed"] == false && todo["priority"] in [:high, :medium]
              end)
     end
 
@@ -267,8 +275,8 @@ defmodule AshTypescript.Rpc.FilteringTest do
         "action" => "list_todos",
         "fields" => ["id", "title", "completed", "priority"],
         "input" => %{
-          "filter_completed" => false,
-          "priority_filter" => "high"
+          "filterCompleted" => false,
+          "priorityFilter" => "high"
         },
         "filter" => %{
           "title" => %{"in" => ["Complete project", "Write tests"]}
@@ -279,9 +287,9 @@ defmodule AshTypescript.Rpc.FilteringTest do
       assert %{success: true, data: data} = result
 
       assert Enum.all?(data, fn todo ->
-               todo.completed == false &&
-                 todo.priority == :high &&
-                 todo.title in ["Complete project", "Write tests"]
+               todo["completed"] == false &&
+                 todo["priority"] == :high &&
+                 todo["title"] in ["Complete project", "Write tests"]
              end)
     end
   end

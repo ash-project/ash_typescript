@@ -318,8 +318,8 @@ defmodule AshTypescript.Rpc.Codegen do
       end
 
     # Base config fields - use formatted field names
-    formatted_fields_name = AshTypescript.FieldFormatter.format_field("fields", AshTypescript.Rpc.field_formatter())
-    formatted_calculations_name = AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.field_formatter())
+    formatted_fields_name = AshTypescript.FieldFormatter.format_field("fields", AshTypescript.Rpc.output_field_formatter())
+    formatted_calculations_name = AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())
     
     fields_field = [
       "  #{formatted_fields_name}: FieldSelection<#{resource_name}ResourceSchema>[];"
@@ -364,13 +364,13 @@ defmodule AshTypescript.Rpc.Codegen do
                 optional = attr.allow_nil? || attr.default != nil
                 base_type = get_ts_type(attr)
                 field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
-                formatted_field_name = AshTypescript.FieldFormatter.format_field(field_name, AshTypescript.Rpc.field_formatter())
+                formatted_field_name = AshTypescript.FieldFormatter.format_field(field_name, AshTypescript.Rpc.output_field_formatter())
 
                 "    #{formatted_field_name}#{if optional, do: "?", else: ""}: #{field_type};"
               end) ++
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
-                formatted_arg_name = AshTypescript.FieldFormatter.format_field(arg.name, AshTypescript.Rpc.field_formatter())
+                formatted_arg_name = AshTypescript.FieldFormatter.format_field(arg.name, AshTypescript.Rpc.output_field_formatter())
 
                 "    #{formatted_arg_name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
               end) ++
@@ -401,7 +401,7 @@ defmodule AshTypescript.Rpc.Codegen do
               ["  input: {"] ++
                 Enum.map(action.accept, fn field_name ->
                   attr = Ash.Resource.Info.attribute(resource, field_name)
-                  formatted_field_name = AshTypescript.FieldFormatter.format_field(field_name, AshTypescript.Rpc.field_formatter())
+                  formatted_field_name = AshTypescript.FieldFormatter.format_field(field_name, AshTypescript.Rpc.output_field_formatter())
 
                   if attr.allow_nil? do
                     "    #{formatted_field_name}?: #{get_ts_type(attr)} | null;"
@@ -411,7 +411,7 @@ defmodule AshTypescript.Rpc.Codegen do
                 end) ++
                 Enum.map(action.arguments, fn arg ->
                   optional = arg.allow_nil? || arg.default != nil
-                  formatted_arg_name = AshTypescript.FieldFormatter.format_field(arg.name, AshTypescript.Rpc.field_formatter())
+                  formatted_arg_name = AshTypescript.FieldFormatter.format_field(arg.name, AshTypescript.Rpc.output_field_formatter())
 
                   "    #{formatted_arg_name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
                 end) ++
@@ -429,7 +429,7 @@ defmodule AshTypescript.Rpc.Codegen do
             ["  input: {"] ++
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
-                formatted_arg_name = AshTypescript.FieldFormatter.format_field(arg.name, AshTypescript.Rpc.field_formatter())
+                formatted_arg_name = AshTypescript.FieldFormatter.format_field(arg.name, AshTypescript.Rpc.output_field_formatter())
 
                 "    #{formatted_arg_name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
               end) ++
@@ -503,7 +503,7 @@ defmodule AshTypescript.Rpc.Codegen do
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
 
     # Base payload construction with tenant handling
-    formatted_fields_name = AshTypescript.FieldFormatter.format_field("fields", AshTypescript.Rpc.field_formatter())
+    formatted_fields_name = AshTypescript.FieldFormatter.format_field("fields", AshTypescript.Rpc.output_field_formatter())
     
     base_payload_with_tenant = fn ->
       if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
@@ -546,8 +546,8 @@ defmodule AshTypescript.Rpc.Codegen do
             payload.sort = config.sort;
           }
 
-          if (config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.field_formatter())}) {
-            payload.calculations = config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.field_formatter())};
+          if (config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())}) {
+            payload.calculations = config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())};
           }
 
           if ("input" in config && config.input) {
@@ -567,8 +567,8 @@ defmodule AshTypescript.Rpc.Codegen do
         ): Record<string, any> {
         #{base_payload_with_tenant.()}
 
-          if (config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.field_formatter())}) {
-            payload.calculations = config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.field_formatter())};
+          if (config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())}) {
+            payload.calculations = config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())};
           }
 
           if ("input" in config && config.input) {
@@ -588,8 +588,8 @@ defmodule AshTypescript.Rpc.Codegen do
         ): Record<string, any> {
         #{base_payload_with_tenant.()}
 
-          if (config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.field_formatter())}) {
-            payload.calculations = config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.field_formatter())};
+          if (config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())}) {
+            payload.calculations = config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())};
           }
 
           if ("input" in config && config.input) {
@@ -628,8 +628,8 @@ defmodule AshTypescript.Rpc.Codegen do
         ): Record<string, any> {
         #{update_payload_base}
 
-          if (config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.field_formatter())}) {
-            payload.calculations = config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.field_formatter())};
+          if (config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())}) {
+            payload.calculations = config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())};
           }
 
           if ("input" in config && config.input) {

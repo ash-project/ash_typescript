@@ -69,38 +69,28 @@ defmodule AshTypescript.Rpc do
   end
 
   @doc """
-  Gets the field formatter configuration for TypeScript generation and client responses.
-  
-  Defaults to :camelize. Can be:
-  - Built-in: :camelize, :kebab_case, :pascal_case, :snake_case
-  - Custom: {Module, :function} or {Module, :function, [extra_args]}
-  """
-  def field_formatter do
-    Application.get_env(:ash_typescript, :field_formatter, :camelize)
-  end
+  Gets the input field formatter configuration for parsing input parameters from the client.
 
-  @doc """
-  Gets the input formatter configuration for parsing input parameters from the client.
-  
   This determines how client field names are converted to internal Elixir field names.
-  Defaults to :camelize. Can be:
-  - Built-in: :camelize, :kebab_case, :pascal_case, :snake_case  
+  Defaults to :camel_case. Can be:
+  - Built-in: :camel_case, :pascal_case, :snake_case
   - Custom: {Module, :function} or {Module, :function, [extra_args]}
   """
-  def input_formatter do
-    Application.get_env(:ash_typescript, :input_formatter, :camelize)
+  def input_field_formatter do
+    Application.get_env(:ash_typescript, :input_field_formatter, :camel_case)
   end
 
   @doc """
-  Gets the output formatter configuration for formatting field names in responses to the client.
-  
-  This determines how internal Elixir field names are converted for client consumption.
-  Defaults to :camelize. Can be:
-  - Built-in: :camelize, :kebab_case, :pascal_case, :snake_case
+  Gets the output field formatter configuration for TypeScript generation and responses to the client.
+
+  This determines how internal Elixir field names are converted for client consumption in both
+  generated TypeScript types and API responses.
+  Defaults to :camel_case. Can be:
+  - Built-in: :camel_case, :pascal_case, :snake_case
   - Custom: {Module, :function} or {Module, :function, [extra_args]}
   """
-  def output_formatter do
-    Application.get_env(:ash_typescript, :output_formatter, :camelize)
+  def output_field_formatter do
+    Application.get_env(:ash_typescript, :output_field_formatter, :camel_case)
   end
 
   @doc """
@@ -174,9 +164,17 @@ defmodule AshTypescript.Rpc do
 
         # Parse client field names to internal field names
         client_fields = Map.get(params, "fields", [])
-        internal_fields = 
-          Enum.map(client_fields, fn field -> 
-            AshTypescript.FieldFormatter.parse_input_field(field, input_formatter())
+
+        internal_fields =
+          Enum.map(client_fields, fn field ->
+            case field do
+              field when is_binary(field) ->
+                AshTypescript.FieldFormatter.parse_input_field(field, input_field_formatter())
+
+              field ->
+                # For complex field specs (like nested relations), pass through as-is
+                field
+            end
           end)
 
         attributes =
@@ -205,7 +203,9 @@ defmodule AshTypescript.Rpc do
 
         # Parse input fields using the configured input formatter
         raw_input = Map.get(params, "input", %{})
-        input = AshTypescript.FieldFormatter.parse_input_fields(raw_input, input_formatter())
+
+        input =
+          AshTypescript.FieldFormatter.parse_input_fields(raw_input, input_field_formatter())
 
         case action.type do
           :read ->
@@ -275,7 +275,10 @@ defmodule AshTypescript.Rpc do
 
           {:ok, result} ->
             return_value = extract_return_value(result, fields_to_take, calculation_field_specs)
-            formatted_return_value = format_response_fields(return_value, output_formatter())
+
+            formatted_return_value =
+              format_response_fields(return_value, output_field_formatter())
+
             %{success: true, data: formatted_return_value}
 
           {:error, error} ->
@@ -325,7 +328,9 @@ defmodule AshTypescript.Rpc do
               calc_fields ->
                 # Apply field selection to the calculation result
                 filtered_value = extract_return_value(value, calc_fields, calculation_field_specs)
-                Map.put(acc, field, filtered_value)
+                # Format the filtered calculation result for client consumption
+                formatted_value = format_response_fields(filtered_value, output_field_formatter())
+                Map.put(acc, field, formatted_value)
             end
           else
             acc
@@ -371,7 +376,9 @@ defmodule AshTypescript.Rpc do
               calc_fields ->
                 # Apply field selection to the calculation result
                 filtered_value = extract_return_value(value, calc_fields, calculation_field_specs)
-                Map.put(acc, calc_name, filtered_value)
+                # Format the filtered calculation result for client consumption
+                formatted_value = format_response_fields(filtered_value, output_field_formatter())
+                Map.put(acc, calc_name, formatted_value)
             end
           else
             acc
@@ -517,7 +524,10 @@ defmodule AshTypescript.Rpc do
 
     {calculations_load, calculation_field_specs} =
       Enum.reduce(calculations, {[], %{}}, fn {calc_name, calc_spec}, {load_acc, specs_acc} ->
-        calc_atom = String.to_existing_atom(calc_name)
+        # Apply input field formatter to calculation name (already returns an atom)
+        calc_atom =
+          AshTypescript.FieldFormatter.parse_input_field(calc_name, input_field_formatter())
+
         _calc_definition = Enum.find(resource_calculations, &(&1.name == calc_atom))
 
         case calc_spec do
@@ -529,8 +539,21 @@ defmodule AshTypescript.Rpc do
                 Map.put(acc, String.to_existing_atom(k), v)
               end)
 
+            # Parse client field names to internal field names for calculation field selection
+            internal_fields =
+              Enum.map(fields, fn field ->
+                case field do
+                  field when is_binary(field) ->
+                    AshTypescript.FieldFormatter.parse_input_field(field, input_field_formatter())
+
+                  field ->
+                    # For complex field specs (like nested relations), pass through as-is
+                    field
+                end
+              end)
+
             # Store field specification for this calculation
-            parsed_fields = parse_json_load(fields)
+            parsed_fields = parse_json_load(internal_fields)
             updated_specs = Map.put(specs_acc, calc_atom, parsed_fields)
 
             # Return only the args for loading (no fields to avoid Ash validation issues)
@@ -539,7 +562,20 @@ defmodule AshTypescript.Rpc do
 
           %{"fields" => fields} ->
             # Calculation without arguments, field selection can work normally
-            parsed_fields = parse_json_load(fields)
+            # Parse client field names to internal field names for calculation field selection
+            internal_fields =
+              Enum.map(fields, fn field ->
+                case field do
+                  field when is_binary(field) ->
+                    AshTypescript.FieldFormatter.parse_input_field(field, input_field_formatter())
+
+                  field ->
+                    # For complex field specs (like nested relations), pass through as-is
+                    field
+                end
+              end)
+
+            parsed_fields = parse_json_load(internal_fields)
             load_entry = {calc_atom, [fields: parsed_fields]}
             {[load_entry | load_acc], specs_acc}
 

@@ -82,8 +82,11 @@ defmodule AshTypescript.Filter do
     # Generate specific filter operations based on the attribute type
     operations = get_applicable_operations(attribute.type, base_type)
 
+    # Format field name using output formatter
+    formatted_name = AshTypescript.FieldFormatter.format_field(attribute.name, AshTypescript.Rpc.output_field_formatter())
+
     """
-      #{attribute.name}?: {
+      #{formatted_name}?: {
     #{Enum.join(operations, "\n")}
       };
     """
@@ -101,8 +104,11 @@ defmodule AshTypescript.Filter do
     base_type = get_ts_type(%{type: :integer}, nil)
     operations = get_applicable_operations(:integer, base_type)
 
+    # Format field name using output formatter
+    formatted_name = AshTypescript.FieldFormatter.format_field(name, AshTypescript.Rpc.output_field_formatter())
+
     """
-      #{name}?: {
+      #{formatted_name}?: {
     #{Enum.join(operations, "\n")}
       };
     """
@@ -119,24 +125,26 @@ defmodule AshTypescript.Filter do
   end
 
   defp get_applicable_operations(type, base_type) do
+    formatter = AshTypescript.Rpc.output_field_formatter()
+    
     case type do
       t when t in [Ash.Type.String, Ash.Type.CiString, :string] ->
         [
-          "    eq?: #{base_type};",
-          "    not_eq?: #{base_type};",
-          "    in?: Array<#{base_type}>;"
+          "    #{AshTypescript.FieldFormatter.format_field("eq", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("not_eq", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("in", formatter)}?: Array<#{base_type}>;"
         ]
 
       t
       when t in [Ash.Type.Integer, Ash.Type.Float, Ash.Type.Decimal, :integer, :float, :decimal] ->
         [
-          "    eq?: #{base_type};",
-          "    not_eq?: #{base_type};",
-          "    greater_than?: #{base_type};",
-          "    greater_than_or_equal?: #{base_type};",
-          "    less_than?: #{base_type};",
-          "    less_than_or_equal?: #{base_type};",
-          "    in?: Array<#{base_type}>;"
+          "    #{AshTypescript.FieldFormatter.format_field("eq", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("not_eq", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("greater_than", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("greater_than_or_equal", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("less_than", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("less_than_or_equal", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("in", formatter)}?: Array<#{base_type}>;"
         ]
 
       t
@@ -152,43 +160,43 @@ defmodule AshTypescript.Filter do
              :naive_datetime
            ] ->
         [
-          "    eq?: #{base_type};",
-          "    not_eq?: #{base_type};",
-          "    greater_than?: #{base_type};",
-          "    greater_than_or_equal?: #{base_type};",
-          "    less_than?: #{base_type};",
-          "    less_than_or_equal?: #{base_type};",
-          "    in?: Array<#{base_type}>;"
+          "    #{AshTypescript.FieldFormatter.format_field("eq", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("not_eq", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("greater_than", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("greater_than_or_equal", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("less_than", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("less_than_or_equal", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("in", formatter)}?: Array<#{base_type}>;"
         ]
 
       t when t in [Ash.Type.Boolean, :boolean] ->
         [
-          "    eq?: #{base_type};",
-          "    not_eq?: #{base_type};"
+          "    #{AshTypescript.FieldFormatter.format_field("eq", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("not_eq", formatter)}?: #{base_type};"
         ]
 
       %{type: Ash.Type.Atom, constraints: constraints} when constraints != [] ->
         case Keyword.get(constraints, :one_of) do
           nil ->
             [
-              "    eq?: #{base_type};",
-              "    not_eq?: #{base_type};",
-              "    in?: Array<#{base_type}>;"
+              "    #{AshTypescript.FieldFormatter.format_field("eq", formatter)}?: #{base_type};",
+              "    #{AshTypescript.FieldFormatter.format_field("not_eq", formatter)}?: #{base_type};",
+              "    #{AshTypescript.FieldFormatter.format_field("in", formatter)}?: Array<#{base_type}>;"
             ]
 
           _values ->
             [
-              "    eq?: #{base_type};",
-              "    not_eq?: #{base_type};",
-              "    in?: Array<#{base_type}>;"
+              "    #{AshTypescript.FieldFormatter.format_field("eq", formatter)}?: #{base_type};",
+              "    #{AshTypescript.FieldFormatter.format_field("not_eq", formatter)}?: #{base_type};",
+              "    #{AshTypescript.FieldFormatter.format_field("in", formatter)}?: Array<#{base_type}>;"
             ]
         end
 
       _ ->
         [
-          "    eq?: #{base_type};",
-          "    not_eq?: #{base_type};",
-          "    in?: Array<#{base_type}>;"
+          "    #{AshTypescript.FieldFormatter.format_field("eq", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("not_eq", formatter)}?: #{base_type};",
+          "    #{AshTypescript.FieldFormatter.format_field("in", formatter)}?: Array<#{base_type}>;"
         ]
     end
   end
@@ -209,8 +217,11 @@ defmodule AshTypescript.Filter do
     related_resource_name = related_resource |> Module.split() |> List.last()
     filter_type_name = "#{related_resource_name}FilterInput"
 
+    # Format field name using output formatter
+    formatted_name = AshTypescript.FieldFormatter.format_field(relationship.name, AshTypescript.Rpc.output_field_formatter())
+
     """
-      #{relationship.name}?: #{filter_type_name};
+      #{formatted_name}?: #{filter_type_name};
     """
   end
 

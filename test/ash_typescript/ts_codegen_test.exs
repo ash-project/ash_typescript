@@ -347,19 +347,19 @@ defmodule AshTypescript.CodegenTest do
   describe "get_resource_field_spec/2 - calculations" do
     test "generates field spec for boolean calculation" do
       result = Codegen.get_resource_field_spec(:is_overdue, Todo)
-      assert result == "  is_overdue?: boolean | null;"
+      assert result == "  isOverdue?: boolean | null;"
     end
 
     test "generates field spec for integer calculation" do
       result = Codegen.get_resource_field_spec(:days_until_due, Todo)
-      assert result == "  days_until_due?: number | null;"
+      assert result == "  daysUntilDue?: number | null;"
     end
   end
 
   describe "get_resource_field_spec/2 - aggregates" do
     test "generates field spec for count aggregate" do
       result = Codegen.get_resource_field_spec(:comment_count, Todo)
-      assert result == "  comment_count: number;"
+      assert result == "  commentCount: number;"
     end
   end
 
@@ -428,10 +428,10 @@ defmodule AshTypescript.CodegenTest do
                "priority?: \"low\" | \"medium\" | \"high\" | \"urgent\" | null;"
              )
 
-      assert String.contains?(result, "due_date?: AshDate | null;")
+      assert String.contains?(result, "dueDate?: AshDate | null;")
       assert String.contains?(result, "tags?: Array<string> | null;")
       assert String.contains?(result, "metadata?: Record<string, any> | null;")
-      assert String.contains?(result, "user_id: UUID;")
+      assert String.contains?(result, "userId: UUID;")
     end
 
     test "generates complete TodoComment resource type" do
@@ -439,11 +439,11 @@ defmodule AshTypescript.CodegenTest do
 
       assert String.contains?(result, "id: UUID;")
       assert String.contains?(result, "content: string;")
-      assert String.contains?(result, "author_name: string;")
+      assert String.contains?(result, "authorName: string;")
       assert String.contains?(result, "rating?: number | null;")
-      assert String.contains?(result, "is_helpful?: boolean | null;")
-      assert String.contains?(result, "todo_id: UUID;")
-      assert String.contains?(result, "user_id: UUID;")
+      assert String.contains?(result, "isHelpful?: boolean | null;")
+      assert String.contains?(result, "todoId: UUID;")
+      assert String.contains?(result, "userId: UUID;")
     end
 
     test "generates resource type with loaded aggregates" do

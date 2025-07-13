@@ -1,17 +1,15 @@
 defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
   use ExUnit.Case, async: false
+  import Phoenix.ConnTest
+  import Plug.Conn
   alias AshTypescript.Rpc
   alias AshTypescript.Test.UserSettings
 
   setup do
-    # Mock conn structure
-    conn = %{
-      assigns: %{
-        actor: nil,
-        tenant: nil,
-        context: %{}
-      }
-    }
+    # Create proper Plug.Conn struct
+    conn = build_conn()
+    |> put_private(:ash, %{actor: nil, tenant: nil})
+    |> assign(:context, %{})
 
     # Create test users for tenant isolation
     user1_params = %{
@@ -74,18 +72,18 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "create_user_settings",
         "fields" => ["id", "user_id", "theme", "language"],
         "input" => %{
-          "user_id" => user1.id,
+          "user_id" => user1["id"],
           "theme" => "dark",
           "language" => "en"
         },
-        "tenant" => user1.id
+        "tenant" => user1["id"]
       }
 
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: settings} = result
-      assert settings.user_id == user1.id
-      assert settings.theme == :dark
-      assert settings.language == "en"
+      assert settings["userId"] == user1["id"]
+      assert settings["theme"] == :dark
+      assert settings["language"] == "en"
     end
 
     test "reads user settings with tenant parameter", %{conn: conn, user1: user1} do
@@ -94,10 +92,10 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "create_user_settings",
         "fields" => ["id"],
         "input" => %{
-          "user_id" => user1.id,
+          "user_id" => user1["id"],
           "theme" => "light"
         },
-        "tenant" => user1.id
+        "tenant" => user1["id"]
       }
 
       create_result = Rpc.run_action(:ash_typescript, conn, create_params)
@@ -108,13 +106,13 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "list_user_settings",
         "fields" => ["id", "user_id", "theme"],
         "input" => %{},
-        "tenant" => user1.id
+        "tenant" => user1["id"]
       }
 
       result = Rpc.run_action(:ash_typescript, conn, read_params)
       assert %{success: true, data: settings_list} = result
       assert length(settings_list) == 1
-      assert hd(settings_list).user_id == user1.id
+      assert hd(settings_list)["userId"] == user1["id"]
     end
 
     test "updates user settings with tenant parameter", %{conn: conn, user1: user1} do
@@ -123,30 +121,30 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "create_user_settings",
         "fields" => ["id", "theme"],
         "input" => %{
-          "user_id" => user1.id,
+          "user_id" => user1["id"],
           "theme" => "light"
         },
-        "tenant" => user1.id
+        "tenant" => user1["id"]
       }
 
       create_result = Rpc.run_action(:ash_typescript, conn, create_params)
       assert %{success: true, data: settings} = create_result
-      assert settings.theme == :light
+      assert settings["theme"] == :light
 
       # Update settings using the correct primary_key field
       update_params = %{
         "action" => "update_user_settings",
         "fields" => ["id", "theme"],
-        "primary_key" => settings.id,
+        "primary_key" => settings["id"],
         "input" => %{
           "theme" => "dark"
         },
-        "tenant" => user1.id
+        "tenant" => user1["id"]
       }
 
       result = Rpc.run_action(:ash_typescript, conn, update_params)
       assert %{success: true, data: updated_settings} = result
-      assert updated_settings.theme == :dark
+      assert updated_settings["theme"] == :dark
     end
 
     test "fails to create without tenant parameter", %{conn: conn, user1: user1} do
@@ -154,7 +152,7 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "create_user_settings",
         "fields" => ["id"],
         "input" => %{
-          "user_id" => user1.id,
+          "user_id" => user1["id"],
           "theme" => "dark"
         }
         # Missing tenant parameter
@@ -189,13 +187,13 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
     end
 
     test "creates user settings with tenant in connection", %{conn: conn, user1: user1} do
-      conn_with_tenant = put_in(conn.assigns.tenant, user1.id)
+      conn_with_tenant = Ash.PlugHelpers.set_tenant(conn, user1["id"])
 
       params = %{
         "action" => "create_user_settings",
         "fields" => ["id", "user_id", "theme"],
         "input" => %{
-          "user_id" => user1.id,
+          "user_id" => user1["id"],
           "theme" => "dark"
         }
         # No tenant parameter needed
@@ -203,19 +201,19 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
 
       result = Rpc.run_action(:ash_typescript, conn_with_tenant, params)
       assert %{success: true, data: settings} = result
-      assert settings.user_id == user1.id
-      assert settings.theme == :dark
+      assert settings["userId"] == user1["id"]
+      assert settings["theme"] == :dark
     end
 
     test "reads user settings with tenant in connection", %{conn: conn, user1: user1} do
-      conn_with_tenant = put_in(conn.assigns.tenant, user1.id)
+      conn_with_tenant = Ash.PlugHelpers.set_tenant(conn, user1["id"])
 
       # Create settings first
       create_params = %{
         "action" => "create_user_settings",
         "fields" => ["id"],
         "input" => %{
-          "user_id" => user1.id,
+          "user_id" => user1["id"],
           "theme" => "light"
         }
       }
@@ -233,7 +231,7 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
       result = Rpc.run_action(:ash_typescript, conn_with_tenant, read_params)
       assert %{success: true, data: settings_list} = result
       assert length(settings_list) == 1
-      assert hd(settings_list).user_id == user1.id
+      assert hd(settings_list)["userId"] == user1["id"]
     end
 
     test "fails without tenant in connection", %{conn: conn, user1: user1} do
@@ -241,7 +239,7 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "create_user_settings",
         "fields" => ["id"],
         "input" => %{
-          "user_id" => user1.id,
+          "user_id" => user1["id"],
           "theme" => "dark"
         }
       }
@@ -271,10 +269,10 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "create_user_settings",
         "fields" => ["id"],
         "input" => %{
-          "user_id" => user1.id,
+          "user_id" => user1["id"],
           "theme" => "dark"
         },
-        "tenant" => user1.id
+        "tenant" => user1["id"]
       }
 
       # Create settings for user2
@@ -282,10 +280,10 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "create_user_settings",
         "fields" => ["id"],
         "input" => %{
-          "user_id" => user2.id,
+          "user_id" => user2["id"],
           "theme" => "light"
         },
-        "tenant" => user2.id
+        "tenant" => user2["id"]
       }
 
       assert %{success: true} = Rpc.run_action(:ash_typescript, conn, user1_params)
@@ -296,28 +294,28 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "list_user_settings",
         "fields" => ["id", "user_id", "theme"],
         "input" => %{},
-        "tenant" => user1.id
+        "tenant" => user1["id"]
       }
 
       result1 = Rpc.run_action(:ash_typescript, conn, user1_read)
       assert %{success: true, data: settings1} = result1
       assert length(settings1) == 1
-      assert hd(settings1).user_id == user1.id
-      assert hd(settings1).theme == :dark
+      assert hd(settings1)["userId"] == user1["id"]
+      assert hd(settings1)["theme"] == :dark
 
       # User2 should only see their settings
       user2_read = %{
         "action" => "list_user_settings",
         "fields" => ["id", "user_id", "theme"],
         "input" => %{},
-        "tenant" => user2.id
+        "tenant" => user2["id"]
       }
 
       result2 = Rpc.run_action(:ash_typescript, conn, user2_read)
       assert %{success: true, data: settings2} = result2
       assert length(settings2) == 1
-      assert hd(settings2).user_id == user2.id
-      assert hd(settings2).theme == :light
+      assert hd(settings2)["userId"] == user2["id"]
+      assert hd(settings2)["theme"] == :light
     end
 
     test "wrong tenant prevents access to other user's settings", %{
@@ -330,10 +328,10 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "create_user_settings",
         "fields" => ["id"],
         "input" => %{
-          "user_id" => user1.id,
+          "user_id" => user1["id"],
           "theme" => "dark"
         },
-        "tenant" => user1.id
+        "tenant" => user1["id"]
       }
 
       assert %{success: true} = Rpc.run_action(:ash_typescript, conn, create_params)
@@ -343,7 +341,7 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "list_user_settings",
         "fields" => ["id", "user_id"],
         "input" => %{},
-        "tenant" => user2.id
+        "tenant" => user2["id"]
       }
 
       result = Rpc.run_action(:ash_typescript, conn, read_params)
@@ -367,7 +365,7 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "create_user_settings",
         "fields" => ["id"],
         "input" => %{
-          "user_id" => user1.id,
+          "user_id" => user1["id"],
           "theme" => "dark"
         },
         "tenant" => "invalid-uuid"
@@ -384,10 +382,10 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "create_user_settings",
         "fields" => ["id", "user_id"],
         "input" => %{
-          "user_id" => user1.id,
+          "user_id" => user1["id"],
           "theme" => "dark"
         },
-        "tenant" => user1.id
+        "tenant" => user1["id"]
       }
 
       result1 = Rpc.run_action(:ash_typescript, conn, params1)
@@ -398,10 +396,10 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "create_user_settings",
         "fields" => ["id", "user_id"],
         "input" => %{
-          "user_id" => user2.id,
+          "user_id" => user2["id"],
           "theme" => "light"
         },
-        "tenant" => user2.id
+        "tenant" => user2["id"]
       }
 
       result2 = Rpc.run_action(:ash_typescript, conn, params2)
@@ -419,10 +417,10 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "create_user_settings",
         "fields" => ["id"],
         "input" => %{
-          "user_id" => user1.id,
+          "user_id" => user1["id"],
           "theme" => "dark"
         },
-        "tenant" => user1.id
+        "tenant" => user1["id"]
       }
 
       create_result = Rpc.run_action(:ash_typescript, conn, create_params)
@@ -433,9 +431,9 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
         "action" => "destroy_user_settings",
         "fields" => [],
         "input" => %{
-          "id" => settings.id
+          "id" => settings["id"]
         },
-        "tenant" => user2.id
+        "tenant" => user2["id"]
       }
 
       result = Rpc.run_action(:ash_typescript, conn, destroy_params)
@@ -454,13 +452,13 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
       assert String.contains?(typescript_output, "export type UserSettingsFilterInput")
 
       # Verify UserSettings attributes are present
-      assert String.contains?(typescript_output, "user_id: UUID")
+      assert String.contains?(typescript_output, "userId: UUID")
       assert String.contains?(typescript_output, "theme?: \"light\" | \"dark\" | \"auto\"")
       assert String.contains?(typescript_output, "language?: string")
-      assert String.contains?(typescript_output, "notifications_enabled?: boolean")
-      assert String.contains?(typescript_output, "email_notifications?: boolean")
+      assert String.contains?(typescript_output, "notificationsEnabled?: boolean")
+      assert String.contains?(typescript_output, "emailNotifications?: boolean")
       assert String.contains?(typescript_output, "timezone?: string")
-      assert String.contains?(typescript_output, "date_format?: string")
+      assert String.contains?(typescript_output, "dateFormat?: string")
       assert String.contains?(typescript_output, "preferences?: Record<string, any>")
     end
 
@@ -492,11 +490,11 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
       typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Verify RPC action function names are generated
-      assert String.contains?(typescript_output, "list_user_settings")
-      assert String.contains?(typescript_output, "get_user_settings")
-      assert String.contains?(typescript_output, "create_user_settings")
-      assert String.contains?(typescript_output, "update_user_settings")
-      assert String.contains?(typescript_output, "destroy_user_settings")
+      assert String.contains?(typescript_output, "listUserSettings")
+      assert String.contains?(typescript_output, "getUserSettings")
+      assert String.contains?(typescript_output, "createUserSettings")
+      assert String.contains?(typescript_output, "updateUserSettings")
+      assert String.contains?(typescript_output, "destroyUserSettings")
     end
   end
 end

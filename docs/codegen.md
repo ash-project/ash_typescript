@@ -48,6 +48,131 @@
 - Argument handling for parameterized calculations
 - Async computation support for complex calculations
 
+### Field Name Formatting
+
+The code generation system supports configurable field name formatting to ensure consistent naming conventions between Elixir and TypeScript.
+
+#### Configuration Impact
+
+The `output_field_formatter` configuration directly affects all generated TypeScript types:
+
+```elixir
+# config/config.exs
+config :ash_typescript, output_field_formatter: :camel_case
+```
+
+#### Generated Type Examples
+
+**With `:camel_case` (default)**:
+```typescript
+type UserFieldsSchema = {
+  id: UUID;
+  userName: string;
+  emailAddress?: string;
+  createdAt: UtcDateTime;
+  updatedAt: UtcDateTime;
+};
+
+type CreateUserConfig = {
+  fields: FieldSelection<UserResourceSchema>[];
+  calculations?: Partial<UserResourceSchema["complexCalculations"]>;
+  input: {
+    userName: string;
+    emailAddress?: string;
+  };
+};
+```
+
+**With `:kebab_case`**:
+```typescript
+type UserFieldsSchema = {
+  id: UUID;
+  "user-name": string;
+  "email-address"?: string;
+  "created-at": UtcDateTime;
+  "updated-at": UtcDateTime;
+};
+
+type CreateUserConfig = {
+  fields: FieldSelection<UserResourceSchema>[];
+  calculations?: Partial<UserResourceSchema["complexCalculations"]>;
+  input: {
+    "user-name": string;
+    "email-address"?: string;
+  };
+};
+```
+
+**With `:pascal_case`**:
+```typescript
+type UserFieldsSchema = {
+  Id: UUID;
+  UserName: string;
+  EmailAddress?: string;
+  CreatedAt: UtcDateTime;
+  UpdatedAt: UtcDateTime;
+};
+```
+
+#### Implementation Details
+
+The formatting is applied during the schema generation process:
+
+```elixir
+# In generate_attributes_schema/1
+%Ash.Resource.Attribute{} = attr ->
+  formatted_name = AshTypescript.FieldFormatter.format_field(attr.name, AshTypescript.Rpc.output_field_formatter())
+  if attr.allow_nil? do
+    "  #{formatted_name}?: #{get_ts_type(attr)} | null;"
+  else
+    "  #{formatted_name}: #{get_ts_type(attr)};"
+  end
+```
+
+#### Config Type Generation
+
+RPC action config types also use formatted field names:
+
+```elixir
+# In generate_config_type/3
+formatted_fields_name = AshTypescript.FieldFormatter.format_field("fields", AshTypescript.Rpc.output_field_formatter())
+formatted_calculations_name = AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())
+
+fields_field = [
+  "  #{formatted_fields_name}: FieldSelection<#{resource_name}ResourceSchema>[];"
+]
+
+calculations_field = [
+  "  #{formatted_calculations_name}?: Partial<#{resource_name}ResourceSchema[\"complexCalculations\"]>;"
+]
+```
+
+#### Input Type Generation
+
+Action input types reflect formatted field names:
+
+```elixir
+# For action accepts and arguments
+Enum.map(accepts, fn field_name ->
+  attr = Ash.Resource.Info.attribute(resource, field_name)
+  formatted_field_name = AshTypescript.FieldFormatter.format_field(field_name, AshTypescript.Rpc.output_field_formatter())
+  "    #{formatted_field_name}#{if optional, do: "?", else: ""}: #{field_type};"
+end)
+```
+
+#### Consistency Across Generated Code
+
+All generated TypeScript code maintains field name consistency:
+
+- **Resource schemas** - Field names formatted according to `output_field_formatter`
+- **Config types** - Parameter names (fields, calculations) formatted
+- **Input types** - Action accepts and arguments formatted
+- **Payload builders** - Reference formatted config field names
+- **Relationship types** - Nested field selections maintain formatting
+- **Utility types** - Helper types work with formatted field names
+
+This ensures that the entire generated TypeScript API uses consistent naming conventions that match your client-side preferences, and TypeScript types always match the actual API response format.
+
 ### Workflow
 1. **Discovery**: Find all resources and actions in domains
 2. **Analysis**: Extract types, relationships, validations

@@ -55,19 +55,19 @@ defmodule AshTypescript.Rpc.CodegenTest do
 
       # Verify specific TodoComment attributes are present
       assert String.contains?(typescript_output, "content: string")
-      assert String.contains?(typescript_output, "author_name: string")
+      assert String.contains?(typescript_output, "authorName: string")
       assert String.contains?(typescript_output, "rating?: number")
-      assert String.contains?(typescript_output, "is_helpful?: boolean")
+      assert String.contains?(typescript_output, "isHelpful?: boolean")
 
       # Verify specific User attributes are present
       assert String.contains?(typescript_output, "name: string")
       assert String.contains?(typescript_output, "email: string")
 
       # Verify Todo calculations and aggregates
-      assert String.contains?(typescript_output, "is_overdue?: boolean")
-      assert String.contains?(typescript_output, "days_until_due?: number")
-      assert String.contains?(typescript_output, "comment_count: number")
-      assert String.contains?(typescript_output, "helpful_comment_count: number")
+      assert String.contains?(typescript_output, "isOverdue?: boolean")
+      assert String.contains?(typescript_output, "daysUntilDue?: number")
+      assert String.contains?(typescript_output, "commentCount: number")
+      assert String.contains?(typescript_output, "helpfulCommentCount: number")
 
       # Verify RPC function types are exported
       assert String.contains?(typescript_output, "export async function listTodos")

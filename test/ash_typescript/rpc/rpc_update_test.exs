@@ -1,16 +1,14 @@
 defmodule AshTypescript.Rpc.UpdateTest do
   use ExUnit.Case, async: true
+  import Phoenix.ConnTest
+  import Plug.Conn
   alias AshTypescript.Rpc
 
   setup do
-    # Mock conn structure
-    conn = %{
-      assigns: %{
-        actor: nil,
-        tenant: nil,
-        context: %{}
-      }
-    }
+    # Create proper Plug.Conn struct
+    conn = build_conn()
+    |> put_private(:ash, %{actor: nil, tenant: nil})
+    |> assign(:context, %{})
 
     {:ok, conn: conn}
   end
@@ -36,12 +34,12 @@ defmodule AshTypescript.Rpc.UpdateTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Todo to Update",
-          "user_id" => user.id
+          "userId" => user["id"]
         }
       }
 
       create_result = Rpc.run_action(:ash_typescript, conn, create_params)
-      assert %{success: true, data: %{id: id}} = create_result
+      assert %{success: true, data: %{"id" => id}} = create_result
 
       # Now update it
       update_params = %{
@@ -56,9 +54,11 @@ defmodule AshTypescript.Rpc.UpdateTest do
 
       result = Rpc.run_action(:ash_typescript, conn, update_params)
       assert %{success: true, data: data} = result
-      assert data.id == id
-      assert data.title == "Updated Todo"
-      assert data.completed == true
+      assert data["id"] == id
+      assert data["title"] == "Updated Todo"
+      assert data["completed"] == true
+      # Check that only requested fields are returned
+      assert Map.keys(data) |> Enum.sort() == ["completed", "id", "title"]
     end
 
     test "runs specific update actions successfully", %{conn: conn} do
@@ -81,12 +81,12 @@ defmodule AshTypescript.Rpc.UpdateTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Todo to Complete",
-          "user_id" => user.id
+          "userId" => user["id"]
         }
       }
 
       create_result = Rpc.run_action(:ash_typescript, conn, create_params)
-      assert %{success: true, data: %{id: id}} = create_result
+      assert %{success: true, data: %{"id" => id}} = create_result
 
       # Now complete it using the specific action
       complete_params = %{
@@ -98,8 +98,10 @@ defmodule AshTypescript.Rpc.UpdateTest do
 
       result = Rpc.run_action(:ash_typescript, conn, complete_params)
       assert %{success: true, data: data} = result
-      assert data.id == id
-      assert data.completed == true
+      assert data["id"] == id
+      assert data["completed"] == true
+      # Check that only requested fields are returned
+      assert Map.keys(data) |> Enum.sort() == ["completed", "id"]
     end
 
     test "runs update actions with arguments", %{conn: conn} do
@@ -122,12 +124,12 @@ defmodule AshTypescript.Rpc.UpdateTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Todo to Set Priority",
-          "user_id" => user.id
+          "userId" => user["id"]
         }
       }
 
       create_result = Rpc.run_action(:ash_typescript, conn, create_params)
-      assert %{success: true, data: %{id: id}} = create_result
+      assert %{success: true, data: %{"id" => id}} = create_result
 
       # Now set priority
       priority_params = %{
@@ -141,8 +143,10 @@ defmodule AshTypescript.Rpc.UpdateTest do
 
       result = Rpc.run_action(:ash_typescript, conn, priority_params)
       assert %{success: true, data: data} = result
-      assert data.id == id
-      assert data.priority == :high
+      assert data["id"] == id
+      assert data["priority"] == :high
+      # Check that only requested fields are returned
+      assert Map.keys(data) |> Enum.sort() == ["id", "priority"]
     end
 
     test "handles calculations in update actions", %{conn: conn} do
@@ -165,17 +169,17 @@ defmodule AshTypescript.Rpc.UpdateTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Todo to Update with Calcs",
-          "user_id" => user.id
+          "userId" => user["id"]
         }
       }
 
       create_result = Rpc.run_action(:ash_typescript, conn, create_params)
-      assert %{success: true, data: %{id: id}} = create_result
+      assert %{success: true, data: %{"id" => id}} = create_result
 
       # Now update it with calculations
       params = %{
         "action" => "update_todo",
-        "fields" => ["id", "title", "is_overdue", "comment_count"],
+        "fields" => ["id", "title", "isOverdue", "commentCount"],
         "primary_key" => id,
         "input" => %{
           "title" => "Updated Todo with Calculations"
@@ -186,11 +190,13 @@ defmodule AshTypescript.Rpc.UpdateTest do
       assert %{success: true, data: data} = result
 
       # Verify calculations are loaded on updated record
-      assert Map.has_key?(data, :is_overdue)
-      assert Map.has_key?(data, :comment_count)
-      assert is_boolean(data.is_overdue)
-      assert is_integer(data.comment_count)
-      assert data.title == "Updated Todo with Calculations"
+      assert Map.has_key?(data, "isOverdue")
+      assert Map.has_key?(data, "commentCount")
+      assert is_boolean(data["isOverdue"])
+      assert is_integer(data["commentCount"])
+      assert data["title"] == "Updated Todo with Calculations"
+      # Check that only requested fields are returned
+      assert Map.keys(data) |> Enum.sort() == ["commentCount", "id", "isOverdue", "title"]
     end
   end
 
@@ -215,12 +221,12 @@ defmodule AshTypescript.Rpc.UpdateTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Todo to Validate Update",
-          "user_id" => user.id
+          "userId" => user["id"]
         }
       }
 
       create_result = Rpc.run_action(:ash_typescript, conn, create_params)
-      assert %{success: true, data: %{id: id}} = create_result
+      assert %{success: true, data: %{"id" => id}} = create_result
 
       # Now validate update
       validate_params = %{
@@ -256,12 +262,12 @@ defmodule AshTypescript.Rpc.UpdateTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Todo to Validate Update Error",
-          "user_id" => user.id
+          "userId" => user["id"]
         }
       }
 
       create_result = Rpc.run_action(:ash_typescript, conn, create_params)
-      assert %{success: true, data: %{id: id}} = create_result
+      assert %{success: true, data: %{"id" => id}} = create_result
 
       # Now validate update with invalid data
       validate_params = %{

@@ -12,14 +12,12 @@ defmodule AshTypescript.FieldFormatter do
   
   ## Examples
   
-      iex> AshTypescript.FieldFormatter.format_field(:user_name, :camelize)
+      iex> AshTypescript.FieldFormatter.format_field(:user_name, :camel_case)
       "userName"
       
-      iex> AshTypescript.FieldFormatter.format_field(:user_name, :kebab_case)
-      "user-name"
       
-      iex> AshTypescript.FieldFormatter.format_field(:user_name, {MyModule, :custom_format})
-      "custom_result"
+      iex> AshTypescript.FieldFormatter.format_field(:user_name, :snake_case)
+      "user_name"
   """
   def format_field(field_name, formatter) when is_atom(field_name) or is_binary(field_name) do
     format_field_name(field_name, formatter)
@@ -33,13 +31,11 @@ defmodule AshTypescript.FieldFormatter do
   
   ## Examples
   
-      iex> AshTypescript.FieldFormatter.parse_input_field("userName", :camelize)
+      iex> AshTypescript.FieldFormatter.parse_input_field("userName", :camel_case)
       :user_name
       
-      iex> AshTypescript.FieldFormatter.parse_input_field("user-name", :kebab_case)  
-      :user_name
   """
-  def parse_input_field(field_name, formatter) when is_binary(field_name) do
+  def parse_input_field(field_name, formatter) when is_binary(field_name) or is_atom(field_name) do
     internal_name = parse_field_name(field_name, formatter)
     
     # Convert to atom if it's a string
@@ -55,7 +51,7 @@ defmodule AshTypescript.FieldFormatter do
   
   ## Examples
   
-      iex> AshTypescript.FieldFormatter.format_fields(%{user_name: "John", user_email: "john@example.com"}, :camelize)
+      iex> AshTypescript.FieldFormatter.format_fields(%{user_name: "John", user_email: "john@example.com"}, :camel_case)
       %{"userName" => "John", "userEmail" => "john@example.com"}
   """
   def format_fields(fields, formatter) when is_map(fields) do
@@ -70,7 +66,7 @@ defmodule AshTypescript.FieldFormatter do
   
   ## Examples
   
-      iex> AshTypescript.FieldFormatter.parse_input_fields(%{"userName" => "John", "userEmail" => "john@example.com"}, :camelize)
+      iex> AshTypescript.FieldFormatter.parse_input_fields(%{"userName" => "John", "userEmail" => "john@example.com"}, :camel_case)
       %{user_name: "John", user_email: "john@example.com"}
   """
   def parse_input_fields(fields, formatter) when is_map(fields) do
@@ -83,11 +79,8 @@ defmodule AshTypescript.FieldFormatter do
   # Private helper for formatting field names
   defp format_field_name(field_name, formatter) do
     case formatter do
-      :camelize ->
+      :camel_case ->
         field_name |> to_string() |> snake_to_camel_case()
-        
-      :kebab_case ->
-        field_name |> to_string() |> snake_to_kebab_case()
         
       :pascal_case ->
         field_name |> to_string() |> snake_to_pascal_case()
@@ -109,17 +102,14 @@ defmodule AshTypescript.FieldFormatter do
   # Private helper for parsing field names from client format to internal format
   defp parse_field_name(field_name, formatter) do
     case formatter do
-      :camelize ->
-        field_name |> camel_to_snake_case()
-        
-      :kebab_case ->
-        field_name |> kebab_to_snake_case()
+      :camel_case ->
+        field_name |> to_string() |> camel_to_snake_case()
         
       :pascal_case ->
-        field_name |> pascal_to_snake_case()
+        field_name |> to_string() |> pascal_to_snake_case()
         
       :snake_case ->
-        field_name
+        field_name |> to_string()
         
       {module, function} ->
         apply(module, function, [field_name])

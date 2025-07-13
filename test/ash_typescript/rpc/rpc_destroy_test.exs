@@ -1,16 +1,14 @@
 defmodule AshTypescript.Rpc.DestroyTest do
   use ExUnit.Case, async: true
+  import Phoenix.ConnTest
+  import Plug.Conn
   alias AshTypescript.Rpc
 
   setup do
-    # Mock conn structure
-    conn = %{
-      assigns: %{
-        actor: nil,
-        tenant: nil,
-        context: %{}
-      }
-    }
+    # Create proper Plug.Conn struct
+    conn = build_conn()
+    |> put_private(:ash, %{actor: nil, tenant: nil})
+    |> assign(:context, %{})
 
     {:ok, conn: conn}
   end
@@ -36,12 +34,12 @@ defmodule AshTypescript.Rpc.DestroyTest do
         "fields" => ["id"],
         "input" => %{
           "title" => "Todo to Delete",
-          "user_id" => user.id
+          "userId" => user["id"]
         }
       }
 
       create_result = Rpc.run_action(:ash_typescript, conn, create_params)
-      assert %{success: true, data: %{id: id}} = create_result
+      assert %{success: true, data: %{"id" => id}} = create_result
 
       # Now destroy it
       destroy_params = %{
@@ -51,7 +49,9 @@ defmodule AshTypescript.Rpc.DestroyTest do
       }
 
       result = Rpc.run_action(:ash_typescript, conn, destroy_params)
-      assert %{success: true} = result
+      assert %{success: true, data: data} = result
+      # Check that destroy with empty fields returns empty map
+      assert data == %{}
     end
   end
 end
