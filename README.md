@@ -23,6 +23,7 @@ end
   - Complex return types with field constraints
   - Relationships and aggregates
   - Calculations and validations
+- **Automatic multitenancy support** with tenant parameter injection for multitenant resources
 - **Zod schema generation** for runtime validation
 - **Configurable endpoints** for RPC calls
 - **Mix task integration** for easy code generation
@@ -64,10 +65,17 @@ mix ash_typescript.codegen --output "assets/js/ash_rpc.ts"
 import { listTodos, createTodo, getTodo } from './ash_rpc';
 
 // Type-safe API calls
-const todos = await listTodos({ filter_completed: false });
+const todos = await listTodos({ 
+  fields: ["id", "title", "completed"],
+  filter: { completed: false } 
+});
+
 const newTodo = await createTodo({ 
-  title: "Learn AshTypescript", 
-  priority: "high" 
+  fields: ["id", "title", "priority"],
+  input: {
+    title: "Learn AshTypescript", 
+    priority: "high" 
+  }
 });
 ```
 
@@ -79,7 +87,8 @@ You can configure AshTypescript in your application config:
 config :ash_typescript,
   output_file: "assets/js/ash_rpc.ts",
   run_endpoint: "/rpc/run",
-  validate_endpoint: "/rpc/validate"
+  validate_endpoint: "/rpc/validate",
+  require_tenant_parameters: true  # Default - tenant passed as parameters
 ```
 
 ## Mix Tasks
@@ -132,6 +141,124 @@ rpc do
 end
 ```
 
+## Multitenancy Support
+
+AshTypescript automatically handles multitenancy for your Ash resources with two configurable modes for tenant handling.
+
+### Tenant Configuration Modes
+
+#### Mode 1: Tenant Parameters (Default)
+
+With `require_tenant_parameters: true` (default), multitenant resources include tenant parameters in the TypeScript interface:
+
+```elixir
+# config/config.exs
+config :ash_typescript,
+  require_tenant_parameters: true  # Default behavior
+```
+
+#### Mode 2: Connection-based Tenant
+
+With `require_tenant_parameters: false`, tenant is extracted from the connection context using `Ash.PlugHelpers.get_tenant/1`:
+
+```elixir
+# config/config.exs
+config :ash_typescript,
+  require_tenant_parameters: false  # Tenant from connection
+```
+
+### When to Use Connection-based Mode
+
+Use `require_tenant_parameters: false` when your application:
+- Sets tenant context in middleware or plugs using `Ash.PlugHelpers.set_tenant/2`
+- Determines tenant from JWT claims, subdomain, or HTTP headers
+- Wants to avoid exposing tenant selection to client code
+- Centralizes tenant logic in the Phoenix pipeline
+
+```elixir
+# Example: Setting tenant in a Phoenix plug
+defmodule MyApp.TenantPlug do
+  import Plug.Conn
+  import Ash.PlugHelpers
+
+  def init(opts), do: opts
+
+  def call(conn, _opts) do
+    tenant = extract_tenant_from_request(conn)
+    set_tenant(conn, tenant)
+  end
+
+  defp extract_tenant_from_request(conn) do
+    # Extract from subdomain, header, JWT, etc.
+  end
+end
+```
+
+### Multitenant Resource Example
+
+```elixir
+defmodule MyApp.Post do
+  use Ash.Resource
+
+  multitenancy do
+    strategy :attribute
+    attribute :organization_id
+    # global? false is the default - tenant required
+  end
+
+  attributes do
+    uuid_primary_key :id
+    attribute :title, :string
+    attribute :organization_id, :string
+  end
+end
+```
+
+### Generated TypeScript Interface
+
+#### With `require_tenant_parameters: true` (default)
+
+```typescript
+// Generated config type includes tenant field
+export type CreatePostConfig = {
+  tenant: string;  // Required for multitenant resources
+  fields: FieldSelection<PostResourceSchema>[];
+  input: { title: string; };
+};
+
+// Usage
+const post = await createPost({
+  tenant: "org_123",  // Tenant passed as parameter
+  fields: ["id", "title"],
+  input: { title: "New Post" }
+});
+```
+
+#### With `require_tenant_parameters: false`
+
+```typescript
+// Generated config type has no tenant field
+export type CreatePostConfig = {
+  fields: FieldSelection<PostResourceSchema>[];
+  input: { title: string; };
+};
+
+// Usage - tenant extracted from connection
+const post = await createPost({
+  fields: ["id", "title"],
+  input: { title: "New Post" }
+});
+```
+
+### Features
+
+The multitenancy system provides:
+- **Configurable tenant handling** - choose between parameter and connection-based modes
+- **Automatic detection** based on your resource's multitenancy configuration
+- **Type-safe** with required `tenant: string` fields when using parameter mode
+- **Transparent** - non-multitenant resources work without tenant parameters
+- **Full backward compatibility** - existing code unchanged with default configuration
+
 ## Generated Code Structure
 
 AshTypescript generates:
@@ -141,6 +268,7 @@ AshTypescript generates:
 3. **RPC client functions** for each exposed action
 4. **Type definitions** for action arguments and return values
 5. **Enum types** for custom Ash types
+6. **Tenant parameter handling** for multitenant resources
 
 ## Requirements
 

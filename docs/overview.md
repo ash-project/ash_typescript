@@ -30,6 +30,7 @@ AshTypescript generates TypeScript types and RPC clients from Ash resources and 
 - Actions exposed as TypeScript functions
 - Automatic request validation and response typing
 - Support for filters, sorting, pagination
+- Automatic multitenancy support with tenant parameter injection
 
 ### Type Safety
 - All Ash types mapped to appropriate TypeScript equivalents

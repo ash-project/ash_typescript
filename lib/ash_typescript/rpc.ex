@@ -57,6 +57,45 @@ defmodule AshTypescript.Rpc do
 
   use Spark.Dsl.Extension, sections: [@rpc]
 
+  @doc """
+  Determines if tenant parameters are required in RPC requests.
+  
+  This checks the application configuration for :require_tenant_parameters.
+  If true (default), tenant parameters are required for multitenant resources.
+  If false, tenant will be extracted from the connection using Ash.PlugHelpers.get_tenant/1.
+  """
+  def require_tenant_parameters? do
+    Application.get_env(:ash_typescript, :require_tenant_parameters, true)
+  end
+
+  @doc """
+  Determines if a resource requires a tenant parameter.
+  
+  A resource requires a tenant if it has multitenancy configured and global? is false (default).
+  """
+  def requires_tenant?(resource) do
+    strategy = Ash.Resource.Info.multitenancy_strategy(resource)
+    
+    case strategy do
+      strategy when strategy in [:attribute, :context] ->
+        # Check if global? is set to false (which means tenant is required)
+        not Ash.Resource.Info.multitenancy_global?(resource)
+      
+      _ ->
+        # No multitenancy configured
+        false
+    end
+  end
+
+  @doc """
+  Determines if a resource should have tenant parameters in the generated TypeScript interface.
+  
+  This combines resource multitenancy requirements with the configuration setting.
+  """
+  def requires_tenant_parameter?(resource) do
+    requires_tenant?(resource) && require_tenant_parameters?()
+  end
+
   @spec run_action(otp_app :: atom, conn :: Plug.Conn.t(), params :: map) ::
           %{success: boolean, data: map() | nil, error: map() | nil}
   def run_action(otp_app, conn, params) do
@@ -81,9 +120,22 @@ defmodule AshTypescript.Rpc do
       {resource, %{action: action}} ->
         action = Ash.Resource.Info.action(resource, action)
 
+        # Determine tenant from request parameters or connection based on configuration
+        tenant = 
+          if requires_tenant_parameter?(resource) do
+            case Map.get(params, "tenant") do
+              nil -> 
+                raise "Tenant parameter is required for resource #{inspect(resource)} but was not provided"
+              tenant_value -> 
+                tenant_value
+            end
+          else
+            Ash.PlugHelpers.get_tenant(conn)
+          end
+
         opts = [
           actor: Ash.PlugHelpers.get_actor(conn),
-          tenant: Ash.PlugHelpers.get_tenant(conn),
+          tenant: tenant,
           context: Ash.PlugHelpers.get_context(conn) || %{}
         ]
 
@@ -263,6 +315,26 @@ defmodule AshTypescript.Rpc do
             acc
           end
 
+        # Handle calculation with arguments: {calculation_name, arguments}
+        {calc_name, _args} when is_atom(calc_name) ->
+          if Map.has_key?(map, calc_name) do
+            value = Map.get(map, calc_name)
+
+            # Check if this calculation has specific field selection
+            case Map.get(calculation_field_specs, calc_name) do
+              nil ->
+                # No special field selection for this calculation
+                Map.put(acc, calc_name, value)
+
+              calc_fields ->
+                # Apply field selection to the calculation result
+                filtered_value = extract_return_value(value, calc_fields, calculation_field_specs)
+                Map.put(acc, calc_name, filtered_value)
+            end
+          else
+            acc
+          end
+
         # Handle any other format by trying to extract as simple field
         field ->
           if Map.has_key?(map, field) do
@@ -296,9 +368,22 @@ defmodule AshTypescript.Rpc do
       {resource, %{action: action}} ->
         action = Ash.Resource.Info.action(resource, action)
 
+        # Determine tenant from request parameters or connection based on configuration
+        tenant = 
+          if requires_tenant_parameter?(resource) do
+            case Map.get(params, "tenant") do
+              nil -> 
+                raise "Tenant parameter is required for resource #{inspect(resource)} but was not provided"
+              tenant_value -> 
+                tenant_value
+            end
+          else
+            Ash.PlugHelpers.get_tenant(conn)
+          end
+
         opts = [
           actor: Ash.PlugHelpers.get_actor(conn),
-          tenant: Ash.PlugHelpers.get_tenant(conn),
+          tenant: tenant,
           context: Ash.PlugHelpers.get_context(conn) || %{}
         ]
 
@@ -407,7 +492,7 @@ defmodule AshTypescript.Rpc do
             updated_specs = Map.put(specs_acc, calc_atom, parsed_fields)
 
             # Return only the args for loading (no fields to avoid Ash validation issues)
-            load_entry = {calc_atom, [args: args_atomized]}
+            load_entry = {calc_atom, args_atomized}
             {[load_entry | load_acc], updated_specs}
 
           %{"fields" => fields} ->
@@ -423,7 +508,7 @@ defmodule AshTypescript.Rpc do
                 Map.put(acc, String.to_existing_atom(k), v)
               end)
 
-            load_entry = {calc_atom, [args: args_atomized]}
+            load_entry = {calc_atom, args_atomized}
             {[load_entry | load_acc], specs_acc}
 
           _ ->

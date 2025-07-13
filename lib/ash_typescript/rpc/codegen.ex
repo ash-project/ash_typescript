@@ -272,7 +272,7 @@ defmodule AshTypescript.Rpc.Codegen do
     result_type = generate_result_type(resource, action, rpc_action_name)
 
     # Generate payload builder
-    payload_builder = generate_payload_builder(rpc_action, action, rpc_action_name)
+    payload_builder = generate_payload_builder(resource, rpc_action, action, rpc_action_name)
 
     # Generate Rpc function
     rpc_function =
@@ -280,7 +280,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     # Generate validation function (for create, update, destroy actions only)
     validation_function =
-      generate_validation_function(rpc_action, action, rpc_action_name, endpoint_validate)
+      generate_validation_function(resource, rpc_action, action, rpc_action_name, endpoint_validate)
 
     functions_section =
       if validation_function == "" do
@@ -308,6 +308,14 @@ defmodule AshTypescript.Rpc.Codegen do
     resource_name = resource |> Module.split() |> List.last()
     _function_name = snake_to_camel_case(rpc_action_name)
     config_name = "#{snake_to_pascal_case(rpc_action_name)}Config"
+
+    # Add tenant field if resource requires tenant
+    tenant_field = 
+      if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
+        ["  tenant: string;"]
+      else
+        []
+      end
 
     # Base config fields
     fields_field = [
@@ -425,9 +433,9 @@ defmodule AshTypescript.Rpc.Codegen do
 
     all_fields =
       if action.type in [:read, :create, :update] do
-        input_fields ++ fields_field ++ calculations_field
+        tenant_field ++ input_fields ++ fields_field ++ calculations_field
       else
-        input_fields
+        tenant_field ++ input_fields
       end
 
     """
@@ -483,8 +491,28 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
-  defp generate_payload_builder(_rpc_action, action, rpc_action_name) do
+  defp generate_payload_builder(resource, _rpc_action, action, rpc_action_name) do
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
+
+    # Base payload construction with tenant handling
+    base_payload_with_tenant = fn ->
+      if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
+        """
+          const payload: Record<string, any> = {
+            action: "#{rpc_action_name}",
+            tenant: config.tenant,
+            fields: config.fields
+          };
+        """
+      else
+        """
+          const payload: Record<string, any> = {
+            action: "#{rpc_action_name}",
+            fields: config.fields
+          };
+        """
+      end
+    end
 
     cond do
       action.type == :read and not action.get? ->
@@ -492,10 +520,7 @@ defmodule AshTypescript.Rpc.Codegen do
         export function build#{rpc_action_name_pascal}Payload(
           config: #{rpc_action_name_pascal}Config
         ): Record<string, any> {
-          const payload: Record<string, any> = {
-            action: "#{rpc_action_name}",
-            fields: config.fields
-          };
+        #{base_payload_with_tenant.()}
 
           if (config.filter) {
             payload.filter = config.filter;
@@ -530,10 +555,7 @@ defmodule AshTypescript.Rpc.Codegen do
         export function build#{rpc_action_name_pascal}Payload(
           config: #{rpc_action_name_pascal}Config
         ): Record<string, any> {
-          const payload: Record<string, any> = {
-            action: "#{rpc_action_name}",
-            fields: config.fields
-          };
+        #{base_payload_with_tenant.()}
 
           if (config.calculations) {
             payload.calculations = config.calculations;
@@ -554,10 +576,7 @@ defmodule AshTypescript.Rpc.Codegen do
         export function build#{rpc_action_name_pascal}Payload(
           config: #{rpc_action_name_pascal}Config
         ): Record<string, any> {
-          const payload: Record<string, any> = {
-            action: "#{rpc_action_name}",
-            fields: config.fields
-          };
+        #{base_payload_with_tenant.()}
 
           if (config.calculations) {
             payload.calculations = config.calculations;
@@ -574,15 +593,30 @@ defmodule AshTypescript.Rpc.Codegen do
         """
 
       action.type == :update ->
-        """
-        export function build#{rpc_action_name_pascal}Payload(
-          config: #{rpc_action_name_pascal}Config
-        ): Record<string, any> {
+        update_payload_base = if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
+          """
+          const payload: Record<string, any> = {
+            action: "#{rpc_action_name}",
+            tenant: config.tenant,
+            fields: config.fields,
+            primary_key: config.primaryKey
+          };
+          """
+        else
+          """
           const payload: Record<string, any> = {
             action: "#{rpc_action_name}",
             fields: config.fields,
             primary_key: config.primaryKey
           };
+          """
+        end
+
+        """
+        export function build#{rpc_action_name_pascal}Payload(
+          config: #{rpc_action_name_pascal}Config
+        ): Record<string, any> {
+        #{update_payload_base}
 
           if (config.calculations) {
             payload.calculations = config.calculations;
@@ -599,15 +633,28 @@ defmodule AshTypescript.Rpc.Codegen do
         """
 
       action.type == :destroy ->
-        """
-        export function build#{rpc_action_name_pascal}Payload(
-          config: #{rpc_action_name_pascal}Config
-        ): Record<string, any> {
-
+        destroy_payload_base = if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
+          """
+          const payload: Record<string, any> = {
+            action: "#{rpc_action_name}",
+            tenant: config.tenant,
+            primary_key: config.primaryKey
+          };
+          """
+        else
+          """
           const payload: Record<string, any> = {
             action: "#{rpc_action_name}",
             primary_key: config.primaryKey
           };
+          """
+        end
+
+        """
+        export function build#{rpc_action_name_pascal}Payload(
+          config: #{rpc_action_name_pascal}Config
+        ): Record<string, any> {
+        #{destroy_payload_base}
 
           if ("input" in config && config.input) {
             payload.input = config.input;
@@ -620,13 +667,26 @@ defmodule AshTypescript.Rpc.Codegen do
         """
 
       action.type == :action ->
+        action_payload_base = if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
+          """
+          const payload: Record<string, any> = {
+            action: "#{rpc_action_name}",
+            tenant: config.tenant
+          };
+          """
+        else
+          """
+          const payload: Record<string, any> = {
+            action: "#{rpc_action_name}"
+          };
+          """
+        end
+
         """
         export function build#{rpc_action_name_pascal}Payload(
           config: #{rpc_action_name_pascal}Config
         ): Record<string, any> {
-          const payload: Record<string, any> = {
-            action: "#{rpc_action_name}"
-          };
+        #{action_payload_base}
 
           if ("input" in config && config.input) {
             payload.input = config.input;
@@ -701,7 +761,7 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
-  defp generate_validation_function(rpc_action, action, rpc_action_name, endpoint_validate) do
+  defp generate_validation_function(resource, rpc_action, action, rpc_action_name, endpoint_validate) do
     # Only generate validation functions for create, update, and destroy actions
     case action.type do
       :read ->
@@ -720,25 +780,42 @@ defmodule AshTypescript.Rpc.Codegen do
 
         # Check if action has input parameters
         has_input = length(action.accept) > 0 or length(action.arguments) > 0
+        
+        # Check if resource requires tenant
+        requires_tenant = AshTypescript.Rpc.requires_tenant_parameter?(resource)
 
-        # Build function signature
-        params =
+        # Build function signature including tenant parameter when needed
+        base_params = 
           case {needs_primary_key, has_input} do
             {true, true} ->
-              "primaryKey: string | number, input: #{rpc_action_name_pascal}Config[\"input\"]"
+              ["primaryKey: string | number", "input: #{rpc_action_name_pascal}Config[\"input\"]"]
 
             {true, false} ->
-              "primaryKey: string | number"
+              ["primaryKey: string | number"]
 
             {false, true} ->
-              "input: #{rpc_action_name_pascal}Config[\"input\"]"
+              ["input: #{rpc_action_name_pascal}Config[\"input\"]"]
 
             {false, false} ->
-              ""
+              []
           end
 
+        all_params = 
+          if requires_tenant do
+            ["tenant: string"] ++ base_params
+          else
+            base_params
+          end
+
+        params = Enum.join(all_params, ", ")
+
         # Build payload construction
-        base_payload = ["action: \"#{rpc_action.name}\""]
+        base_payload = 
+          if requires_tenant do
+            ["action: \"#{rpc_action.name}\"", "tenant: tenant"]
+          else
+            ["action: \"#{rpc_action.name}\""]
+          end
 
         payload_with_pk =
           if needs_primary_key do

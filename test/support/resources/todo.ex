@@ -139,10 +139,8 @@ defmodule AshTypescript.Test.Todo do
              )
     end
 
-    read :get do
-      get? true
-      argument :id, :uuid, allow_nil?: false
-      filter expr(id == ^arg(:id))
+    read :get_by_id do
+      get_by [:id]
     end
 
     create :create do

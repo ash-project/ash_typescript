@@ -146,7 +146,15 @@ defmodule AshTypescript.Rpc.CalcsTest do
     test "loads various aggregate types via fields parameter", %{conn: conn, todo: todo} do
       params = %{
         "action" => "get_todo",
-        "fields" => ["id", "title", "has_comments", "average_rating", "highest_rating", "latest_comment_content", "comment_authors"],
+        "fields" => [
+          "id",
+          "title",
+          "has_comments",
+          "average_rating",
+          "highest_rating",
+          "latest_comment_content",
+          "comment_authors"
+        ],
         "input" => %{"id" => todo.id}
       }
 
@@ -175,7 +183,14 @@ defmodule AshTypescript.Rpc.CalcsTest do
     test "loads calculations and aggregates together", %{conn: conn, todo: todo} do
       params = %{
         "action" => "get_todo",
-        "fields" => ["id", "title", "is_overdue", "days_until_due", "comment_count", "helpful_comment_count"],
+        "fields" => [
+          "id",
+          "title",
+          "is_overdue",
+          "days_until_due",
+          "comment_count",
+          "helpful_comment_count"
+        ],
         "input" => %{"id" => todo.id}
       }
 
@@ -198,7 +213,13 @@ defmodule AshTypescript.Rpc.CalcsTest do
     test "loads calculations with relationships", %{conn: conn, todo: todo} do
       params = %{
         "action" => "get_todo",
-        "fields" => ["id", "title", "is_overdue", %{"comments" => ["id", "content"]}, %{"user" => ["id", "name"]}],
+        "fields" => [
+          "id",
+          "title",
+          "is_overdue",
+          %{"comments" => ["id", "content"]},
+          %{"user" => ["id", "name"]}
+        ],
         "input" => %{"id" => todo.id}
       }
 
@@ -297,15 +318,17 @@ defmodule AshTypescript.Rpc.CalcsTest do
       end
     end
 
-    test "calculations parameter can now handle field selection for calculations with arguments", %{conn: conn, todo: todo} do
-      # This test verifies that the enhanced RPC implementation can properly handle 
+    @tag :complex
+    test "calculations parameter can now handle field selection for calculations with arguments",
+         %{conn: conn, todo: todo} do
+      # This test verifies that the enhanced RPC implementation can properly handle
       # field selection for calculations that have arguments after the fix
-      
+
       # The 'self' calculation has an argument (prefix), which now gets properly validated
       # with type information resolved from the resource definition
-      
+
       params = %{
-        "action" => "get_todo", 
+        "action" => "get_todo",
         "fields" => ["id", "title"],
         "calculations" => %{
           "self" => %{
@@ -319,16 +342,16 @@ defmodule AshTypescript.Rpc.CalcsTest do
       # This should now work with the enhanced argument resolution
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
-      
+
       # Verify that the calculation loaded and field selection was applied
       assert Map.has_key?(data, :self)
       self_data = data.self
-      
+
       # The field selection should limit what's returned from the calculation
       assert Map.has_key?(self_data, :id)
-      assert Map.has_key?(self_data, :title) 
+      assert Map.has_key?(self_data, :title)
       assert Map.has_key?(self_data, :completed)
-      
+
       # Fields not requested should not be present (or should be filtered out)
       # depending on the extract_return_value implementation
     end
@@ -349,6 +372,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
 
       # Create todo with past due date (should be overdue)
       yesterday = Date.add(Date.utc_today(), -1)
+
       overdue_todo_params = %{
         "action" => "create_todo",
         "fields" => ["id", "title", "is_overdue", "days_until_due"],
@@ -368,6 +392,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
 
       # Create todo with future due date (should not be overdue)
       tomorrow = Date.add(Date.utc_today(), 1)
+
       future_todo_params = %{
         "action" => "create_todo",
         "fields" => ["id", "title", "is_overdue", "days_until_due"],
