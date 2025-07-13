@@ -226,6 +226,103 @@ defmodule AshTypescript.Rpc.CodegenFormattingTest do
 
   end
 
+  describe "TypeScript function name formatting" do
+    test "generates camelCase function names with :camel_case formatter" do
+      Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
+
+      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
+      # Check that RPC function names use camelCase
+      assert String.contains?(typescript_output, "export async function createTodo")
+      assert String.contains?(typescript_output, "export async function listTodos")
+      assert String.contains?(typescript_output, "export async function createUser")
+      assert String.contains?(typescript_output, "export async function updateUser")
+      
+      # Check validation function names use camelCase with validate prefix
+      assert String.contains?(typescript_output, "export async function validateCreateTodo")
+      assert String.contains?(typescript_output, "export async function validateUpdateUser")
+
+      # Verify snake_case function names are not present
+      refute String.contains?(typescript_output, "export async function create_todo")
+      refute String.contains?(typescript_output, "export async function list_todos")
+      refute String.contains?(typescript_output, "export async function validate_create_todo")
+    end
+
+    test "generates PascalCase function names with :pascal_case formatter" do
+      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
+
+      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
+      # Check that RPC function names use PascalCase
+      assert String.contains?(typescript_output, "export async function CreateTodo")
+      assert String.contains?(typescript_output, "export async function ListTodos")
+      assert String.contains?(typescript_output, "export async function CreateUser")
+      assert String.contains?(typescript_output, "export async function UpdateUser")
+      
+      # Check validation function names use PascalCase with validate prefix
+      assert String.contains?(typescript_output, "export async function ValidateCreateTodo")
+      assert String.contains?(typescript_output, "export async function ValidateUpdateUser")
+
+      # Verify camelCase function names are not present
+      refute String.contains?(typescript_output, "export async function createTodo")
+      refute String.contains?(typescript_output, "export async function listTodos")
+    end
+
+    test "generates snake_case function names with :snake_case formatter" do
+      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
+
+      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
+      # Check that RPC function names use snake_case
+      assert String.contains?(typescript_output, "export async function create_todo")
+      assert String.contains?(typescript_output, "export async function list_todos")
+      assert String.contains?(typescript_output, "export async function create_user")
+      assert String.contains?(typescript_output, "export async function update_user")
+      
+      # Check validation function names use snake_case with validate prefix
+      assert String.contains?(typescript_output, "export async function validate_create_todo")
+      assert String.contains?(typescript_output, "export async function validate_update_user")
+
+      # Verify camelCase function names are not present
+      refute String.contains?(typescript_output, "export async function createTodo")
+      refute String.contains?(typescript_output, "export async function listTodos")
+    end
+
+    test "generates function names with custom formatter" do
+      Application.put_env(:ash_typescript, :output_field_formatter, {Formatters, :custom_format})
+
+      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
+      # Check that RPC function names use custom formatting
+      assert String.contains?(typescript_output, "export async function custom_create_todo")
+      assert String.contains?(typescript_output, "export async function custom_list_todos")
+      assert String.contains?(typescript_output, "export async function custom_create_user")
+      
+      # Check validation function names use custom formatting with validate prefix
+      assert String.contains?(typescript_output, "export async function custom_validate_create_todo")
+      assert String.contains?(typescript_output, "export async function custom_validate_create_user")
+
+      # Verify default camelCase function names are not present
+      refute String.contains?(typescript_output, "export async function createTodo")
+      refute String.contains?(typescript_output, "export async function listTodos")
+    end
+
+    test "generates payload builder function names consistently with RPC functions" do
+      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
+
+      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
+      # Check that payload builder functions match the config naming (still PascalCase for types)
+      assert String.contains?(typescript_output, "export function buildCreateTodoPayload")
+      assert String.contains?(typescript_output, "export function buildListTodosPayload")
+      assert String.contains?(typescript_output, "export function buildCreateUserPayload")
+
+      # But RPC functions should use the configured formatter
+      assert String.contains?(typescript_output, "export async function CreateTodo")
+      assert String.contains?(typescript_output, "export async function ListTodos")
+    end
+  end
+
   describe "TypeScript generation consistency" do
     test "maintains type consistency across different formatters" do
       formatters = [:camel_case, :pascal_case, :snake_case]

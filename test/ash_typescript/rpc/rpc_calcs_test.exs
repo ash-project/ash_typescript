@@ -331,7 +331,13 @@ defmodule AshTypescript.Rpc.CalcsTest do
         "calculations" => %{
           "self" => %{
             "calcArgs" => %{"prefix" => nil},
-            "fields" => ["id", "title", "completed", "dueDate"]
+            "fields" => ["id", "title", "completed", "dueDate"],
+            "calculations" => %{
+              "self" => %{
+                "calcArgs" => %{"prefix" => nil},
+                "fields" => ["id", "title", "completed", "dueDate"]
+              }
+            }
           }
         },
         "input" => %{"id" => todo["id"]}
@@ -350,6 +356,8 @@ defmodule AshTypescript.Rpc.CalcsTest do
       assert Map.has_key?(self_data, "title")
       assert Map.has_key?(self_data, "completed")
       assert Map.has_key?(self_data, "dueDate")
+      assert Map.has_key?(self_data, "self")
+      assert Map.has_key?(self_data["self"], "id")
 
       # Fields not requested should not be present (or should be filtered out)
       # depending on the extract_return_value implementation

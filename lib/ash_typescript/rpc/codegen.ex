@@ -262,7 +262,7 @@ defmodule AshTypescript.Rpc.Codegen do
          endpoint_validate,
          _otp_app
        ) do
-    # Convert Rpc action name to camelCase function name (e.g., read_todo -> readTodos)
+    # Convert Rpc action name to formatted function name using output_field_formatter
     rpc_action_name = to_string(rpc_action.name)
 
     # Generate config type
@@ -280,7 +280,13 @@ defmodule AshTypescript.Rpc.Codegen do
 
     # Generate validation function (for create, update, destroy actions only)
     validation_function =
-      generate_validation_function(resource, rpc_action, action, rpc_action_name, endpoint_validate)
+      generate_validation_function(
+        resource,
+        rpc_action,
+        action,
+        rpc_action_name,
+        endpoint_validate
+      )
 
     functions_section =
       if validation_function == "" do
@@ -306,11 +312,10 @@ defmodule AshTypescript.Rpc.Codegen do
 
   defp generate_config_type(resource, action, rpc_action_name) do
     resource_name = resource |> Module.split() |> List.last()
-    _function_name = snake_to_camel_case(rpc_action_name)
     config_name = "#{snake_to_pascal_case(rpc_action_name)}Config"
 
     # Add tenant field if resource requires tenant
-    tenant_field = 
+    tenant_field =
       if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
         ["  tenant: string;"]
       else
@@ -318,9 +323,18 @@ defmodule AshTypescript.Rpc.Codegen do
       end
 
     # Base config fields - use formatted field names
-    formatted_fields_name = AshTypescript.FieldFormatter.format_field("fields", AshTypescript.Rpc.output_field_formatter())
-    formatted_calculations_name = AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())
-    
+    formatted_fields_name =
+      AshTypescript.FieldFormatter.format_field(
+        "fields",
+        AshTypescript.Rpc.output_field_formatter()
+      )
+
+    formatted_calculations_name =
+      AshTypescript.FieldFormatter.format_field(
+        "calculations",
+        AshTypescript.Rpc.output_field_formatter()
+      )
+
     fields_field = [
       "  #{formatted_fields_name}: FieldSelection<#{resource_name}ResourceSchema>[];"
     ]
@@ -364,13 +378,23 @@ defmodule AshTypescript.Rpc.Codegen do
                 optional = attr.allow_nil? || attr.default != nil
                 base_type = get_ts_type(attr)
                 field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
-                formatted_field_name = AshTypescript.FieldFormatter.format_field(field_name, AshTypescript.Rpc.output_field_formatter())
+
+                formatted_field_name =
+                  AshTypescript.FieldFormatter.format_field(
+                    field_name,
+                    AshTypescript.Rpc.output_field_formatter()
+                  )
 
                 "    #{formatted_field_name}#{if optional, do: "?", else: ""}: #{field_type};"
               end) ++
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
-                formatted_arg_name = AshTypescript.FieldFormatter.format_field(arg.name, AshTypescript.Rpc.output_field_formatter())
+
+                formatted_arg_name =
+                  AshTypescript.FieldFormatter.format_field(
+                    arg.name,
+                    AshTypescript.Rpc.output_field_formatter()
+                  )
 
                 "    #{formatted_arg_name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
               end) ++
@@ -401,7 +425,12 @@ defmodule AshTypescript.Rpc.Codegen do
               ["  input: {"] ++
                 Enum.map(action.accept, fn field_name ->
                   attr = Ash.Resource.Info.attribute(resource, field_name)
-                  formatted_field_name = AshTypescript.FieldFormatter.format_field(field_name, AshTypescript.Rpc.output_field_formatter())
+
+                  formatted_field_name =
+                    AshTypescript.FieldFormatter.format_field(
+                      field_name,
+                      AshTypescript.Rpc.output_field_formatter()
+                    )
 
                   if attr.allow_nil? do
                     "    #{formatted_field_name}?: #{get_ts_type(attr)} | null;"
@@ -411,7 +440,12 @@ defmodule AshTypescript.Rpc.Codegen do
                 end) ++
                 Enum.map(action.arguments, fn arg ->
                   optional = arg.allow_nil? || arg.default != nil
-                  formatted_arg_name = AshTypescript.FieldFormatter.format_field(arg.name, AshTypescript.Rpc.output_field_formatter())
+
+                  formatted_arg_name =
+                    AshTypescript.FieldFormatter.format_field(
+                      arg.name,
+                      AshTypescript.Rpc.output_field_formatter()
+                    )
 
                   "    #{formatted_arg_name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
                 end) ++
@@ -429,7 +463,12 @@ defmodule AshTypescript.Rpc.Codegen do
             ["  input: {"] ++
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
-                formatted_arg_name = AshTypescript.FieldFormatter.format_field(arg.name, AshTypescript.Rpc.output_field_formatter())
+
+                formatted_arg_name =
+                  AshTypescript.FieldFormatter.format_field(
+                    arg.name,
+                    AshTypescript.Rpc.output_field_formatter()
+                  )
 
                 "    #{formatted_arg_name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
               end) ++
@@ -455,8 +494,6 @@ defmodule AshTypescript.Rpc.Codegen do
 
   defp generate_result_type(resource, action, rpc_action_name) do
     resource_name = resource |> Module.split() |> List.last()
-    _function_name = snake_to_camel_case(rpc_action_name)
-
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
 
     case action.type do
@@ -503,8 +540,12 @@ defmodule AshTypescript.Rpc.Codegen do
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
 
     # Base payload construction with tenant handling
-    formatted_fields_name = AshTypescript.FieldFormatter.format_field("fields", AshTypescript.Rpc.output_field_formatter())
-    
+    formatted_fields_name =
+      AshTypescript.FieldFormatter.format_field(
+        "fields",
+        AshTypescript.Rpc.output_field_formatter()
+      )
+
     base_payload_with_tenant = fn ->
       if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
         """
@@ -603,24 +644,25 @@ defmodule AshTypescript.Rpc.Codegen do
         """
 
       action.type == :update ->
-        update_payload_base = if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
-          """
-          const payload: Record<string, any> = {
-            action: "#{rpc_action_name}",
-            tenant: config.tenant,
-            fields: config.#{formatted_fields_name},
-            primary_key: config.primaryKey
-          };
-          """
-        else
-          """
-          const payload: Record<string, any> = {
-            action: "#{rpc_action_name}",
-            fields: config.#{formatted_fields_name},
-            primary_key: config.primaryKey
-          };
-          """
-        end
+        update_payload_base =
+          if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
+            """
+            const payload: Record<string, any> = {
+              action: "#{rpc_action_name}",
+              tenant: config.tenant,
+              fields: config.#{formatted_fields_name},
+              primary_key: config.primaryKey
+            };
+            """
+          else
+            """
+            const payload: Record<string, any> = {
+              action: "#{rpc_action_name}",
+              fields: config.#{formatted_fields_name},
+              primary_key: config.primaryKey
+            };
+            """
+          end
 
         """
         export function build#{rpc_action_name_pascal}Payload(
@@ -643,22 +685,23 @@ defmodule AshTypescript.Rpc.Codegen do
         """
 
       action.type == :destroy ->
-        destroy_payload_base = if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
-          """
-          const payload: Record<string, any> = {
-            action: "#{rpc_action_name}",
-            tenant: config.tenant,
-            primary_key: config.primaryKey
-          };
-          """
-        else
-          """
-          const payload: Record<string, any> = {
-            action: "#{rpc_action_name}",
-            primary_key: config.primaryKey
-          };
-          """
-        end
+        destroy_payload_base =
+          if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
+            """
+            const payload: Record<string, any> = {
+              action: "#{rpc_action_name}",
+              tenant: config.tenant,
+              primary_key: config.primaryKey
+            };
+            """
+          else
+            """
+            const payload: Record<string, any> = {
+              action: "#{rpc_action_name}",
+              primary_key: config.primaryKey
+            };
+            """
+          end
 
         """
         export function build#{rpc_action_name_pascal}Payload(
@@ -677,20 +720,21 @@ defmodule AshTypescript.Rpc.Codegen do
         """
 
       action.type == :action ->
-        action_payload_base = if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
-          """
-          const payload: Record<string, any> = {
-            action: "#{rpc_action_name}",
-            tenant: config.tenant
-          };
-          """
-        else
-          """
-          const payload: Record<string, any> = {
-            action: "#{rpc_action_name}"
-          };
-          """
-        end
+        action_payload_base =
+          if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
+            """
+            const payload: Record<string, any> = {
+              action: "#{rpc_action_name}",
+              tenant: config.tenant
+            };
+            """
+          else
+            """
+            const payload: Record<string, any> = {
+              action: "#{rpc_action_name}"
+            };
+            """
+          end
 
         """
         export function build#{rpc_action_name_pascal}Payload(
@@ -711,7 +755,11 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   defp generate_rpc_execution_function(_rpc_action, action, rpc_action_name, endpoint_process) do
-    function_name = snake_to_camel_case(rpc_action_name)
+    function_name =
+      AshTypescript.FieldFormatter.format_field(
+        rpc_action_name,
+        AshTypescript.Rpc.output_field_formatter()
+      )
 
     # Add proper type handling for different action types
     is_generic_action = action.type in [:action, :generic]
@@ -771,7 +819,13 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
-  defp generate_validation_function(resource, rpc_action, action, rpc_action_name, endpoint_validate) do
+  defp generate_validation_function(
+         resource,
+         rpc_action,
+         action,
+         rpc_action_name,
+         endpoint_validate
+       ) do
     # Only generate validation functions for create, update, and destroy actions
     case action.type do
       :read ->
@@ -781,27 +835,42 @@ defmodule AshTypescript.Rpc.Codegen do
         ""
 
       _ ->
-        # Convert Rpc action name to pascal case for validation function name
+        # Convert Rpc action name using output formatter and add validate prefix
+        validation_function_name =
+          AshTypescript.FieldFormatter.format_field(
+            "validate_" <> rpc_action_name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        primary_key_field_name =
+          AshTypescript.FieldFormatter.format_field(
+            "primary_key",
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        # Keep pascal case for config type references (TypeScript convention)
         rpc_action_name_pascal = AshTypescript.Helpers.snake_to_pascal_case(rpc_action_name)
-        validation_function_name = "validate#{rpc_action_name_pascal}"
 
         # Determine if we need primary_key parameter
         needs_primary_key = action.type in [:update, :destroy]
 
         # Check if action has input parameters
         has_input = length(action.accept) > 0 or length(action.arguments) > 0
-        
+
         # Check if resource requires tenant
         requires_tenant = AshTypescript.Rpc.requires_tenant_parameter?(resource)
 
         # Build function signature including tenant parameter when needed
-        base_params = 
+        base_params =
           case {needs_primary_key, has_input} do
             {true, true} ->
-              ["primaryKey: string | number", "input: #{rpc_action_name_pascal}Config[\"input\"]"]
+              [
+                "#{primary_key_field_name}: string | number",
+                "input: #{rpc_action_name_pascal}Config[\"input\"]"
+              ]
 
             {true, false} ->
-              ["primaryKey: string | number"]
+              ["#{primary_key_field_name}: string | number"]
 
             {false, true} ->
               ["input: #{rpc_action_name_pascal}Config[\"input\"]"]
@@ -810,7 +879,7 @@ defmodule AshTypescript.Rpc.Codegen do
               []
           end
 
-        all_params = 
+        all_params =
           if requires_tenant do
             ["tenant: string"] ++ base_params
           else
@@ -820,7 +889,7 @@ defmodule AshTypescript.Rpc.Codegen do
         params = Enum.join(all_params, ", ")
 
         # Build payload construction
-        base_payload = 
+        base_payload =
           if requires_tenant do
             ["action: \"#{rpc_action.name}\"", "tenant: tenant"]
           else
@@ -829,7 +898,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
         payload_with_pk =
           if needs_primary_key do
-            base_payload ++ ["primary_key: primaryKey"]
+            base_payload ++ ["primary_key: #{primary_key_field_name}"]
           else
             base_payload
           end
