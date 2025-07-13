@@ -79,6 +79,90 @@ const newTodo = await createTodo({
 });
 ```
 
+## Usage Guide
+
+### Update Operations
+
+Update operations require a specific parameter structure that differs from create operations. Understanding this structure is crucial for successful updates.
+
+#### Correct Update Structure
+
+```typescript
+// ✅ Correct way to update a record
+const updatedTodo = await updateTodo({
+  primaryKey: "existing-todo-id",    // Which record to update
+  fields: ["id", "title", "completed"],
+  input: {                          // Only the fields being changed
+    title: "Updated Title",
+    completed: true
+  }
+});
+```
+
+#### Common Mistake
+
+```typescript
+// ❌ Wrong - Don't put the ID in the input
+const updatedTodo = await updateTodo({
+  fields: ["id", "title", "completed"],
+  input: {
+    id: "existing-todo-id",         // Wrong! This should be in primaryKey
+    title: "Updated Title",
+    completed: true
+  }
+});
+// This will result in "record with id: nil not found" error
+```
+
+#### Why This Structure Matters
+
+The RPC system processes updates in two steps:
+1. **Find the record**: Uses `primaryKey` to locate the existing record
+2. **Apply changes**: Uses `input` to specify what fields to update
+
+This separation ensures:
+- **Security**: Proper tenant isolation and permission checking
+- **Clarity**: Clear distinction between "which record" vs "what changes"
+- **Consistency**: Uniform handling across all update operations
+
+#### Update with Multitenancy
+
+For multitenant resources, include the tenant parameter:
+
+```typescript
+// With tenant parameters (default mode)
+const updatedPost = await updatePost({
+  tenant: "org_123",               // Tenant context
+  primaryKey: "existing-post-id",  // Which record
+  fields: ["id", "title"],
+  input: { title: "New Title" }    // What to change
+});
+```
+
+#### Create vs Update Comparison
+
+**Create Operations** (no existing record):
+```typescript
+const newTodo = await createTodo({
+  fields: ["id", "title"],
+  input: {
+    title: "New Todo",      // All data goes in input
+    userId: "user-123"
+  }
+});
+```
+
+**Update Operations** (existing record):
+```typescript
+const updatedTodo = await updateTodo({
+  primaryKey: "todo-456",   // Identify existing record
+  fields: ["id", "title"],
+  input: {
+    title: "Updated Todo"   // Only fields being changed
+  }
+});
+```
+
 ## Configuration
 
 You can configure AshTypescript in your application config:

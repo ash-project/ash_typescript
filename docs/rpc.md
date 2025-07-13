@@ -469,6 +469,81 @@ Tenant validation happens at the Ash level according to your resource's authoriz
 - Existing TypeScript client code remains unchanged when using default configuration
 - Applications can opt into connection-based mode without breaking changes to non-multitenant resources
 
+### RPC Operation Structure
+
+#### Update Operation Structure
+
+Update operations in the RPC system require a specific parameter structure that differs from create operations:
+
+**✅ Correct Update Structure:**
+```elixir
+%{
+  "action" => "update_user_settings",
+  "primary_key" => record_id,        # Which record to update
+  "input" => %{"theme" => "dark"},   # What changes to make  
+  "tenant" => user_id,               # Tenant context (if required)
+  "fields" => ["id", "theme"]        # Which fields to return
+}
+```
+
+**❌ Incorrect Update Structure:**
+```elixir
+%{
+  "action" => "update_user_settings",
+  "input" => %{
+    "id" => record_id,               # Wrong: ID should be in primary_key
+    "theme" => "dark"
+  },
+  "tenant" => user_id,
+  "fields" => ["id", "theme"]
+}
+```
+
+#### Why This Structure Matters
+
+The RPC layer processes updates in two steps:
+1. **Fetch the record**: `Ash.get(resource, params["primary_key"], opts)`
+2. **Apply changes**: Uses `params["input"]` for field updates
+
+**Critical separation:**
+- `"primary_key"` → **Which record** to operate on
+- `"input"` → **What changes** to apply
+- `"tenant"` → **Security context** for the operation
+
+#### Common Update Error
+
+**Error**: `record with id: nil not found`
+
+**Cause**: Passing the record ID in `"input"` instead of `"primary_key"`
+
+**Solution**: Move the ID to the `"primary_key"` field and remove it from `"input"`
+
+#### Create vs Update Comparison
+
+**Create Operations** (no existing record):
+```elixir
+%{
+  "action" => "create_user_settings",
+  "input" => %{
+    "user_id" => user_id,            # All data goes in input
+    "theme" => "dark"
+  },
+  "tenant" => user_id
+}
+```
+
+**Update Operations** (existing record):
+```elixir
+%{
+  "action" => "update_user_settings", 
+  "primary_key" => record_id,        # Identify existing record
+  "input" => %{
+    "theme" => "dark"                # Only fields being changed
+  },
+  "tenant" => user_id
+}
+```
+
 ### Debugging Techniques
 
 #### Isolating RPC Issues
@@ -477,6 +552,13 @@ When debugging calculation problems:
 2. **Create minimal RPC test**: Replicate the exact RPC request in a test
 3. **Check argument format**: Inspect what the RPC layer passes to `Ash.Query.load/2`
 4. **Verify atom conversion**: Ensure string arguments convert to expected atoms
+
+#### Update Operation Debugging
+When debugging update failures:
+1. **Verify primary_key structure**: Ensure ID is in `"primary_key"`, not `"input"`
+2. **Check tenant context**: For multitenant resources, verify tenant is passed correctly
+3. **Test record exists**: Confirm the record can be fetched with `Ash.get/3` using the same parameters
+4. **Validate input changes**: Ensure only updatable fields are in `"input"`
 
 #### Example Debug Test
 ```elixir
@@ -491,5 +573,28 @@ test "debug calculation arguments" do
     }
   }
   result = Rpc.run_action(:my_domain, conn, params)
+end
+
+test "debug update operation structure" do
+  # Create a record first
+  create_params = %{
+    "action" => "create_todo",
+    "input" => %{"title" => "Test Todo", "user_id" => user_id},
+    "fields" => ["id"]
+  }
+  
+  create_result = Rpc.run_action(:my_domain, conn, create_params)
+  %{data: %{id: record_id}} = create_result
+  
+  # Test update with correct structure
+  update_params = %{
+    "action" => "update_todo",
+    "primary_key" => record_id,      # ✅ Correct: ID in primary_key
+    "input" => %{"title" => "Updated"}, # ✅ Correct: Only changes in input
+    "fields" => ["id", "title"]
+  }
+  
+  result = Rpc.run_action(:my_domain, conn, update_params)
+  assert %{success: true} = result
 end
 ```

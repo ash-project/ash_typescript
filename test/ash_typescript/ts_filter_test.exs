@@ -3,7 +3,7 @@ defmodule AshTypescript.FilterTest do
 
   alias AshTypescript.Filter
 
-  alias AshTypescript.Test.{Post, User, PostComment, NoRelationshipsResource, EmptyResource, Domain}
+  alias AshTypescript.Test.{Post, User, NoRelationshipsResource, EmptyResource}
 
   describe "generate_filter_type/1" do
     test "generates basic filter type for resource" do

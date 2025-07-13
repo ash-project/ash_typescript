@@ -59,7 +59,7 @@ defmodule AshTypescript.Rpc do
 
   @doc """
   Determines if tenant parameters are required in RPC requests.
-  
+
   This checks the application configuration for :require_tenant_parameters.
   If true (default), tenant parameters are required for multitenant resources.
   If false, tenant will be extracted from the connection using Ash.PlugHelpers.get_tenant/1.
@@ -70,26 +70,24 @@ defmodule AshTypescript.Rpc do
 
   @doc """
   Determines if a resource requires a tenant parameter.
-  
+
   A resource requires a tenant if it has multitenancy configured and global? is false (default).
   """
   def requires_tenant?(resource) do
     strategy = Ash.Resource.Info.multitenancy_strategy(resource)
-    
+
     case strategy do
       strategy when strategy in [:attribute, :context] ->
-        # Check if global? is set to false (which means tenant is required)
         not Ash.Resource.Info.multitenancy_global?(resource)
-      
+
       _ ->
-        # No multitenancy configured
         false
     end
   end
 
   @doc """
   Determines if a resource should have tenant parameters in the generated TypeScript interface.
-  
+
   This combines resource multitenancy requirements with the configuration setting.
   """
   def requires_tenant_parameter?(resource) do
@@ -120,13 +118,13 @@ defmodule AshTypescript.Rpc do
       {resource, %{action: action}} ->
         action = Ash.Resource.Info.action(resource, action)
 
-        # Determine tenant from request parameters or connection based on configuration
-        tenant = 
+        tenant =
           if requires_tenant_parameter?(resource) do
             case Map.get(params, "tenant") do
-              nil -> 
+              nil ->
                 raise "Tenant parameter is required for resource #{inspect(resource)} but was not provided"
-              tenant_value -> 
+
+              tenant_value ->
                 tenant_value
             end
           else
@@ -368,13 +366,13 @@ defmodule AshTypescript.Rpc do
       {resource, %{action: action}} ->
         action = Ash.Resource.Info.action(resource, action)
 
-        # Determine tenant from request parameters or connection based on configuration
-        tenant = 
+        tenant =
           if requires_tenant_parameter?(resource) do
             case Map.get(params, "tenant") do
-              nil -> 
+              nil ->
                 raise "Tenant parameter is required for resource #{inspect(resource)} but was not provided"
-              tenant_value -> 
+
+              tenant_value ->
                 tenant_value
             end
           else
