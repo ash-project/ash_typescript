@@ -2,7 +2,7 @@ defmodule AshTypescript.CodegenTest do
   use ExUnit.Case, async: true
   alias AshTypescript.Codegen
 
-  alias AshTypescript.CodegenTest.{Todo, Comment, Domain}
+  alias AshTypescript.Test.{Todo, TodoComment}
 
   describe "get_ts_type/2 - basic types" do
     test "converts nil type" do
@@ -64,7 +64,7 @@ defmodule AshTypescript.CodegenTest do
     end
 
     test "converts Ash.Type.Enum to union type" do
-      result = Codegen.get_ts_type(%{type: AshTypescript.Test.TodoStatus, constraints: []})
+      result = Codegen.get_ts_type(%{type: AshTypescript.Test.Todo.Status, constraints: []})
       assert result == "\"pending\" | \"ongoing\" | \"finished\" | \"cancelled\""
     end
 
@@ -182,13 +182,13 @@ defmodule AshTypescript.CodegenTest do
 
   describe "get_ts_type/2 - enum types" do
     test "converts Ash.Type.Enum to union type via behaviour check" do
-      result = Codegen.get_ts_type(%{type: AshTypescript.Test.TodoStatus, constraints: []})
+      result = Codegen.get_ts_type(%{type: AshTypescript.Test.Todo.Status, constraints: []})
       assert result == "\"pending\" | \"ongoing\" | \"finished\" | \"cancelled\""
     end
 
     test "converts enum in array to array of union types" do
       result =
-        Codegen.get_ts_type(%{type: {:array, AshTypescript.Test.TodoStatus}, constraints: []})
+        Codegen.get_ts_type(%{type: {:array, AshTypescript.Test.Todo.Status}, constraints: []})
 
       assert result == "Array<\"pending\" | \"ongoing\" | \"finished\" | \"cancelled\">"
     end
@@ -196,7 +196,7 @@ defmodule AshTypescript.CodegenTest do
     test "handles enum in map field constraints" do
       constraints = [
         fields: [
-          status: [type: AshTypescript.Test.TodoStatus, allow_nil?: false]
+          status: [type: AshTypescript.Test.Todo.Status, allow_nil?: false]
         ]
       ]
 
@@ -207,7 +207,7 @@ defmodule AshTypescript.CodegenTest do
     test "handles enum in union type" do
       constraints = [
         types: [
-          status: [type: AshTypescript.Test.TodoStatus, constraints: []],
+          status: [type: AshTypescript.Test.Todo.Status, constraints: []],
           string: [type: :string, constraints: []]
         ]
       ]
@@ -220,7 +220,7 @@ defmodule AshTypescript.CodegenTest do
     test "handles enum in struct fields" do
       constraints = [
         fields: [
-          status: [type: AshTypescript.Test.TodoStatus, allow_nil?: false],
+          status: [type: AshTypescript.Test.Todo.Status, allow_nil?: false],
           name: [type: :string, allow_nil?: false]
         ]
       ]
@@ -351,8 +351,8 @@ defmodule AshTypescript.CodegenTest do
     end
 
     test "generates field spec for integer calculation" do
-      result = Codegen.get_resource_field_spec(:days_remaining, Todo)
-      assert result == "  days_remaining?: number | null;"
+      result = Codegen.get_resource_field_spec(:days_until_due, Todo)
+      assert result == "  days_until_due?: number | null;"
     end
   end
 
@@ -365,8 +365,10 @@ defmodule AshTypescript.CodegenTest do
 
   describe "get_resource_field_spec/2 - relationships" do
     test "throws error for non-public relationships" do
-      assert catch_throw(Codegen.get_resource_field_spec({:comments, [:id, :content]}, Todo)) ==
-               "Relationship not found on AshTypescript.CodegenTest.Todo: comments"
+      assert catch_throw(
+               Codegen.get_resource_field_spec({:private_items, [:id, :content]}, Todo)
+             ) ==
+               "Relationship not found on AshTypescript.Test.Todo: private_items"
     end
   end
 
@@ -398,12 +400,12 @@ defmodule AshTypescript.CodegenTest do
 
     test "throws error for unknown field" do
       assert catch_throw(Codegen.get_resource_field_spec(:unknown_field, Todo)) ==
-               "Field not found: AshTypescript.CodegenTest.Todo.unknown_field"
+               "Field not found: AshTypescript.Test.Todo.unknown_field"
     end
 
     test "throws error for unknown relationship" do
       assert catch_throw(Codegen.get_resource_field_spec({:unknown_rel, [:id]}, Todo)) ==
-               "Relationship not found on AshTypescript.CodegenTest.Todo: unknown_rel"
+               "Relationship not found on AshTypescript.Test.Todo: unknown_rel"
     end
   end
 
@@ -432,8 +434,8 @@ defmodule AshTypescript.CodegenTest do
       assert String.contains?(result, "user_id: UUID;")
     end
 
-    test "generates complete Comment resource type" do
-      result = Codegen.build_resource_type(Comment)
+    test "generates complete TodoComment resource type" do
+      result = Codegen.build_resource_type(TodoComment)
 
       assert String.contains?(result, "id: UUID;")
       assert String.contains?(result, "content: string;")

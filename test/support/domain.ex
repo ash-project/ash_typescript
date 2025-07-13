@@ -17,10 +17,11 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :destroy_todo, :destroy
     end
 
-    resource AshTypescript.Test.Comment do
-      rpc_action :list_comments, :read
-      rpc_action :create_comment, :create
-      rpc_action :update_comment, :update
+    resource AshTypescript.Test.TodoComment do
+      rpc_action :list_todo_comments, :read
+      rpc_action :create_todo_comment, :create
+      rpc_action :update_todo_comment, :update
+      rpc_action :destroy_todo_comment, :destroy
     end
 
     resource AshTypescript.Test.User do
@@ -32,8 +33,12 @@ defmodule AshTypescript.Test.Domain do
 
   resources do
     resource AshTypescript.Test.Todo
-    resource AshTypescript.Test.Comment
+    resource AshTypescript.Test.TodoComment
     resource AshTypescript.Test.User
     resource AshTypescript.Test.NotExposed
+    resource AshTypescript.Test.Post
+    resource AshTypescript.Test.PostComment
+    resource AshTypescript.Test.NoRelationshipsResource
+    resource AshTypescript.Test.EmptyResource
   end
 end

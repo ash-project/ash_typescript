@@ -12,12 +12,12 @@ defmodule AshTypescript.Rpc.CodegenTest do
       # Verify exposed resources are included
       assert String.contains?(typescript_output, "Todo")
       assert String.contains?(typescript_output, "User")
-      assert String.contains?(typescript_output, "Comment")
+      assert String.contains?(typescript_output, "TodoComment")
 
       # Verify RPC function names are generated for exposed resources
     end
 
-    test "generates complete TypeScript types for Todo, Comment, and User resources" do
+    test "generates complete TypeScript types for Todo, TodoComment, and User resources" do
       # Generate TypeScript types for the test domain
       typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
@@ -27,11 +27,11 @@ defmodule AshTypescript.Rpc.CodegenTest do
       assert String.contains?(typescript_output, "export type TodoResourceSchema")
       assert String.contains?(typescript_output, "export type TodoFilterInput")
 
-      # Verify Comment resource types
-      assert String.contains?(typescript_output, "type CommentFieldsSchema")
-      assert String.contains?(typescript_output, "type CommentRelationshipSchema")
-      assert String.contains?(typescript_output, "export type CommentResourceSchema")
-      assert String.contains?(typescript_output, "export type CommentFilterInput")
+      # Verify TodoComment resource types
+      assert String.contains?(typescript_output, "type TodoCommentFieldsSchema")
+      assert String.contains?(typescript_output, "type TodoCommentRelationshipSchema")
+      assert String.contains?(typescript_output, "export type TodoCommentResourceSchema")
+      assert String.contains?(typescript_output, "export type TodoCommentFilterInput")
 
       # Verify User resource types
       assert String.contains?(typescript_output, "type UserFieldsSchema")
@@ -53,7 +53,7 @@ defmodule AshTypescript.Rpc.CodegenTest do
                "priority?: \"low\" | \"medium\" | \"high\" | \"urgent\""
              )
 
-      # Verify specific Comment attributes are present
+      # Verify specific TodoComment attributes are present
       assert String.contains?(typescript_output, "content: string")
       assert String.contains?(typescript_output, "author_name: string")
       assert String.contains?(typescript_output, "rating?: number")
@@ -73,8 +73,9 @@ defmodule AshTypescript.Rpc.CodegenTest do
       assert String.contains?(typescript_output, "export async function listTodos")
       assert String.contains?(typescript_output, "export async function createTodo")
       assert String.contains?(typescript_output, "export async function updateTodo")
-      assert String.contains?(typescript_output, "export async function listComments")
-      assert String.contains?(typescript_output, "export async function createComment")
+      assert String.contains?(typescript_output, "export async function listTodoComments")
+      assert String.contains?(typescript_output, "export async function createTodoComment")
+      assert String.contains?(typescript_output, "export async function destroyTodoComment")
       assert String.contains?(typescript_output, "export async function listUsers")
       assert String.contains?(typescript_output, "export async function createUser")
     end
@@ -91,7 +92,7 @@ defmodule AshTypescript.Rpc.CodegenTest do
 
       assert String.contains?(
                typescript_output,
-               "export async function validateCreateComment(input: CreateCommentConfig[\"input\"])"
+               "export async function validateCreateTodoComment(input: CreateTodoCommentConfig[\"input\"])"
              )
 
       assert String.contains?(
@@ -107,7 +108,7 @@ defmodule AshTypescript.Rpc.CodegenTest do
 
       assert String.contains?(
                typescript_output,
-               "export async function validateUpdateComment(primaryKey: string | number, input: UpdateCommentConfig[\"input\"])"
+               "export async function validateUpdateTodoComment(primaryKey: string | number, input: UpdateTodoCommentConfig[\"input\"])"
              )
 
       assert String.contains?(
@@ -132,10 +133,15 @@ defmodule AshTypescript.Rpc.CodegenTest do
                "export async function validateDestroyTodo(primaryKey: string | number)"
              )
 
+      assert String.contains?(
+               typescript_output,
+               "export async function validateDestroyTodoComment(primaryKey: string | number)"
+             )
+
       # Assert validation functions are NOT generated for READ actions
       refute String.contains?(typescript_output, "validateListTodos")
       refute String.contains?(typescript_output, "validateGetTodo")
-      refute String.contains?(typescript_output, "validateListComments")
+      refute String.contains?(typescript_output, "validateListTodoComments")
       refute String.contains?(typescript_output, "validateListUsers")
 
       # Assert validation functions are NOT generated for GENERIC actions

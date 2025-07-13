@@ -7,7 +7,7 @@ ExUnit.start()
 for resource <- [
       AshTypescript.Test.User,
       AshTypescript.Test.Todo,
-      AshTypescript.Test.Comment,
+      AshTypescript.Test.TodoComment,
       AshTypescript.Test.NotExposed
     ] do
   try do

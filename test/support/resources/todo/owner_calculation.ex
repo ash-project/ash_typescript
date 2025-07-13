@@ -1,4 +1,4 @@
-defmodule AshTypescript.Test.TodoOwnerCalculation do
+defmodule AshTypescript.Test.Todo.OwnerCalculation do
   use Ash.Resource.Calculation
 
   @impl true

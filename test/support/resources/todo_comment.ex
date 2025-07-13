@@ -1,8 +1,12 @@
-defmodule AshTypescript.Test.Comment do
+defmodule AshTypescript.Test.TodoComment do
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
     data_layer: Ash.DataLayer.Ets,
     primary_read_warning?: false
+
+  ets do
+    private? true
+  end
 
   attributes do
     uuid_primary_key :id

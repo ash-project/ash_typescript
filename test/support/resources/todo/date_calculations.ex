@@ -1,4 +1,4 @@
-defmodule AshTypescript.Test.SimpleDateCalculation do
+defmodule AshTypescript.Test.Todo.SimpleDateCalculation do
   use Ash.Resource.Calculation
 
   @impl true
@@ -9,7 +9,7 @@ defmodule AshTypescript.Test.SimpleDateCalculation do
   @impl true
   def calculate(records, _opts, _context) do
     today = Date.utc_today()
-    
+
     Enum.map(records, fn record ->
       if is_nil(record.due_date) do
         nil
@@ -31,7 +31,7 @@ defmodule AshTypescript.Test.IsOverdueCalculation do
   @impl true
   def calculate(records, _opts, _context) do
     today = Date.utc_today()
-    
+
     Enum.map(records, fn record ->
       if is_nil(record.due_date) do
         false

@@ -4,6 +4,10 @@ defmodule AshTypescript.Test.User do
     data_layer: Ash.DataLayer.Ets,
     primary_read_warning?: false
 
+  ets do
+    private? true
+  end
+
   attributes do
     uuid_primary_key :id
 
@@ -16,16 +20,25 @@ defmodule AshTypescript.Test.User do
       allow_nil? false
       public? true
     end
+
+    attribute :active, :boolean do
+      default true
+      public? true
+    end
   end
 
   relationships do
-    has_many :comments, AshTypescript.Test.Comment do
+    has_many :comments, AshTypescript.Test.TodoComment do
       public? true
     end
 
     has_many :todos, AshTypescript.Test.Todo do
       public? true
     end
+
+    has_many :posts, AshTypescript.Test.Post,
+      destination_attribute: :author_id,
+      public?: true
   end
 
   actions do

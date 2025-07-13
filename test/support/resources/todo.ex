@@ -25,7 +25,7 @@ defmodule AshTypescript.Test.Todo do
       public? true
     end
 
-    attribute :status, AshTypescript.Test.TodoStatus do
+    attribute :status, AshTypescript.Test.Todo.Status do
       default :pending
       public? true
     end
@@ -62,7 +62,7 @@ defmodule AshTypescript.Test.Todo do
       public? true
     end
 
-    has_many :comments, AshTypescript.Test.Comment do
+    has_many :comments, AshTypescript.Test.TodoComment do
       public? true
     end
 
@@ -99,7 +99,7 @@ defmodule AshTypescript.Test.Todo do
       public? true
     end
 
-    calculate :days_until_due, :integer, AshTypescript.Test.SimpleDateCalculation do
+    calculate :days_until_due, :integer, AshTypescript.Test.Todo.SimpleDateCalculation do
       public? true
     end
 

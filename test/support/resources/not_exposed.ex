@@ -4,6 +4,10 @@ defmodule AshTypescript.Test.NotExposed do
     data_layer: Ash.DataLayer.Ets,
     primary_read_warning?: false
 
+  ets do
+    private? true
+  end
+
   attributes do
     uuid_primary_key :id
 

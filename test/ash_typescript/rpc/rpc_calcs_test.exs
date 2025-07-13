@@ -54,7 +54,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
       comments =
         Enum.map(comment_data, fn comment_attrs ->
           comment_params = %{
-            "action" => "create_comment",
+            "action" => "create_todo_comment",
             "fields" => ["id"],
             "input" => Map.merge(comment_attrs, %{"user_id" => user.id, "todo_id" => todo.id})
           }

@@ -3,20 +3,20 @@ defmodule AshTypescript.FilterTest do
 
   alias AshTypescript.Filter
 
-  alias AshTypescript.FilterTest.{TestPost, TestUser, TestComment, NoRelationshipsResource, EmptyResource, TestDomain}
+  alias AshTypescript.Test.{Post, User, PostComment, NoRelationshipsResource, EmptyResource, Domain}
 
   describe "generate_filter_type/1" do
     test "generates basic filter type for resource" do
-      result = Filter.generate_filter_type(TestPost)
+      result = Filter.generate_filter_type(Post)
 
-      assert String.contains?(result, "export type TestPostFilterInput")
-      assert String.contains?(result, "and?: Array<TestPostFilterInput>")
-      assert String.contains?(result, "or?: Array<TestPostFilterInput>")
-      assert String.contains?(result, "not?: Array<TestPostFilterInput>")
+      assert String.contains?(result, "export type PostFilterInput")
+      assert String.contains?(result, "and?: Array<PostFilterInput>")
+      assert String.contains?(result, "or?: Array<PostFilterInput>")
+      assert String.contains?(result, "not?: Array<PostFilterInput>")
     end
 
     test "includes string attribute filters" do
-      result = Filter.generate_filter_type(TestPost)
+      result = Filter.generate_filter_type(Post)
 
       assert String.contains?(result, "title?: {")
       assert String.contains?(result, "eq?: string")
@@ -25,7 +25,7 @@ defmodule AshTypescript.FilterTest do
     end
 
     test "includes boolean attribute filters" do
-      result = Filter.generate_filter_type(TestPost)
+      result = Filter.generate_filter_type(Post)
 
       assert String.contains?(result, "published?: {")
       assert String.contains?(result, "eq?: boolean")
@@ -35,7 +35,7 @@ defmodule AshTypescript.FilterTest do
     end
 
     test "includes integer attribute filters with comparison operations" do
-      result = Filter.generate_filter_type(TestPost)
+      result = Filter.generate_filter_type(Post)
 
       assert String.contains?(result, "view_count?: {")
       assert String.contains?(result, "eq?: number")
@@ -45,7 +45,7 @@ defmodule AshTypescript.FilterTest do
     end
 
     test "includes decimal attribute filters with comparison operations" do
-      result = Filter.generate_filter_type(TestPost)
+      result = Filter.generate_filter_type(Post)
 
       assert String.contains?(result, "rating?: {")
       assert String.contains?(result, "eq?: number")
@@ -54,7 +54,7 @@ defmodule AshTypescript.FilterTest do
     end
 
     test "includes datetime attribute filters with comparison operations" do
-      result = Filter.generate_filter_type(TestPost)
+      result = Filter.generate_filter_type(Post)
 
       assert String.contains?(result, "published_at?: {")
       assert String.contains?(result, "eq?: UtcDateTime")
@@ -63,7 +63,7 @@ defmodule AshTypescript.FilterTest do
     end
 
     test "includes constrained atom attribute filters" do
-      result = Filter.generate_filter_type(TestPost)
+      result = Filter.generate_filter_type(Post)
 
       assert String.contains?(result, "status?: {")
       assert String.contains?(result, "eq?: \"draft\" | \"published\" | \"archived\"")
@@ -71,7 +71,7 @@ defmodule AshTypescript.FilterTest do
     end
 
     test "includes array attribute filters" do
-      result = Filter.generate_filter_type(TestPost)
+      result = Filter.generate_filter_type(Post)
 
       assert String.contains?(result, "tags?: {")
       assert String.contains?(result, "eq?: Array<string>")
@@ -79,17 +79,17 @@ defmodule AshTypescript.FilterTest do
     end
 
     test "includes map attribute filters" do
-      result = Filter.generate_filter_type(TestPost)
+      result = Filter.generate_filter_type(Post)
 
       assert String.contains?(result, "metadata?: {")
       assert String.contains?(result, "eq?: Record<string, any>")
     end
 
     test "includes relationship filters" do
-      result = Filter.generate_filter_type(TestPost)
+      result = Filter.generate_filter_type(Post)
 
-      assert String.contains?(result, "author?: TestUserFilterInput")
-      assert String.contains?(result, "comments?: TestCommentFilterInput")
+      assert String.contains?(result, "author?: UserFilterInput")
+      assert String.contains?(result, "comments?: PostCommentFilterInput")
     end
   end
 
@@ -97,7 +97,7 @@ defmodule AshTypescript.FilterTest do
     # Testing through generate_filter_type since get_applicable_operations is private
 
     test "string types get basic operations" do
-      result = Filter.generate_filter_type(TestPost)
+      result = Filter.generate_filter_type(Post)
 
       # Find the title field in the result
       title_section =
@@ -114,7 +114,7 @@ defmodule AshTypescript.FilterTest do
     end
 
     test "numeric types get comparison operations" do
-      result = Filter.generate_filter_type(TestPost)
+      result = Filter.generate_filter_type(Post)
 
       # Find the view_count field in the result
       view_count_section =
@@ -131,7 +131,7 @@ defmodule AshTypescript.FilterTest do
     end
 
     test "boolean types get limited operations" do
-      result = Filter.generate_filter_type(TestPost)
+      result = Filter.generate_filter_type(Post)
 
       # Find the published field in the result
       published_section =
@@ -155,11 +155,11 @@ defmodule AshTypescript.FilterTest do
     test "combines multiple resource filter types" do
       # This is more of an integration test concept
       # In a real scenario, you'd have multiple resources in a domain
-      result1 = Filter.generate_filter_type(TestPost)
-      result2 = Filter.generate_filter_type(TestUser)
+      result1 = Filter.generate_filter_type(Post)
+      result2 = Filter.generate_filter_type(User)
 
-      assert String.contains?(result1, "TestPostFilterInput")
-      assert String.contains?(result2, "TestUserFilterInput")
+      assert String.contains?(result1, "PostFilterInput")
+      assert String.contains?(result2, "UserFilterInput")
 
       # They should be different
       refute result1 == result2
