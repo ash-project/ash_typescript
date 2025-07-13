@@ -4,9 +4,14 @@
 
 This file provides essential project context for AI assistants working on AshTypescript tasks. For detailed technical documentation organized by functional area, see:
 
+**Core Documentation:**
 - **[docs/overview.md](./docs/overview.md)** - Architecture, purpose, and core concepts
+- **[docs/configuration.md](./docs/configuration.md)** - All configuration options (field formatting, multitenancy, Mix tasks)
+- **[docs/rpc-core.md](./docs/rpc-core.md)** - RPC DSL, client generation, and basic operations
+- **[docs/rpc-advanced.md](./docs/rpc-advanced.md)** - Nested calculations and complex RPC features
+
+**Development & Implementation:**
 - **[docs/codegen.md](./docs/codegen.md)** - Type generation system, mappings, and workflows
-- **[docs/rpc.md](./docs/rpc.md)** - RPC DSL, client generation, and endpoint configuration
 - **[docs/type-inference.md](./docs/type-inference.md)** - Advanced type inference system, utilities, and debugging
 - **[docs/testing.md](./docs/testing.md)** - Test patterns, verification, and TypeScript compilation
 - **[docs/development.md](./docs/development.md)** - Commands, workflows, and troubleshooting
@@ -21,20 +26,25 @@ This file provides essential project context for AI assistants working on AshTyp
 Task Type → Recommended Reading
 ────────────────────────────────
 Understanding codebase → overview.md + file-structure.md
+Configuration issues → configuration.md
+Field formatting → configuration.md
+Multitenancy setup → configuration.md
+Basic RPC setup → rpc-core.md
+Complex calculations → rpc-advanced.md
 Type generation issues → codegen.md  
 Type inference issues → type-inference.md
-RPC configuration → rpc.md
-RPC multitenancy → rpc.md (Multitenancy Support section)
 Test failures → testing.md
 Development commands → development.md
 ```
 
 ### File Usage Frequency
-- **development.md**: Most common (commands, workflows)
+- **configuration.md**: Most common (all config options consolidated)
+- **rpc-core.md**: Basic RPC tasks and setup
+- **development.md**: Commands and workflows
 - **codegen.md**: Type generation tasks
-- **type-inference.md**: Complex type inference and debugging
 - **testing.md**: Debugging and verification
-- **rpc.md**: RPC configuration tasks  
+- **rpc-advanced.md**: Complex nested calculations
+- **type-inference.md**: Complex type inference and debugging
 - **overview.md**: Initial understanding
 - **file-structure.md**: Code navigation reference
 

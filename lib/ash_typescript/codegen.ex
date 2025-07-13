@@ -714,9 +714,10 @@ defmodule AshTypescript.Codegen do
         arguments_type = generate_calculation_arguments_type(calc)
         fields_type = generate_calculation_fields_type(calc)
 
+        calc_args_field = AshTypescript.FieldFormatter.format_field(:calc_args, AshTypescript.Rpc.output_field_formatter())
         """
         #{calc.name}: {
-          calcArgs: #{arguments_type};
+          #{calc_args_field}: #{arguments_type};
           fields: #{fields_type};
         };
         """
@@ -730,9 +731,10 @@ defmodule AshTypescript.Codegen do
         return_type = get_ts_type(calc)
         fields_type = generate_calculation_fields_type(calc)
 
+        calc_args_field = AshTypescript.FieldFormatter.format_field(:calc_args, AshTypescript.Rpc.output_field_formatter())
         """
         #{calc.name}: {
-          calcArgs: #{arguments_type};
+          #{calc_args_field}: #{arguments_type};
           fields: #{fields_type};
           __returnType: #{return_type};
         };

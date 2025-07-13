@@ -140,7 +140,7 @@ The system distinguishes between simple and complex calculations:
 defp is_simple_calculation(%Ash.Resource.Calculation{} = calc) do
   has_arguments = length(calc.arguments) > 0
   has_complex_return_type = is_complex_return_type(calc.type, calc.constraints)
-  
+
   not has_arguments and not has_complex_return_type
 end
 ```
@@ -257,13 +257,13 @@ defp parse_calculations_with_fields(calculations, resource) when is_map(calculat
       %{"calcArgs" => args, "fields" => fields} ->
         # Complex calculation with arguments and field selection
         # Store field specs separately for later application
-        
+
       %{"fields" => fields} ->
         # Calculation without arguments, field selection works normally
-        
+
       %{"calcArgs" => args} ->
         # Calculation with arguments but no field selection
-        
+
       _ ->
         # Simple calculation
     end
@@ -369,7 +369,7 @@ The runtime system separates regular loading from field selection for calculatio
   # For calculations with arguments and field selection:
   # 1. Load the calculation with args (no fields to avoid Ash validation issues)
   # 2. Store field spec for later application in extract_return_value
-  
+
   args_atomized = Enum.reduce(args, %{}, fn {k, v}, acc ->
     Map.put(acc, String.to_existing_atom(k), v)
   end)
@@ -420,8 +420,8 @@ The Elixir runtime ensures:
 
 ### Development Tools
 
-- **Type Generation**: `mix ash_typescript.codegen`
-- **TypeScript Compilation**: `cd test/ts && npm run compile`
+- **Type Generation**: `mix test.codegen`
+- **TypeScript Compilation**: `test.compile_ts`
 - **Test Coverage**: Comprehensive tests in `test/ash_typescript/rpc/rpc_calcs_test.exs`
 
 ## Future Expansion Considerations

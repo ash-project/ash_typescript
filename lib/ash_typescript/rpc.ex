@@ -325,10 +325,19 @@ defmodule AshTypescript.Rpc do
                 # No special field selection for this calculation
                 Map.put(acc, field, value)
 
-              calc_fields ->
-                # Apply field selection to the calculation result
-                filtered_value = extract_return_value(value, calc_fields, calculation_field_specs)
+              {calc_fields, nested_specs} ->
+                # Apply field selection to the calculation result with nested specs
+                # Include both simple fields and nested calculation fields
+                nested_calc_fields = Map.keys(nested_specs)
+                all_fields = calc_fields ++ nested_calc_fields
+                filtered_value = extract_return_value(value, all_fields, nested_specs)
                 # Format the filtered calculation result for client consumption
+                formatted_value = format_response_fields(filtered_value, output_field_formatter())
+                Map.put(acc, field, formatted_value)
+
+              calc_fields when is_list(calc_fields) ->
+                # Legacy format - simple field selection (backward compatibility)
+                filtered_value = extract_return_value(value, calc_fields, %{})
                 formatted_value = format_response_fields(filtered_value, output_field_formatter())
                 Map.put(acc, field, formatted_value)
             end
@@ -373,10 +382,19 @@ defmodule AshTypescript.Rpc do
                 # No special field selection for this calculation
                 Map.put(acc, calc_name, value)
 
-              calc_fields ->
-                # Apply field selection to the calculation result
-                filtered_value = extract_return_value(value, calc_fields, calculation_field_specs)
+              {calc_fields, nested_specs} ->
+                # Apply field selection to the calculation result with nested specs
+                # Include both simple fields and nested calculation fields
+                nested_calc_fields = Map.keys(nested_specs)
+                all_fields = calc_fields ++ nested_calc_fields
+                filtered_value = extract_return_value(value, all_fields, nested_specs)
                 # Format the filtered calculation result for client consumption
+                formatted_value = format_response_fields(filtered_value, output_field_formatter())
+                Map.put(acc, calc_name, formatted_value)
+
+              calc_fields when is_list(calc_fields) ->
+                # Legacy format - simple field selection (backward compatibility)
+                filtered_value = extract_return_value(value, calc_fields, %{})
                 formatted_value = format_response_fields(filtered_value, output_field_formatter())
                 Map.put(acc, calc_name, formatted_value)
             end
@@ -518,84 +536,134 @@ defmodule AshTypescript.Rpc do
     |> Enum.into(base_map)
   end
 
-  # Enhanced calculation parsing that separates regular loading from field selection specs
+  # Helper functions for nested calculation processing
+
+  # Check if calculation returns an Ash resource
+  defp is_resource_calculation?(calc_definition) do
+    result =
+      case calc_definition.type do
+        Ash.Type.Struct ->
+          # Check if constraints specify instance_of an Ash resource
+          case Keyword.get(calc_definition.constraints || [], :instance_of) do
+            module when is_atom(module) -> Ash.Resource.Info.resource?(module)
+            _ -> false
+          end
+
+        _ ->
+          false
+      end
+
+    result
+  end
+
+  # Get the resource that a calculation returns
+  defp get_calculation_return_resource(calc_definition) do
+    case calc_definition.type do
+      Ash.Type.Struct ->
+        # Check if constraints specify instance_of an Ash resource
+        case Keyword.get(calc_definition.constraints || [], :instance_of) do
+          module when is_atom(module) ->
+            if Ash.Resource.Info.resource?(module) do
+              {:ok, module}
+            else
+              :not_resource
+            end
+
+          _ ->
+            :not_resource
+        end
+
+      _ ->
+        :not_resource
+    end
+  end
+
+  # Build Ash load entry in correct format
+  defp build_ash_load_entry(calc_atom, args, fields, nested_load) do
+    combined_load = fields ++ nested_load
+
+    case {map_size(args), length(combined_load)} do
+      {0, 0} -> calc_atom
+      {0, _} -> {calc_atom, [fields: combined_load]}
+      {_, 0} -> {calc_atom, args}
+      # Ash tuple format
+      {_, _} -> {calc_atom, {args, combined_load}}
+    end
+  end
+
+  # Check if post-processing is needed
+  defp needs_post_processing?(args, fields, nested_specs) do
+    # Only need post-processing if we have args AND (fields or nested calculations)
+    map_size(args) > 0 and (length(fields) > 0 or map_size(nested_specs) > 0)
+  end
+
+  # Parse field names and convert to load format
+  defp parse_field_names_and_load(fields) do
+    fields
+    |> Enum.map(fn field ->
+      case field do
+        field when is_binary(field) ->
+          AshTypescript.FieldFormatter.parse_input_field(field, input_field_formatter())
+
+        field ->
+          field
+      end
+    end)
+    |> parse_json_load()
+  end
+
+  # Atomize calculation arguments
+  defp atomize_calc_args(args) do
+    Enum.reduce(args, %{}, fn {k, v}, acc ->
+      Map.put(acc, String.to_existing_atom(k), v)
+    end)
+  end
+
+  # Enhanced calculation parsing with recursive nested calculation support
   defp parse_calculations_with_fields(calculations, resource) when is_map(calculations) do
     resource_calculations = Ash.Resource.Info.calculations(resource)
 
-    {calculations_load, calculation_field_specs} =
-      Enum.reduce(calculations, {[], %{}}, fn {calc_name, calc_spec}, {load_acc, specs_acc} ->
-        # Apply input field formatter to calculation name (already returns an atom)
-        calc_atom =
-          AshTypescript.FieldFormatter.parse_input_field(calc_name, input_field_formatter())
+    Enum.reduce(calculations, {[], %{}}, fn {calc_name, calc_spec}, {load_acc, specs_acc} ->
+      calc_atom =
+        AshTypescript.FieldFormatter.parse_input_field(calc_name, input_field_formatter())
 
-        _calc_definition = Enum.find(resource_calculations, &(&1.name == calc_atom))
+      calc_definition = Enum.find(resource_calculations, &(&1.name == calc_atom))
 
-        case calc_spec do
-          %{"calcArgs" => args, "fields" => fields} ->
-            # For calculations with arguments and field selection, we load without field selection
-            # and store the field spec for later application in extract_return_value
-            args_atomized =
-              Enum.reduce(args, %{}, fn {k, v}, acc ->
-                Map.put(acc, String.to_existing_atom(k), v)
-              end)
+      # Extract all components uniformly (regardless of what's present)
+      # Use input field formatter to parse the calc args field name from client format
+      calc_args_field = AshTypescript.FieldFormatter.format_field(:calc_args, output_field_formatter())
+      args = Map.get(calc_spec, calc_args_field, %{}) |> atomize_calc_args()
+      fields = Map.get(calc_spec, "fields", []) |> parse_field_names_and_load()
+      nested_calcs = Map.get(calc_spec, "calculations", %{})
 
-            # Parse client field names to internal field names for calculation field selection
-            internal_fields =
-              Enum.map(fields, fn field ->
-                case field do
-                  field when is_binary(field) ->
-                    AshTypescript.FieldFormatter.parse_input_field(field, input_field_formatter())
-
-                  field ->
-                    # For complex field specs (like nested relations), pass through as-is
-                    field
-                end
-              end)
-
-            # Store field specification for this calculation
-            parsed_fields = parse_json_load(internal_fields)
-            updated_specs = Map.put(specs_acc, calc_atom, parsed_fields)
-
-            # Return only the args for loading (no fields to avoid Ash validation issues)
-            load_entry = {calc_atom, args_atomized}
-            {[load_entry | load_acc], updated_specs}
-
-          %{"fields" => fields} ->
-            # Calculation without arguments, field selection can work normally
-            # Parse client field names to internal field names for calculation field selection
-            internal_fields =
-              Enum.map(fields, fn field ->
-                case field do
-                  field when is_binary(field) ->
-                    AshTypescript.FieldFormatter.parse_input_field(field, input_field_formatter())
-
-                  field ->
-                    # For complex field specs (like nested relations), pass through as-is
-                    field
-                end
-              end)
-
-            parsed_fields = parse_json_load(internal_fields)
-            load_entry = {calc_atom, [fields: parsed_fields]}
-            {[load_entry | load_acc], specs_acc}
-
-          %{"calcArgs" => args} ->
-            # Calculation with arguments but no field selection
-            args_atomized =
-              Enum.reduce(args, %{}, fn {k, v}, acc ->
-                Map.put(acc, String.to_existing_atom(k), v)
-              end)
-
-            load_entry = {calc_atom, args_atomized}
-            {[load_entry | load_acc], specs_acc}
-
-          _ ->
-            # Simple calculation without args or field selection
-            {[calc_atom | load_acc], specs_acc}
+      # Handle nested calculations with direct recursion
+      {nested_load, nested_specs} =
+        if map_size(nested_calcs) > 0 and is_resource_calculation?(calc_definition) do
+          {:ok, target_resource} = get_calculation_return_resource(calc_definition)
+          # DIRECT RECURSIVE CALL - same function handles nesting naturally!
+          parse_calculations_with_fields(nested_calcs, target_resource)
+        else
+          {[], %{}}
         end
-      end)
 
-    {Enum.reverse(calculations_load), calculation_field_specs}
+      # Build load entry in correct Ash format
+      load_entry = build_ash_load_entry(calc_atom, args, fields, nested_load)
+
+      # Simple field specs - just track if we need post-processing
+      field_spec =
+        if needs_post_processing?(args, fields, nested_specs) do
+          # Simple tuple instead of complex map
+          {fields, nested_specs}
+        else
+          nil
+        end
+
+      updated_specs =
+        if field_spec, do: Map.put(specs_acc, calc_atom, field_spec), else: specs_acc
+
+      {[load_entry | load_acc], updated_specs}
+    end)
+    |> then(fn {load, specs} -> {Enum.reverse(load), specs} end)
   end
 
   defp parse_calculations_with_fields(_, _), do: {[], %{}}

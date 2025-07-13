@@ -317,6 +317,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
       end
     end
 
+    @tag :only
     test "calculations parameter can now handle field selection for calculations with arguments",
          %{conn: conn, todo: todo} do
       # This test verifies that the enhanced RPC implementation can properly handle
@@ -347,20 +348,67 @@ defmodule AshTypescript.Rpc.CalcsTest do
       result = Rpc.run_action(:ash_typescript, conn, params)
       assert %{success: true, data: data} = result
 
+      # Verify top-level field selection: only requested fields + calculations should be present
+      expected_top_level_fields = ["id", "title", "self"]
+      assert Map.keys(data) |> Enum.sort() == expected_top_level_fields |> Enum.sort()
+      assert map_size(data) == 3
+
       # Verify that the calculation loaded and field selection was applied
       assert Map.has_key?(data, "self")
       self_data = data["self"]
 
-      # The field selection should limit what's returned from the calculation
-      assert Map.has_key?(self_data, "id")
-      assert Map.has_key?(self_data, "title")
-      assert Map.has_key?(self_data, "completed")
-      assert Map.has_key?(self_data, "dueDate")
-      assert Map.has_key?(self_data, "self")
-      assert Map.has_key?(self_data["self"], "id")
+      # The field selection should limit what's returned from the first level calculation
+      expected_self_fields = ["id", "title", "completed", "dueDate", "self"]
+      assert Map.keys(self_data) |> Enum.sort() == expected_self_fields |> Enum.sort()
+      assert map_size(self_data) == 5
 
-      # Fields not requested should not be present (or should be filtered out)
-      # depending on the extract_return_value implementation
+      # Verify nested calculation field selection
+      nested_self = self_data["self"]
+      expected_nested_fields = ["id", "title", "completed", "dueDate"]
+      assert Map.keys(nested_self) |> Enum.sort() == expected_nested_fields |> Enum.sort()
+      assert map_size(nested_self) == 4
+    end
+
+    test "field selection works with different field combinations in nested calculations",
+         %{conn: conn, todo: todo} do
+      # Test with a different set of fields to ensure flexibility
+      params = %{
+        "action" => "get_todo",
+        "fields" => ["id", "description", "status"],
+        "calculations" => %{
+          "self" => %{
+            "calcArgs" => %{"prefix" => nil},
+            "fields" => ["title", "priority", "tags"],
+            "calculations" => %{
+              "self" => %{
+                "calcArgs" => %{"prefix" => nil},
+                "fields" => ["id", "status", "metadata"]
+              }
+            }
+          }
+        },
+        "input" => %{"id" => todo["id"]}
+      }
+
+      result = Rpc.run_action(:ash_typescript, conn, params)
+      assert %{success: true, data: data} = result
+
+      # Verify top-level field selection
+      expected_top_level_fields = ["id", "description", "status", "self"]
+      assert Map.keys(data) |> Enum.sort() == expected_top_level_fields |> Enum.sort()
+      assert map_size(data) == 4
+
+      # Verify first level calculation field selection
+      self_data = data["self"]
+      expected_self_fields = ["title", "priority", "tags", "self"]
+      assert Map.keys(self_data) |> Enum.sort() == expected_self_fields |> Enum.sort()
+      assert map_size(self_data) == 4
+
+      # Verify nested calculation field selection
+      nested_self = self_data["self"]
+      expected_nested_fields = ["id", "status", "metadata"]
+      assert Map.keys(nested_self) |> Enum.sort() == expected_nested_fields |> Enum.sort()
+      assert map_size(nested_self) == 3
     end
 
     @tag :lol

@@ -24,7 +24,7 @@ end
   - Relationships and aggregates
   - Calculations and validations
 - **Automatic multitenancy support** with tenant parameter injection for multitenant resources
-- **Zod schema generation** for runtime validation
+- **Zod schema generation** for runtime validation (upcoming)
 - **Configurable endpoints** for RPC calls
 - **Mix task integration** for easy code generation
 
@@ -65,193 +65,36 @@ mix ash_typescript.codegen --output "assets/js/ash_rpc.ts"
 import { listTodos, createTodo, getTodo } from './ash_rpc';
 
 // Type-safe API calls
-const todos = await listTodos({ 
+const todos = await listTodos({
   fields: ["id", "title", "completed"],
-  filter: { completed: false } 
+  filter: { completed: false }
 });
 
-const newTodo = await createTodo({ 
+const newTodo = await createTodo({
   fields: ["id", "title", "priority"],
   input: {
-    title: "Learn AshTypescript", 
-    priority: "high" 
+    title: "Learn AshTypescript",
+    priority: "high"
   }
 });
 ```
 
 ## Usage Guide
 
-### Update Operations
-
-Update operations require a specific parameter structure that differs from create operations. Understanding this structure is crucial for successful updates.
-
-#### Correct Update Structure
-
-```typescript
-// ✅ Correct way to update a record
-const updatedTodo = await updateTodo({
-  primaryKey: "existing-todo-id",    // Which record to update
-  fields: ["id", "title", "completed"],
-  input: {                          // Only the fields being changed
-    title: "Updated Title",
-    completed: true
-  }
-});
-```
-
-#### Common Mistake
-
-```typescript
-// ❌ Wrong - Don't put the ID in the input
-const updatedTodo = await updateTodo({
-  fields: ["id", "title", "completed"],
-  input: {
-    id: "existing-todo-id",         // Wrong! This should be in primaryKey
-    title: "Updated Title",
-    completed: true
-  }
-});
-// This will result in "record with id: nil not found" error
-```
-
-#### Why This Structure Matters
-
-The RPC system processes updates in two steps:
-1. **Find the record**: Uses `primaryKey` to locate the existing record
-2. **Apply changes**: Uses `input` to specify what fields to update
-
-This separation ensures:
-- **Security**: Proper tenant isolation and permission checking
-- **Clarity**: Clear distinction between "which record" vs "what changes"
-- **Consistency**: Uniform handling across all update operations
-
-#### Update with Multitenancy
-
-For multitenant resources, include the tenant parameter:
-
-```typescript
-// With tenant parameters (default mode)
-const updatedPost = await updatePost({
-  tenant: "org_123",               // Tenant context
-  primaryKey: "existing-post-id",  // Which record
-  fields: ["id", "title"],
-  input: { title: "New Title" }    // What to change
-});
-```
-
-#### Create vs Update Comparison
-
-**Create Operations** (no existing record):
-```typescript
-const newTodo = await createTodo({
-  fields: ["id", "title"],
-  input: {
-    title: "New Todo",      // All data goes in input
-    userId: "user-123"
-  }
-});
-```
-
-**Update Operations** (existing record):
-```typescript
-const updatedTodo = await updateTodo({
-  primaryKey: "todo-456",   // Identify existing record
-  fields: ["id", "title"],
-  input: {
-    title: "Updated Todo"   // Only fields being changed
-  }
-});
-```
+For detailed usage examples and patterns, see the [RPC Core Documentation](docs/rpc-core.md).
 
 ## Configuration
 
-You can configure AshTypescript in your application config:
+Basic configuration options:
 
 ```elixir
 config :ash_typescript,
   output_file: "assets/js/ash_rpc.ts",
   run_endpoint: "/rpc/run",
-  validate_endpoint: "/rpc/validate",
-  require_tenant_parameters: true,  # Default - tenant passed as parameters
-  
-  # Field formatting configuration
-  input_field_formatter: :camel_case,   # Format for parsing client input
-  output_field_formatter: :camel_case   # Format for TypeScript generation and responses
+  validate_endpoint: "/rpc/validate"
 ```
 
-### Field Formatting
-
-AshTypescript supports configurable field name formatting to match your client-side naming conventions. This ensures consistent naming between your Elixir backend and TypeScript frontend.
-
-#### Built-in Formatters
-
-- `:camel_case` (default) - `user_name` → `userName`
-- `:pascal_case` - `user_name` → `UserName`
-- `:snake_case` - `user_name` → `user_name` (no change)
-
-#### Configuration Options
-
-**`input_field_formatter`** - Parses client input field names to internal format:
-```typescript
-// Client sends camelCase, internally converted to snake_case
-await createUser({
-  fields: ["userName", "emailAddress"],  // Client format
-  input: {
-    userName: "John Doe",               // Client format
-    emailAddress: "john@example.com"
-  }
-});
-// Internally: {user_name: "John Doe", email_address: "john@example.com"}
-```
-
-**`output_field_formatter`** - Controls field names in TypeScript generation and API responses:
-```typescript
-// With :camel_case (default)
-type UserFieldsSchema = {
-  userName: string;
-  emailAddress?: string;
-  createdAt: UtcDateTime;
-};
-
-// API responses use the same format
-const user = await createUser({...});
-console.log(user.userName);        // camelCase response
-console.log(user.emailAddress);    // camelCase response
-```
-
-#### Custom Formatters
-
-For advanced use cases, you can provide custom formatter functions:
-
-```elixir
-config :ash_typescript,
-  input_field_formatter: {MyApp.Formatters, :parse_input_field},
-  output_field_formatter: {MyApp.Formatters, :format_output_field, ["extra_arg"]}
-```
-
-Custom formatter functions receive the field name and any extra arguments:
-```elixir
-defmodule MyApp.Formatters do
-  def parse_input_field(field_name) do
-    field_name
-    |> String.replace_leading("input_", "")
-    |> String.to_atom()
-  end
-  
-  def format_output_field(field_name, prefix) do
-    "#{prefix}_#{field_name}"
-  end
-end
-```
-
-#### Formatter Consistency
-
-Both formatters work together to provide seamless field name translation:
-
-1. **Request Processing** - Uses `input_field_formatter` to convert client field names to internal format
-2. **TypeScript Generation & Response Formatting** - Uses `output_field_formatter` for both generated type definitions and API responses
-
-This ensures your TypeScript client can use consistent naming conventions while maintaining compatibility with your Elixir resource definitions. The TypeScript types always match what the API actually returns, eliminating potential mismatches.
+For complete configuration including field formatting, multitenancy, and advanced options, see the [Configuration Guide](docs/configuration.md).
 
 ## Mix Tasks
 
@@ -294,7 +137,7 @@ rpc do
     rpc_action :create_todo, :create
     rpc_action :update_todo, :update
     rpc_action :destroy_todo, :destroy
-    
+
     # Expose custom actions
     rpc_action :complete_todo, :complete
     rpc_action :bulk_complete, :bulk_complete
@@ -305,121 +148,10 @@ end
 
 ## Multitenancy Support
 
-AshTypescript automatically handles multitenancy for your Ash resources with two configurable modes for tenant handling.
-
-### Tenant Configuration Modes
-
-#### Mode 1: Tenant Parameters (Default)
-
-With `require_tenant_parameters: true` (default), multitenant resources include tenant parameters in the TypeScript interface:
-
-```elixir
-# config/config.exs
-config :ash_typescript,
-  require_tenant_parameters: true  # Default behavior
-```
-
-#### Mode 2: Connection-based Tenant
-
-With `require_tenant_parameters: false`, tenant is extracted from the connection context using `Ash.PlugHelpers.get_tenant/1`:
-
-```elixir
-# config/config.exs
-config :ash_typescript,
-  require_tenant_parameters: false  # Tenant from connection
-```
-
-### When to Use Connection-based Mode
-
-Use `require_tenant_parameters: false` when your application:
-- Sets tenant context in middleware or plugs using `Ash.PlugHelpers.set_tenant/2`
-- Determines tenant from JWT claims, subdomain, or HTTP headers
-- Wants to avoid exposing tenant selection to client code
-- Centralizes tenant logic in the Phoenix pipeline
-
-```elixir
-# Example: Setting tenant in a Phoenix plug
-defmodule MyApp.TenantPlug do
-  import Plug.Conn
-  import Ash.PlugHelpers
-
-  def init(opts), do: opts
-
-  def call(conn, _opts) do
-    tenant = extract_tenant_from_request(conn)
-    set_tenant(conn, tenant)
-  end
-
-  defp extract_tenant_from_request(conn) do
-    # Extract from subdomain, header, JWT, etc.
-  end
-end
-```
-
-### Multitenant Resource Example
-
-```elixir
-defmodule MyApp.Post do
-  use Ash.Resource
-
-  multitenancy do
-    strategy :attribute
-    attribute :organization_id
-    # global? false is the default - tenant required
-  end
-
-  attributes do
-    uuid_primary_key :id
-    attribute :title, :string
-    attribute :organization_id, :string
-  end
-end
-```
-
-### Generated TypeScript Interface
-
-#### With `require_tenant_parameters: true` (default)
-
-```typescript
-// Generated config type includes tenant field
-export type CreatePostConfig = {
-  tenant: string;  // Required for multitenant resources
-  fields: FieldSelection<PostResourceSchema>[];
-  input: { title: string; };
-};
-
-// Usage
-const post = await createPost({
-  tenant: "org_123",  // Tenant passed as parameter
-  fields: ["id", "title"],
-  input: { title: "New Post" }
-});
-```
-
-#### With `require_tenant_parameters: false`
-
-```typescript
-// Generated config type has no tenant field
-export type CreatePostConfig = {
-  fields: FieldSelection<PostResourceSchema>[];
-  input: { title: string; };
-};
-
-// Usage - tenant extracted from connection
-const post = await createPost({
-  fields: ["id", "title"],
-  input: { title: "New Post" }
-});
-```
-
-### Features
-
-The multitenancy system provides:
-- **Configurable tenant handling** - choose between parameter and connection-based modes
-- **Automatic detection** based on your resource's multitenancy configuration
-- **Type-safe** with required `tenant: string` fields when using parameter mode
-- **Transparent** - non-multitenant resources work without tenant parameters
-- **Full backward compatibility** - existing code unchanged with default configuration
+AshTypescript automatically handles multitenancy for your Ash resources. See the [Configuration Guide](docs/configuration.md) for details on:
+- Tenant parameter vs connection-based modes
+- Resource configuration patterns
+- Generated TypeScript interfaces
 
 ## Generated Code Structure
 

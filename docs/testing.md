@@ -670,6 +670,108 @@ test "generates RPC client functions" do
 end
 ```
 
+### Field Selection Testing Best Practices
+
+#### ✅ Recommended: Exact Field Assertions with Count Verification
+
+Use precise field matching with explicit count checks instead of multiple `refute` statements:
+
+```elixir
+test "field selection works correctly" do
+  # Test with specific field combinations
+  params = %{
+    "action" => "get_todo",
+    "fields" => ["id", "title"],
+    "calculations" => %{
+      "self" => %{
+        "calcArgs" => %{"prefix" => nil},
+        "fields" => ["id", "title", "completed", "dueDate"],
+        "calculations" => %{
+          "self" => %{
+            "calcArgs" => %{"prefix" => nil},
+            "fields" => ["id", "status", "metadata"]
+          }
+        }
+      }
+    }
+  }
+
+  result = Rpc.run_action(:ash_typescript, conn, params)
+  assert %{success: true, data: data} = result
+
+  # Verify exact field match at each level
+  expected_top_level = ["id", "title", "self"]
+  assert Map.keys(data) |> Enum.sort() == expected_top_level |> Enum.sort()
+  assert map_size(data) == 3
+
+  # Verify calculation field selection
+  self_data = data["self"]
+  expected_calc_fields = ["id", "title", "completed", "dueDate", "self"]
+  assert Map.keys(self_data) |> Enum.sort() == expected_calc_fields |> Enum.sort()
+  assert map_size(self_data) == 5
+
+  # Verify nested calculation field selection
+  nested_self = self_data["self"]
+  expected_nested = ["id", "status", "metadata"]
+  assert Map.keys(nested_self) |> Enum.sort() == expected_nested |> Enum.sort()
+  assert map_size(nested_self) == 3
+end
+```
+
+#### ❌ Avoid: Multiple Refute Statements
+
+Don't use many `refute` statements as they're harder to maintain:
+
+```elixir
+# DON'T DO THIS - Verbose and hard to maintain
+refute Map.has_key?(data, "description")
+refute Map.has_key?(data, "status") 
+refute Map.has_key?(data, "priority")
+refute Map.has_key?(data, "tags")
+refute Map.has_key?(data, "metadata")
+# ... many more refute statements
+```
+
+#### Field Selection Testing Strategy
+
+1. **Test Multiple Field Combinations**: Use different field sets to ensure flexibility
+2. **Verify All Nesting Levels**: Test top-level, calculation, and nested calculation selection
+3. **Use `map_size()` Assertions**: Ensure no extra fields are present
+4. **Sort Comparisons**: Avoid test flakiness from field order differences
+
+#### Testing Complex Nested Calculations
+
+For nested calculations with field selection:
+
+```elixir
+test "nested calculation field selection" do
+  # Use different fields at each level to prove selection works independently
+  params = %{
+    "fields" => ["id", "description", "status"],        # Different from calc fields
+    "calculations" => %{
+      "self" => %{
+        "fields" => ["title", "priority", "tags"],       # Different from nested fields
+        "calculations" => %{
+          "self" => %{
+            "fields" => ["id", "status", "metadata"]     # Different from parent fields
+          }
+        }
+      }
+    }
+  }
+  
+  # Verify each level has exactly its requested fields
+  # This proves field selection works independently at each nesting level
+end
+```
+
+#### Benefits of This Approach
+
+- **Maintainable**: Single assertion failure shows complete picture
+- **Clear Intent**: Explicitly states what fields should be present
+- **Comprehensive**: Catches both missing AND unexpected extra fields
+- **Reliable**: Count verification ensures complete field control
+
 ### Generated Output Structure
 ```typescript
 // Base aliases
