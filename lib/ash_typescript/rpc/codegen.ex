@@ -150,7 +150,7 @@ defmodule AshTypescript.Rpc.Codegen do
       [K in keyof CalculationsConfig]?: K extends keyof InternalCalculations
         ? InternalCalculations[K] extends { __returnType: infer ReturnType; fields: infer Fields }
           ? ReturnType extends ResourceBase
-              ? InferResourceResult<ReturnType, CalculationsConfig[K]["fields"], {}>
+              ? InferResourceResult<ReturnType, CalculationsConfig[K]["fields"], CalculationsConfig[K]["calculations"] extends Record<string, any> ? CalculationsConfig[K]["calculations"] : {}>
               : ReturnType extends Record<string, any>
                 ? Pick<ReturnType, Extract<ExtractStringFields<CalculationsConfig[K]["fields"]>, keyof ReturnType>>
                 : ReturnType

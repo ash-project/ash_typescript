@@ -698,6 +698,14 @@ defmodule AshTypescript.Codegen do
 
   defp is_complex_return_type(_, _), do: false
 
+  # Check if a calculation is recursive (returns the same type as the resource)
+  defp is_recursive_calculation?(%Ash.Resource.Calculation{type: Ash.Type.Struct, constraints: constraints}, resource) do
+    instance_of = Keyword.get(constraints, :instance_of)
+    instance_of == resource
+  end
+
+  defp is_recursive_calculation?(_, _), do: false
+
   # Generate schema for complex calculations
   def generate_complex_calculations_schema(resource) do
     resource_name = resource |> Module.split() |> List.last()
@@ -713,12 +721,20 @@ defmodule AshTypescript.Codegen do
       |> Enum.map(fn calc ->
         arguments_type = generate_calculation_arguments_type(calc)
         fields_type = generate_calculation_fields_type(calc)
+        is_recursive = is_recursive_calculation?(calc, resource)
 
         calc_args_field = AshTypescript.FieldFormatter.format_field(:calc_args, AshTypescript.Rpc.output_field_formatter())
+        
+        recursive_calculations = if is_recursive do
+          "  calculations?: #{resource_name}ComplexCalculationsSchema;"
+        else
+          ""
+        end
+
         """
         #{calc.name}: {
           #{calc_args_field}: #{arguments_type};
-          fields: #{fields_type};
+          fields: #{fields_type};#{recursive_calculations}
         };
         """
       end)
@@ -730,13 +746,21 @@ defmodule AshTypescript.Codegen do
         arguments_type = generate_calculation_arguments_type(calc)
         return_type = get_ts_type(calc)
         fields_type = generate_calculation_fields_type(calc)
+        is_recursive = is_recursive_calculation?(calc, resource)
 
         calc_args_field = AshTypescript.FieldFormatter.format_field(:calc_args, AshTypescript.Rpc.output_field_formatter())
+        
+        recursive_calculations = if is_recursive do
+          "  calculations?: #{resource_name}ComplexCalculationsSchema;"
+        else
+          ""
+        end
+
         """
         #{calc.name}: {
           #{calc_args_field}: #{arguments_type};
           fields: #{fields_type};
-          __returnType: #{return_type};
+          __returnType: #{return_type};#{recursive_calculations}
         };
         """
       end)

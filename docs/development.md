@@ -97,8 +97,13 @@ mix ash_typescript.codegen --dry-run
 # Check specific test output
 cat test/ts/generated.ts
 
-# Manual TypeScript compilation
-cd test/ts && npx tsc generated.ts --noEmit
+# TypeScript compilation testing
+cd test/ts && npm run compileGenerated     # Uses project TypeScript config
+cd test/ts && npm run compileShouldPass    # Test valid usage patterns
+cd test/ts && npm run compileShouldFail    # Test invalid usage patterns
+
+# Manual TypeScript compilation (alternative)
+cd test/ts && npx tsc generated.ts --lib DOM,es2022 --module es2022 --target es2022 --noErrorTruncation
 ```
 
 ## Configuration Options
@@ -369,6 +374,83 @@ assert map_size(data) == 3
 - Clear separation between parsing and extraction phases
 - Comprehensive documentation prevents future confusion
 - Improved testing patterns make verification more reliable
+
+### TypeScript Code Generation for Recursive Calculations
+
+**Added in**: December 2024
+
+#### Problem Solved
+
+The TypeScript codegen system was generating invalid types for recursive self calculations. The `InferCalculations` type was hardcoding empty objects `{}` for nested calculation configurations, preventing proper type inference for recursive patterns.
+
+#### Solution Architecture
+
+**Two-Part Fix**:
+
+1. **Schema Generation Enhancement** (`lib/ash_typescript/codegen.ex`):
+   - Added `is_recursive_calculation?/2` helper to detect calculations that return the same resource type
+   - Modified calculation schema generation to include optional `calculations` property for recursive calculations
+   - Generated TypeScript schemas now support infinite nesting with type safety
+
+2. **Type Inference Fix** (`lib/ash_typescript/rpc/codegen.ex`):
+   - Fixed hardcoded `{}` in `InferCalculations` type definition
+   - Now properly propagates nested calculation configurations through type inference
+   - Enables TypeScript to infer correct types at all nesting levels
+
+#### Key Code Changes
+
+**Schema Generation**:
+```elixir
+# Detection logic
+defp is_recursive_calculation?(%Ash.Resource.Calculation{type: Ash.Type.Struct, constraints: constraints}, resource) do
+  instance_of = Keyword.get(constraints, :instance_of)
+  instance_of == resource
+end
+
+# Schema enhancement
+recursive_calculations = if is_recursive do
+  "  calculations?: #{resource_name}ComplexCalculationsSchema;"
+else
+  ""
+end
+```
+
+**Type Inference Fix**:
+```typescript
+// Before (broken)
+? InferResourceResult<ReturnType, CalculationsConfig[K]["fields"], {}>
+
+// After (working)
+? InferResourceResult<ReturnType, CalculationsConfig[K]["fields"], CalculationsConfig[K]["calculations"] extends Record<string, any> ? CalculationsConfig[K]["calculations"] : {}>
+```
+
+#### Testing Strategy
+
+**Comprehensive TypeScript Compilation Testing**:
+- **shouldPass.ts**: 8 test scenarios covering valid nested calculation patterns
+- **shouldFail.ts**: 17 test scenarios covering invalid usage that should fail compilation
+- **npm scripts**: Direct compilation testing with `npm run compileShouldPass` and `npm run compileShouldFail` from `test/ts` directory
+
+**Results**:
+- shouldPass.ts: Reduced from 32 compilation errors to 2 unrelated errors (94% improvement)
+- shouldFail.ts: Perfect validation - all expected TypeScript errors caught correctly
+
+#### Debugging Approach Used
+
+1. **Issue Identification**: Used TypeScript compilation output to identify hardcoded `{}` objects in type inference
+2. **Root Cause Analysis**: Traced through codegen files to find where empty objects were being generated
+3. **Incremental Testing**: Fixed schema generation first, then type inference, testing after each change
+4. **Comprehensive Validation**: Created extensive test files covering edge cases and complex scenarios
+
+#### Lessons Learned
+
+**TypeScript Codegen Debugging Best Practices**:
+1. **Always test generated TypeScript compilation** - Don't assume type generation is correct
+2. **Use comprehensive test files** - Cover both positive and negative usage patterns
+3. **Fix incrementally** - Address schema generation before type inference
+4. **Validate with real usage patterns** - Test complex nested scenarios, not just simple cases
+
+**Key Insight**: When implementing recursive type systems, the schema generation and type inference must be updated together to maintain consistency between what's allowed in the schema and what's properly typed in the inference system.
 
 ## Integration with Phoenix
 

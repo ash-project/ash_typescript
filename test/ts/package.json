@@ -8,7 +8,9 @@
   "main": "index.js",
   "module": "es2022",
   "scripts": {
-    "compile": "tsc *.ts --lib DOM,es2022 --module es2022 --target es2022 -noErrorTruncation"
+    "compileGenerated": "tsc generated.ts --lib DOM,es2022 --module es2022 --target es2022 -noErrorTruncation",
+    "compileShouldPass": "tsc shouldPass.ts --lib DOM,es2022 --module es2022 --target es2022 -noErrorTruncation",
+    "compileShouldFail": "tsc shouldFail.ts --lib DOM,es2022 --module es2022 --target es2022 -noErrorTruncation"
   },
   "devDependencies": {
     "typescript": "^5.8.3"

@@ -87,7 +87,7 @@ Nested calculations return hierarchically structured data with field selection a
 
 ### TypeScript Type Support
 
-Nested calculations are fully supported in generated TypeScript types:
+Nested calculations are fully supported in generated TypeScript types with comprehensive type safety:
 
 ```typescript
 type TodoResourceSchema = {
@@ -95,10 +95,64 @@ type TodoResourceSchema = {
     self: {
       calcArgs: { prefix?: string | null };
       fields: FieldSelection<TodoResourceSchema>[];
-      calculations?: Partial<TodoResourceSchema["complexCalculations"]>; // Recursive!
+      calculations?: TodoComplexCalculationsSchema; // Recursive!
     };
   };
 };
+```
+
+#### Type Inference for Nested Results
+
+The TypeScript type system provides full type safety for nested calculation results:
+
+```typescript
+// All nested access is properly typed
+const result = await getTodo({
+  fields: ["id", "title"],
+  calculations: {
+    self: {
+      calcArgs: { prefix: "outer_" },
+      fields: ["id", "title", "completed"],
+      calculations: {
+        self: {
+          calcArgs: { prefix: "inner_" },
+          fields: ["id", "status", "metadata"]
+        }
+      }
+    }
+  }
+});
+
+// TypeScript knows the exact structure at each level
+if (result?.self) {
+  const outerCompleted: boolean | null | undefined = result.self.completed;
+  
+  if (result.self.self) {
+    const innerStatus: string | null | undefined = result.self.self.status;
+    const innerMetadata: Record<string, any> | null | undefined = result.self.self.metadata;
+  }
+}
+```
+
+#### Compilation Validation
+
+The system includes TypeScript compilation tests to ensure type safety:
+
+- **Positive tests** (`shouldPass.ts`): Verify that complex valid usage patterns compile successfully
+- **Negative tests** (`shouldFail.ts`): Ensure invalid usage patterns are rejected by TypeScript
+- **npm scripts**: Use `npm run compileShouldPass` and `npm run compileShouldFail` from `test/ts` directory for validation
+
+**Testing workflow**:
+```bash
+# Generate fresh types
+mix test.codegen
+
+# Navigate to TypeScript test directory
+cd test/ts
+
+# Test compilation (shows detailed TypeScript errors)
+npm run compileShouldPass     # Should compile successfully
+npm run compileShouldFail     # Should show expected TypeScript errors
 ```
 
 ## Calculation Argument Processing

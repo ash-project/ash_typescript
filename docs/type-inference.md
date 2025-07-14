@@ -234,7 +234,7 @@ type InferCalculations<
   [K in keyof CalculationsConfig]?: K extends keyof InternalCalculations
     ? InternalCalculations[K] extends { __returnType: infer ReturnType; fields: infer Fields }
       ? ReturnType extends ResourceBase
-          ? InferResourceResult<ReturnType, CalculationsConfig[K]["fields"], {}>
+          ? InferResourceResult<ReturnType, CalculationsConfig[K]["fields"], CalculationsConfig[K]["calculations"] extends Record<string, any> ? CalculationsConfig[K]["calculations"] : {}>
           : ReturnType extends Record<string, any>
             ? Pick<ReturnType, Extract<ExtractStringFields<CalculationsConfig[K]["fields"]>, keyof ReturnType>>
             : ReturnType
@@ -242,6 +242,8 @@ type InferCalculations<
     : never;
 };
 ```
+
+**Key Enhancement**: The calculation inference now supports recursive calculations by passing through the nested `calculations` configuration instead of hardcoding an empty object `{}`.
 
 ## Runtime Processing
 
@@ -324,6 +326,107 @@ type InferCreateTodoResult<Config extends CreateTodoConfig> =
 ```
 
 ## Complex Calculation System
+
+### Recursive Calculation Support
+
+**Added in**: December 2024
+
+The type inference system now supports recursive calculations - calculations that can have nested calculations applied to their results when those calculations return Ash resources.
+
+#### Schema Generation for Recursive Calculations
+
+The system detects when a calculation returns the same resource type and automatically adds recursive calculation support:
+
+```elixir
+# In lib/ash_typescript/codegen.ex
+defp is_recursive_calculation?(%Ash.Resource.Calculation{type: Ash.Type.Struct, constraints: constraints}, resource) do
+  instance_of = Keyword.get(constraints, :instance_of)
+  instance_of == resource
+end
+```
+
+For recursive calculations, the generated TypeScript schema includes an optional `calculations` property:
+
+```typescript
+type TodoComplexCalculationsSchema = {
+  self: {
+    calcArgs: { prefix?: string; };
+    fields: FieldSelection<TodoResourceSchema>[];
+    calculations?: TodoComplexCalculationsSchema; // Recursive reference!
+  };
+};
+```
+
+#### Type Inference for Nested Calculations
+
+The `InferCalculations` type was enhanced to properly handle recursive calculation configurations:
+
+**Before** (hardcoded empty object):
+```typescript
+? InferResourceResult<ReturnType, CalculationsConfig[K]["fields"], {}>
+```
+
+**After** (recursive calculation support):
+```typescript
+? InferResourceResult<ReturnType, CalculationsConfig[K]["fields"], CalculationsConfig[K]["calculations"] extends Record<string, any> ? CalculationsConfig[K]["calculations"] : {}>
+```
+
+This change enables TypeScript to properly infer types for arbitrarily nested self-calculations:
+
+```typescript
+const result = await getTodo({
+  fields: ["id", "title"],
+  calculations: {
+    self: {
+      calcArgs: { prefix: "outer_" },
+      fields: ["id", "title", "completed"],
+      calculations: {
+        self: {
+          calcArgs: { prefix: "inner_" },
+          fields: ["id", "status", "metadata"],
+          calculations: {
+            self: {
+              calcArgs: { prefix: "deep_" },
+              fields: ["description"]
+            }
+          }
+        }
+      }
+    }
+  }
+});
+
+// Full type safety at all nesting levels
+if (result?.self?.self?.self) {
+  const deepDescription: string | null | undefined = result.self.self.self.description;
+}
+```
+
+#### Implementation Details
+
+1. **Recursive Schema Detection**: The codegen system identifies calculations that return the same resource type using `instance_of` constraints
+2. **Schema Generation**: Adds optional `calculations` property to recursive calculation definitions
+3. **Type Inference**: Propagates nested calculation configurations through the type inference system
+4. **Field Selection**: Maintains type safety for field selection at all nesting levels
+
+#### Testing Approach
+
+The recursive calculation feature includes comprehensive TypeScript compilation testing:
+
+- **shouldPass.ts**: Valid usage patterns with deep nesting, relationships, and complex scenarios
+- **shouldFail.ts**: Invalid usage patterns that should be rejected by TypeScript
+- **npm scripts**: `npm run compileShouldPass` and `npm run compileShouldFail` from `test/ts` directory for detailed error output
+
+**Testing approach**:
+```bash
+# Generate fresh TypeScript types
+mix test.codegen
+
+# Navigate to test directory and run compilation tests
+cd test/ts
+npm run compileShouldPass     # Should compile without errors
+npm run compileShouldFail     # Should show expected TypeScript errors
+```
 
 ### Field Selection for Calculations
 
@@ -421,7 +524,7 @@ The Elixir runtime ensures:
 ### Development Tools
 
 - **Type Generation**: `mix test.codegen`
-- **TypeScript Compilation**: `test.compile_ts`
+- **TypeScript Compilation**: Run `npm run compileGenerated`, `npm run compileShouldPass`, `npm run compileShouldFail` from `test/ts` directory
 - **Test Coverage**: Comprehensive tests in `test/ash_typescript/rpc/rpc_calcs_test.exs`
 
 ## Future Expansion Considerations

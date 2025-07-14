@@ -620,7 +620,9 @@ Calculation modules in `test/support/resources/`:
 - **Location**: `test/ts/` directory
 - **Generated Output**: `generated.ts` and `generated.js`
 - **Validation**: `npm run compile` verifies compilation
-- **Type Tests**: `typeTests.ts` for additional checking
+- **Type Tests**: 
+  - `shouldPass.ts` - Stress tests for type inference and correct usage patterns
+  - `shouldFail.ts` - Tests that incorrect usage fails TypeScript compilation
 
 ## Development Workflows
 
@@ -628,15 +630,83 @@ Calculation modules in `test/support/resources/`:
 ```bash
 mix test                        # Run all tests
 mix test.codegen               # Generate types (alias)
-mix test.ts # Compile & test generated TypeScript files.
+
+# TypeScript compilation testing (run from test/ts directory)
+cd test/ts && npm run compileGenerated     # Generate TS and compile the generated output
+cd test/ts && npm run compileShouldPass    # Compile shouldPass.ts (stress tests for type inference)
+cd test/ts && npm run compileShouldFail    # Compile shouldFail.ts (tests that should fail compilation)
 ```
+
+### TypeScript Testing Workflow
+
+The project includes npm scripts for testing TypeScript compilation. **Important**: Run these commands from the `test/ts` directory to see the actual TypeScript compiler output.
+
+#### `npm run compileGenerated`
+- Compiles the generated `test/ts/generated.ts` file 
+- Shows compilation errors for debugging type generation issues
+- Run after `mix test.codegen` to validate generated TypeScript
+
+#### `npm run compileShouldPass`
+- Compiles `test/ts/shouldPass.ts`
+- Used to stress test type inference and validate correct usage patterns
+- Should contain complex but valid usage of generated types and functions
+- Helps ensure generated types support real-world usage scenarios
+
+#### `npm run compileShouldFail`
+- Compiles `test/ts/shouldFail.ts`  
+- Used to verify that incorrect usage fails TypeScript compilation
+- Should contain edge cases and invalid usage patterns
+- Helps ensure type safety by confirming wrong usage is rejected
+
+**Complete Testing Workflow**:
+```bash
+# 1. Generate fresh TypeScript types
+mix test.codegen
+
+# 2. Navigate to TypeScript test directory  
+cd test/ts
+
+# 3. Test compilation (choose appropriate script)
+npm run compileGenerated      # Test generated types compile
+npm run compileShouldPass     # Test valid usage patterns  
+npm run compileShouldFail     # Test invalid usage rejection
+```
+
+The npm scripts print detailed TypeScript compilation errors to the terminal for inspection and debugging.
+
+### TypeScript Test Files
+
+The project includes comprehensive TypeScript test files that demonstrate usage patterns:
+
+#### `test/ts/shouldPass.ts`
+Contains **valid usage patterns** that should compile successfully:
+- Basic nested self calculations with field selection
+- Deep nesting (3+ levels) with different fields at each level
+- Self calculations with relationships in field selection
+- List operations with nested calculations
+- Create operations with nested calculations in response
+- Edge cases with minimal fields and various calcArgs values
+- Complex scenarios combining calculations, aggregates, and relationships
+
+#### `test/ts/shouldFail.ts`  
+Contains **invalid usage patterns** that should be rejected by TypeScript:
+- Invalid field names in calculations
+- Wrong types for calcArgs (number, boolean instead of string)
+- Invalid calcArgs structure with unknown properties
+- Missing required properties (fields, calcArgs)
+- Invalid relationship field names
+- Wrong calculation types in nested structure
+- Type mismatches in variable assignments
+
+Uses `@ts-expect-error` comments to mark lines that should fail compilation.
 
 ### When Adding Features
 1. **Extend Todo Resource**: Add new attribute/relationship/action types
 2. **Create Specialized Resources**: For edge cases
 3. **Update RPC Configuration**: Add actions to domain RPC block
 4. **Organize by Function**: Add tests to appropriate test file
-5. **Verify TypeScript**: Ensure generated code compiles
+5. **Verify TypeScript**: Use the npm compilation scripts from `test/ts` directory to validate generated types
+6. **Update Test Files**: Add new usage patterns to `shouldPass.ts` and invalid patterns to `shouldFail.ts`
 
 ### When Testing Edge Cases
 1. **Use Empty/NoRelationships Resources**: Minimal testing

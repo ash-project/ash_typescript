@@ -133,7 +133,9 @@ defmodule AshTypescript.MixProject do
   defp aliases do
     [
       "test.codegen": "ash_typescript.codegen",
-      "test.compile_ts": "cmd cd test/ts && npm run compile",
+      "test.compile_generated": "cmd cd test/ts && npm run compileGenerated",
+      "test.compile_should_pass": "cmd cd test/ts && npm run compileShouldPass",
+      "test.compile_should_fail": "cmd cd test/ts && npm run compileShouldFail",
       sobelow: "sobelow --skip",
       docs: [
         "spark.cheat_sheets",
