@@ -16,30 +16,34 @@ defmodule AshTypescript.Codegen do
     |> Ash.Resource.Info.public_attributes()
     |> Enum.filter(&is_embedded_resource_attribute?/1)
     |> Enum.map(&extract_embedded_module/1)
-    |> Enum.filter(& &1)  # Remove nils
+    # Remove nils
+    |> Enum.filter(& &1)
   end
 
-  defp is_embedded_resource_attribute?(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
+  defp is_embedded_resource_attribute?(%Ash.Resource.Attribute{
+         type: type,
+         constraints: constraints
+       }) do
     case type do
       # Handle Ash.Type.Struct with instance_of constraint
       Ash.Type.Struct ->
         instance_of = Keyword.get(constraints, :instance_of)
         instance_of && is_embedded_resource?(instance_of)
-        
+
       # Handle array of Ash.Type.Struct
       {:array, Ash.Type.Struct} ->
         items_constraints = Keyword.get(constraints, :items, [])
         instance_of = Keyword.get(items_constraints, :instance_of)
         instance_of && is_embedded_resource?(instance_of)
-        
+
       # Handle direct embedded resource module (what Ash actually stores)
       module when is_atom(module) ->
         is_embedded_resource?(module)
-        
-      # Handle array of direct embedded resource module  
+
+      # Handle array of direct embedded resource module
       {:array, module} when is_atom(module) ->
         is_embedded_resource?(module)
-        
+
       _ ->
         false
     end
@@ -52,20 +56,20 @@ defmodule AshTypescript.Codegen do
       # Handle Ash.Type.Struct with instance_of constraint
       Ash.Type.Struct ->
         Keyword.get(constraints, :instance_of)
-        
+
       # Handle array of Ash.Type.Struct
       {:array, Ash.Type.Struct} ->
         items_constraints = Keyword.get(constraints, :items, [])
         Keyword.get(items_constraints, :instance_of)
-        
+
       # Handle direct embedded resource module
       module when is_atom(module) ->
         if is_embedded_resource?(module), do: module, else: nil
-        
+
       # Handle array of direct embedded resource module
       {:array, module} when is_atom(module) ->
         if is_embedded_resource?(module), do: module, else: nil
-        
+
       _ ->
         nil
     end
@@ -80,16 +84,18 @@ defmodule AshTypescript.Codegen do
     if Ash.Resource.Info.resource?(module) do
       # Check if it's an embedded resource by checking the data layer
       data_layer = Ash.Resource.Info.data_layer(module)
+
       # Embedded resources can use different data layers but are defined with data_layer: :embedded
       # We need to check the resource definition itself
-      embedded_config = try do
-        # Try to get the embedded configuration from the resource
-        module.__ash_dsl_config__()
-        |> get_in([:resource, :data_layer])
-      rescue
-        _ -> nil
-      end
-      
+      embedded_config =
+        try do
+          # Try to get the embedded configuration from the resource
+          module.__ash_dsl_config__()
+          |> get_in([:resource, :data_layer])
+        rescue
+          _ -> nil
+        end
+
       embedded_config == :embedded or data_layer == Ash.DataLayer.Simple
     else
       false
@@ -101,10 +107,10 @@ defmodule AshTypescript.Codegen do
   def generate_ash_type_aliases(resources, actions) do
     # Discover embedded resources from regular resources
     embedded_resources = find_embedded_resources(resources)
-    
+
     # Include embedded resources in type discovery process
     all_resources = resources ++ embedded_resources
-    
+
     resource_types =
       Enum.reduce(all_resources, MapSet.new(), fn resource, types ->
         types =
@@ -211,11 +217,11 @@ defmodule AshTypescript.Codegen do
     cond do
       Ash.Type.NewType.new_type?(type) or Spark.implements_behaviour?(type, Ash.Type.Enum) ->
         ""
-      
+
       is_embedded_resource?(type) ->
         # Embedded resources don't need type aliases - they get full schema generation
         ""
-      
+
       true ->
         raise "Unknown type: #{type}"
     end
@@ -236,13 +242,14 @@ defmodule AshTypescript.Codegen do
     complex_calculations_schema = generate_complex_calculations_schema(resource)
     relationship_schema = generate_relationship_schema(resource, allowed_resources)
     resource_schema = generate_resource_schema(resource)
-    
+
     # Generate input schema for embedded resources
-    input_schema = if is_embedded_resource?(resource) do
-      generate_input_schema(resource)
-    else
-      ""
-    end
+    input_schema =
+      if is_embedded_resource?(resource) do
+        generate_input_schema(resource)
+      else
+        ""
+      end
 
     base_schemas = """
     // #{resource_name} Schemas
@@ -271,9 +278,14 @@ defmodule AshTypescript.Codegen do
       |> Enum.reject(fn attr ->
         # Exclude embedded resources from fields schema - they go in embedded section
         case attr.type do
-          embedded_type when is_atom(embedded_type) -> is_embedded_resource?(embedded_type)
-          {:array, embedded_type} when is_atom(embedded_type) -> is_embedded_resource?(embedded_type)
-          _ -> false
+          embedded_type when is_atom(embedded_type) ->
+            is_embedded_resource?(embedded_type)
+
+          {:array, embedded_type} when is_atom(embedded_type) ->
+            is_embedded_resource?(embedded_type)
+
+          _ ->
+            false
         end
       end)
 
@@ -293,7 +305,12 @@ defmodule AshTypescript.Codegen do
       Enum.concat([attributes, simple_calculations, aggregates])
       |> Enum.map(fn
         %Ash.Resource.Attribute{} = attr ->
-          formatted_name = AshTypescript.FieldFormatter.format_field(attr.name, AshTypescript.Rpc.output_field_formatter())
+          formatted_name =
+            AshTypescript.FieldFormatter.format_field(
+              attr.name,
+              AshTypescript.Rpc.output_field_formatter()
+            )
+
           if attr.allow_nil? do
             "  #{formatted_name}?: #{get_ts_type(attr)} | null;"
           else
@@ -301,7 +318,12 @@ defmodule AshTypescript.Codegen do
           end
 
         %Ash.Resource.Calculation{} = calc ->
-          formatted_name = AshTypescript.FieldFormatter.format_field(calc.name, AshTypescript.Rpc.output_field_formatter())
+          formatted_name =
+            AshTypescript.FieldFormatter.format_field(
+              calc.name,
+              AshTypescript.Rpc.output_field_formatter()
+            )
+
           if calc.allow_nil? do
             "  #{formatted_name}?: #{get_ts_type(calc)} | null;"
           else
@@ -325,7 +347,12 @@ defmodule AshTypescript.Codegen do
                 get_ts_type(agg.kind)
             end
 
-          formatted_name = AshTypescript.FieldFormatter.format_field(agg.name, AshTypescript.Rpc.output_field_formatter())
+          formatted_name =
+            AshTypescript.FieldFormatter.format_field(
+              agg.name,
+              AshTypescript.Rpc.output_field_formatter()
+            )
+
           if agg.include_nil? do
             "  #{formatted_name}?: #{type} | null;"
           else
@@ -478,30 +505,38 @@ defmodule AshTypescript.Codegen do
       |> Enum.filter(fn attr ->
         case attr.type do
           embedded_type when is_atom(embedded_type) ->
-            is_embedded_resource?(embedded_type) and Enum.member?(allowed_resources, embedded_type)
+            is_embedded_resource?(embedded_type) and
+              Enum.member?(allowed_resources, embedded_type)
+
           {:array, embedded_type} when is_atom(embedded_type) ->
-            is_embedded_resource?(embedded_type) and Enum.member?(allowed_resources, embedded_type)
+            is_embedded_resource?(embedded_type) and
+              Enum.member?(allowed_resources, embedded_type)
+
           _ ->
             false
         end
       end)
       |> Enum.map(fn attr ->
-        embedded_resource_name = case attr.type do
-          embedded_type when is_atom(embedded_type) ->
-            embedded_type |> Module.split() |> List.last()
-          {:array, embedded_type} when is_atom(embedded_type) ->
-            embedded_type |> Module.split() |> List.last()
-        end
+        embedded_resource_name =
+          case attr.type do
+            embedded_type when is_atom(embedded_type) ->
+              embedded_type |> Module.split() |> List.last()
+
+            {:array, embedded_type} when is_atom(embedded_type) ->
+              embedded_type |> Module.split() |> List.last()
+          end
 
         # Apply field formatting to embedded resource field names
-        formatted_attr_name = AshTypescript.FieldFormatter.format_field(
-          attr.name,
-          AshTypescript.Rpc.output_field_formatter()
-        )
+        formatted_attr_name =
+          AshTypescript.FieldFormatter.format_field(
+            attr.name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
 
         case attr.type do
           embedded_type when is_atom(embedded_type) ->
             "  #{formatted_attr_name}: #{embedded_resource_name}Embedded;"
+
           {:array, _embedded_type} ->
             "  #{formatted_attr_name}: #{embedded_resource_name}ArrayEmbedded;"
         end
@@ -520,7 +555,6 @@ defmodule AshTypescript.Codegen do
       """
     end
   end
-
 
   def generate_resource_schema(resource) do
     resource_name = resource |> Module.split() |> List.last()
@@ -543,11 +577,15 @@ defmodule AshTypescript.Codegen do
       resource
       |> Ash.Resource.Info.public_attributes()
       |> Enum.map(fn attr ->
-        formatted_name = AshTypescript.FieldFormatter.format_field(attr.name, AshTypescript.Rpc.output_field_formatter())
-        
+        formatted_name =
+          AshTypescript.FieldFormatter.format_field(
+            attr.name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
         # For input types, use input-specific type mapping
         base_type = get_ts_input_type(attr)
-        
+
         # Handle optionality for input types:
         # - Field is optional if it allows nil OR has a default value
         # - For input, we don't want | null for optional fields with defaults
@@ -582,7 +620,7 @@ defmodule AshTypescript.Codegen do
           # For all other atomic types, use the regular type mapping
           get_ts_type(attr)
         end
-      
+
       {:array, embedded_type} when is_atom(embedded_type) ->
         if is_embedded_resource?(embedded_type) do
           # Handle array of embedded resources (e.g., attribute :metadata_history, {:array, TodoMetadata})
@@ -593,7 +631,7 @@ defmodule AshTypescript.Codegen do
           inner_ts = get_ts_input_type(%{type: embedded_type, constraints: []})
           "Array<#{inner_ts}>"
         end
-      
+
       _ ->
         # For all other types, use the regular type mapping
         get_ts_type(attr)
@@ -832,7 +870,12 @@ defmodule AshTypescript.Codegen do
       throw("Field not found: #{resource}.#{field}" |> String.replace("Elixir.", ""))
     else
       %Ash.Resource.Attribute{} = attr ->
-        formatted_field = AshTypescript.FieldFormatter.format_field(field, AshTypescript.Rpc.output_field_formatter())
+        formatted_field =
+          AshTypescript.FieldFormatter.format_field(
+            field,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
         if attr.allow_nil? do
           "  #{formatted_field}?: #{get_ts_type(attr)} | null;"
         else
@@ -840,7 +883,12 @@ defmodule AshTypescript.Codegen do
         end
 
       %Ash.Resource.Calculation{} = calc ->
-        formatted_field = AshTypescript.FieldFormatter.format_field(field, AshTypescript.Rpc.output_field_formatter())
+        formatted_field =
+          AshTypescript.FieldFormatter.format_field(
+            field,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
         if calc.allow_nil? do
           "  #{formatted_field}?: #{get_ts_type(calc)} | null;"
         else
@@ -864,7 +912,12 @@ defmodule AshTypescript.Codegen do
               get_ts_type(agg.kind)
           end
 
-        formatted_field = AshTypescript.FieldFormatter.format_field(field, AshTypescript.Rpc.output_field_formatter())
+        formatted_field =
+          AshTypescript.FieldFormatter.format_field(
+            field,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
         if agg.include_nil? do
           "  #{formatted_field}?: #{type} | null;"
         else
@@ -942,14 +995,6 @@ defmodule AshTypescript.Codegen do
 
   defp is_complex_return_type(_, _), do: false
 
-  # Check if a calculation is recursive (returns the same type as the resource)
-  defp is_recursive_calculation?(%Ash.Resource.Calculation{type: Ash.Type.Struct, constraints: constraints}, resource) do
-    instance_of = Keyword.get(constraints, :instance_of)
-    instance_of == resource
-  end
-
-  defp is_recursive_calculation?(_, _), do: false
-
   # Generate schema for complex calculations
   def generate_complex_calculations_schema(resource) do
     resource_name = resource |> Module.split() |> List.last()
@@ -965,20 +1010,17 @@ defmodule AshTypescript.Codegen do
       |> Enum.map(fn calc ->
         arguments_type = generate_calculation_arguments_type(calc)
         fields_type = generate_calculation_fields_type(calc)
-        is_recursive = is_recursive_calculation?(calc, resource)
 
-        calc_args_field = AshTypescript.FieldFormatter.format_field(:calc_args, AshTypescript.Rpc.output_field_formatter())
-        
-        recursive_calculations = if is_recursive do
-          "  calculations?: #{resource_name}ComplexCalculationsSchema;"
-        else
-          ""
-        end
+        calc_args_field =
+          AshTypescript.FieldFormatter.format_field(
+            :calc_args,
+            AshTypescript.Rpc.output_field_formatter()
+          )
 
         """
         #{calc.name}: {
           #{calc_args_field}: #{arguments_type};
-          fields: #{fields_type};#{recursive_calculations}
+          fields: #{fields_type};
         };
         """
       end)
@@ -990,21 +1032,18 @@ defmodule AshTypescript.Codegen do
         arguments_type = generate_calculation_arguments_type(calc)
         return_type = get_ts_type(calc)
         fields_type = generate_calculation_fields_type(calc)
-        is_recursive = is_recursive_calculation?(calc, resource)
 
-        calc_args_field = AshTypescript.FieldFormatter.format_field(:calc_args, AshTypescript.Rpc.output_field_formatter())
-        
-        recursive_calculations = if is_recursive do
-          "  calculations?: #{resource_name}ComplexCalculationsSchema;"
-        else
-          ""
-        end
+        calc_args_field =
+          AshTypescript.FieldFormatter.format_field(
+            :calc_args,
+            AshTypescript.Rpc.output_field_formatter()
+          )
 
         """
         #{calc.name}: {
           #{calc_args_field}: #{arguments_type};
           fields: #{fields_type};
-          __returnType: #{return_type};#{recursive_calculations}
+          __returnType: #{return_type};
         };
         """
       end)
@@ -1067,7 +1106,7 @@ defmodule AshTypescript.Codegen do
       instance_of != nil ->
         # If it's a resource instance, use field selection for that resource
         resource_name = instance_of |> Module.split() |> List.last()
-        "FieldSelection<#{resource_name}ResourceSchema>[]"
+        "UnifiedFieldSelection<#{resource_name}ResourceSchema>[]"
 
       fields != nil ->
         # If it has field definitions, use the field names as string literals

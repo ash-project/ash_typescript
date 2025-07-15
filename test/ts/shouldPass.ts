@@ -15,25 +15,33 @@ import {
 
 // Test 1: Basic nested self calculation with field selection
 const basicNestedSelf = await getTodo({
-  fields: ["id", "title"],
-  calculations: {
-    self: {
-      calcArgs: { prefix: "outer_" },
-      fields: ["id", "title", "completed", "dueDate"],
-      calculations: {
-        self: {
-          calcArgs: { prefix: "inner_" },
-          fields: [
-            "id", 
-            "status",
-            {
-              metadata: ["category", "priorityScore"]
-            }
-          ],
-        },
+  fields: [
+    "id", 
+    "title",
+    {
+      self: {
+        calcArgs: { prefix: "outer_" },
+        fields: [
+          "id", 
+          "title", 
+          "completed", 
+          "dueDate",
+          {
+            self: {
+              calcArgs: { prefix: "inner_" },
+              fields: [
+                "id", 
+                "status",
+                {
+                  metadata: ["category", "priorityScore"]
+                }
+              ],
+            },
+          },
+        ],
       },
     },
-  },
+  ],
 });
 
 // Type assertion: basicNestedSelf should have properly typed nested structure
@@ -57,31 +65,44 @@ if (basicNestedSelf?.self) {
 
 // Test 2: Deep nesting with different field combinations at each level
 const deepNestedSelf = await getTodo({
-  fields: ["id", "description", "status"],
-  calculations: {
-    self: {
-      calcArgs: { prefix: "level1_" },
-      fields: ["title", "priority", "tags", "createdAt"],
-      calculations: {
-        self: {
-          calcArgs: { prefix: "level2_" },
-          fields: ["id", "completed", "userId"],
-          calculations: {
+  fields: [
+    "id", 
+    "description", 
+    "status",
+    {
+      self: {
+        calcArgs: { prefix: "level1_" },
+        fields: [
+          "title", 
+          "priority", 
+          "tags", 
+          "createdAt",
+          {
             self: {
-              calcArgs: { prefix: "level3_" },
+              calcArgs: { prefix: "level2_" },
               fields: [
-                "description", 
-                "dueDate",
+                "id", 
+                "completed", 
+                "userId",
                 {
-                  metadata: ["category", "tags"]
-                }
+                  self: {
+                    calcArgs: { prefix: "level3_" },
+                    fields: [
+                      "description", 
+                      "dueDate",
+                      {
+                        metadata: ["category", "tags"]
+                      }
+                    ],
+                  },
+                },
               ],
             },
           },
-        },
+        ],
       },
     },
-  },
+  ],
 });
 
 // Type validation for deep nested structure
@@ -97,34 +118,38 @@ if (deepNestedSelf?.self?.self?.self) {
 
 // Test 3: Self calculation with relationships in field selection
 const selfWithRelationships = await getTodo({
-  fields: ["id", "title", { user: ["id", "email"] }],
-  calculations: {
-    self: {
-      calcArgs: { prefix: null }, // Test null prefix
-      fields: [
-        "id",
-        "title",
-        "status",
-        {
-          comments: ["id", "content", "rating"],
-          user: ["id", "name", "email"],
-        },
-      ],
-      calculations: {
-        self: {
-          calcArgs: { prefix: "nested_" },
-          fields: [
-            "priority",
-            "tags",
-            {
-              user: ["id", "name"],
-              comments: ["id", "authorName"],
+  fields: [
+    "id", 
+    "title", 
+    { user: ["id", "email"] },
+    {
+      self: {
+        calcArgs: { prefix: null }, // Test null prefix
+        fields: [
+          "id",
+          "title",
+          "status",
+          {
+            comments: ["id", "content", "rating"],
+            user: ["id", "name", "email"],
+          },
+          {
+            self: {
+              calcArgs: { prefix: "nested_" },
+              fields: [
+                "priority",
+                "tags",
+                {
+                  user: ["id", "name"],
+                  comments: ["id", "authorName"],
+                },
+              ],
             },
-          ],
-        },
+          },
+        ],
       },
     },
-  },
+  ],
 });
 
 // Type validation for relationships in calculations
@@ -160,25 +185,34 @@ if (selfWithRelationships?.self) {
 
 // Test 4: List operation with nested self calculations
 const listWithNestedSelf = await listTodos({
-  fields: ["id", "title", "completed"],
-  calculations: {
-    self: {
-      calcArgs: { prefix: "list_" },
-      fields: ["id", "title", "status", "priority"],
-      calculations: {
-        self: {
-          calcArgs: { prefix: "list_nested_" },
-          fields: [
-            "description", 
-            "tags",
-            {
-              metadata: ["category", "priorityScore"]
-            }
-          ],
-        },
+  fields: [
+    "id", 
+    "title", 
+    "completed",
+    {
+      self: {
+        calcArgs: { prefix: "list_" },
+        fields: [
+          "id", 
+          "title", 
+          "status", 
+          "priority",
+          {
+            self: {
+              calcArgs: { prefix: "list_nested_" },
+              fields: [
+                "description", 
+                "tags",
+                {
+                  metadata: ["category", "priorityScore"]
+                }
+              ],
+            },
+          },
+        ],
       },
     },
-  },
+  ],
 });
 
 // Type validation for list results with nested calculations
@@ -211,19 +245,28 @@ const createWithNestedSelf = await createTodo({
     status: "pending",
     userId: "user-id-123",
   },
-  fields: ["id", "title", "createdAt"],
-  calculations: {
-    self: {
-      calcArgs: { prefix: "created_" },
-      fields: ["id", "title", "status", "userId"],
-      calculations: {
-        self: {
-          calcArgs: { prefix: "created_nested_" },
-          fields: ["completed", "priority", "dueDate"],
-        },
+  fields: [
+    "id", 
+    "title", 
+    "createdAt",
+    {
+      self: {
+        calcArgs: { prefix: "created_" },
+        fields: [
+          "id", 
+          "title", 
+          "status", 
+          "userId",
+          {
+            self: {
+              calcArgs: { prefix: "created_nested_" },
+              fields: ["completed", "priority", "dueDate"],
+            },
+          },
+        ],
       },
     },
-  },
+  ],
 });
 
 // Type validation for created result
@@ -241,19 +284,23 @@ if (createWithNestedSelf.self?.self) {
 
 // Test 6: Edge case - self calculation with minimal fields
 const minimalSelf = await getTodo({
-  fields: ["id"],
-  calculations: {
-    self: {
-      calcArgs: {}, // Empty calcArgs should be valid
-      fields: ["id"],
-      calculations: {
-        self: {
-          calcArgs: { prefix: undefined }, // Undefined prefix should be valid
-          fields: ["title"],
-        },
+  fields: [
+    "id",
+    {
+      self: {
+        calcArgs: {}, // Empty calcArgs should be valid
+        fields: [
+          "id",
+          {
+            self: {
+              calcArgs: { prefix: undefined }, // Undefined prefix should be valid
+              fields: ["title"],
+            },
+          },
+        ],
       },
     },
-  },
+  ],
 });
 
 // Should compile successfully with minimal fields
@@ -274,36 +321,36 @@ const complexScenario = await getTodo({
       user: ["id", "email"],
       comments: ["id", "content", { user: ["id", "name"] }],
     },
-  ],
-  calculations: {
-    self: {
-      calcArgs: { prefix: "complex_" },
-      fields: [
-        "id",
-        "description",
-        "priority",
-        "daysUntilDue", // calculation in nested self
-        "helpfulCommentCount", // aggregate in nested self
-        {
-          user: ["id", "name", "email"],
-          comments: ["id", "authorName", "rating"],
-        },
-      ],
-      calculations: {
-        self: {
-          calcArgs: { prefix: "complex_nested_" },
-          fields: [
-            "tags",
-            "createdAt",
-            {
-              metadata: ["category", "isUrgent"],
-              comments: ["id", "isHelpful", { user: ["id"] }],
+    {
+      self: {
+        calcArgs: { prefix: "complex_" },
+        fields: [
+          "id",
+          "description",
+          "priority",
+          "daysUntilDue", // calculation in nested self
+          "helpfulCommentCount", // aggregate in nested self
+          {
+            user: ["id", "name", "email"],
+            comments: ["id", "authorName", "rating"],
+          },
+          {
+            self: {
+              calcArgs: { prefix: "complex_nested_" },
+              fields: [
+                "tags",
+                "createdAt",
+                {
+                  metadata: ["category", "isUrgent"],
+                  comments: ["id", "isHelpful", { user: ["id"] }],
+                },
+              ],
             },
-          ],
-        },
+          },
+        ],
       },
     },
-  },
+  ],
 });
 
 // Validate complex type inference
@@ -337,25 +384,31 @@ if (complexScenario) {
 
 // Test 8: Verify that different calcArgs types work correctly
 const varyingCalcArgs = await getTodo({
-  fields: ["id"],
-  calculations: {
-    self: {
-      calcArgs: { prefix: "string_prefix" },
-      fields: ["title"],
-      calculations: {
-        self: {
-          calcArgs: { prefix: null },
-          fields: ["description"],
-          calculations: {
+  fields: [
+    "id",
+    {
+      self: {
+        calcArgs: { prefix: "string_prefix" },
+        fields: [
+          "title",
+          {
             self: {
-              calcArgs: { prefix: undefined },
-              fields: ["status"],
+              calcArgs: { prefix: null },
+              fields: [
+                "description",
+                {
+                  self: {
+                    calcArgs: { prefix: undefined },
+                    fields: ["status"],
+                  },
+                },
+              ],
             },
           },
-        },
+        ],
       },
     },
-  },
+  ],
 });
 
 // Should handle all calcArgs variants correctly
@@ -457,20 +510,20 @@ const todoWithSelectedMetadata = await getTodo({
     "title",
     {
       metadata: ["category", "priorityScore", "isUrgent"]
+    },
+    {
+      self: {
+        calcArgs: { prefix: "test_" },
+        fields: [
+          "id", 
+          "status",
+          {
+            metadata: ["category", "tags"]
+          }
+        ]
+      }
     }
-  ],
-  calculations: {
-    self: {
-      calcArgs: { prefix: "test_" },
-      fields: [
-        "id", 
-        "status",
-        {
-          metadata: ["category", "tags"]
-        }
-      ]
-    }
-  }
+  ]
 });
 
 // Validate field selection worked correctly
@@ -501,32 +554,32 @@ const complexEmbeddedScenario = await getTodo({
     {
       metadata: ["category", "settings"],
       metadataHistory: ["category", "priorityScore"]
-    }
-  ],
-  calculations: {
-    self: {
-      calcArgs: { prefix: "outer_" },
-      fields: [
-        "id", 
-        "daysUntilDue",
-        {
-          metadata: ["category"]
-        }
-      ],
-      calculations: {
-        self: {
-          calcArgs: { prefix: "inner_" },
-          fields: [
-            "status", 
-            "priority",
-            {
-              metadata: ["category", "isUrgent"]
+    },
+    {
+      self: {
+        calcArgs: { prefix: "outer_" },
+        fields: [
+          "id", 
+          "daysUntilDue",
+          {
+            metadata: ["category"]
+          },
+          {
+            self: {
+              calcArgs: { prefix: "inner_" },
+              fields: [
+                "status", 
+                "priority",
+                {
+                  metadata: ["category", "isUrgent"]
+                }
+              ]
             }
-          ]
-        }
+          }
+        ]
       }
     }
-  }
+  ]
 });
 
 // Validate complex embedded resource scenario

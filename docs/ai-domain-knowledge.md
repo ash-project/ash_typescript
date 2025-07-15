@@ -27,7 +27,43 @@ This guide explains the business logic, key abstractions, and domain-specific co
 2. Generates corresponding TypeScript types and interfaces  
 3. Creates RPC client functions with full type safety
 4. Maintains consistency between backend changes and frontend types
-5. **Embedded Resource Support**: Full schema generation for Ash embedded resources (Phase 1 complete)
+5. **Embedded Resource Support**: Full schema generation for Ash embedded resources (Phase 1 & 2 complete)
+6. **Embedded Calculations**: Full support for calculations within embedded resources via RPC (Phase 3 complete)
+
+### Embedded Resource Calculations Domain
+
+**Business Problem**: Frontend applications need access to both raw data and computed values from embedded resources.
+
+**Example Business Case**: A todo metadata object contains:
+- **Raw Data**: `category: "urgent"`, `priority_score: 7`
+- **Computed Values**: `display_category: "urgent"`, `adjusted_priority: 10.5`
+
+**Client Request Pattern**:
+```typescript
+// Client requests both raw data and calculations
+const todo = await getTodo({
+  fields: {
+    metadata: ["category", "priorityScore", "displayCategory", "adjustedPriority"]
+  }
+});
+
+// Result includes both types seamlessly
+console.log(todo.metadata.category);          // "urgent" (raw)
+console.log(todo.metadata.displayCategory);   // "urgent" (calculated)
+console.log(todo.metadata.adjustedPriority);  // 10.5 (calculated with args)
+```
+
+**Domain Architecture**: Three-layer system handles the complexity:
+
+1. **Field Parser Layer**: Analyzes client requests to identify mix of raw/calculated fields
+2. **Ash Query Layer**: Executes optimal queries (SELECT for raw, LOAD for calculated)
+3. **Result Processor Layer**: Assembles unified response with proper formatting
+
+**Business Value**: 
+- **Performance**: Only requested calculations are executed
+- **Flexibility**: Clients can request any combination of raw/calculated fields
+- **Type Safety**: All fields (raw and calculated) are fully typed in TypeScript
+- **Consistency**: Same field selection patterns work for simple resources and embedded resources
 
 ### Resource-Centric Architecture
 

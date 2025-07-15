@@ -33,8 +33,7 @@ defmodule AshTypescript.Rpc.CodegenFormattingTest do
       assert String.contains?(typescript_output, "completed?: boolean")
 
       # Check that config interfaces use camelCase
-      assert String.contains?(typescript_output, "fields: FieldSelection")
-      assert String.contains?(typescript_output, "calculations?: Partial")
+      assert String.contains?(typescript_output, "fields: UnifiedFieldSelection")
 
       # Verify old snake_case names are not present in field schemas
       refute String.contains?(typescript_output, "user_name: string")
@@ -87,8 +86,7 @@ defmodule AshTypescript.Rpc.CodegenFormattingTest do
       typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Check that config types have formatted field names
-      assert String.contains?(typescript_output, "fields: FieldSelection")
-      assert String.contains?(typescript_output, "calculations?: Partial")
+      assert String.contains?(typescript_output, "fields: UnifiedFieldSelection")
 
       # Check input types have formatted field names
       assert String.contains?(typescript_output, "input: {") 
@@ -124,7 +122,6 @@ defmodule AshTypescript.Rpc.CodegenFormattingTest do
 
       # Check that payload builders reference formatted config fields
       assert String.contains?(typescript_output, "config.fields")
-      assert String.contains?(typescript_output, "config.calculations")
 
       # Check function signatures
       assert String.contains?(typescript_output, "export function build") # payload builders
@@ -165,7 +162,7 @@ defmodule AshTypescript.Rpc.CodegenFormattingTest do
       assert String.contains?(typescript_output, "title_ts:")
 
       # Check that config field names are also formatted
-      assert String.contains?(typescript_output, "fields_ts: FieldSelection")
+      assert String.contains?(typescript_output, "fields_ts: UnifiedFieldSelection")
     end
 
     test "handles uppercase custom formatter" do
@@ -221,7 +218,7 @@ defmodule AshTypescript.Rpc.CodegenFormattingTest do
       # Verify relationship fields are present and formatted
       # This depends on the actual relationships defined in test resources
       assert String.contains?(typescript_output, "__resource:")
-      assert String.contains?(typescript_output, "fields: FieldSelection")
+      assert String.contains?(typescript_output, "fields: UnifiedFieldSelection")
     end
 
   end
@@ -389,7 +386,7 @@ defmodule AshTypescript.Rpc.CodegenFormattingTest do
 
       # Should generate utility types
       assert String.contains?(typescript_output, "type ResourceBase")
-      assert String.contains?(typescript_output, "type FieldSelection")
+      assert String.contains?(typescript_output, "type UnifiedFieldSelection")
       assert String.contains?(typescript_output, "type InferResourceResult")
     end
   end

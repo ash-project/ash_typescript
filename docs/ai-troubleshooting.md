@@ -10,6 +10,7 @@ This guide helps AI assistants diagnose and resolve common issues when working w
 | Embedded Resources | "Unknown type", "should not be listed in domain" | [Embedded Resources Issues](#embedded-resources-issues-critical) |
 | Type Generation | Generated types contain 'any', TypeScript compilation errors | [Type Generation Issues](#type-generation-issues) |
 | Runtime Processing | Field selection not working, calculation arguments failing | [Runtime Processing Issues](#runtime-processing-issues) |
+| Field Parsing Issues | "No such attribute" for aggregates, empty load statements | [Field Parsing and Classification Issues](#problem-field-parsing-and-classification-issues-2025-07-15) |
 | Multitenancy | Cross-tenant data access, missing tenant parameters | [Multitenancy Issues](#multitenancy-issues) |
 | Testing | Tests failing randomly, TypeScript test files not compiling | [Test-Related Issues](#test-related-issues) |
 
@@ -549,6 +550,166 @@ mix test test/ash_typescript/rpc/rpc_calcs_test.exs -t arguments
    # Correct format  
    {calc_name, {args_map, nested_loads}}
    ```
+
+### Problem: Field Parsing and Classification Issues (2025-07-15)
+
+**Symptoms**:
+- "No such attribute" errors for fields that exist in the resource
+- Aggregates or calculations not loading when requested via `fields` parameter
+- Empty load statements when aggregates/calculations are expected
+- Fields being incorrectly classified as unknown
+
+**Common Issue**: Missing field type in classification system.
+
+**Example Error**:
+```
+%Ash.Error.Invalid{errors: [%Ash.Error.Query.NoSuchAttribute{
+  resource: AshTypescript.Test.Todo, 
+  attribute: :has_comments     # This is actually an aggregate, not an attribute
+}]}
+```
+
+**Systematic Debugging Pattern**:
+
+**Step 1**: Add debug outputs to RPC pipeline to create visibility:
+
+```elixir
+# In lib/ash_typescript/rpc.ex around line 190
+IO.puts("\n=== RPC DEBUG: Load Statements ===")
+IO.puts("ash_load: #{inspect(ash_load)}")
+IO.puts("calculations_load: #{inspect(calculations_load)}")  
+IO.puts("combined_ash_load: #{inspect(combined_ash_load)}")
+IO.puts("select: #{inspect(select)}")
+IO.puts("=== END Load Statements ===\n")
+```
+
+**Step 2**: Add debug outputs for raw Ash results:
+
+```elixir
+# In lib/ash_typescript/rpc.ex after Ash.read(query)
+IO.puts("\n=== RPC DEBUG: Raw Ash Result ===")
+case result do
+  {:ok, data} when is_list(data) ->
+    IO.puts("Success: Got list with #{length(data)} items")
+    if length(data) > 0 do
+      first_item = hd(data)
+      IO.puts("First item fields: #{inspect(Map.keys(first_item))}")
+    end
+  {:error, error} ->
+    IO.puts("Error: #{inspect(error)}")
+end
+IO.puts("=== END Raw Ash Result ===\n")
+```
+
+**Step 3**: Run failing test to analyze debug output:
+
+```bash
+# Run specific test that's failing
+mix test test/ash_typescript/rpc/rpc_calcs_test.exs --only line:142
+
+# Or run with specific field types
+mix test test/ash_typescript/rpc/rpc_calcs_test.exs -k "aggregate"
+```
+
+**Step 4**: Analyze debug output patterns:
+
+```
+=== RPC DEBUG: Load Statements ===
+ash_load: []                                              # ← PROBLEM: Empty load
+calculations_load: []                                     # ← PROBLEM: Empty load  
+combined_ash_load: []                                     # ← PROBLEM: Empty load
+select: [:id, :title, :has_comments, :average_rating]    # ← PROBLEM: Aggregates in select
+=== END Load Statements ===
+
+=== RPC DEBUG: Raw Ash Result ===
+Error: %Ash.Error.Invalid{errors: [%Ash.Error.Query.NoSuchAttribute{
+  resource: AshTypescript.Test.Todo, 
+  attribute: :has_comments             # ← PROBLEM: Field classified as attribute
+}]}
+=== END Raw Ash Result ===
+```
+
+**Step 5**: Check field classification in FieldParser:
+
+```elixir
+# In lib/ash_typescript/rpc/field_parser.ex
+def classify_field(field_name, resource) when is_atom(field_name) do
+  cond do
+    is_embedded_resource_field?(field_name, resource) ->
+      :embedded_resource
+    is_relationship?(field_name, resource) ->
+      :relationship
+    is_calculation?(field_name, resource) ->
+      :simple_calculation
+    is_aggregate?(field_name, resource) ->          # ← CHECK: Is this missing?
+      :aggregate
+    is_simple_attribute?(field_name, resource) ->
+      :simple_attribute
+    true ->
+      :unknown
+  end
+end
+```
+
+**Step 6**: Verify field type detection functions exist:
+
+```elixir
+# Check if all detection functions are implemented
+def is_simple_attribute?(field_name, resource) do
+  resource |> Ash.Resource.Info.public_attributes() |> Enum.any?(&(&1.name == field_name))
+end
+
+def is_calculation?(field_name, resource) do
+  resource |> Ash.Resource.Info.calculations() |> Enum.any?(&(&1.name == field_name))
+end
+
+def is_aggregate?(field_name, resource) do      # ← COMMON MISSING FUNCTION
+  resource |> Ash.Resource.Info.aggregates() |> Enum.any?(&(&1.name == field_name))
+end
+
+def is_relationship?(field_name, resource) do
+  resource |> Ash.Resource.Info.public_relationships() |> Enum.any?(&(&1.name == field_name))
+end
+```
+
+**Step 7**: Fix field routing in process_field_node:
+
+```elixir
+# In process_field_node/3 - ensure all field types are routed correctly
+case classify_field(field_atom, resource) do
+  :simple_attribute ->
+    {:select, field_atom}      # SELECT for attributes
+  :simple_calculation ->
+    {:load, field_atom}        # LOAD for calculations  
+  :aggregate ->
+    {:load, field_atom}        # LOAD for aggregates ← CRITICAL
+  :relationship ->
+    {:load, field_atom}        # LOAD for relationships
+  :embedded_resource ->
+    {:select, field_atom}      # SELECT for embedded resources
+  :unknown ->
+    {:select, field_atom}      # Default to select
+end
+```
+
+**Step 8**: Remove debug outputs and test:
+
+```bash
+# Remove debug outputs from code
+# Run test again to confirm fix
+mix test test/ash_typescript/rpc/rpc_calcs_test.exs --only line:142
+```
+
+**Critical Insights**:
+- Ash has strict separation: `select` for attributes, `load` for computed fields
+- Field classification order matters - embedded resources should be checked before simple attributes
+- Each Ash field type (attribute, calculation, aggregate, relationship) has specific detection patterns
+- Missing field type detection functions are a common cause of classification failures
+
+**Prevention**:
+- Always implement all 5 field detection functions: `is_simple_attribute?`, `is_calculation?`, `is_aggregate?`, `is_relationship?`, `is_embedded_resource_field?`
+- Use the complete classification pattern with all field types
+- Test with examples of each field type (attributes, calculations, aggregates, relationships, embedded resources)
 
 ## Multitenancy Issues
 

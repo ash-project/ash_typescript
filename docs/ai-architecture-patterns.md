@@ -28,6 +28,8 @@ The codebase follows clear separation across three main areas:
    - Request parsing and validation
    - Field selection application
    - Calculation argument processing
+   - **Enhanced Field Processing** (`lib/ash_typescript/rpc/field_parser.ex`)
+   - **Result Processing** (`lib/ash_typescript/rpc/result_processor.ex`)
 
 ### Design Pattern: Pipeline Architecture
 
@@ -38,6 +40,92 @@ Ash Resource → Type Analysis → Schema Generation → Type Inference → Type
 ```
 
 Each stage has distinct responsibilities and clean interfaces.
+
+### Design Pattern: Three-Stage Field Processing Pipeline (2025-07-15)
+
+**Context**: Embedded resource calculations require sophisticated field processing to handle the dual nature of embedded resources.
+
+**Architecture**: Three-stage pipeline with distinct responsibilities:
+
+```
+Client Request → Field Parser → Ash Query → Result Processor → Client Response
+```
+
+**Stage 1: Field Parser** (`lib/ash_typescript/rpc/field_parser.ex`)
+- **Input**: Client field specifications (e.g., `%{"metadata" => ["category", "displayCategory"]}`)
+- **Processing**: Tree traversal with field type classification
+- **Output**: Dual statements `{select, load}` (e.g., `{[:metadata], [metadata: [:display_category]]}`)
+
+**Stage 2: Ash Query** (`lib/ash_typescript/rpc.ex`)
+- **Input**: Dual statements from Field Parser
+- **Processing**: Execute optimal Ash queries (SELECT for attributes, LOAD for calculations)
+- **Output**: Raw Ash results with both attributes and calculations
+
+**Stage 3: Result Processor** (`lib/ash_typescript/rpc/result_processor.ex`)
+- **Input**: Raw Ash results + original client field specification
+- **Processing**: Filter to requested fields + apply formatting
+- **Output**: Formatted client response with only requested fields
+
+**Key Insight**: Each stage has distinct concerns:
+- **Field Parser**: Understands field types and Ash requirements
+- **Ash Query**: Executes optimal database queries
+- **Result Processor**: Formats and filters for client consumption
+
+### Design Pattern: Dual-Nature Processing
+
+**Context**: Embedded resources contain both simple attributes and calculations that require different handling.
+
+**Pattern**: Use `{:both, field_atom, load_statement}` return type to signal dual processing needs:
+
+```elixir
+# Field Parser decision logic
+case embedded_load_items do
+  [] ->
+    # Only simple attributes requested
+    {:select, field_atom}
+  load_items ->
+    # Both attributes and calculations requested
+    {:both, field_atom, {field_atom, load_items}}
+end
+
+# RPC integration handles both cases
+case process_field_node(field, resource, formatter) do
+  {:select, field_atom} -> 
+    {[field_atom | select_acc], load_acc}
+  {:load, load_statement} -> 
+    {select_acc, [load_statement | load_acc]}
+  {:both, field_atom, load_statement} ->
+    {[field_atom | select_acc], [load_statement | load_acc]}
+end
+```
+
+**Why This Works**:
+- `SELECT` ensures embedded resource attributes are available
+- `LOAD` ensures embedded resource calculations are computed
+- Both operations target the same field, avoiding conflicts
+
+### Design Pattern: Field Classification Priority
+
+**Context**: Some fields have dual nature (embedded resources are both attributes AND loadable).
+
+**Pattern**: Classification order determines behavior:
+
+```elixir
+def classify_field(field_name, resource) do
+  cond do
+    is_embedded_resource_field?(field_name, resource) ->  # CHECK FIRST
+      :embedded_resource
+    is_relationship?(field_name, resource) ->
+      :relationship  
+    is_calculation?(field_name, resource) ->
+      :simple_calculation
+    is_simple_attribute?(field_name, resource) ->          # CHECK LAST
+      :simple_attribute
+  end
+end
+```
+
+**Critical Insight**: Order matters because `metadata` field IS both a simple attribute AND an embedded resource. The first match determines how it's processed.
 
 ## Key Architectural Patterns
 
@@ -532,7 +620,181 @@ def is_embedded_resource?(module), do: ...
 
 **See**: `docs/ai-embedded-resources.md` for complete embedded resource implementation guide.
 
+### Design Pattern: Unified Field Format (2025-07-15)
+
+**Context**: Major architectural simplification removed backwards compatibility for separate `calculations` parameter.
+
+**BREAKING CHANGE**: The `calculations` parameter was completely removed. All calculations must now be specified within the unified `fields` parameter.
+
+**Architecture**: Single processing path with unified field format:
+
+```
+Client Request → Field Parser → Ash Query → Result Processor → Client Response
+               (unified fields)  (single path)  (single format)
+```
+
+**Before (Removed - DO NOT USE)**:
+```typescript
+// ❌ DEPRECATED - This format no longer works
+const result = await getTodo({
+  fields: ["id", "title"],
+  calculations: {
+    "self": {
+      "calcArgs": {"prefix": "test"},
+      "fields": ["id", "title"]
+    }
+  }
+});
+```
+
+**After (Unified Format - REQUIRED)**:
+```typescript
+// ✅ CORRECT - Single unified format
+const result = await getTodo({
+  fields: [
+    "id", "title",
+    {
+      "self": {
+        "calcArgs": {"prefix": "test"},
+        "fields": ["id", "title"]
+      }
+    }
+  ]
+});
+```
+
+**Key Implementation Details**:
+
+1. **Field Parser Enhancement**: Must handle nested calculation maps within field lists
+```elixir
+# Field parser now handles nested calculations in field lists
+def parse_field_names_for_load(fields, formatter) do
+  fields
+  |> Enum.map(fn field ->
+    case field do
+      field_map when is_map(field_map) ->
+        # Handle nested calculations like %{"self" => %{"calcArgs" => ..., "fields" => ...}}
+        case Map.to_list(field_map) do
+          [{field_name, %{"calcArgs" => calc_args, "fields" => nested_fields}}] ->
+            # Build proper Ash load entry for nested calculation
+            build_calculation_load_entry(field_name, calc_args, nested_fields, formatter)
+        end
+    end
+  end)
+end
+```
+
+2. **Removed Code Components**:
+   - `convert_traditional_calculations_to_field_specs/1` - Deleted
+   - `parse_calculations_with_fields/2` - Deleted
+   - All dual format handling in `result_processor.ex`
+   - Traditional calculation processing in `rpc.ex`
+
+3. **Simplified RPC Processing**:
+```elixir
+# Before: Dual processing paths
+{select, load, field_based_calc_specs} = parse_fields(...)
+{traditional_load, traditional_calc_specs} = parse_calculations(...)
+combined_load = ash_load ++ traditional_load
+combined_specs = Map.merge(field_based_calc_specs, traditional_calc_specs)
+
+# After: Single processing path
+{select, load, calc_specs} = parse_fields(...)
+```
+
+**Benefits Achieved**:
+- **~300 lines of code removed** from backwards compatibility
+- **Single processing path** instead of dual paths
+- **Better performance** - no format conversion overhead
+- **Cleaner architecture** - one way to specify calculations
+- **Easier maintenance** - unified API with no confusion
+
+**Migration Pattern for Tests**:
+```elixir
+# Before
+params = %{
+  "fields" => ["id", "title"],
+  "calculations" => %{
+    "self" => %{
+      "calcArgs" => %{"prefix" => nil},
+      "fields" => ["id", "title"]
+    }
+  }
+}
+
+# After  
+params = %{
+  "fields" => [
+    "id", "title",
+    %{
+      "self" => %{
+        "calcArgs" => %{"prefix" => nil},
+        "fields" => ["id", "title"]
+      }
+    }
+  ]
+}
+```
+
+**Nested Calculations Support**:
+```typescript
+// Complex nested calculations work seamlessly
+const result = await getTodo({
+  fields: [
+    "id", "title",
+    {
+      "self": {
+        "calcArgs": {"prefix": "outer"},
+        "fields": [
+          "id", "title",
+          {
+            "self": {
+              "calcArgs": {"prefix": "inner"},
+              "fields": ["id", "title"]
+            }
+          }
+        ]
+      }
+    }
+  ]
+});
+```
+
+**Critical for AI Assistants**:
+- **NEVER use the old `calculations` parameter** - it will cause errors
+- **Always use the unified field format** for any calculations
+- **Nested calculations work recursively** within the field format
+- **Field parser handles all the complexity** of converting to Ash load statements
+
 ## Common Pitfalls for AI Assistants
+
+### Unified Field Format Pitfalls (CRITICAL - 2025-07-15)
+
+1. **NEVER use the `calculations` parameter** - It was completely removed and will cause errors
+2. **Don't assume backwards compatibility exists** - All calculations must use the unified field format
+3. **Don't forget nested calculation maps in field lists** - Field parser must handle maps within calculation field arrays
+4. **Don't use dual processing logic** - Single processing path only
+5. **Don't reference removed functions** - `convert_traditional_calculations_to_field_specs`, `parse_calculations_with_fields`, etc. no longer exist
+
+**Common Error Patterns**:
+```elixir
+# ❌ WRONG - Will cause "no function clause matching" errors
+params = %{
+  "fields" => ["id"],
+  "calculations" => %{"self" => %{"calcArgs" => %{}}}
+}
+
+# ❌ WRONG - Trying to use removed functions
+convert_traditional_calculations_to_field_specs(calculations)
+
+# ✅ CORRECT - Unified format only
+params = %{
+  "fields" => [
+    "id",
+    %{"self" => %{"calcArgs" => %{}, "fields" => []}}
+  ]
+}
+```
 
 ### Embedded Resource Pitfalls (CRITICAL)
 

@@ -6,9 +6,10 @@ defmodule AshTypescript.Rpc.ReadTest do
 
   setup do
     # Create proper Plug.Conn struct
-    conn = build_conn()
-    |> put_private(:ash, %{actor: nil, tenant: nil})
-    |> assign(:context, %{})
+    conn =
+      build_conn()
+      |> put_private(:ash, %{actor: nil, tenant: nil})
+      |> assign(:context, %{})
 
     {:ok, conn: conn}
   end
@@ -131,6 +132,7 @@ defmodule AshTypescript.Rpc.ReadTest do
     end
   end
 
+  @tag :generic
   describe "generic actions" do
     test "runs generic actions successfully", %{conn: conn} do
       params = %{

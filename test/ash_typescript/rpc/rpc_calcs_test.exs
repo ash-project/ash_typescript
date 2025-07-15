@@ -107,10 +107,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
     test "loads calculation without arguments via calculations parameter", %{conn: conn} do
       params = %{
         "action" => "list_todos",
-        "fields" => ["id", "title"],
-        "calculations" => %{
-          "isOverdue" => %{}
-        },
+        "fields" => ["id", "title", "isOverdue"],
         "input" => %{}
       }
 
@@ -236,16 +233,13 @@ defmodule AshTypescript.Rpc.CalcsTest do
 
       assert Map.has_key?(data, "user")
       assert is_map(data["user"])
-      assert Map.has_key?(data["user"], :name)
+      assert Map.has_key?(data["user"], "name")
     end
 
     test "combines calculations parameter with fields parameter", %{conn: conn} do
       params = %{
         "action" => "list_todos",
-        "fields" => ["id", "title", "isOverdue"],
-        "calculations" => %{
-          "daysUntilDue" => %{}
-        },
+        "fields" => ["id", "title", "isOverdue", "daysUntilDue"],
         "input" => %{}
       }
 
@@ -290,7 +284,6 @@ defmodule AshTypescript.Rpc.CalcsTest do
       params = %{
         "action" => "list_todos",
         "fields" => ["id", "title"],
-        "calculations" => %{},
         "input" => %{}
       }
 
@@ -328,24 +321,29 @@ defmodule AshTypescript.Rpc.CalcsTest do
 
       params = %{
         "action" => "get_todo",
-        "fields" => ["id", "title"],
-        "calculations" => %{
-          "self" => %{
-            "calcArgs" => %{"prefix" => nil},
-            "fields" => ["id", "title", "completed", "dueDate"],
-            "calculations" => %{
-              "self" => %{
-                "calcArgs" => %{"prefix" => nil},
-                "fields" => ["id", "title", "completed", "dueDate"]
-              }
+        "fields" => [
+          "id", "title",
+          %{
+            "self" => %{
+              "calcArgs" => %{"prefix" => nil},
+              "fields" => [
+                "id", "title", "completed", "dueDate",
+                %{
+                  "self" => %{
+                    "calcArgs" => %{"prefix" => nil},
+                    "fields" => ["id", "title", "completed", "dueDate"]
+                  }
+                }
+              ]
             }
           }
-        },
+        ],
         "input" => %{"id" => todo["id"]}
       }
 
       # This should now work with the enhanced argument resolution
       result = Rpc.run_action(:ash_typescript, conn, params)
+      
       assert %{success: true, data: data} = result
 
       # Verify top-level field selection: only requested fields + calculations should be present
@@ -374,23 +372,28 @@ defmodule AshTypescript.Rpc.CalcsTest do
       # Test with a different set of fields to ensure flexibility
       params = %{
         "action" => "get_todo",
-        "fields" => ["id", "description", "status"],
-        "calculations" => %{
-          "self" => %{
-            "calcArgs" => %{"prefix" => nil},
-            "fields" => ["title", "priority", "tags"],
-            "calculations" => %{
-              "self" => %{
-                "calcArgs" => %{"prefix" => nil},
-                "fields" => ["id", "status", "metadata"]
-              }
+        "fields" => [
+          "id", "description", "status",
+          %{
+            "self" => %{
+              "calcArgs" => %{"prefix" => nil},
+              "fields" => [
+                "title", "priority", "tags",
+                %{
+                  "self" => %{
+                    "calcArgs" => %{"prefix" => nil},
+                    "fields" => ["id", "status", "metadata"]
+                  }
+                }
+              ]
             }
           }
-        },
+        ],
         "input" => %{"id" => todo["id"]}
       }
 
       result = Rpc.run_action(:ash_typescript, conn, params)
+      
       assert %{success: true, data: data} = result
 
       # Verify top-level field selection

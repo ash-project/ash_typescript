@@ -78,15 +78,32 @@ defmodule AshTypescript.FieldFormatter do
 
   # Private helper for formatting field names
   defp format_field_name(field_name, formatter) do
+    string_field = to_string(field_name)
+    
     case formatter do
       :camel_case ->
-        field_name |> to_string() |> snake_to_camel_case()
+        # If already camelCase, return as-is, otherwise convert from snake_case
+        if is_camel_case?(string_field) do
+          string_field
+        else
+          snake_to_camel_case(string_field)
+        end
         
       :pascal_case ->
-        field_name |> to_string() |> snake_to_pascal_case()
+        # If already PascalCase, return as-is, otherwise convert from snake_case
+        if is_pascal_case?(string_field) do
+          string_field
+        else
+          snake_to_pascal_case(string_field)
+        end
         
       :snake_case ->
-        field_name |> to_string()
+        # If already snake_case, return as-is, otherwise convert from camelCase/PascalCase
+        if is_snake_case?(string_field) do
+          string_field
+        else
+          camel_to_snake_case(string_field)
+        end
         
       {module, function} ->
         apply(module, function, [field_name])
@@ -97,6 +114,24 @@ defmodule AshTypescript.FieldFormatter do
       _ ->
         raise ArgumentError, "Unsupported formatter: #{inspect(formatter)}"
     end
+  end
+  
+  # Helper to check if a string is already in camelCase
+  defp is_camel_case?(string) do
+    # camelCase: starts with lowercase, no underscores, has at least one uppercase
+    String.match?(string, ~r/^[a-z][a-zA-Z0-9]*$/) && String.match?(string, ~r/[A-Z]/)
+  end
+  
+  # Helper to check if a string is already in PascalCase
+  defp is_pascal_case?(string) do
+    # PascalCase: starts with uppercase, no underscores
+    String.match?(string, ~r/^[A-Z][a-zA-Z0-9]*$/)
+  end
+  
+  # Helper to check if a string is already in snake_case
+  defp is_snake_case?(string) do
+    # snake_case: lowercase with underscores, no uppercase
+    String.match?(string, ~r/^[a-z][a-z0-9_]*$/) && String.contains?(string, "_")
   end
 
   # Private helper for parsing field names from client format to internal format

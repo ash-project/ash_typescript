@@ -94,71 +94,76 @@ defmodule AshTypescript.Rpc.Codegen do
       __complexCalculationsInternal: Record<string, any>;
     };
 
-    type FieldSelection<Resource extends ResourceBase> =
+    type UnifiedFieldSelection<Resource extends ResourceBase> =
       | keyof Resource["fields"]
       | {
-          [K in keyof Resource["relationships"]]?: FieldSelection<
+          [K in keyof Resource["relationships"]]?: UnifiedFieldSelection<
             Resource["relationships"][K] extends { __resource: infer R }
             ? R extends ResourceBase ? R : never : never
           >[];
+        }
+      | {
+          [K in keyof Resource["complexCalculations"]]?: {
+            calcArgs: Resource["complexCalculations"][K] extends { calcArgs: infer Args } ? Args : never;
+            fields: UnifiedFieldSelection<
+              Resource["complexCalculations"][K] extends { __returnType: infer ReturnType }
+              ? ReturnType extends ResourceBase ? ReturnType : never : never
+            >[];
+          };
         };
 
-    // Helper to extract string fields from field selection
-    type ExtractStringFields<Fields> = Fields extends readonly (infer U)[]
-      ? U extends string
-        ? U
-        : never
-      : never;
 
-    // Helper to extract relationship objects from field selection
-    type ExtractRelationshipObjects<Fields> = Fields extends readonly (infer U)[]
-      ? U extends Record<string, any>
-        ? U
-        : never
-      : never;
-
-    // Infer picked fields from string field names
-    type InferPickedFields<
+    // Simplified type inference that processes each field individually
+    type InferResourceResult<
       Resource extends ResourceBase,
-      StringFields
-    > = Pick<Resource["fields"], Extract<StringFields, keyof Resource["fields"]>>
+      SelectedFields extends UnifiedFieldSelection<Resource>[]
+    > = UnionToIntersection<
+      SelectedFields extends readonly (infer Field)[]
+        ? Field extends string
+          ? Field extends keyof Resource["fields"]
+            ? { [K in Field]: Resource["fields"][K] }
+            : {}
+          : Field extends Record<string, any>
+            ? Field extends { [K in keyof Field]: { calcArgs: any, fields: any } }
+              ? InferCalculationField<Field, Resource["__complexCalculationsInternal"]>
+              : InferRelationshipField<Field, Resource["relationships"]>
+            : {}
+        : never
+    >;
 
-    // Simplified relationship inference that works with literal arrays
-    type InferRelationships<
-      RelationshipsObject extends Record<string, any>,
-      AllRelationships extends Record<string, any>
+    // Helper to merge union types into intersection types
+    type UnionToIntersection<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
+
+    // Infer calculation field
+    type InferCalculationField<
+      Field extends Record<string, any>,
+      InternalCalculations extends Record<string, any>
     > = {
-      [K in keyof RelationshipsObject]-?: K extends keyof AllRelationships
-        ? AllRelationships[K] extends { __resource: infer Res extends ResourceBase }
-          ? AllRelationships[K] extends { __array: true }
-            ? Array<InferResourceResult<Res, RelationshipsObject[K], {}>>
-            : InferResourceResult<Res, RelationshipsObject[K], {}>
+      [K in keyof Field]: K extends keyof InternalCalculations
+        ? InternalCalculations[K] extends { __returnType: infer ReturnType }
+          ? ReturnType extends ResourceBase
+            ? Field[K] extends { fields: infer Fields }
+              ? Fields extends UnifiedFieldSelection<ReturnType>[]
+                ? InferResourceResult<ReturnType, Fields>
+                : never
+              : never
+            : ReturnType
           : never
         : never;
     };
 
-    // Main result type that combines picked fields, relationships, and calculations
-    type InferResourceResult<
-      Resource extends ResourceBase,
-      SelectedFields extends FieldSelection<Resource>[],
-      CalculationsConfig extends Record<string, any>
-    > =
-      InferPickedFields<Resource, ExtractStringFields<SelectedFields>> &
-      InferRelationships<ExtractRelationshipObjects<SelectedFields>, Resource["relationships"]> &
-      InferCalculations<CalculationsConfig, Resource["__complexCalculationsInternal"]>;
-
-    // Infer calculation results
-    type InferCalculations<
-      CalculationsConfig extends Record<string, any>,
-      InternalCalculations extends Record<string, any>
+    // Infer relationship field
+    type InferRelationshipField<
+      Field extends Record<string, any>,
+      AllRelationships extends Record<string, any>
     > = {
-      [K in keyof CalculationsConfig]?: K extends keyof InternalCalculations
-        ? InternalCalculations[K] extends { __returnType: infer ReturnType; fields: infer Fields }
-          ? ReturnType extends ResourceBase
-              ? InferResourceResult<ReturnType, CalculationsConfig[K]["fields"], CalculationsConfig[K]["calculations"] extends Record<string, any> ? CalculationsConfig[K]["calculations"] : {}>
-              : ReturnType extends Record<string, any>
-                ? Pick<ReturnType, Extract<ExtractStringFields<CalculationsConfig[K]["fields"]>, keyof ReturnType>>
-                : ReturnType
+      [K in keyof Field]: K extends keyof AllRelationships
+        ? AllRelationships[K] extends { __resource: infer Res }
+          ? Res extends ResourceBase
+            ? AllRelationships[K] extends { __array: true }
+              ? Array<InferResourceResult<Res, Field[K]>>
+              : InferResourceResult<Res, Field[K]>
+            : never
           : never
         : never;
     };
@@ -228,7 +233,7 @@ defmodule AshTypescript.Rpc.Codegen do
         """
           type #{resource_name}Embedded = {
             __resource: #{resource_name}ResourceSchema;
-            fields: FieldSelection<#{resource_name}ResourceSchema>[];
+            fields: UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
           };
         """
       else
@@ -258,7 +263,7 @@ defmodule AshTypescript.Rpc.Codegen do
         type #{resource_name}ArrayEmbedded = {
           __array: true;
           __resource: #{resource_name}ResourceSchema;
-          fields: FieldSelection<#{resource_name}ResourceSchema>[];
+          fields: UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
         };
         """
       else
@@ -293,7 +298,7 @@ defmodule AshTypescript.Rpc.Codegen do
         """
           type #{resource_name}Relationship = {
             __resource: #{resource_name}ResourceSchema;
-            fields: FieldSelection<#{resource_name}ResourceSchema>[];
+            fields: UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
           };
         """
       else
@@ -319,7 +324,7 @@ defmodule AshTypescript.Rpc.Codegen do
         type #{resource_name}ArrayRelationship = {
           __array: true;
           __resource: #{resource_name}ResourceSchema;
-          fields: FieldSelection<#{resource_name}ResourceSchema>[];
+          fields: UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
         };
         """
       else
@@ -407,20 +412,11 @@ defmodule AshTypescript.Rpc.Codegen do
         AshTypescript.Rpc.output_field_formatter()
       )
 
-    formatted_calculations_name =
-      AshTypescript.FieldFormatter.format_field(
-        "calculations",
-        AshTypescript.Rpc.output_field_formatter()
-      )
 
     fields_field = [
-      "  #{formatted_fields_name}: FieldSelection<#{resource_name}ResourceSchema>[];"
+      "  #{formatted_fields_name}: UnifiedFieldSelection<#{resource_name}ResourceSchema>[];"
     ]
 
-    # Add calculations field
-    calculations_field = [
-      "  #{formatted_calculations_name}?: Partial<#{resource_name}ResourceSchema[\"complexCalculations\"]>;"
-    ]
 
     # Add input fields based on action type
     input_fields =
@@ -558,7 +554,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     all_fields =
       if action.type in [:read, :create, :update] do
-        tenant_field ++ input_fields ++ fields_field ++ calculations_field
+        tenant_field ++ input_fields ++ fields_field
       else
         tenant_field ++ input_fields
       end
@@ -578,19 +574,19 @@ defmodule AshTypescript.Rpc.Codegen do
       :read when action.get? ->
         """
         type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          InferResourceResult<#{resource_name}ResourceSchema, Config["fields"], Config["calculations"]> | null;
+          InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]> | null;
         """
 
       :read ->
         """
         type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"], Config["calculations"]>>;
+          Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
         """
 
       action_type when action_type in [:create, :update] ->
         """
         type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          InferResourceResult<#{resource_name}ResourceSchema, Config["fields"], Config["calculations"]>;
+          InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>;
         """
 
       :destroy ->
@@ -665,10 +661,6 @@ defmodule AshTypescript.Rpc.Codegen do
             payload.sort = config.sort;
           }
 
-          if (config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())}) {
-            payload.calculations = config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())};
-          }
-
           if ("input" in config && config.input) {
             payload.input = config.input;
           } else {
@@ -686,10 +678,6 @@ defmodule AshTypescript.Rpc.Codegen do
         ): Record<string, any> {
         #{base_payload_with_tenant.()}
 
-          if (config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())}) {
-            payload.calculations = config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())};
-          }
-
           if ("input" in config && config.input) {
             payload.input = config.input;
           } else {
@@ -706,10 +694,6 @@ defmodule AshTypescript.Rpc.Codegen do
           config: #{rpc_action_name_pascal}Config
         ): Record<string, any> {
         #{base_payload_with_tenant.()}
-
-          if (config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())}) {
-            payload.calculations = config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())};
-          }
 
           if ("input" in config && config.input) {
             payload.input = config.input;
@@ -747,10 +731,6 @@ defmodule AshTypescript.Rpc.Codegen do
           config: #{rpc_action_name_pascal}Config
         ): Record<string, any> {
         #{update_payload_base}
-
-          if (config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())}) {
-            payload.calculations = config.#{AshTypescript.FieldFormatter.format_field("calculations", AshTypescript.Rpc.output_field_formatter())};
-          }
 
           if ("input" in config && config.input) {
             payload.input = config.input;

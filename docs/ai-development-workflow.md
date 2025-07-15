@@ -49,6 +49,148 @@ test "debug embedded resource detection" do
 end
 ```
 
+## Advanced Debugging Workflow: Embedded Resource Issues
+
+### Pattern: Experimental Test-First Debugging
+
+**When to Use**: Complex Ash query behavior that's hard to understand through code reading alone.
+
+**WORKFLOW**:
+
+1. **Create Experimental Test File**:
+```elixir
+# test/ash_typescript/ash_embedded_experiment_test.exs
+defmodule AshTypescript.AshEmbeddedExperimentTest do
+  use ExUnit.Case, async: true
+  
+  @moduletag :focus  # Only run this test during debugging
+  
+  describe "Ash Embedded Resource Query Experiments" do
+    test "experiment 1: basic embedded resource selection" do
+      # Direct Ash queries to understand behavior
+      {:ok, result} = AshTypescript.Test.Todo
+        |> Ash.Query.for_read(:read)
+        |> Ash.Query.filter(id == ^todo_id)
+        |> Ash.Query.select([:metadata])
+        |> Ash.Query.load([metadata: [:display_category]])
+        |> Ash.read()
+        
+      IO.inspect(result, label: "Direct Ash result")
+    end
+  end
+end
+```
+
+2. **Run Focused Experiments**:
+```bash
+mix test test/ash_typescript/ash_embedded_experiment_test.exs --trace
+```
+
+3. **Compare with RPC System**:
+```elixir
+# Compare direct Ash approach with RPC system approach
+{select, load} = AshTypescript.Rpc.FieldParser.parse_requested_fields(
+  client_fields, 
+  AshTypescript.Test.Todo, 
+  :camel_case
+)
+
+IO.inspect({select, load}, label: "RPC FieldParser output")
+```
+
+### Pattern: Strategic Debug Outputs
+
+**When to Use**: Complex field processing issues where you need visibility into each stage.
+
+**IMPLEMENTATION**:
+
+```elixir
+# In lib/ash_typescript/rpc.ex - Add strategic debug outputs
+def run_action(otp_app, conn, params) do
+  # ... field processing ...
+  
+  # 🔍 DEBUG: Load statement analysis
+  IO.puts("\n" <> String.duplicate("=", 60))
+  IO.puts("🔍 DEBUG: Field processing analysis for action: #{params["action"]}")
+  IO.puts(String.duplicate("=", 60))
+  IO.inspect(client_fields, label: "📥 Client field specification")
+  IO.inspect({select, load}, label: "🌳 Full field parser output (select, load)")
+  IO.inspect(ash_load, label: "🔧 Filtered load for Ash (calculations only)")
+  IO.inspect(combined_ash_load, label: "📋 Final combined_ash_load sent to Ash")
+  IO.puts(String.duplicate("=", 60) <> "\n")
+  
+  # ... query execution ...
+  
+  # 🔍 DEBUG: Raw action result analysis
+  |> tap(fn result ->
+    IO.puts("\n" <> String.duplicate("=", 60))
+    IO.puts("🔍 DEBUG: Raw Ash action result")
+    IO.puts(String.duplicate("=", 60))
+    case result do
+      {:ok, data} ->
+        IO.inspect(data, label: "✅ Raw action success data", limit: :infinity)
+      {:error, error} ->
+        IO.inspect(error, label: "❌ Raw action error")
+    end
+    IO.puts(String.duplicate("=", 60) <> "\n")
+  end)
+end
+```
+
+**CLEANUP**: Comment out debug outputs after issue is resolved:
+```elixir
+# DEBUG: Uncomment these lines to debug field processing issues
+# IO.inspect({select, load}, label: "🌳 Full field parser output")
+# IO.inspect(ash_load, label: "🔧 Filtered load for Ash")
+```
+
+### Pattern: Comprehensive Integration Testing
+
+**When to Use**: After implementing new field processing features.
+
+**WORKFLOW**:
+
+1. **Create Comprehensive Test Suite**:
+```elixir
+# test/ash_typescript/rpc_embedded_calculations_test.exs
+describe "RPC Embedded Resource Calculations" do
+  test "embedded resource with simple calculation" do
+    # Test basic calculation loading
+  end
+  
+  test "embedded resource with multiple calculations" do
+    # Test multiple calculation loading
+  end
+  
+  test "embedded resource with only calculations (no attributes)" do
+    # Test calculation-only requests
+  end
+  
+  test "mixed embedded attributes and calculations" do
+    # Test combination requests
+  end
+end
+```
+
+2. **Run Progressive Testing**:
+```bash
+# Test specific functionality
+mix test test/ash_typescript/rpc_embedded_calculations_test.exs --trace
+
+# Test integration with existing system
+mix test test/ash_typescript/rpc_integration_test.exs
+
+# Test complete system
+mix test test/ash_typescript/rpc_integration_test.exs test/ash_typescript/rpc_embedded_calculations_test.exs
+```
+
+3. **Validate TypeScript Generation**:
+```bash
+# Ensure TypeScript types are still valid
+mix test.codegen
+cd test/ts && npm run compileGenerated
+```
+
 ## Quick Start Workflow
 
 ### For New AI Assistants
