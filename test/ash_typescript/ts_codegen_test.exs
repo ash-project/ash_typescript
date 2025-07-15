@@ -338,9 +338,9 @@ defmodule AshTypescript.CodegenTest do
       assert result == "  priority?: \"low\" | \"medium\" | \"high\" | \"urgent\" | null;"
     end
 
-    test "generates field spec for map attribute" do
+    test "generates field spec for embedded resource attribute" do
       result = Codegen.get_resource_field_spec(:metadata, Todo)
-      assert result == "  metadata?: Record<string, any> | null;"
+      assert result == "  metadata?: TodoMetadataResourceSchema | null;"
     end
   end
 
@@ -430,7 +430,8 @@ defmodule AshTypescript.CodegenTest do
 
       assert String.contains?(result, "dueDate?: AshDate | null;")
       assert String.contains?(result, "tags?: Array<string> | null;")
-      assert String.contains?(result, "metadata?: Record<string, any> | null;")
+      assert String.contains?(result, "metadata?: TodoMetadataResourceSchema | null;")
+      assert String.contains?(result, "metadataHistory?: Array<TodoMetadataResourceSchema> | null;")
       assert String.contains?(result, "userId: UUID;")
     end
 

@@ -45,7 +45,12 @@ defmodule AshTypescript.Test.Todo do
       public? true
     end
 
-    attribute :metadata, :map do
+    attribute :metadata, AshTypescript.Test.TodoMetadata do
+      public? true
+    end
+
+    attribute :metadata_history, {:array, AshTypescript.Test.TodoMetadata} do
+      default []
       public? true
     end
 

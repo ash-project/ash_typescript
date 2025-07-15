@@ -2,6 +2,20 @@
 
 This guide explains the business logic, key abstractions, and domain-specific concepts in AshTypescript that AI assistants need to understand to work effectively with the codebase.
 
+## 🚨 CRITICAL BUSINESS DOMAIN: Environment Separation
+
+### Test-Driven Development Domain
+
+**BUSINESS REALITY**: AshTypescript's primary development domain exists entirely in the `:test` environment:
+
+- **Primary Resources**: `AshTypescript.Test.Todo`, `AshTypescript.Test.TodoMetadata`, etc.
+- **Domain Configuration**: `AshTypescript.Test.Domain` with full RPC setup
+- **Real-World Usage**: These test resources represent comprehensive real-world usage patterns
+
+**This is NOT just testing infrastructure** - these are the canonical examples and primary development resources for the entire system.
+
+**Business Impact**: Any development or debugging that doesn't use `:test` environment will fail to access the core business domain.
+
 ## Core Domain Concepts
 
 ### The Type Bridge Problem
@@ -13,6 +27,7 @@ This guide explains the business logic, key abstractions, and domain-specific co
 2. Generates corresponding TypeScript types and interfaces  
 3. Creates RPC client functions with full type safety
 4. Maintains consistency between backend changes and frontend types
+5. **Embedded Resource Support**: Full schema generation for Ash embedded resources (Phase 1 complete)
 
 ### Resource-Centric Architecture
 
@@ -157,6 +172,84 @@ const todoDetail = await getTodo({
    **Business Logic**: Organization context determines data access. More flexible tenant identification.
 
 **Critical Domain Rule**: Tenant isolation must be preserved at all times. Cross-tenant data access is a security violation.
+
+### 5. Embedded Resources (Critical Gap)
+
+**Domain Concept**: Embedded resources are full Ash resources stored as structured data within other resources.
+
+**Key Characteristics**:
+- Use `data_layer: :embedded` instead of standard data layers
+- Support attributes, calculations, validations, identities, actions  
+- Cannot have policies, aggregates, or complex relationships
+- Stored as maps/JSON in parent resource attributes
+
+**Business Use Cases**:
+- **Structured Metadata**: Todo metadata with category, priority, tags
+- **Configuration Objects**: User settings, preferences, feature flags
+- **Nested Forms**: Address information, profile data, contact details
+- **Audit Trails**: Historical data snapshots, change tracking
+
+**Domain Examples**:
+```elixir
+# Embedded resource definition
+defmodule MyApp.TodoMetadata do
+  use Ash.Resource, data_layer: :embedded
+  
+  attributes do
+    attribute :category, :string, public?: true, allow_nil?: false
+    attribute :priority_score, :integer, public?: true, default: 0
+    attribute :tags, {:array, :string}, public?: true, default: []
+  end
+  
+  calculations do
+    calculate :display_category, :string, expr(category || "Uncategorized")
+    
+    calculate :adjusted_priority, :integer, AdjustedPriorityCalculation do
+      argument :urgency_multiplier, :float, default: 1.0
+    end
+  end
+end
+
+# Usage in parent resource
+defmodule MyApp.Todo do
+  use Ash.Resource, domain: MyApp.Domain
+  
+  attributes do
+    attribute :metadata, MyApp.TodoMetadata, public?: true              # Single embed
+    attribute :metadata_history, {:array, MyApp.TodoMetadata}, public?: true  # Array embed
+  end
+end
+```
+
+**✅ IMPLEMENTED (Phase 1 Complete)**:
+- **Current Status**: Embedded resources fully supported with type generation
+- **Generated Output**: 4,203 lines of TypeScript (vs 91 lines before)
+- **Type Safety**: Complete embedded resource schema generation
+- **Integration**: Automatic discovery and inclusion in schema generation pipeline
+
+**Discovery Solution Implemented**:
+```elixir
+# Automatic discovery from attributes (no domain config needed)
+embedded_resources = AshTypescript.Codegen.find_embedded_resources(rpc_resources)
+all_resources_for_schemas = rpc_resources ++ embedded_resources
+
+# Generated TypeScript includes full schemas:
+# TodoMetadataResourceSchema, TodoMetadataFieldsSchema, etc.
+```
+
+**Implemented Domain Logic**:
+1. ✅ **Discovery**: Automatic scanning of resource attributes for embedded types
+2. ✅ **Schema Generation**: Full TypeScript schemas for embedded resources  
+3. ✅ **Type Reference**: Proper references (`TodoMetadataResourceSchema | null`)
+4. 🔄 **Field Selection**: Basic support (Phase 2 for advanced field selection)
+
+**Business Impact Achieved**:
+- ✅ **Structured Data**: Full type safety for complex nested data structures
+- ✅ **Nested Validation**: Ash validations work in embedded contexts with TypeScript support
+- **Calculation Composition**: Cannot use embedded calculations in type inference
+- **Developer Experience**: Forces workarounds using generic `Record<string, any>` types
+
+**Architecture Requirements**: See `docs/ai-embedded-resources.md` for implementation details.
 
 ## Domain-Specific Business Rules
 

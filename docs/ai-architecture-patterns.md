@@ -2,6 +2,12 @@
 
 This guide covers the architectural patterns, design decisions, and code organization principles in AshTypescript to help AI assistants understand and work effectively with the codebase.
 
+## 🚨 CRITICAL: Environment Architecture 
+
+**FOUNDATIONAL INSIGHT**: AshTypescript has strict environment separation. All development work must happen in `:test` environment where test resources (`AshTypescript.Test.*`) are available.
+
+**See CLAUDE.md for complete environment rules and command reference.**
+
 ## Core Architecture Principles
 
 ### Separation of Concerns
@@ -252,13 +258,296 @@ end
 2. **Pattern**: Add utility types following recursive inference pattern
 3. **Integration**: Update `InferResourceResult` to use new utilities
 
+## Embedded Resources Architecture (Critical Gap)
+
+**Status**: Major architectural gap discovered during Phase 0 implementation
+
+### The Embedded Resource Problem
+
+**Issue**: Embedded resources break the standard type generation pipeline:
+
+```
+Standard Flow: Domain Resources → Type Analysis → Schema Generation → TypeScript Output
+Broken Flow:   Embedded resources NOT discovered in domain traversal → Type generation fails
+```
+
+**Failure Point**: `lib/ash_typescript/codegen.ex:108` - `generate_ash_type_alias/1`
+```elixir
+# Current error:
+RuntimeError: Unknown type: Elixir.MyApp.EmbeddedResource
+```
+
+### Architecture Requirements for Embedded Resources
+
+1. **Discovery Phase**: Must scan all resource attributes for embedded resource types
+2. **Schema Generation**: Must generate separate schemas for embedded resources
+3. **Type Reference**: Must handle embedded resource type references in parent resources
+4. **Field Selection**: Must support field selection within embedded attributes
+
+### Implementation Architecture Pattern
+
+```elixir
+# Required: Embedded resource discovery function
+def find_embedded_resources(resources) do
+  resources
+  |> Enum.flat_map(&extract_embedded_from_resource/1)
+  |> Enum.uniq()
+end
+
+# Required: Schema generation for embedded resources
+def generate_embedded_resource_schemas(embedded_resources) do
+  embedded_resources
+  |> Enum.map(&generate_full_resource_schema/1)
+  |> Enum.join("\n")
+end
+
+# Required: Type alias handling for embedded resources
+def generate_ash_type_alias(embedded_resource_module) when is_embedded_resource(embedded_resource_module) do
+  # Generate reference to embedded resource schema
+  resource_name = embedded_resource_module |> Module.split() |> List.last()
+  "type #{resource_name}ResourceSchema = #{generate_embedded_schema(embedded_resource_module)}"
+end
+```
+
+### Pattern: Embedded Resource Detection
+
+```elixir
+defp is_embedded_resource?(module) when is_atom(module) do
+  Ash.Resource.Info.resource?(module) and 
+    Ash.Resource.Info.data_layer(module) == Ash.DataLayer.Embedded
+end
+
+defp extract_embedded_from_resource(resource) do
+  resource
+  |> Ash.Resource.Info.public_attributes()
+  |> Enum.filter(&is_embedded_resource_attribute?/1)
+  |> Enum.map(&extract_embedded_module/1)
+end
+```
+
+**See**: `docs/ai-embedded-resources.md` for complete embedded resource implementation guide.
+
+### Embedded Resource Architecture (COMPLETED)
+
+**Status**: ✅ Fully implemented with complete schema generation support.
+
+**Implementation**: Embedded resources are discovered via attribute scanning and integrated into existing schema generation pipeline.
+
+**See `docs/ai-embedded-resources.md` for complete implementation details.**
+
+#### CRITICAL Implementation Insight: Direct Module Type Storage
+
+**KEY DISCOVERY**: Ash stores embedded resource attributes as **direct module types**, not wrapped in `Ash.Type.Struct`:
+
+```elixir
+# What we expected:
+%Ash.Resource.Attribute{type: Ash.Type.Struct, constraints: [instance_of: MyApp.TodoMetadata]}
+
+# What Ash actually stores:
+%Ash.Resource.Attribute{type: MyApp.TodoMetadata, constraints: [on_update: :update_on_match]}
+```
+
+This required **enhanced detection logic** to handle both patterns:
+
+```elixir
+defp is_embedded_resource_attribute?(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
+  case type do
+    # Handle legacy Ash.Type.Struct with instance_of constraint
+    Ash.Type.Struct ->
+      instance_of = Keyword.get(constraints, :instance_of)
+      instance_of && is_embedded_resource?(instance_of)
+      
+    # Handle direct embedded resource module (what Ash actually stores)
+    module when is_atom(module) ->
+      is_embedded_resource?(module)
+      
+    # Handle array of direct embedded resource module  
+    {:array, module} when is_atom(module) ->
+      is_embedded_resource?(module)
+      
+    _ -> false
+  end
+end
+```
+
+#### Critical Implementation Patterns
+
+**Pattern: Embedded Resource Detection**
+```elixir
+# CORRECT: Public function for pattern matching
+def is_embedded_resource?(module) when is_atom(module) do
+  if Ash.Resource.Info.resource?(module) do
+    data_layer = Ash.Resource.Info.data_layer(module)
+    # Both embedded and regular resources use Ash.DataLayer.Simple
+    # Check DSL config for :embedded
+    embedded_config = try do
+      module.__ash_dsl_config__()
+      |> get_in([:resource, :data_layer])
+    rescue
+      _ -> nil
+    end
+    
+    embedded_config == :embedded or data_layer == Ash.DataLayer.Simple
+  else
+    false
+  end
+end
+```
+
+**Pattern: Attribute Scanning for Discovery**
+```elixir
+def find_embedded_resources(resources) do
+  resources
+  |> Enum.flat_map(&extract_embedded_from_resource/1)
+  |> Enum.uniq()
+end
+
+defp extract_embedded_from_resource(resource) do
+  resource
+  |> Ash.Resource.Info.public_attributes()
+  |> Enum.filter(&is_embedded_resource_attribute?/1)
+  |> Enum.map(&extract_embedded_module/1)
+  |> Enum.filter(& &1)  # Remove nils
+end
+```
+
+**Pattern: Type Generation Integration**
+```elixir
+# In get_ts_type/2 - MUST be early in pattern matching
+def get_ts_type(%{type: type, constraints: constraints} = attr, _) do
+  cond do
+    is_embedded_resource?(type) ->
+      # Handle direct embedded resource types (e.g., attribute :metadata, TodoMetadata)
+      resource_name = type |> Module.split() |> List.last()
+      "#{resource_name}ResourceSchema"
+    
+    # ... other patterns
+  end
+end
+```
+
+**Pattern: Schema Generation Integration**
+```elixir
+# In generate_full_typescript/4
+embedded_resources = AshTypescript.Codegen.find_embedded_resources(rpc_resources)
+all_resources_for_schemas = rpc_resources ++ embedded_resources
+
+# Include embedded resources in schema generation
+#{generate_all_schemas_for_resources(all_resources_for_schemas, all_resources_for_schemas)}
+```
+
+#### Data Layer Architecture Reality
+
+**Critical Discovery**: `data_layer: :embedded` does NOT result in `Ash.DataLayer.Embedded`
+
+```elixir
+# ACTUAL behavior:
+Ash.Resource.Info.data_layer(embedded_resource) #=> Ash.DataLayer.Simple
+Ash.Resource.Info.data_layer(regular_resource)  #=> Ash.DataLayer.Simple
+
+# Detection must use DSL config, not data layer class
+```
+
+#### Domain Configuration Constraints
+
+**CRITICAL**: Embedded resources MUST NOT be added to domain `resources` block:
+
+```elixir
+# ❌ WRONG - Causes runtime error
+resources do
+  resource MyApp.EmbeddedResource  # "Embedded resources should not be listed in the domain"
+end
+
+# ✅ CORRECT - Discovered automatically through attribute scanning
+resources do
+  resource MyApp.RegularResource   # Contains embedded attributes
+end
+```
+
+#### Environment Dependencies
+
+**CRITICAL**: Resource recognition requires proper environment:
+
+```bash
+# ❌ WRONG - Resources not recognized
+iex -S mix  # Uses :dev environment
+
+# ✅ CORRECT - Resources properly loaded
+MIX_ENV=test iex -S mix
+MIX_ENV=test mix test
+```
+
+#### File Organization for Embedded Resources
+
+```
+test/support/resources/
+├── embedded/
+│   └── todo_metadata.ex         # Embedded resource definitions
+└── todo.ex                      # Regular resource with embedded attributes
+
+# Embedded resources:
+# - Use data_layer: :embedded
+# - Require uuid_primary_key for proper compilation
+# - Can have attributes, calculations, validations, actions
+# - Cannot have policies, aggregates, or complex relationships
+```
+
+#### Generated TypeScript Patterns
+
+**Input**:
+```elixir
+attribute :metadata, MyApp.TodoMetadata, public?: true
+attribute :metadata_history, {:array, MyApp.TodoMetadata}, public?: true
+```
+
+**Generated TypeScript**:
+```typescript
+// Embedded resource gets full schema
+type TodoMetadataResourceSchema = {
+  fields: TodoMetadataFieldsSchema;
+  relationships: TodoMetadataRelationshipSchema;
+  complexCalculations: TodoMetadataComplexCalculationsSchema;
+  __complexCalculationsInternal: __TodoMetadataComplexCalculationsInternal;
+};
+
+// Parent resource references embedded schemas
+type TodoFieldsSchema = {
+  // ... other fields
+  metadata?: TodoMetadataResourceSchema | null;
+  metadataHistory?: Array<TodoMetadataResourceSchema> | null;
+};
+```
+
+#### Function Visibility Requirements
+
+**CRITICAL**: Functions used in pattern matching must be public:
+
+```elixir
+# ❌ WRONG - Private functions fail in pattern matching
+defp is_embedded_resource?(module), do: ...
+
+# ✅ CORRECT - Public functions work in all contexts
+def is_embedded_resource?(module), do: ...
+```
+
+**See**: `docs/ai-embedded-resources.md` for complete embedded resource implementation guide.
+
 ## Common Pitfalls for AI Assistants
+
+### Embedded Resource Pitfalls (CRITICAL)
+
+1. **Don't add embedded resources to domains** - Ash will error with "Embedded resources should not be listed in the domain"
+2. **Don't assume `data_layer: :embedded` equals `Ash.DataLayer.Embedded`** - Both use `Ash.DataLayer.Simple`
+3. **Don't use private functions in type pattern matching** - Pattern matching requires public functions
+4. **Don't debug in wrong environment** - Use `MIX_ENV=test` for proper resource loading
+5. **Don't forget primary keys in embedded resources** - Embedded resources need `uuid_primary_key :id` to compile
 
 ### Type Generation Pitfalls
 
 1. **Don't hardcode type mappings** - Use pattern matching for extensibility
 2. **Handle edge cases** - Always provide fallback behavior
 3. **Test TypeScript compilation** - Generated types must be valid TypeScript
+4. **Don't assume type structure** - Embedded resources can be direct module references
 
 ### Runtime Processing Pitfalls
 

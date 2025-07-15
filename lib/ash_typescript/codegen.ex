@@ -1,7 +1,112 @@
 defmodule AshTypescript.Codegen do
+  # Embedded resource discovery functions
+
+  @doc """
+  Discovers embedded resources from a list of regular resources by scanning their attributes.
+  Returns a list of unique embedded resource modules.
+  """
+  def find_embedded_resources(resources) do
+    resources
+    |> Enum.flat_map(&extract_embedded_from_resource/1)
+    |> Enum.uniq()
+  end
+
+  defp extract_embedded_from_resource(resource) do
+    resource
+    |> Ash.Resource.Info.public_attributes()
+    |> Enum.filter(&is_embedded_resource_attribute?/1)
+    |> Enum.map(&extract_embedded_module/1)
+    |> Enum.filter(& &1)  # Remove nils
+  end
+
+  defp is_embedded_resource_attribute?(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
+    case type do
+      # Handle Ash.Type.Struct with instance_of constraint
+      Ash.Type.Struct ->
+        instance_of = Keyword.get(constraints, :instance_of)
+        instance_of && is_embedded_resource?(instance_of)
+        
+      # Handle array of Ash.Type.Struct
+      {:array, Ash.Type.Struct} ->
+        items_constraints = Keyword.get(constraints, :items, [])
+        instance_of = Keyword.get(items_constraints, :instance_of)
+        instance_of && is_embedded_resource?(instance_of)
+        
+      # Handle direct embedded resource module (what Ash actually stores)
+      module when is_atom(module) ->
+        is_embedded_resource?(module)
+        
+      # Handle array of direct embedded resource module  
+      {:array, module} when is_atom(module) ->
+        is_embedded_resource?(module)
+        
+      _ ->
+        false
+    end
+  end
+
+  defp is_embedded_resource_attribute?(_), do: false
+
+  defp extract_embedded_module(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
+    case type do
+      # Handle Ash.Type.Struct with instance_of constraint
+      Ash.Type.Struct ->
+        Keyword.get(constraints, :instance_of)
+        
+      # Handle array of Ash.Type.Struct
+      {:array, Ash.Type.Struct} ->
+        items_constraints = Keyword.get(constraints, :items, [])
+        Keyword.get(items_constraints, :instance_of)
+        
+      # Handle direct embedded resource module
+      module when is_atom(module) ->
+        if is_embedded_resource?(module), do: module, else: nil
+        
+      # Handle array of direct embedded resource module
+      {:array, module} when is_atom(module) ->
+        if is_embedded_resource?(module), do: module, else: nil
+        
+      _ ->
+        nil
+    end
+  end
+
+  defp extract_embedded_module(_), do: nil
+
+  @doc """
+  Checks if a module is an embedded resource.
+  """
+  def is_embedded_resource?(module) when is_atom(module) do
+    if Ash.Resource.Info.resource?(module) do
+      # Check if it's an embedded resource by checking the data layer
+      data_layer = Ash.Resource.Info.data_layer(module)
+      # Embedded resources can use different data layers but are defined with data_layer: :embedded
+      # We need to check the resource definition itself
+      embedded_config = try do
+        # Try to get the embedded configuration from the resource
+        module.__ash_dsl_config__()
+        |> get_in([:resource, :data_layer])
+      rescue
+        _ -> nil
+      end
+      
+      embedded_config == :embedded or data_layer == Ash.DataLayer.Simple
+    else
+      false
+    end
+  end
+
+  def is_embedded_resource?(_), do: false
+
   def generate_ash_type_aliases(resources, actions) do
+    # Discover embedded resources from regular resources
+    embedded_resources = find_embedded_resources(resources)
+    
+    # Include embedded resources in type discovery process
+    all_resources = resources ++ embedded_resources
+    
     resource_types =
-      Enum.reduce(resources, MapSet.new(), fn resource, types ->
+      Enum.reduce(all_resources, MapSet.new(), fn resource, types ->
         types =
           resource
           |> Ash.Resource.Info.public_attributes()
@@ -76,6 +181,7 @@ defmodule AshTypescript.Codegen do
   defp generate_ash_type_alias(Ash.Type.Atom), do: ""
   defp generate_ash_type_alias(Ash.Type.Boolean), do: ""
   defp generate_ash_type_alias(Ash.Type.Integer), do: ""
+  defp generate_ash_type_alias(Ash.Type.Float), do: ""
   defp generate_ash_type_alias(Ash.Type.Map), do: ""
   defp generate_ash_type_alias(Ash.Type.String), do: ""
   defp generate_ash_type_alias(Ash.Type.CiString), do: ""
@@ -102,10 +208,16 @@ defmodule AshTypescript.Codegen do
     do: "type Money = { amount: string; currency: string };"
 
   defp generate_ash_type_alias(type) do
-    if Ash.Type.NewType.new_type?(type) or Spark.implements_behaviour?(type, Ash.Type.Enum) do
-      ""
-    else
-      raise "Unknown type: #{type}"
+    cond do
+      Ash.Type.NewType.new_type?(type) or Spark.implements_behaviour?(type, Ash.Type.Enum) ->
+        ""
+      
+      is_embedded_resource?(type) ->
+        # Embedded resources don't need type aliases - they get full schema generation
+        ""
+      
+      true ->
+        raise "Unknown type: #{type}"
     end
   end
 
@@ -124,8 +236,15 @@ defmodule AshTypescript.Codegen do
     complex_calculations_schema = generate_complex_calculations_schema(resource)
     relationship_schema = generate_relationship_schema(resource, allowed_resources)
     resource_schema = generate_resource_schema(resource)
+    
+    # Generate input schema for embedded resources
+    input_schema = if is_embedded_resource?(resource) do
+      generate_input_schema(resource)
+    else
+      ""
+    end
 
-    """
+    base_schemas = """
     // #{resource_name} Schemas
     #{attributes_schema}
 
@@ -135,6 +254,12 @@ defmodule AshTypescript.Codegen do
 
     #{resource_schema}
     """
+
+    if input_schema != "" do
+      base_schemas <> "\n\n" <> input_schema
+    else
+      base_schemas
+    end
   end
 
   def generate_attributes_schema(resource) do
@@ -143,6 +268,14 @@ defmodule AshTypescript.Codegen do
     attributes =
       resource
       |> Ash.Resource.Info.public_attributes()
+      |> Enum.reject(fn attr ->
+        # Exclude embedded resources from fields schema - they go in embedded section
+        case attr.type do
+          embedded_type when is_atom(embedded_type) -> is_embedded_resource?(embedded_type)
+          {:array, embedded_type} when is_atom(embedded_type) -> is_embedded_resource?(embedded_type)
+          _ -> false
+        end
+      end)
 
     calculations =
       resource
@@ -312,6 +445,7 @@ defmodule AshTypescript.Codegen do
   def generate_relationship_schema(resource, allowed_resources) do
     resource_name = resource |> Module.split() |> List.last()
 
+    # Get traditional relationships
     relationships =
       resource
       |> Ash.Resource.Info.public_relationships()
@@ -337,16 +471,56 @@ defmodule AshTypescript.Codegen do
         end
       end)
 
-    if Enum.empty?(relationships) do
+    # Get embedded resources and add them to relationships
+    embedded_resources =
+      resource
+      |> Ash.Resource.Info.public_attributes()
+      |> Enum.filter(fn attr ->
+        case attr.type do
+          embedded_type when is_atom(embedded_type) ->
+            is_embedded_resource?(embedded_type) and Enum.member?(allowed_resources, embedded_type)
+          {:array, embedded_type} when is_atom(embedded_type) ->
+            is_embedded_resource?(embedded_type) and Enum.member?(allowed_resources, embedded_type)
+          _ ->
+            false
+        end
+      end)
+      |> Enum.map(fn attr ->
+        embedded_resource_name = case attr.type do
+          embedded_type when is_atom(embedded_type) ->
+            embedded_type |> Module.split() |> List.last()
+          {:array, embedded_type} when is_atom(embedded_type) ->
+            embedded_type |> Module.split() |> List.last()
+        end
+
+        # Apply field formatting to embedded resource field names
+        formatted_attr_name = AshTypescript.FieldFormatter.format_field(
+          attr.name,
+          AshTypescript.Rpc.output_field_formatter()
+        )
+
+        case attr.type do
+          embedded_type when is_atom(embedded_type) ->
+            "  #{formatted_attr_name}: #{embedded_resource_name}Embedded;"
+          {:array, _embedded_type} ->
+            "  #{formatted_attr_name}: #{embedded_resource_name}ArrayEmbedded;"
+        end
+      end)
+
+    # Combine relationships and embedded resources
+    all_relations = relationships ++ embedded_resources
+
+    if Enum.empty?(all_relations) do
       "type #{resource_name}RelationshipSchema = {};"
     else
       """
       type #{resource_name}RelationshipSchema = {
-      #{Enum.join(relationships, "\n")}
+      #{Enum.join(all_relations, "\n")}
       };
       """
     end
   end
+
 
   def generate_resource_schema(resource) do
     resource_name = resource |> Module.split() |> List.last()
@@ -359,6 +533,71 @@ defmodule AshTypescript.Codegen do
       __complexCalculationsInternal: __#{resource_name}ComplexCalculationsInternal;
     };
     """
+  end
+
+  def generate_input_schema(resource) do
+    resource_name = resource |> Module.split() |> List.last()
+
+    # Only include settable public attributes (no calculations, relationships, or private fields)
+    input_fields =
+      resource
+      |> Ash.Resource.Info.public_attributes()
+      |> Enum.map(fn attr ->
+        formatted_name = AshTypescript.FieldFormatter.format_field(attr.name, AshTypescript.Rpc.output_field_formatter())
+        
+        # For input types, use input-specific type mapping
+        base_type = get_ts_input_type(attr)
+        
+        # Handle optionality for input types:
+        # - Field is optional if it allows nil OR has a default value
+        # - For input, we don't want | null for optional fields with defaults
+        if attr.allow_nil? || attr.default != nil do
+          if attr.allow_nil? do
+            "  #{formatted_name}?: #{base_type} | null;"
+          else
+            "  #{formatted_name}?: #{base_type};"
+          end
+        else
+          "  #{formatted_name}: #{base_type};"
+        end
+      end)
+      |> Enum.join("\n")
+
+    """
+    export type #{resource_name}InputSchema = {
+    #{input_fields}
+    };
+    """
+  end
+
+  # Input-specific type mapping for embedded resources
+  def get_ts_input_type(%{type: type} = attr) do
+    case type do
+      embedded_type when is_atom(embedded_type) and not is_nil(embedded_type) ->
+        if is_embedded_resource?(embedded_type) do
+          # Handle direct embedded resource types (e.g., attribute :metadata, TodoMetadata)
+          resource_name = embedded_type |> Module.split() |> List.last()
+          "#{resource_name}InputSchema"
+        else
+          # For all other atomic types, use the regular type mapping
+          get_ts_type(attr)
+        end
+      
+      {:array, embedded_type} when is_atom(embedded_type) ->
+        if is_embedded_resource?(embedded_type) do
+          # Handle array of embedded resources (e.g., attribute :metadata_history, {:array, TodoMetadata})
+          resource_name = embedded_type |> Module.split() |> List.last()
+          "Array<#{resource_name}InputSchema>"
+        else
+          # Handle regular array types
+          inner_ts = get_ts_input_type(%{type: embedded_type, constraints: []})
+          "Array<#{inner_ts}>"
+        end
+      
+      _ ->
+        # For all other types, use the regular type mapping
+        get_ts_type(attr)
+    end
   end
 
   def get_ts_type(type_and_constraints, select_and_loads \\ nil)
@@ -487,6 +726,11 @@ defmodule AshTypescript.Codegen do
 
   def get_ts_type(%{type: type, constraints: constraints} = attr, _) do
     cond do
+      is_embedded_resource?(type) ->
+        # Handle direct embedded resource types (e.g., attribute :metadata, TodoMetadata)
+        resource_name = type |> Module.split() |> List.last()
+        "#{resource_name}ResourceSchema"
+
       Ash.Type.NewType.new_type?(type) ->
         sub_type_constraints = Ash.Type.NewType.constraints(type, constraints)
         subtype = Ash.Type.NewType.subtype_of(type)

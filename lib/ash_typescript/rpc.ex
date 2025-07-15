@@ -287,26 +287,26 @@ defmodule AshTypescript.Rpc do
     end
   end
 
-  defp extract_return_value(result, fields_to_take, calculation_field_specs)
+  def extract_return_value(result, fields_to_take, calculation_field_specs)
        when is_struct(result) do
     extract_fields_from_map(result, fields_to_take, calculation_field_specs)
   end
 
-  defp extract_return_value(result, fields_to_take, calculation_field_specs)
+  def extract_return_value(result, fields_to_take, calculation_field_specs)
        when is_map(result) do
     extract_fields_from_map(result, fields_to_take, calculation_field_specs)
   end
 
-  defp extract_return_value(result, fields_to_take, calculation_field_specs)
+  def extract_return_value(result, fields_to_take, calculation_field_specs)
        when is_list(result) do
     Enum.map(result, fn res ->
       extract_return_value(res, fields_to_take, calculation_field_specs)
     end)
   end
 
-  defp extract_return_value(return_value, [], _calculation_field_specs), do: return_value
+  def extract_return_value(return_value, [], _calculation_field_specs), do: return_value
 
-  defp extract_return_value(_return_value, _list, _calculation_field_specs),
+  def extract_return_value(_return_value, _list, _calculation_field_specs),
     do:
       {:error,
        "select and load lists must be empty when returning other values than a struct or map."}

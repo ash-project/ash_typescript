@@ -16,6 +16,107 @@ This guide provides validation procedures and safety checks to ensure changes do
 **Why**: Breaking changes affect all downstream users
 **How**: Test existing patterns still work after changes
 
+## Embedded Resources Testing Patterns
+
+### Testing New Embedded Resources (TDD Pattern)
+
+**Critical Pattern**: Always create comprehensive embedded resource test cases first, then implement support.
+
+**Why This Works**:
+- Reveals exact failure points immediately
+- Provides concrete debugging targets  
+- Measures progress by tests passing
+- Prevents incomplete implementations
+
+#### Embedded Resource Test Structure
+```elixir
+# test/ash_typescript/embedded_resources_test.exs
+defmodule AshTypescript.EmbeddedResourcesTest do
+  use ExUnit.Case
+
+  describe "Basic Embedded Resource Validation" do
+    test "embedded resource compiles and has attributes" do
+      # CORRECT - Use Ash.Resource.Info functions
+      attributes = Ash.Resource.Info.attributes(MyEmbeddedResource)
+      attribute_names = Enum.map(attributes, & &1.name)
+      
+      assert :my_field in attribute_names
+    end
+
+    test "parent resource references embedded type" do
+      attributes = Ash.Resource.Info.attributes(ParentResource)
+      embedded_attr = Enum.find(attributes, & &1.name == :embedded_field)
+      
+      assert embedded_attr.type == MyEmbeddedResource
+    end
+  end
+
+  describe "TypeScript Generation Issues" do
+    test "type generation fails with embedded resources" do
+      # This documents the current gap
+      assert_raise RuntimeError, ~r/Unknown type.*MyEmbeddedResource/, fn ->
+        AshTypescript.Rpc.Codegen.generate_typescript_types(:my_app)
+      end
+    end
+  end
+end
+```
+
+#### Anti-Patterns for Embedded Resource Testing
+```elixir
+# WRONG - Don't use private functions
+test "embedded resource config" do
+  attributes = MyEmbeddedResource.__ash_config__(:attributes)  # Private function
+end
+
+# CORRECT - Use public Ash.Resource.Info functions  
+test "embedded resource attributes" do
+  attributes = Ash.Resource.Info.attributes(MyEmbeddedResource)
+end
+```
+
+#### Compilation Safety for Embedded Resources
+```bash
+# Required compilation checks for embedded resources
+mix compile
+# Should succeed without errors
+
+# Required type generation check
+mix ash_typescript.codegen
+# Expected to fail with "Unknown type" until Phase 1 implemented
+
+# Required TypeScript safety check  
+cd test/ts && npm run compileGenerated
+# Expected to fail until embedded resource support implemented
+```
+
+### Validation Sequence for Embedded Resources
+
+1. **Resource Definition Validation**:
+   ```bash
+   mix compile
+   # Must succeed - embedded resource compiles correctly
+   ```
+
+2. **Integration Validation**:
+   ```elixir
+   # Test parent resource integration
+   test "parent resource has embedded attributes" do
+     attributes = Ash.Resource.Info.attributes(ParentResource)
+     assert Enum.any?(attributes, & &1.type == EmbeddedResource)
+   end
+   ```
+
+3. **Type Generation Gap Documentation**:
+   ```elixir
+   # Test that documents current limitation
+   test "type generation fails predictably" do
+     assert_raise RuntimeError, fn ->
+       AshTypescript.Rpc.Codegen.generate_typescript_types(:app)
+     end
+   end
+   ```
+
 ## Pre-Change Safety Checks
 
 ### Baseline Validation

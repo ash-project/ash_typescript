@@ -2,6 +2,53 @@
 
 This guide provides step-by-step workflows for common development tasks that AI assistants need to perform when working with AshTypescript.
 
+## 🚨 CRITICAL: Environment-First Workflow
+
+### RULE: Always Use Test Environment
+
+**Before ANY AshTypescript work, ensure you're using the test environment:**
+
+```bash
+# ✅ CORRECT - All AshTypescript commands
+mix test.codegen                    # Generate TypeScript types
+mix test                           # Run Elixir tests  
+mix test path/to/specific_test.exs  # Run specific test
+MIX_ENV=test iex -S mix             # Interactive debugging (if needed)
+
+# ❌ WRONG - Will fail with "No domains found"  
+mix ash_typescript.codegen         # Wrong environment
+iex -S mix                         # Wrong environment
+```
+
+**Why This Matters:**
+- Test resources (`AshTypescript.Test.*`) only exist in `:test` environment
+- Domain configuration (`config/config.exs`) only active in `:test` environment
+- Type generation depends on test resources being available
+
+### Anti-Pattern: One-Off Debugging Commands
+
+**❌ NEVER DO:**
+```bash
+echo "Code.ensure_loaded(AshTypescript.Test.Todo)" | iex -S mix
+echo "AshTypescript.Test.Todo.__info__(:attributes)" | iex -S mix
+```
+
+**✅ ALWAYS DO:**
+Write a proper test in `test/ash_typescript/` to investigate the issue:
+
+```elixir
+test "debug embedded resource detection" do
+  resource = AshTypescript.Test.Todo
+  attributes = Ash.Resource.Info.public_attributes(resource)
+  
+  embedded_attrs = Enum.filter(attributes, fn attr ->
+    AshTypescript.Codegen.is_embedded_resource_attribute?(attr)
+  end)
+  
+  assert length(embedded_attrs) > 0, "Should find embedded attributes"
+end
+```
+
 ## Quick Start Workflow
 
 ### For New AI Assistants
@@ -17,7 +64,7 @@ This guide provides step-by-step workflows for common development tasks that AI 
 
 2. **Check current state**:
    ```bash
-   # Run tests to ensure everything works
+   # Run tests to ensure everything works (ALWAYS use test environment)
    mix test
    
    # Generate current TypeScript types
@@ -28,10 +75,169 @@ This guide provides step-by-step workflows for common development tasks that AI 
    ```
 
 3. **Explore the test domain**:
+
+## TDD Workflow for Complex Features
+
+### Test-Driven Development Pattern
+
+**Pattern**: Create comprehensive test cases first, then implement support.
+
+**Why This Works**:
+- Creates concrete debugging targets
+- Reveals exact failure points immediately  
+- Provides measurable progress indicators
+- Prevents over-engineering
+
+**Steps**:
+1. Create comprehensive test resource with ALL possible features
+2. Create supporting modules (calculations, formatters, etc.)
+3. Integrate with existing resources
+4. Create targeted test suite showing gaps
+5. Run tests to see specific failures
+6. Implement features to make tests pass
+
+**Success Criteria**: All tests pass and TypeScript compilation succeeds.
+
+**See `docs/ai-embedded-resources.md` for detailed embedded resource implementation example.**
+
+3. **Explore the test domain**:
    ```bash
    # See the comprehensive test setup
    cat test/support/domain.ex
    cat test/support/resources/todo.ex
+   ```
+
+## Debugging Workflows (Critical)
+
+### Debug Workflow: Test Module Approach ✅ PROVEN EFFECTIVE
+
+**When to Use**: 
+- Resource recognition issues
+- Type detection problems  
+- Compilation failures
+- Function visibility issues
+- Environment context problems
+
+**Why This Works**:
+- Isolates the problem from complex domain setup
+- Provides immediate feedback 
+- Tests exact scenarios in controlled environment
+- Eliminates external dependencies
+
+#### Step 1: Create Minimal Debug Test
+
+```bash
+# Create test/debug_issue_test.exs
+```
+
+```elixir
+defmodule DebugIssueTest do
+  use ExUnit.Case
+
+  # Minimal resource for testing specific issue
+  defmodule TestResource do
+    use Ash.Resource, domain: nil  # or data_layer: :embedded for embedded resources
+    
+    attributes do
+      uuid_primary_key :id  # ALWAYS include for proper compilation
+      attribute :test_field, :string, public?: true
+      # Add specific problematic attribute here
+    end
+    
+    actions do
+      defaults [:create, :read, :update, :destroy]
+    end
+  end
+
+  test "debug specific issue" do
+    IO.puts "\n=== Debug Output ==="
+    
+    # Add specific debugging checks here
+    IO.puts "Resource recognition: #{Ash.Resource.Info.resource?(TestResource)}"
+    IO.puts "Data layer: #{inspect(Ash.Resource.Info.data_layer(TestResource))}"
+    
+    # Test the problematic function directly
+    # IO.puts "Function result: #{MyModule.problematic_function(TestResource)}"
+    
+    assert true  # Just to make test pass while debugging
+  end
+end
+```
+
+#### Step 2: Run Debug Test
+
+```bash
+mix test test/debug_issue_test.exs
+```
+
+#### Step 3: Iterate Based on Output
+
+- Add more debugging statements
+- Test different variations
+- Compare with working examples
+- Test environment dependencies
+
+#### Step 4: Clean Up
+
+```bash
+rm test/debug_issue_test.exs  # Remove when issue is resolved
+```
+
+### Environment Debugging Workflow
+
+**Problem**: Functions work in some contexts but fail in others (especially resource recognition)
+
+**Solution**: Always verify environment context
+
+```bash
+# ❌ WRONG - May use wrong environment
+iex -S mix
+mix run -e 'test code'
+
+# ✅ CORRECT - Explicit test environment  
+MIX_ENV=test iex -S mix
+MIX_ENV=test mix run -e 'test code'
+MIX_ENV=test mix test
+```
+
+**Test Environment Recognition**:
+```bash
+# Quick test to verify resources are loaded
+MIX_ENV=test mix run -e 'IO.puts Ash.Resource.Info.resource?(AshTypescript.Test.Todo)'
+# Should output: true
+```
+
+### Function Visibility Debugging Workflow
+
+**Problem**: Function works in manual testing but fails in pattern matching
+
+**Symptoms**: `UndefinedFunctionError` in contexts where function should be accessible
+
+**Debugging Steps**:
+
+1. **Test function accessibility**:
+   ```bash
+   MIX_ENV=test mix run -e 'IO.puts MyModule.function_name(test_arg)'
+   ```
+
+2. **Check function definition**:
+   ```elixir
+   # ❌ Private function - not accessible everywhere
+   defp function_name(arg), do: ...
+   
+   # ✅ Public function - accessible in all contexts  
+   def function_name(arg), do: ...
+   ```
+
+3. **Test in pattern matching context**:
+   ```elixir
+   # Create test that uses function in pattern matching
+   def test_pattern_matching(%{type: type}) do
+     cond do
+       function_name(type) -> "works"
+       true -> "fails"
+     end
+   end
    ```
 
 ## Core Development Workflows
