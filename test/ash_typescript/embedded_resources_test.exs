@@ -1,5 +1,6 @@
 defmodule AshTypescript.EmbeddedResourcesTest do
   use ExUnit.Case
+  import Phoenix.ConnTest
   alias AshTypescript.Test.{Todo, TodoMetadata}
 
   describe "Basic Embedded Resource Validation" do
@@ -172,6 +173,214 @@ defmodule AshTypescript.EmbeddedResourcesTest do
       
       # But metadataHistory in regular schemas should still use ResourceSchema (since it's not in actions)
       assert String.contains?(result, "metadataHistory: TodoMetadataArrayEmbedded")
+    end
+  end
+
+  describe "Embedded Resource Calculations (Phase 3.1)" do
+    test "debug embedded resource calculation loading through RPC" do
+      # Create a user first (required for todo creation)
+      {:ok, user} = 
+        AshTypescript.Test.User
+        |> Ash.Changeset.for_create(:create, %{
+          email: "test@example.com", 
+          name: "Test User"
+        })
+        |> Ash.create()
+      
+      # Create metadata for embedded resource
+      metadata = %{
+        category: "work",
+        priority_score: 85,
+        is_urgent: true,
+        deadline: Date.utc_today() |> Date.add(-1) # Yesterday (overdue)
+      }
+      
+      # Create todo with metadata through RPC action
+      {:ok, todo} = 
+        AshTypescript.Test.Todo
+        |> Ash.Changeset.new()
+        |> Ash.Changeset.set_argument(:user_id, user.id)
+        |> Ash.Changeset.for_create(:create, %{
+          title: "Test Todo with Metadata",
+          description: "Testing embedded calculations",
+          metadata: metadata
+        }, actor: nil)
+        |> Ash.create()
+      
+      IO.inspect(todo.metadata, label: "Created todo metadata")
+      
+      # Now read the todo back with field selection for embedded calculations
+      {:ok, fetched_todo} = Ash.get(AshTypescript.Test.Todo, todo.id)
+      {:ok, loaded_todo} = Ash.load(fetched_todo, metadata: [:display_category, :is_overdue])
+      
+      IO.inspect(loaded_todo.metadata, label: "Loaded todo metadata with calculations")
+      
+      # Verify calculations are loaded
+      assert loaded_todo.metadata.display_category == "work"
+      assert loaded_todo.metadata.is_overdue == true
+    end
+
+    test "RPC system loads embedded resource calculations" do
+      # Create proper Plug.Conn struct
+      conn = Phoenix.ConnTest.build_conn()
+      |> Plug.Conn.put_private(:ash, %{actor: nil, tenant: nil})
+      |> Plug.Conn.assign(:context, %{})
+      
+      # Create a user first (required for todo creation)
+      user_params = %{
+        "action" => "create_user",
+        "fields" => ["id"],
+        "input" => %{
+          "name" => "Test User",
+          "email" => "test@example.com"
+        }
+      }
+      
+      user_result = AshTypescript.Rpc.run_action(:ash_typescript, conn, user_params)
+      assert %{success: true, data: user} = user_result
+      
+      # Create todo with metadata through RPC
+      metadata = %{
+        "category" => "work",
+        "priority_score" => 85,
+        "is_urgent" => true,
+        "deadline" => Date.utc_today() |> Date.add(-1) |> Date.to_iso8601() # Yesterday (overdue)
+      }
+      
+      create_params = %{
+        "action" => "create_todo",
+        "fields" => ["id", "title", %{"metadata" => ["category", "priorityScore", "displayCategory", "isOverdue"]}],
+        "input" => %{
+          "title" => "Test Todo with Metadata",
+          "description" => "Testing embedded calculations",
+          "metadata" => metadata,
+          "userId" => user["id"]
+        }
+      }
+      
+      create_result = AshTypescript.Rpc.run_action(:ash_typescript, conn, create_params)
+      IO.inspect(create_result, label: "RPC create result")
+      
+      # Verify the embedded calculations are loaded
+      assert %{success: true, data: todo} = create_result
+      
+      # Debug the load statement construction
+      IO.inspect(todo["metadata"], label: "Todo metadata in response")
+      
+      # The embedded resource calculations should be loaded
+      assert todo["metadata"]["category"] == "work"
+      assert todo["metadata"]["priorityScore"] == 85
+      assert todo["metadata"]["displayCategory"] == "work"
+      assert todo["metadata"]["isOverdue"] == true
+    end
+    test "embedded resource calculations appear in TypeScript output" do
+      # Verify that embedded resource calculations are generated in TypeScript
+      result = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      
+      # Simple calculations should be in fields schema
+      assert String.contains?(result, "displayCategory?: string | null")
+      assert String.contains?(result, "isOverdue?: boolean | null")
+      
+      # Complex calculations should be in complex calculations schema
+      assert String.contains?(result, "TodoMetadataComplexCalculationsSchema")
+      assert String.contains?(result, "adjusted_priority:")
+      assert String.contains?(result, "formatted_summary:")
+      
+      # Complex calculations should have proper argument types
+      assert String.contains?(result, "urgency_multiplier?: number")
+      assert String.contains?(result, "deadline_factor?: boolean")
+      assert String.contains?(result, "user_bias?: number")
+      assert String.contains?(result, "format?: \"short\" | \"detailed\" | \"json\"")
+      assert String.contains?(result, "include_metadata?: boolean")
+    end
+
+    test "embedded resource calculations work with field selection" do
+      # Create a todo with metadata - including pre-calculated values
+      todo = %Todo{
+        id: "123e4567-e89b-12d3-a456-426614174000",
+        title: "Test Todo",
+        metadata: %TodoMetadata{
+          id: "456e7890-e89b-12d3-a456-426614174000",
+          category: "work",
+          priority_score: 85,
+          is_urgent: true,
+          deadline: Date.utc_today() |> Date.add(-1), # Yesterday (overdue)
+          display_category: "work",
+          is_overdue: true
+        }
+      }
+      
+      # Test field selection with simple calculations
+      fields = [:id, :title, {:metadata, [:category, :priority_score, :display_category, :is_overdue]}]
+      result = AshTypescript.Rpc.extract_return_value(todo, fields, %{})
+      
+      assert result.id == "123e4567-e89b-12d3-a456-426614174000"
+      assert result.title == "Test Todo"
+      assert result.metadata.category == "work"
+      assert result.metadata.priority_score == 85
+      assert result.metadata.display_category == "work"
+      assert result.metadata.is_overdue == true
+    end
+
+    test "embedded resource complex calculations work with field selection" do
+      # Create a todo with metadata
+      todo = %Todo{
+        id: "123e4567-e89b-12d3-a456-426614174000",
+        title: "Test Todo",
+        metadata: %TodoMetadata{
+          id: "456e7890-e89b-12d3-a456-426614174000",
+          category: "work",
+          priority_score: 85,
+          is_urgent: true,
+          deadline: Date.utc_today() |> Date.add(-1) # Yesterday (overdue)
+        }
+      }
+      
+      # Test field selection with complex calculations
+      calculation_fields = %{
+        adjusted_priority: %{
+          calculation_args: %{
+            urgency_multiplier: 1.5,
+            deadline_factor: true,
+            user_bias: 5
+          }
+        },
+        formatted_summary: %{
+          calculation_args: %{
+            format: :detailed,
+            include_metadata: true
+          }
+        }
+      }
+      
+      fields = [:id, :title, {:metadata, [:category, :priority_score]}]
+      result = AshTypescript.Rpc.extract_return_value(todo, fields, calculation_fields)
+      
+      assert result.id == "123e4567-e89b-12d3-a456-426614174000"
+      assert result.title == "Test Todo"
+      assert result.metadata.category == "work"
+      assert result.metadata.priority_score == 85
+    end
+
+    test "embedded resource calculations support multiple argument types" do
+      # Test that all calculation argument types are properly typed
+      result = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      
+      # Check for adjusted_priority calculation arguments
+      assert String.contains?(result, "adjusted_priority:")
+      assert String.contains?(result, "urgency_multiplier?: number")
+      assert String.contains?(result, "deadline_factor?: boolean")
+      assert String.contains?(result, "user_bias?: number")
+      
+      # Check for formatted_summary calculation arguments
+      assert String.contains?(result, "formatted_summary:")
+      assert String.contains?(result, "format?: \"short\" | \"detailed\" | \"json\"")
+      assert String.contains?(result, "include_metadata?: boolean")
+      
+      # Verify return types are correct in internal schema
+      assert String.contains?(result, "__TodoMetadataComplexCalculationsInternal")
+      assert String.contains?(result, "__returnType: number") # adjusted_priority
+      assert String.contains?(result, "__returnType: string") # formatted_summary
     end
   end
 

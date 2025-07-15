@@ -1,5 +1,7 @@
 defmodule AshTypescript.Test.TodoMetadata do
-  use Ash.Resource, data_layer: :embedded
+  use Ash.Resource, 
+    data_layer: :embedded,
+    domain: nil
 
   attributes do
     # Primary key for identity testing
@@ -89,7 +91,14 @@ defmodule AshTypescript.Test.TodoMetadata do
   end
 
   actions do
-    defaults [:create, :read, :update, :destroy]
+    defaults [:read, :update, :destroy]
+    
+    create :create do
+      primary? true
+      accept [:category, :subcategory, :external_reference, :priority_score, :estimated_hours, :budget, 
+              :is_urgent, :status, :deadline, :created_at, :reminder_time, :tags, :labels, 
+              :custom_fields, :settings, :creator_id, :project_id]
+    end
     
     create :create_with_defaults do
       accept [:category, :priority_score]

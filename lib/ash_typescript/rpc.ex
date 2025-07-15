@@ -162,32 +162,18 @@ defmodule AshTypescript.Rpc do
           context: Ash.PlugHelpers.get_context(conn) || %{}
         ]
 
-        # Parse client field names to internal field names
+        # Parse client field names using new tree traversal approach
         client_fields = Map.get(params, "fields", [])
 
-        internal_fields =
-          Enum.map(client_fields, fn field ->
-            case field do
-              field when is_binary(field) ->
-                AshTypescript.FieldFormatter.parse_input_field(field, input_field_formatter())
-
-              field ->
-                # For complex field specs (like nested relations), pass through as-is
-                field
-            end
-          end)
-
-        attributes =
-          Ash.Resource.Info.public_attributes(resource) |> Enum.map(fn a -> a.name end)
-
-        select =
-          internal_fields
-          |> Enum.filter(fn field -> field in attributes end)
-
-        load =
-          internal_fields
-          |> Enum.reject(fn field -> field in attributes end)
-          |> parse_json_load()
+        # Use the new field parser for comprehensive field processing
+        {select, load} = AshTypescript.Rpc.FieldParser.parse_requested_fields(
+          client_fields, 
+          resource, 
+          input_field_formatter()
+        )
+        
+        # Debug output to verify the new parser is working
+        IO.inspect({select, load}, label: "New field parser output (select, load)")
 
         # Parse calculations parameter and enhanced calculations with field selection
         {calculations_load, calculation_field_specs} =
@@ -310,6 +296,41 @@ defmodule AshTypescript.Rpc do
     do:
       {:error,
        "select and load lists must be empty when returning other values than a struct or map."}
+
+  # Build embedded resource load entries using the same pattern as build_ash_load_entry
+  defp build_embedded_resource_load_entries(load_list, resource) do
+    # For now, let's just return the original format and see if embedded resources
+    # can be loaded with the same syntax as relationships
+    load_list
+  end
+
+  # Check if an attribute is an embedded resource
+  defp is_embedded_resource_attribute?(resource, attribute_name) do
+    case Ash.Resource.Info.attribute(resource, attribute_name) do
+      nil -> 
+        IO.inspect({resource, attribute_name, :not_found}, label: "Attribute not found")
+        false
+      attribute -> 
+        result = is_embedded_resource_type?(attribute.type)
+        IO.inspect({resource, attribute_name, attribute.type, result}, label: "Checking embedded resource type")
+        result
+    end
+  end
+
+  # Check if a type is an embedded resource type
+  defp is_embedded_resource_type?(module) when is_atom(module) do
+    try do
+      Ash.Resource.Info.embedded?(module)
+    rescue
+      _ -> false
+    end
+  end
+
+  defp is_embedded_resource_type?({:array, module}) when is_atom(module) do
+    is_embedded_resource_type?(module)
+  end
+
+  defp is_embedded_resource_type?(_), do: false
 
   defp extract_fields_from_map(map, fields_to_take, calculation_field_specs) do
     Enum.reduce(fields_to_take, %{}, fn field_spec, acc ->
@@ -609,7 +630,7 @@ defmodule AshTypescript.Rpc do
           field
       end
     end)
-    |> parse_json_load()
+    |> parse_json_load(input_field_formatter())
   end
 
   # Atomize calculation arguments
