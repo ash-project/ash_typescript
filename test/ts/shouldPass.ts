@@ -16,25 +16,25 @@ import {
 // Test 1: Basic nested self calculation with field selection
 const basicNestedSelf = await getTodo({
   fields: [
-    "id", 
+    "id",
     "title",
     {
       self: {
         calcArgs: { prefix: "outer_" },
         fields: [
-          "id", 
-          "title", 
-          "completed", 
+          "id",
+          "title",
+          "completed",
           "dueDate",
           {
             self: {
               calcArgs: { prefix: "inner_" },
               fields: [
-                "id", 
+                "id",
                 "status",
                 {
-                  metadata: ["category", "priorityScore"]
-                }
+                  metadata: ["category", "priorityScore"],
+                },
               ],
             },
           },
@@ -66,33 +66,33 @@ if (basicNestedSelf?.self) {
 // Test 2: Deep nesting with different field combinations at each level
 const deepNestedSelf = await getTodo({
   fields: [
-    "id", 
-    "description", 
+    "id",
+    "description",
     "status",
     {
       self: {
         calcArgs: { prefix: "level1_" },
         fields: [
-          "title", 
-          "priority", 
-          "tags", 
+          "title",
+          "priority",
+          "tags",
           "createdAt",
           {
             self: {
               calcArgs: { prefix: "level2_" },
               fields: [
-                "id", 
-                "completed", 
+                "id",
+                "completed",
                 "userId",
                 {
                   self: {
                     calcArgs: { prefix: "level3_" },
                     fields: [
-                      "description", 
+                      "description",
                       "dueDate",
                       {
-                        metadata: ["category", "tags"]
-                      }
+                        metadata: ["category", "tags"],
+                      },
                     ],
                   },
                 },
@@ -119,8 +119,8 @@ if (deepNestedSelf?.self?.self?.self) {
 // Test 3: Self calculation with relationships in field selection
 const selfWithRelationships = await getTodo({
   fields: [
-    "id", 
-    "title", 
+    "id",
+    "title",
     { user: ["id", "email"] },
     {
       self: {
@@ -186,26 +186,26 @@ if (selfWithRelationships?.self) {
 // Test 4: List operation with nested self calculations
 const listWithNestedSelf = await listTodos({
   fields: [
-    "id", 
-    "title", 
+    "id",
+    "title",
     "completed",
     {
       self: {
         calcArgs: { prefix: "list_" },
         fields: [
-          "id", 
-          "title", 
-          "status", 
+          "id",
+          "title",
+          "status",
           "priority",
           {
             self: {
               calcArgs: { prefix: "list_nested_" },
               fields: [
-                "description", 
+                "description",
                 "tags",
                 {
-                  metadata: ["category", "priorityScore"]
-                }
+                  metadata: ["category", "priorityScore"],
+                },
               ],
             },
           },
@@ -246,16 +246,16 @@ const createWithNestedSelf = await createTodo({
     userId: "user-id-123",
   },
   fields: [
-    "id", 
-    "title", 
+    "id",
+    "title",
     "createdAt",
     {
       self: {
         calcArgs: { prefix: "created_" },
         fields: [
-          "id", 
-          "title", 
-          "status", 
+          "id",
+          "title",
+          "status",
           "userId",
           {
             self: {
@@ -432,12 +432,12 @@ const validMetadata: TodoMetadataInputSchema = {
   settings: {
     notifications: true,
     auto_archive: false,
-    reminder_frequency: 24
-  }
+    reminder_frequency: 24,
+  },
 };
 
 const minimalMetadata: TodoMetadataInputSchema = {
-  category: "Personal" // Only required field
+  category: "Personal", // Only required field
 };
 
 const createWithEmbedded = await createTodo({
@@ -447,16 +447,16 @@ const createWithEmbedded = await createTodo({
     status: "pending",
     priority: "high",
     userId: "123e4567-e89b-12d3-a456-426614174000",
-    metadata: validMetadata
+    metadata: validMetadata,
   },
   fields: [
-    "id", 
-    "title", 
+    "id",
+    "title",
     "status",
     {
-      metadata: ["category", "priorityScore", "tags"]
-    }
-  ]
+      metadata: ["category", "priorityScore", "tags"],
+    },
+  ],
 });
 
 // Validate created todo has proper embedded resource structure
@@ -464,12 +464,14 @@ if (createWithEmbedded) {
   const todoId: string = createWithEmbedded.id;
   const todoTitle: string = createWithEmbedded.title;
   const todoStatus: string | null | undefined = createWithEmbedded.status;
-  
+
   // Embedded resource should be properly typed
   if (createWithEmbedded.metadata) {
     const metadataCategory: string = createWithEmbedded.metadata.category;
-    const metadataPriority: number | null | undefined = createWithEmbedded.metadata.priorityScore;
-    const metadataTags: string[] | null | undefined = createWithEmbedded.metadata.tags;
+    const metadataPriority: number | null | undefined =
+      createWithEmbedded.metadata.priorityScore;
+    const metadataTags: string[] | null | undefined =
+      createWithEmbedded.metadata.tags;
   }
 }
 
@@ -478,108 +480,114 @@ const updateWithEmbedded = await updateTodo({
   primaryKey: "123e4567-e89b-12d3-a456-426614174000",
   input: {
     title: "Updated Project Task",
-    metadata: minimalMetadata
+    metadata: minimalMetadata,
   },
   fields: [
-    "id", 
-    "title", 
+    "id",
+    "title",
     "completed",
     {
-      metadata: ["category", "priorityScore"]
-    }
-  ]
+      metadata: ["category", "priorityScore"],
+    },
+  ],
 });
 
 // Validate updated todo structure
 if (updateWithEmbedded) {
   const updatedId: string = updateWithEmbedded.id;
   const updatedTitle: string = updateWithEmbedded.title;
-  const updatedCompleted: boolean | null | undefined = updateWithEmbedded.completed;
-  
+  const updatedCompleted: boolean | null | undefined =
+    updateWithEmbedded.completed;
+
   if (updateWithEmbedded.metadata) {
     const updatedCategory: string = updateWithEmbedded.metadata.category;
     // priorityScore should be optional and possibly undefined since we used minimal metadata
-    const updatedPriority: number | null | undefined = updateWithEmbedded.metadata.priorityScore;
+    const updatedPriority: number | null | undefined =
+      updateWithEmbedded.metadata.priorityScore;
   }
 }
 
 // Test 11: Field selection with embedded resources (NEW ARCHITECTURE)
 const todoWithSelectedMetadata = await getTodo({
   fields: [
-    "id", 
+    "id",
     "title",
     {
-      metadata: ["category", "priorityScore", "isUrgent"]
+      metadata: ["category", "priorityScore", "isUrgent"],
     },
     {
       self: {
         calcArgs: { prefix: "test_" },
         fields: [
-          "id", 
+          "id",
           "status",
           {
-            metadata: ["category", "tags"]
-          }
-        ]
-      }
-    }
-  ]
+            metadata: ["category", "tags"],
+          },
+        ],
+      },
+    },
+  ],
 });
 
 // Validate field selection worked correctly
 if (todoWithSelectedMetadata) {
   const selectedId: string = todoWithSelectedMetadata.id;
   const selectedTitle: string = todoWithSelectedMetadata.title;
-  
+
   // metadata should be available since it was selected in embedded section
   if (todoWithSelectedMetadata.metadata) {
     // Only the selected embedded fields should be available
     const metadataCategory: string = todoWithSelectedMetadata.metadata.category;
-    const metadataPriority: number | null | undefined = todoWithSelectedMetadata.metadata.priorityScore;
-    const metadataIsUrgent: boolean | null | undefined = todoWithSelectedMetadata.metadata.isUrgent;
+    const metadataPriority: number | null | undefined =
+      todoWithSelectedMetadata.metadata.priorityScore;
+    const metadataIsUrgent: boolean | null | undefined =
+      todoWithSelectedMetadata.metadata.isUrgent;
   }
-  
+
   // Self calculation should also have metadata with selected fields
   if (todoWithSelectedMetadata.self?.metadata) {
-    const selfMetadataCategory: string = todoWithSelectedMetadata.self.metadata.category;
-    const selfMetadataTags: string[] | null | undefined = todoWithSelectedMetadata.self.metadata.tags;
+    const selfMetadataCategory: string =
+      todoWithSelectedMetadata.self.metadata.category;
+    const selfMetadataTags: string[] | null | undefined =
+      todoWithSelectedMetadata.self.metadata.tags;
   }
 }
 
 // Test 12: Complex scenario combining embedded resources with nested calculations (NEW ARCHITECTURE)
 const complexEmbeddedScenario = await getTodo({
   fields: [
-    "id", 
+    "id",
     "title",
     {
       metadata: ["category", "settings"],
-      metadataHistory: ["category", "priorityScore"]
+      metadataHistory: ["category", "priorityScore"],
     },
     {
       self: {
         calcArgs: { prefix: "outer_" },
         fields: [
-          "id", 
+          "id",
           "daysUntilDue",
           {
-            metadata: ["category"]
+            metadata: ["category"],
           },
           {
             self: {
               calcArgs: { prefix: "inner_" },
               fields: [
-                "status", 
+                "status",
                 "priority",
                 {
-                  metadata: ["category", "isUrgent"]
-                }
-              ]
-            }
-          }
-        ]
-      }
-    }
-  ]
+                  metadata: ["category", "isUrgent"],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  ],
 });
 
 // Validate complex embedded resource scenario
@@ -587,35 +595,43 @@ if (complexEmbeddedScenario) {
   // Top level embedded resources
   if (complexEmbeddedScenario.metadata) {
     const topCategory: string = complexEmbeddedScenario.metadata.category;
-    const topSettings: Record<string, any> | null | undefined = complexEmbeddedScenario.metadata.settings;
+    const topSettings: Record<string, any> | null | undefined =
+      complexEmbeddedScenario.metadata.settings;
   }
-  
+
   // Array embedded resources (metadataHistory)
   if (complexEmbeddedScenario.metadataHistory) {
     const historyArray = complexEmbeddedScenario.metadataHistory;
     if (historyArray.length > 0) {
       const firstHistoryItem = historyArray[0];
       const historyCategory: string = firstHistoryItem.category;
-      const historyPriority: number | null | undefined = firstHistoryItem.priorityScore;
+      const historyPriority: number | null | undefined =
+        firstHistoryItem.priorityScore;
     }
   }
-  
+
   // Nested calculations with embedded resources
   if (complexEmbeddedScenario.self) {
-    const outerDays: number | null | undefined = complexEmbeddedScenario.self.daysUntilDue;
-    
+    const outerDays: number | null | undefined =
+      complexEmbeddedScenario.self.daysUntilDue;
+
     if (complexEmbeddedScenario.self.metadata) {
-      const outerMetadataCategory: string = complexEmbeddedScenario.self.metadata.category;
+      const outerMetadataCategory: string =
+        complexEmbeddedScenario.self.metadata.category;
     }
-    
+
     // Inner nested calculation
     if (complexEmbeddedScenario.self.self) {
-      const innerStatus: string | null | undefined = complexEmbeddedScenario.self.self.status;
-      const innerPriority: string | null | undefined = complexEmbeddedScenario.self.self.priority;
-      
+      const innerStatus: string | null | undefined =
+        complexEmbeddedScenario.self.self.status;
+      const innerPriority: string | null | undefined =
+        complexEmbeddedScenario.self.self.priority;
+
       if (complexEmbeddedScenario.self.self.metadata) {
-        const innerMetadataCategory: string = complexEmbeddedScenario.self.self.metadata.category;
-        const innerMetadataIsUrgent: boolean | null | undefined = complexEmbeddedScenario.self.self.metadata.isUrgent;
+        const innerMetadataCategory: string =
+          complexEmbeddedScenario.self.self.metadata.category;
+        const innerMetadataIsUrgent: boolean | null | undefined =
+          complexEmbeddedScenario.self.self.metadata.isUrgent;
       }
     }
   }
@@ -632,33 +648,44 @@ const strictMetadataInput: TodoMetadataInputSchema = {
   status: "active", // Optional enum field
   deadline: "2024-06-30", // Optional date field
   tags: ["react", "typescript", "urgent"], // Optional array field
-  customFields: { // Optional map field
+  customFields: {
+    // Optional map field
     complexity: "high",
-    requester: "product-team"
-  }
+    requester: "product-team",
+  },
 };
 
 const createWithStrictInput = await createTodo({
   input: {
     title: "Strict Input Test",
     userId: "789e0123-e89b-12d3-a456-426614174000",
-    metadata: strictMetadataInput
+    metadata: strictMetadataInput,
   },
   fields: [
     "id",
     {
-      metadata: ["category", "subcategory", "priorityScore", "tags", "customFields"]
-    }
-  ]
+      metadata: [
+        "category",
+        "subcategory",
+        "priorityScore",
+        "tags",
+        "customFields",
+      ],
+    },
+  ],
 });
 
 // Validate that all input fields were properly handled
 if (createWithStrictInput?.metadata) {
   const strictCategory: string = createWithStrictInput.metadata.category;
-  const strictSubcategory: string | null | undefined = createWithStrictInput.metadata.subcategory;
-  const strictPriority: number | null | undefined = createWithStrictInput.metadata.priorityScore;
-  const strictTags: string[] | null | undefined = createWithStrictInput.metadata.tags;
-  const strictCustom: Record<string, any> | null | undefined = createWithStrictInput.metadata.customFields;
+  const strictSubcategory: string | null | undefined =
+    createWithStrictInput.metadata.subcategory;
+  const strictPriority: number | null | undefined =
+    createWithStrictInput.metadata.priorityScore;
+  const strictTags: string[] | null | undefined =
+    createWithStrictInput.metadata.tags;
+  const strictCustom: Record<string, any> | null | undefined =
+    createWithStrictInput.metadata.customFields;
 }
 
 console.log("All embedded resource tests should compile successfully!");

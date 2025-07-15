@@ -8,6 +8,213 @@ This guide captures critical implementation insights, patterns, and anti-pattern
 
 **See CLAUDE.md for complete environment rules and command reference.**
 
+## 🎯 CRITICAL: Type Inference System Architecture (2025-07-15)
+
+**BREAKTHROUGH DISCOVERY**: The type inference system was fundamentally broken due to incorrect assumptions about calculation return types. We implemented a revolutionary schema key-based field classification approach.
+
+### The Core Problem
+
+**CRITICAL INSIGHT**: The original system incorrectly assumed all complex calculations (calculations with arguments) always return resources and thus always need `UnifiedFieldSelection<Resource>[]` for their fields property.
+
+**REALITY**: Calculations can return any type:
+- **Primitive types** (string, number, boolean) - Should only have `calcArgs`, no `fields`
+- **Structured maps** with field constraints - Should have `fields` for field selection
+- **Resources** - Should have `fields` with `UnifiedFieldSelection<Resource>[]` type
+
+### Correct Implementation Pattern: Schema Key-Based Classification
+
+**PATTERN**: Use schema keys as authoritative classifiers instead of structural guessing:
+
+```typescript
+// ✅ CORRECT: Schema keys determine field type
+type ProcessField<Resource, Field> = 
+  Field extends string 
+    ? Field extends keyof Resource["fields"]
+      ? { [K in Field]: Resource["fields"][K] }
+      : {}
+    : Field extends Record<string, any>
+      ? {
+          [K in keyof Field]: K extends keyof Resource["complexCalculations"]
+            ? // Complex calculation - use schema as classifier
+              Resource["__complexCalculationsInternal"][K] extends { __returnType: infer ReturnType }
+                ? ReturnType extends ResourceBase
+                  ? /* Has fields property for resource results */
+                  : ReturnType /* No fields property for primitive results */
+                : any
+            : K extends keyof Resource["relationships"]
+              ? // Relationship - use schema as classifier
+                Resource["relationships"][K] extends { __resource: infer R }
+                  ? InferResourceResult<R, Field[K]>
+                  : any
+              : any
+        }
+      : any;
+```
+
+### Anti-Pattern: Structural Field Classification
+
+**❌ WRONG**: Trying to detect field types by object structure:
+
+```typescript
+// This approach failed because it caused TypeScript to fall back to 'unknown'
+type HasCalculationProperties<T> = T extends Record<string, any>
+  ? {
+      [K in keyof T]: T[K] extends { calcArgs: any, fields: any } ? true : false
+    }[keyof T] extends true
+    ? true
+    : false
+  : false;
+```
+
+**WHY IT FAILS**: Complex conditional types with `never` fallbacks cause TypeScript to return `unknown` instead of proper type inference.
+
+### Correct Schema Generation Pattern
+
+**PATTERN**: Only include `fields` property for calculations that return resources or structured data:
+
+```elixir
+# In generate_complex_calculations_schema/1
+user_calculations =
+  complex_calculations
+  |> Enum.map(fn calc ->
+    arguments_type = generate_calculation_arguments_type(calc)
+    calc_args_field = format_calc_args_field()
+    
+    # ✅ CORRECT: Check if calculation returns resource/structured data
+    if is_resource_calculation?(calc) do
+      fields_type = generate_calculation_fields_type(calc)
+      """
+      #{calc.name}: {
+        #{calc_args_field}: #{arguments_type};
+        fields: #{fields_type};
+      };
+      """
+    else
+      # ✅ CORRECT: Primitive calculations only get calcArgs
+      """
+      #{calc.name}: {
+        #{calc_args_field}: #{arguments_type};
+      };
+      """
+    end
+  end)
+```
+
+### Resource Detection Implementation
+
+**PATTERN**: Detect calculations that need field selection:
+
+```elixir
+defp is_resource_calculation?(calc) do
+  case calc.type do
+    Ash.Type.Struct ->
+      constraints = calc.constraints || []
+      instance_of = Keyword.get(constraints, :instance_of)
+      instance_of != nil and Ash.Resource.Info.resource?(instance_of)
+    
+    Ash.Type.Map ->
+      constraints = calc.constraints || []
+      fields = Keyword.get(constraints, :fields)
+      # Maps with field constraints need field selection
+      fields != nil
+    
+    {:array, Ash.Type.Struct} ->
+      # Handle array of resources
+      constraints = calc.constraints || []
+      items_constraints = Keyword.get(constraints, :items, [])
+      instance_of = Keyword.get(items_constraints, :instance_of)
+      instance_of != nil and Ash.Resource.Info.resource?(instance_of)
+    
+    _ ->
+      false
+  end
+end
+```
+
+### Generated TypeScript Examples
+
+**BEFORE (BROKEN)**:
+```typescript
+type TodoMetadataComplexCalculationsSchema = {
+  adjusted_priority: {
+    calcArgs: { urgency_multiplier?: number };
+    fields: string[]; // ❌ Wrong! This returns a primitive
+  };
+};
+```
+
+**AFTER (FIXED)**:
+```typescript
+type TodoMetadataComplexCalculationsSchema = {
+  adjusted_priority: {
+    calcArgs: { urgency_multiplier?: number };
+    // ✅ No fields property - this returns a primitive number
+  };
+  
+  self: {
+    calcArgs: { prefix?: string };
+    fields: UnifiedFieldSelection<TodoResourceSchema>[]; // ✅ Correct - returns resource
+  };
+};
+```
+
+### Critical File Locations
+
+**Type Inference Core**:
+- `lib/ash_typescript/rpc/codegen.ex:97-196` - `UnifiedFieldSelection` and `ProcessField` types
+- `lib/ash_typescript/codegen.ex:981-1003` - `is_resource_calculation?/1` detection
+- `lib/ash_typescript/codegen.ex:1007-1067` - Schema generation with conditional fields
+
+**Testing Pattern**:
+```bash
+# Always use test environment for type generation
+MIX_ENV=test mix test.codegen
+
+# Validate TypeScript compilation
+cd test/ts && npm run compileGenerated
+cd test/ts && npm run compileShouldPass
+```
+
+### System Architecture Insights
+
+**CRITICAL DISCOVERY**: The type inference system operates as a two-stage pipeline:
+
+1. **Schema Generation Stage** (Elixir): 
+   - Introspects Ash resources to determine calculation return types
+   - Uses `is_resource_calculation?/1` to detect which calculations need field selection
+   - Generates TypeScript schemas with conditional `fields` properties
+
+2. **Type Inference Stage** (TypeScript):
+   - Uses generated schemas as authoritative classifiers
+   - Processes fields using schema key membership testing
+   - Applies proper type inference based on schema structure
+
+**Data Flow Pattern**:
+```
+Ash Resource → Type Detection → Schema Generation → TypeScript Inference → Client Types
+     ↓              ↓                  ↓                    ↓               ↓
+   Calculation   Return Type      Conditional Fields   Schema Keys    Type-Safe API
+   Definition    Analysis         Property            Classification
+```
+
+**Key Relationships**:
+- Schema keys are the authoritative source of truth for field classification
+- Calculation return types determine schema structure
+- TypeScript inference depends on accurate schema generation
+- Client type safety depends on proper type inference
+
+**Critical Dependencies**:
+- Schema generation accuracy directly impacts type inference quality
+- Test environment resource availability affects all type generation
+- TypeScript compilation validates the entire pipeline
+- Field name consistency between schema and usage is essential
+
+**Performance Characteristics**:
+- Schema key lookup is O(1) vs O(n) structural analysis
+- Type inference happens at compile time, not runtime
+- Complex conditional types can cause TypeScript performance issues
+- Simple conditional types with any fallbacks perform better than never fallbacks
+
 ## 🎯 CRITICAL: Embedded Resource Calculation Architecture (2025-07-15)
 
 **BREAKTHROUGH DISCOVERY**: Embedded resources have a **dual nature** that requires sophisticated handling in the RPC field processing pipeline.

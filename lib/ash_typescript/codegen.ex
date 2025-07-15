@@ -978,6 +978,30 @@ defmodule AshTypescript.Codegen do
     not has_arguments and not has_complex_return_type
   end
 
+  defp is_resource_calculation?(calc) do
+    case calc.type do
+      Ash.Type.Struct ->
+        constraints = calc.constraints || []
+        instance_of = Keyword.get(constraints, :instance_of)
+        instance_of != nil and Ash.Resource.Info.resource?(instance_of)
+      
+      {:array, Ash.Type.Struct} ->
+        constraints = calc.constraints || []
+        items_constraints = Keyword.get(constraints, :items, [])
+        instance_of = Keyword.get(items_constraints, :instance_of)
+        instance_of != nil and Ash.Resource.Info.resource?(instance_of)
+      
+      Ash.Type.Map ->
+        constraints = calc.constraints || []
+        fields = Keyword.get(constraints, :fields)
+        # Maps with field constraints need field selection
+        fields != nil
+      
+      _ ->
+        false
+    end
+  end
+
   # Determine if a return type is complex (struct with fields or map with field constraints)
   defp is_complex_return_type(Ash.Type.Struct, constraints) do
     instance_of = Keyword.get(constraints, :instance_of)
@@ -1009,7 +1033,6 @@ defmodule AshTypescript.Codegen do
       complex_calculations
       |> Enum.map(fn calc ->
         arguments_type = generate_calculation_arguments_type(calc)
-        fields_type = generate_calculation_fields_type(calc)
 
         calc_args_field =
           AshTypescript.FieldFormatter.format_field(
@@ -1017,12 +1040,22 @@ defmodule AshTypescript.Codegen do
             AshTypescript.Rpc.output_field_formatter()
           )
 
-        """
-        #{calc.name}: {
-          #{calc_args_field}: #{arguments_type};
-          fields: #{fields_type};
-        };
-        """
+        # Only include fields for calculations that return resources
+        if is_resource_calculation?(calc) do
+          fields_type = generate_calculation_fields_type(calc)
+          """
+          #{calc.name}: {
+            #{calc_args_field}: #{arguments_type};
+            fields: #{fields_type};
+          };
+          """
+        else
+          """
+          #{calc.name}: {
+            #{calc_args_field}: #{arguments_type};
+          };
+          """
+        end
       end)
 
     # Internal schema with return types for inference
@@ -1031,7 +1064,6 @@ defmodule AshTypescript.Codegen do
       |> Enum.map(fn calc ->
         arguments_type = generate_calculation_arguments_type(calc)
         return_type = get_ts_type(calc)
-        fields_type = generate_calculation_fields_type(calc)
 
         calc_args_field =
           AshTypescript.FieldFormatter.format_field(
@@ -1039,13 +1071,24 @@ defmodule AshTypescript.Codegen do
             AshTypescript.Rpc.output_field_formatter()
           )
 
-        """
-        #{calc.name}: {
-          #{calc_args_field}: #{arguments_type};
-          fields: #{fields_type};
-          __returnType: #{return_type};
-        };
-        """
+        # Only include fields for calculations that return resources
+        if is_resource_calculation?(calc) do
+          fields_type = generate_calculation_fields_type(calc)
+          """
+          #{calc.name}: {
+            #{calc_args_field}: #{arguments_type};
+            fields: #{fields_type};
+            __returnType: #{return_type};
+          };
+          """
+        else
+          """
+          #{calc.name}: {
+            #{calc_args_field}: #{arguments_type};
+            __returnType: #{return_type};
+          };
+          """
+        end
       end)
 
     user_schema =

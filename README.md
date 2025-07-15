@@ -64,37 +64,70 @@ mix ash_typescript.codegen --output "assets/js/ash_rpc.ts"
 ```typescript
 import { listTodos, createTodo, getTodo } from './ash_rpc';
 
-// Type-safe API calls
+// Type-safe API calls with field selection
 const todos = await listTodos({
   fields: ["id", "title", "completed"],
   filter: { completed: false }
 });
 
+// Create with nested field selection
 const newTodo = await createTodo({
-  fields: ["id", "title", "priority"],
+  fields: ["id", "title", { user: ["name", "email"] }],
   input: {
     title: "Learn AshTypescript",
     priority: "high"
   }
 });
+
+// Complex calculations with arguments
+const todoWithCalc = await getTodo({
+  fields: [
+    "id", "title",
+    {
+      "self": {
+        "calcArgs": { "prefix": "TODO" },
+        "fields": ["id", "title", "priority"]
+      }
+    }
+  ]
+});
 ```
 
-## Usage Guide
+### Advanced Features
 
-For detailed usage examples and patterns, see the [RPC Core Documentation](docs/rpc-core.md).
+- **Embedded Resources**: Full type safety for nested structured data
+- **Field Selection**: Request only the fields you need with full type inference
+- **Calculations**: Support for complex calculations with arguments
+- **Multitenancy**: Automatic tenant parameter handling
+- **Relationships**: Type-safe loading of related data
 
 ## Configuration
 
-Basic configuration options:
+Configuration options:
 
 ```elixir
 config :ash_typescript,
   output_file: "assets/js/ash_rpc.ts",
   run_endpoint: "/rpc/run",
-  validate_endpoint: "/rpc/validate"
+  validate_endpoint: "/rpc/validate",
+  require_tenant_parameters: false  # Set to true for explicit tenant parameters
 ```
 
-For complete configuration including field formatting, multitenancy, and advanced options, see the [Configuration Guide](docs/configuration.md).
+### Field Formatting
+
+By default, field names are converted from snake_case to camelCase in the generated TypeScript. You can customize this behavior in your domain configuration.
+
+### Multitenancy Support
+
+For multitenant applications, configure tenant handling:
+
+```elixir
+# Parameter-based multitenancy
+config :ash_typescript, require_tenant_parameters: true
+
+# Connection-based multitenancy 
+config :ash_typescript, require_tenant_parameters: false
+```
 
 ## Mix Tasks
 

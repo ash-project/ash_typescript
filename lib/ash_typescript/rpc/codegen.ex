@@ -103,70 +103,86 @@ defmodule AshTypescript.Rpc.Codegen do
           >[];
         }
       | {
-          [K in keyof Resource["complexCalculations"]]?: {
-            calcArgs: Resource["complexCalculations"][K] extends { calcArgs: infer Args } ? Args : never;
-            fields: UnifiedFieldSelection<
-              Resource["complexCalculations"][K] extends { __returnType: infer ReturnType }
-              ? ReturnType extends ResourceBase ? ReturnType : never : never
-            >[];
-          };
+          [K in keyof Resource["complexCalculations"]]?: Resource["__complexCalculationsInternal"][K] extends { __returnType: infer ReturnType }
+            ? ReturnType extends ResourceBase
+              ? {
+                  calcArgs: Resource["complexCalculations"][K] extends { calcArgs: infer Args } ? Args : never;
+                  fields: UnifiedFieldSelection<ReturnType>[];
+                }
+              : {
+                  calcArgs: Resource["complexCalculations"][K] extends { calcArgs: infer Args } ? Args : never;
+                }
+            : never;
         };
 
 
-    // Simplified type inference that processes each field individually
+    // Separate field selection type (for fields and relationships only)
+    type FieldSelection<Resource extends ResourceBase> =
+      | keyof Resource["fields"]
+      | {
+          [K in keyof Resource["relationships"]]?: FieldSelection<
+            Resource["relationships"][K] extends { __resource: infer R }
+              ? R extends ResourceBase
+                ? R
+                : never
+              : never
+          >[];
+        };
+
+    // Helper to extract string fields from unified field selection
+    type ExtractStringFields<Fields> = Fields extends readonly (infer U)[]
+      ? U extends string
+        ? U
+        : never
+      : never;
+
+    // Utility type to convert union to intersection
+    type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
+
+    // Process individual fields using schema keys as classifiers
+    type ProcessField<Resource extends ResourceBase, Field> = 
+      Field extends string 
+        ? // String field - pick from fields schema
+          Field extends keyof Resource["fields"]
+            ? { [K in Field]: Resource["fields"][K] }
+            : {}
+        : Field extends Record<string, any>
+          ? // Object field - use schema keys to classify
+            {
+              [K in keyof Field]: K extends keyof Resource["complexCalculations"]
+                ? // Complex calculation - use internal schema for inference
+                  Resource["__complexCalculationsInternal"][K] extends { __returnType: infer ReturnType }
+                    ? ReturnType extends ResourceBase
+                      ? Field[K] extends { fields: infer FieldSelection }
+                        ? FieldSelection extends UnifiedFieldSelection<ReturnType>[]
+                          ? InferResourceResult<ReturnType, FieldSelection>
+                          : ReturnType
+                        : ReturnType
+                      : ReturnType
+                    : any
+                : K extends keyof Resource["relationships"]
+                  ? // Relationship - use relationship schema for inference
+                    Resource["relationships"][K] extends { __resource: infer R }
+                      ? R extends ResourceBase
+                        ? Resource["relationships"][K] extends { __array: true }
+                          ? Array<InferResourceResult<R, Field[K]>>
+                          : InferResourceResult<R, Field[K]>
+                        : any
+                      : any
+                  : any
+            }
+          : any;
+
+    // Main result type that processes each field using schema keys as classifiers
     type InferResourceResult<
       Resource extends ResourceBase,
       SelectedFields extends UnifiedFieldSelection<Resource>[]
     > = UnionToIntersection<
-      SelectedFields extends readonly (infer Field)[]
-        ? Field extends string
-          ? Field extends keyof Resource["fields"]
-            ? { [K in Field]: Resource["fields"][K] }
-            : {}
-          : Field extends Record<string, any>
-            ? Field extends { [K in keyof Field]: { calcArgs: any, fields: any } }
-              ? InferCalculationField<Field, Resource["__complexCalculationsInternal"]>
-              : InferRelationshipField<Field, Resource["relationships"]>
-            : {}
-        : never
+      {
+        [K in keyof SelectedFields]: ProcessField<Resource, SelectedFields[K]>
+      }[number]
     >;
 
-    // Helper to merge union types into intersection types
-    type UnionToIntersection<U> = (U extends any ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
-
-    // Infer calculation field
-    type InferCalculationField<
-      Field extends Record<string, any>,
-      InternalCalculations extends Record<string, any>
-    > = {
-      [K in keyof Field]: K extends keyof InternalCalculations
-        ? InternalCalculations[K] extends { __returnType: infer ReturnType }
-          ? ReturnType extends ResourceBase
-            ? Field[K] extends { fields: infer Fields }
-              ? Fields extends UnifiedFieldSelection<ReturnType>[]
-                ? InferResourceResult<ReturnType, Fields>
-                : never
-              : never
-            : ReturnType
-          : never
-        : never;
-    };
-
-    // Infer relationship field
-    type InferRelationshipField<
-      Field extends Record<string, any>,
-      AllRelationships extends Record<string, any>
-    > = {
-      [K in keyof Field]: K extends keyof AllRelationships
-        ? AllRelationships[K] extends { __resource: infer Res }
-          ? Res extends ResourceBase
-            ? AllRelationships[K] extends { __array: true }
-              ? Array<InferResourceResult<Res, Field[K]>>
-              : InferResourceResult<Res, Field[K]>
-            : never
-          : never
-        : never;
-    };
     """
   end
 

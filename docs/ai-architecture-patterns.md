@@ -191,7 +191,51 @@ type InferCalculations<Config, Internal> = {
 
 **Key Insight**: Uses conditional types and recursive inference to handle arbitrarily nested structures.
 
-### 4. Field Selection Architecture
+### 4. Schema Key-Based Field Classification (2025-07-15)
+
+**Pattern**: Use schema keys as authoritative classifiers instead of structural guessing
+
+```typescript
+// REVOLUTIONARY APPROACH: Schema keys determine field classification
+type ProcessField<Resource extends ResourceBase, Field> = 
+  Field extends string 
+    ? Field extends keyof Resource["fields"]
+      ? { [K in Field]: Resource["fields"][K] }
+      : {}
+    : Field extends Record<string, any>
+      ? {
+          [K in keyof Field]: K extends keyof Resource["complexCalculations"]
+            ? // Complex calculation detected by schema key
+              Resource["__complexCalculationsInternal"][K] extends { __returnType: infer ReturnType }
+                ? ReturnType extends ResourceBase
+                  ? InferResourceResult<ReturnType, Field[K]>
+                  : ReturnType
+                : any
+            : K extends keyof Resource["relationships"]
+              ? // Relationship detected by schema key
+                Resource["relationships"][K] extends { __resource: infer R }
+                  ? InferResourceResult<R, Field[K]>
+                  : any
+              : any
+        }
+      : any;
+```
+
+**Key Insight**: If a field name matches a key in the schema, it's definitively that type of field. No structural guessing needed.
+
+**Benefits**:
+- **Authoritative**: Schema keys are the source of truth
+- **Fast**: Direct key membership testing
+- **Reliable**: No ambiguity about field types
+- **Maintainable**: Works even with naming collisions
+
+**Implementation Requirements**:
+1. Schema generation must be accurate and complete
+2. Field names must be consistent between schema and usage
+3. Type inference must handle all schema key types
+4. Fallback to `any` rather than `never` for unknown fields
+
+### 5. Field Selection Architecture
 
 **Pattern**: Dual-phase processing (loading vs extraction)
 
@@ -803,6 +847,68 @@ params = %{
 3. **Don't use private functions in type pattern matching** - Pattern matching requires public functions
 4. **Don't debug in wrong environment** - Use `MIX_ENV=test` for proper resource loading
 5. **Don't forget primary keys in embedded resources** - Embedded resources need `uuid_primary_key :id` to compile
+
+### Type Inference Pitfalls (CRITICAL - 2025-07-15)
+
+1. **NEVER assume complex calculations always return resources** - They can return primitives, maps, or resources
+2. **Don't use structural field detection** - Use schema keys as authoritative classifiers
+3. **Don't add fields property to primitive calculations** - Only resource/structured calculations need fields
+4. **Don't use complex conditional types with never fallbacks** - They cause TypeScript to return `unknown`
+5. **Don't forget to check calculation return types** - Use `is_resource_calculation?/1` to detect field selection needs
+
+**Common Error Patterns**:
+```elixir
+# ❌ WRONG - Assuming all calculations need fields
+user_calculations =
+  complex_calculations
+  |> Enum.map(fn calc ->
+    """
+    #{calc.name}: {
+      calcArgs: #{arguments_type};
+      fields: string[]; // Wrong! May return primitive
+    };
+    """
+  end)
+
+# ✅ CORRECT - Check return type first
+user_calculations =
+  complex_calculations
+  |> Enum.map(fn calc ->
+    if is_resource_calculation?(calc) do
+      """
+      #{calc.name}: {
+        calcArgs: #{arguments_type};
+        fields: #{fields_type};
+      };
+      """
+    else
+      """
+      #{calc.name}: {
+        calcArgs: #{arguments_type};
+      };
+      """
+    end
+  end)
+```
+
+**TypeScript Anti-Patterns**:
+```typescript
+// ❌ WRONG - Complex conditional types with never fallbacks
+type BadProcessField<Resource, Field> = 
+  Field extends Record<string, any>
+    ? UnionToIntersection<{
+        [K in keyof Field]: /* complex logic */ | never
+      }[keyof Field]>
+    : never; // Causes TypeScript to return 'unknown'
+
+// ✅ CORRECT - Simple conditional types with any fallbacks
+type GoodProcessField<Resource, Field> = 
+  Field extends Record<string, any>
+    ? {
+        [K in keyof Field]: /* schema key classification */ | any
+      }
+    : any; // Allows proper type inference
+```
 
 ### Type Generation Pitfalls
 
