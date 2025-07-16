@@ -16,6 +16,8 @@ This guide helps AI assistants diagnose and resolve common issues when working w
 | Multitenancy | Cross-tenant data access, missing tenant parameters | [Multitenancy Issues](#multitenancy-issues) |
 | Testing | Tests failing randomly, TypeScript test files not compiling | [Test-Related Issues](#test-related-issues) |
 
+**Quick Reference**: See [Error Patterns](reference/error-patterns.md) for comprehensive error solutions and emergency diagnosis commands.
+
 ## 🚨 ENVIRONMENT ISSUES (MOST COMMON MISTAKE)
 
 ### "No domains found" or "Module not loaded" Errors
@@ -31,6 +33,8 @@ echo "Code.ensure_loaded(...)" | iex -S mix  # Runs in :dev env
 mix test.codegen                        # Runs in :test env with test resources
 mix test test/specific_test.exs         # Write proper tests for debugging
 ```
+
+**Commands**: See [Command Reference](reference/command-reference.md) for complete command list and emergency commands.
 
 ## FieldParser Refactoring Issues (2025-07-16)
 
@@ -866,6 +870,8 @@ mix test.codegen --dry-run | grep -i tenant
 ```
 
 ## Test-Related Issues
+
+**Testing**: See [Testing Patterns](reference/testing-patterns.md) for comprehensive testing approaches and test environment setup.
 
 ### Problem: Tests Failing Randomly
 

@@ -11,6 +11,8 @@
 | **Interactive Debug** | `MIX_ENV=test iex -S mix` | Only if needed - prefer tests |
 | **Validate TypeScript** | `cd test/ts && npm run compileGenerated` | After type generation |
 
+**Quick Reference**: See [Command Reference](reference/command-reference.md) for complete command list and aliases.
+
 ## Core Development Patterns
 
 ### Type Generation Workflow
@@ -30,6 +32,8 @@ cd test/ts && npm run compileShouldFail
 # 5. Run Elixir tests
 mix test
 ```
+
+**Testing**: See [Testing Patterns](reference/testing-patterns.md) for comprehensive testing approaches and validation workflows.
 
 ### Task-to-Documentation Mapping
 
@@ -96,6 +100,8 @@ child_context = Context.child(context, target_resource)
 | "No such attribute" | Aggregate in select | Route aggregates to load |
 | "Module not loaded" | Wrong environment | Use `MIX_ENV=test` |
 
+**Error Patterns**: See [Error Patterns](reference/error-patterns.md) for comprehensive error solutions and debugging commands.
+
 ## Critical File Locations
 
 ### Core Library
@@ -113,6 +119,8 @@ child_context = Context.child(context, target_resource)
 - `test/ts/generated.ts` - Generated TypeScript types
 - `test/ts/shouldPass.ts` - Valid usage patterns
 - `test/ts/shouldFail.ts` - Invalid usage patterns
+
+**File Locations**: See [File Locations](reference/file-locations.md) for comprehensive file organization and search patterns.
 
 ## Field Selection Syntax
 

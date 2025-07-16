@@ -19,12 +19,14 @@ This guide consolidates all implementation patterns, architectural insights, and
 mix test.codegen                    # Generate TypeScript types
 mix test                           # Run Elixir tests
 mix test path/to/test.exs          # Run specific test
-MIX_ENV=test iex -S mix            # Interactive debugging (if needed)
+# Write proper tests for debugging   # Create test files in test/ash_typescript/
 
 # ❌ WRONG - Will fail with "No domains found"
 mix ash_typescript.codegen        # Wrong environment
-iex -S mix                        # Wrong environment
+iex -S mix                        # Wrong environment - write tests instead
 ```
+
+**Commands**: See [Command Reference](reference/command-reference.md) for complete command list, aliases, and emergency commands.
 
 ## Core Architecture Patterns
 
@@ -471,10 +473,12 @@ iex -S mix
 # ❌ WRONG - One-off debugging commands
 echo "Code.ensure_loaded(...)" | iex -S mix
 
+# ❌ WRONG - Using iex for debugging
+MIX_ENV=test iex -S mix
+
 # ✅ CORRECT - Test environment with proper tests
 mix test.codegen
-MIX_ENV=test iex -S mix
-# Write proper tests for debugging
+# Write proper tests for debugging - create test files in test/ash_typescript/
 ```
 
 ### 2. Field Classification Anti-Patterns
@@ -919,6 +923,8 @@ end
 
 ### Testing Patterns
 
+**Testing**: See [Testing Patterns](reference/testing-patterns.md) for comprehensive testing approaches and validation workflows.
+
 #### 1. Union Creation Test Patterns
 
 ```elixir
@@ -1285,6 +1291,8 @@ end
 
 #### Common Error Patterns and Solutions
 
+**Error Patterns**: See [Error Patterns](reference/error-patterns.md) for comprehensive error solutions and emergency diagnosis commands.
+
 **Creation Failures**:
 ```bash
 # Error: "Failed to load %{...} as type Ash.Type.Union"
@@ -1307,6 +1315,8 @@ end
 ```
 
 ### File Organization for Union Features
+
+**File Locations**: See [File Locations](reference/file-locations.md) for comprehensive file organization and search patterns.
 
 ```
 lib/ash_typescript/rpc/

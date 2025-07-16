@@ -148,6 +148,10 @@ mix format --check-formatted && mix credo --strict
 echo "✓ Code quality maintained: $?"
 ```
 
+**Commands**: See [Command Reference](reference/command-reference.md) for complete command list and validation workflows.
+
+**Testing**: See [Testing Patterns](reference/testing-patterns.md) for comprehensive testing approaches and safety validation.
+
 If any of these fail, **STOP** and fix the baseline before proceeding.
 
 ## Change Validation Procedures
