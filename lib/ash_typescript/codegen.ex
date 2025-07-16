@@ -25,6 +25,23 @@ defmodule AshTypescript.Codegen do
          constraints: constraints
        }) do
     case type do
+      # Handle union types FIRST (before general atom patterns)
+      Ash.Type.Union ->
+        union_types = Keyword.get(constraints, :types, [])
+        Enum.any?(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          type && is_embedded_resource?(type)
+        end)
+
+      # Handle array of union types FIRST (before general array patterns)
+      {:array, Ash.Type.Union} ->
+        items_constraints = Keyword.get(constraints, :items, [])
+        union_types = Keyword.get(items_constraints, :types, [])
+        Enum.any?(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          type && is_embedded_resource?(type)
+        end)
+
       # Handle Ash.Type.Struct with instance_of constraint
       Ash.Type.Struct ->
         instance_of = Keyword.get(constraints, :instance_of)
@@ -44,23 +61,6 @@ defmodule AshTypescript.Codegen do
       {:array, module} when is_atom(module) ->
         is_embedded_resource?(module)
 
-      # Handle union types - check if any union member is an embedded resource
-      Ash.Type.Union ->
-        union_types = Keyword.get(constraints, :types, [])
-        Enum.any?(union_types, fn {_type_name, type_config} ->
-          type = Keyword.get(type_config, :type)
-          type && is_embedded_resource?(type)
-        end)
-
-      # Handle array of union types
-      {:array, Ash.Type.Union} ->
-        items_constraints = Keyword.get(constraints, :items, [])
-        union_types = Keyword.get(items_constraints, :types, [])
-        Enum.any?(union_types, fn {_type_name, type_config} ->
-          type = Keyword.get(type_config, :type)
-          type && is_embedded_resource?(type)
-        end)
-
       _ ->
         false
     end
@@ -71,6 +71,23 @@ defmodule AshTypescript.Codegen do
   # New function that returns a list of embedded modules (handles union types)
   defp extract_embedded_modules(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
     case type do
+      # Handle union types FIRST (before general atom patterns)
+      Ash.Type.Union ->
+        union_types = Keyword.get(constraints, :types, [])
+        Enum.flat_map(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          if type && is_embedded_resource?(type), do: [type], else: []
+        end)
+
+      # Handle array of union types FIRST (before general array patterns)
+      {:array, Ash.Type.Union} ->
+        items_constraints = Keyword.get(constraints, :items, [])
+        union_types = Keyword.get(items_constraints, :types, [])
+        Enum.flat_map(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          if type && is_embedded_resource?(type), do: [type], else: []
+        end)
+
       # Handle Ash.Type.Struct with instance_of constraint
       Ash.Type.Struct ->
         module = Keyword.get(constraints, :instance_of)
@@ -90,37 +107,12 @@ defmodule AshTypescript.Codegen do
       {:array, module} when is_atom(module) ->
         if is_embedded_resource?(module), do: [module], else: []
 
-      # Handle union types - extract all embedded resource members
-      Ash.Type.Union ->
-        union_types = Keyword.get(constraints, :types, [])
-        Enum.flat_map(union_types, fn {_type_name, type_config} ->
-          type = Keyword.get(type_config, :type)
-          if type && is_embedded_resource?(type), do: [type], else: []
-        end)
-
-      # Handle array of union types
-      {:array, Ash.Type.Union} ->
-        items_constraints = Keyword.get(constraints, :items, [])
-        union_types = Keyword.get(items_constraints, :types, [])
-        Enum.flat_map(union_types, fn {_type_name, type_config} ->
-          type = Keyword.get(type_config, :type)
-          if type && is_embedded_resource?(type), do: [type], else: []
-        end)
-
       _ ->
         []
     end
   end
 
   defp extract_embedded_modules(_), do: []
-
-  # Legacy function for backward compatibility - returns single module
-  defp extract_embedded_module(attr) do
-    case extract_embedded_modules(attr) do
-      [module | _] -> module
-      [] -> nil
-    end
-  end
 
   @doc """
   Checks if a module is an embedded resource.
@@ -863,17 +855,18 @@ defmodule AshTypescript.Codegen do
   end
 
   def build_union_type(types) do
-    type_strings =
+    member_properties =
       types
-      |> Enum.map(fn {_type_name, type_config} ->
-        get_ts_type(%{type: type_config[:type], constraints: type_config[:constraints] || []})
+      |> Enum.map(fn {type_name, type_config} ->
+        camel_name = AshTypescript.Helpers.snake_to_camel_case(type_name)
+        ts_type = get_ts_type(%{type: type_config[:type], constraints: type_config[:constraints] || []})
+        "#{camel_name}?: #{ts_type}"
       end)
-      |> Enum.uniq()
-      |> Enum.join(" | ")
+      |> Enum.join("; ")
 
-    case type_strings do
+    case member_properties do
       "" -> "any"
-      single -> single
+      properties -> "{ #{properties} }"
     end
   end
 

@@ -121,6 +121,53 @@ defmodule AshTypescript.UnionTypesTest do
       IO.inspect(length(filtered_attrs), label: "Filtered attributes count")
       IO.inspect(Enum.map(filtered_attrs, & &1.name), label: "Filtered attribute names")
       
+      # Step 2: Extract embedded modules from filtered attributes
+      extracted_modules = Enum.flat_map(filtered_attrs, fn attr ->
+        case attr.type do
+          Ash.Type.Union ->
+            union_types = Keyword.get(attr.constraints, :types, [])
+            modules = Enum.flat_map(union_types, fn {_type_name, type_config} ->
+              type = Keyword.get(type_config, :type)
+              if type && AshTypescript.Codegen.is_embedded_resource?(type), do: [type], else: []
+            end)
+            IO.inspect({attr.name, :union, modules}, label: "Union extraction result")
+            modules
+            
+          {:array, Ash.Type.Union} ->
+            items_constraints = Keyword.get(attr.constraints, :items, [])
+            union_types = Keyword.get(items_constraints, :types, [])
+            modules = Enum.flat_map(union_types, fn {_type_name, type_config} ->
+              type = Keyword.get(type_config, :type)
+              if type && AshTypescript.Codegen.is_embedded_resource?(type), do: [type], else: []
+            end)
+            IO.inspect({attr.name, :array_union, modules}, label: "Array union extraction result")
+            modules
+            
+          module when is_atom(module) ->
+            if AshTypescript.Codegen.is_embedded_resource?(module) do
+              IO.inspect({attr.name, :module, [module]}, label: "Module extraction result")
+              [module]
+            else
+              []
+            end
+            
+          {:array, module} when is_atom(module) ->
+            if AshTypescript.Codegen.is_embedded_resource?(module) do
+              IO.inspect({attr.name, :array_module, [module]}, label: "Array module extraction result")
+              [module]
+            else
+              []
+            end
+            
+          _ -> 
+            []
+        end
+      end)
+      |> Enum.uniq()
+      
+      IO.inspect(extracted_modules, label: "Manually extracted modules")
+      IO.inspect(length(extracted_modules), label: "Manually extracted count")
+      
       # Should find at least the 3 embedded content types
       assert length(embedded_from_todo) >= 3
     end
