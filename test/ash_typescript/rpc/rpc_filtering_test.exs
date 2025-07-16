@@ -7,7 +7,8 @@ defmodule AshTypescript.Rpc.FilteringTest do
   setup do
     # Create proper Plug.Conn struct
     conn = build_conn()
-    |> put_private(:ash, %{actor: nil, tenant: nil})
+    |> put_private(:ash, %{actor: nil})
+    |> Ash.PlugHelpers.set_tenant(nil)
     |> assign(:context, %{})
 
     {:ok, conn: conn}

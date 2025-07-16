@@ -1,14 +1,15 @@
 defmodule AshTypescript.Rpc.FieldCalculationsTest do
   use ExUnit.Case, async: false
+  import Plug.Conn
   alias AshTypescript.Rpc
-  alias AshTypescript.Test.{Todo, User, TodoMetadata}
+  alias AshTypescript.Test.{Todo, User}
 
   @moduledoc """
   Tests for field-based calculations - complex calculations specified within the fields parameter
   rather than in a separate calculations parameter.
-  
+
   This tests the unified API where calculations with arguments can be specified like:
-  
+
   fields: [
     "id",
     "title",
@@ -23,7 +24,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
 
   setup do
     # Create a user for testing
-    user = 
+    user =
       User
       |> Ash.Changeset.for_create(:create, %{
         name: "Test User",
@@ -32,7 +33,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
       |> Ash.create!()
 
     # Create a todo with metadata for testing
-    todo = 
+    todo =
       Todo
       |> Ash.Changeset.for_create(:create, %{
         title: "Test Todo",
@@ -45,12 +46,10 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
       })
       |> Ash.create!()
 
-    conn = %Plug.Conn{
-      assigns: %{
-        current_user: user,
-        tenant: user.id
-      }
-    }
+    conn = AshTypescript.Test.TestHelpers.build_rpc_conn()
+           |> put_private(:ash, %{actor: user})
+           |> Ash.PlugHelpers.set_tenant(user.id)
+           |> assign(:current_user, user)
 
     %{conn: conn, user: user, todo: todo}
   end
@@ -93,22 +92,21 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
 
       result = Rpc.run_action(:ash_typescript, conn, params)
 
-      IO.inspect(result, label: "Complex Calculation Result")
-
       assert result.success == true
       assert is_map(result.data)
       assert result.data["id"] == todo.id
       assert result.data["title"] == "Test Todo"
       assert Map.has_key?(result.data, "self")
-      
-      IO.inspect(result.data["self"], label: "Self Calculation Result")
-      
+
       assert is_map(result.data["self"])
       assert result.data["self"]["id"] == todo.id
       assert result.data["self"]["title"] == "Test Todo"
     end
 
-    test "embedded resource calculation with arguments in fields parameter", %{conn: conn, todo: todo} do
+    test "embedded resource calculation with arguments in fields parameter", %{
+      conn: conn,
+      todo: todo
+    } do
       # Test embedded resource calculation with arguments
       params = %{
         "action" => "get_todo",
@@ -148,7 +146,10 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
       assert is_integer(result.data["metadata"]["adjustedPriority"])
     end
 
-    test "embedded resource calculation with multiple different argument types", %{conn: conn, todo: todo} do
+    test "embedded resource calculation with multiple different argument types", %{
+      conn: conn,
+      todo: todo
+    } do
       # Test embedded resource calculation with atom constraints and boolean arguments
       params = %{
         "action" => "get_todo",
@@ -203,10 +204,13 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
           # Embedded resource with mixed field types
           %{
             "metadata" => [
-              "category",  # Simple attribute
-              "displayCategory",  # Simple calculation
+              # Simple attribute
+              "category",
+              # Simple calculation
+              "displayCategory",
               %{
-                "adjustedPriority" => %{  # Complex calculation with arguments
+                # Complex calculation with arguments
+                "adjustedPriority" => %{
                   "calcArgs" => %{"urgencyMultiplier" => 2.0}
                 }
               }
@@ -240,7 +244,6 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
     end
   end
 
-
   describe "error handling" do
     test "invalid calculation arguments are handled gracefully", %{conn: conn, todo: todo} do
       # Test that invalid calculation arguments result in proper error handling
@@ -254,8 +257,10 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
               %{
                 "adjustedPriority" => %{
                   "calcArgs" => %{
-                    "urgencyMultiplier" => "invalid",  # Should be float
-                    "userBias" => 100  # Should be between -10 and 10
+                    # Should be float
+                    "urgencyMultiplier" => "invalid",
+                    # Should be between -10 and 10
+                    "userBias" => 100
                   }
                 }
               }

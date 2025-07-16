@@ -1,15 +1,10 @@
 defmodule AshTypescript.Rpc.ErrorHandlingTest do
   use ExUnit.Case, async: true
-  import Phoenix.ConnTest
-  import Plug.Conn
+  import AshTypescript.Test.TestHelpers
   alias AshTypescript.Rpc
 
   setup do
-    # Create proper Plug.Conn struct
-    conn = build_conn()
-    |> put_private(:ash, %{actor: nil, tenant: nil})
-    |> assign(:context, %{})
-
+    conn = build_rpc_conn()
     {:ok, conn: conn}
   end
 

@@ -8,7 +8,8 @@ defmodule AshTypescript.Rpc.CalcsTest do
     # Create proper Plug.Conn struct
     conn =
       build_conn()
-      |> put_private(:ash, %{actor: nil, tenant: nil})
+      |> put_private(:ash, %{actor: nil})
+      |> Ash.PlugHelpers.set_tenant(nil)
       |> assign(:context, %{})
 
     {:ok, conn: conn}
@@ -104,7 +105,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
       assert is_integer(todo["daysUntilDue"]) or is_nil(todo["daysUntilDue"])
     end
 
-    test "loads calculation without arguments via calculations parameter", %{conn: conn} do
+    test "loads calculation without arguments via fields parameter", %{conn: conn} do
       params = %{
         "action" => "list_todos",
         "fields" => ["id", "title", "isOverdue"],
@@ -236,7 +237,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
       assert Map.has_key?(data["user"], "name")
     end
 
-    test "combines calculations parameter with fields parameter", %{conn: conn} do
+    test "combines calculations with fields parameter", %{conn: conn} do
       params = %{
         "action" => "list_todos",
         "fields" => ["id", "title", "isOverdue", "daysUntilDue"],
@@ -280,7 +281,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
       end
     end
 
-    test "handles empty calculations parameter gracefully", %{conn: conn} do
+    test "handles empty calculations in fields parameter gracefully", %{conn: conn} do
       params = %{
         "action" => "list_todos",
         "fields" => ["id", "title"],
@@ -292,7 +293,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
       assert is_list(data)
     end
 
-    test "handles missing calculations parameter gracefully", %{conn: conn} do
+    test "handles missing calculations in fields parameter gracefully", %{conn: conn} do
       params = %{
         "action" => "list_todos",
         "fields" => ["id", "title", "isOverdue"],
@@ -310,8 +311,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
       end
     end
 
-    @tag :only
-    test "calculations parameter can now handle field selection for calculations with arguments",
+    test "unified fields parameter can now handle field selection for calculations with arguments",
          %{conn: conn, todo: todo} do
       # This test verifies that the enhanced RPC implementation can properly handle
       # field selection for calculations that have arguments after the fix
@@ -414,7 +414,6 @@ defmodule AshTypescript.Rpc.CalcsTest do
       assert map_size(nested_self) == 3
     end
 
-    @tag :lol
     test "verifies calculation return values are correct", %{conn: conn} do
       # Create a todo with a specific due date that we can verify calculations against
       user_params = %{

@@ -15,7 +15,7 @@ defmodule AshTypescript.Codegen do
     resource
     |> Ash.Resource.Info.public_attributes()
     |> Enum.filter(&is_embedded_resource_attribute?/1)
-    |> Enum.map(&extract_embedded_module/1)
+    |> Enum.flat_map(&extract_embedded_modules/1)
     # Remove nils
     |> Enum.filter(& &1)
   end
@@ -44,6 +44,23 @@ defmodule AshTypescript.Codegen do
       {:array, module} when is_atom(module) ->
         is_embedded_resource?(module)
 
+      # Handle union types - check if any union member is an embedded resource
+      Ash.Type.Union ->
+        union_types = Keyword.get(constraints, :types, [])
+        Enum.any?(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          type && is_embedded_resource?(type)
+        end)
+
+      # Handle array of union types
+      {:array, Ash.Type.Union} ->
+        items_constraints = Keyword.get(constraints, :items, [])
+        union_types = Keyword.get(items_constraints, :types, [])
+        Enum.any?(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          type && is_embedded_resource?(type)
+        end)
+
       _ ->
         false
     end
@@ -51,31 +68,59 @@ defmodule AshTypescript.Codegen do
 
   defp is_embedded_resource_attribute?(_), do: false
 
-  defp extract_embedded_module(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
+  # New function that returns a list of embedded modules (handles union types)
+  defp extract_embedded_modules(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
     case type do
       # Handle Ash.Type.Struct with instance_of constraint
       Ash.Type.Struct ->
-        Keyword.get(constraints, :instance_of)
+        module = Keyword.get(constraints, :instance_of)
+        if module && is_embedded_resource?(module), do: [module], else: []
 
       # Handle array of Ash.Type.Struct
       {:array, Ash.Type.Struct} ->
         items_constraints = Keyword.get(constraints, :items, [])
-        Keyword.get(items_constraints, :instance_of)
+        module = Keyword.get(items_constraints, :instance_of)
+        if module && is_embedded_resource?(module), do: [module], else: []
 
       # Handle direct embedded resource module
       module when is_atom(module) ->
-        if is_embedded_resource?(module), do: module, else: nil
+        if is_embedded_resource?(module), do: [module], else: []
 
       # Handle array of direct embedded resource module
       {:array, module} when is_atom(module) ->
-        if is_embedded_resource?(module), do: module, else: nil
+        if is_embedded_resource?(module), do: [module], else: []
+
+      # Handle union types - extract all embedded resource members
+      Ash.Type.Union ->
+        union_types = Keyword.get(constraints, :types, [])
+        Enum.flat_map(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          if type && is_embedded_resource?(type), do: [type], else: []
+        end)
+
+      # Handle array of union types
+      {:array, Ash.Type.Union} ->
+        items_constraints = Keyword.get(constraints, :items, [])
+        union_types = Keyword.get(items_constraints, :types, [])
+        Enum.flat_map(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          if type && is_embedded_resource?(type), do: [type], else: []
+        end)
 
       _ ->
-        nil
+        []
     end
   end
 
-  defp extract_embedded_module(_), do: nil
+  defp extract_embedded_modules(_), do: []
+
+  # Legacy function for backward compatibility - returns single module
+  defp extract_embedded_module(attr) do
+    case extract_embedded_modules(attr) do
+      [module | _] -> module
+      [] -> nil
+    end
+  end
 
   @doc """
   Checks if a module is an embedded resource.
@@ -184,6 +229,7 @@ defmodule AshTypescript.Codegen do
   end
 
   defp generate_ash_type_alias(Ash.Type.Struct), do: ""
+  defp generate_ash_type_alias(Ash.Type.Union), do: ""
   defp generate_ash_type_alias(Ash.Type.Atom), do: ""
   defp generate_ash_type_alias(Ash.Type.Boolean), do: ""
   defp generate_ash_type_alias(Ash.Type.Integer), do: ""

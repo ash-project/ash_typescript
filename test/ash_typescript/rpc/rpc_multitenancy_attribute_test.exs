@@ -8,7 +8,8 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
   setup do
     # Create proper Plug.Conn struct
     conn = build_conn()
-    |> put_private(:ash, %{actor: nil, tenant: nil})
+    |> put_private(:ash, %{actor: nil})
+    |> Ash.PlugHelpers.set_tenant(nil)
     |> assign(:context, %{})
 
     # Create test users for tenant isolation
@@ -186,8 +187,9 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
       end)
     end
 
-    test "creates user settings with tenant in connection", %{conn: conn, user1: user1} do
-      conn_with_tenant = Ash.PlugHelpers.set_tenant(conn, user1["id"])
+    test "creates user settings with tenant in connection", %{conn: _conn, user1: user1} do
+      conn_with_tenant = AshTypescript.Test.TestHelpers.build_rpc_conn()
+                         |> Ash.PlugHelpers.set_tenant(user1["id"])
 
       params = %{
         "action" => "create_user_settings",
@@ -205,8 +207,9 @@ defmodule AshTypescript.Rpc.MultitenancyAttributeTest do
       assert settings["theme"] == :dark
     end
 
-    test "reads user settings with tenant in connection", %{conn: conn, user1: user1} do
-      conn_with_tenant = Ash.PlugHelpers.set_tenant(conn, user1["id"])
+    test "reads user settings with tenant in connection", %{conn: _conn, user1: user1} do
+      conn_with_tenant = AshTypescript.Test.TestHelpers.build_rpc_conn()
+                         |> Ash.PlugHelpers.set_tenant(user1["id"])
 
       # Create settings first
       create_params = %{

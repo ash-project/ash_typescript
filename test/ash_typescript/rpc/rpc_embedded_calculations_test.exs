@@ -1,7 +1,6 @@
 defmodule AshTypescript.RpcEmbeddedCalculationsTest do
   use ExUnit.Case, async: true
 
-  @moduletag :focus
 
   describe "RPC Embedded Resource Calculations" do
     setup do

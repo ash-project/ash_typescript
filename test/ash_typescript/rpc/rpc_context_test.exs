@@ -10,7 +10,8 @@ defmodule AshTypescript.Rpc.ContextTest do
       user = %{id: "test-user-id", name: "Test User"}
 
       conn_with_actor = build_conn()
-      |> put_private(:ash, %{actor: user, tenant: nil})
+      |> put_private(:ash, %{actor: user})
+      |> Ash.PlugHelpers.set_tenant(nil)
       |> assign(:context, %{})
 
       params = %{
@@ -25,7 +26,8 @@ defmodule AshTypescript.Rpc.ContextTest do
 
     test "uses tenant from conn" do
       conn_with_tenant = build_conn()
-      |> put_private(:ash, %{actor: nil, tenant: "test_tenant"})
+      |> put_private(:ash, %{actor: nil})
+      |> Ash.PlugHelpers.set_tenant("test_tenant")
       |> assign(:context, %{})
 
       params = %{
@@ -40,7 +42,8 @@ defmodule AshTypescript.Rpc.ContextTest do
 
     test "uses context from conn" do
       conn_with_context = build_conn()
-      |> put_private(:ash, %{actor: nil, tenant: nil})
+      |> put_private(:ash, %{actor: nil})
+      |> Ash.PlugHelpers.set_tenant(nil)
       |> assign(:context, %{"custom_key" => "custom_value"})
 
       params = %{
