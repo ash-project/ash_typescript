@@ -78,6 +78,7 @@ defmodule AshTypescript.FieldParserComprehensiveTest do
       nested_fields = ["category", "displayCategory", "priorityScore"]
 
       context = AshTypescript.Rpc.FieldParser.Context.new(Todo, formatter)
+
       result =
         AshTypescript.Rpc.FieldParser.process_embedded_fields(
           TodoMetadata,

@@ -57,77 +57,98 @@ defmodule AshTypescript.Test.Todo do
     # Union type attribute demonstrating tagged union with embedded resources
     attribute :content, :union do
       public? true
-      constraints [
-        types: [
-          text: [
-            type: AshTypescript.Test.TodoContent.TextContent,
-            tag: :content_type,
-            tag_value: "text"
-          ],
-          checklist: [
-            type: AshTypescript.Test.TodoContent.ChecklistContent,
-            tag: :content_type,
-            tag_value: "checklist"
-          ],
-          link: [
-            type: AshTypescript.Test.TodoContent.LinkContent,
-            tag: :content_type,
-            tag_value: "link"
-          ],
-          # Simple types for testing untagged unions
-          note: [
-            type: :string
-          ],
-          priority_value: [
-            type: :integer,
-            constraints: [min: 1, max: 10]
-          ]
-        ],
-        # Store the type and value in a map
-        storage: :type_and_value
-      ]
+
+      constraints types: [
+                    text: [
+                      type: AshTypescript.Test.TodoContent.TextContent,
+                      tag: :content_type,
+                      tag_value: "text"
+                    ],
+                    checklist: [
+                      type: AshTypescript.Test.TodoContent.ChecklistContent,
+                      tag: :content_type,
+                      tag_value: "checklist"
+                    ],
+                    link: [
+                      type: AshTypescript.Test.TodoContent.LinkContent,
+                      tag: :content_type,
+                      tag_value: "link"
+                    ],
+                    # Simple types for testing untagged unions
+                    note: [
+                      type: :string
+                    ],
+                    priority_value: [
+                      type: :integer,
+                      constraints: [min: 1, max: 10]
+                    ]
+                  ],
+                  storage: :type_and_value
     end
 
     # Union type array for testing array union support
     attribute :attachments, {:array, :union} do
       public? true
       default []
-      constraints [
-        items: [
-          types: [
-            file: [
-              type: :map,
-              tag: :attachment_type,
-              tag_value: "file",
-              constraints: [
-                fields: [
-                  filename: [type: :string, allow_nil?: false],
-                  size: [type: :integer],
-                  mime_type: [type: :string]
-                ]
-              ]
-            ],
-            image: [
-              type: :map,
-              tag: :attachment_type,
-              tag_value: "image",
-              constraints: [
-                fields: [
-                  filename: [type: :string, allow_nil?: false],
-                  width: [type: :integer],
-                  height: [type: :integer],
-                  alt_text: [type: :string]
-                ]
-              ]
-            ],
-            # Simple untagged union member
-            url: [
-              type: :string,
-              constraints: [match: ~r/^https?:\/\//]
-            ]
-          ]
-        ]
-      ]
+
+      constraints items: [
+                    types: [
+                      file: [
+                        type: :map,
+                        tag: :attachment_type,
+                        tag_value: "file",
+                        constraints: [
+                          fields: [
+                            filename: [type: :string, allow_nil?: false],
+                            size: [type: :integer],
+                            mime_type: [type: :string]
+                          ]
+                        ]
+                      ],
+                      image: [
+                        type: :map,
+                        tag: :attachment_type,
+                        tag_value: "image",
+                        constraints: [
+                          fields: [
+                            filename: [type: :string, allow_nil?: false],
+                            width: [type: :integer],
+                            height: [type: :integer],
+                            alt_text: [type: :string]
+                          ]
+                        ]
+                      ],
+                      # Simple untagged union member
+                      url: [
+                        type: :string,
+                        constraints: [match: ~r/^https?:\/\//]
+                      ]
+                    ]
+                  ]
+    end
+
+    # Union type with :map_with_tag storage for testing alternative storage mode
+    attribute :status_info, :union do
+      public? true
+
+      constraints types: [
+                    simple: [
+                      type: :map,
+                      tag: :status_type,
+                      tag_value: "simple"
+                    ],
+                    detailed: [
+                      type: :map,
+                      tag: :status_type,
+                      tag_value: "detailed"
+                    ],
+                    automated: [
+                      type: :map,
+                      tag: :status_type,
+                      tag_value: "automated"
+                    ]
+                  ],
+                  storage: :map_with_tag
     end
 
     create_timestamp :created_at do
@@ -226,7 +247,19 @@ defmodule AshTypescript.Test.Todo do
 
     create :create do
       primary? true
-      accept [:title, :description, :status, :priority, :due_date, :tags, :metadata, :content, :attachments]
+
+      accept [
+        :title,
+        :description,
+        :status,
+        :priority,
+        :due_date,
+        :tags,
+        :metadata,
+        :content,
+        :attachments,
+        :status_info
+      ]
 
       argument :auto_complete, :boolean do
         default false
@@ -242,7 +275,20 @@ defmodule AshTypescript.Test.Todo do
 
     update :update do
       primary? true
-      accept [:title, :description, :completed, :status, :priority, :due_date, :tags, :metadata, :content, :attachments]
+
+      accept [
+        :title,
+        :description,
+        :completed,
+        :status,
+        :priority,
+        :due_date,
+        :tags,
+        :metadata,
+        :content,
+        :attachments,
+        :status_info
+      ]
     end
 
     update :complete do

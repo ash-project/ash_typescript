@@ -1,7 +1,7 @@
 defmodule AshTypescript.Test.TestHelpers do
   @moduledoc """
   Common test helpers and utilities for AshTypescript test suite.
-  
+
   This module provides reusable functions for:
   - Phoenix.Conn setup for RPC testing
   - Common test data creation (users, todos)
@@ -17,7 +17,7 @@ defmodule AshTypescript.Test.TestHelpers do
 
   @doc """
   Creates a properly configured Plug.Conn for RPC testing.
-  
+
   Returns a Plug.Conn with:
   - ash private data (actor: nil, tenant: nil)
   - context assignment
@@ -31,24 +31,28 @@ defmodule AshTypescript.Test.TestHelpers do
 
   @doc """
   Creates a test user with standard test data.
-  
+
   Options:
   - `:name` - User name (default: "Test User")
   - `:email` - User email (default: "test@example.com")
   - `:fields` - Fields to return (default: ["id"])
   - `:via_rpc` - Create via RPC action instead of direct Ash (default: false)
-  
+
   Returns the created user data.
   """
   def create_test_user(conn_or_opts \\ [], opts \\ [])
 
   def create_test_user(conn, opts) when is_struct(conn) do
-    opts = Keyword.merge([
-      name: "Test User",
-      email: "test@example.com", 
-      fields: ["id"],
-      via_rpc: true
-    ], opts)
+    opts =
+      Keyword.merge(
+        [
+          name: "Test User",
+          email: "test@example.com",
+          fields: ["id"],
+          via_rpc: true
+        ],
+        opts
+      )
 
     if opts[:via_rpc] do
       create_user_via_rpc(conn, opts)
@@ -58,35 +62,43 @@ defmodule AshTypescript.Test.TestHelpers do
   end
 
   def create_test_user(opts, _) when is_list(opts) do
-    opts = Keyword.merge([
-      name: "Test User",
-      email: "test@example.com"
-    ], opts)
+    opts =
+      Keyword.merge(
+        [
+          name: "Test User",
+          email: "test@example.com"
+        ],
+        opts
+      )
 
     create_user_direct(opts)
   end
 
   @doc """
   Creates a test todo with standard test data.
-  
+
   Options:
   - `:title` - Todo title (default: "Test Todo")
   - `:user_id` - User ID (required)
   - `:completed` - Completion status (default: false)
   - `:fields` - Fields to return (default: ["id", "title"])
   - `:via_rpc` - Create via RPC action instead of direct Ash (default: false)
-  
+
   Returns the created todo data.
   """
   def create_test_todo(conn_or_opts \\ [], opts \\ [])
 
   def create_test_todo(conn, opts) when is_struct(conn) do
-    opts = Keyword.merge([
-      title: "Test Todo",
-      completed: false,
-      fields: ["id", "title"],
-      via_rpc: true
-    ], opts)
+    opts =
+      Keyword.merge(
+        [
+          title: "Test Todo",
+          completed: false,
+          fields: ["id", "title"],
+          via_rpc: true
+        ],
+        opts
+      )
 
     unless opts[:user_id] do
       raise ArgumentError, "user_id is required for creating test todos"
@@ -100,10 +112,14 @@ defmodule AshTypescript.Test.TestHelpers do
   end
 
   def create_test_todo(opts, _) when is_list(opts) do
-    opts = Keyword.merge([
-      title: "Test Todo", 
-      completed: false
-    ], opts)
+    opts =
+      Keyword.merge(
+        [
+          title: "Test Todo",
+          completed: false
+        ],
+        opts
+      )
 
     unless opts[:user_id] do
       raise ArgumentError, "user_id is required for creating test todos"
@@ -114,91 +130,103 @@ defmodule AshTypescript.Test.TestHelpers do
 
   @doc """
   Creates a complete test scenario with user and todo.
-  
+
   Options:
   - `:user_name` - User name (default: "Test User")
   - `:user_email` - User email (default: "test@example.com")
   - `:todo_title` - Todo title (default: "Test Todo")
   - `:todo_completed` - Todo completion status (default: false)
   - `:via_rpc` - Create via RPC actions (default: false)
-  
+
   Returns `{user, todo}` tuple.
   """
   def create_test_scenario(conn_or_opts \\ [], opts \\ [])
 
   def create_test_scenario(conn, opts) when is_struct(conn) do
-    opts = Keyword.merge([
-      user_name: "Test User",
-      user_email: "test@example.com",
-      todo_title: "Test Todo",
-      todo_completed: false,
-      via_rpc: true
-    ], opts)
+    opts =
+      Keyword.merge(
+        [
+          user_name: "Test User",
+          user_email: "test@example.com",
+          todo_title: "Test Todo",
+          todo_completed: false,
+          via_rpc: true
+        ],
+        opts
+      )
 
-    user = create_test_user(conn, [
-      name: opts[:user_name],
-      email: opts[:user_email],
-      via_rpc: opts[:via_rpc]
-    ])
+    user =
+      create_test_user(conn,
+        name: opts[:user_name],
+        email: opts[:user_email],
+        via_rpc: opts[:via_rpc]
+      )
 
     user_id = if opts[:via_rpc], do: user["id"], else: user.id
 
-    todo = create_test_todo(conn, [
-      title: opts[:todo_title],
-      completed: opts[:todo_completed],
-      user_id: user_id,
-      via_rpc: opts[:via_rpc]
-    ])
+    todo =
+      create_test_todo(conn,
+        title: opts[:todo_title],
+        completed: opts[:todo_completed],
+        user_id: user_id,
+        via_rpc: opts[:via_rpc]
+      )
 
     {user, todo}
   end
 
   def create_test_scenario(opts, _) when is_list(opts) do
-    opts = Keyword.merge([
-      user_name: "Test User",
-      user_email: "test@example.com",
-      todo_title: "Test Todo",
-      todo_completed: false
-    ], opts)
+    opts =
+      Keyword.merge(
+        [
+          user_name: "Test User",
+          user_email: "test@example.com",
+          todo_title: "Test Todo",
+          todo_completed: false
+        ],
+        opts
+      )
 
-    user = create_test_user([
-      name: opts[:user_name],
-      email: opts[:user_email]
-    ])
+    user =
+      create_test_user(
+        name: opts[:user_name],
+        email: opts[:user_email]
+      )
 
-    todo = create_test_todo([
-      title: opts[:todo_title],
-      completed: opts[:todo_completed],
-      user_id: user.id
-    ])
+    todo =
+      create_test_todo(
+        title: opts[:todo_title],
+        completed: opts[:todo_completed],
+        user_id: user.id
+      )
 
     {user, todo}
   end
 
   @doc """
   Validates that a result contains only the requested fields.
-  
+
   Args:
   - `result` - The result map to validate
   - `expected_fields` - List of expected field names (strings)
-  
+
   Raises if the result contains unexpected fields.
   """
   def assert_only_requested_fields(result, expected_fields) do
     actual_fields = Map.keys(result) |> Enum.sort()
     expected_sorted = Enum.sort(expected_fields)
-    
+
     assert actual_fields == expected_sorted,
-      "Expected only fields #{inspect(expected_sorted)}, but got #{inspect(actual_fields)}"
+           "Expected only fields #{inspect(expected_sorted)}, but got #{inspect(actual_fields)}"
   end
 
   @doc """
   Validates that an RPC action result has the expected success structure.
-  
+
   Args:
   - `result` - RPC action result
   - `expected_data_check` - Optional function to validate the data (default: &is_map/1)
-  
+
   Returns the data portion of the result.
   """
   def assert_rpc_success(result, expected_data_check \\ &is_map/1) do
@@ -209,10 +237,10 @@ defmodule AshTypescript.Test.TestHelpers do
 
   @doc """
   Validates that an RPC action result has the expected error structure.
-  
+
   Args:
   - `result` - RPC action result
-  
+
   Returns the error portion of the result.
   """
   def assert_rpc_error(result) do
@@ -222,18 +250,19 @@ defmodule AshTypescript.Test.TestHelpers do
 
   @doc """
   Creates application config changes with automatic cleanup.
-  
+
   Args:
   - `config_changes` - Keyword list of {app, key, value} tuples
   - `test_function` - Function to run with the config changes
-  
+
   Automatically restores original configuration after the test.
   """
   def with_application_config(config_changes, test_function) do
     # Store original values
-    original_values = Enum.map(config_changes, fn {app, key, _value} ->
-      {app, key, Application.get_env(app, key)}
-    end)
+    original_values =
+      Enum.map(config_changes, fn {app, key, _value} ->
+        {app, key, Application.get_env(app, key)}
+      end)
 
     try do
       # Apply new configuration

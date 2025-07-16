@@ -1,5 +1,5 @@
 defmodule AshTypescript.CodegenTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   alias AshTypescript.Codegen
 
   alias AshTypescript.Test.{Todo, TodoComment}
@@ -138,7 +138,7 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Union, constraints: constraints})
-      assert result == "string | number"
+      assert result == "{ string?: string; integer?: number }"
     end
 
     test "removes duplicate types in union" do
@@ -151,7 +151,7 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Union, constraints: constraints})
-      assert result == "string | number"
+      assert result == "{ string1?: string; string2?: string; integer?: number }"
     end
   end
 
@@ -267,7 +267,7 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.build_union_type(types)
-      assert result == "string | number"
+      assert result == "{ string?: string; integer?: number }"
     end
 
     test "handles empty types list" do
@@ -365,9 +365,7 @@ defmodule AshTypescript.CodegenTest do
 
   describe "get_resource_field_spec/2 - relationships" do
     test "throws error for non-public relationships" do
-      assert catch_throw(
-               Codegen.get_resource_field_spec({:private_items, [:id, :content]}, Todo)
-             ) ==
+      assert catch_throw(Codegen.get_resource_field_spec({:private_items, [:id, :content]}, Todo)) ==
                "Relationship not found on AshTypescript.Test.Todo: private_items"
     end
   end
@@ -431,7 +429,12 @@ defmodule AshTypescript.CodegenTest do
       assert String.contains?(result, "dueDate?: AshDate | null;")
       assert String.contains?(result, "tags?: Array<string> | null;")
       assert String.contains?(result, "metadata?: TodoMetadataResourceSchema | null;")
-      assert String.contains?(result, "metadataHistory?: Array<TodoMetadataResourceSchema> | null;")
+
+      assert String.contains?(
+               result,
+               "metadataHistory?: Array<TodoMetadataResourceSchema> | null;"
+             )
+
       assert String.contains?(result, "userId: UUID;")
     end
 

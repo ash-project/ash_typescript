@@ -123,7 +123,6 @@ defmodule AshTypescript.Rpc.FieldParser.LoadBuilder do
     field
   end
 
-
   @doc """
   Extract nested calculation specs from fields list.
 
@@ -161,5 +160,4 @@ defmodule AshTypescript.Rpc.FieldParser.LoadBuilder do
       end
     end)
   end
-
 end

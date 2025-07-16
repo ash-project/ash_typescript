@@ -1,24 +1,36 @@
 defmodule AshTypescript.RpcConfigurationTest do
-  use ExUnit.Case, async: false  # async: false because we're modifying application config
+  # async: false because we're modifying application config
+  use ExUnit.Case, async: false
   alias AshTypescript.Rpc
   alias AshTypescript.Test.Formatters
 
   # Store original configuration to restore after tests
   setup do
     original_input_field_formatter = Application.get_env(:ash_typescript, :input_field_formatter)
-    original_output_field_formatter = Application.get_env(:ash_typescript, :output_field_formatter)
+
+    original_output_field_formatter =
+      Application.get_env(:ash_typescript, :output_field_formatter)
+
     original_require_tenant = Application.get_env(:ash_typescript, :require_tenant_parameters)
 
     on_exit(fn ->
       # Restore original configuration
       if original_input_field_formatter do
-        Application.put_env(:ash_typescript, :input_field_formatter, original_input_field_formatter)
+        Application.put_env(
+          :ash_typescript,
+          :input_field_formatter,
+          original_input_field_formatter
+        )
       else
         Application.delete_env(:ash_typescript, :input_field_formatter)
       end
 
       if original_output_field_formatter do
-        Application.put_env(:ash_typescript, :output_field_formatter, original_output_field_formatter)
+        Application.put_env(
+          :ash_typescript,
+          :output_field_formatter,
+          original_output_field_formatter
+        )
       else
         Application.delete_env(:ash_typescript, :output_field_formatter)
       end
@@ -105,7 +117,7 @@ defmodule AshTypescript.RpcConfigurationTest do
 
     test "configurations persist across function calls" do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-      
+
       assert Rpc.output_field_formatter() == :pascal_case
       assert Rpc.output_field_formatter() == :pascal_case
       assert Rpc.output_field_formatter() == :pascal_case

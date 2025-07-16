@@ -82,8 +82,17 @@ defmodule AshTypescript.Test.UserSettings do
 
     create :create do
       primary? true
-      accept [:theme, :language, :notifications_enabled, :email_notifications, :timezone, :date_format, :preferences]
-      
+
+      accept [
+        :theme,
+        :language,
+        :notifications_enabled,
+        :email_notifications,
+        :timezone,
+        :date_format,
+        :preferences
+      ]
+
       argument :user_id, :uuid do
         allow_nil? false
       end
@@ -93,12 +102,20 @@ defmodule AshTypescript.Test.UserSettings do
 
     update :update do
       primary? true
-      accept [:theme, :language, :notifications_enabled, :email_notifications, :timezone, :date_format, :preferences]
+
+      accept [
+        :theme,
+        :language,
+        :notifications_enabled,
+        :email_notifications,
+        :timezone,
+        :date_format,
+        :preferences
+      ]
     end
 
     read :get_by_user do
       get_by [:user_id]
     end
   end
-
 end

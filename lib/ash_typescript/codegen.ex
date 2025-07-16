@@ -28,6 +28,7 @@ defmodule AshTypescript.Codegen do
       # Handle union types FIRST (before general atom patterns)
       Ash.Type.Union ->
         union_types = Keyword.get(constraints, :types, [])
+
         Enum.any?(union_types, fn {_type_name, type_config} ->
           type = Keyword.get(type_config, :type)
           type && is_embedded_resource?(type)
@@ -37,6 +38,7 @@ defmodule AshTypescript.Codegen do
       {:array, Ash.Type.Union} ->
         items_constraints = Keyword.get(constraints, :items, [])
         union_types = Keyword.get(items_constraints, :types, [])
+
         Enum.any?(union_types, fn {_type_name, type_config} ->
           type = Keyword.get(type_config, :type)
           type && is_embedded_resource?(type)
@@ -74,6 +76,7 @@ defmodule AshTypescript.Codegen do
       # Handle union types FIRST (before general atom patterns)
       Ash.Type.Union ->
         union_types = Keyword.get(constraints, :types, [])
+
         Enum.flat_map(union_types, fn {_type_name, type_config} ->
           type = Keyword.get(type_config, :type)
           if type && is_embedded_resource?(type), do: [type], else: []
@@ -83,6 +86,7 @@ defmodule AshTypescript.Codegen do
       {:array, Ash.Type.Union} ->
         items_constraints = Keyword.get(constraints, :items, [])
         union_types = Keyword.get(items_constraints, :types, [])
+
         Enum.flat_map(union_types, fn {_type_name, type_config} ->
           type = Keyword.get(type_config, :type)
           if type && is_embedded_resource?(type), do: [type], else: []
@@ -279,6 +283,7 @@ defmodule AshTypescript.Codegen do
     _aggregate_fields_schema = generate_aggregate_fields_schema(resource)
     complex_calculations_schema = generate_complex_calculations_schema(resource)
     relationship_schema = generate_relationship_schema(resource, allowed_resources)
+    unions_schema = generate_unions_schema(resource)
     resource_schema = generate_resource_schema(resource)
 
     # Generate input schema for embedded resources
@@ -297,6 +302,8 @@ defmodule AshTypescript.Codegen do
 
     #{relationship_schema}
 
+    #{unions_schema}
+
     #{resource_schema}
     """
 
@@ -314,8 +321,22 @@ defmodule AshTypescript.Codegen do
       resource
       |> Ash.Resource.Info.public_attributes()
       |> Enum.reject(fn attr ->
-        # Exclude embedded resources from fields schema - they go in embedded section
         case attr.type do
+          # Exclude union types from fields schema FIRST - they go in unions section
+          Ash.Type.Union ->
+            true
+
+          {:array, Ash.Type.Union} ->
+            true
+
+          # Also check for atom-based union types
+          :union ->
+            true
+
+          {:array, :union} ->
+            true
+
+          # Exclude embedded resources from fields schema - they go in embedded section
           embedded_type when is_atom(embedded_type) ->
             is_embedded_resource?(embedded_type)
 
@@ -594,6 +615,48 @@ defmodule AshTypescript.Codegen do
     end
   end
 
+  def generate_unions_schema(resource) do
+    resource_name = resource |> Module.split() |> List.last()
+
+    # Find all union attributes in the resource
+    union_attributes =
+      resource
+      |> Ash.Resource.Info.public_attributes()
+      |> Enum.filter(fn attr ->
+        case attr.type do
+          Ash.Type.Union -> true
+          {:array, Ash.Type.Union} -> true
+          :union -> true
+          {:array, :union} -> true
+          _ -> false
+        end
+      end)
+
+    if Enum.empty?(union_attributes) do
+      "type #{resource_name}UnionsSchema = {};"
+    else
+      union_fields =
+        union_attributes
+        |> Enum.map(fn attr ->
+          formatted_name =
+            AshTypescript.FieldFormatter.format_field(
+              attr.name,
+              AshTypescript.Rpc.output_field_formatter()
+            )
+
+          # Generate the union field selection type - this allows either primitive strings or complex member objects
+          "  #{formatted_name}: Record<string, any>;"
+        end)
+        |> Enum.join("\n")
+
+      """
+      type #{resource_name}UnionsSchema = {
+      #{union_fields}
+      };
+      """
+    end
+  end
+
   def generate_resource_schema(resource) do
     resource_name = resource |> Module.split() |> List.last()
 
@@ -602,6 +665,7 @@ defmodule AshTypescript.Codegen do
       fields: #{resource_name}FieldsSchema;
       relationships: #{resource_name}RelationshipSchema;
       complexCalculations: #{resource_name}ComplexCalculationsSchema;
+      unions: #{resource_name}UnionsSchema;
       __complexCalculationsInternal: __#{resource_name}ComplexCalculationsInternal;
     };
     """
@@ -668,6 +732,15 @@ defmodule AshTypescript.Codegen do
           # Handle regular array types
           inner_ts = get_ts_input_type(%{type: embedded_type, constraints: []})
           "Array<#{inner_ts}>"
+        end
+
+      Ash.Type.Union ->
+        # Handle union types in input - use InputSchema for embedded resources
+        constraints = Map.get(attr, :constraints, [])
+
+        case Keyword.get(constraints, :types) do
+          nil -> "any"
+          types -> build_union_input_type(types)
         end
 
       _ ->
@@ -845,9 +918,16 @@ defmodule AshTypescript.Codegen do
         field_type =
           get_ts_type(%{type: field_config[:type], constraints: field_config[:constraints] || []})
 
+        # Apply field formatter to field name
+        formatted_field_name =
+          AshTypescript.FieldFormatter.format_field(
+            field_name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
         allow_nil = Keyword.get(field_config, :allow_nil?, true)
         optional = if allow_nil, do: "?", else: ""
-        "#{field_name}#{optional}: #{field_type}"
+        "#{formatted_field_name}#{optional}: #{field_type}"
       end)
       |> Enum.join(", ")
 
@@ -858,9 +938,74 @@ defmodule AshTypescript.Codegen do
     member_properties =
       types
       |> Enum.map(fn {type_name, type_config} ->
-        camel_name = AshTypescript.Helpers.snake_to_camel_case(type_name)
-        ts_type = get_ts_type(%{type: type_config[:type], constraints: type_config[:constraints] || []})
-        "#{camel_name}?: #{ts_type}"
+        formatted_name =
+          AshTypescript.FieldFormatter.format_field(
+            type_name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        ts_type =
+          get_union_member_type(%{
+            type: type_config[:type],
+            constraints: type_config[:constraints] || []
+          })
+
+        "#{formatted_name}?: #{ts_type}"
+      end)
+      |> Enum.join("; ")
+
+    case member_properties do
+      "" -> "any"
+      properties -> "{ #{properties} }"
+    end
+  end
+
+  # Special function for union member types - uses FieldsSchema for embedded resources
+  defp get_union_member_type(%{type: type, constraints: constraints}) do
+    cond do
+      is_embedded_resource?(type) ->
+        # For union members, use FieldsSchema instead of ResourceSchema
+        resource_name = type |> Module.split() |> List.last()
+        "#{resource_name}FieldsSchema"
+
+      # For all other types, use the regular get_ts_type function
+      true ->
+        get_ts_type(%{type: type, constraints: constraints})
+    end
+  end
+
+  # Special function for union member input types - uses InputSchema for embedded resources
+  defp get_union_member_input_type(%{type: type, constraints: constraints}) do
+    cond do
+      is_embedded_resource?(type) ->
+        # For union member inputs, use InputSchema instead of FieldsSchema
+        resource_name = type |> Module.split() |> List.last()
+        "#{resource_name}InputSchema"
+
+      # For all other types, use the regular get_ts_type function
+      true ->
+        get_ts_type(%{type: type, constraints: constraints})
+    end
+  end
+
+  # Build union type for input schemas
+  def build_union_input_type(types) do
+    member_properties =
+      types
+      |> Enum.map(fn {type_name, type_config} ->
+        formatted_name =
+          AshTypescript.FieldFormatter.format_field(
+            type_name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        ts_type =
+          get_union_member_input_type(%{
+            type: type_config[:type],
+            constraints: type_config[:constraints] || []
+          })
+
+        "#{formatted_name}?: #{ts_type}"
       end)
       |> Enum.join("; ")
 
@@ -1023,19 +1168,19 @@ defmodule AshTypescript.Codegen do
         constraints = calc.constraints || []
         instance_of = Keyword.get(constraints, :instance_of)
         instance_of != nil and Ash.Resource.Info.resource?(instance_of)
-      
+
       {:array, Ash.Type.Struct} ->
         constraints = calc.constraints || []
         items_constraints = Keyword.get(constraints, :items, [])
         instance_of = Keyword.get(items_constraints, :instance_of)
         instance_of != nil and Ash.Resource.Info.resource?(instance_of)
-      
+
       Ash.Type.Map ->
         constraints = calc.constraints || []
         fields = Keyword.get(constraints, :fields)
         # Maps with field constraints need field selection
         fields != nil
-      
+
       _ ->
         false
     end
@@ -1082,6 +1227,7 @@ defmodule AshTypescript.Codegen do
         # Only include fields for calculations that return resources
         if is_resource_calculation?(calc) do
           fields_type = generate_calculation_fields_type(calc)
+
           """
           #{calc.name}: {
             #{calc_args_field}: #{arguments_type};
@@ -1113,6 +1259,7 @@ defmodule AshTypescript.Codegen do
         # Only include fields for calculations that return resources
         if is_resource_calculation?(calc) do
           fields_type = generate_calculation_fields_type(calc)
+
           """
           #{calc.name}: {
             #{calc_args_field}: #{arguments_type};
@@ -1168,7 +1315,14 @@ defmodule AshTypescript.Codegen do
         calc.arguments
         |> Enum.map(fn arg ->
           optional = arg.allow_nil? || arg.default != nil
-          "#{arg.name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
+
+          formatted_name =
+            AshTypescript.FieldFormatter.format_field(
+              arg.name,
+              AshTypescript.Rpc.output_field_formatter()
+            )
+
+          "#{formatted_name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
         end)
         |> Enum.join("\n    ")
 

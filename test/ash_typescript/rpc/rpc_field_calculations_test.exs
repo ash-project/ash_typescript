@@ -2,7 +2,6 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
   use ExUnit.Case, async: false
   import Plug.Conn
   alias AshTypescript.Rpc
-  alias AshTypescript.Test.{Todo, User}
 
   @moduledoc """
   Tests for field-based calculations - complex calculations specified within the fields parameter
@@ -23,33 +22,48 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
   """
 
   setup do
+    # Create a connection for testing
+    conn = AshTypescript.Test.TestHelpers.build_rpc_conn()
+
     # Create a user for testing
-    user =
-      User
-      |> Ash.Changeset.for_create(:create, %{
-        name: "Test User",
-        email: "test@example.com"
+    user_result =
+      AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        "action" => "create_user",
+        "input" => %{
+          "name" => "Test User",
+          "email" => "test@example.com"
+        },
+        "fields" => ["id"]
       })
-      |> Ash.create!()
+
+    assert %{success: true, data: user} = user_result
 
     # Create a todo with metadata for testing
-    todo =
-      Todo
-      |> Ash.Changeset.for_create(:create, %{
-        title: "Test Todo",
-        description: "A test todo",
-        user_id: user.id,
-        metadata: %{
-          category: "urgent",
-          priority_score: 8
-        }
+    todo_result =
+      AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        "action" => "create_todo",
+        "input" => %{
+          "title" => "Test Todo",
+          "description" => "A test todo",
+          "userId" => user["id"],
+          "metadata" => %{
+            "category" => "urgent",
+            "priorityScore" => 8
+          }
+        },
+        "fields" => ["id"]
       })
-      |> Ash.create!()
 
-    conn = AshTypescript.Test.TestHelpers.build_rpc_conn()
-           |> put_private(:ash, %{actor: user})
-           |> Ash.PlugHelpers.set_tenant(user.id)
-           |> assign(:current_user, user)
+    assert %{success: true, data: todo} = todo_result
+
+    # Update connection with user info - need to handle the user data correctly 
+    user_struct = %{id: user["id"]}
+
+    conn =
+      conn
+      |> put_private(:ash, %{actor: user_struct})
+      |> Ash.PlugHelpers.set_tenant(user["id"])
+      |> assign(:current_user, user_struct)
 
     %{conn: conn, user: user, todo: todo}
   end
@@ -59,7 +73,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
       # Test that a simple calculation (no arguments) works in fields parameter
       params = %{
         "action" => "get_todo",
-        "primary_key" => todo.id,
+        "primary_key" => todo["id"],
         "fields" => ["id", "title", "isOverdue"]
       }
 
@@ -67,7 +81,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
 
       assert result.success == true
       assert is_map(result.data)
-      assert result.data["id"] == todo.id
+      assert result.data["id"] == todo["id"]
       assert result.data["title"] == "Test Todo"
       assert Map.has_key?(result.data, "isOverdue")
       assert is_boolean(result.data["isOverdue"])
@@ -77,7 +91,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
       # Test complex calculation with arguments specified in fields parameter
       params = %{
         "action" => "get_todo",
-        "primary_key" => todo.id,
+        "primary_key" => todo["id"],
         "fields" => [
           "id",
           "title",
@@ -94,12 +108,12 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
 
       assert result.success == true
       assert is_map(result.data)
-      assert result.data["id"] == todo.id
+      assert result.data["id"] == todo["id"]
       assert result.data["title"] == "Test Todo"
       assert Map.has_key?(result.data, "self")
 
       assert is_map(result.data["self"])
-      assert result.data["self"]["id"] == todo.id
+      assert result.data["self"]["id"] == todo["id"]
       assert result.data["self"]["title"] == "Test Todo"
     end
 
@@ -110,7 +124,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
       # Test embedded resource calculation with arguments
       params = %{
         "action" => "get_todo",
-        "primary_key" => todo.id,
+        "primary_key" => todo["id"],
         "fields" => [
           "id",
           "title",
@@ -136,7 +150,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
 
       assert result.success == true
       assert is_map(result.data)
-      assert result.data["id"] == todo.id
+      assert result.data["id"] == todo["id"]
       assert result.data["title"] == "Test Todo"
       assert Map.has_key?(result.data, "metadata")
       assert is_map(result.data["metadata"])
@@ -153,7 +167,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
       # Test embedded resource calculation with atom constraints and boolean arguments
       params = %{
         "action" => "get_todo",
-        "primary_key" => todo.id,
+        "primary_key" => todo["id"],
         "fields" => [
           "id",
           %{
@@ -175,7 +189,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
       result = Rpc.run_action(:ash_typescript, conn, params)
 
       assert result.success == true
-      assert result.data["id"] == todo.id
+      assert result.data["id"] == todo["id"]
       assert Map.has_key?(result.data, "metadata")
       assert is_map(result.data["metadata"])
       assert result.data["metadata"]["category"] == "urgent"
@@ -187,7 +201,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
       # Test mixing simple attributes, simple calculations, and complex calculations
       params = %{
         "action" => "get_todo",
-        "primary_key" => todo.id,
+        "primary_key" => todo["id"],
         "fields" => [
           # Simple attribute
           "id",
@@ -223,7 +237,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
 
       assert result.success == true
       # Simple attributes
-      assert result.data["id"] == todo.id
+      assert result.data["id"] == todo["id"]
       assert result.data["title"] == "Test Todo"
       # Simple calculation
       assert Map.has_key?(result.data, "isOverdue")
@@ -231,7 +245,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
       # Complex calculation
       assert Map.has_key?(result.data, "self")
       assert is_map(result.data["self"])
-      assert result.data["self"]["id"] == todo.id
+      assert result.data["self"]["id"] == todo["id"]
       assert result.data["self"]["title"] == "Test Todo"
       assert Map.has_key?(result.data["self"], "isOverdue")
       # Embedded resource
@@ -249,7 +263,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
       # Test that invalid calculation arguments result in proper error handling
       params = %{
         "action" => "get_todo",
-        "primary_key" => todo.id,
+        "primary_key" => todo["id"],
         "fields" => [
           "id",
           %{
@@ -281,7 +295,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
       # Test that unknown calculation names are handled gracefully
       params = %{
         "action" => "get_todo",
-        "primary_key" => todo.id,
+        "primary_key" => todo["id"],
         "fields" => [
           "id",
           %{

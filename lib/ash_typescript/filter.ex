@@ -83,7 +83,11 @@ defmodule AshTypescript.Filter do
     operations = get_applicable_operations(attribute.type, base_type)
 
     # Format field name using output formatter
-    formatted_name = AshTypescript.FieldFormatter.format_field(attribute.name, AshTypescript.Rpc.output_field_formatter())
+    formatted_name =
+      AshTypescript.FieldFormatter.format_field(
+        attribute.name,
+        AshTypescript.Rpc.output_field_formatter()
+      )
 
     """
       #{formatted_name}?: {
@@ -105,7 +109,8 @@ defmodule AshTypescript.Filter do
     operations = get_applicable_operations(:integer, base_type)
 
     # Format field name using output formatter
-    formatted_name = AshTypescript.FieldFormatter.format_field(name, AshTypescript.Rpc.output_field_formatter())
+    formatted_name =
+      AshTypescript.FieldFormatter.format_field(name, AshTypescript.Rpc.output_field_formatter())
 
     """
       #{formatted_name}?: {
@@ -126,7 +131,7 @@ defmodule AshTypescript.Filter do
 
   defp get_applicable_operations(type, base_type) do
     formatter = AshTypescript.Rpc.output_field_formatter()
-    
+
     case type do
       t when t in [Ash.Type.String, Ash.Type.CiString, :string] ->
         [
@@ -218,7 +223,11 @@ defmodule AshTypescript.Filter do
     filter_type_name = "#{related_resource_name}FilterInput"
 
     # Format field name using output formatter
-    formatted_name = AshTypescript.FieldFormatter.format_field(relationship.name, AshTypescript.Rpc.output_field_formatter())
+    formatted_name =
+      AshTypescript.FieldFormatter.format_field(
+        relationship.name,
+        AshTypescript.Rpc.output_field_formatter()
+      )
 
     """
       #{formatted_name}?: #{filter_type_name};

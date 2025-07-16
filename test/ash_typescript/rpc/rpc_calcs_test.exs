@@ -322,12 +322,16 @@ defmodule AshTypescript.Rpc.CalcsTest do
       params = %{
         "action" => "get_todo",
         "fields" => [
-          "id", "title",
+          "id",
+          "title",
           %{
             "self" => %{
               "calcArgs" => %{"prefix" => nil},
               "fields" => [
-                "id", "title", "completed", "dueDate",
+                "id",
+                "title",
+                "completed",
+                "dueDate",
                 %{
                   "self" => %{
                     "calcArgs" => %{"prefix" => nil},
@@ -343,7 +347,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
 
       # This should now work with the enhanced argument resolution
       result = Rpc.run_action(:ash_typescript, conn, params)
-      
+
       assert %{success: true, data: data} = result
 
       # Verify top-level field selection: only requested fields + calculations should be present
@@ -373,12 +377,16 @@ defmodule AshTypescript.Rpc.CalcsTest do
       params = %{
         "action" => "get_todo",
         "fields" => [
-          "id", "description", "status",
+          "id",
+          "description",
+          "status",
           %{
             "self" => %{
               "calcArgs" => %{"prefix" => nil},
               "fields" => [
-                "title", "priority", "tags",
+                "title",
+                "priority",
+                "tags",
                 %{
                   "self" => %{
                     "calcArgs" => %{"prefix" => nil},
@@ -393,7 +401,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
       }
 
       result = Rpc.run_action(:ash_typescript, conn, params)
-      
+
       assert %{success: true, data: data} = result
 
       # Verify top-level field selection

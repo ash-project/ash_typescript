@@ -1,22 +1,22 @@
 defmodule AshTypescript.Rpc.FieldParser.Context do
   @moduledoc """
   Context struct for field parsing operations.
-  
+
   Encapsulates common parameters passed throughout the field parsing pipeline
   to reduce parameter passing and improve readability.
   """
-  
+
   defstruct [:resource, :formatter, :parent_resource]
-  
+
   @type t :: %__MODULE__{
-    resource: module(),
-    formatter: atom(),
-    parent_resource: module() | nil
-  }
-  
+          resource: module(),
+          formatter: atom(),
+          parent_resource: module() | nil
+        }
+
   @doc """
   Create a new parsing context.
-  
+
   ## Parameters
   - resource: The Ash resource module being parsed
   - formatter: The field formatter to use (e.g., :camel_case)
@@ -30,10 +30,10 @@ defmodule AshTypescript.Rpc.FieldParser.Context do
       parent_resource: parent_resource
     }
   end
-  
+
   @doc """
   Create a child context for processing nested fields (relationships, embedded resources).
-  
+
   Preserves the formatter while updating the resource context.
   """
   @spec child(t(), module()) :: t()

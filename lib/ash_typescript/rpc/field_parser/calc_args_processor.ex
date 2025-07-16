@@ -1,48 +1,48 @@
 defmodule AshTypescript.Rpc.FieldParser.CalcArgsProcessor do
   @moduledoc """
   Utility module for processing calculation arguments.
-  
+
   Consolidates the repeated pattern of extracting, parsing, and atomizing
   calculation arguments from field specifications.
   """
-  
+
   alias AshTypescript.FieldFormatter
-  
+
   @doc """
   Process calculation arguments from a calculation specification.
-  
+
   Extracts calcArgs from the spec, applies field formatting, and atomizes keys.
-  
+
   ## Parameters
   - calc_spec: Map containing calculation specification
   - formatter: Field formatter to use for key parsing
-  
+
   ## Returns
   Map with atomized keys ready for Ash load statements
   """
   @spec process_calc_args(map(), atom()) :: map()
   def process_calc_args(calc_spec, formatter) when is_map(calc_spec) do
     calc_args_field = get_calc_args_field_name()
-    
+
     calc_spec
     |> Map.get(calc_args_field, %{})
     |> FieldFormatter.parse_input_fields(formatter)
     |> atomize_keys()
   end
-  
+
   @doc """
   Get the expected field name for calc args based on output formatter.
-  
+
   This ensures consistency with the TypeScript schema generation.
   """
   @spec get_calc_args_field_name() :: String.t()
   def get_calc_args_field_name do
     FieldFormatter.format_field(:calc_args, AshTypescript.Rpc.output_field_formatter())
   end
-  
+
   @doc """
   Atomize string keys in a map to atom keys.
-  
+
   Safely converts string keys to existing atoms, preserving non-string keys.
   """
   @spec atomize_keys(map()) :: map()
@@ -52,6 +52,6 @@ defmodule AshTypescript.Rpc.FieldParser.CalcArgsProcessor do
       Map.put(acc, atom_key, v)
     end)
   end
-  
+
   def atomize_keys(args), do: args
 end

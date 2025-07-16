@@ -6,10 +6,11 @@ defmodule AshTypescript.Rpc.ParsingTest do
 
   describe "JSON parsing helpers" do
     test "handles nil select and load parameters" do
-      conn = build_conn()
-      |> put_private(:ash, %{actor: nil})
-      |> Ash.PlugHelpers.set_tenant(nil)
-      |> assign(:context, %{})
+      conn =
+        build_conn()
+        |> put_private(:ash, %{actor: nil})
+        |> Ash.PlugHelpers.set_tenant(nil)
+        |> assign(:context, %{})
 
       params_without_fields = %{
         "action" => "list_todos",

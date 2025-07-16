@@ -14,13 +14,13 @@ defmodule AshTypescript.Rpc.Helpers do
   defp transform(str, formatter) when is_binary(str) do
     format_field_name(str, formatter)
   end
-  
+
   defp transform(atom, _formatter) when is_atom(atom), do: atom
 
   defp format_field_name(field_name, nil) when is_binary(field_name) do
     String.to_atom(field_name)
   end
-  
+
   defp format_field_name(field_name, formatter) when is_binary(field_name) do
     AshTypescript.FieldFormatter.parse_input_field(field_name, formatter)
   end

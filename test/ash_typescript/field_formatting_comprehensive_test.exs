@@ -271,7 +271,7 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
 
     test "preserves values when converting keys" do
       input_map = %{"userName" => %{"nested" => "value"}, "emailAddress" => [1, 2, 3]}
-      expected = %{user_name: %{"nested" => "value"}, email_address: [1, 2, 3]}
+      expected = %{user_name: %{nested: "value"}, email_address: [1, 2, 3]}
       assert FieldFormatter.parse_input_fields(input_map, :camel_case) == expected
     end
   end

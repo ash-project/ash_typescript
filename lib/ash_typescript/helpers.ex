@@ -55,5 +55,4 @@ defmodule AshTypescript.Helpers do
     |> String.downcase()
     |> String.trim_leading("_")
   end
-
 end

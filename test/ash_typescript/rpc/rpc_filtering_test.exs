@@ -6,10 +6,11 @@ defmodule AshTypescript.Rpc.FilteringTest do
 
   setup do
     # Create proper Plug.Conn struct
-    conn = build_conn()
-    |> put_private(:ash, %{actor: nil})
-    |> Ash.PlugHelpers.set_tenant(nil)
-    |> assign(:context, %{})
+    conn =
+      build_conn()
+      |> put_private(:ash, %{actor: nil})
+      |> Ash.PlugHelpers.set_tenant(nil)
+      |> assign(:context, %{})
 
     {:ok, conn: conn}
   end
@@ -211,7 +212,8 @@ defmodule AshTypescript.Rpc.FilteringTest do
       assert %{success: true, data: data} = result
 
       assert Enum.all?(data, fn todo ->
-               (todo["priority"] == :high || todo["priority"] == :urgent) && todo["completed"] == false
+               (todo["priority"] == :high || todo["priority"] == :urgent) &&
+                 todo["completed"] == false
              end)
     end
 

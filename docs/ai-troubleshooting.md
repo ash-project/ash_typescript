@@ -7,10 +7,12 @@ This guide helps AI assistants diagnose and resolve common issues when working w
 | Problem Type | Key Symptoms | Section |
 |--------------|--------------|----------|
 | Environment Issues | "No domains found", "Module not loaded" | [Environment Issues](#-environment-issues-most-common-mistake) |
+| FieldParser Refactoring | Function signature errors, Context not found | [FieldParser Issues](#fieldparser-refactoring-issues-2025-07-16) |
 | Embedded Resources | "Unknown type", "should not be listed in domain" | [Embedded Resources Issues](#embedded-resources-issues-critical) |
 | Type Generation | Generated types contain 'any', TypeScript compilation errors | [Type Generation Issues](#type-generation-issues) |
 | Runtime Processing | Field selection not working, calculation arguments failing | [Runtime Processing Issues](#runtime-processing-issues) |
 | Field Parsing Issues | "No such attribute" for aggregates, empty load statements | [Field Parsing and Classification Issues](#problem-field-parsing-and-classification-issues-2025-07-15) |
+| Union Types | Test failures expecting simple unions, unformatted embedded fields | [Union Types Issues](#union-types-issues-2025-07-16) |
 | Multitenancy | Cross-tenant data access, missing tenant parameters | [Multitenancy Issues](#multitenancy-issues) |
 | Testing | Tests failing randomly, TypeScript test files not compiling | [Test-Related Issues](#test-related-issues) |
 
@@ -28,6 +30,78 @@ echo "Code.ensure_loaded(...)" | iex -S mix  # Runs in :dev env
 ```bash
 mix test.codegen                        # Runs in :test env with test resources
 mix test test/specific_test.exs         # Write proper tests for debugging
+```
+
+## FieldParser Refactoring Issues (2025-07-16)
+
+### Function Signature Changes After Refactoring
+
+**❌ COMMON ERROR: Old function signatures**
+```elixir
+# These will fail after refactoring:
+AshTypescript.Rpc.FieldParser.process_embedded_fields(embedded_module, fields, formatter)
+LoadBuilder.build_calculation_load_entry(calc_atom, calc_spec, resource, formatter)
+```
+
+**✅ CORRECT: New signatures with Context**
+```elixir
+# Import the new utilities
+alias AshTypescript.Rpc.FieldParser.{Context, LoadBuilder}
+
+# Create context first
+context = Context.new(resource, formatter)
+
+# Use new signatures
+AshTypescript.Rpc.FieldParser.process_embedded_fields(embedded_module, fields, context)
+{load_entry, field_specs} = LoadBuilder.build_calculation_load_entry(calc_atom, calc_spec, context)
+```
+
+### Missing Context Module
+
+**❌ ERROR:** `AshTypescript.Rpc.FieldParser.Context is undefined`
+
+**✅ SOLUTION:** The Context module is in a new file:
+```bash
+# Ensure the file exists
+ls lib/ash_typescript/rpc/field_parser/context.ex
+
+# If missing, the refactoring wasn't completed properly
+# Context should contain: new/2, child/2 functions
+```
+
+### Removed Functions Errors
+
+**❌ ERROR:** `build_nested_load/3 is undefined` or `parse_nested_calculations/3 is undefined`
+
+**✅ EXPLANATION:** These functions were removed as dead code (2025-07-16):
+- Always returned empty lists
+- "calculations" field in calc specs was never implemented
+- Unified field format handles nested calculations within "fields" array
+
+**✅ SOLUTION:** Use unified field format instead:
+```typescript
+// Instead of separate "calculations" field (dead code):
+{ "fields": ["id", {"nested": {"calcArgs": {...}, "fields": [...]}}] }
+```
+
+### Test Failures After Refactoring
+
+**❌ SYMPTOM:** Tests failing with "incompatible types" or "undefined function"
+
+**✅ DEBUGGING SEQUENCE:**
+```bash
+# 1. Check if utilities compiled properly
+mix compile --force
+
+# 2. Run specific FieldParser tests first  
+mix test test/ash_typescript/field_parser_comprehensive_test.exs
+
+# 3. Run RPC tests to verify functionality
+mix test test/ash_typescript/rpc/ --exclude union_types
+
+# 4. Validate TypeScript generation still works
+mix test.codegen
+cd test/ts && npm run compileGenerated
 ```
 
 **Why this happens:**
@@ -962,5 +1036,92 @@ cd test/ts && npx tsc generated.ts --noErrorTruncation --strict
 **Usually Indicates**: Unhandled case in case statements
 
 **Check**: Type inference logic and calculation processing
+
+## Union Types Issues (2025-07-16)
+
+### Union Type Test Failures
+
+**Symptoms:**
+- Tests expecting `"string | number"` failing with actual `"{ string?: string; integer?: number }"`
+- Union type tests throwing assertion errors
+
+**Root Cause:**
+AshTypescript uses object-based union syntax to preserve meaningful type names, not simple TypeScript union syntax.
+
+**✅ SOLUTION:**
+Update test expectations to match object union syntax:
+
+```elixir
+# ❌ WRONG - Test expecting simple union
+assert result == "string | number"
+
+# ✅ CORRECT - Test expecting object union
+assert result == "{ string?: string; integer?: number }"
+```
+
+### Unformatted Fields in Generated TypeScript
+
+**Symptoms:**
+- Custom field formatter applied but some fields still unformatted
+- Generated TypeScript contains `filename: string` instead of `filename_gen: string`
+- Embedded resource fields in union types appear unformatted
+
+**Root Cause:**
+The `build_map_type/2` function wasn't applying field formatters to embedded resource fields.
+
+**✅ SOLUTION:**
+Verify that `build_map_type/2` applies field formatters:
+
+```elixir
+# ✅ CORRECT pattern in build_map_type/2
+formatted_field_name = 
+  AshTypescript.FieldFormatter.format_field(
+    field_name,
+    AshTypescript.Rpc.output_field_formatter()
+  )
+```
+
+**Diagnostic Steps:**
+1. Create a debug test to identify unformatted fields:
+```elixir
+test "debug field formatting" do
+  Application.put_env(:ash_typescript, :output_field_formatter, custom_formatter)
+  typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+  
+  # Search for unformatted field patterns
+  unformatted_lines = 
+    typescript_output
+    |> String.split("\n")
+    |> Enum.filter(&String.contains?(&1, "unformatted_pattern"))
+end
+```
+
+2. Check if the issue is in embedded resources by searching for inline object generation
+3. Verify all type generation functions use the field formatter pattern
+
+### Union Type Architecture Questions
+
+**Q: Why object syntax instead of simple unions?**
+**A:** Object syntax preserves meaningful type names (`note`, `priority_value`) that provide semantic meaning and support runtime identification.
+
+**Q: Can I change to simple union syntax?**
+**A:** No, this would break:
+- Tagged union support for complex Ash union types
+- Field selection within union members  
+- Runtime type identification
+- Embedded resource support in unions
+
+### Quick Verification Commands
+
+```bash
+# 1. Check union type generation
+mix test test/ash_typescript/typescript_codegen_test.exs -k "union"
+
+# 2. Verify field formatting fix
+mix test test/ash_typescript/field_formatting_comprehensive_test.exs -k "custom_format"
+
+# 3. Validate TypeScript compilation
+cd test/ts && npm run compileGenerated
+```
 
 This troubleshooting guide provides AI assistants with systematic approaches to diagnose and resolve the most common issues encountered when working with AshTypescript, enabling faster problem resolution and more confident development.

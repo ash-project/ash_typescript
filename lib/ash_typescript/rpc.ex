@@ -172,7 +172,6 @@ defmodule AshTypescript.Rpc do
             input_field_formatter()
           )
 
-
         # For our enhanced field parser, the load statements already contain only loadable items
         # (calculations and relationships), so we can use them directly for Ash
         ash_load = load
@@ -261,7 +260,6 @@ defmodule AshTypescript.Rpc do
             %{success: true, data: %{}}
 
           {:ok, result} ->
-            
             processed_result =
               AshTypescript.Rpc.ResultProcessor.process_action_result(
                 result,
@@ -401,8 +399,4 @@ defmodule AshTypescript.Rpc do
     |> Enum.reject(fn {_k, v} -> is_nil(v) end)
     |> Enum.into(base_map)
   end
-
-
-
-
 end

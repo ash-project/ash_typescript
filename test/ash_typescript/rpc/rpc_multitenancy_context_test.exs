@@ -7,10 +7,11 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
 
   setup do
     # Create proper Plug.Conn struct
-    conn = build_conn()
-    |> put_private(:ash, %{actor: nil})
-    |> Ash.PlugHelpers.set_tenant(nil)
-    |> assign(:context, %{})
+    conn =
+      build_conn()
+      |> put_private(:ash, %{actor: nil})
+      |> Ash.PlugHelpers.set_tenant(nil)
+      |> assign(:context, %{})
 
     # Create test users for todos
     user1_params = %{
@@ -255,8 +256,9 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
       user1: user1,
       org1_id: org1_id
     } do
-      conn_with_tenant = AshTypescript.Test.TestHelpers.build_rpc_conn()
-                         |> Ash.PlugHelpers.set_tenant(org1_id)
+      conn_with_tenant =
+        AshTypescript.Test.TestHelpers.build_rpc_conn()
+        |> Ash.PlugHelpers.set_tenant(org1_id)
 
       params = %{
         "action" => "create_org_todo",
@@ -279,8 +281,9 @@ defmodule AshTypescript.Rpc.MultitenancyContextTest do
       user1: user1,
       org1_id: org1_id
     } do
-      conn_with_tenant = AshTypescript.Test.TestHelpers.build_rpc_conn()
-                         |> Ash.PlugHelpers.set_tenant(org1_id)
+      conn_with_tenant =
+        AshTypescript.Test.TestHelpers.build_rpc_conn()
+        |> Ash.PlugHelpers.set_tenant(org1_id)
 
       # Create todo first
       create_params = %{
