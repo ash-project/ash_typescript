@@ -13,7 +13,7 @@ export const selfWithRelationships = await getTodo({
     { user: ["id", "email"] },
     {
       self: {
-        calcArgs: { prefix: null }, // Test null prefix
+        args: { prefix: null }, // Test null prefix
         fields: [
           "id",
           "title",
@@ -24,7 +24,7 @@ export const selfWithRelationships = await getTodo({
           },
           {
             self: {
-              calcArgs: { prefix: "nested_" },
+              args: { prefix: "nested_" },
               fields: [
                 "priority",
                 "tags",

@@ -14,7 +14,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
     "title",
     {
       "self": {
-        "calcArgs": {"prefix": "test"},
+        "args": {"prefix": "test"},
         "fields": ["id", "title"]
       }
     }
@@ -97,7 +97,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
           "title",
           %{
             "self" => %{
-              "calcArgs" => %{"prefix" => "test"},
+              "args" => %{"prefix" => "test"},
               "fields" => ["id", "title"]
             }
           }
@@ -134,7 +134,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
               "priorityScore",
               %{
                 "adjustedPriority" => %{
-                  "calcArgs" => %{
+                  "args" => %{
                     "urgencyMultiplier" => 1.5,
                     "deadlineFactor" => true,
                     "userBias" => 2
@@ -175,7 +175,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
               "category",
               %{
                 "formattedSummary" => %{
-                  "calcArgs" => %{
+                  "args" => %{
                     "format" => "detailed",
                     "includeMetadata" => true
                   }
@@ -211,7 +211,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
           # Complex calculation with arguments
           %{
             "self" => %{
-              "calcArgs" => %{"prefix" => "mixed"},
+              "args" => %{"prefix" => "mixed"},
               "fields" => ["id", "title", "isOverdue"]
             }
           },
@@ -225,7 +225,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
               %{
                 # Complex calculation with arguments
                 "adjustedPriority" => %{
-                  "calcArgs" => %{"urgencyMultiplier" => 2.0}
+                  "args" => %{"urgencyMultiplier" => 2.0}
                 }
               }
             ]
@@ -270,7 +270,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
             "metadata" => [
               %{
                 "adjustedPriority" => %{
-                  "calcArgs" => %{
+                  "args" => %{
                     # Should be float
                     "urgencyMultiplier" => "invalid",
                     # Should be between -10 and 10
@@ -300,7 +300,7 @@ defmodule AshTypescript.Rpc.FieldCalculationsTest do
           "id",
           %{
             "unknownCalculation" => %{
-              "calcArgs" => %{"someArg" => "value"}
+              "args" => %{"someArg" => "value"}
             }
           }
         ]

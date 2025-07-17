@@ -274,7 +274,7 @@ const result = await getTodo({
   fields: ["id", "title"],
   calculations: {
     self: {
-      calcArgs: { prefix: null },
+      args: { prefix: null },
       fields: ["id", "completed"]
     }
   }
@@ -294,7 +294,7 @@ const result = await getTodo({
   fields: ["invalid_field"],  // Should error
   calculations: {
     self: {
-      calcArgs: { wrong_arg: "value" },  // Should error
+      args: { wrong_arg: "value" },  // Should error
       fields: ["id"]
     }
   }

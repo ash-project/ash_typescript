@@ -53,7 +53,7 @@ mix test
 | Module | Purpose | Key Functions |
 |--------|---------|---------------|
 | `FieldParser.Context` | Parameter passing elimination | `Context.new/2`, `Context.child/2` |
-| `FieldParser.CalcArgsProcessor` | Calc args processing | `process_calc_args/2`, `atomize_keys/1` |
+| `FieldParser.CalcArgsProcessor` | Args processing | `process_calc_args/2`, `atomize_keys/1` |
 | `FieldParser.LoadBuilder` | Unified load building | `build_calculation_load_entry/3` |
 
 ### Required Imports
@@ -74,10 +74,10 @@ child_context = Context.child(context, target_resource)
 ### Anti-Pattern: Dead "calculations" Field
 ```typescript
 // ❌ NEVER USE: This field is dead code (removed 2025-07-16)
-{ "calcArgs": {...}, "fields": [...], "calculations": {...} }
+{ "args": {...}, "fields": [...], "calculations": {...} }
 
 // ✅ USE: Unified format with nested calcs in fields array
-{ "calcArgs": {...}, "fields": ["id", {"nested": {"calcArgs": {...}}}] }
+{ "args": {...}, "fields": ["id", {"nested": {"args": {...}}}] }
 ```
 
 ## Key Abstractions
@@ -135,7 +135,7 @@ const result = await getTodo({
       user: ["id", "name"],  // Relationship
       metadata: ["category", "priority"],  // Embedded resource
       self: {  // Complex calculation
-        calcArgs: { prefix: "test" },
+        args: { prefix: "test" },
         fields: ["id", "title"]
       }
     }

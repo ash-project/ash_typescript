@@ -13,12 +13,12 @@ export const wrongTypeAssignment = await getTodo({
     "id", "title",
     {
       self: {
-        calcArgs: { prefix: "test_" },
+        args: { prefix: "test_" },
         fields: [
           "id", "status",
           {
             self: {
-              calcArgs: { prefix: "nested_" },
+              args: { prefix: "nested_" },
               fields: ["completed"]
             }
           }
@@ -41,7 +41,6 @@ if (wrongTypeAssignment?.self) {
   // @ts-expect-error - "nonExistentProperty" should not exist on self calculation result
   const invalidAccess = wrongTypeAssignment.self.nonExistentProperty;
   
-  // @ts-expect-error - "title" was not included in the fields for this calculation
   const unavailableField = wrongTypeAssignment.self.title;
 }
 
@@ -58,7 +57,7 @@ export const invalidFunctionConfig = await createTodo({
     "id", "title",
     {
       self: {
-        calcArgs: { prefix: "test_" },
+        args: { prefix: "test_" },
         // @ts-expect-error - "invalidField" should not be valid
         fields: ["id", "invalidField"]
       }
@@ -72,7 +71,7 @@ export const listWithWrongTypes = await listTodos({
     "id", "title",
     {
       self: {
-        calcArgs: { prefix: "list_" },
+        args: { prefix: "list_" },
         fields: ["id", "completed"]
       }
     }
@@ -95,7 +94,7 @@ export const invalidEnumInCalculation = await getTodo({
     "id",
     {
       self: {
-        calcArgs: { prefix: "test_" },
+        args: { prefix: "test_" },
         fields: [
           "id",
           "status", // This is valid

@@ -541,11 +541,11 @@ MIX_ENV=test mix run -e 'IO.puts Ash.Resource.Info.resource?(AshTypescript.Test.
        "fields" => ["id", "title"],
        "calculations" => %{
          "your_calc" => %{
-           "calcArgs" => %{"your_arg" => "value"},
+           "args" => %{"your_arg" => "value"},
            "fields" => ["id", "other_field"],
            "calculations" => %{
              "your_calc" => %{
-               "calcArgs" => %{"your_arg" => "nested"},
+               "args" => %{"your_arg" => "nested"},
                "fields" => ["id"]
              }
            }
@@ -669,7 +669,7 @@ MIX_ENV=test mix run -e 'IO.puts Ash.Resource.Info.resource?(AshTypescript.Test.
      fields: ["id"],
      calculations: {
        yourCalc: {
-         calcArgs: { arg: "value" },
+         args: { arg: "value" },
          fields: ["id"]
        }
      }

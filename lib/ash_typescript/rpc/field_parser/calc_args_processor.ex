@@ -11,7 +11,7 @@ defmodule AshTypescript.Rpc.FieldParser.CalcArgsProcessor do
   @doc """
   Process calculation arguments from a calculation specification.
 
-  Extracts calcArgs from the spec, applies field formatting, and atomizes keys.
+  Extracts args from the spec, applies field formatting, and atomizes keys.
 
   ## Parameters
   - calc_spec: Map containing calculation specification
@@ -22,22 +22,22 @@ defmodule AshTypescript.Rpc.FieldParser.CalcArgsProcessor do
   """
   @spec process_calc_args(map(), atom()) :: map()
   def process_calc_args(calc_spec, formatter) when is_map(calc_spec) do
-    calc_args_field = get_calc_args_field_name()
+    args_field = get_args_field_name()
 
     calc_spec
-    |> Map.get(calc_args_field, %{})
+    |> Map.get(args_field, %{})
     |> FieldFormatter.parse_input_fields(formatter)
     |> atomize_keys()
   end
 
   @doc """
-  Get the expected field name for calc args based on output formatter.
+  Get the expected field name for args based on output formatter.
 
   This ensures consistency with the TypeScript schema generation.
   """
-  @spec get_calc_args_field_name() :: String.t()
-  def get_calc_args_field_name do
-    FieldFormatter.format_field(:calc_args, AshTypescript.Rpc.output_field_formatter())
+  @spec get_args_field_name() :: String.t()
+  def get_args_field_name do
+    FieldFormatter.format_field(:args, AshTypescript.Rpc.output_field_formatter())
   end
 
   @doc """

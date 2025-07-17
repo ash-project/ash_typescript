@@ -1244,9 +1244,9 @@ defmodule AshTypescript.Codegen do
       |> Enum.map(fn calc ->
         arguments_type = generate_calculation_arguments_type(calc)
 
-        calc_args_field =
+        args_field =
           AshTypescript.FieldFormatter.format_field(
-            :calc_args,
+            :args,
             AshTypescript.Rpc.output_field_formatter()
           )
 
@@ -1256,14 +1256,14 @@ defmodule AshTypescript.Codegen do
 
           """
           #{calc.name}: {
-            #{calc_args_field}: #{arguments_type};
+            #{args_field}: #{arguments_type};
             fields: #{fields_type};
           };
           """
         else
           """
           #{calc.name}: {
-            #{calc_args_field}: #{arguments_type};
+            #{args_field}: #{arguments_type};
           };
           """
         end
@@ -1276,9 +1276,9 @@ defmodule AshTypescript.Codegen do
         arguments_type = generate_calculation_arguments_type(calc)
         return_type = get_ts_type(calc)
 
-        calc_args_field =
+        args_field =
           AshTypescript.FieldFormatter.format_field(
-            :calc_args,
+            :args,
             AshTypescript.Rpc.output_field_formatter()
           )
 
@@ -1288,7 +1288,7 @@ defmodule AshTypescript.Codegen do
 
           """
           #{calc.name}: {
-            #{calc_args_field}: #{arguments_type};
+            #{args_field}: #{arguments_type};
             fields: #{fields_type};
             __returnType: #{return_type};
           };
@@ -1296,7 +1296,7 @@ defmodule AshTypescript.Codegen do
         else
           """
           #{calc.name}: {
-            #{calc_args_field}: #{arguments_type};
+            #{args_field}: #{arguments_type};
             __returnType: #{return_type};
           };
           """

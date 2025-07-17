@@ -20,7 +20,7 @@ test/ts/
 ├── shouldFail.ts (entrypoint - imports all failing tests)
 └── shouldFail/
     ├── invalidFields.ts      # Invalid field names and relationship fields
-    ├── invalidCalcArgs.ts    # Invalid calcArgs types and structure
+    ├── invalidCalcArgs.ts    # Invalid args types and structure
     ├── invalidStructure.ts   # Invalid nesting and missing properties
     ├── typeMismatches.ts     # Type assignment errors and invalid field access
     └── unionValidation.ts    # Invalid union field syntax
@@ -38,7 +38,7 @@ test/ts/
 **calculations.ts** - Self calculations and nested calculations
 - Basic nested self calculations
 - Deep nesting with different field combinations
-- CalcArgs variations (null, undefined, empty)
+- Args variations (null, undefined, empty)
 
 **relationships.ts** - Relationship field selection in calculations
 - Self calculations with relationship field selection
@@ -71,10 +71,10 @@ test/ts/
 - Invalid relationship field names
 - Deep nesting with invalid fields
 
-**invalidCalcArgs.ts** - Invalid calcArgs types and structure
-- Wrong types for calcArgs properties
-- Invalid calcArgs structure
-- Missing required calcArgs
+**invalidCalcArgs.ts** - Invalid args types and structure
+- Wrong types for args properties
+- Invalid args structure
+- Missing required args
 
 **invalidStructure.ts** - Invalid nesting and missing properties
 - Missing required properties in calculations

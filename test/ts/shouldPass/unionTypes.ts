@@ -335,14 +335,14 @@ export const complexUnionScenario = await getTodo({
     { attachments: [{ file: ["filename"] }, "url"] }, // Array union type field
     {
       self: {
-        calcArgs: { prefix: "union_test_" },
+        args: { prefix: "union_test_" },
         fields: [
           "id",
           { content: [{ text: ["text", "wordCount"] }] }, // Union type in calculation
           { attachments: [{ file: ["filename", "size"] }] }, // Array union in calculation
           {
             self: {
-              calcArgs: { prefix: "nested_union_" },
+              args: { prefix: "nested_union_" },
               fields: [
                 "title",
                 { content: [{ text: ["text"] }] }, // Nested union type

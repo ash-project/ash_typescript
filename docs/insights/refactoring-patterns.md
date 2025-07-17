@@ -56,7 +56,7 @@ classify_and_process(field_atom, field_spec, context)
 
 ```elixir
 # ✅ CalcArgsProcessor - Consolidates calc args processing (was duplicated 3+ times)
-CalcArgsProcessor.process_calc_args(calc_spec, formatter)
+CalcArgsProcessor.process_args(calc_spec, formatter)
 
 # ✅ LoadBuilder - Unifies load entry building (was ~180 lines of duplication)  
 {load_entry, field_specs} = LoadBuilder.build_calculation_load_entry(calc_atom, calc_spec, context)
@@ -68,7 +68,7 @@ lib/ash_typescript/rpc/
 ├── field_parser.ex                    # Main parser (434 lines, was 758)
 ├── field_parser/
 │   ├── context.ex                     # Context struct (35 lines)
-│   ├── calc_args_processor.ex         # Calc args processing (55 lines)  
+│   ├── args_processor.ex         # Calc args processing (55 lines)  
 │   └── load_builder.ex                # Load building (165 lines, was 247)
 ```
 
@@ -111,10 +111,10 @@ def classify_and_process(field_atom, field_spec, context)
 // ❌ DEAD CODE: This pattern was never implemented and always returned []
 {
   "myCalc": {
-    "calcArgs": { "arg1": "value" },
+    "args": { "arg1": "value" },
     "fields": ["id", "name"],
     "calculations": {  // <- DEAD CODE: Never worked, always empty
-      "nestedCalc": { "calcArgs": { "arg2": "value" } }
+      "nestedCalc": { "args": { "arg2": "value" } }
     }
   }
 }
@@ -129,11 +129,11 @@ def classify_and_process(field_atom, field_spec, context)
     "id", "name",
     {
       "myCalc": {
-        "calcArgs": { "arg1": "value" },
+        "args": { "arg1": "value" },
         "fields": [
           "id", "name",
           {
-            "nestedCalc": { "calcArgs": { "arg2": "value" } }
+            "nestedCalc": { "args": { "arg2": "value" } }
           }
         ]
       }
@@ -223,7 +223,7 @@ const result = await getTodo({
     "id", "title",
     {
       "self": {
-        "calcArgs": {"prefix": "test"},
+        "args": {"prefix": "test"},
         "fields": ["id", "title"]
       }
     }
@@ -235,7 +235,7 @@ const result = await getTodo({
   fields: ["id", "title"],
   calculations: {
     "self": {
-      "calcArgs": {"prefix": "test"},
+      "args": {"prefix": "test"},
       "fields": ["id", "title"]
     }
   }
@@ -286,7 +286,7 @@ end
 ```elixir
 # ✅ EXTRACTED: Common calc args processing
 defmodule CalcArgsProcessor do
-  def process_calc_args(calc_args, formatter) do
+  def process_args(args, formatter) do
     # Single implementation for all calc arg processing
   end
 end

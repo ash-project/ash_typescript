@@ -108,11 +108,11 @@ defmodule AshTypescript.Rpc.Codegen do
           [K in keyof Resource["complexCalculations"]]?: Resource["__complexCalculationsInternal"][K] extends { __returnType: infer ReturnType }
             ? ReturnType extends ResourceBase
               ? {
-                  calcArgs: Resource["complexCalculations"][K] extends { calcArgs: infer Args } ? Args : never;
+                  args: Resource["complexCalculations"][K] extends { args: infer Args } ? Args : never;
                   fields: UnifiedFieldSelection<ReturnType>[];
                 }
               : {
-                  calcArgs: Resource["complexCalculations"][K] extends { calcArgs: infer Args } ? Args : never;
+                  args: Resource["complexCalculations"][K] extends { args: infer Args } ? Args : never;
                 }
             : never;
         }

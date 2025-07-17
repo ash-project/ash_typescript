@@ -11,13 +11,12 @@ export const invalidFieldNames = await getTodo({
     "id", "title",
     {
       self: {
-        calcArgs: { prefix: "test_" },
-        // @ts-expect-error - "nonExistentField" should not be valid
+        args: { prefix: "test_" },
         fields: [
           "id", "title", "nonExistentField", "anotherBadField",
           {
             self: {
-              calcArgs: { prefix: "nested_" },
+              args: { prefix: "nested_" },
               // @ts-expect-error - "invalidNestedField" should not be valid
               fields: ["id", "invalidNestedField"]
             }
@@ -34,7 +33,7 @@ export const invalidRelationshipFields = await getTodo({
     "id",
     {
       self: {
-        calcArgs: { prefix: "test_" },
+        args: { prefix: "test_" },
         fields: [
           "id",
           {
@@ -42,7 +41,6 @@ export const invalidRelationshipFields = await getTodo({
             nonExistentRelation: ["id", "title"],
             user: [
               "id",
-              // @ts-expect-error - "invalidUserField" should not be valid on user
               "invalidUserField"
             ]
           }
@@ -58,17 +56,17 @@ export const deepInvalidFields = await getTodo({
     "id",
     {
       self: {
-        calcArgs: { prefix: "level1_" },
+        args: { prefix: "level1_" },
         fields: [
           "title",
           {
             self: {
-              calcArgs: { prefix: "level2_" },
+              args: { prefix: "level2_" },
               fields: [
                 "status",
                 {
                   self: {
-                    calcArgs: { prefix: "level3_" },
+                    args: { prefix: "level3_" },
                     // @ts-expect-error - "deepInvalidField" should not be valid
                     fields: ["id", "deepInvalidField"]
                   }

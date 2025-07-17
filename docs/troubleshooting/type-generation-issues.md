@@ -94,15 +94,15 @@ def generate_complex_calculations_schema(complex_calculations) do
       fields_type = generate_calculation_fields_type(calc)
       """
       #{calc.name}: {
-        calcArgs: #{arguments_type};
+        args: #{arguments_type};
         fields: #{fields_type};
       };
       """
     else
-      # Primitive calculations only get calcArgs
+      # Primitive calculations only get args
       """
       #{calc.name}: {
-        calcArgs: #{arguments_type};
+        args: #{arguments_type};
       };
       """
     end

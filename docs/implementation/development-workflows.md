@@ -128,7 +128,7 @@ user_calculations =
   |> Enum.map(fn calc ->
     """
     #{calc.name}: {
-      calcArgs: #{arguments_type};
+      args: #{arguments_type};
       fields: string[]; // Wrong! May return primitive
     };
     """
@@ -149,7 +149,7 @@ type BadProcessField<Resource, Field> =
 # ❌ WRONG - Using removed calculations parameter
 params = %{
   "fields" => ["id"],
-  "calculations" => %{"self" => %{"calcArgs" => %{}}}
+  "calculations" => %{"self" => %{"args" => %{}}}
 }
 
 # ❌ WRONG - Referencing removed functions

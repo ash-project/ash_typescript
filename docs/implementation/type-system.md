@@ -54,15 +54,15 @@ def generate_complex_calculations_schema(complex_calculations) do
       fields_type = generate_calculation_fields_type(calc)
       """
       #{calc.name}: {
-        calcArgs: #{arguments_type};
+        args: #{arguments_type};
         fields: #{fields_type};
       };
       """
     else
-      # ✅ CORRECT: Primitive calculations only get calcArgs
+      # ✅ CORRECT: Primitive calculations only get args
       """
       #{calc.name}: {
-        calcArgs: #{arguments_type};
+        args: #{arguments_type};
       };
       """
     end
@@ -140,7 +140,7 @@ user_calculations =
   |> Enum.map(fn calc ->
     """
     #{calc.name}: {
-      calcArgs: #{arguments_type};
+      args: #{arguments_type};
       fields: string[]; // Wrong! May return primitive
     };
     """
@@ -161,7 +161,7 @@ type BadProcessField<Resource, Field> =
 // Before (BROKEN)
 type TodoMetadataComplexCalculationsSchema = {
   adjusted_priority: {
-    calcArgs: { urgency_multiplier?: number };
+    args: { urgency_multiplier?: number };
     fields: string[]; // ❌ Wrong! Returns primitive
   };
 };
@@ -169,7 +169,7 @@ type TodoMetadataComplexCalculationsSchema = {
 // After (FIXED)
 type TodoMetadataComplexCalculationsSchema = {
   adjusted_priority: {
-    calcArgs: { urgency_multiplier?: number };
+    args: { urgency_multiplier?: number };
     // ✅ No fields - returns primitive number
   };
 };

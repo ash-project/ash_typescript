@@ -100,7 +100,7 @@ const todoWithSelf = await getTodo({
     "id", "title",
     {
       self: {
-        calcArgs: { prefix: "PREFIX_" },
+        args: { prefix: "PREFIX_" },
         fields: ["id", "title", "status", "priority"]
       }
     }
@@ -327,7 +327,7 @@ npx tsc assets/js/ash_rpc.ts --noEmit --strict
 
 ### **Common: Calculation Field Selection**
 
-❌ **Wrong - Trying to use deprecated calcArgs format:**
+❌ **Wrong - Trying to use deprecated args format:**
 ```typescript
 // Old format - don't use
 const todo = await getTodo({
@@ -343,7 +343,7 @@ const todo = await getTodo({
     "id", "title",
     {
       self: {
-        calcArgs: { prefix: "PREFIX_" },
+        args: { prefix: "PREFIX_" },
         fields: ["id", "title", "status"]
       }
     }
@@ -416,7 +416,7 @@ const complexTodo = await getTodo({
     },
     {
       self: {
-        calcArgs: { prefix: "complex_" },
+        args: { prefix: "complex_" },
         fields: [
           "id", "description", "priority",
           "daysUntilDue",     // Calculation in nested self
@@ -426,7 +426,7 @@ const complexTodo = await getTodo({
           },
           {
             self: {
-              calcArgs: { prefix: "nested_" },
+              args: { prefix: "nested_" },
               fields: [
                 "tags", "createdAt",
                 { metadata: ["category", "isUrgent"] }

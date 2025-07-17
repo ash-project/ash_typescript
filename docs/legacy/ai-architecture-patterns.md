@@ -684,7 +684,7 @@ const result = await getTodo({
   fields: ["id", "title"],
   calculations: {
     "self": {
-      "calcArgs": {"prefix": "test"},
+      "args": {"prefix": "test"},
       "fields": ["id", "title"]
     }
   }
@@ -699,7 +699,7 @@ const result = await getTodo({
     "id", "title",
     {
       "self": {
-        "calcArgs": {"prefix": "test"},
+        "args": {"prefix": "test"},
         "fields": ["id", "title"]
       }
     }
@@ -717,11 +717,11 @@ def parse_field_names_for_load(fields, formatter) do
   |> Enum.map(fn field ->
     case field do
       field_map when is_map(field_map) ->
-        # Handle nested calculations like %{"self" => %{"calcArgs" => ..., "fields" => ...}}
+        # Handle nested calculations like %{"self" => %{"args" => ..., "fields" => ...}}
         case Map.to_list(field_map) do
-          [{field_name, %{"calcArgs" => calc_args, "fields" => nested_fields}}] ->
+          [{field_name, %{"args" => args, "fields" => nested_fields}}] ->
             # Build proper Ash load entry for nested calculation
-            build_calculation_load_entry(field_name, calc_args, nested_fields, formatter)
+            build_calculation_load_entry(field_name, args, nested_fields, formatter)
         end
     end
   end)
@@ -760,7 +760,7 @@ params = %{
   "fields" => ["id", "title"],
   "calculations" => %{
     "self" => %{
-      "calcArgs" => %{"prefix" => nil},
+      "args" => %{"prefix" => nil},
       "fields" => ["id", "title"]
     }
   }
@@ -772,7 +772,7 @@ params = %{
     "id", "title",
     %{
       "self" => %{
-        "calcArgs" => %{"prefix" => nil},
+        "args" => %{"prefix" => nil},
         "fields" => ["id", "title"]
       }
     }
@@ -788,12 +788,12 @@ const result = await getTodo({
     "id", "title",
     {
       "self": {
-        "calcArgs": {"prefix": "outer"},
+        "args": {"prefix": "outer"},
         "fields": [
           "id", "title",
           {
             "self": {
-              "calcArgs": {"prefix": "inner"},
+              "args": {"prefix": "inner"},
               "fields": ["id", "title"]
             }
           }
@@ -825,7 +825,7 @@ const result = await getTodo({
 # ❌ WRONG - Will cause "no function clause matching" errors
 params = %{
   "fields" => ["id"],
-  "calculations" => %{"self" => %{"calcArgs" => %{}}}
+  "calculations" => %{"self" => %{"args" => %{}}}
 }
 
 # ❌ WRONG - Trying to use removed functions
@@ -835,7 +835,7 @@ convert_traditional_calculations_to_field_specs(calculations)
 params = %{
   "fields" => [
     "id",
-    %{"self" => %{"calcArgs" => %{}, "fields" => []}}
+    %{"self" => %{"args" => %{}, "fields" => []}}
   ]
 }
 ```
@@ -864,7 +864,7 @@ user_calculations =
   |> Enum.map(fn calc ->
     """
     #{calc.name}: {
-      calcArgs: #{arguments_type};
+      args: #{arguments_type};
       fields: string[]; // Wrong! May return primitive
     };
     """
@@ -877,14 +877,14 @@ user_calculations =
     if is_resource_calculation?(calc) do
       """
       #{calc.name}: {
-        calcArgs: #{arguments_type};
+        args: #{arguments_type};
         fields: #{fields_type};
       };
       """
     else
       """
       #{calc.name}: {
-        calcArgs: #{arguments_type};
+        args: #{arguments_type};
       };
       """
     end

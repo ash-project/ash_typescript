@@ -12,7 +12,7 @@
 ### FieldParser Architecture (Post-Refactoring)
 - `lib/ash_typescript/rpc/field_parser.ex` - Main field parser (434 lines)
 - `lib/ash_typescript/rpc/field_parser/context.ex` - Context struct (35 lines)
-- `lib/ash_typescript/rpc/field_parser/calc_args_processor.ex` - Calc args processing (55 lines)
+- `lib/ash_typescript/rpc/field_parser/calc_args_processor.ex` - Args processing (55 lines)
 - `lib/ash_typescript/rpc/field_parser/load_builder.ex` - Load building utilities (165 lines)
 - `lib/ash_typescript/rpc/result_processor.ex` - Result filtering and formatting
 

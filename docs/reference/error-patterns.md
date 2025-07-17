@@ -63,10 +63,10 @@ ls lib/ash_typescript/rpc/field_parser/context.ex
 
 ```typescript
 // ❌ OLD (removed)
-{ "calculations": {"nested": {"calcArgs": {...}}} }
+{ "calculations": {"nested": {"args": {...}}} }
 
 // ✅ NEW
-{ "fields": ["id", {"nested": {"calcArgs": {...}}}] }
+{ "fields": ["id", {"nested": {"args": {...}}}] }
 ```
 
 ### Type Generation Issues
@@ -101,13 +101,13 @@ cd test/ts && npx tsc generated.ts --noEmit --strict
 ```typescript
 // ✅ CORRECT: Primitive calculation (no fields)
 adjusted_priority: {
-  calcArgs: { urgency_multiplier?: number };
+  args: { urgency_multiplier?: number };
   // No fields property
 }
 
 // ✅ CORRECT: Complex calculation (has fields)
 self: {
-  calcArgs: { prefix?: string };
+  args: { prefix?: string };
   fields: string[];
 }
 ```

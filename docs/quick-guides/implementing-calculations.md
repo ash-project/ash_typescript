@@ -120,7 +120,7 @@ const result = await getTodo({
     "id", "title",
     {
       "adjustedPriority": {
-        "calcArgs": {
+        "args": {
           "multiplier": 2,
           "bonus": 5
         }
@@ -184,7 +184,7 @@ const result = await getTodo({
     "id", "title",
     {
       "owner": {
-        "calcArgs": {
+        "args": {
           "includeInactive": true
         },
         "fields": ["id", "name", "email"]
@@ -238,7 +238,7 @@ const result = await getTodo({
         "displayCategory",
         {
           "adjustedPriority": {
-            "calcArgs": {
+            "args": {
               "urgencyMultiplier": 3
             }
           }
@@ -299,7 +299,7 @@ const result = await getTodo({
     "id", "title",
     {
       "complexScore": {
-        "calcArgs": {
+        "args": {
           "priorityWeight": 2.0,
           "ageWeight": 0.5,
           "categoryBoost": {
@@ -398,7 +398,7 @@ test "RPC calculation works" do
     "primary_key" => todo.id,
     "fields" => [
       "id", "title",
-      %{"adjustedPriority" => %{"calcArgs" => %{"multiplier" => 2}}}
+      %{"adjustedPriority" => %{"args" => %{"multiplier" => 2}}}
     ]
   }
 
@@ -427,14 +427,14 @@ grep -A 5 "adjustedPriority" test/ts/generated.ts
 // Generated calculation schema
 type TodoComplexCalculationsSchema = {
   adjustedPriority: {
-    calcArgs: {
+    args: {
       multiplier?: number;
       bonus?: number;
     };
   };
   
   owner: {
-    calcArgs: {
+    args: {
       includeInactive?: boolean;
     };
     fields: string[];

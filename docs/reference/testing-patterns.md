@@ -168,7 +168,7 @@ const calculatedTodo = await getTodo({
     "id",
     {
       "adjustedPriority": {
-        "calcArgs": { "urgencyMultiplier": 2 }
+        "args": { "urgencyMultiplier": 2 }
       }
     }
   ]
@@ -200,7 +200,7 @@ const invalidCalcArg = await getTodo({
   fields: [
     {
       "adjustedPriority": {
-        "calcArgs": { "urgencyMultiplier": "invalid" }
+        "args": { "urgencyMultiplier": "invalid" }
       }
     }
   ]
@@ -234,7 +234,7 @@ test "calculation arguments work correctly" do
     "action" => "get_todo",
     "fields" => [
       "id",
-      %{"adjustedPriority" => %{"calcArgs" => %{"urgencyMultiplier" => 2}}}
+      %{"adjustedPriority" => %{"args" => %{"urgencyMultiplier" => 2}}}
     ]
   }
   

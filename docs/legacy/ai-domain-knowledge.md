@@ -395,14 +395,14 @@ const result = await getTodo({
   fields: ["id", "title"],
   calculations: {
     completion_prediction: {
-      calcArgs: { 
+      args: { 
         user_velocity: 0.8,
         complexity_factor: 1.2
       },
       fields: ["estimated_hours", "confidence_score"],
       calculations: {
         similar_todos: {  // Find similar completed todos
-          calcArgs: { similarity_threshold: 0.7 },
+          args: { similarity_threshold: 0.7 },
           fields: ["completion_time", "actual_effort"]
         }
       }

@@ -1,24 +1,24 @@
 // Invalid CalcArgs Tests - shouldFail
-// Tests for invalid calcArgs types, structure, and missing calcArgs
+// Tests for invalid args types, structure, and missing args
 
 import {
   getTodo,
 } from "../generated";
 
-// Test 2: Wrong type for calcArgs prefix
+// Test 2: Wrong type for args prefix
 export const wrongCalcArgsType = await getTodo({
   fields: [
     "id",
     {
       self: {
         // @ts-expect-error - prefix should be string | null | undefined, not number
-        calcArgs: { prefix: 42 },
+        args: { prefix: 42 },
         fields: [
           "title",
           {
             self: {
               // @ts-expect-error - prefix should not accept boolean
-              calcArgs: { prefix: true },
+              args: { prefix: true },
               fields: ["status"]
             }
           }
@@ -28,45 +28,44 @@ export const wrongCalcArgsType = await getTodo({
   ]
 });
 
-// Test 3: Invalid calcArgs structure
+// Test 3: Invalid args structure
 export const invalidCalcArgs = await getTodo({
   fields: [
     "id",
     {
       self: {
-        // @ts-expect-error - "unknownArg" is not a valid calcArgs property
-        calcArgs: { prefix: "test_", unknownArg: "invalid" },
+        // @ts-expect-error - "unknownArg" is not a valid args property
+        args: { prefix: "test_", unknownArg: "invalid" },
         fields: ["title"]
       }
     }
   ]
 });
 
-// Test 9: Invalid calcArgs type entirely
+// Test 9: Invalid args type entirely
 export const completelyWrongCalcArgs = await getTodo({
   fields: [
     "id",
     {
       self: {
-        // @ts-expect-error - calcArgs should be an object, not a string
-        calcArgs: "invalid",
+        // @ts-expect-error - args should be an object, not a string
+        args: "invalid",
         fields: ["title"]
       }
     }
   ]
 });
 
-// Test 11: Missing calcArgs entirely
+// Test 11: Missing args entirely
 export const missingCalcArgs = await getTodo({
   fields: [
     "id",
     {
       self: {
-        // @ts-expect-error - calcArgs is required
         fields: ["title"]
       }
     }
   ]
 });
 
-console.log("Invalid calcArgs tests should FAIL compilation!");
+console.log("Invalid args tests should FAIL compilation!");

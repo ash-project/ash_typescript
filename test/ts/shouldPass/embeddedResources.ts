@@ -103,7 +103,7 @@ export const todoWithSelectedMetadata = await getTodo({
     },
     {
       self: {
-        calcArgs: { prefix: "test_" },
+        args: { prefix: "test_" },
         fields: [
           "id",
           "status",
@@ -151,7 +151,7 @@ export const complexEmbeddedScenario = await getTodo({
     },
     {
       self: {
-        calcArgs: { prefix: "outer_" },
+        args: { prefix: "outer_" },
         fields: [
           "id",
           "daysUntilDue",
@@ -160,7 +160,7 @@ export const complexEmbeddedScenario = await getTodo({
           },
           {
             self: {
-              calcArgs: { prefix: "inner_" },
+              args: { prefix: "inner_" },
               fields: [
                 "status",
                 "priority",

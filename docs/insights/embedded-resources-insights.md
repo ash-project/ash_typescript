@@ -235,7 +235,7 @@ end
     "displayCategory",    // Calculation
     {
       "adjustedPriority": {
-        "calcArgs": {"urgency_multiplier": 3}
+        "args": {"urgency_multiplier": 3}
       }
     }
   ]

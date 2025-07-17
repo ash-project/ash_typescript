@@ -175,18 +175,18 @@ Original system had 180+ lines of duplicate load building logic:
 # ✅ UNIFIED: Single load building function
 def build_calculation_load_entry(calc_atom, calc_spec, %Context{} = context) do
   %{
-    "calcArgs" => calc_args,
+    "args" => args,
     "fields" => nested_fields
   } = calc_spec
   
   # Process calc args consistently
-  processed_calc_args = CalcArgsProcessor.process_calc_args(calc_args, context.formatter)
+  processed_args = CalcArgsProcessor.process_args(args, context.formatter)
   
   # Build nested load recursively
   nested_load = build_nested_load_statements(nested_fields, context)
   
   # Return unified format
-  {calc_atom, build_calculation_with_args(processed_calc_args, nested_load)}
+  {calc_atom, build_calculation_with_args(processed_args, nested_load)}
 end
 ```
 
@@ -215,8 +215,8 @@ Calculation arguments were processed differently in different contexts:
 ```elixir
 # ✅ UNIFIED: CalcArgsProcessor handles all contexts
 defmodule AshTypescript.Rpc.FieldParser.CalcArgsProcessor do
-  def process_calc_args(calc_args, formatter) when is_map(calc_args) do
-    calc_args
+  def process_args(args, formatter) when is_map(args) do
+    args
     |> Enum.into(%{}, fn {key, value} ->
       processed_key = process_calc_arg_key(key, formatter)
       processed_value = process_calc_arg_value(value, formatter)

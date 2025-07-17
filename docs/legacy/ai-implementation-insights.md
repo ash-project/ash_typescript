@@ -54,7 +54,7 @@ classify_and_process(field_atom, field_spec, context)
 
 ```elixir
 # ✅ CalcArgsProcessor - Consolidates calc args processing (was duplicated 3+ times)
-CalcArgsProcessor.process_calc_args(calc_spec, formatter)
+CalcArgsProcessor.process_args(calc_spec, formatter)
 
 # ✅ LoadBuilder - Unifies load entry building (was ~180 lines of duplication)  
 {load_entry, field_specs} = LoadBuilder.build_calculation_load_entry(calc_atom, calc_spec, context)
@@ -87,10 +87,10 @@ def classify_and_process(field_atom, field_spec, context)
 // ❌ DEAD CODE: This pattern was never implemented and always returned []
 {
   "myCalc": {
-    "calcArgs": { "arg1": "value" },
+    "args": { "arg1": "value" },
     "fields": ["id", "name"],
     "calculations": {  // <- DEAD CODE: Never worked, always empty
-      "nestedCalc": { "calcArgs": { "arg2": "value" } }
+      "nestedCalc": { "args": { "arg2": "value" } }
     }
   }
 }
@@ -102,12 +102,12 @@ def classify_and_process(field_atom, field_spec, context)
 // ✅ UNIFIED FORMAT: Nested calculations within fields array (WORKS PERFECTLY)
 {
   "myCalc": {
-    "calcArgs": { "arg1": "value" },
+    "args": { "arg1": "value" },
     "fields": [
       "id", "name",
       {
         "nestedCalc": {  // <- Nested calculation within fields
-          "calcArgs": { "arg2": "value" },
+          "args": { "arg2": "value" },
           "fields": ["nested_field"]
         }
       }
@@ -136,7 +136,7 @@ lib/ash_typescript/rpc/
 ├── field_parser.ex                    # Main parser (434 lines, was 758)
 ├── field_parser/
 │   ├── context.ex                     # Context struct (35 lines)
-│   ├── calc_args_processor.ex         # Calc args processing (55 lines)
+│   ├── args_processor.ex         # Calc args processing (55 lines)
 │   └── load_builder.ex                # Load building (165 lines, was 247)
 ```
 
@@ -172,7 +172,7 @@ cd test/ts && npm run compileShouldPass                 # Type inference validat
 **CRITICAL INSIGHT**: The original system incorrectly assumed all complex calculations (calculations with arguments) always return resources and thus always need `UnifiedFieldSelection<Resource>[]` for their fields property.
 
 **REALITY**: Calculations can return any type:
-- **Primitive types** (string, number, boolean) - Should only have `calcArgs`, no `fields`
+- **Primitive types** (string, number, boolean) - Should only have `args`, no `fields`
 - **Structured maps** with field constraints - Should have `fields` for field selection
 - **Resources** - Should have `fields` with `UnifiedFieldSelection<Resource>[]` type
 
@@ -214,7 +214,7 @@ type ProcessField<Resource, Field> =
 // This approach failed because it caused TypeScript to fall back to 'unknown'
 type HasCalculationProperties<T> = T extends Record<string, any>
   ? {
-      [K in keyof T]: T[K] extends { calcArgs: any, fields: any } ? true : false
+      [K in keyof T]: T[K] extends { args: any, fields: any } ? true : false
     }[keyof T] extends true
     ? true
     : false
@@ -233,22 +233,22 @@ user_calculations =
   complex_calculations
   |> Enum.map(fn calc ->
     arguments_type = generate_calculation_arguments_type(calc)
-    calc_args_field = format_calc_args_field()
+    args_field = format_args_field()
     
     # ✅ CORRECT: Check if calculation returns resource/structured data
     if is_resource_calculation?(calc) do
       fields_type = generate_calculation_fields_type(calc)
       """
       #{calc.name}: {
-        #{calc_args_field}: #{arguments_type};
+        #{args_field}: #{arguments_type};
         fields: #{fields_type};
       };
       """
     else
-      # ✅ CORRECT: Primitive calculations only get calcArgs
+      # ✅ CORRECT: Primitive calculations only get args
       """
       #{calc.name}: {
-        #{calc_args_field}: #{arguments_type};
+        #{args_field}: #{arguments_type};
       };
       """
     end
@@ -292,7 +292,7 @@ end
 ```typescript
 type TodoMetadataComplexCalculationsSchema = {
   adjusted_priority: {
-    calcArgs: { urgency_multiplier?: number };
+    args: { urgency_multiplier?: number };
     fields: string[]; // ❌ Wrong! This returns a primitive
   };
 };
@@ -302,12 +302,12 @@ type TodoMetadataComplexCalculationsSchema = {
 ```typescript
 type TodoMetadataComplexCalculationsSchema = {
   adjusted_priority: {
-    calcArgs: { urgency_multiplier?: number };
+    args: { urgency_multiplier?: number };
     // ✅ No fields property - this returns a primitive number
   };
   
   self: {
-    calcArgs: { prefix?: string };
+    args: { prefix?: string };
     fields: UnifiedFieldSelection<TodoResourceSchema>[]; // ✅ Correct - returns resource
   };
 };
@@ -1199,15 +1199,15 @@ def parse_field_names_for_load(fields, formatter) when is_list(fields) do
   |> Enum.map(fn field ->
     case field do
       field_map when is_map(field_map) ->
-        # Handle nested calculations like %{"self" => %{"calcArgs" => ..., "fields" => ...}}
+        # Handle nested calculations like %{"self" => %{"args" => ..., "fields" => ...}}
         case Map.to_list(field_map) do
           [{field_name, field_spec}] ->
             field_atom = AshTypescript.FieldFormatter.parse_input_field(field_name, formatter)
             case field_spec do
-              %{"calcArgs" => calc_args, "fields" => nested_fields} ->
+              %{"args" => args, "fields" => nested_fields} ->
                 # Build proper Ash load entry for nested calculation
-                parsed_args = AshTypescript.FieldFormatter.parse_input_fields(calc_args, formatter)
-                              |> atomize_calc_args()
+                parsed_args = AshTypescript.FieldFormatter.parse_input_fields(args, formatter)
+                              |> atomize_args()
                 parsed_nested_fields = parse_field_names_for_load(nested_fields, formatter)
                 
                 # Build the load entry
@@ -1235,12 +1235,12 @@ end
 ```typescript
 {
   "self": {
-    "calcArgs": {"prefix": "outer"},
+    "args": {"prefix": "outer"},
     "fields": [
       "id", "title",
       {
         "self": {
-          "calcArgs": {"prefix": "inner"},
+          "args": {"prefix": "inner"},
           "fields": ["id", "title"]
         }
       }
@@ -1257,7 +1257,7 @@ end
 - `build_ash_load_entry/4`
 - `needs_post_processing?/3`
 - `parse_field_names_and_load/1`
-- `atomize_calc_args/1`
+- `atomize_args/1`
 - All dual format handling in `result_processor.ex`
 
 ### Implementation Pattern: Test Migration
@@ -1270,7 +1270,7 @@ params = %{
   "fields" => ["id", "title"],
   "calculations" => %{
     "self" => %{
-      "calcArgs" => %{"prefix" => nil},
+      "args" => %{"prefix" => nil},
       "fields" => ["id", "title"]
     }
   }
@@ -1282,7 +1282,7 @@ params = %{
     "id", "title",
     %{
       "self" => %{
-        "calcArgs" => %{"prefix" => nil},
+        "args" => %{"prefix" => nil},
         "fields" => ["id", "title"]
       }
     }
@@ -1313,7 +1313,7 @@ params = %{
 **FIELD PARSER ENHANCEMENT**: The field parser now handles:
 1. Simple string fields: `"id", "title"`
 2. Relationship fields: `%{"user" => ["name", "email"]}`  
-3. Complex calculations: `%{"self" => %{"calcArgs" => ..., "fields" => ...}}`
+3. Complex calculations: `%{"self" => %{"args" => ..., "fields" => ...}}`
 4. Nested calculations: Recursive structures within calculation fields
 
 **RESULT PROCESSOR SIMPLIFICATION**: Removed dual format handling, keeping only:

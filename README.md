@@ -162,7 +162,7 @@ const todoWithCalc = await getTodo({
     "id", "title",
     {
       "priority_score": {
-        "calcArgs": { "multiplier": 2 },
+        "args": { "multiplier": 2 },
         "fields": ["score", "rank"]
       }
     }

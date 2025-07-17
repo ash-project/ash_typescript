@@ -11,11 +11,10 @@ export const missingFields = await getTodo({
     "id",
     {
       self: {
-        calcArgs: { prefix: "test_" },
-        // @ts-expect-error - "fields" property is required
+        args: { prefix: "test_" },
         calculations: {
           self: {
-            calcArgs: { prefix: "nested_" },
+            args: { prefix: "nested_" },
             fields: ["title"]
           }
         }
@@ -30,13 +29,13 @@ export const invalidNestedStructure = await getTodo({
     "id",
     {
       self: {
-        calcArgs: { prefix: "test_" },
+        args: { prefix: "test_" },
         fields: [
           "title",
           {
             // @ts-expect-error - "invalidCalculation" should not be a valid calculation
             invalidCalculation: {
-              calcArgs: { prefix: "bad_" },
+              args: { prefix: "bad_" },
               fields: ["id"]
             }
           }
@@ -54,7 +53,7 @@ export const arrayInsteadOfObject = await getTodo({
     [
       {
         self: {
-          calcArgs: { prefix: "test_" },
+          args: { prefix: "test_" },
           fields: ["title"]
         }
       }
@@ -68,7 +67,7 @@ export const wrongRelationshipStructure = await getTodo({
     "id",
     {
       self: {
-        calcArgs: { prefix: "test_" },
+        args: { prefix: "test_" },
         fields: [
           "title",
           {
@@ -76,7 +75,6 @@ export const wrongRelationshipStructure = await getTodo({
             comments: [
               "id",
               {
-                // @ts-expect-error - nested relationships should follow proper structure
                 invalidNesting: ["invalidField"]
               }
             ]
@@ -93,23 +91,23 @@ export const wrongNestingLevel = await getTodo({
     "id",
     {
       self: {
-        calcArgs: { prefix: "level1_" },
+        args: { prefix: "level1_" },
         fields: [
           "title",
           {
             self: {
-              calcArgs: { prefix: "level2_" },
+              args: { prefix: "level2_" },
               fields: [
                 "status",
                 {
                   self: {
-                    calcArgs: { prefix: "level3_" },
+                    args: { prefix: "level3_" },
                     fields: [
                       "id",
                       {
                         // @ts-expect-error - "invalidDeepNesting" should not be a valid calculation
                         invalidDeepNesting: {
-                          calcArgs: { prefix: "invalid_" },
+                          args: { prefix: "invalid_" },
                           fields: ["title"]
                         }
                       }

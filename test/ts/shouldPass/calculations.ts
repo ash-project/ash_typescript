@@ -1,5 +1,5 @@
 // Calculations Tests - shouldPass
-// Tests for self calculations, nested calculations, and calcArgs variations
+// Tests for self calculations, nested calculations, and args variations
 
 import {
   getTodo,
@@ -12,7 +12,7 @@ export const basicNestedSelf = await getTodo({
     "title",
     {
       self: {
-        calcArgs: { prefix: "outer_" },
+        args: { prefix: "outer_" },
         fields: [
           "id",
           "title",
@@ -20,7 +20,7 @@ export const basicNestedSelf = await getTodo({
           "dueDate",
           {
             self: {
-              calcArgs: { prefix: "inner_" },
+              args: { prefix: "inner_" },
               fields: [
                 "id",
                 "status",
@@ -63,7 +63,7 @@ export const deepNestedSelf = await getTodo({
     "status",
     {
       self: {
-        calcArgs: { prefix: "level1_" },
+        args: { prefix: "level1_" },
         fields: [
           "title",
           "priority",
@@ -71,14 +71,14 @@ export const deepNestedSelf = await getTodo({
           "createdAt",
           {
             self: {
-              calcArgs: { prefix: "level2_" },
+              args: { prefix: "level2_" },
               fields: [
                 "id",
                 "completed",
                 "userId",
                 {
                   self: {
-                    calcArgs: { prefix: "level3_" },
+                    args: { prefix: "level3_" },
                     fields: [
                       "description",
                       "dueDate",
@@ -114,12 +114,12 @@ export const minimalSelf = await getTodo({
     "id",
     {
       self: {
-        calcArgs: {}, // Empty calcArgs should be valid
+        args: {}, // Empty args should be valid
         fields: [
           "id",
           {
             self: {
-              calcArgs: { prefix: undefined }, // Undefined prefix should be valid
+              args: { prefix: undefined }, // Undefined prefix should be valid
               fields: ["title"],
             },
           },
@@ -134,23 +134,23 @@ if (minimalSelf?.self?.self) {
   const minimalTitle: string = minimalSelf.self.self.title;
 }
 
-// Test 8: Verify that different calcArgs types work correctly
+// Test 8: Verify that different args types work correctly
 export const varyingCalcArgs = await getTodo({
   fields: [
     "id",
     {
       self: {
-        calcArgs: { prefix: "string_prefix" },
+        args: { prefix: "string_prefix" },
         fields: [
           "title",
           {
             self: {
-              calcArgs: { prefix: null },
+              args: { prefix: null },
               fields: [
                 "description",
                 {
                   self: {
-                    calcArgs: { prefix: undefined },
+                    args: { prefix: undefined },
                     fields: ["status"],
                   },
                 },
@@ -163,7 +163,7 @@ export const varyingCalcArgs = await getTodo({
   ],
 });
 
-// Should handle all calcArgs variants correctly
+// Should handle all args variants correctly
 if (varyingCalcArgs?.self?.self?.self) {
   const finalStatus: string | null | undefined =
     varyingCalcArgs.self.self.self.status;

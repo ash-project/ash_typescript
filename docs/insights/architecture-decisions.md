@@ -117,7 +117,7 @@ def classify_and_process(field_atom, field_spec, context)
 
 ```elixir
 # ✅ CalcArgsProcessor - Consolidates calc args processing (was duplicated 3+ times)
-CalcArgsProcessor.process_calc_args(calc_spec, formatter)
+CalcArgsProcessor.process_args(calc_spec, formatter)
 
 # ✅ LoadBuilder - Unifies load entry building (was ~180 lines of duplication)  
 {load_entry, field_specs} = LoadBuilder.build_calculation_load_entry(calc_atom, calc_spec, context)
@@ -222,7 +222,7 @@ const result = await getTodo({
     "id", "title",
     {
       "self": {
-        "calcArgs": {"prefix": "test"},
+        "args": {"prefix": "test"},
         "fields": ["id", "title"]
       }
     }
@@ -247,10 +247,10 @@ const result = await getTodo({
 // ❌ DEAD CODE: This pattern was never implemented and always returned []
 {
   "myCalc": {
-    "calcArgs": { "arg1": "value" },
+    "args": { "arg1": "value" },
     "fields": ["id", "name"],
     "calculations": {  // <- DEAD CODE: Never worked, always empty
-      "nestedCalc": { "calcArgs": { "arg2": "value" } }
+      "nestedCalc": { "args": { "arg2": "value" } }
     }
   }
 }

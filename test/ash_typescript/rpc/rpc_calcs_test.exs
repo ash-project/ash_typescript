@@ -326,7 +326,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
           "title",
           %{
             "self" => %{
-              "calcArgs" => %{"prefix" => nil},
+              "args" => %{"prefix" => nil},
               "fields" => [
                 "id",
                 "title",
@@ -334,7 +334,7 @@ defmodule AshTypescript.Rpc.CalcsTest do
                 "dueDate",
                 %{
                   "self" => %{
-                    "calcArgs" => %{"prefix" => nil},
+                    "args" => %{"prefix" => nil},
                     "fields" => ["id", "title", "completed", "dueDate"]
                   }
                 }
@@ -382,14 +382,14 @@ defmodule AshTypescript.Rpc.CalcsTest do
           "status",
           %{
             "self" => %{
-              "calcArgs" => %{"prefix" => nil},
+              "args" => %{"prefix" => nil},
               "fields" => [
                 "title",
                 "priority",
                 "tags",
                 %{
                   "self" => %{
-                    "calcArgs" => %{"prefix" => nil},
+                    "args" => %{"prefix" => nil},
                     "fields" => ["id", "status", "metadata"]
                   }
                 }

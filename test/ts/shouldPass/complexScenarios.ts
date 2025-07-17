@@ -21,7 +21,7 @@ export const complexScenario = await getTodo({
     },
     {
       self: {
-        calcArgs: { prefix: "complex_" },
+        args: { prefix: "complex_" },
         fields: [
           "id",
           "description",
@@ -35,7 +35,7 @@ export const complexScenario = await getTodo({
           },
           {
             self: {
-              calcArgs: { prefix: "complex_nested_" },
+              args: { prefix: "complex_nested_" },
               fields: [
                 "tags",
                 "createdAt",

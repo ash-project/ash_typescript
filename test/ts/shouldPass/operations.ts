@@ -15,7 +15,7 @@ export const listWithNestedSelf = await listTodos({
     "completed",
     {
       self: {
-        calcArgs: { prefix: "list_" },
+        args: { prefix: "list_" },
         fields: [
           "id",
           "title",
@@ -23,7 +23,7 @@ export const listWithNestedSelf = await listTodos({
           "priority",
           {
             self: {
-              calcArgs: { prefix: "list_nested_" },
+              args: { prefix: "list_nested_" },
               fields: [
                 "description",
                 "tags",
@@ -75,7 +75,7 @@ export const createWithNestedSelf = await createTodo({
     "createdAt",
     {
       self: {
-        calcArgs: { prefix: "created_" },
+        args: { prefix: "created_" },
         fields: [
           "id",
           "title",
@@ -83,7 +83,7 @@ export const createWithNestedSelf = await createTodo({
           "userId",
           {
             self: {
-              calcArgs: { prefix: "created_nested_" },
+              args: { prefix: "created_nested_" },
               fields: ["completed", "priority", "dueDate"],
             },
           },

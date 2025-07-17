@@ -212,7 +212,7 @@ const result = await getTodo({
         "displayCategory",  // Simple calculation
         {
           "adjustedPriority": {
-            "calcArgs": {
+            "args": {
               "urgencyMultiplier": 3
             }
           }
@@ -402,7 +402,7 @@ test "embedded resource calculation works" do
       %{"metadata" => [
         "category",
         "displayCategory",
-        %{"adjustedPriority" => %{"calcArgs" => %{"urgencyMultiplier" => 3}}}
+        %{"adjustedPriority" => %{"args" => %{"urgencyMultiplier" => 3}}}
       ]}
     ]
   }

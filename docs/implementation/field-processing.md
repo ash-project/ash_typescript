@@ -76,7 +76,7 @@ const result = await getTodo({
     "id", "title",
     {
       "self": {
-        "calcArgs": {"prefix": "test"},
+        "args": {"prefix": "test"},
         "fields": ["id", "title"]
       }
     }
@@ -88,7 +88,7 @@ const result = await getTodo({
   fields: ["id", "title"],
   calculations: {
     "self": {
-      "calcArgs": {"prefix": "test"},
+      "args": {"prefix": "test"},
       "fields": ["id", "title"]
     }
   }
@@ -105,14 +105,14 @@ def parse_field_names_for_load(fields, formatter) when is_list(fields) do
   |> Enum.map(fn field ->
     case field do
       field_map when is_map(field_map) ->
-        # Handle nested calculations like %{"self" => %{"calcArgs" => ..., "fields" => ...}}
+        # Handle nested calculations like %{"self" => %{"args" => ..., "fields" => ...}}
         case Map.to_list(field_map) do
           [{field_name, field_spec}] ->
             field_atom = AshTypescript.FieldFormatter.parse_input_field(field_name, formatter)
             case field_spec do
-              %{"calcArgs" => calc_args, "fields" => nested_fields} ->
+              %{"args" => args, "fields" => nested_fields} ->
                 # Build proper Ash load entry
-                build_calculation_load_entry(field_atom, calc_args, nested_fields, formatter)
+                build_calculation_load_entry(field_atom, args, nested_fields, formatter)
               _ ->
                 field_atom
             end
@@ -212,7 +212,7 @@ end
 Unified load building eliminates code duplication:
 
 ```elixir
-def build_load_entry(field_atom, calc_args, nested_fields, context) do
+def build_load_entry(field_atom, args, nested_fields, context) do
   %Context{resource: resource, formatter: formatter} = context
   
   nested_load = 
@@ -220,7 +220,7 @@ def build_load_entry(field_atom, calc_args, nested_fields, context) do
     |> parse_nested_fields(context)
     |> build_load_statement()
     
-  {field_atom, build_calculation_with_args(calc_args, nested_load)}
+  {field_atom, build_calculation_with_args(args, nested_load)}
 end
 ```
 
@@ -269,7 +269,7 @@ IO.puts("=== END Field Processing ===\n")
 # ❌ WRONG - Using removed calculations parameter
 params = %{
   "fields" => ["id"],
-  "calculations" => %{"self" => %{"calcArgs" => %{}}}
+  "calculations" => %{"self" => %{"args" => %{}}}
 }
 
 # ❌ WRONG - Referencing removed functions

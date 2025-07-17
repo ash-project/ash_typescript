@@ -24,7 +24,7 @@ Ensure you're using the unified field format:
     "id", "title",
     {
       "metadata": {
-        "calcArgs": {"multiplier": 2},
+        "args": {"multiplier": 2},
         "fields": ["category", "priority"]
       }
     }
@@ -36,7 +36,7 @@ Ensure you're using the unified field format:
   fields: ["id", "title"],
   calculations: {
     "metadata": {
-      "calcArgs": {"multiplier": 2},
+      "args": {"multiplier": 2},
       "fields": ["category", "priority"]
     }
   }
@@ -179,16 +179,16 @@ Run: `mix test test/ash_typescript/rpc/debug_field_parser_test.exs`
 **Debug Steps**: Write a test to verify calculation argument processing:
 
 ```elixir
-# test/ash_typescript/rpc/debug_calc_args_test.exs
+# test/ash_typescript/rpc/debug_args_test.exs
 defmodule AshTypescript.Rpc.DebugCalcArgsTest do
   use ExUnit.Case, async: true
   alias AshTypescript.Rpc.FieldParser.CalcArgsProcessor
   
   test "calculation argument processing" do
-    calc_args = %{"multiplier" => 2}
+    args = %{"multiplier" => 2}
     formatter = AshTypescript.FieldFormatter.Default
     
-    processed_args = CalcArgsProcessor.process_calc_args(calc_args, formatter)
+    processed_args = CalcArgsProcessor.process_args(args, formatter)
     IO.inspect(processed_args, label: "Processed calc args")
     
     # Add assertions based on expected behavior
@@ -199,7 +199,7 @@ defmodule AshTypescript.Rpc.DebugCalcArgsTest do
 end
 ```
 
-Run: `mix test test/ash_typescript/rpc/debug_calc_args_test.exs`
+Run: `mix test test/ash_typescript/rpc/debug_args_test.exs`
 
 **Common Causes**:
 - Argument names not properly formatted
@@ -293,7 +293,7 @@ defmodule AshTypescript.Rpc.DebugCalculationProcessingTest do
   test "calculation processing with arguments" do
     # Test calculation with arguments
     calc_spec = %{
-      "calcArgs" => %{"multiplier" => 2},
+      "args" => %{"multiplier" => 2},
       "fields" => ["category", "priority"]
     }
     

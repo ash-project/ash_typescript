@@ -10,7 +10,7 @@ defmodule AshTypescript.Rpc.FieldParser.LoadBuilder do
   Build an Ash-compatible load entry for a complex calculation.
 
   Handles the full complexity of calculation specifications including:
-  - calcArgs: Arguments to pass to the calculation
+  - args: Arguments to pass to the calculation
   - fields: Fields to select from the calculation result
 
   ## Parameters
@@ -26,7 +26,7 @@ defmodule AshTypescript.Rpc.FieldParser.LoadBuilder do
           {atom() | tuple(), map() | nil}
   def build_calculation_load_entry(calc_atom, calc_spec, %Context{} = context)
       when is_map(calc_spec) do
-    # Extract and process calc_args
+    # Extract and process args
     calc_args = CalcArgsProcessor.process_calc_args(calc_spec, context.formatter)
 
     # Extract and parse fields
@@ -62,7 +62,7 @@ defmodule AshTypescript.Rpc.FieldParser.LoadBuilder do
   @doc """
   Combine calculation components into an Ash-compatible load statement.
 
-  Handles all combinations of calc_args and load specifications.
+  Handles all combinations of args and load specifications.
   """
   @spec combine_load_components(atom(), map(), list()) :: atom() | tuple()
   def combine_load_components(calc_atom, calc_args, combined_load) do
@@ -97,7 +97,7 @@ defmodule AshTypescript.Rpc.FieldParser.LoadBuilder do
         field_atom = FieldFormatter.parse_input_field(field_name, formatter)
 
         case field_spec do
-          %{"calcArgs" => calc_args, "fields" => nested_fields} ->
+          %{"args" => calc_args, "fields" => nested_fields} ->
             # This is a nested calculation
             parsed_args =
               FieldFormatter.parse_input_fields(calc_args, formatter)
@@ -138,7 +138,7 @@ defmodule AshTypescript.Rpc.FieldParser.LoadBuilder do
           [{calc_name, calc_spec}] = Map.to_list(field_map)
 
           case calc_spec do
-            %{"calcArgs" => _calc_args, "fields" => calc_fields} ->
+            %{"args" => _calc_args, "fields" => calc_fields} ->
               # Extract nested specs from calc_fields recursively
               {simple_calc_fields, deeper_nested_specs} =
                 extract_nested_calc_specs_from_fields(calc_fields)

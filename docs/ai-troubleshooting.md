@@ -86,7 +86,7 @@ ls lib/ash_typescript/rpc/field_parser/context.ex
 **✅ SOLUTION:** Use unified field format instead:
 ```typescript
 // Instead of separate "calculations" field (dead code):
-{ "fields": ["id", {"nested": {"calcArgs": {...}, "fields": [...]}}] }
+{ "fields": ["id", {"nested": {"args": {...}, "fields": [...]}}] }
 ```
 
 ### Test Failures After Refactoring
