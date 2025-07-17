@@ -25,13 +25,14 @@ This guide helps AI assistants diagnose and resolve common issues when working w
 **❌ WRONG APPROACH:**
 ```bash
 mix ash_typescript.codegen              # Runs in :dev env - test resources not available
-echo "Code.ensure_loaded(...)" | iex -S mix  # Runs in :dev env  
+# Using interactive debugging - hard to reproduce and debug
 ```
 
 **✅ CORRECT APPROACH:**
 ```bash
 mix test.codegen                        # Runs in :test env with test resources
-mix test test/specific_test.exs         # Write proper tests for debugging
+# Write proper tests for debugging - reproducible and trackable
+mix test test/specific_test.exs         # Test specific functionality
 ```
 
 **Commands**: See [Command Reference](reference/command-reference.md) for complete command list and emergency commands.
@@ -118,6 +119,12 @@ cd test/ts && npm run compileGenerated
 - Use existing test patterns from `test/ash_typescript/` directory
 - All investigation should be done through proper test files
 
+**Follow existing test patterns:**
+- `test/ash_typescript/codegen_test.exs` - Type generation testing
+- `test/ash_typescript/embedded_resources_test.exs` - Embedded resource testing  
+- `test/ash_typescript/rpc/rpc_*_test.exs` - RPC functionality testing
+- `test/ash_typescript/field_parser_comprehensive_test.exs` - Field parsing testing
+
 ## Embedded Resources Issues (Critical)
 
 ### Problem: Unknown Type Error for Embedded Resources
@@ -140,24 +147,37 @@ mix ash_typescript.codegen
 **CRITICAL Discovery**: Embedded resources use `Ash.DataLayer.Simple`, NOT `Ash.DataLayer.Embedded`
 
 **Diagnosis Steps (Updated)**:
+
+**Write a proper test to investigate the issue:**
+
+```elixir
+# test/debug_embedded_recognition_test.exs
+defmodule DebugEmbeddedRecognitionTest do
+  use ExUnit.Case
+  
+  # Test the actual problematic embedded resource
+  test "debug embedded resource recognition" do
+    # 1. Verify resource compiles and is recognized
+    assert Ash.Resource.Info.resource?(MyApp.EmbeddedResource) == true
+    
+    # 2. Check data layer (CRITICAL: should be Ash.DataLayer.Simple)
+    data_layer = Ash.Resource.Info.data_layer(MyApp.EmbeddedResource)
+    assert data_layer == Ash.DataLayer.Simple  # NOT Ash.DataLayer.Embedded!
+    
+    # 3. Test embedded resource detection function
+    assert AshTypescript.Codegen.is_embedded_resource?(MyApp.EmbeddedResource) == true
+    
+    # 4. Check parent resource references
+    attr = Ash.Resource.Info.attribute(MyApp.ParentResource, :embedded_field)
+    assert attr.type == MyApp.EmbeddedResource
+    assert attr.constraints[:on_update] == :update_on_match
+  end
+end
+```
+
+**Run the test:**
 ```bash
-# 1. Verify embedded resource compiles with proper environment
-MIX_ENV=test mix compile  # MUST use test environment
-
-# 2. Check resource recognition (CORRECTED)
-MIX_ENV=test mix run -e 'IO.puts Ash.Resource.Info.resource?(MyApp.EmbeddedResource)'
-# Should return: true
-
-MIX_ENV=test mix run -e 'IO.inspect Ash.Resource.Info.data_layer(MyApp.EmbeddedResource)'
-# ACTUAL result: Ash.DataLayer.Simple (NOT Ash.DataLayer.Embedded!)
-
-# 3. Test embedded resource detection
-MIX_ENV=test mix run -e 'IO.puts AshTypescript.Codegen.is_embedded_resource?(MyApp.EmbeddedResource)'
-# Should return: true
-
-# 4. Check parent resource references it correctly
-MIX_ENV=test mix run -e 'attr = Ash.Resource.Info.attribute(MyApp.ParentResource, :embedded_field); IO.inspect(%{type: attr.type, constraints: attr.constraints})'
-# Should show: %{type: MyApp.EmbeddedResource, constraints: [on_update: :update_on_match]}
+mix test test/debug_embedded_recognition_test.exs
 ```
 
 **Solution (Implemented)**: 
@@ -295,17 +315,23 @@ def is_embedded_resource?(module), do: ...
 
 **Root Cause**: Domain resources not loaded in current environment.
 
-**Solution**: Always use test environment for development:
+**Solution**: Always write proper tests for debugging:
 
 ```bash
-# ❌ WRONG - Default environment may not load test resources
-iex -S mix
-mix run -e 'code'
+# ❌ WRONG - Interactive debugging, hard to reproduce
+# Using one-off interactive commands
 
-# ✅ CORRECT - Test environment loads all resources
-MIX_ENV=test iex -S mix
-MIX_ENV=test mix run -e 'code'
-MIX_ENV=test mix test
+# ✅ CORRECT - Test-based debugging, reproducible
+mix test                                    # Test environment loads all resources
+mix test test/debug_specific_issue_test.exs # Test specific functionality
+```
+
+**Write proper debug tests following existing patterns:**
+
+```elixir
+# Follow patterns from test/ash_typescript/ directory
+# Example: test/ash_typescript/codegen_test.exs
+# Example: test/ash_typescript/embedded_resources_test.exs
 ```
 
 **Implementation Status**: ✅ **COMPLETED**
@@ -407,15 +433,41 @@ mix test.codegen --dry-run | grep "any"
 3. **Complex Type Structure**: Nested or custom types not handled
 
 **Diagnosis Steps**:
+
+**Write a test to investigate the issue:**
+
+```elixir
+# test/debug_type_mapping_test.exs
+defmodule DebugTypeMappingTest do
+  use ExUnit.Case
+  
+  test "debug unmapped type generation" do
+    # 1. Check generated output for 'any' types
+    typescript_output = AshTypescript.Codegen.generate_typescript_types(:ash_typescript)
+    any_type_lines = 
+      typescript_output
+      |> String.split("\n")
+      |> Enum.filter(&String.contains?(&1, ": any"))
+    
+    IO.inspect(any_type_lines, label: "Lines with 'any' type")
+    
+    # 2. Test specific resource attribute
+    resource = AshTypescript.Test.Todo
+    attribute = Ash.Resource.Info.attribute(resource, :problematic_field)
+    IO.inspect(attribute, label: "Attribute definition")
+    
+    # 3. Test type mapping function
+    type_result = AshTypescript.Codegen.get_ts_type(attribute, %{})
+    IO.inspect(type_result, label: "TypeScript type mapping result")
+    
+    assert true  # For investigation, not assertion
+  end
+end
+```
+
+**Run the test:**
 ```bash
-# 1. Identify the unmapped type
-grep -B 5 -A 5 ": any" test/ts/generated.ts
-
-# 2. Check Ash resource definition
-grep -r "attribute.*SomeType" test/support/resources/
-
-# 3. Check current type mappings
-grep -A 20 "def get_ts_type" lib/ash_typescript/codegen.ex
+mix test test/debug_type_mapping_test.exs
 ```
 
 **Solutions**:
@@ -530,18 +582,54 @@ grep -A 5 "public.*true" test/support/resources/
 - Nested field selection ignored
 
 **Diagnosis Steps**:
+
+**Write a test to investigate field selection issues:**
+
 ```elixir
-# Add debug output in lib/ash_typescript/rpc/helpers.ex:extract_return_value/3
-def extract_return_value(result, fields, calc_specs) do
-  IO.inspect(result, label: "Raw result")
-  IO.inspect(fields, label: "Fields to extract")
-  IO.inspect(calc_specs, label: "Calc specs")
+# test/debug_field_selection_test.exs
+defmodule DebugFieldSelectionTest do
+  use ExUnit.Case
   
-  # ... existing logic
+  test "debug field selection processing" do
+    # 1. Test field parsing
+    fields = ["id", "title", {"metadata": ["category", "priority"]}]
+    
+    parsed_fields = AshTypescript.Rpc.FieldParser.parse_requested_fields(
+      fields, 
+      AshTypescript.Test.Todo,
+      AshTypescript.Rpc.output_field_formatter()
+    )
+    
+    IO.inspect(parsed_fields, label: "Parsed fields")
+    
+    # 2. Test actual RPC call
+    conn = build_conn()
+    params = %{"fields" => fields}
+    
+    result = AshTypescript.Rpc.run_action(conn, AshTypescript.Test.Todo, :read, params)
+    IO.inspect(result, label: "RPC result")
+    
+    # 3. Test field extraction
+    case result do
+      {:ok, data} when is_list(data) and length(data) > 0 ->
+        first_item = hd(data)
+        IO.inspect(Map.keys(first_item), label: "Available fields in result")
+      _ ->
+        IO.inspect(result, label: "Unexpected result format")
+    end
+    
+    assert true  # For investigation
+  end
   
-  IO.inspect(final_result, label: "Final extracted result")
-  final_result
+  defp build_conn do
+    Plug.Test.conn(:get, "/")
+  end
 end
+```
+
+**Run the test:**
+```bash
+mix test test/debug_field_selection_test.exs
 ```
 
 **Common Issues**:
@@ -805,11 +893,52 @@ mix test test/ash_typescript/rpc/rpc_multitenancy_*_test.exs
 ```
 
 **Diagnosis Steps**:
+
+**Write a test to investigate multitenancy issues:**
+
 ```elixir
-# Check tenant parameter processing
-# In lib/ash_typescript/rpc.ex:run_action/3
-IO.inspect(conn, label: "Connection")
-IO.inspect(params, label: "Request params")
+# test/debug_multitenancy_test.exs
+defmodule DebugMultitenancyTest do
+  use ExUnit.Case, async: false  # REQUIRED for config changes
+  
+  setup do
+    # Configure for parameter-based multitenancy
+    Application.put_env(:ash_typescript, :require_tenant_parameters, true)
+    
+    on_exit(fn ->
+      Application.delete_env(:ash_typescript, :require_tenant_parameters)
+    end)
+  end
+  
+  test "debug tenant isolation" do
+    # 1. Test tenant parameter processing
+    conn = build_conn()
+    params = %{"tenant" => "tenant1", "fields" => ["id", "title"]}
+    
+    IO.inspect(conn, label: "Connection")
+    IO.inspect(params, label: "Request params")
+    
+    # 2. Test RPC call with tenant
+    result = AshTypescript.Rpc.run_action(conn, AshTypescript.Test.Todo, :read, params)
+    IO.inspect(result, label: "RPC result with tenant")
+    
+    # 3. Test without tenant (should fail)
+    params_no_tenant = %{"fields" => ["id", "title"]}
+    result_no_tenant = AshTypescript.Rpc.run_action(conn, AshTypescript.Test.Todo, :read, params_no_tenant)
+    IO.inspect(result_no_tenant, label: "RPC result without tenant")
+    
+    assert true  # For investigation
+  end
+  
+  defp build_conn do
+    Plug.Test.conn(:get, "/")
+  end
+end
+```
+
+**Run the test:**
+```bash
+mix test test/debug_multitenancy_test.exs
 ```
 
 **Common Issues**:
@@ -854,13 +983,48 @@ IO.inspect(params, label: "Request params")
 - Tenant fields present when they shouldn't be
 
 **Diagnosis**:
-```bash
-# Check TypeScript generation with different configs
-Application.put_env(:ash_typescript, :require_tenant_parameters, true)
-mix test.codegen --dry-run | grep -i tenant
 
-Application.put_env(:ash_typescript, :require_tenant_parameters, false)  
-mix test.codegen --dry-run | grep -i tenant
+**Write a test to investigate TypeScript generation issues:**
+
+```elixir
+# test/debug_typescript_generation_test.exs
+defmodule DebugTypescriptGenerationTest do
+  use ExUnit.Case, async: false  # REQUIRED for config changes
+  
+  test "debug tenant parameter generation" do
+    # 1. Test with tenant parameters enabled
+    Application.put_env(:ash_typescript, :require_tenant_parameters, true)
+    
+    typescript_with_tenant = AshTypescript.Codegen.generate_typescript_types(:ash_typescript)
+    tenant_lines = 
+      typescript_with_tenant
+      |> String.split("\n")
+      |> Enum.filter(&String.contains?(&1, "tenant"))
+    
+    IO.inspect(tenant_lines, label: "Lines with tenant (enabled)")
+    
+    # 2. Test with tenant parameters disabled
+    Application.put_env(:ash_typescript, :require_tenant_parameters, false)
+    
+    typescript_without_tenant = AshTypescript.Codegen.generate_typescript_types(:ash_typescript)
+    tenant_lines_disabled = 
+      typescript_without_tenant
+      |> String.split("\n")
+      |> Enum.filter(&String.contains?(&1, "tenant"))
+    
+    IO.inspect(tenant_lines_disabled, label: "Lines with tenant (disabled)")
+    
+    # Clean up
+    Application.delete_env(:ash_typescript, :require_tenant_parameters)
+    
+    assert true  # For investigation
+  end
+end
+```
+
+**Run the test:**
+```bash
+mix test test/debug_typescript_generation_test.exs
 ```
 
 **Solution**:
@@ -999,16 +1163,39 @@ type DeepType<T, D extends number = 0> =
 
 ### Debug Output Strategy
 
-**Add Systematic Debug Output**:
+**Create systematic debug tests instead of ad-hoc debugging:**
+
 ```elixir
-# In lib/ash_typescript/codegen.ex
-def generate_typescript_types(otp_app, opts \\ []) do
-  IO.puts("=== Type Generation Debug ===")
-  resources = get_resources(otp_app)
-  IO.inspect(length(resources), label: "Resource count")
+# test/debug_systematic_test.exs
+defmodule DebugSystematicTest do
+  use ExUnit.Case
   
-  # ... continue with debug output at each major step
+  test "systematic type generation debugging" do
+    # 1. Test resource discovery
+    resources = AshTypescript.Codegen.get_resources(:ash_typescript)
+    IO.inspect(length(resources), label: "Resource count")
+    IO.inspect(Enum.map(resources, &(&1.__struct__)), label: "Resource modules")
+    
+    # 2. Test type generation stages
+    typescript_output = AshTypescript.Codegen.generate_typescript_types(:ash_typescript)
+    
+    # 3. Test for common issues
+    lines = String.split(typescript_output, "\n")
+    any_types = Enum.filter(lines, &String.contains?(&1, ": any"))
+    IO.inspect(length(any_types), label: "Lines with 'any' type")
+    
+    # 4. Test compilation readiness
+    File.write!("/tmp/debug_generated.ts", typescript_output)
+    IO.puts("Generated TypeScript written to /tmp/debug_generated.ts")
+    
+    assert true  # For investigation
+  end
 end
+```
+
+**Run the test:**
+```bash
+mix test test/debug_systematic_test.exs
 ```
 
 **TypeScript Debug Output**:
@@ -1016,6 +1203,56 @@ end
 # Use TypeScript compiler with full error details
 cd test/ts && npx tsc generated.ts --noErrorTruncation --strict
 ```
+
+## Test-Based Debugging Best Practices
+
+### Always Use Test-Based Debugging
+
+**✅ CORRECT APPROACH:**
+1. **Write a debug test** that reproduces the specific issue
+2. **Use existing test patterns** from `test/ash_typescript/` directory
+3. **Make it reproducible** - others can run the same test
+4. **Keep it focused** - test one specific aspect at a time
+5. **Clean up after** - remove debug tests once issue is resolved
+
+**❌ AVOID:**
+- One-off `iex` commands that are hard to reproduce
+- `mix run -e` snippets that don't persist
+- Interactive debugging that can't be shared or repeated
+
+### Test Pattern Examples
+
+**For Type Generation Issues:**
+```elixir
+# Follow test/ash_typescript/codegen_test.exs patterns
+test "debug specific type generation" do
+  # Test type mapping, generation, etc.
+end
+```
+
+**For RPC Issues:**
+```elixir
+# Follow test/ash_typescript/rpc/rpc_*_test.exs patterns
+test "debug RPC field processing" do
+  # Test field parsing, processing, etc.
+end
+```
+
+**For Embedded Resource Issues:**
+```elixir
+# Follow test/ash_typescript/embedded_resources_test.exs patterns
+test "debug embedded resource detection" do
+  # Test resource recognition, type generation, etc.
+end
+```
+
+### Debug Test Cleanup
+
+**Remember to:**
+1. Remove debug tests after issue is resolved
+2. Convert useful debug tests into proper feature tests
+3. Don't commit debug tests to the repository
+4. Use `test/debug_*_test.exs` naming for easy identification
 
 ## Common Error Patterns
 

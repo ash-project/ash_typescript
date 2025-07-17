@@ -8,7 +8,7 @@
 |------|---------|-------|
 | **Generate Types** | `mix test.codegen` | Primary development command |
 | **Run Tests** | `mix test` | Automatically uses test environment |
-| **Interactive Debug** | `MIX_ENV=test iex -S mix` | Only if needed - prefer tests |
+| **Debug Issues** | Write proper tests | Always use test-based debugging |
 | **Validate TypeScript** | `cd test/ts && npm run compileGenerated` | After type generation |
 
 **Quick Reference**: See [Command Reference](reference/command-reference.md) for complete command list and aliases.
@@ -40,6 +40,7 @@ mix test
 | Task Type | Must Read | Should Read |
 |-----------|-----------|-------------|
 | **Type generation/inference** | ai-implementation-guide.md | `test/ts_codegen_test.exs` |
+| **Custom types** | quick-guides/adding-new-types.md | `test/ash_typescript/custom_types_test.exs` |
 | **RPC features** | ai-implementation-guide.md | `test/ash_typescript/rpc/` tests |
 | **Embedded resources** | ai-implementation-guide.md | ai-troubleshooting.md |
 | **Field selection** | ai-implementation-guide.md | `field_formatter.ex` |

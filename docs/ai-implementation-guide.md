@@ -23,7 +23,7 @@ mix test path/to/test.exs          # Run specific test
 
 # ❌ WRONG - Will fail with "No domains found"
 mix ash_typescript.codegen        # Wrong environment
-iex -S mix                        # Wrong environment - write tests instead
+# Write proper tests in test/ash_typescript/ directory for debugging
 ```
 
 **Commands**: See [Command Reference](reference/command-reference.md) for complete command list, aliases, and emergency commands.
@@ -370,17 +370,117 @@ def extract_return_value(value, fields, calc_specs) when is_map(value) do
 end
 ```
 
-### 4. Debugging Pattern
+### 4. Test-Based Debugging Pattern
 
-**PATTERN**: Use strategic debug outputs for complex field processing.
+**PATTERN**: Create focused test cases for debugging complex field processing issues.
 
 ```elixir
-# Add to lib/ash_typescript/rpc.ex for field processing issues
-IO.puts("\n=== RPC DEBUG: Field Processing ===")
-IO.inspect(client_fields, label: "📥 Client field specification")
-IO.inspect({select, load}, label: "🌳 Field parser output")
-IO.inspect(combined_ash_load, label: "📋 Final load sent to Ash")
-IO.puts("=== END Field Processing ===\n")
+# Create test/ash_typescript/debug_field_processing_test.exs
+defmodule AshTypescript.DebugFieldProcessingTest do
+  use ExUnit.Case
+  alias AshTypescript.Test.{Todo, User}
+  alias AshTypescript.Rpc.FieldParser
+
+  test "debug field processing for complex scenario" do
+    # Create minimal test case that reproduces the issue
+    formatter = :camel_case
+    client_fields = [
+      "id",
+      "title",
+      %{"metadata" => ["category", "displayCategory"]}
+    ]
+
+    # Test the field parser directly
+    {select, load} = FieldParser.parse_requested_fields(client_fields, Todo, formatter)
+    
+    # Add debug output for investigation
+    IO.inspect(client_fields, label: "📥 Client field specification")
+    IO.inspect({select, load}, label: "🌳 Field parser output")
+    
+    # Test specific assertions based on expected behavior
+    assert :id in select
+    assert :title in select
+    assert :metadata in select
+    assert {:metadata, [:display_category]} in load
+  end
+end
+```
+
+### 5. Test-Based Debugging Best Practices
+
+**CRITICAL**: Always use proper test files for debugging instead of interactive sessions. This ensures reproducible results and builds a permanent knowledge base.
+
+#### Template Test Files to Reference
+
+```elixir
+# For RPC debugging - use test/ash_typescript/rpc/rpc_union_field_selection_test.exs as template
+# Shows proper setup with conn, user creation, and RPC call patterns
+
+# For field parser debugging - use test/ash_typescript/field_parser_comprehensive_test.exs as template  
+# Shows direct function testing with proper assertions
+
+# For type generation debugging - use test/ash_typescript/typescript_codegen_test.exs as template
+# Shows TypeScript generation testing patterns
+
+# For union processing - use test/ash_typescript/rpc/rpc_union_types_test.exs as template
+# Shows union creation and transformation testing
+```
+
+#### Debugging Workflow Pattern
+
+```bash
+# 1. Create focused test file
+touch test/ash_typescript/debug_issue_$(date +%Y%m%d)_test.exs
+
+# 2. Use existing test patterns as templates
+# Copy setup and structure from similar test files
+
+# 3. Run only your debug test
+mix test test/ash_typescript/debug_issue_*_test.exs
+
+# 4. Add IO.inspect statements for investigation
+# Use labels to make output clear
+
+# 5. Once issue is resolved, convert to proper regression test
+# Remove debug outputs, add proper assertions
+```
+
+#### Common Debug Test Scenarios
+
+```elixir
+# Debug type generation issues
+test "debug type generation for custom type" do
+  type_info = %{type: CustomType, constraints: []}
+  result = AshTypescript.Codegen.get_ts_type(type_info, %{})
+  IO.inspect(result, label: "Generated type")
+  assert result == "string"
+end
+
+# Debug RPC flow issues  
+test "debug RPC with complex field selection" do
+  conn = %Plug.Conn{private: %{}}
+  
+  # Use patterns from existing RPC tests
+  params = %{
+    "action" => "list_todos",
+    "fields" => complex_field_specification
+  }
+  
+  result = AshTypescript.Rpc.run_action(:ash_typescript, conn, params)
+  IO.inspect(result, label: "RPC result")
+  assert %{success: true} = result
+end
+
+# Debug field parser issues
+test "debug field parser with problematic fields" do
+  fields = ["id", %{"relationship" => ["nested_field"]}]
+  {select, load} = FieldParser.parse_requested_fields(fields, Resource, :camel_case)
+  
+  IO.inspect(fields, label: "Input fields")
+  IO.inspect({select, load}, label: "Parser output")
+  
+  assert expected_behavior
+end
 ```
 
 ## Development Workflows
@@ -429,34 +529,51 @@ cd test/ts && npm run compileShouldFail
 mix test
 ```
 
-### 3. Debug Module Pattern
+### 3. Focused Debug Test Pattern
 
-**PATTERN**: Use isolated test modules for debugging complex issues.
+**PATTERN**: Use focused test modules for investigating specific issues.
 
 ```elixir
-# Create test/debug_issue_test.exs
-defmodule DebugIssueTest do
+# Create test/ash_typescript/debug_specific_issue_test.exs
+defmodule AshTypescript.DebugSpecificIssueTest do
   use ExUnit.Case
+  alias AshTypescript.Test.{Todo, User}
 
-  # Minimal resource for testing specific issue
-  defmodule TestResource do
-    use Ash.Resource, domain: nil
+  @moduletag capture_log: true
+
+  test "debug specific type generation issue" do
+    # Test the problematic function directly with existing test resources
+    result = AshTypescript.Codegen.get_ts_type(
+      %{type: Ash.Type.String, constraints: []}, 
+      %{}
+    )
     
-    attributes do
-      uuid_primary_key :id
-      attribute :test_field, :string, public?: true
-    end
-    
-    actions do
-      defaults [:create, :read, :update, :destroy]
-    end
+    IO.inspect(result, label: "Debug type generation result")
+    assert result == "string"
   end
 
-  test "debug specific issue" do
-    # Test the problematic function directly
-    result = MyModule.problematic_function(TestResource)
-    IO.inspect(result, label: "Debug result")
-    assert true
+  test "debug RPC processing issue" do
+    # Use actual RPC flow with minimal params
+    conn = %Plug.Conn{private: %{}}
+    
+    # Create user first
+    user_result = AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+      "action" => "create_user",
+      "input" => %{"name" => "Test User", "email" => "test@example.com"},
+      "fields" => ["id"]
+    })
+    
+    assert %{success: true, data: user} = user_result
+    
+    # Now test the problematic scenario
+    params = %{
+      "action" => "list_todos",
+      "fields" => ["id", "title", %{"metadata" => ["category"]}]
+    }
+    
+    result = AshTypescript.Rpc.run_action(:ash_typescript, conn, params)
+    IO.inspect(result, label: "Debug RPC result")
+    assert %{success: true} = result
   end
 end
 ```
@@ -468,17 +585,22 @@ end
 ```elixir
 # ❌ WRONG - Using dev environment
 mix ash_typescript.codegen
-iex -S mix
 
-# ❌ WRONG - One-off debugging commands
-echo "Code.ensure_loaded(...)" | iex -S mix
-
-# ❌ WRONG - Using iex for debugging
-MIX_ENV=test iex -S mix
+# ❌ WRONG - Interactive debugging sessions
+# iex -S mix
+# echo "Code.ensure_loaded(...)" | iex -S mix
+# MIX_ENV=test iex -S mix
 
 # ✅ CORRECT - Test environment with proper tests
 mix test.codegen
 # Write proper tests for debugging - create test files in test/ash_typescript/
+
+# ✅ CORRECT - Debug with focused test cases
+mix test test/ash_typescript/debug_specific_issue_test.exs
+
+# ✅ CORRECT - Use existing test patterns as templates
+# See test/ash_typescript/rpc/rpc_union_field_selection_test.exs for RPC testing
+# See test/ash_typescript/field_parser_comprehensive_test.exs for field parser testing
 ```
 
 ### 2. Field Classification Anti-Patterns
@@ -1119,13 +1241,53 @@ mix test
 #### 2. Debug Union Processing Issues
 
 ```elixir
-# Add debug output to key transformation points
-def apply_union_field_selection(value, union_member_specs, formatter) do
-  IO.inspect(value, label: "Union input")
-  transformed = transform_union_type_if_needed(value, formatter)
-  IO.inspect(transformed, label: "Transformed union")
-  IO.inspect(union_member_specs, label: "Member specs")
-  # ... rest of function
+# Create test/ash_typescript/debug_union_processing_test.exs
+defmodule AshTypescript.DebugUnionProcessingTest do
+  use ExUnit.Case
+  alias AshTypescript.Test.{Todo, User}
+  alias AshTypescript.Rpc.ResultProcessor
+
+  test "debug union field selection processing" do
+    # Create test data with union values
+    conn = %Plug.Conn{private: %{}}
+    
+    # Create user and todo with union content
+    user_result = AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+      "action" => "create_user",
+      "input" => %{"name" => "Test User", "email" => "test@example.com"},
+      "fields" => ["id"]
+    })
+    
+    assert %{success: true, data: user} = user_result
+    
+    # Test union field selection directly
+    union_member_specs = %{
+      "text" => ["id", "text", "wordCount"],
+      "note" => :primitive
+    }
+    
+    # Mock union value for testing
+    union_value = %{
+      "text" => %{"id" => "123", "text" => "Test", "wordCount" => 1, "formatting" => "markdown"},
+      "note" => "Simple note"
+    }
+    
+    # Test the processing function
+    result = ResultProcessor.apply_union_field_selection(
+      union_value, 
+      union_member_specs, 
+      :camel_case
+    )
+    
+    IO.inspect(union_value, label: "Union input")
+    IO.inspect(union_member_specs, label: "Member specs")
+    IO.inspect(result, label: "Processed result")
+    
+    # Assert expected field filtering
+    assert result["text"]["text"] == "Test"
+    assert result["text"]["wordCount"] == 1
+    refute Map.has_key?(result["text"], "formatting")
+  end
 end
 ```
 

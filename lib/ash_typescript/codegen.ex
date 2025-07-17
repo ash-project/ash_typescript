@@ -257,6 +257,10 @@ defmodule AshTypescript.Codegen do
 
   defp generate_ash_type_alias(type) do
     cond do
+      # NEW: Custom type detection - check before other patterns
+      is_custom_type?(type) ->
+        generate_custom_type_alias(type)
+
       Ash.Type.NewType.new_type?(type) or Spark.implements_behaviour?(type, Ash.Type.Enum) ->
         ""
 
@@ -269,6 +273,25 @@ defmodule AshTypescript.Codegen do
     end
   end
 
+  # Checks if a type is a custom type that implements the required TypeScript callbacks.
+  # Custom types must implement Ash.Type behaviour and provide both typescript_type_name/0 and typescript_type_def/0.
+  defp is_custom_type?(type) do
+    is_atom(type) and
+      Code.ensure_loaded?(type) and
+      function_exported?(type, :typescript_type_name, 0) and
+      function_exported?(type, :typescript_type_def, 0) and
+      Spark.implements_behaviour?(type, Ash.Type)
+  end
+
+  # Generates a TypeScript type alias for a custom type.
+  # Combines the type name and definition from the callbacks.
+  defp generate_custom_type_alias(type) do
+    type_name = apply(type, :typescript_type_name, [])
+    type_def = apply(type, :typescript_type_def, [])
+    "type #{type_name} = #{type_def};"
+  end
+
+
   def generate_all_schemas_for_resources(resources, allowed_resources) do
     resources
     |> Enum.map(&generate_all_schemas_for_resource(&1, allowed_resources))
@@ -279,8 +302,6 @@ defmodule AshTypescript.Codegen do
     resource_name = resource |> Module.split() |> List.last()
 
     attributes_schema = generate_attributes_schema(resource)
-    _calculated_fields_schema = generate_calculated_fields_schema(resource)
-    _aggregate_fields_schema = generate_aggregate_fields_schema(resource)
     complex_calculations_schema = generate_complex_calculations_schema(resource)
     relationship_schema = generate_relationship_schema(resource, allowed_resources)
     unions_schema = generate_unions_schema(resource)
@@ -657,6 +678,7 @@ defmodule AshTypescript.Codegen do
     end
   end
 
+
   def generate_resource_schema(resource) do
     resource_name = resource |> Module.split() |> List.last()
 
@@ -875,6 +897,10 @@ defmodule AshTypescript.Codegen do
 
   def get_ts_type(%{type: type, constraints: constraints} = attr, _) do
     cond do
+      # NEW: Custom type support - check first
+      is_custom_type?(type) ->
+        apply(type, :typescript_type_name, [])
+
       is_embedded_resource?(type) ->
         # Handle direct embedded resource types (e.g., attribute :metadata, TodoMetadata)
         resource_name = type |> Module.split() |> List.last()
@@ -1381,4 +1407,5 @@ defmodule AshTypescript.Codegen do
   defp generate_calculation_fields_type(_calc) do
     "string[]"
   end
+
 end

@@ -16,17 +16,17 @@ mix ash_typescript.codegen  # Runs in :dev env
 mix test.codegen  # Runs in :test env with test resources
 ```
 
-#### "Module not loaded" in iex
-**Cause**: Interactive session in wrong environment  
-**Solution**: Use test environment or write proper tests
+#### "Module not loaded" in test environment
+**Cause**: Test resource compilation issues  
+**Solution**: Write proper test cases to debug module loading
 
 ```bash
-# ❌ WRONG
-iex -S mix
+# ❌ WRONG - Don't use interactive debugging
+# iex -S mix
 
-# ✅ CORRECT
-MIX_ENV=test iex -S mix
-# Or better: write a proper test file
+# ✅ CORRECT - Write focused test cases
+mix test test/ash_typescript/module_loading_test.exs --trace
+# Reference existing test patterns from test/ash_typescript/ directory
 ```
 
 ### FieldParser Refactoring Issues (2025-07-16)
@@ -76,8 +76,12 @@ ls lib/ash_typescript/rpc/field_parser/context.ex
 **Solution**: Add type mapping to `generate_ash_type_alias/1`
 
 ```elixir
-# Check if type has mapping
-MIX_ENV=test mix run -e "IO.inspect AshTypescript.Codegen.get_ts_type(some_type, %{})"
+# Write test to verify type mapping
+test "type mapping works for custom types" do
+  ts_type = AshTypescript.Codegen.get_ts_type(some_type, %{})
+  refute ts_type == "any"
+  assert ts_type == "expected_type"
+end
 ```
 
 #### TypeScript compilation errors
@@ -114,10 +118,15 @@ self: {
 **Cause**: Embedded resource not discovered  
 **Solution**: Check attribute scanning and type detection
 
-```bash
-# Verify embedded resource recognition
-MIX_ENV=test mix run -e 'IO.puts Ash.Resource.Info.resource?(MyApp.EmbeddedResource)'
-MIX_ENV=test mix run -e 'IO.puts AshTypescript.Codegen.is_embedded_resource?(MyApp.EmbeddedResource)'
+```elixir
+# Write test to verify embedded resource recognition
+test "embedded resource is properly recognized" do
+  assert Ash.Resource.Info.resource?(MyApp.EmbeddedResource)
+  assert AshTypescript.Codegen.is_embedded_resource?(MyApp.EmbeddedResource)
+end
+
+# Reference existing embedded resource tests in:
+# test/ash_typescript/embedded_resources_test.exs
 ```
 
 #### "Embedded resources should not be listed in domain"
@@ -242,14 +251,19 @@ mix test test/ash_typescript/rpc/rpc_actions_test.exs
 ```
 
 ### Context Creation Test
-```bash
-# Test new FieldParser architecture
-MIX_ENV=test mix run -e "
+```elixir
+# Write test for new FieldParser architecture
+test "context creation works correctly" do
   alias AshTypescript.Rpc.FieldParser.Context
   resource = hd(AshTypescript.Test.Domain.resources())
   context = Context.new(resource, %{})
-  IO.puts 'Context created successfully'
-"
+  
+  assert context.resource == resource
+  assert context.formatter == %{}
+end
+
+# Reference existing context tests in:
+# test/ash_typescript/field_parser_comprehensive_test.exs
 ```
 
 ## Error Code Lookup

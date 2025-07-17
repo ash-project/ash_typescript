@@ -58,22 +58,34 @@ IO.puts("=== END Field Processing ===\n")
 
 ### Step 3: Check Field Classification
 
-Verify field classification is correct:
+Verify field classification is correct by writing a targeted test. Create a test file in `test/ash_typescript/rpc/` to debug field classification:
 
 ```elixir
-# Test field classification
-MIX_ENV=test mix run -e "
-  resource = AshTypescript.Test.Todo
-  field_name = :metadata
+# test/ash_typescript/rpc/debug_field_classification_test.exs
+defmodule AshTypescript.Rpc.DebugFieldClassificationTest do
+  use ExUnit.Case, async: true
   
-  # Check if field is recognized
-  attributes = Ash.Resource.Info.public_attributes(resource)
-  calculations = Ash.Resource.Info.calculations(resource)
-  
-  IO.puts('Field #{field_name} in attributes: #{Enum.any?(attributes, &(&1.name == field_name))}')
-  IO.puts('Field #{field_name} in calculations: #{Enum.any?(calculations, &(&1.name == field_name))}')
-"
+  test "field classification for metadata field" do
+    resource = AshTypescript.Test.Todo
+    field_name = :metadata
+    
+    # Check if field is recognized
+    attributes = Ash.Resource.Info.public_attributes(resource)
+    calculations = Ash.Resource.Info.calculations(resource)
+    
+    in_attributes = Enum.any?(attributes, &(&1.name == field_name))
+    in_calculations = Enum.any?(calculations, &(&1.name == field_name))
+    
+    IO.puts("Field #{field_name} in attributes: #{in_attributes}")
+    IO.puts("Field #{field_name} in calculations: #{in_calculations}")
+    
+    # Add assertions based on expected behavior
+    assert in_attributes or in_calculations, "Field should exist in resource"
+  end
+end
 ```
+
+Run the test: `mix test test/ash_typescript/rpc/debug_field_classification_test.exs`
 
 ## Common Issues and Solutions
 
@@ -81,29 +93,40 @@ MIX_ENV=test mix run -e "
 
 **Symptoms**: Field selection ignored, field not in response
 
-**Debug Steps**:
+**Debug Steps**: Write a test to inspect resource structure:
+
 ```elixir
-# Check if field exists in resource
-MIX_ENV=test mix run -e "
-  resource = AshTypescript.Test.Todo
-  field_name = :your_field
+# test/ash_typescript/rpc/debug_field_existence_test.exs
+defmodule AshTypescript.Rpc.DebugFieldExistenceTest do
+  use ExUnit.Case, async: true
   
-  # Check attributes
-  attributes = Ash.Resource.Info.public_attributes(resource)
-  attr_names = Enum.map(attributes, &(&1.name))
-  IO.puts('Attributes: #{inspect(attr_names)}')
-  
-  # Check calculations
-  calculations = Ash.Resource.Info.calculations(resource)
-  calc_names = Enum.map(calculations, &(&1.name))
-  IO.puts('Calculations: #{inspect(calc_names)}')
-  
-  # Check relationships
-  relationships = Ash.Resource.Info.relationships(resource)
-  rel_names = Enum.map(relationships, &(&1.name))
-  IO.puts('Relationships: #{inspect(rel_names)}')
-"
+  test "inspect resource structure for field existence" do
+    resource = AshTypescript.Test.Todo
+    field_name = :your_field
+    
+    # Check attributes
+    attributes = Ash.Resource.Info.public_attributes(resource)
+    attr_names = Enum.map(attributes, &(&1.name))
+    IO.puts("Attributes: #{inspect(attr_names)}")
+    
+    # Check calculations
+    calculations = Ash.Resource.Info.calculations(resource)
+    calc_names = Enum.map(calculations, &(&1.name))
+    IO.puts("Calculations: #{inspect(calc_names)}")
+    
+    # Check relationships
+    relationships = Ash.Resource.Info.relationships(resource)
+    rel_names = Enum.map(relationships, &(&1.name))
+    IO.puts("Relationships: #{inspect(rel_names)}")
+    
+    # Assert field exists in one of the categories
+    all_fields = attr_names ++ calc_names ++ rel_names
+    assert field_name in all_fields, "Field #{field_name} not found in resource"
+  end
+end
 ```
+
+Run: `mix test test/ash_typescript/rpc/debug_field_existence_test.exs`
 
 **Common Causes**:
 - Field name misspelled
@@ -114,15 +137,35 @@ MIX_ENV=test mix run -e "
 
 **Symptoms**: All fields returned instead of requested subset
 
-**Debug Steps**:
-```elixir
-# Check field parser output
-context = AshTypescript.Rpc.FieldParser.Context.new(resource, formatter)
-{select, load} = AshTypescript.Rpc.FieldParser.parse_requested_fields(client_fields, context)
+**Debug Steps**: Write a test to verify field parser output:
 
-IO.inspect(select, label: "Select fields")
-IO.inspect(load, label: "Load fields")
+```elixir
+# test/ash_typescript/rpc/debug_field_parser_test.exs
+defmodule AshTypescript.Rpc.DebugFieldParserTest do
+  use ExUnit.Case, async: true
+  alias AshTypescript.Rpc.FieldParser
+  
+  test "field parser generates correct select/load statements" do
+    resource = AshTypescript.Test.Todo
+    formatter = AshTypescript.FieldFormatter.Default
+    context = FieldParser.Context.new(resource, formatter)
+    
+    client_fields = ["id", "title", "description"]
+    
+    {select, load} = FieldParser.parse_requested_fields(client_fields, context)
+    
+    IO.inspect(select, label: "Select fields")
+    IO.inspect(load, label: "Load fields")
+    
+    # Add assertions based on expected behavior
+    assert is_list(select), "Select should be a list"
+    assert is_list(load), "Load should be a list"
+    assert length(select) == length(client_fields), "Select should match requested fields"
+  end
+end
 ```
+
+Run: `mix test test/ash_typescript/rpc/debug_field_parser_test.exs`
 
 **Common Causes**:
 - Field parser not generating correct select/load statements
@@ -133,15 +176,30 @@ IO.inspect(load, label: "Load fields")
 
 **Symptoms**: Calculations run with wrong arguments or default values
 
-**Debug Steps**:
-```elixir
-# Check calculation argument processing
-calc_args = %{"multiplier" => 2}
-formatter = AshTypescript.FieldFormatter.Default
+**Debug Steps**: Write a test to verify calculation argument processing:
 
-processed_args = AshTypescript.Rpc.FieldParser.CalcArgsProcessor.process_calc_args(calc_args, formatter)
-IO.inspect(processed_args, label: "Processed calc args")
+```elixir
+# test/ash_typescript/rpc/debug_calc_args_test.exs
+defmodule AshTypescript.Rpc.DebugCalcArgsTest do
+  use ExUnit.Case, async: true
+  alias AshTypescript.Rpc.FieldParser.CalcArgsProcessor
+  
+  test "calculation argument processing" do
+    calc_args = %{"multiplier" => 2}
+    formatter = AshTypescript.FieldFormatter.Default
+    
+    processed_args = CalcArgsProcessor.process_calc_args(calc_args, formatter)
+    IO.inspect(processed_args, label: "Processed calc args")
+    
+    # Add assertions based on expected behavior
+    assert is_map(processed_args), "Processed args should be a map"
+    assert Map.has_key?(processed_args, :multiplier), "Should have multiplier key"
+    assert processed_args[:multiplier] == 2, "Should preserve argument value"
+  end
+end
 ```
+
+Run: `mix test test/ash_typescript/rpc/debug_calc_args_test.exs`
 
 **Common Causes**:
 - Argument names not properly formatted
@@ -152,15 +210,35 @@ IO.inspect(processed_args, label: "Processed calc args")
 
 **Symptoms**: Nested fields not selected, full nested objects returned
 
-**Debug Steps**:
-```elixir
-# Check nested field processing
-nested_fields = ["category", "priority"]
-context = AshTypescript.Rpc.FieldParser.Context.new(embedded_resource, formatter)
+**Debug Steps**: Write a test to verify nested field processing:
 
-nested_processing = AshTypescript.Rpc.FieldParser.process_nested_fields(nested_fields, context)
-IO.inspect(nested_processing, label: "Nested processing")
+```elixir
+# test/ash_typescript/rpc/debug_nested_fields_test.exs
+defmodule AshTypescript.Rpc.DebugNestedFieldsTest do
+  use ExUnit.Case, async: true
+  alias AshTypescript.Rpc.FieldParser
+  
+  test "nested field processing for embedded resources" do
+    embedded_resource = AshTypescript.Test.TodoMetadata
+    formatter = AshTypescript.FieldFormatter.Default
+    context = FieldParser.Context.new(embedded_resource, formatter)
+    
+    nested_fields = ["category", "priority"]
+    
+    # Test nested field processing (adjust method name based on actual implementation)
+    {select, load} = FieldParser.parse_requested_fields(nested_fields, context)
+    
+    IO.inspect({select, load}, label: "Nested processing")
+    
+    # Add assertions based on expected behavior
+    assert is_list(select), "Select should be a list"
+    assert "category" in select, "Should include category field"
+    assert "priority" in select, "Should include priority field"
+  end
+end
 ```
+
+Run: `mix test test/ash_typescript/rpc/debug_nested_fields_test.exs`
 
 **Common Causes**:
 - Nested field processing not implemented
@@ -171,62 +249,99 @@ IO.inspect(nested_processing, label: "Nested processing")
 
 ### Basic Field Selection Debug
 
-```bash
-# 1. Test field selection in isolation
-MIX_ENV=test mix run -e "
-  # Test basic field selection
-  params = %{
-    \"fields\" => [\"id\", \"title\"]
-  }
+Create a focused test to debug field selection in isolation:
+
+```elixir
+# test/ash_typescript/rpc/debug_basic_field_selection_test.exs
+defmodule AshTypescript.Rpc.DebugBasicFieldSelectionTest do
+  use ExUnit.Case, async: true
+  alias AshTypescript.Rpc.FieldParser
   
-  # Process through field parser
-  resource = AshTypescript.Test.Todo
-  formatter = AshTypescript.FieldFormatter.Default
-  context = AshTypescript.Rpc.FieldParser.Context.new(resource, formatter)
-  
-  {select, load} = AshTypescript.Rpc.FieldParser.parse_requested_fields(params[\"fields\"], context)
-  IO.inspect({select, load}, label: \"Field parser output\")
-"
+  test "basic field selection processing" do
+    # Test basic field selection
+    fields = ["id", "title"]
+    
+    # Process through field parser
+    resource = AshTypescript.Test.Todo
+    formatter = AshTypescript.FieldFormatter.Default
+    context = FieldParser.Context.new(resource, formatter)
+    
+    {select, load} = FieldParser.parse_requested_fields(fields, context)
+    IO.inspect({select, load}, label: "Field parser output")
+    
+    # Add assertions based on expected behavior
+    assert is_list(select), "Select should be a list"
+    assert is_list(load), "Load should be a list"
+    assert :id in select, "Should include id field"
+    assert :title in select, "Should include title field"
+  end
+end
 ```
+
+Run: `mix test test/ash_typescript/rpc/debug_basic_field_selection_test.exs`
 
 ### Calculation Debug
 
-```bash
-# 2. Test calculation processing
-MIX_ENV=test mix run -e "
-  # Test calculation with arguments
-  calc_spec = %{
-    \"calcArgs\" => %{\"multiplier\" => 2},
-    \"fields\" => [\"category\", \"priority\"]
-  }
+Create a test to debug calculation processing:
+
+```elixir
+# test/ash_typescript/rpc/debug_calculation_processing_test.exs
+defmodule AshTypescript.Rpc.DebugCalculationProcessingTest do
+  use ExUnit.Case, async: true
+  alias AshTypescript.Rpc.FieldParser
   
-  # Process calculation
-  resource = AshTypescript.Test.TodoMetadata
-  formatter = AshTypescript.FieldFormatter.Default
-  context = AshTypescript.Rpc.FieldParser.Context.new(resource, formatter)
-  
-  {load_entry, field_specs} = AshTypescript.Rpc.FieldParser.LoadBuilder.build_calculation_load_entry(
-    :adjusted_priority, calc_spec, context
-  )
-  
-  IO.inspect({load_entry, field_specs}, label: \"Calculation processing\")
-"
+  test "calculation processing with arguments" do
+    # Test calculation with arguments
+    calc_spec = %{
+      "calcArgs" => %{"multiplier" => 2},
+      "fields" => ["category", "priority"]
+    }
+    
+    # Process calculation
+    resource = AshTypescript.Test.TodoMetadata
+    formatter = AshTypescript.FieldFormatter.Default
+    context = FieldParser.Context.new(resource, formatter)
+    
+    {load_entry, field_specs} = FieldParser.LoadBuilder.build_calculation_load_entry(
+      :adjusted_priority, calc_spec, context
+    )
+    
+    IO.inspect({load_entry, field_specs}, label: "Calculation processing")
+    
+    # Add assertions based on expected behavior
+    assert is_tuple(load_entry), "Load entry should be a tuple"
+    assert is_list(field_specs), "Field specs should be a list"
+  end
+end
 ```
+
+Run: `mix test test/ash_typescript/rpc/debug_calculation_processing_test.exs`
 
 ### Full RPC Debug
 
+Use existing comprehensive RPC tests for end-to-end debugging:
+
 ```bash
-# 3. Test full RPC request
+# Test full RPC request flow
 mix test test/ash_typescript/rpc/rpc_field_calculations_test.exs --trace
+
+# Test specific RPC scenarios
+mix test test/ash_typescript/rpc/rpc_integration_test.exs --trace
+
+# Test with focused output
+mix test test/ash_typescript/rpc/rpc_parsing_test.exs --trace
 ```
 
 ## Field Classification Debug
 
 ### Check Field Type
 
+Create a comprehensive test to debug field classification:
+
 ```elixir
-# Add to debug script
-defmodule FieldClassificationDebug do
+# test/ash_typescript/rpc/debug_field_classification_comprehensive_test.exs
+defmodule AshTypescript.Rpc.DebugFieldClassificationComprehensiveTest do
+  use ExUnit.Case, async: true
   alias AshTypescript.Rpc.FieldParser
   
   def classify_field_debug(field_name, resource) do
@@ -249,20 +364,39 @@ defmodule FieldClassificationDebug do
     # Get final classification
     final_type = FieldParser.classify_field(field_name, context)
     IO.puts("Final classification: #{final_type}")
+    
+    {checks, final_type}
+  end
+  
+  test "field classification debug for metadata field" do
+    field_name = :metadata
+    resource = AshTypescript.Test.Todo
+    
+    {checks, final_type} = classify_field_debug(field_name, resource)
+    
+    # Add assertions based on expected behavior
+    assert is_list(checks), "Checks should be a list"
+    assert final_type != nil, "Should have a final classification"
+    
+    # Verify at least one classification type is true
+    has_classification = Enum.any?(checks, fn {_type, result} -> result end)
+    assert has_classification, "Field should have at least one classification"
   end
 end
-
-# Usage
-FieldClassificationDebug.classify_field_debug(:metadata, AshTypescript.Test.Todo)
 ```
+
+Run: `mix test test/ash_typescript/rpc/debug_field_classification_comprehensive_test.exs`
 
 ## Result Processing Debug
 
 ### Check Result Filtering
 
+Create a test to debug result filtering:
+
 ```elixir
-# Test result filtering
-defmodule ResultProcessingDebug do
+# test/ash_typescript/rpc/debug_result_filtering_test.exs
+defmodule AshTypescript.Rpc.DebugResultFilteringTest do
+  use ExUnit.Case, async: true
   alias AshTypescript.Rpc.ResultProcessor
   
   def debug_result_processing(result, client_fields, resource) do
@@ -275,84 +409,135 @@ defmodule ResultProcessingDebug do
     # Process result
     processed = ResultProcessor.process_action_result(result, client_fields, resource, formatter)
     IO.inspect(processed, label: "Processed result")
+    
+    processed
+  end
+  
+  test "result filtering debug" do
+    # Create test data
+    test_data = %{
+      id: "123",
+      title: "Test",
+      description: "Test description",
+      metadata: %{category: "urgent", priority: 1, secret: "hidden"}
+    }
+    
+    # Test filtering
+    client_fields = ["id", "title", %{"metadata" => ["category"]}]
+    resource = AshTypescript.Test.Todo
+    
+    processed = debug_result_processing(test_data, client_fields, resource)
+    
+    # Add assertions based on expected behavior
+    assert is_map(processed), "Processed result should be a map"
+    assert Map.has_key?(processed, "id"), "Should include id field"
+    assert Map.has_key?(processed, "title"), "Should include title field"
+    refute Map.has_key?(processed, "description"), "Should not include description field"
   end
 end
 ```
+
+Run: `mix test test/ash_typescript/rpc/debug_result_filtering_test.exs`
 
 ## Performance Debug
 
 ### Check Processing Time
 
+Create a test to debug performance:
+
 ```elixir
-# Add timing to debug performance
-defmodule PerformanceDebug do
+# test/ash_typescript/rpc/debug_performance_test.exs
+defmodule AshTypescript.Rpc.DebugPerformanceTest do
+  use ExUnit.Case, async: true
+  alias AshTypescript.Rpc.FieldParser
+  
   def time_field_processing(client_fields, resource) do
     formatter = AshTypescript.FieldFormatter.Default
-    context = AshTypescript.Rpc.FieldParser.Context.new(resource, formatter)
+    context = FieldParser.Context.new(resource, formatter)
     
     {time, {select, load}} = :timer.tc(fn ->
-      AshTypescript.Rpc.FieldParser.parse_requested_fields(client_fields, context)
+      FieldParser.parse_requested_fields(client_fields, context)
     end)
     
     IO.puts("Field processing took #{time} microseconds")
     IO.inspect({select, load}, label: "Result")
+    
+    {time, {select, load}}
+  end
+  
+  test "field processing performance" do
+    client_fields = ["id", "title", "description", %{"metadata" => ["category", "priority"]}]
+    resource = AshTypescript.Test.Todo
+    
+    {time, {select, load}} = time_field_processing(client_fields, resource)
+    
+    # Add assertions based on expected behavior
+    assert is_integer(time), "Time should be an integer"
+    assert time > 0, "Processing should take some time"
+    assert is_list(select), "Select should be a list"
+    assert is_list(load), "Load should be a list"
   end
 end
 ```
+
+Run: `mix test test/ash_typescript/rpc/debug_performance_test.exs`
 
 ## Common Debugging Commands
 
 ### Field Parser Testing
 
+Use existing tests or create focused tests to debug field parser:
+
 ```bash
-# Test field parser directly
-MIX_ENV=test mix run -e "
-  resource = AshTypescript.Test.Todo
-  formatter = AshTypescript.FieldFormatter.Default
-  context = AshTypescript.Rpc.FieldParser.Context.new(resource, formatter)
-  
-  # Test simple fields
-  {select, load} = AshTypescript.Rpc.FieldParser.parse_requested_fields([\"id\", \"title\"], context)
-  IO.inspect({select, load}, label: \"Simple fields\")
-"
+# Test field parser directly with existing tests
+mix test test/ash_typescript/rpc/rpc_parsing_test.exs
+
+# Test field parser with specific resources
+mix test test/ash_typescript/rpc/rpc_field_calculations_test.exs --trace
+
+# Create focused test for field parser investigation
+# See debug_basic_field_selection_test.exs example above
 ```
 
 ### Calculation Processing
 
+Test calculation processing using existing test patterns:
+
 ```bash
-# Test calculation processing
-MIX_ENV=test mix run -e "
-  calc_spec = %{\"calcArgs\" => %{\"multiplier\" => 2}, \"fields\" => [\"category\"]}
-  resource = AshTypescript.Test.TodoMetadata
-  formatter = AshTypescript.FieldFormatter.Default
-  context = AshTypescript.Rpc.FieldParser.Context.new(resource, formatter)
-  
-  result = AshTypescript.Rpc.FieldParser.LoadBuilder.build_calculation_load_entry(:adjusted_priority, calc_spec, context)
-  IO.inspect(result, label: \"Calculation load entry\")
-"
+# Test calculation processing with existing tests
+mix test test/ash_typescript/rpc/rpc_field_calculations_test.exs --trace
+
+# Test embedded calculations
+mix test test/ash_typescript/rpc/rpc_embedded_calculations_test.exs --trace
+
+# Create focused test for calculation debugging
+# See debug_calculation_processing_test.exs example above
 ```
 
 ### Result Filtering
 
+Test result filtering using comprehensive test patterns:
+
 ```bash
-# Test result filtering
-MIX_ENV=test mix run -e "
-  # Create test data
-  test_data = %{
-    id: \"123\",
-    title: \"Test\",
-    metadata: %{category: \"urgent\", priority: 1, secret: \"hidden\"}
-  }
-  
-  # Test filtering
-  client_fields = [\"id\", \"title\", %{\"metadata\" => [\"category\"]}]
-  resource = AshTypescript.Test.Todo
-  formatter = AshTypescript.FieldFormatter.Default
-  
-  filtered = AshTypescript.Rpc.ResultProcessor.process_action_result(test_data, client_fields, resource, formatter)
-  IO.inspect(filtered, label: \"Filtered result\")
-"
+# Test result filtering with existing tests
+mix test test/ash_typescript/rpc/rpc_integration_test.exs --trace
+
+# Test filtering with specific scenarios
+mix test test/ash_typescript/rpc/rpc_filtering_test.exs --trace
+
+# Create focused test for result filtering debugging
+# See debug_result_filtering_test.exs example above
 ```
+
+### Additional Debugging Resources
+
+Follow existing test patterns from the `test/ash_typescript/rpc/` directory:
+
+- `rpc_integration_test.exs` - End-to-end field processing
+- `rpc_field_calculations_test.exs` - Field-based calculations
+- `rpc_parsing_test.exs` - Basic parsing and field handling
+- `rpc_filtering_test.exs` - Field filtering and selection
+- `rpc_embedded_calculations_test.exs` - Embedded resource calculations
 
 ## Critical Success Factors
 

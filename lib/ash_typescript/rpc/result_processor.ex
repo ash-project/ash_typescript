@@ -110,8 +110,8 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       processed_value =
         case Map.get(field_based_calc_specs, field_atom) do
           nil ->
-            # Not a field-based calculation, use transformed value
-            union_transformed_value
+            # Not a field-based calculation, check if it's a custom type
+            transform_custom_type_if_needed(union_transformed_value, resource_data, field_atom, formatter)
 
           {:union_selection, union_member_specs} ->
             # Union field selection - apply member filtering to union value
@@ -342,6 +342,71 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   end
 
   @doc """
+  Transforms custom type values by applying field formatting to map values.
+  
+  Custom types that return maps (like ColorPalette) need their field names 
+  formatted consistently with the output formatter.
+  """
+  def transform_custom_type_if_needed(value, resource_data, field_atom, formatter) do
+    # Get the resource module to check field attributes
+    resource_module = resource_data.__struct__
+    
+    # Check if this field is a custom type that returns a map
+    case Ash.Resource.Info.attribute(resource_module, field_atom) do
+      %{type: custom_type} = _attribute when is_atom(custom_type) ->
+        # Check if it's a custom type that implements the AshTypescript callbacks
+        if is_custom_type_with_map_storage?(custom_type) do
+          # Apply field formatting to the map keys
+          case value do
+            %{} = map_value when not is_struct(map_value) ->
+              format_map_fields(map_value, formatter)
+            
+            # Arrays of maps from custom types
+            list when is_list(list) ->
+              Enum.map(list, fn item ->
+                case item do
+                  %{} = map_item when not is_struct(map_item) ->
+                    format_map_fields(map_item, formatter)
+                  other ->
+                    other
+                end
+              end)
+            
+            other ->
+              other
+          end
+        else
+          # Not a custom type with map storage, return as-is
+          value
+        end
+      
+      _other ->
+        # Not a custom type attribute, return as-is
+        value
+    end
+  end
+
+  # Check if a type is a custom type that implements AshTypescript callbacks
+  # and has storage type that might return maps
+  defp is_custom_type_with_map_storage?(type) do
+    # Check if it implements the required AshTypescript callbacks
+    implements_typescript_callbacks? = 
+      function_exported?(type, :typescript_type_name, 0) and
+      function_exported?(type, :typescript_type_def, 0)
+    
+    # Check if it has map storage type (indicating it returns structured data)
+    has_map_storage? = 
+      function_exported?(type, :storage_type, 1) and
+      try do
+        type.storage_type([]) == :map
+      rescue
+        _ -> false
+      end
+    
+    implements_typescript_callbacks? and has_map_storage?
+  end
+
+  @doc """
   Transforms union type values from Ash storage format to TypeScript expected format.
 
   Ash.Type.Union with storage: :type_and_value stores values as:
@@ -451,6 +516,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         end
     end
   end
+
 
   # Transforms a union type value to TypeScript expected format.
   # Takes a type name and union value, formats the type name and processes the value.

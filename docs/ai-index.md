@@ -11,6 +11,7 @@ This index helps AI assistants quickly find the most relevant documentation for 
 | [CLAUDE.md](../CLAUDE.md) | Main AI assistant guide | Start here for project overview, critical rules, and workflows |
 | [ai-quick-reference.md](ai-quick-reference.md) | Quick commands and patterns | Need immediate help with common tasks |
 | [ai-validation-safety.md](ai-validation-safety.md) | Testing and safety procedures | Before making any changes or troubleshooting |
+| [ai-changelog.md](ai-changelog.md) | Context and evolution | Understanding why current patterns exist and architectural decisions |
 
 ## Task-Specific Documentation
 
@@ -18,11 +19,13 @@ This index helps AI assistants quickly find the most relevant documentation for 
 | Task | Primary Documentation | Supporting Files |
 |------|----------------------|------------------|
 | **Type Generation/Inference** | [ai-implementation-guide.md](ai-implementation-guide.md) | [test/ash_typescript/](../test/ash_typescript/) |
+| **Custom Types** | [quick-guides/adding-new-types.md](quick-guides/adding-new-types.md) | [implementation/custom-types.md](implementation/custom-types.md), [test/ash_typescript/custom_types_test.exs](../test/ash_typescript/custom_types_test.exs) |
 | **RPC Features** | [ai-implementation-guide.md](ai-implementation-guide.md) | [test/ash_typescript/rpc/](../test/ash_typescript/rpc/) |
 | **Field Selection** | [ai-implementation-guide.md](ai-implementation-guide.md) | [ai-quick-reference.md](ai-quick-reference.md) |
 | **Embedded Resources** | [ai-implementation-guide.md](ai-implementation-guide.md) | [test/support/resources/embedded/](../test/support/resources/embedded/) |
 | **Union Types** | [ai-implementation-guide.md](ai-implementation-guide.md) | [test/ash_typescript/rpc/rpc_union_*_test.exs](../test/ash_typescript/rpc/) |
 | **Multitenancy** | [ai-implementation-guide.md](ai-implementation-guide.md) | [test/ash_typescript/rpc/rpc_multitenancy_*_test.exs](../test/ash_typescript/rpc/) |
+| **Test Organization** | [quick-guides/test-organization.md](quick-guides/test-organization.md) | [test/ts/shouldPass/](../test/ts/shouldPass/), [test/ts/shouldFail/](../test/ts/shouldFail/) |
 
 ### Troubleshooting
 | Issue Type | Primary Documentation | Emergency Reference |
@@ -36,17 +39,21 @@ This index helps AI assistants quickly find the most relevant documentation for 
 | Topic | Primary Documentation | When to Read |
 |-------|----------------------|--------------|
 | **Architecture Decisions** | [ai-implementation-insights.md](ai-implementation-insights.md) | Understanding design choices |
-| **Recent Achievements** | [CLAUDE.md](../CLAUDE.md) | Understanding recent major changes |
+| **Context and Evolution** | [ai-changelog.md](ai-changelog.md) | Understanding why current patterns exist |
 | **Performance Patterns** | [ai-implementation-insights.md](ai-implementation-insights.md) | Optimizing implementations |
 
 ## File Size Reference (Context Window Planning)
 
 ### Small Files (< 500 lines) - Efficient for AI
 - [ai-quick-reference.md](ai-quick-reference.md) (356 lines)
+- [ai-changelog.md](ai-changelog.md) (150 lines)
+- [quick-guides/adding-new-types.md](quick-guides/adding-new-types.md) (400 lines)
+- [quick-guides/test-organization.md](quick-guides/test-organization.md) (200 lines)
+- [implementation/custom-types.md](implementation/custom-types.md) (350 lines)
 - [ai-validation-safety.md](ai-validation-safety.md) (506 lines)
 
 ### Medium Files (500-800 lines) - Manageable
-- [CLAUDE.md](../CLAUDE.md) (~650 lines after merge)
+- [CLAUDE.md](../CLAUDE.md) (~400 lines after achievement removal)
 
 ### Large Files (> 1000 lines) - Use Sparingly
 ⚠️ **Context Window Warning**: These files consume significant context space
@@ -77,6 +84,10 @@ The following files have been moved to `docs/legacy/` and should not be read:
 1. [CLAUDE.md](../CLAUDE.md) (Environment rules)
 2. [ai-troubleshooting.md](ai-troubleshooting.md) (Issue-specific)
 3. [ai-validation-safety.md](ai-validation-safety.md) (Validation)
+
+### For Understanding Context
+1. [ai-changelog.md](ai-changelog.md) (Why current patterns exist)
+2. [ai-implementation-insights.md](ai-implementation-insights.md) (Deep architectural insights)
 
 ### For Deep Understanding
 1. [ai-implementation-guide.md](ai-implementation-guide.md)

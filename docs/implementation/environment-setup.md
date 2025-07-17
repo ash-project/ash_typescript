@@ -21,7 +21,7 @@ This guide covers the foundational environment setup and command patterns for As
 mix test.codegen                    # Generate TypeScript types
 mix test                           # Run Elixir tests
 mix test path/to/test.exs          # Run specific test
-MIX_ENV=test iex -S mix            # Interactive debugging (if needed)
+# Write proper tests for debugging instead of interactive sessions
 
 # ❌ WRONG - Will fail with "No domains found"
 mix ash_typescript.codegen        # Wrong environment
@@ -131,8 +131,7 @@ echo "Code.ensure_loaded(...)" | iex -S mix
 
 # ✅ CORRECT - Test environment with proper tests
 mix test.codegen
-MIX_ENV=test iex -S mix
-# Write proper tests for debugging
+# Write proper tests for debugging instead of interactive sessions
 ```
 
 ### Error Patterns

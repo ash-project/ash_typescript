@@ -10,8 +10,9 @@ mix test
 # ❌ WRONG - Don't manually set MIX_ENV for tests
 MIX_ENV=test mix test
 
-# ✅ CORRECT - For debugging, use test environment
-MIX_ENV=test iex -S mix
+# ✅ CORRECT - For debugging, write proper test files
+# Use existing test patterns from test/ash_typescript/ directory
+mix test test/ash_typescript/your_debug_test.exs
 ```
 
 ### Always Validate TypeScript After Changes
@@ -354,9 +355,15 @@ use ExUnit.Case, async: false
 ```elixir
 test "debug field processing" do
   result = some_function()
+  
+  # Use assertions to validate specific behavior
+  assert result.field == expected_value
+  
+  # Use IO.inspect for debugging output during test development
   IO.inspect(result, label: "Debug result")
-  # Or use IEx.pry for interactive debugging
-  # require IEx; IEx.pry
+  
+  # Create focused test cases for specific scenarios
+  assert Map.has_key?(result, :expected_field)
 end
 ```
 

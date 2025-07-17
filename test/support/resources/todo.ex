@@ -40,6 +40,14 @@ defmodule AshTypescript.Test.Todo do
       public? true
     end
 
+    attribute :priority_score, AshTypescript.Test.Todo.PriorityScore do
+      public? true
+    end
+
+    attribute :color_palette, AshTypescript.Test.Todo.ColorPalette do
+      public? true
+    end
+
     attribute :tags, {:array, :string} do
       default []
       public? true
@@ -258,7 +266,9 @@ defmodule AshTypescript.Test.Todo do
         :metadata,
         :content,
         :attachments,
-        :status_info
+        :status_info,
+        :priority_score,
+        :color_palette
       ]
 
       argument :auto_complete, :boolean do
@@ -287,7 +297,9 @@ defmodule AshTypescript.Test.Todo do
         :metadata,
         :content,
         :attachments,
-        :status_info
+        :status_info,
+        :priority_score,
+        :color_palette
       ]
     end
 

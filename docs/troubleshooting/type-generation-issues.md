@@ -6,6 +6,40 @@ This guide covers TypeScript type generation problems, including schema generati
 
 ## Type Generation Issues
 
+### Problem: Custom Types Not Detected
+
+**Symptoms**:
+- Custom types returning "any" instead of proper type names
+- TypeScript compilation errors for custom types
+- Missing type aliases in generated output
+
+**Root Cause**: Custom type missing required callbacks
+
+**Solution**: Implement both `typescript_type_name/0` and `typescript_type_def/0`
+
+```elixir
+# ✅ CORRECT: Custom type with both callbacks
+defmodule MyApp.PriorityScore do
+  use Ash.Type
+  
+  # Required AshTypescript callbacks
+  def typescript_type_name, do: "PriorityScore"
+  def typescript_type_def, do: "number"
+  
+  # Standard Ash.Type callbacks
+  def storage_type(_), do: :integer
+  def cast_input(value, _), do: # ... validation logic
+  def cast_stored(value, _), do: {:ok, value}
+  def dump_to_native(value, _), do: {:ok, value}
+  def apply_constraints(value, _), do: {:ok, value}
+end
+```
+
+**Validation Steps**:
+1. Check both callbacks exist: `function_exported?(MyType, :typescript_type_name, 0)`
+2. Verify type detection: `AshTypescript.Codegen.get_ts_type(%{type: MyType, constraints: []})`
+3. Test alias generation: `mix test.codegen` and check output
+
 ### Problem: Generated Types Contain 'any'
 
 **Symptoms**:

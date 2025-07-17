@@ -51,7 +51,7 @@ This quick reference helps AI assistants rapidly identify and route AshTypescrip
 ### Step 1: Environment Check (Most Common)
 ```bash
 # Quick environment verification
-MIX_ENV=test mix test.codegen --dry-run
+mix test.codegen --dry-run
 ```
 - **Success**: Environment is correct, proceed to Step 2
 - **Failure**: See [Environment Issues](environment-issues.md)
@@ -59,7 +59,7 @@ MIX_ENV=test mix test.codegen --dry-run
 ### Step 2: Basic Type Generation
 ```bash
 # Test basic type generation
-MIX_ENV=test mix test.codegen
+mix test.codegen
 ```
 - **Success**: Type generation works, proceed to Step 3
 - **Failure**: See [Type Generation Issues](type-generation-issues.md)
@@ -101,17 +101,17 @@ mix test test/ash_typescript/rpc/rpc_actions_test.exs
 
 ### Environment Commands
 ```bash
-# Environment validation
-MIX_ENV=test mix run -e "IO.inspect(AshTypescript.Test.Domain.resources())"
+# Environment validation - write proper tests instead of one-off commands
+mix test                           # Validates environment setup
 
-# Context creation test
-MIX_ENV=test mix run -e "context = AshTypescript.Rpc.FieldParser.Context.new(hd(resources), formatter)"
+# Context creation test - write proper tests instead of one-off commands
+mix test test/ash_typescript/rpc/  # Tests Context module functionality
 ```
 
 ### Type Generation Commands
 ```bash
 # Type generation debugging
-MIX_ENV=test mix test.codegen --dry-run
+mix test.codegen --dry-run
 
 # TypeScript validation
 cd test/ts && npx tsc generated.ts --noEmit --strict

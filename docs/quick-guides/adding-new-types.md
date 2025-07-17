@@ -7,10 +7,74 @@ This quick guide walks through adding support for new Ash types in AshTypescript
 ## When to Use This Guide
 
 - Adding a new Ash type that needs TypeScript mapping
-- Custom types not supported by default
+- Creating custom types with `typescript_type_name/0` and `typescript_type_def/0` callbacks
 - Types with specific constraint handling needs
 
-## Basic Type Addition
+## Custom Types with TypeScript Callbacks
+
+### Step 1: Create Custom Type Module
+
+Create a custom type that implements both required callbacks:
+
+```elixir
+defmodule MyApp.PriorityScore do
+  use Ash.Type
+  
+  # Required Ash.Type callbacks
+  def storage_type(_), do: :integer
+  def cast_input(value, _) when is_integer(value) and value >= 1 and value <= 100, do: {:ok, value}
+  def cast_input(_, _), do: {:error, "must be integer 1-100"}
+  def cast_stored(value, _), do: {:ok, value}
+  def dump_to_native(value, _), do: {:ok, value}
+  def apply_constraints(value, _), do: {:ok, value}
+  
+  # Required AshTypescript callbacks
+  def typescript_type_name, do: "PriorityScore"
+  def typescript_type_def, do: "number"
+end
+```
+
+### Step 2: Complex Custom Type Example
+
+For custom types with complex TypeScript definitions:
+
+```elixir
+defmodule MyApp.ColorPalette do
+  use Ash.Type
+  
+  def storage_type(_), do: :map
+  # ... standard Ash.Type callbacks
+  
+  def typescript_type_name, do: "ColorPalette"
+  def typescript_type_def do
+    """
+    {
+      primary: string;
+      secondary: string;
+      accent: string;
+    }
+    """
+  end
+end
+```
+
+### Step 3: Use in Resource
+
+Add your custom type to a resource:
+
+```elixir
+defmodule MyApp.Todo do
+  use Ash.Resource, domain: MyApp.Domain
+  
+  attributes do
+    uuid_primary_key :id
+    attribute :priority_score, MyApp.PriorityScore, public?: true
+    attribute :color_palette, MyApp.ColorPalette, public?: true
+  end
+end
+```
+
+## Basic Type Addition (Manual Mapping)
 
 ### Step 1: Add Type Mapping
 
@@ -159,6 +223,36 @@ end
 
 ## Testing Your New Type
 
+### Custom Type Tests
+
+```elixir
+defmodule MyApp.PriorityScoreTest do
+  use ExUnit.Case
+  alias MyApp.PriorityScore
+  
+  test "custom type has required callbacks" do
+    assert function_exported?(PriorityScore, :typescript_type_name, 0)
+    assert function_exported?(PriorityScore, :typescript_type_def, 0)
+    assert PriorityScore.typescript_type_name() == "PriorityScore"
+    assert PriorityScore.typescript_type_def() == "number"
+  end
+  
+  test "generates correct TypeScript" do
+    result = AshTypescript.Codegen.get_ts_type(%{
+      type: PriorityScore,
+      constraints: []
+    })
+    
+    assert result == "PriorityScore"
+  end
+  
+  test "generates TypeScript alias" do
+    result = AshTypescript.Codegen.generate_ash_type_aliases([MyApp.Todo], [])
+    assert result =~ "type PriorityScore = number;"
+  end
+end
+```
+
 ### Basic Test Pattern
 
 ```elixir
@@ -241,6 +335,9 @@ mix test
 
 # Run specific type tests
 mix test test/ash_typescript/typescript_codegen_test.exs
+
+# Run custom type tests
+mix test test/ash_typescript/custom_types_test.exs
 ```
 
 ## Common Patterns
