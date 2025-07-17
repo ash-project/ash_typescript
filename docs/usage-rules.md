@@ -444,13 +444,52 @@ const complexTodo = await getTodo({
 
 **Working with custom types:**
 
+**Step 1: Define custom type in Elixir:**
+
+```elixir
+defmodule MyApp.ColorPalette do
+  use Ash.Type
+  
+  def storage_type(_), do: :map
+  # ... standard Ash.Type callbacks
+  
+  # AshTypescript integration
+  def typescript_type_name, do: "CustomTypes.ColorPalette"
+end
+```
+
+**Step 2: Configure imports in config:**
+
+```elixir
+# config/config.exs
+config :ash_typescript,
+  output_file: "assets/js/ash_rpc.ts",
+  import_into_generated: [
+    %{
+      import_name: "CustomTypes",
+      file: "./customTypes"
+    }
+  ]
+```
+
+**Step 3: Create TypeScript type definitions:**
+
 ```typescript
-// Custom type defined in Ash
-type ColorPalette = {
+// customTypes.ts
+export type ColorPalette = {
   primary: string;
   secondary: string;
   accent: string;
 };
+
+export type PriorityScore = number;
+```
+
+**Step 4: Use in your application:**
+
+```typescript
+// Generated code automatically includes:
+// import * as CustomTypes from "./customTypes";
 
 const todoWithColors = await getTodo({
   fields: ["id", "title", "colorPalette"]
@@ -703,7 +742,13 @@ config :ash_typescript,
   output_file: "assets/js/ash_rpc.ts",
   run_endpoint: "/rpc/run",
   validate_endpoint: "/rpc/validate",
-  require_tenant_parameters: false  # true for explicit tenant parameters
+  require_tenant_parameters: false,  # true for explicit tenant parameters
+  import_into_generated: [
+    %{
+      import_name: "CustomTypes",
+      file: "./customTypes"
+    }
+  ]
 ```
 
 ## Quick Commands

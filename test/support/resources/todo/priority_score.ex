@@ -38,10 +38,5 @@ defmodule AshTypescript.Test.Todo.PriorityScore do
   @doc """
   Returns the TypeScript type name for this custom type.
   """
-  def typescript_type_name, do: "PriorityScore"
-
-  @doc """
-  Returns the TypeScript type definition for this custom type.
-  """
-  def typescript_type_def, do: "number"
+  def typescript_type_name, do: "CustomTypes.PriorityScore"
 end

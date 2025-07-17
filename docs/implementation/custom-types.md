@@ -2,13 +2,13 @@
 
 ## Overview
 
-This guide provides comprehensive information for implementing custom types in AshTypescript with the `typescript_type_name/0` and `typescript_type_def/0` callback system.
+This guide provides comprehensive information for implementing custom types in AshTypescript with the `typescript_type_name/0` callback system and external type definitions.
 
 ## Architecture
 
 ### Custom Type Detection System
 
-AshTypescript automatically detects custom types that implement both required callbacks:
+AshTypescript automatically detects custom types that implement the required callback:
 
 ```elixir
 # In lib/ash_typescript/codegen.ex
@@ -16,14 +16,13 @@ defp is_custom_type?(type) do
   is_atom(type) and
     Code.ensure_loaded?(type) and
     function_exported?(type, :typescript_type_name, 0) and
-    function_exported?(type, :typescript_type_def, 0) and
     Spark.implements_behaviour?(type, Ash.Type)
 end
 ```
 
 ### Type Generation Pipeline
 
-1. **Type Alias Generation**: Combines name and definition into complete TypeScript type
+1. **Import Generation**: Adds configured import statements to the generated TypeScript file
 2. **Type Name Resolution**: Uses `typescript_type_name/0` directly for field references
 3. **Automatic Integration**: Works seamlessly with existing type inference system
 
@@ -45,10 +44,16 @@ defmodule MyApp.PriorityScore do
   def dump_to_native(value, _), do: {:ok, value}
   def apply_constraints(value, _), do: {:ok, value}
   
-  # AshTypescript callbacks
-  def typescript_type_name, do: "PriorityScore"
-  def typescript_type_def, do: "number"
+  # AshTypescript callback
+  def typescript_type_name, do: "CustomTypes.PriorityScore"
 end
+```
+
+Then define the type in your TypeScript file:
+
+```typescript
+// customTypes.ts
+export type PriorityScore = number;
 ```
 
 ### Complex Custom Types
@@ -62,17 +67,34 @@ defmodule MyApp.ColorPalette do
   def storage_type(_), do: :map
   # ... standard callbacks for map validation
   
-  def typescript_type_name, do: "ColorPalette"
-  def typescript_type_def do
-    """
-    {
-      primary: string;
-      secondary: string;
-      accent: string;
-    }
-    """
-  end
+  def typescript_type_name, do: "CustomTypes.ColorPalette"
 end
+```
+
+Then define the type in your TypeScript file:
+
+```typescript
+// customTypes.ts
+export type ColorPalette = {
+  primary: string;
+  secondary: string;
+  accent: string;
+};
+```
+
+### Configuration Setup
+
+Add the import configuration to your application config:
+
+```elixir
+# config/config.exs
+config :my_app,
+  import_into_generated: [
+    %{
+      import_name: "CustomTypes",
+      file: "./customTypes"
+    }
+  ]
 ```
 
 ### Union-Like Custom Types
@@ -86,9 +108,15 @@ defmodule MyApp.StatusLevel do
   def storage_type(_), do: :string
   # ... validation for specific values
   
-  def typescript_type_name, do: "StatusLevel"
-  def typescript_type_def, do: "\"low\" | \"medium\" | \"high\" | \"critical\""
+  def typescript_type_name, do: "CustomTypes.StatusLevel"
 end
+```
+
+Then define the type in your TypeScript file:
+
+```typescript
+// customTypes.ts
+export type StatusLevel = "low" | "medium" | "high" | "critical";
 ```
 
 ## Advanced Patterns
@@ -149,30 +177,25 @@ defmodule MyApp.PriorityScoreTest do
   describe "custom type detection" do
     test "implements required callbacks" do
       assert function_exported?(PriorityScore, :typescript_type_name, 0)
-      assert function_exported?(PriorityScore, :typescript_type_def, 0)
       assert Spark.implements_behaviour?(PriorityScore, Ash.Type)
     end
   end
   
   describe "typescript generation" do
     test "generates correct type name" do
-      assert PriorityScore.typescript_type_name() == "PriorityScore"
-    end
-    
-    test "generates correct type definition" do
-      assert PriorityScore.typescript_type_def() == "number"
+      assert PriorityScore.typescript_type_name() == "CustomTypes.PriorityScore"
     end
     
     test "integrates with type inference" do
       result = AshTypescript.Codegen.get_ts_type(%{type: PriorityScore, constraints: []})
-      assert result == "PriorityScore"
+      assert result == "CustomTypes.PriorityScore"
     end
   end
   
   describe "typescript compilation" do
-    test "generates valid typescript alias" do
-      result = AshTypescript.Codegen.generate_ash_type_aliases([MyApp.Todo], [])
-      assert result =~ "type PriorityScore = number;"
+    test "generates imports instead of type aliases" do
+      result = AshTypescript.Rpc.Codegen.generate_typescript_types(:my_app)
+      assert result =~ "import * as CustomTypes from \"./customTypes\";"
     end
   end
 end

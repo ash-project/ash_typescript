@@ -257,9 +257,9 @@ defmodule AshTypescript.Codegen do
 
   defp generate_ash_type_alias(type) do
     cond do
-      # NEW: Custom type detection - check before other patterns
+      # Custom types no longer generate type aliases - they are imported from external files
       is_custom_type?(type) ->
-        generate_custom_type_alias(type)
+        ""
 
       Ash.Type.NewType.new_type?(type) or Spark.implements_behaviour?(type, Ash.Type.Enum) ->
         ""
@@ -274,22 +274,15 @@ defmodule AshTypescript.Codegen do
   end
 
   # Checks if a type is a custom type that implements the required TypeScript callbacks.
-  # Custom types must implement Ash.Type behaviour and provide both typescript_type_name/0 and typescript_type_def/0.
+  # Custom types must implement Ash.Type behaviour and provide typescript_type_name/0.
   defp is_custom_type?(type) do
     is_atom(type) and
       Code.ensure_loaded?(type) and
       function_exported?(type, :typescript_type_name, 0) and
-      function_exported?(type, :typescript_type_def, 0) and
       Spark.implements_behaviour?(type, Ash.Type)
   end
 
-  # Generates a TypeScript type alias for a custom type.
-  # Combines the type name and definition from the callbacks.
-  defp generate_custom_type_alias(type) do
-    type_name = apply(type, :typescript_type_name, [])
-    type_def = apply(type, :typescript_type_def, [])
-    "type #{type_name} = #{type_def};"
-  end
+  # Custom types no longer generate type aliases - they are imported from external files
 
 
   def generate_all_schemas_for_resources(resources, allowed_resources) do

@@ -10,12 +10,10 @@ defmodule AshTypescript.CustomTypesTest do
       assert Spark.implements_behaviour?(PriorityScore, Ash.Type)
     end
 
-    test "custom type has typescript_type_name/0 and typescript_type_def/0 callbacks" do
-      # Test that our custom type implements both required callbacks
+    test "custom type has typescript_type_name/0 callback" do
+      # Test that our custom type implements the required callback
       assert function_exported?(PriorityScore, :typescript_type_name, 0)
-      assert function_exported?(PriorityScore, :typescript_type_def, 0)
-      assert PriorityScore.typescript_type_name() == "PriorityScore"
-      assert PriorityScore.typescript_type_def() == "number"
+      assert PriorityScore.typescript_type_name() == "CustomTypes.PriorityScore"
     end
 
     test "custom type has required Ash.Type callbacks" do
@@ -27,13 +25,9 @@ defmodule AshTypescript.CustomTypesTest do
     end
 
     test "complex custom type has typescript callbacks" do
-      # Test that complex custom types also implement both required callbacks
+      # Test that complex custom types also implement the required callback
       assert function_exported?(ColorPalette, :typescript_type_name, 0)
-      assert function_exported?(ColorPalette, :typescript_type_def, 0)
-      assert ColorPalette.typescript_type_name() == "ColorPalette"
-      assert ColorPalette.typescript_type_def() =~ "primary: string"
-      assert ColorPalette.typescript_type_def() =~ "secondary: string"
-      assert ColorPalette.typescript_type_def() =~ "accent: string"
+      assert ColorPalette.typescript_type_name() == "CustomTypes.ColorPalette"
     end
   end
 
@@ -65,51 +59,51 @@ defmodule AshTypescript.CustomTypesTest do
   end
 
   describe "TypeScript type generation - custom types" do
-    test "generates TypeScript type aliases including custom types" do
-      # Test that custom types are included in the full type aliases generation
+    test "custom types do not generate type aliases (they are imported)" do
+      # Test that custom types no longer generate type aliases (they are imported from external files)
       result = Codegen.generate_ash_type_aliases([AshTypescript.Test.Todo], [])
-      assert result =~ "type PriorityScore = number;"
+      refute result =~ "type PriorityScore = number;"
     end
 
     test "get_ts_type/2 maps custom type to TypeScript type" do
       result = Codegen.get_ts_type(%{type: PriorityScore, constraints: []})
-      assert result == "PriorityScore"
+      assert result == "CustomTypes.PriorityScore"
     end
 
     test "custom type in array generates proper TypeScript array type" do
       result = Codegen.get_ts_type(%{type: {:array, PriorityScore}, constraints: []})
-      assert result == "Array<PriorityScore>"
+      assert result == "Array<CustomTypes.PriorityScore>"
     end
 
     test "complex custom type with map storage generates precise TypeScript" do
       result = Codegen.get_ts_type(%{type: ColorPalette, constraints: []})
-      assert result == "ColorPalette"
+      assert result == "CustomTypes.ColorPalette"
     end
 
-    test "complex custom type generates full TypeScript type definition" do
+    test "complex custom type no longer generates type definition (it is imported)" do
       result = Codegen.generate_ash_type_aliases([AshTypescript.Test.Todo], [])
-      assert result =~ "type ColorPalette = {"
-      assert result =~ "primary: string;"
-      assert result =~ "secondary: string;"
-      assert result =~ "accent: string;"
+      refute result =~ "type ColorPalette = {"
+      refute result =~ "primary: string;"
+      refute result =~ "secondary: string;"
+      refute result =~ "accent: string;"
     end
   end
 
   describe "Resource schema generation with custom types" do
     test "Todo resource includes priority_score with custom type" do
       schema = Codegen.generate_attributes_schema(AshTypescript.Test.Todo)
-      assert schema =~ "priorityScore?: PriorityScore"
+      assert schema =~ "priorityScore?: CustomTypes.PriorityScore"
     end
 
     test "Todo resource includes color_palette with complex custom type" do
       schema = Codegen.generate_attributes_schema(AshTypescript.Test.Todo)
-      assert schema =~ "colorPalette?: ColorPalette"
+      assert schema =~ "colorPalette?: CustomTypes.ColorPalette"
     end
 
-    test "full TypeScript generation includes custom type alias" do
+    test "full TypeScript generation includes import statements" do
       # This will test the full generation pipeline
       result = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
-      assert result =~ "type PriorityScore = number;"
+      assert result =~ "import * as CustomTypes from \"./customTypes\";"
     end
   end
 
@@ -133,8 +127,8 @@ defmodule AshTypescript.CustomTypesTest do
       # Since we're testing the core implementation, we'll just verify
       # that the generated code includes what we expect
       result = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
-      assert result =~ "type PriorityScore = number;"
-      assert result =~ "priorityScore?: PriorityScore"
+      assert result =~ "import * as CustomTypes from \"./customTypes\";"
+      assert result =~ "priorityScore?: CustomTypes.PriorityScore"
     end
   end
 end

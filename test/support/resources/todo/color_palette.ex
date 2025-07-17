@@ -11,10 +11,12 @@ defmodule AshTypescript.Test.Todo.ColorPalette do
 
   @impl true
   def cast_input(nil, _), do: {:ok, nil}
-  def cast_input(%{primary: primary, secondary: secondary, accent: accent} = value, _) 
-    when is_binary(primary) and is_binary(secondary) and is_binary(accent) do
+
+  def cast_input(%{primary: primary, secondary: secondary, accent: accent} = value, _)
+      when is_binary(primary) and is_binary(secondary) and is_binary(accent) do
     {:ok, value}
   end
+
   def cast_input(value, _) when is_map(value) do
     with {:ok, primary} <- Map.fetch(value, :primary),
          {:ok, secondary} <- Map.fetch(value, :secondary),
@@ -24,6 +26,7 @@ defmodule AshTypescript.Test.Todo.ColorPalette do
       _ -> {:error, "must be a map with primary, secondary, and accent colors"}
     end
   end
+
   def cast_input(_, _), do: {:error, "must be a map with primary, secondary, and accent colors"}
 
   @impl true
@@ -43,19 +46,5 @@ defmodule AshTypescript.Test.Todo.ColorPalette do
   @doc """
   Returns the TypeScript type name for this custom type.
   """
-  def typescript_type_name, do: "ColorPalette"
-
-  @doc """
-  Returns the TypeScript type definition for this custom type.
-  This shows the power of custom types with complex storage types.
-  """
-  def typescript_type_def do
-    """
-    {
-      primary: string;
-      secondary: string;
-      accent: string;
-    }
-    """
-  end
+  def typescript_type_name, do: "CustomTypes.ColorPalette"
 end

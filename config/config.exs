@@ -10,7 +10,13 @@ if Mix.env() == :test do
     ash_domains: [
       AshTypescript.Test.Domain
     ],
-    output_file: "./test/ts/generated.ts"
+    output_file: "./test/ts/generated.ts",
+    import_into_generated: [
+      %{
+        import_name: "CustomTypes",
+        file: "./customTypes"
+      }
+    ]
 
   config :logger, :console, level: :info
 end

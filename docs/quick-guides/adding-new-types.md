@@ -7,14 +7,14 @@ This quick guide walks through adding support for new Ash types in AshTypescript
 ## When to Use This Guide
 
 - Adding a new Ash type that needs TypeScript mapping
-- Creating custom types with `typescript_type_name/0` and `typescript_type_def/0` callbacks
+- Creating custom types with `typescript_type_name/0` callback and external type definitions
 - Types with specific constraint handling needs
 
 ## Custom Types with TypeScript Callbacks
 
 ### Step 1: Create Custom Type Module
 
-Create a custom type that implements both required callbacks:
+Create a custom type that implements the required callback:
 
 ```elixir
 defmodule MyApp.PriorityScore do
@@ -28,13 +28,42 @@ defmodule MyApp.PriorityScore do
   def dump_to_native(value, _), do: {:ok, value}
   def apply_constraints(value, _), do: {:ok, value}
   
-  # Required AshTypescript callbacks
-  def typescript_type_name, do: "PriorityScore"
-  def typescript_type_def, do: "number"
+  # Required AshTypescript callback
+  def typescript_type_name, do: "CustomTypes.PriorityScore"
 end
 ```
 
-### Step 2: Complex Custom Type Example
+### Step 2: Configure TypeScript Imports
+
+Add your TypeScript types to the application configuration:
+
+```elixir
+# config/config.exs
+config :my_app,
+  import_into_generated: [
+    %{
+      import_name: "CustomTypes",
+      file: "./customTypes"
+    }
+  ]
+```
+
+### Step 3: Create TypeScript Type Definitions
+
+Create a TypeScript file with your type definitions:
+
+```typescript
+// customTypes.ts
+export type PriorityScore = number;
+
+export type ColorPalette = {
+  primary: string;
+  secondary: string;
+  accent: string;
+};
+```
+
+### Step 4: Complex Custom Type Example
 
 For custom types with complex TypeScript definitions:
 
@@ -45,20 +74,11 @@ defmodule MyApp.ColorPalette do
   def storage_type(_), do: :map
   # ... standard Ash.Type callbacks
   
-  def typescript_type_name, do: "ColorPalette"
-  def typescript_type_def do
-    """
-    {
-      primary: string;
-      secondary: string;
-      accent: string;
-    }
-    """
-  end
+  def typescript_type_name, do: "CustomTypes.ColorPalette"
 end
 ```
 
-### Step 3: Use in Resource
+### Step 5: Use in Resource
 
 Add your custom type to a resource:
 

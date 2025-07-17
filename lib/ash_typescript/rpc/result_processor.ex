@@ -391,8 +391,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   defp is_custom_type_with_map_storage?(type) do
     # Check if it implements the required AshTypescript callbacks
     implements_typescript_callbacks? = 
-      function_exported?(type, :typescript_type_name, 0) and
-      function_exported?(type, :typescript_type_def, 0)
+      function_exported?(type, :typescript_type_name, 0)
     
     # Check if it has map storage type (indicating it returns structured data)
     has_map_storage? = 

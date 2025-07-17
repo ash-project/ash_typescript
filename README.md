@@ -302,7 +302,13 @@ config :ash_typescript,
   output_file: "assets/js/ash_rpc.ts",
   run_endpoint: "/rpc/run",
   validate_endpoint: "/rpc/validate",
-  require_tenant_parameters: false
+  require_tenant_parameters: false,
+  import_into_generated: [
+    %{
+      import_name: "CustomTypes",
+      file: "./customTypes"
+    }
+  ]
 ```
 
 ### Domain Configuration
@@ -341,6 +347,65 @@ Customize how field names are formatted in generated TypeScript:
 # Default: snake_case → camelCase
 # user_name → userName
 # created_at → createdAt
+```
+
+### Custom Types
+
+Create custom Ash types with TypeScript integration:
+
+```elixir
+# 1. Create custom type in Elixir
+defmodule MyApp.PriorityScore do
+  use Ash.Type
+  
+  def storage_type(_), do: :integer
+  def cast_input(value, _) when is_integer(value) and value >= 1 and value <= 100, do: {:ok, value}
+  def cast_input(_, _), do: {:error, "must be integer 1-100"}
+  def cast_stored(value, _), do: {:ok, value}
+  def dump_to_native(value, _), do: {:ok, value}
+  def apply_constraints(value, _), do: {:ok, value}
+  
+  # AshTypescript integration
+  def typescript_type_name, do: "CustomTypes.PriorityScore"
+end
+```
+
+```typescript
+// 2. Create TypeScript type definitions in customTypes.ts
+export type PriorityScore = number;
+
+export type ColorPalette = {
+  primary: string;
+  secondary: string;
+  accent: string;
+};
+```
+
+```elixir
+# 3. Use in your resources
+defmodule MyApp.Todo do
+  use Ash.Resource, domain: MyApp.Domain
+  
+  attributes do
+    uuid_primary_key :id
+    attribute :title, :string, public?: true
+    attribute :priority_score, MyApp.PriorityScore, public?: true
+  end
+end
+```
+
+The generated TypeScript will automatically include your custom types:
+
+```typescript
+// Generated TypeScript includes imports
+import * as CustomTypes from "./customTypes";
+
+// Your resource types use the custom types
+interface TodoFieldsSchema {
+  id: string;
+  title: string;
+  priorityScore?: CustomTypes.PriorityScore | null;
+}
 ```
 
 ## 🛠️ Mix Tasks
@@ -383,8 +448,9 @@ AshTypescript generates:
 1. **TypeScript interfaces** for all resources
 2. **RPC client functions** for each exposed action
 3. **Field selection types** for type-safe field specification
-4. **Enum types** for custom Ash types
-5. **Utility functions** for headers and validation
+4. **Custom type imports** for external TypeScript definitions
+5. **Enum types** for Ash enum types
+6. **Utility functions** for headers and validation
 
 ### Generated Functions
 
