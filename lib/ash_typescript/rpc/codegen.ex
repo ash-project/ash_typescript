@@ -79,6 +79,8 @@ defmodule AshTypescript.Rpc.Codegen do
 
     #{generate_utility_types()}
 
+    #{generate_helper_functions()}
+
     #{generate_rpc_functions(rpc_resources_and_actions, endpoint_process, endpoint_validate, otp_app, all_resources_for_schemas)}
     """
   end
@@ -210,6 +212,38 @@ defmodule AshTypescript.Rpc.Codegen do
         [K in keyof SelectedFields]: ProcessField<Resource, SelectedFields[K]>
       }[number]
     >;
+
+    """
+  end
+
+  defp generate_helper_functions do
+    """
+    // Helper Functions
+    
+    /**
+     * Gets the CSRF token from the page's meta tag
+     * Returns null if no CSRF token is found
+     */
+    export function getPhoenixCSRFToken(): string | null {
+      return document
+        ?.querySelector("meta[name='csrf-token']")
+        ?.getAttribute("content") || null;
+    }
+
+    /**
+     * Builds headers object with CSRF token for Phoenix applications
+     * Returns headers object with X-CSRF-Token (if available)
+     */
+    export function buildCSRFHeaders(): Record<string, string> {
+      const headers: Record<string, string> = {};
+
+      const csrfToken = getPhoenixCSRFToken();
+      if (csrfToken) {
+        headers["X-CSRF-Token"] = csrfToken;
+      }
+
+      return headers;
+    }
 
     """
   end
@@ -463,6 +497,11 @@ defmodule AshTypescript.Rpc.Codegen do
       "  #{formatted_fields_name}: UnifiedFieldSelection<#{resource_name}ResourceSchema>[];"
     ]
 
+    # Add headers field (optional)
+    headers_field = [
+      "  headers?: Record<string, string>;"
+    ]
+
     # Add input fields based on action type
     input_fields =
       case action.type do
@@ -599,9 +638,9 @@ defmodule AshTypescript.Rpc.Codegen do
 
     all_fields =
       if action.type in [:read, :create, :update] do
-        tenant_field ++ input_fields ++ fields_field
+        tenant_field ++ input_fields ++ fields_field ++ headers_field
       else
-        tenant_field ++ input_fields
+        tenant_field ++ input_fields ++ headers_field
       end
 
     """
@@ -894,17 +933,10 @@ defmodule AshTypescript.Rpc.Codegen do
     ): Promise<#{result_type}> {
       const payload = build#{rpc_action_name_pascal}Payload(config);
 
-      const csrfToken = document
-        ?.querySelector("meta[name='csrf-token']")
-        ?.getAttribute("content");
-
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
+        ...config.headers,
       };
-
-      if (csrfToken) {
-        headers["X-CSRF-Token"] = csrfToken;
-      }
 
       const response = await fetch("#{endpoint_process}", {
         method: "POST",
@@ -1016,7 +1048,7 @@ defmodule AshTypescript.Rpc.Codegen do
         payload_content = Enum.join(payload_lines, ",\n    ")
 
         """
-        export async function #{validation_function_name}(#{params}): Promise<{
+        export async function #{validation_function_name}(#{params}, headers?: Record<string, string>): Promise<{
           success: boolean;
           errors?: Record<string, string[]>;
         }> {
@@ -1024,21 +1056,14 @@ defmodule AshTypescript.Rpc.Codegen do
             #{payload_content}
           };
 
-          const csrfToken = document
-            ?.querySelector("meta[name='csrf-token']")
-            ?.getAttribute("content");
-
-          const headers: Record<string, string> = {
+          const requestHeaders: Record<string, string> = {
             "Content-Type": "application/json",
+            ...headers,
           };
-
-          if (csrfToken) {
-            headers["X-CSRF-Token"] = csrfToken;
-          }
 
           const response = await fetch("#{endpoint_validate}", {
             method: "POST",
-            headers,
+            headers: requestHeaders,
             body: JSON.stringify(payload),
           });
 

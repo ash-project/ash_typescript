@@ -14,9 +14,49 @@ Each entry includes:
 - **Impact**: How this affects future development
 - **Key Insights**: Lessons learned or patterns discovered
 
+## Entry Guidelines
+
+### What to Include
+- **Major architectural decisions** and their reasoning
+- **Pattern changes** that affect how code should be written
+- **Critical bug fixes** and their root causes
+- **Performance improvements** and optimization strategies
+- **Breaking changes** and migration strategies
+- **Documentation restructuring** and new workflows
+- **Tool or dependency changes** and their impact
+
+### What to Exclude
+- **Routine maintenance** without architectural impact
+- **Minor bug fixes** that don't reveal patterns
+- **Cosmetic changes** without functional impact
+- **Experimental changes** that were reverted
+- **Personal preferences** without project-wide impact
+
+### Writing Style
+- **Be concise** but provide enough context
+- **Focus on reasoning** rather than just what changed
+- **Include file references** for easy navigation
+- **Highlight patterns** that apply to future work
+- **Use present tense** for current state descriptions
+- **Use past tense** for completed changes
+
+### Update Frequency
+- **After significant changes** that affect how work is done
+- **When new patterns emerge** from implementation work
+- **After architectural decisions** that impact future development
+- **When documentation structure changes** occur
+- **After major bug fixes** that reveal important insights
+
 ---
 
 ## 2025-07-17
+
+### RPC Headers Support Implementation
+**Change**: Added optional headers parameter to all RPC config types and generated helper functions for CSRF token handling
+**Context**: Hardcoded CSRF token functionality was not suitable for all authentication setups; needed flexibility for different auth patterns
+**Files**: `lib/ash_typescript/rpc/codegen.ex`, `test/ash_typescript/rpc/rpc_typescript_codegen_test.exs`, `CLAUDE.md`, `docs/ai-quick-reference.md`
+**Impact**: All RPC functions now accept custom headers while maintaining backward compatibility; developers can implement any authentication pattern
+**Key Insights**: Generated TypeScript functions should be flexible enough to work with any authentication setup rather than assuming specific patterns like Phoenix CSRF tokens
 
 ### Documentation Framework Modernization
 **Change**: Replaced achievement tracking with practical changelog system in AI documentation framework
@@ -74,41 +114,6 @@ Each entry includes:
 **Files**: `lib/ash_typescript/codegen.ex`, `lib/ash_typescript/rpc/codegen.ex`, `lib/ash_typescript/rpc/field_parser.ex`, `lib/ash_typescript/rpc/result_processor.ex`
 **Impact**: Embedded resources work exactly like relationships with unified object notation and full calculation support
 **Key Insights**: Dual-nature processing (attributes + calculations) requires three-stage pipeline; relationship-like architecture provides consistency
-
----
-
-## Entry Guidelines
-
-### What to Include
-- **Major architectural decisions** and their reasoning
-- **Pattern changes** that affect how code should be written
-- **Critical bug fixes** and their root causes
-- **Performance improvements** and optimization strategies
-- **Breaking changes** and migration strategies
-- **Documentation restructuring** and new workflows
-- **Tool or dependency changes** and their impact
-
-### What to Exclude
-- **Routine maintenance** without architectural impact
-- **Minor bug fixes** that don't reveal patterns
-- **Cosmetic changes** without functional impact
-- **Experimental changes** that were reverted
-- **Personal preferences** without project-wide impact
-
-### Writing Style
-- **Be concise** but provide enough context
-- **Focus on reasoning** rather than just what changed
-- **Include file references** for easy navigation
-- **Highlight patterns** that apply to future work
-- **Use present tense** for current state descriptions
-- **Use past tense** for completed changes
-
-### Update Frequency
-- **After significant changes** that affect how work is done
-- **When new patterns emerge** from implementation work
-- **After architectural decisions** that impact future development
-- **When documentation structure changes** occur
-- **After major bug fixes** that reveal important insights
 
 ---
 

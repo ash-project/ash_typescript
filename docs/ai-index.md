@@ -20,12 +20,18 @@ This index helps AI assistants quickly find the most relevant documentation for 
 |------|----------------------|------------------|
 | **Type Generation/Inference** | [ai-implementation-guide.md](ai-implementation-guide.md) | [test/ash_typescript/](../test/ash_typescript/) |
 | **Custom Types** | [quick-guides/adding-new-types.md](quick-guides/adding-new-types.md) | [implementation/custom-types.md](implementation/custom-types.md), [test/ash_typescript/custom_types_test.exs](../test/ash_typescript/custom_types_test.exs) |
-| **RPC Features** | [ai-implementation-guide.md](ai-implementation-guide.md) | [test/ash_typescript/rpc/](../test/ash_typescript/rpc/) |
+| **RPC Features** | [ai-implementation-guide.md](ai-implementation-guide.md) | [test/ash_typescript/rpc/](../test/ash_typescript/rpc/), [ai-quick-reference.md](ai-quick-reference.md) |
 | **Field Selection** | [ai-implementation-guide.md](ai-implementation-guide.md) | [ai-quick-reference.md](ai-quick-reference.md) |
 | **Embedded Resources** | [ai-implementation-guide.md](ai-implementation-guide.md) | [test/support/resources/embedded/](../test/support/resources/embedded/) |
 | **Union Types** | [ai-implementation-guide.md](ai-implementation-guide.md) | [test/ash_typescript/rpc/rpc_union_*_test.exs](../test/ash_typescript/rpc/) |
 | **Multitenancy** | [ai-implementation-guide.md](ai-implementation-guide.md) | [test/ash_typescript/rpc/rpc_multitenancy_*_test.exs](../test/ash_typescript/rpc/) |
 | **Test Organization** | [quick-guides/test-organization.md](quick-guides/test-organization.md) | [test/ts/shouldPass/](../test/ts/shouldPass/), [test/ts/shouldFail/](../test/ts/shouldFail/) |
+
+### Documentation Tasks
+| Task | Primary Documentation | Supporting Files |
+|------|----------------------|------------------|
+| **Creating Usage Rules** | [ai-usage-rules-update-guide.md](ai-usage-rules-update-guide.md) | [README.md](../README.md), [CLAUDE.md](../CLAUDE.md) |
+| **Updating README** | [ai-readme-update-guide.md](ai-readme-update-guide.md) | [README.md](../README.md), [CLAUDE.md](../CLAUDE.md) |
 
 ### Troubleshooting
 | Issue Type | Primary Documentation | Emergency Reference |
@@ -46,6 +52,8 @@ This index helps AI assistants quickly find the most relevant documentation for 
 
 ### Small Files (< 500 lines) - Efficient for AI
 - [ai-quick-reference.md](ai-quick-reference.md) (356 lines)
+- [ai-usage-rules-update-guide.md](ai-usage-rules-update-guide.md) (323 lines)
+- [ai-readme-update-guide.md](ai-readme-update-guide.md) (420 lines)
 - [ai-changelog.md](ai-changelog.md) (150 lines)
 - [quick-guides/adding-new-types.md](quick-guides/adding-new-types.md) (400 lines)
 - [quick-guides/test-organization.md](quick-guides/test-organization.md) (200 lines)
@@ -104,5 +112,5 @@ After Phase 2-4 implementation, this index will reference:
 
 ---
 
-**Last Updated**: 2025-07-16
+**Last Updated**: 2025-07-17
 **Documentation Restructuring**: Phase 1 Complete

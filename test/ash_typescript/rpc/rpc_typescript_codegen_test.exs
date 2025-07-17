@@ -87,55 +87,55 @@ defmodule AshTypescript.Rpc.CodegenTest do
       # Assert validation functions are generated for CREATE actions
       assert String.contains?(
                typescript_output,
-               "export async function validateCreateTodo(input: CreateTodoConfig[\"input\"])"
+               "export async function validateCreateTodo(input: CreateTodoConfig[\"input\"], headers?: Record<string, string>)"
              )
 
       assert String.contains?(
                typescript_output,
-               "export async function validateCreateTodoComment(input: CreateTodoCommentConfig[\"input\"])"
+               "export async function validateCreateTodoComment(input: CreateTodoCommentConfig[\"input\"], headers?: Record<string, string>)"
              )
 
       assert String.contains?(
                typescript_output,
-               "export async function validateCreateUser(input: CreateUserConfig[\"input\"])"
+               "export async function validateCreateUser(input: CreateUserConfig[\"input\"], headers?: Record<string, string>)"
              )
 
       # Assert validation functions are generated for UPDATE actions
       assert String.contains?(
                typescript_output,
-               "export async function validateUpdateTodo(primaryKey: string | number, input: UpdateTodoConfig[\"input\"])"
+               "export async function validateUpdateTodo(primaryKey: string | number, input: UpdateTodoConfig[\"input\"], headers?: Record<string, string>)"
              )
 
       assert String.contains?(
                typescript_output,
-               "export async function validateUpdateTodoComment(primaryKey: string | number, input: UpdateTodoCommentConfig[\"input\"])"
+               "export async function validateUpdateTodoComment(primaryKey: string | number, input: UpdateTodoCommentConfig[\"input\"], headers?: Record<string, string>)"
              )
 
       assert String.contains?(
                typescript_output,
-               "export async function validateUpdateUser(primaryKey: string | number, input: UpdateUserConfig[\"input\"])"
+               "export async function validateUpdateUser(primaryKey: string | number, input: UpdateUserConfig[\"input\"], headers?: Record<string, string>)"
              )
 
       # Assert validation functions are generated for other UPDATE actions
       assert String.contains?(
                typescript_output,
-               "export async function validateCompleteTodo(primaryKey: string | number)"
+               "export async function validateCompleteTodo(primaryKey: string | number, headers?: Record<string, string>)"
              )
 
       assert String.contains?(
                typescript_output,
-               "export async function validateSetPriorityTodo(primaryKey: string | number, input: SetPriorityTodoConfig[\"input\"])"
+               "export async function validateSetPriorityTodo(primaryKey: string | number, input: SetPriorityTodoConfig[\"input\"], headers?: Record<string, string>)"
              )
 
       # Assert validation functions are generated for DESTROY actions
       assert String.contains?(
                typescript_output,
-               "export async function validateDestroyTodo(primaryKey: string | number)"
+               "export async function validateDestroyTodo(primaryKey: string | number, headers?: Record<string, string>)"
              )
 
       assert String.contains?(
                typescript_output,
-               "export async function validateDestroyTodoComment(primaryKey: string | number)"
+               "export async function validateDestroyTodoComment(primaryKey: string | number, headers?: Record<string, string>)"
              )
 
       # Assert validation functions are NOT generated for READ actions

@@ -127,7 +127,7 @@ child_context = Context.child(context, target_resource)
 
 ### Unified Field Format (2025-07-15)
 ```typescript
-// ✅ CORRECT - Single unified format
+// ✅ CORRECT - Single unified format with headers
 const result = await getTodo({
   fields: [
     "id", "title",  // Simple fields
@@ -139,7 +139,39 @@ const result = await getTodo({
         fields: ["id", "title"]
       }
     }
-  ]
+  ],
+  headers: buildCSRFHeaders()  // Optional headers
+});
+```
+
+### RPC Headers Support
+```typescript
+// ✅ CORRECT - Headers patterns for different authentication
+import { getTodo, createTodo, buildCSRFHeaders, getPhoenixCSRFToken } from './ash_rpc';
+
+// Phoenix CSRF token pattern
+const todoWithCSRF = await getTodo({
+  fields: ["id", "title"],
+  headers: buildCSRFHeaders()
+});
+
+// Custom authentication headers
+const todoWithAuth = await createTodo({
+  input: { title: "New Task", userId: "123" },
+  fields: ["id", "title"],
+  headers: { 
+    "Authorization": "Bearer token",
+    "X-Custom-Header": "value"
+  }
+});
+
+// Manual CSRF token handling
+const csrfToken = getPhoenixCSRFToken();
+const todoManual = await getTodo({
+  fields: ["id", "title"],
+  headers: {
+    "X-CSRF-Token": csrfToken
+  }
 });
 ```
 
