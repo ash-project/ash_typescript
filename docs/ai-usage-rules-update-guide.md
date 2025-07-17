@@ -4,6 +4,8 @@
 
 This guide provides instructions for creating and updating `usage-rules.md` files that help AI assistants work effectively with packages as dependencies. Unlike internal project documentation, usage rules focus exclusively on end-user patterns and best practices for AI assistants working on projects that use the package.
 
+**File Location**: The `usage-rules.md` file should be created in the project's root folder (same level as README.md and mix.exs).
+
 ## Purpose and Scope
 
 ### What usage-rules.md Is For
