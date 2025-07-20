@@ -287,4 +287,4 @@ end
 **See Also**:
 - [Environment Setup](environment-setup.md) - For development environment requirements
 - [Field Processing](field-processing.md) - For field classification patterns
-- [Troubleshooting](../ai-troubleshooting.md) - For debugging type inference issues
+- [Type Generation Issues](../troubleshooting/type-generation-issues.md) - For debugging type inference issues

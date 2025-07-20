@@ -605,5 +605,4 @@ defmodule AshTypescript.Rpc.FieldParser do
         end
     end
   end
-
 end

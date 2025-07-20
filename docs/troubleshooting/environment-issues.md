@@ -295,5 +295,6 @@ mix format && mix credo      # Code quality
 
 **See Also**:
 - [Type Generation Issues](type-generation-issues.md) - For TypeScript generation problems
-- [Runtime Processing Issues](runtime-processing-issues.md) - For RPC runtime problems  
+- [Runtime Processing Issues](runtime-processing-issues.md) - For RPC runtime problems
+- [Multitenancy Issues](multitenancy-issues.md) - For tenant isolation problems
 - [Quick Reference](quick-reference.md) - For rapid problem identification

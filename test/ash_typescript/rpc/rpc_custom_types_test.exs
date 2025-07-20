@@ -363,7 +363,10 @@ defmodule AshTypescript.Rpc.CustomTypesTest do
   end
 
   describe "Custom type serialization" do
-    test "custom types are properly serialized to JSON-compatible values", %{conn: conn, user_id: user_id} do
+    test "custom types are properly serialized to JSON-compatible values", %{
+      conn: conn,
+      user_id: user_id
+    } do
       color_palette = %{
         "primary" => "#FF0000",
         "secondary" => "#00FF00",
@@ -390,10 +393,10 @@ defmodule AshTypescript.Rpc.CustomTypesTest do
       # Verify the actual values match expectations
       assert data["priorityScore"] == 85
       assert data["colorPalette"] == color_palette
-      
+
       # Verify that PriorityScore is returned as a number (not wrapped)
       assert is_integer(data["priorityScore"])
-      
+
       # Verify that ColorPalette is returned as a map (not wrapped)
       assert is_map(data["colorPalette"])
     end

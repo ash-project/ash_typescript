@@ -71,7 +71,7 @@
 - `CLAUDE.md` - Main AI assistant guide
 - `docs/ai-quick-reference.md` - Quick reference for common tasks
 - `docs/ai-implementation-guide.md` - Comprehensive implementation patterns
-- `docs/ai-troubleshooting.md` - Debugging and troubleshooting guide
+- `docs/troubleshooting/` - Debugging and troubleshooting guides by category
 - `docs/ai-validation-safety.md` - Testing and validation procedures
 
 ### Organized Documentation (Post-Restructuring)

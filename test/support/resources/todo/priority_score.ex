@@ -10,15 +10,18 @@ defmodule AshTypescript.Test.Todo.PriorityScore do
 
   @impl true
   def cast_input(nil, _), do: {:ok, nil}
+
   def cast_input(value, _) when is_integer(value) and value >= 1 and value <= 100 do
     {:ok, value}
   end
+
   def cast_input(value, _) when is_binary(value) do
     case Integer.parse(value) do
       {int, ""} when int >= 1 and int <= 100 -> {:ok, int}
       _ -> {:error, "must be an integer between 1 and 100"}
     end
   end
+
   def cast_input(_, _), do: {:error, "must be an integer between 1 and 100"}
 
   @impl true

@@ -401,4 +401,4 @@ test/ash_typescript/
 - [Environment Setup](environment-setup.md) - For development environment requirements
 - [Type System](type-system.md) - For type inference and schema generation
 - [Field Processing](field-processing.md) - For field classification patterns
-- [Troubleshooting Guide](../ai-troubleshooting.md) - For specific debugging procedures
+- [Troubleshooting Guides](../troubleshooting/) - For specific debugging procedures

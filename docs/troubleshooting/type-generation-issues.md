@@ -361,4 +361,5 @@ mix test
 **See Also**:
 - [Environment Issues](environment-issues.md) - For setup and environment problems
 - [Runtime Processing Issues](runtime-processing-issues.md) - For RPC runtime problems
+- [Embedded Resources Issues](embedded-resources-issues.md) - For embedded resource problems
 - [Quick Reference](quick-reference.md) - For rapid problem identification

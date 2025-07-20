@@ -40,11 +40,21 @@ This quick reference helps AI assistants rapidly identify and route AshTypescrip
 - **Empty response data** → Runtime Processing Issues - Result filtering
 - **Load statement errors** → Runtime Processing Issues - Load building
 
+### Multitenancy Issues
+- **Cross-tenant data access** → Multitenancy Issues - Tenant isolation
+- **Missing tenant parameters** → Multitenancy Issues - Parameter generation
+- **TypeScript tenant fields issues** → Multitenancy Issues - Type generation
+
 ### Testing & Performance Issues
 - **Tests failing randomly** → Testing & Performance Issues - Test isolation
 - **TypeScript tests not compiling** → Testing & Performance Issues - Validation workflow
 - **Slow type generation** → Testing & Performance Issues - Performance optimization
-- **Multitenancy issues** → Testing & Performance Issues - Tenant isolation
+- **Config modification test issues** → Testing & Performance Issues - Async test problems
+
+### Union Types Issues
+- **Union type test failures** → Union Types Issues - Object syntax expectations
+- **Unformatted union fields** → Union Types Issues - Field formatter application
+- **Union type compilation errors** → Union Types Issues - TypeScript validation
 
 ## Emergency Triage Procedure
 
@@ -171,5 +181,7 @@ mix test test/ash_typescript/field_parser_comprehensive_test.exs
 - [Environment Issues](environment-issues.md) - Setup and environment problems
 - [Type Generation Issues](type-generation-issues.md) - TypeScript generation problems
 - [Embedded Resources Issues](embedded-resources-issues.md) - Embedded resource problems
-- [Runtime Processing Issues](runtime-processing-issues.md) - RPC runtime problems
+- [Runtime Processing Issues](runtime-processing-issues.md) - RPC runtime and field processing problems
+- [Multitenancy Issues](multitenancy-issues.md) - Tenant isolation and security problems
 - [Testing & Performance Issues](testing-performance-issues.md) - Testing and performance problems
+- [Union Types Issues](union-types-issues.md) - Union type specific problems

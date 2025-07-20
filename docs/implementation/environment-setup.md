@@ -228,4 +228,4 @@ Additional checks for major changes:
 **See Also**:
 - [Type System Guide](type-system.md) - For type generation and inference
 - [Field Processing Guide](field-processing.md) - For field selection patterns
-- [Development Workflows](../ai-troubleshooting.md) - For debugging procedures
+- [Environment Issues](../troubleshooting/environment-issues.md) - For debugging procedures

@@ -152,25 +152,6 @@ defmodule AshTypescript.Rpc.Codegen do
         };
 
 
-    // Separate field selection type (for fields and relationships only)
-    type FieldSelection<Resource extends ResourceBase> =
-      | keyof Resource["fields"]
-      | {
-          [K in keyof Resource["relationships"]]?: FieldSelection<
-            Resource["relationships"][K] extends { __resource: infer R }
-              ? R extends ResourceBase
-                ? R
-                : never
-              : never
-          >[];
-        };
-
-    // Helper to extract string fields from unified field selection
-    type ExtractStringFields<Fields> = Fields extends readonly (infer U)[]
-      ? U extends string
-        ? U
-        : never
-      : never;
 
     // Utility type to convert union to intersection
     type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
@@ -537,31 +518,47 @@ defmodule AshTypescript.Rpc.Codegen do
     input_fields =
       case action.type do
         :read ->
-          filters =
-            if action.get? do
-              []
-            else
-              [
-                "  filter?: #{resource_name}FilterInput;"
-              ]
-            end
+          # For read actions, only use arguments (get_by automatically creates arguments)
+          arguments = action.arguments
 
-          pagination_and_sort = [
-            "  sort?: string;",
-            "  page?: {",
-            "    limit?: number;",
-            "    offset?: number;",
-            "  };"
-          ]
+          if arguments != [] do
+            # Generate input field definitions from arguments
+            argument_field_defs =
+              Enum.map(arguments, fn arg ->
+                optional = arg.allow_nil? || arg.default != nil
 
-          filters ++ pagination_and_sort
+                formatted_arg_name =
+                  AshTypescript.FieldFormatter.format_field(
+                    arg.name,
+                    AshTypescript.Rpc.output_field_formatter()
+                  )
+
+                {formatted_arg_name, get_ts_type(arg), optional}
+              end)
+
+            # Check if ALL arguments are optional
+            all_optional =
+              Enum.all?(argument_field_defs, fn {_name, _type, optional} -> optional end)
+
+            input_property = if all_optional, do: "  input?: {", else: "  input: {"
+
+            field_lines =
+              Enum.map(argument_field_defs, fn {name, type, optional} ->
+                "    #{name}#{if optional, do: "?", else: ""}: #{type};"
+              end)
+
+            [input_property] ++ field_lines ++ ["  };"]
+          else
+            []
+          end
 
         :create ->
           accepts = Ash.Resource.Info.action(resource, action.name).accept || []
           arguments = action.arguments
 
           if accepts != [] || arguments != [] do
-            ["  input: {"] ++
+            # Generate input field definitions
+            accept_field_defs =
               Enum.map(accepts, fn field_name ->
                 attr = Ash.Resource.Info.attribute(resource, field_name)
                 optional = attr.allow_nil? || attr.default != nil
@@ -574,8 +571,10 @@ defmodule AshTypescript.Rpc.Codegen do
                     AshTypescript.Rpc.output_field_formatter()
                   )
 
-                "    #{formatted_field_name}#{if optional, do: "?", else: ""}: #{field_type};"
-              end) ++
+                {formatted_field_name, field_type, optional}
+              end)
+
+            argument_field_defs =
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
 
@@ -585,9 +584,23 @@ defmodule AshTypescript.Rpc.Codegen do
                     AshTypescript.Rpc.output_field_formatter()
                   )
 
-                "    #{formatted_arg_name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
-              end) ++
-              ["  };"]
+                {formatted_arg_name, get_ts_type(arg), optional}
+              end)
+
+            all_input_fields = accept_field_defs ++ argument_field_defs
+
+            # Check if ALL fields are optional
+            all_optional =
+              Enum.all?(all_input_fields, fn {_name, _type, optional} -> optional end)
+
+            input_property = if all_optional, do: "  input?: {", else: "  input: {"
+
+            field_lines =
+              Enum.map(all_input_fields, fn {name, type, optional} ->
+                "    #{name}#{if optional, do: "?", else: ""}: #{type};"
+              end)
+
+            [input_property] ++ field_lines ++ ["  };"]
           else
             []
           end
@@ -668,10 +681,39 @@ defmodule AshTypescript.Rpc.Codegen do
       end
 
     all_fields =
-      if action.type in [:read, :create, :update] do
-        tenant_field ++ input_fields ++ fields_field ++ headers_field
-      else
-        tenant_field ++ input_fields ++ headers_field
+      case action.type do
+        :read ->
+          # Generate read-specific fields (filters and pagination)
+          filters =
+            if action.get? do
+              []
+            else
+              [
+                "  filter?: #{resource_name}FilterInput;"
+              ]
+            end
+
+          pagination_and_sort =
+            if action.get? do
+              []
+            else
+              [
+                "  sort?: string;",
+                "  page?: {",
+                "    limit?: number;",
+                "    offset?: number;",
+                "  };"
+              ]
+            end
+
+          tenant_field ++
+            input_fields ++ filters ++ pagination_and_sort ++ fields_field ++ headers_field
+
+        action_type when action_type in [:create, :update] ->
+          tenant_field ++ input_fields ++ fields_field ++ headers_field
+
+        _ ->
+          tenant_field ++ input_fields ++ headers_field
       end
 
     """
@@ -705,9 +747,8 @@ defmodule AshTypescript.Rpc.Codegen do
         """
 
       :destroy ->
-        """
-        type Infer#{rpc_action_name_pascal}Result = void;
-        """
+        # No result type needed - function signatures use void directly
+        ""
 
       action_type when action_type in [:action, :generic] ->
         # For generic actions, use the returns type if specified
@@ -945,10 +986,16 @@ defmodule AshTypescript.Rpc.Codegen do
           "return;"
 
         _ when is_generic_action ->
-          "return result.data as Infer#{rpc_action_name_pascal}Result;"
+          """
+          const result = await response.json();
+          return result.data as Infer#{rpc_action_name_pascal}Result;
+          """
 
         _ ->
-          "return result.data as Infer#{rpc_action_name_pascal}Result<#{rpc_action_name_pascal}Config>;"
+          """
+          const result = await response.json();
+          return result.data as Infer#{rpc_action_name_pascal}Result<#{rpc_action_name_pascal}Config>;
+          """
       end
 
     result_type =
@@ -979,7 +1026,6 @@ defmodule AshTypescript.Rpc.Codegen do
         throw new Error(`Rpc call failed: ${response.statusText}`);
       }
 
-      const result = await response.json();
       #{result_handling}
     }
     """

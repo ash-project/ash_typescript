@@ -44,15 +44,21 @@ mix ash_typescript.codegen --output "assets/js/ash_rpc.ts"
 **Use in TypeScript:**
 
 ```typescript
-import { listTodos, createTodo, buildCSRFHeaders } from './ash_rpc';
+import { listTodos, getTodo, createTodo, buildCSRFHeaders } from './ash_rpc';
 
-// Basic usage with CSRF headers
+// Read action without arguments - no input field
 const todos = await listTodos({
   fields: ["id", "title", "completed"],
   headers: buildCSRFHeaders()
 });
 
-// Create with custom headers
+// Get action (single record) - no page/sort fields
+const todo = await getTodo({
+  fields: ["id", "title", "completed"],
+  headers: buildCSRFHeaders()
+});
+
+// Create with input
 const newTodo = await createTodo({
   input: { title: "New Task", userId: "123" },
   fields: ["id", "title", "createdAt"],
@@ -60,7 +66,61 @@ const newTodo = await createTodo({
 });
 ```
 
-### 2. Field Selection Patterns
+### 2. Read vs Get Actions
+
+**Understanding action types:**
+
+```typescript
+// Read action (list) - has page/sort fields, may have input for arguments
+const todos = await listTodos({
+  fields: ["id", "title"],
+  page: { limit: 10, offset: 0 },  // Available for read actions
+  sort: "-createdAt"  // Ash sort string: descending createdAt
+});
+
+// Get action (single record) - NO page/sort fields
+const todo = await getTodo({
+  fields: ["id", "title", "completed"]
+  // No page or sort options available
+});
+
+// Read action with arguments - has input field
+const filteredTodos = await searchTodos({
+  input: { searchTerm: "urgent" },  // Input for action arguments
+  fields: ["id", "title"],
+  page: { limit: 5 }
+});
+```
+
+### 3. Input Fields for Action Arguments
+
+**Read actions with arguments have typed input fields:**
+
+```typescript
+// Action with required arguments - input field is required
+const searchResults = await searchTodos({
+  input: { query: "urgent", status: "pending" },  // Required typed input
+  fields: ["id", "title", "priority"]
+});
+
+// Action with optional arguments - input field is also optional
+const filteredTodos = await listTodosByStatus({
+  input: { status: "completed" },  // Optional typed input
+  fields: ["id", "title"]
+});
+
+// Or omit input entirely when all arguments are optional
+const allTodos = await listTodosByStatus({
+  fields: ["id", "title"]  // No input needed
+});
+
+// Action with no arguments - no input field exists
+const todos = await listTodos({
+  fields: ["id", "title"]  // No input field available
+});
+```
+
+### 4. Field Selection Patterns
 
 **Basic field selection:**
 
@@ -108,17 +168,26 @@ const todoWithSelf = await getTodo({
 });
 ```
 
-### 3. Filtering and Sorting
+### 5. Filtering and Sorting
 
-**Basic filtering:**
+**Basic filtering (available on read actions only):**
 
 ```typescript
+// Read action - supports filter, page, and sort
 const activeTodos = await listTodos({
   fields: ["id", "title", "completed"],
-  filter: { completed: { eq: false } }
+  filter: { completed: { eq: false } },
+  page: { limit: 20 },
+  sort: "-priority,title"  // Ash sort string: descending priority, ascending title
 });
 
-// Multiple filters
+// Get action - filter/page/sort NOT available
+const singleTodo = await getTodo({
+  fields: ["id", "title", "completed"]
+  // No filter, page, or sort options
+});
+
+// Multiple filters on read actions
 const urgentTodos = await listTodos({
   fields: ["id", "title", "priority"],
   filter: {
@@ -130,7 +199,7 @@ const urgentTodos = await listTodos({
 });
 ```
 
-**Date and numeric filters:**
+**Date and numeric filters with sort:**
 
 ```typescript
 const recentTodos = await listTodos({
@@ -139,11 +208,37 @@ const recentTodos = await listTodos({
     createdAt: {
       greaterThan: "2024-01-01T00:00:00Z"
     }
-  }
+  },
+  sort: "-createdAt,title"  // Most recent first, then by title
 });
 ```
 
-### 4. Multitenancy Patterns
+**Sort string format (following Ash.Query.sort_input/3):**
+
+```typescript
+// Sort examples using Ash string format
+const sortedTodos = await listTodos({
+  fields: ["id", "title", "priority", "createdAt"],
+  sort: "-priority,title"           // Descending priority, ascending title
+});
+
+const complexSort = await listTodos({
+  fields: ["id", "title", "user"],
+  sort: "user.name,-createdAt"      // Ascending user name, descending created date
+});
+
+// Sort operators:
+// "field" or "+field" = ascending
+// "-field" = descending  
+// "++field" = ascending with nulls first
+// "--field" = descending with nulls last
+const nullHandlingSort = await listTodos({
+  fields: ["id", "title", "completedAt"],
+  sort: "++completedAt,-createdAt"  // Completed nulls first, then desc by created
+});
+```
+
+### 6. Multitenancy Patterns
 
 **Automatic tenant parameter injection:**
 
@@ -161,7 +256,7 @@ const userSettings = await listUserSettings({
 });
 ```
 
-### 5. Error Handling and Validation
+### 7. Error Handling and Validation
 
 **Validation before submission:**
 
@@ -201,7 +296,7 @@ try {
 }
 ```
 
-### 6. Authentication and Headers
+### 8. Authentication and Headers
 
 **CSRF protection for Phoenix:**
 
@@ -294,6 +389,62 @@ rpc do
     # Each action must be explicitly declared
   end
 end
+```
+
+### **Critical: Read vs Get Action Differences**
+
+❌ **Wrong - Using page/sort on get actions:**
+```typescript
+// Get actions don't support page/sort/filter
+const todo = await getTodo({
+  fields: ["id", "title"],
+  page: { limit: 1 },  // Not available on get actions!
+  sort: "-createdAt"   // Not available on get actions!
+});
+```
+
+✅ **Correct - Get actions only support fields:**
+```typescript
+const todo = await getTodo({
+  fields: ["id", "title", "completed"]  // Only fields available
+});
+
+// Use read actions for page/sort/filter
+const todos = await listTodos({
+  fields: ["id", "title"],
+  page: { limit: 1 },
+  sort: "-createdAt"
+});
+```
+
+### **Critical: Input Fields for Action Arguments**
+
+❌ **Wrong - Missing input for actions with required arguments:**
+```typescript
+// Action requires arguments but input is missing
+const results = await searchTodos({
+  fields: ["id", "title"]  // Missing required input!
+});
+```
+
+✅ **Correct - Include input for actions with arguments:**
+```typescript
+// Required arguments - input field is required
+const results = await searchTodos({
+  input: { query: "urgent" },  // Required input
+  fields: ["id", "title"]
+});
+
+// Optional arguments - input field is optional
+const results = await listTodosByStatus({
+  input: { status: "completed" },  // Optional input
+  fields: ["id", "title"]
+});
+
+// Or omit when all arguments are optional
+const results = await listTodosByStatus({
+  fields: ["id", "title"]  // No input needed
+});
 ```
 
 ### **Critical: Field Selection Requirements**
@@ -393,6 +544,55 @@ const todos = await listTodos({
   fields: ["id", "title"],
   filter: { completed: { eq: false } }  // Correct syntax
 });
+```
+
+## Server-Side Usage with run_action
+
+### Using run_action for SSR
+
+**For server-side rendering in full-stack applications, use `AshTypescript.Rpc.run_action/3`:**
+
+```elixir
+# In your Phoenix controller or LiveView
+defmodule MyAppWeb.TodoController do
+  use MyAppWeb, :controller
+  
+  def index(conn, _params) do
+    params = %{
+      "action" => "list_todos",
+      "fields" => ["id", "title", "completed"]
+    }
+    
+    result = AshTypescript.Rpc.run_action(:my_app, conn, params)
+    
+    case result do
+      %{success: true, data: todos} ->
+        render(conn, "index.html", todos: todos)
+        
+      %{success: false, errors: errors} ->
+        handle_error(conn, errors)
+    end
+  end
+end
+```
+
+**Result structure:**
+```elixir
+# Success case
+%{success: true, data: result_data}
+
+# Error case  
+%{success: false, errors: error_details}
+```
+
+**With authentication and multitenancy:**
+```elixir
+# run_action automatically uses actor and tenant from conn
+result = AshTypescript.Rpc.run_action(:my_app, conn, %{
+  "action" => "list_user_todos",
+  "tenant" => "org-123",  # For multitenant resources
+  "fields" => ["id", "title", "priority"]
+})
 ```
 
 ## Advanced Features

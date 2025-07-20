@@ -35,6 +35,25 @@ mix test
 
 **Testing**: See [Testing Patterns](reference/testing-patterns.md) for comprehensive testing approaches and validation workflows.
 
+## 🚨 CRITICAL: TypeScript Testing Standards
+
+**ALWAYS use regex patterns for TypeScript structure validation. NEVER use String.contains?**
+
+| ❌ WRONG | ✅ CORRECT |
+|----------|------------|
+| `String.contains?(output, "sort?: string")` | Comprehensive regex validation of complete structure |
+| Testing individual fields | Testing complete type definitions with field order |
+| Ignoring optional markers | Validating `?:` markers and required vs optional fields |
+
+**Quick Template:**
+```elixir
+# Complete structure validation
+config_regex = ~r/export type ConfigName = \{\s*#{complete_field_pattern}\s*\};/m
+assert Regex.match?(config_regex, typescript_output), "Descriptive error message"
+```
+
+**Reference**: [TypeScript Testing Quick Reference](reference/typescript-testing-quick-reference.md)
+
 ### Task-to-Documentation Mapping
 
 | Task Type | Must Read | Should Read |
@@ -42,9 +61,9 @@ mix test
 | **Type generation/inference** | ai-implementation-guide.md | `test/ts_codegen_test.exs` |
 | **Custom types** | quick-guides/adding-new-types.md | `test/ash_typescript/custom_types_test.exs` |
 | **RPC features** | ai-implementation-guide.md | `test/ash_typescript/rpc/` tests |
-| **Embedded resources** | ai-implementation-guide.md | ai-troubleshooting.md |
-| **Field selection** | ai-implementation-guide.md | `field_formatter.ex` |
-| **Troubleshooting** | ai-troubleshooting.md | Area-specific docs |
+| **Embedded resources** | implementation/embedded-resources.md | troubleshooting/embedded-resources-issues.md |
+| **Field selection** | implementation/field-processing.md | `field_formatter.ex` |
+| **Troubleshooting** | troubleshooting/quick-reference.md | troubleshooting/ directory |
 
 ## FieldParser Architecture (2025-07-16 REFACTORED)
 

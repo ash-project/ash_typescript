@@ -156,3 +156,35 @@ If you need to create a new test category:
 - Add comments explaining complex test scenarios
 - Export test variables for potential future reference
 - Follow existing code style and patterns
+
+## Testing Generated TypeScript Structure
+
+### 🚨 CRITICAL: Use Regex for Structure Validation
+
+When testing generated TypeScript code structure in Elixir tests, **ALWAYS** use regex patterns instead of `String.contains?`:
+
+#### ❌ WRONG: String.contains? Testing
+```elixir
+# BAD - Misses structural issues
+assert String.contains?(typescript_output, "export type ListTodosConfig")
+assert String.contains?(typescript_output, "sort?: string")
+```
+
+#### ✅ CORRECT: Regex Pattern Testing
+```elixir
+# GOOD - Validates complete structure integrity
+list_todos_regex =
+  ~r/export type ListTodosConfig = \{\s*input\?\: \{[^}]*\};\s*filter\?\: TodoFilterInput;\s*sort\?\: string;\s*page\?\: \{[^}]*\};\s*fields: UnifiedFieldSelection<TodoResourceSchema>\[\];\s*headers\?\: Record<string, string>;\s*\};/m
+
+assert Regex.match?(list_todos_regex, typescript_output),
+       "ListTodosConfig structure is malformed. Expected complete type definition"
+```
+
+**Why Regex is Required:**
+- Validates exact field order and positioning
+- Ensures complete type structure integrity  
+- Detects optional vs required field markers (`?:`)
+- Catches TypeScript syntax errors
+- Prevents false positives from partial matches
+
+**Reference**: See [TypeScript Testing Quick Reference](../reference/typescript-testing-quick-reference.md) for comprehensive patterns and examples.

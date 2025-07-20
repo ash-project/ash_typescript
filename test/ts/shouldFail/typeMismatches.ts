@@ -106,4 +106,35 @@ export const invalidEnumInCalculation = await getTodo({
   ]
 });
 
+// Test 17: Invalid input parameter types for read actions
+export const invalidReadInputTypes = await listTodos({
+  input: {
+    // @ts-expect-error - filterCompleted should be boolean, not string
+    filterCompleted: "true",
+    // @ts-expect-error - priorityFilter should be enum value, not arbitrary string
+    priorityFilter: "invalid_priority"
+  },
+  fields: ["id", "title"]
+});
+
+// Test 18: Invalid input parameter names for read actions  
+export const invalidReadInputNames = await listTodos({
+  input: {
+    filterCompleted: true,
+    // @ts-expect-error - nonExistentParam should not exist
+    nonExistentParam: "value"
+  },
+  fields: ["id", "title"]
+});
+
+// Test 19: Wrong enum values for priorityFilter
+export const wrongEnumInReadInput = await listTodos({
+  input: {
+    filterCompleted: false,
+    // @ts-expect-error - "super_high" is not a valid priority value
+    priorityFilter: "super_high"
+  },
+  fields: ["id", "title"]
+});
+
 console.log("Type mismatches tests should FAIL compilation!");

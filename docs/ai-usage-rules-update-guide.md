@@ -112,6 +112,7 @@ When creating usage rules for AshTypescript, focus on:
 - Code generation workflow
 - Basic TypeScript client usage
 - Field selection patterns
+- Server-side usage with `AshTypescript.Rpc.run_action/3` for SSR
 
 ### Common Gotchas Section
 - **Critical**: Must add extension to domain, not just dependency
@@ -126,6 +127,7 @@ When creating usage rules for AshTypescript, focus on:
 - Multitenancy support
 - Embedded resource patterns
 - Configuration customization
+- Server-side patterns with authentication and multitenancy
 
 ### Troubleshooting Section
 - "No domains found" errors (extension not added)
@@ -159,6 +161,7 @@ Create a comprehensive plan with these todos:
 - Check config files for setup patterns
 - Examine test files for usage examples
 - Identify required vs optional configuration
+- Research server-side usage patterns (run_action for SSR)
 
 **Identify Key Constraints:**
 - Required dependencies
@@ -172,6 +175,7 @@ Create a comprehensive plan with these todos:
 - 3-5 bullet points covering 80% of usage
 - Key configuration step
 - Primary usage pattern
+- Server-side usage capability (run_action for SSR)
 
 **Expand Each Section:**
 - Include practical, tested examples

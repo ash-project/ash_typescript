@@ -285,6 +285,7 @@ defmodule AshTypescript.Test.Todo do
 
     update :update do
       primary? true
+      require_atomic? false
 
       accept [
         :title,

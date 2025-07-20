@@ -477,6 +477,104 @@ defmodule YourMultitenancyTest do
 end
 ```
 
+## TypeScript Codegen Testing Standards
+
+### 🚨 CRITICAL: Always Use Regex for Generated Code Testing
+
+When testing generated TypeScript code, **NEVER** use `String.contains?` assertions. **ALWAYS** use comprehensive regex patterns that validate complete structure integrity.
+
+#### ❌ WRONG: String.contains? Testing
+
+```elixir
+# ❌ BAD - Unreliable, misses structure issues
+test "generates config correctly" do
+  typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+  
+  assert String.contains?(typescript_output, "export type ListTodosConfig")
+  assert String.contains?(typescript_output, "sort?: string")
+  assert String.contains?(typescript_output, "fields:")
+end
+```
+
+**Why String.contains? Fails:**
+- No field order validation
+- No complete structure verification  
+- False positives from partial matches
+- Misses TypeScript syntax errors
+- Can't verify optional vs required fields
+
+#### ✅ CORRECT: Regex Pattern Testing
+
+```elixir
+# ✅ GOOD - Complete structure validation
+test "generates complete config structure" do
+  typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
+  # Validate complete structure with exact field order
+  config_regex =
+    ~r/export type ListTodosConfig = \{\s*input\?\: \{[^}]*\};\s*filter\?\: TodoFilterInput;\s*sort\?\: string;\s*page\?\: \{\s*limit\?\: number;\s*offset\?\: number;\s*\};\s*fields: UnifiedFieldSelection<TodoResourceSchema>\[\];\s*headers\?\: Record<string, string>;\s*\};/m
+
+  assert Regex.match?(config_regex, typescript_output),
+         "ListTodosConfig structure is malformed. Expected complete type definition with all fields in correct order"
+end
+```
+
+#### Mandatory Patterns for Common Scenarios
+
+**Get vs List Action Differentiation:**
+```elixir
+test "get actions exclude pagination fields" do
+  typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
+  # Get action - NO sort/page fields
+  get_config_regex =
+    ~r/export type GetTodoConfig = \{\s*input\?\: \{[^}]*\};\s*fields: UnifiedFieldSelection<TodoResourceSchema>\[\];\s*headers\?\: Record<string, string>;\s*\};/m
+
+  assert Regex.match?(get_config_regex, typescript_output),
+         "GetTodoConfig must exclude sort and page fields for get actions"
+end
+```
+
+**Multitenancy Structure Validation:**
+```elixir
+test "multitenant configs have tenant field first" do
+  typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
+  # Tenant field MUST be first
+  multitenant_regex =
+    ~r/export type ListOrgTodosConfig = \{\s*tenant: string;\s*[^}]+\};/m
+
+  assert Regex.match?(multitenant_regex, typescript_output),
+         "Multitenant configs must have tenant field as first field"
+end
+```
+
+**Complex Input Block Validation:**
+```elixir
+test "input blocks have correct argument structure" do
+  typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
+  # Validate specific argument types and optional markers
+  input_regex =
+    ~r/input\?\: \{\s*filterCompleted\?\: boolean;\s*priorityFilter\?\: "low" \| "medium" \| "high" \| "urgent";\s*\}/m
+
+  assert Regex.match?(input_regex, typescript_output),
+         "Input block arguments must have correct types and optional markers"
+end
+```
+
+### AI Assistant Testing Requirements
+
+**For any TypeScript codegen changes, AI assistants MUST:**
+
+1. **Use only regex patterns** for structure validation
+2. **Test complete type definitions**, not individual fields
+3. **Validate field order** and optional markers (`?:`)
+4. **Include descriptive error messages** explaining expected structure
+5. **Test both positive and negative cases** (what should/shouldn't exist)
+
+**Reference**: See [Testing Patterns](reference/testing-patterns.md#typescript-codegen-testing-patterns) for comprehensive guidelines and examples.
+
 ## Validation Checklists
 
 ### Before Submitting Changes

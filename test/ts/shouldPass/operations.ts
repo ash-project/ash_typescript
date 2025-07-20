@@ -106,4 +106,35 @@ if (createWithNestedSelf.self?.self) {
     createWithNestedSelf.self.self.dueDate;
 }
 
+// Test 6: Read operations with input parameters
+export const listWithInputParams = await listTodos({
+  input: {
+    filterCompleted: true,
+    priorityFilter: "high"
+  },
+  fields: ["id", "title", "completed", "priority"]
+});
+
+// Type validation for list with input parameters
+for (const todo of listWithInputParams) {
+  const todoId: string = todo.id;
+  const todoTitle: string = todo.title;
+  const todoCompleted: boolean | null | undefined = todo.completed;
+  const todoPriority: string | null | undefined = todo.priority;
+}
+
+// Test 7: Read operations with partial input parameters (optional fields)
+export const listWithPartialInput = await listTodos({
+  input: {
+    filterCompleted: false
+    // priorityFilter is optional and omitted
+  },
+  fields: ["id", "title", "status"]
+});
+
+// Test 8: Read operations with no input parameters (should still work)
+export const listWithoutInput = await listTodos({
+  fields: ["id", "title"]
+});
+
 console.log("Operations tests should compile successfully!");

@@ -26,7 +26,7 @@ For current documentation, refer to:
 
 - **[docs/ai-index.md](../ai-index.md)** - Master index for finding relevant documentation
 - **[ai-implementation-guide.md](../ai-implementation-guide.md)** - Comprehensive implementation patterns and architecture
-- **[ai-troubleshooting.md](../ai-troubleshooting.md)** - Debugging and troubleshooting procedures
+- **[troubleshooting/](../troubleshooting/)** - Debugging and troubleshooting procedures by category
 - **[ai-quick-reference.md](../ai-quick-reference.md)** - Quick commands and common patterns
 - **[ai-validation-safety.md](../ai-validation-safety.md)** - Testing and safety procedures
 

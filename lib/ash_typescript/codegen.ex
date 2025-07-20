@@ -284,7 +284,6 @@ defmodule AshTypescript.Codegen do
 
   # Custom types no longer generate type aliases - they are imported from external files
 
-
   def generate_all_schemas_for_resources(resources, allowed_resources) do
     resources
     |> Enum.map(&generate_all_schemas_for_resource(&1, allowed_resources))
@@ -670,7 +669,6 @@ defmodule AshTypescript.Codegen do
       """
     end
   end
-
 
   def generate_resource_schema(resource) do
     resource_name = resource |> Module.split() |> List.last()
@@ -1400,5 +1398,4 @@ defmodule AshTypescript.Codegen do
   defp generate_calculation_fields_type(_calc) do
     "string[]"
   end
-
 end

@@ -64,7 +64,7 @@ defmodule AshTypescript.MixProject do
       name: :ash_typescript,
       licenses: ["MIT"],
       files: ~w(lib .formatter.exs mix.exs README*
-        CHANGELOG* documentation),
+        CHANGELOG* documentation usage-rules.md),
       links: %{
         GitHub: "https://github.com/ash-project/ash_typescript"
       }
