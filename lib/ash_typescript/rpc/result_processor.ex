@@ -32,8 +32,52 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   The processed result with formatted field names and filtered fields.
   """
-  def process_action_result(result, fields, resource, formatter, field_based_calc_specs \\ %{}) do
+  def process_action_result(
+        result,
+        fields,
+        resource,
+        formatter,
+        field_based_calc_specs \\ %{}
+      ) do
     case result do
+      # Ash.Page.Offset struct (offset pagination)
+      %Ash.Page.Offset{results: results} = page ->
+        processed_results =
+          Enum.map(results, fn item ->
+            process_single_resource(item, fields, resource, formatter, field_based_calc_specs)
+          end)
+
+        # Apply field formatting to pagination field names (following same pattern as regular fields)
+        page
+        |> Map.take([:limit, :offset])
+        |> Map.put(:results, processed_results)
+        |> Map.put(:has_more, page.more? || false)
+        |> Map.put(:type, "offset")
+        |> format_generic_map(formatter)
+
+      %Ash.Page.Keyset{results: results} = page ->
+        processed_results =
+          Enum.map(results, fn item ->
+            process_single_resource(item, fields, resource, formatter, field_based_calc_specs)
+          end)
+
+        {previous_page_cursor, next_page_cursor} =
+          if Enum.empty?(results) do
+            {nil, nil}
+          else
+            {List.first(results).__metadata__.keyset, List.last(results).__metadata__.keyset}
+          end
+
+        # Apply field formatting to pagination field names (following same pattern as regular fields)
+        page
+        |> Map.take([:before, :after, :limit])
+        |> Map.put(:has_more, page.more? || false)
+        |> Map.put(:results, processed_results)
+        |> Map.put(:previous_page, previous_page_cursor)
+        |> Map.put(:next_page, next_page_cursor)
+        |> Map.put(:type, "keyset")
+        |> format_generic_map(formatter)
+
       # Single resource struct - process it
       %struct{} when struct == resource ->
         process_single_resource(result, fields, resource, formatter, field_based_calc_specs)
@@ -349,7 +393,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   @doc """
   Transforms custom type values by applying field formatting to map values.
 
-  Custom types that return maps (like ColorPalette) need their field names 
+  Custom types that return maps (like ColorPalette) need their field names
   formatted consistently with the output formatter.
   """
   def transform_custom_type_if_needed(value, resource_data, field_atom, formatter) do
@@ -637,7 +681,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   end
 
   # Formats embedded resource fields using the output formatter.
-  # This ensures that embedded resource field names are properly formatted 
+  # This ensures that embedded resource field names are properly formatted
   # (e.g., snake_case to camelCase) in the response.
   defp format_embedded_resource_fields(%_struct{} = resource, formatter) do
     # Convert struct to map and format all field names

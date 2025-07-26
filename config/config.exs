@@ -4,6 +4,7 @@ if Mix.env() == :test do
   config :ash,
     validate_domain_resource_inclusion?: false,
     validate_domain_config_inclusion?: false,
+    default_page_type: :keyset,
     disable_async?: true
 
   config :ash_typescript,

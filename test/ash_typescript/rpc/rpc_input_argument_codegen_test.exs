@@ -8,7 +8,7 @@ defmodule AshTypescript.Rpc.InputArgumentCodegenTest do
 
       # Test ListTodosConfig - validate complete structure integrity
       list_todos_config_regex =
-        ~r/export type ListTodosConfig = \{\s*input\?\: \{\s*filterCompleted\?\: boolean;\s*priorityFilter\?\: "low" \| "medium" \| "high" \| "urgent";\s*\};\s*filter\?\: TodoFilterInput;\s*sort\?\: string;\s*page\?\: \{\s*limit\?\: number;\s*offset\?\: number;\s*\};\s*fields: UnifiedFieldSelection<TodoResourceSchema>\[\];\s*headers\?\: Record<string, string>;\s*\};/m
+        ~r/export type ListTodosConfig = \{\s*input\?\: \{\s*filterCompleted\?\: boolean;\s*priorityFilter\?\: "low" \| "medium" \| "high" \| "urgent";\s*\};\s*filter\?\: TodoFilterInput;\s*sort\?\: string;\s*page\?\:\s*\|\s*\{\s*limit\?\: number;\s*offset\?\: number;\s*count\?\: boolean;\s*\}\s*\|\s*\{\s*limit\?\: number;\s*after\?\: string;\s*before\?\: string;\s*count\?\: boolean;\s*\};\s*fields: UnifiedFieldSelection<TodoResourceSchema>\[\];\s*headers\?\: Record<string, string>;\s*\};/m
 
       assert Regex.match?(list_todos_config_regex, typescript_output),
              "ListTodosConfig structure is malformed. Expected complete type definition with input arguments in correct positions."
@@ -38,12 +38,12 @@ defmodule AshTypescript.Rpc.InputArgumentCodegenTest do
       # the basic structure for actions without arguments
       typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
-      # Validate ListUsersConfig structure - may have input if User has arguments
+      # Validate ListUsersConfig structure - User has no read action arguments, so no input field
       list_users_config_regex =
-        ~r/export type ListUsersConfig = \{\s*(input\?\: \{[^}]*\};\s*)?filter\?\: UserFilterInput;\s*sort\?\: string;\s*page\?\: \{\s*limit\?\: number;\s*offset\?\: number;\s*\};\s*fields: UnifiedFieldSelection<UserResourceSchema>\[\];\s*headers\?\: Record<string, string>;\s*\};/m
+        ~r/export type ListUsersConfig = \{\s*filter\?\: UserFilterInput;\s*sort\?\: string;\s*page\?\:\s*\|\s*\{\s*limit\?\: number;\s*offset\?\: number;\s*count\?\: boolean;\s*\}\s*\|\s*\{\s*limit\?\: number;\s*after\?\: string;\s*before\?\: string;\s*count\?\: boolean;\s*\};\s*fields: UnifiedFieldSelection<UserResourceSchema>\[\];\s*headers\?\: Record<string, string>;\s*\};/m
 
       assert Regex.match?(list_users_config_regex, typescript_output),
-             "ListUsersConfig structure is malformed. Expected complete type definition with optional input block"
+             "ListUsersConfig structure is malformed. Expected complete type definition without input block since User has no read action arguments"
     end
 
     test "generates required input when at least one argument is required" do
@@ -116,7 +116,7 @@ defmodule AshTypescript.Rpc.InputArgumentCodegenTest do
 
       # Validate complete backward compatibility structure for ListTodosConfig
       backward_compat_regex =
-        ~r/export type ListTodosConfig = \{\s*input\?\: \{[^}]*\};\s*filter\?\: TodoFilterInput;\s*sort\?\: string;\s*page\?\: \{[^}]*\};\s*fields: UnifiedFieldSelection<TodoResourceSchema>\[\];\s*headers\?\: Record<string, string>;\s*\};/m
+        ~r/export type ListTodosConfig = \{\s*input\?\: \{[^}]*\};\s*filter\?\: TodoFilterInput;\s*sort\?\: string;\s*page\?\:[\s\S]*?count\?\: boolean;[\s\S]*?;\s*fields: UnifiedFieldSelection<TodoResourceSchema>\[\];\s*headers\?\: Record<string, string>;\s*\};/m
 
       assert Regex.match?(backward_compat_regex, typescript_output),
              "ListTodosConfig should maintain backward compatibility with all expected fields in correct order"
@@ -140,7 +140,7 @@ defmodule AshTypescript.Rpc.InputArgumentCodegenTest do
 
       # Validate ListTodosConfig includes sort and page fields (regular read action)  
       list_todos_config_regex =
-        ~r/export type ListTodosConfig = \{\s*input\?\: \{[^}]*\};\s*filter\?\: TodoFilterInput;\s*sort\?\: string;\s*page\?\: \{\s*limit\?\: number;\s*offset\?\: number;\s*\};\s*fields: UnifiedFieldSelection<TodoResourceSchema>\[\];\s*headers\?\: Record<string, string>;\s*\};/m
+        ~r/export type ListTodosConfig = \{\s*input\?\: \{[^}]*\};\s*filter\?\: TodoFilterInput;\s*sort\?\: string;\s*page\?\:[\s\S]*?count\?\: boolean;[\s\S]*?;\s*fields: UnifiedFieldSelection<TodoResourceSchema>\[\];\s*headers\?\: Record<string, string>;\s*\};/m
 
       assert Regex.match?(list_todos_config_regex, typescript_output),
              "ListTodosConfig structure is malformed. Regular read actions should include sort and page fields"
@@ -153,7 +153,7 @@ defmodule AshTypescript.Rpc.InputArgumentCodegenTest do
 
       # Validate multitenant config structure with input arguments
       multitenant_config_regex =
-        ~r/export type ListOrgTodosConfig = \{\s*tenant: string;\s*input\?\: \{\s*filterCompleted\?\: boolean;\s*priorityFilter\?\: "low" \| "medium" \| "high" \| "urgent";\s*\};\s*filter\?\: OrgTodoFilterInput;\s*sort\?\: string;\s*page\?\: \{[^}]*\};\s*fields: UnifiedFieldSelection<OrgTodoResourceSchema>\[\];\s*headers\?\: Record<string, string>;\s*\};/m
+        ~r/export type ListOrgTodosConfig = \{\s*tenant: string;\s*input\?\: \{\s*filterCompleted\?\: boolean;\s*priorityFilter\?\: "low" \| "medium" \| "high" \| "urgent";\s*\};\s*filter\?\: OrgTodoFilterInput;\s*sort\?\: string;\s*fields: UnifiedFieldSelection<OrgTodoResourceSchema>\[\];\s*headers\?\: Record<string, string>;\s*\};/m
 
       assert Regex.match?(multitenant_config_regex, typescript_output),
              "ListOrgTodosConfig should have proper multitenant structure with tenant field first and input block"

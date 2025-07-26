@@ -14,6 +14,9 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :bulk_complete_todo, :bulk_complete
       rpc_action :get_statistics_todo, :get_statistics
       rpc_action :search_todos, :search
+      rpc_action :search_paginated_todos, :search_paginated
+      rpc_action :list_recent_todos, :list_recent
+      rpc_action :list_high_priority_todos, :list_high_priority
       rpc_action :destroy_todo, :destroy
     end
 

@@ -78,7 +78,7 @@ export const listWithWrongTypes = await listTodos({
   ]
 });
 
-// @ts-expect-error - result is array, not single object
+// @ts-expect-error - result is paginated object, not single object
 const wrongListType: { id: string } = listWithWrongTypes;
 
 for (const todo of listWithWrongTypes) {

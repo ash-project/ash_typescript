@@ -193,6 +193,9 @@ defmodule AshTypescript.Rpc do
             input_field_formatter()
           )
 
+        # Track whether pagination was explicitly requested (for all action types)
+        pagination_requested = is_map(params["page"])
+
         case action.type do
           :read ->
             query =
@@ -210,6 +213,20 @@ defmodule AshTypescript.Rpc do
               |> then(fn query ->
                 if params["sort"] do
                   Ash.Query.sort_input(query, params["sort"])
+                else
+                  query
+                end
+              end)
+              |> then(fn query ->
+                if pagination_requested do
+                  # Parse page fields using the configured input formatter
+                  parsed_page =
+                    AshTypescript.FieldFormatter.parse_input_fields(
+                      params["page"],
+                      input_field_formatter()
+                    )
+
+                  Ash.Query.page(query, parsed_page)
                 else
                   query
                 end

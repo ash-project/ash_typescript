@@ -486,6 +486,278 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
+  # Pagination detection functions - read actual Ash configuration
+  def action_supports_pagination?(action) do
+    action.type == :read and not action.get? and has_pagination_config?(action)
+  end
+
+  defp action_supports_offset_pagination?(action) do
+    case get_pagination_config(action) do
+      nil -> false
+      pagination_config -> Map.get(pagination_config, :offset?, false)
+    end
+  end
+
+  defp action_supports_keyset_pagination?(action) do
+    case get_pagination_config(action) do
+      nil -> false
+      pagination_config -> Map.get(pagination_config, :keyset?, false)
+    end
+  end
+
+  defp action_requires_pagination?(action) do
+    case get_pagination_config(action) do
+      nil -> false
+      pagination_config -> Map.get(pagination_config, :required?, false)
+    end
+  end
+
+  defp action_supports_countable?(action) do
+    case get_pagination_config(action) do
+      nil -> false
+      pagination_config -> Map.get(pagination_config, :countable, false)
+    end
+  end
+
+  defp action_has_default_limit?(action) do
+    case get_pagination_config(action) do
+      nil -> false
+      pagination_config -> Map.has_key?(pagination_config, :default_limit)
+    end
+  end
+
+  defp has_pagination_config?(action) do
+    case action do
+      %{pagination: pagination} when is_map(pagination) -> true
+      _ -> false
+    end
+  end
+
+  defp get_pagination_config(action) do
+    case action do
+      %{pagination: pagination} when is_map(pagination) -> pagination
+      _ -> nil
+    end
+  end
+
+  defp generate_pagination_fields_only(action) do
+    if action_supports_pagination?(action) do
+      generate_pagination_fields(action)
+    else
+      []
+    end
+  end
+
+  defp generate_pagination_fields(action) do
+    supports_offset = action_supports_offset_pagination?(action)
+    supports_keyset = action_supports_keyset_pagination?(action)
+    supports_countable = action_supports_countable?(action)
+    is_required = action_requires_pagination?(action)
+    has_default_limit = action_has_default_limit?(action)
+
+    if supports_offset or supports_keyset do
+      optional_mark = if is_required, do: "", else: "?"
+      limit_required = if is_required and not has_default_limit, do: "", else: "?"
+
+      cond do
+        supports_offset and supports_keyset ->
+          # Generate union type for mixed pagination support
+          generate_mixed_pagination_fields(limit_required, supports_countable, optional_mark)
+
+        supports_offset ->
+          # Generate offset-only pagination interface
+          generate_offset_pagination_fields(limit_required, supports_countable, optional_mark)
+
+        supports_keyset ->
+          # Generate keyset-only pagination interface
+          generate_keyset_pagination_fields(limit_required, optional_mark)
+      end
+    else
+      []
+    end
+  end
+
+  defp generate_offset_pagination_fields(limit_required, supports_countable, optional_mark) do
+    fields = ["    limit#{limit_required}: number;", "    offset?: number;"]
+
+    fields =
+      if supports_countable do
+        fields ++ ["    count?: boolean;"]
+      else
+        fields
+      end
+
+    [
+      "  page#{optional_mark}: {"
+    ] ++
+      fields ++
+      [
+        "  };"
+      ]
+  end
+
+  defp generate_keyset_pagination_fields(limit_required, optional_mark) do
+    fields = [
+      "    limit#{limit_required}: number;",
+      "    after?: string;",
+      "    before?: string;"
+    ]
+
+    [
+      "  page#{optional_mark}: {"
+    ] ++
+      fields ++
+      [
+        "  };"
+      ]
+  end
+
+  defp generate_mixed_pagination_fields(limit_required, supports_countable, optional_mark) do
+    # Generate union type for mixed pagination support (without type discriminator)
+    offset_fields = [
+      "      limit#{limit_required}: number;",
+      "      offset?: number;"
+    ]
+
+    offset_fields =
+      if supports_countable do
+        offset_fields ++ ["      count?: boolean;"]
+      else
+        offset_fields
+      end
+
+    keyset_fields = [
+      "      limit#{limit_required}: number;",
+      "      after?: string;",
+      "      before?: string;"
+    ]
+
+    keyset_fields =
+      if supports_countable do
+        keyset_fields ++ ["      count?: boolean;"]
+      else
+        keyset_fields
+      end
+
+    [
+      "  page#{optional_mark}:"
+    ] ++
+      [
+        "    | {"
+      ] ++
+      offset_fields ++
+      [
+        "    }"
+      ] ++
+      [
+        "    | {"
+      ] ++
+      keyset_fields ++
+      [
+        "    };"
+      ]
+  end
+
+  defp generate_pagination_result_type(_resource, action, rpc_action_name_pascal, resource_name) do
+    supports_offset = action_supports_offset_pagination?(action)
+    supports_keyset = action_supports_keyset_pagination?(action)
+
+    cond do
+      supports_offset and supports_keyset ->
+        # Generate union type for mixed pagination support
+        generate_mixed_pagination_result_type(rpc_action_name_pascal, resource_name)
+
+      supports_offset ->
+        # Generate offset-only pagination result type
+        generate_offset_pagination_result_type(rpc_action_name_pascal, resource_name)
+
+      supports_keyset ->
+        # Generate keyset-only pagination result type
+        generate_keyset_pagination_result_type(rpc_action_name_pascal, resource_name)
+    end
+  end
+
+  defp generate_offset_pagination_result_type(rpc_action_name_pascal, resource_name) do
+    formatter = AshTypescript.Rpc.output_field_formatter()
+    results_field = AshTypescript.FieldFormatter.format_field("results", formatter)
+    has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
+    limit_field = AshTypescript.FieldFormatter.format_field("limit", formatter)
+    offset_field = AshTypescript.FieldFormatter.format_field("offset", formatter)
+    
+    """
+    type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
+      Config["page"] extends undefined
+        ? Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>
+        : {
+            #{results_field}: Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
+            #{has_more_field}: boolean;
+            #{limit_field}: number;
+            #{offset_field}: number;
+          };
+    """
+  end
+
+  defp generate_keyset_pagination_result_type(rpc_action_name_pascal, resource_name) do
+    formatter = AshTypescript.Rpc.output_field_formatter()
+    results_field = AshTypescript.FieldFormatter.format_field("results", formatter)
+    has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
+    limit_field = AshTypescript.FieldFormatter.format_field("limit", formatter)
+    after_field = AshTypescript.FieldFormatter.format_field("after", formatter)
+    before_field = AshTypescript.FieldFormatter.format_field("before", formatter)
+    previous_page_field = AshTypescript.FieldFormatter.format_field("previous_page", formatter)
+    next_page_field = AshTypescript.FieldFormatter.format_field("next_page", formatter)
+    
+    """
+    type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
+      Config["page"] extends undefined
+        ? Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>
+        : {
+            #{results_field}: Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
+            #{has_more_field}: boolean;
+            #{limit_field}: number;
+            #{after_field}: string | null;
+            #{before_field}: string | null;
+            #{previous_page_field}: string;
+            #{next_page_field}: string;
+          };
+    """
+  end
+
+  defp generate_mixed_pagination_result_type(rpc_action_name_pascal, resource_name) do
+    formatter = AshTypescript.Rpc.output_field_formatter()
+    results_field = AshTypescript.FieldFormatter.format_field("results", formatter)
+    has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
+    limit_field = AshTypescript.FieldFormatter.format_field("limit", formatter)
+    offset_field = AshTypescript.FieldFormatter.format_field("offset", formatter)
+    after_field = AshTypescript.FieldFormatter.format_field("after", formatter)
+    before_field = AshTypescript.FieldFormatter.format_field("before", formatter)
+    previous_page_field = AshTypescript.FieldFormatter.format_field("previous_page", formatter)
+    next_page_field = AshTypescript.FieldFormatter.format_field("next_page", formatter)
+    type_field = AshTypescript.FieldFormatter.format_field("type", formatter)
+    
+    """
+    type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
+      Config["page"] extends undefined
+        ? Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>
+        : ({
+            #{results_field}: Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
+            #{has_more_field}: boolean;
+            #{limit_field}: number;
+            #{offset_field}: number;
+            #{type_field}: "offset";
+          } | {
+            #{results_field}: Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
+            #{has_more_field}: boolean;
+            #{limit_field}: number;
+            #{after_field}: string | null;
+            #{before_field}: string | null;
+            #{previous_page_field}: string;
+            #{next_page_field}: string;
+            #{type_field}: "keyset";
+          });
+    """
+  end
+
   defp generate_config_type(resource, action, rpc_action_name) do
     resource_name = resource |> Module.split() |> List.last()
     config_name = "#{snake_to_pascal_case(rpc_action_name)}Config"
@@ -693,18 +965,10 @@ defmodule AshTypescript.Rpc.Codegen do
               ]
             end
 
-          pagination_and_sort =
-            if action.get? do
-              []
-            else
-              [
-                "  sort?: string;",
-                "  page?: {",
-                "    limit?: number;",
-                "    offset?: number;",
-                "  };"
-              ]
-            end
+          # Generate sort and pagination separately
+          sort_fields = if not action.get?, do: ["  sort?: string;"], else: []
+          pagination_fields = generate_pagination_fields_only(action)
+          pagination_and_sort = sort_fields ++ pagination_fields
 
           tenant_field ++
             input_fields ++ filters ++ pagination_and_sort ++ fields_field ++ headers_field
@@ -735,10 +999,15 @@ defmodule AshTypescript.Rpc.Codegen do
         """
 
       :read ->
-        """
-        type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
-        """
+        # Check if action supports pagination to determine return type
+        if action_supports_pagination?(action) do
+          generate_pagination_result_type(resource, action, rpc_action_name_pascal, resource_name)
+        else
+          """
+          type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
+            Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
+          """
+        end
 
       action_type when action_type in [:create, :update] ->
         """
@@ -796,7 +1065,8 @@ defmodule AshTypescript.Rpc.Codegen do
     end
 
     cond do
-      action.type == :read and not action.get? ->
+      # Read actions with pagination support
+      action.type == :read and not action.get? and action_supports_pagination?(action) ->
         """
         export function build#{rpc_action_name_pascal}Payload(
           config: #{rpc_action_name_pascal}Config
@@ -811,6 +1081,34 @@ defmodule AshTypescript.Rpc.Codegen do
 
           if (config.page) {
             payload.page = config.page;
+          }
+
+          if (config.sort) {
+            payload.sort = config.sort;
+          }
+
+          if ("input" in config && config.input) {
+            payload.input = config.input;
+          } else {
+            payload.input = {};
+          }
+
+          return payload;
+        }
+        """
+
+      # Read actions without pagination support
+      action.type == :read and not action.get? and not action_supports_pagination?(action) ->
+        """
+        export function build#{rpc_action_name_pascal}Payload(
+          config: #{rpc_action_name_pascal}Config
+        ): Record<string, any> {
+        #{base_payload_with_tenant.()}
+
+          if (config.filter) {
+            payload.filter = config.filter;
+          } else {
+            payload.filter = {};
           }
 
           if (config.sort) {

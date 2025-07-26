@@ -247,6 +247,13 @@ defmodule AshTypescript.Test.Todo do
                    true
                  end
              )
+
+      pagination offset?: true,
+                 keyset?: true,
+                 countable: true,
+                 required?: false,
+                 default_limit: 20,
+                 max_page_size: 100
     end
 
     read :get_by_id do
@@ -356,6 +363,49 @@ defmodule AshTypescript.Test.Todo do
         # This would normally search todos, but for testing we'll return empty
         {:ok, []}
       end
+    end
+
+    # Additional read action with different pagination configuration for testing
+    read :search_paginated do
+      argument :query, :string, allow_nil?: false
+      argument :include_completed, :boolean, default: true
+
+      filter expr(
+               if not is_nil(^arg(:query)) do
+                 contains(title, ^arg(:query)) or contains(description, ^arg(:query))
+               else
+                 true
+               end and
+                 if ^arg(:include_completed) do
+                   true
+                 else
+                   completed != true
+                 end
+             )
+
+      pagination offset?: true,
+                 keyset?: false,
+                 countable: true,
+                 required?: true,
+                 default_limit: 10,
+                 max_page_size: 50
+    end
+
+    # Read action with keyset-only pagination
+    read :list_recent do
+      filter expr(created_at >= ago(7, :day))
+
+      pagination required?: false,
+                 offset?: false,
+                 keyset?: true,
+                 countable: false,
+                 default_limit: 25,
+                 max_page_size: 100
+    end
+
+    # Read action with no pagination (should not have page field)
+    read :list_high_priority do
+      filter expr(priority in [:high, :urgent])
     end
   end
 end
