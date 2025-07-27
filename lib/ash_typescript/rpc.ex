@@ -165,7 +165,7 @@ defmodule AshTypescript.Rpc do
         client_fields = Map.get(params, "fields", [])
 
         # Use the new field parser for comprehensive field processing
-        {select, load, calc_specs} =
+        {select, load, extraction_template} =
           AshTypescript.Rpc.FieldParser.parse_requested_fields(
             client_fields,
             resource,
@@ -278,12 +278,10 @@ defmodule AshTypescript.Rpc do
 
           {:ok, result} ->
             processed_result =
-              AshTypescript.Rpc.ResultProcessor.process_action_result(
+              AshTypescript.Rpc.ResultProcessorNew.extract_fields(
                 result,
-                client_fields,
-                resource,
-                output_field_formatter(),
-                calc_specs
+                extraction_template,
+                output_field_formatter()
               )
 
             %{success: true, data: processed_result}

@@ -10,38 +10,39 @@ defmodule AshTypescript.Rpc.FieldParser do
   """
 
   alias AshTypescript.Rpc.FieldParser.{Context, LoadBuilder}
+  alias AshTypescript.Rpc.ExtractionTemplate
   alias AshTypescript.FieldFormatter
 
   @doc """
   Main entry point for parsing requested fields into Ash-compatible select and load statements.
 
-  Takes a list of field specifications and returns a tuple of {select_fields, load_statements, calculation_specs}
+  Takes a list of field specifications and returns a tuple of {select_fields, load_statements, extraction_template}
   where select_fields are simple attributes for Ash.Query.select/2, load_statements
-  are loadable fields for Ash.Query.load/2, and calculation_specs contain field specifications
-  for result processing.
+  are loadable fields for Ash.Query.load/2, and extraction_template contains pre-computed
+  instructions for result extraction and formatting.
 
   ## Examples
 
       iex> fields = ["id", "title", "displayName", %{"user" => ["name"]}]
       iex> parse_requested_fields(fields, MyApp.Todo, :camel_case)
-      {[:id, :title], [:display_name, {:user, [:name]}], %{}}
+      {[:id, :title], [:display_name, {:user, [:name]}], %{"id" => {:extract, :id}, "title" => {:extract, :title}, "user" => {:nested, :user, %{"name" => {:extract, :name}}}}}
 
       iex> fields = [%{"metadata" => ["category", "displayCategory"]}]
       iex> parse_requested_fields(fields, MyApp.Todo, :camel_case)
-      {[], [{:metadata, [:display_category]}], %{}}
+      {[], [{:metadata, [:display_category]}], %{"metadata" => {:nested, :metadata, %{"category" => {:extract, :category}, "displayCategory" => {:extract, :display_category}}}}}
   """
   @spec parse_requested_fields(fields :: list(), resource :: module(), formatter :: atom()) ::
-          {select_fields :: list(), load_statements :: list(), calculation_specs :: map()}
+          {select_fields :: list(), load_statements :: list(), extraction_template :: ExtractionTemplate.extraction_template()}
   def parse_requested_fields(fields, resource, formatter) do
     context = Context.new(resource, formatter)
 
-    {select_fields, load_statements, calculation_specs} =
-      Enum.reduce(fields, {[], [], %{}}, fn field, {select_acc, load_acc, calc_specs_acc} ->
+    {select_fields, load_statements, extraction_template} =
+      Enum.reduce(fields, {[], [], ExtractionTemplate.new()}, fn field, {select_acc, load_acc, template_acc} ->
         # Handle maps with multiple entries (e.g., multiple TypedStruct field selections)
         case field do
           field_map when is_map(field_map) and map_size(field_map) > 1 ->
             # Process each entry in the map as a separate field
-            Enum.reduce(field_map, {select_acc, load_acc, calc_specs_acc}, fn {field_name,
+            Enum.reduce(field_map, {select_acc, load_acc, template_acc}, fn {field_name,
                                                                                field_spec},
                                                                               acc ->
               process_single_field({field_name, field_spec}, context, acc)
@@ -49,71 +50,103 @@ defmodule AshTypescript.Rpc.FieldParser do
 
           _ ->
             # Process single field normally
-            process_single_field(field, context, {select_acc, load_acc, calc_specs_acc})
+            process_single_field(field, context, {select_acc, load_acc, template_acc})
         end
       end)
 
-    {Enum.reverse(select_fields), Enum.reverse(load_statements), calculation_specs}
+    {Enum.reverse(select_fields), Enum.reverse(load_statements), extraction_template}
   end
 
   # Process a single field and update accumulators
-  defp process_single_field(field, context, {select_acc, load_acc, calc_specs_acc}) do
+  defp process_single_field(field, context, {select_acc, load_acc, template_acc}) do
     case process_field(field, context) do
       {:select, field_atom} ->
-        {[field_atom | select_acc], load_acc, calc_specs_acc}
+        # Generate extraction instruction for simple field
+        output_field = format_output_field_name(field_atom, context.formatter)
+        instruction = ExtractionTemplate.extract_field(field_atom)
+        updated_template = ExtractionTemplate.put_instruction(template_acc, output_field, instruction)
+        {[field_atom | select_acc], load_acc, updated_template}
 
       {:load, load_statement} ->
-        {select_acc, [load_statement | load_acc], calc_specs_acc}
+        # Load statement - could be simple or nested
+        field_atom = extract_field_atom_from_load_statement(load_statement)
+        output_field = format_output_field_name(field_atom, context.formatter)
+        
+        instruction = case load_statement do
+          {^field_atom, nested_fields} when is_list(nested_fields) ->
+            # Nested relationship or embedded resource - build nested template
+            target_resource = determine_target_resource_for_field(field_atom, context.resource)
+            nested_template = build_nested_extraction_template_for_resource(nested_fields, target_resource, context.formatter)
+            ExtractionTemplate.nested_field(field_atom, nested_template)
+          
+          _ ->
+            # Simple load - just extract the field
+            ExtractionTemplate.extract_field(field_atom)
+        end
+        
+        updated_template = ExtractionTemplate.put_instruction(template_acc, output_field, instruction)
+        {select_acc, [load_statement | load_acc], updated_template}
 
-      {:both, field_atom, load_statement} ->
-        {[field_atom | select_acc], [load_statement | load_acc], calc_specs_acc}
 
       {:calculation_load, load_entry, field_specs} ->
         # Handle complex calculations with field specifications
-        updated_calc_specs =
-          if field_specs do
-            # Extract calculation name from load entry
-            calc_name =
-              case load_entry do
-                {name, _} -> name
-                name -> name
-              end
-
-            Map.put(calc_specs_acc, calc_name, field_specs)
-          else
-            calc_specs_acc
-          end
-
-        {select_acc, [load_entry | load_acc], updated_calc_specs}
+        field_atom = extract_field_atom_from_load_statement(load_entry)
+        output_field = format_output_field_name(field_atom, context.formatter)
+        
+        instruction = if field_specs do
+          # Build nested template for calculation result
+          field_template = build_nested_extraction_template(field_specs, context)
+          ExtractionTemplate.calc_result_field(field_atom, field_template)
+        else
+          # Simple calculation without field selection
+          ExtractionTemplate.extract_field(field_atom)
+        end
+        
+        updated_template = ExtractionTemplate.put_instruction(template_acc, output_field, instruction)
+        {select_acc, [load_entry | load_acc], updated_template}
 
       {:union_field_selection, field_atom, union_member_specs} ->
-        # Handle union field selection - select the union field and store member specs for result processing
-        updated_calc_specs =
-          Map.put(calc_specs_acc, field_atom, {:union_selection, union_member_specs})
-
-        {[field_atom | select_acc], load_acc, updated_calc_specs}
+        # Handle union field selection - generate union selection instruction
+        output_field = format_output_field_name(field_atom, context.formatter)
+        instruction = ExtractionTemplate.union_selection_field(field_atom, union_member_specs)
+        updated_template = ExtractionTemplate.put_instruction(template_acc, output_field, instruction)
+        {[field_atom | select_acc], load_acc, updated_template}
 
       {:typed_struct_selection, field_atom, field_specs} ->
-        # Handle TypedStruct field selection - select the TypedStruct field and store field specs for result processing
-        updated_calc_specs =
-          Map.put(calc_specs_acc, field_atom, {:typed_struct_selection, field_specs})
-
-        {[field_atom | select_acc], load_acc, updated_calc_specs}
+        # Handle TypedStruct field selection - generate typed struct selection instruction
+        output_field = format_output_field_name(field_atom, context.formatter)
+        instruction = ExtractionTemplate.typed_struct_selection_field(field_atom, field_specs)
+        updated_template = ExtractionTemplate.put_instruction(template_acc, output_field, instruction)
+        {[field_atom | select_acc], load_acc, updated_template}
 
       {:typed_struct_nested_selection, field_atom, nested_field_specs} ->
-        # Handle TypedStruct nested field selection - select the TypedStruct field and store nested field specs for result processing
-        updated_calc_specs =
-          Map.put(
-            calc_specs_acc,
-            field_atom,
-            {:typed_struct_nested_selection, nested_field_specs}
-          )
+        # Handle TypedStruct nested field selection - generate nested typed struct instruction
+        output_field = format_output_field_name(field_atom, context.formatter)
+        instruction = ExtractionTemplate.typed_struct_nested_selection_field(field_atom, nested_field_specs)
+        updated_template = ExtractionTemplate.put_instruction(template_acc, output_field, instruction)
+        {[field_atom | select_acc], load_acc, updated_template}
 
-        {[field_atom | select_acc], load_acc, updated_calc_specs}
+      {:embedded_resource_selection, field_atom, field_spec} ->
+        # Handle embedded resource with field selection - generate nested template
+        output_field = format_output_field_name(field_atom, context.formatter)
+        embedded_module = get_embedded_resource_module(field_atom, context.resource)
+        nested_template = build_nested_extraction_template_for_resource(field_spec, embedded_module, context.formatter)
+        instruction = ExtractionTemplate.nested_field(field_atom, nested_template)
+        updated_template = ExtractionTemplate.put_instruction(template_acc, output_field, instruction)
+        {[field_atom | select_acc], load_acc, updated_template}
+
+      {:embedded_resource_with_load, field_atom, load_statement, field_spec} ->
+        # Handle embedded resource with both select and load - generate nested template
+        output_field = format_output_field_name(field_atom, context.formatter)
+        embedded_module = get_embedded_resource_module(field_atom, context.resource)
+        nested_template = build_nested_extraction_template_for_resource(field_spec, embedded_module, context.formatter)
+        instruction = ExtractionTemplate.nested_field(field_atom, nested_template)
+        updated_template = ExtractionTemplate.put_instruction(template_acc, output_field, instruction)
+        {[field_atom | select_acc], [load_statement | load_acc], updated_template}
 
       {:skip, _field_atom} ->
         # Skip unknown fields gracefully
-        {select_acc, load_acc, calc_specs_acc}
+        {select_acc, load_acc, template_acc}
     end
   end
 
@@ -217,12 +250,12 @@ defmodule AshTypescript.Rpc.FieldParser do
 
         case embedded_load_items do
           [] ->
-            # No loadable items (calculations/relationships) - just select the embedded resource
-            {:select, field_atom}
+            # No loadable items (calculations/relationships) - return embedded resource selection
+            {:embedded_resource_selection, field_atom, field_spec}
 
           load_items ->
             # Both simple attributes (via select) and loadable items (via load) requested
-            {:both, field_atom, {field_atom, load_items}}
+            {:embedded_resource_with_load, field_atom, {field_atom, load_items}, field_spec}
         end
 
       :embedded_resource ->
@@ -508,13 +541,24 @@ defmodule AshTypescript.Rpc.FieldParser do
   """
   def process_relationship_fields(relationship_name, target_resource, nested_fields, formatter) do
     # Recursively process nested fields using the relationship target resource
-    {nested_select, nested_load, _nested_calc_specs} =
+    {nested_select, nested_load, _nested_extraction_template} =
       parse_requested_fields(nested_fields, target_resource, formatter)
 
     # For relationships, combine select and load into a single nested load list
     combined_nested = nested_select ++ nested_load
 
     {relationship_name, combined_nested}
+  end
+
+  @doc """
+  Builds an extraction template for nested fields (relationships, embedded resources).
+  """
+  def build_nested_extraction_template_for_resource(nested_fields, target_resource, formatter) do
+    # Recursively process nested fields to generate extraction template
+    {_nested_select, _nested_load, nested_extraction_template} =
+      parse_requested_fields(nested_fields, target_resource, formatter)
+
+    nested_extraction_template
   end
 
   @doc """
@@ -776,6 +820,101 @@ defmodule AshTypescript.Rpc.FieldParser do
           {:array, module} when is_atom(module) -> module
           _ -> nil
         end
+    end
+  end
+
+  # Helper functions for extraction template generation
+
+  @doc """
+  Formats a field atom using the output formatter for client consumption.
+  """
+  defp format_output_field_name(field_atom, formatter) when is_atom(field_atom) do
+    field_string = Atom.to_string(field_atom)
+    FieldFormatter.format_field(field_string, formatter)
+  end
+
+  @doc """
+  Extracts the field atom from a load statement.
+  """
+  defp extract_field_atom_from_load_statement(load_statement) do
+    case load_statement do
+      {field_atom, _} when is_atom(field_atom) -> field_atom
+      field_atom when is_atom(field_atom) -> field_atom
+      _ -> :unknown_field
+    end
+  end
+
+  @doc """
+  Builds a nested extraction template for calculation results that need field filtering.
+  """
+  defp build_nested_extraction_template({simple_fields, _nested_specs}, context) when is_list(simple_fields) do
+    # field_specs is a tuple {simple_fields, nested_specs} from LoadBuilder
+    # Convert simple_fields to an extraction template
+    Enum.reduce(simple_fields, ExtractionTemplate.new(), fn field, template_acc ->
+      # Convert string field names to atoms if needed
+      field_atom = case field do
+        field when is_atom(field) -> field
+        field when is_binary(field) -> FieldFormatter.parse_input_field(field, context.formatter)
+        _ -> field
+      end
+      
+      output_field = format_output_field_name(field_atom, context.formatter)
+      instruction = ExtractionTemplate.extract_field(field_atom)
+      ExtractionTemplate.put_instruction(template_acc, output_field, instruction)
+    end)
+  end
+
+  defp build_nested_extraction_template(field_specs, context) when is_list(field_specs) do
+    # field_specs is a list of fields that should be included in the calculation result
+    # Convert it to an extraction template
+    Enum.reduce(field_specs, ExtractionTemplate.new(), fn field_atom, template_acc ->
+      output_field = format_output_field_name(field_atom, context.formatter)
+      instruction = ExtractionTemplate.extract_field(field_atom)
+      ExtractionTemplate.put_instruction(template_acc, output_field, instruction)
+    end)
+  end
+
+  defp build_nested_extraction_template(field_specs, _context) do
+    # Handle other field_specs formats - for now return empty template
+    ExtractionTemplate.new()
+  end
+
+  @doc """
+  Gets the nested field specification for a field from the current processing context.
+  This is a simplified version that returns nil - in a real implementation,
+  we would need to track the original field specification.
+  """
+  defp get_nested_field_spec_for_field(_field_atom, _context) do
+    # TODO: This should return the original nested field specification
+    # For now, return nil to avoid breaking the implementation
+    nil
+  end
+
+  @doc """
+  Determines the target resource for a field (relationship or embedded resource).
+  """
+  defp determine_target_resource_for_field(field_atom, resource) do
+    cond do
+      # Check if it's a relationship
+      relationship = Ash.Resource.Info.relationship(resource, field_atom) ->
+        relationship.destination
+
+      # Check if it's an embedded resource attribute
+      attribute = Ash.Resource.Info.attribute(resource, field_atom) ->
+        case attribute.type do
+          type when is_atom(type) ->
+            if Ash.Resource.Info.embedded?(type), do: type, else: resource
+
+          {:array, type} when is_atom(type) ->
+            if Ash.Resource.Info.embedded?(type), do: type, else: resource
+
+          _ ->
+            resource
+        end
+
+      true ->
+        # Fallback to same resource
+        resource
     end
   end
 end
