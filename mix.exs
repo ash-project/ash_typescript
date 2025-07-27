@@ -113,7 +113,7 @@ defmodule AshTypescript.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, ash_version("~> 3.5")},
+      {:ash, path: "../ash", override: true},
       {:ash_phoenix, "~> 2.0"},
       {:git_ops, "~> 2.0", only: [:dev], runtime: false},
       {:spark, "2.2.67", override: true},

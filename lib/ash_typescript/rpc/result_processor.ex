@@ -126,6 +126,21 @@ defmodule AshTypescript.Rpc.ResultProcessor do
             field_based_calc_specs
           )
 
+        # Map with multiple entries (e.g., multiple TypedStruct field selections)
+        %{} = field_map when map_size(field_map) > 1 ->
+          # Process each entry in the map as a separate field
+          Enum.reduce(field_map, acc, fn {field_name, nested_fields}, inner_acc ->
+            process_nested_field(
+              resource_data,
+              field_name,
+              nested_fields,
+              inner_acc,
+              resource_module,
+              formatter,
+              field_based_calc_specs
+            )
+          end)
+
         # Invalid field specification - skip
         _ ->
           acc
@@ -165,6 +180,18 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           {:union_selection, union_member_specs} ->
             # Union field selection - apply member filtering to union value
             apply_union_field_selection(union_transformed_value, union_member_specs, formatter)
+
+          {:typed_struct_selection, field_specs} ->
+            # TypedStruct field selection - apply field filtering to TypedStruct value
+            apply_typed_struct_field_selection(union_transformed_value, field_specs, formatter)
+
+          {:typed_struct_nested_selection, nested_field_specs} ->
+            # TypedStruct nested field selection - apply nested field filtering to TypedStruct value
+            apply_typed_struct_nested_field_selection(
+              union_transformed_value,
+              nested_field_specs,
+              formatter
+            )
 
           {fields, nested_specs} when is_list(fields) ->
             # Field-based calculation with field selection - apply field specs
@@ -217,6 +244,26 @@ defmodule AshTypescript.Rpc.ResultProcessor do
             # Union field selection - apply member filtering to union value
             processed_value =
               apply_union_field_selection(nested_data, union_member_specs, formatter)
+
+            formatted_name = apply_field_formatter(field_name, formatter)
+            Map.put(acc, formatted_name, processed_value)
+
+          {:typed_struct_selection, field_specs} ->
+            # TypedStruct field selection - apply field filtering to TypedStruct value
+            processed_value =
+              apply_typed_struct_field_selection(nested_data, field_specs, formatter)
+
+            formatted_name = apply_field_formatter(field_name, formatter)
+            Map.put(acc, formatted_name, processed_value)
+
+          {:typed_struct_nested_selection, nested_field_specs} ->
+            # TypedStruct nested field selection - apply nested field filtering to TypedStruct value
+            processed_value =
+              apply_typed_struct_nested_field_selection(
+                nested_data,
+                nested_field_specs,
+                formatter
+              )
 
             formatted_name = apply_field_formatter(field_name, formatter)
             Map.put(acc, formatted_name, processed_value)
@@ -403,36 +450,103 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     # Check if this field is a custom type that returns a map
     case Ash.Resource.Info.attribute(resource_module, field_atom) do
       %{type: custom_type} = _attribute when is_atom(custom_type) ->
-        # Check if it's a custom type that implements the AshTypescript callbacks
-        if is_custom_type_with_map_storage?(custom_type) do
-          # Apply field formatting to the map keys
-          case value do
-            %{} = map_value when not is_struct(map_value) ->
-              format_map_fields(map_value, formatter)
+        # Check if it's a TypedStruct first
+        cond do
+          is_typed_struct?(custom_type) ->
+            # Convert TypedStruct to camelCase map
+            transform_typed_struct_to_map(value, formatter)
 
-            # Arrays of maps from custom types
-            list when is_list(list) ->
-              Enum.map(list, fn item ->
-                case item do
-                  %{} = map_item when not is_struct(map_item) ->
-                    format_map_fields(map_item, formatter)
+          is_custom_type_with_map_storage?(custom_type) ->
+            # Apply field formatting to the map keys
+            case value do
+              %{} = map_value when not is_struct(map_value) ->
+                format_map_fields(map_value, formatter)
 
-                  other ->
-                    other
-                end
-              end)
+              # Arrays of maps from custom types
+              list when is_list(list) ->
+                Enum.map(list, fn item ->
+                  case item do
+                    %{} = map_item when not is_struct(map_item) ->
+                      format_map_fields(map_item, formatter)
 
-            other ->
-              other
-          end
-        else
-          # Not a custom type with map storage, return as-is
-          value
+                    other ->
+                      other
+                  end
+                end)
+
+              other ->
+                other
+            end
+
+          true ->
+            # Not a custom type with map storage, return as-is
+            value
         end
 
       _other ->
         # Not a custom type attribute, return as-is
         value
+    end
+  end
+
+  # Check if a type is a TypedStruct
+  defp is_typed_struct?(type) do
+    AshTypescript.Codegen.is_typed_struct?(type)
+  end
+
+  # Convert TypedStruct to camelCase map
+  defp transform_typed_struct_to_map(value, formatter) do
+    case value do
+      # Array of TypedStruct values
+      values when is_list(values) ->
+        Enum.map(values, fn item ->
+          transform_typed_struct_to_map(item, formatter)
+        end)
+
+      # Individual TypedStruct value
+      %{} = typed_struct when is_struct(typed_struct) ->
+        # Convert struct to map, format field names, handle composite fields
+        typed_struct
+        |> Map.from_struct()
+        |> Enum.reduce(%{}, fn {field_atom, field_value}, acc ->
+          # Format field name to camelCase
+          formatted_field_name = apply_field_formatter(to_string(field_atom), formatter)
+
+          # Transform field value (handle DateTime formatting and nested maps)
+          formatted_value = transform_typed_struct_field_value(field_value, formatter)
+
+          Map.put(acc, formatted_field_name, formatted_value)
+        end)
+
+      # Nil or non-struct value
+      other ->
+        other
+    end
+  end
+
+  # Transform individual field values within TypedStruct
+  defp transform_typed_struct_field_value(value, formatter) do
+    case value do
+      # DateTime fields should be formatted as strings
+      %DateTime{} = dt ->
+        DateTime.to_iso8601(dt)
+
+      %NaiveDateTime{} = ndt ->
+        NaiveDateTime.to_iso8601(ndt)
+
+      # Composite fields (maps) should have their keys formatted
+      %{} = map_value when not is_struct(map_value) ->
+        format_map_fields(map_value, formatter)
+
+      # Arrays might contain maps that need formatting
+      list when is_list(list) ->
+        Enum.map(list, fn item ->
+          transform_typed_struct_field_value(item, formatter)
+        end)
+
+      # Other values (primitives, nil) pass through unchanged
+      other ->
+        other
     end
   end
 
@@ -563,6 +677,201 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           # Wrap in member format
           member_name -> %{member_name => primitive_value}
         end
+    end
+  end
+
+  @doc """
+  Applies field selection to TypedStruct values.
+
+  TypedStruct field selection is straightforward field filtering on structured data.
+  Handles both individual TypedStruct values and arrays of TypedStruct values.
+  """
+  def apply_typed_struct_field_selection(value, field_specs, formatter) do
+    case value do
+      # Array of TypedStruct values - apply field selection to each item
+      values when is_list(values) ->
+        Enum.map(values, fn item ->
+          apply_typed_struct_field_selection(item, field_specs, formatter)
+        end)
+
+      # Individual TypedStruct value - filter requested fields
+      %{} = typed_struct_map when map_size(typed_struct_map) > 0 ->
+        # When field_specs is empty, return all fields
+        case field_specs do
+          [] ->
+            # Return all fields with formatting
+            typed_struct_map
+            |> Map.from_struct()
+            |> Enum.reduce(%{}, fn {field_atom, field_value}, acc ->
+              # Skip the __struct__ field
+              if field_atom == :__struct__ do
+                acc
+              else
+                # Format DateTime values as strings
+                formatted_value =
+                  case field_value do
+                    %DateTime{} = dt -> DateTime.to_iso8601(dt)
+                    %NaiveDateTime{} = ndt -> NaiveDateTime.to_iso8601(ndt)
+                    other -> other
+                  end
+
+                formatted_field_name = apply_field_formatter(to_string(field_atom), formatter)
+                Map.put(acc, formatted_field_name, formatted_value)
+              end
+            end)
+
+          _ ->
+            # Convert field specs to atoms for matching
+            field_atoms =
+              field_specs
+              |> Enum.map(fn field_name ->
+                case field_name do
+                  atom when is_atom(atom) -> atom
+                  string when is_binary(string) -> String.to_atom(string)
+                  _ -> nil
+                end
+              end)
+              |> Enum.filter(& &1)
+
+            # Filter TypedStruct map to only include requested fields
+            Enum.reduce(field_atoms, %{}, fn field_atom, acc ->
+              case Map.get(typed_struct_map, field_atom) do
+                nil ->
+                  # Field not present
+                  acc
+
+                field_value ->
+                  # Format DateTime values as strings
+                  formatted_value =
+                    case field_value do
+                      %DateTime{} = dt -> DateTime.to_iso8601(dt)
+                      %NaiveDateTime{} = ndt -> NaiveDateTime.to_iso8601(ndt)
+                      other -> other
+                    end
+
+                  formatted_field_name = apply_field_formatter(to_string(field_atom), formatter)
+                  Map.put(acc, formatted_field_name, formatted_value)
+              end
+            end)
+        end
+
+      # Primitive or nil value - return as-is (shouldn't happen for TypedStruct but handle gracefully)
+      other_value ->
+        other_value
+    end
+  end
+
+  @doc """
+  Applies nested field selection to TypedStruct values with composite fields.
+
+  TypedStruct nested field selection handles composite fields (like maps with constrained fields)
+  within typed structs, allowing selective extraction of specific fields from composite types.
+  Handles both individual TypedStruct values and arrays of TypedStruct values.
+  """
+  def apply_typed_struct_nested_field_selection(value, nested_field_specs, formatter) do
+    case value do
+      # Array of TypedStruct values - apply nested field selection to each item
+      values when is_list(values) ->
+        Enum.map(values, fn item ->
+          apply_typed_struct_nested_field_selection(item, nested_field_specs, formatter)
+        end)
+
+      # Individual TypedStruct value - filter composite fields based on nested specifications
+      %{} = typed_struct_map when map_size(typed_struct_map) > 0 ->
+        # Process the typed struct by applying both simple field selection and composite field selection
+        typed_struct_map
+        |> Map.from_struct()
+        |> Enum.reduce(%{}, fn {field_atom, field_value}, acc ->
+          # Skip the __struct__ field
+          if field_atom == :__struct__ do
+            acc
+          else
+            # Check if this field has nested field specifications
+            case Map.get(nested_field_specs, field_atom) do
+              nil ->
+                # No nested specification - include the full field value
+                formatted_value =
+                  case field_value do
+                    %DateTime{} = dt ->
+                      DateTime.to_iso8601(dt)
+
+                    %NaiveDateTime{} = ndt ->
+                      NaiveDateTime.to_iso8601(ndt)
+
+                    # Handle maps by formatting their keys
+                    %{} = map_value when map_size(map_value) > 0 ->
+                      Enum.reduce(map_value, %{}, fn {key, value}, map_acc ->
+                        formatted_key = apply_field_formatter(to_string(key), formatter)
+                        Map.put(map_acc, formatted_key, value)
+                      end)
+
+                    other ->
+                      other
+                  end
+
+                formatted_field_name = apply_field_formatter(to_string(field_atom), formatter)
+                Map.put(acc, formatted_field_name, formatted_value)
+
+              composite_field_specs ->
+                # Apply field selection to composite field (map with constrained fields)
+                filtered_composite_value =
+                  apply_composite_field_selection(field_value, composite_field_specs, formatter)
+
+                formatted_field_name = apply_field_formatter(to_string(field_atom), formatter)
+                Map.put(acc, formatted_field_name, filtered_composite_value)
+            end
+          end
+        end)
+
+      # Primitive or nil value - return as-is
+      other_value ->
+        other_value
+    end
+  end
+
+  defp apply_composite_field_selection(composite_value, field_specs, formatter) do
+    case composite_value do
+      # Map value - filter to include requested fields or all fields if specs is empty
+      %{} = composite_map when map_size(composite_map) > 0 ->
+        case field_specs do
+          [] ->
+            # Empty field specs means include all fields with formatting
+            Enum.reduce(composite_map, %{}, fn {key, value}, acc ->
+              formatted_key = apply_field_formatter(to_string(key), formatter)
+              Map.put(acc, formatted_key, value)
+            end)
+
+          _ ->
+            # Convert field specs to atoms for matching
+            field_atoms =
+              field_specs
+              |> Enum.map(fn field_name ->
+                case field_name do
+                  atom when is_atom(atom) -> atom
+                  string when is_binary(string) -> String.to_atom(string)
+                  _ -> nil
+                end
+              end)
+              |> Enum.filter(& &1)
+
+            # Filter composite map to only include requested fields
+            Enum.reduce(field_atoms, %{}, fn field_atom, acc ->
+              case Map.get(composite_map, field_atom) do
+                nil ->
+                  # Field not present
+                  acc
+
+                field_value ->
+                  # Format field name and include value
+                  formatted_field_name = apply_field_formatter(to_string(field_atom), formatter)
+                  Map.put(acc, formatted_field_name, field_value)
+              end
+            end)
+        end
+
+      # Non-map value - return as-is (shouldn't happen for composite fields but handle gracefully)
+      other_value ->
+        other_value
     end
   end
 

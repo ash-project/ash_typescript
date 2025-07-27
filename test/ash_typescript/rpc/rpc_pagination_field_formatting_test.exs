@@ -50,7 +50,6 @@ defmodule AshTypescript.Rpc.PaginationFieldFormattingTest do
     end)
   end
 
-
   setup do
     # Store original formatter to restore later
     original_output_field_formatter =

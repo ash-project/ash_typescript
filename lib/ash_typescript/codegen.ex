@@ -122,25 +122,7 @@ defmodule AshTypescript.Codegen do
   Checks if a module is an embedded resource.
   """
   def is_embedded_resource?(module) when is_atom(module) do
-    if Ash.Resource.Info.resource?(module) do
-      # Check if it's an embedded resource by checking the data layer
-      data_layer = Ash.Resource.Info.data_layer(module)
-
-      # Embedded resources can use different data layers but are defined with data_layer: :embedded
-      # We need to check the resource definition itself
-      embedded_config =
-        try do
-          # Try to get the embedded configuration from the resource
-          module.__ash_dsl_config__()
-          |> get_in([:resource, :data_layer])
-        rescue
-          _ -> nil
-        end
-
-      embedded_config == :embedded or data_layer == Ash.DataLayer.Simple
-    else
-      false
-    end
+    Ash.Resource.Info.resource?(module) and Ash.Resource.Info.embedded?(module)
   end
 
   def is_embedded_resource?(_), do: false
@@ -284,6 +266,133 @@ defmodule AshTypescript.Codegen do
 
   # Custom types no longer generate type aliases - they are imported from external files
 
+  # TypedStruct discovery functions
+
+  @doc """
+  Checks if a type is a TypedStruct using simplified Spark DSL detection.
+  """
+  def is_typed_struct?(module) when is_atom(module) do
+    Code.ensure_loaded?(module) and
+      function_exported?(module, :spark_is, 0) and
+      is_ash_typed_struct?(module)
+  end
+
+  def is_typed_struct?(_), do: false
+
+  # Check if the module's spark_is/0 returns Ash.TypedStruct
+  defp is_ash_typed_struct?(module) do
+    try do
+      module.spark_is() == Ash.TypedStruct
+    rescue
+      _ -> false
+    end
+  end
+
+  @doc """
+  Discovers TypedStruct modules from a list of regular resources by scanning their attributes.
+  Returns a list of unique TypedStruct modules.
+  """
+  def find_typed_structs(resources) do
+    resources
+    |> Enum.flat_map(&extract_typed_structs_from_resource/1)
+    |> Enum.uniq()
+  end
+
+  defp extract_typed_structs_from_resource(resource) do
+    resource
+    |> Ash.Resource.Info.public_attributes()
+    |> Enum.filter(&is_typed_struct_attribute?/1)
+    |> Enum.flat_map(&extract_typed_struct_modules/1)
+    |> Enum.filter(& &1)
+  end
+
+  defp is_typed_struct_attribute?(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
+    case type do
+      # Handle union types FIRST (before general atom patterns)
+      Ash.Type.Union ->
+        union_types = Keyword.get(constraints, :types, [])
+
+        Enum.any?(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          type && is_typed_struct?(type)
+        end)
+
+      # Handle array of union types FIRST (before general array patterns)
+      {:array, Ash.Type.Union} ->
+        items_constraints = Keyword.get(constraints, :items, [])
+        union_types = Keyword.get(items_constraints, :types, [])
+
+        Enum.any?(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          type && is_typed_struct?(type)
+        end)
+
+      # Handle direct TypedStruct module
+      module when is_atom(module) ->
+        is_typed_struct?(module)
+
+      # Handle array of TypedStruct
+      {:array, module} when is_atom(module) ->
+        is_typed_struct?(module)
+
+      _ ->
+        false
+    end
+  end
+
+  defp is_typed_struct_attribute?(_), do: false
+
+  defp extract_typed_struct_modules(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
+    case type do
+      # Handle union types FIRST (before general atom patterns)
+      Ash.Type.Union ->
+        union_types = Keyword.get(constraints, :types, [])
+
+        Enum.flat_map(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          if type && is_typed_struct?(type), do: [type], else: []
+        end)
+
+      # Handle array of union types FIRST (before general array patterns)
+      {:array, Ash.Type.Union} ->
+        items_constraints = Keyword.get(constraints, :items, [])
+        union_types = Keyword.get(items_constraints, :types, [])
+
+        Enum.flat_map(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          if type && is_typed_struct?(type), do: [type], else: []
+        end)
+
+      # Handle direct TypedStruct module
+      module when is_atom(module) ->
+        if is_typed_struct?(module), do: [module], else: []
+
+      # Handle array of TypedStruct
+      {:array, module} when is_atom(module) ->
+        if is_typed_struct?(module), do: [module], else: []
+
+      _ ->
+        []
+    end
+  end
+
+  @doc """
+  Gets the field information from a TypedStruct module using Ash's DSL pattern.
+  Returns a list of field definitions.
+  """
+  def get_typed_struct_fields(module) do
+    try do
+      # Use Ash's standard way to get entities from DSL sections
+      if is_typed_struct?(module) do
+        Spark.Dsl.Extension.get_entities(module, [:typed_struct])
+      else
+        []
+      end
+    rescue
+      _ -> []
+    end
+  end
+
   def generate_all_schemas_for_resources(resources, allowed_resources) do
     resources
     |> Enum.map(&generate_all_schemas_for_resource(&1, allowed_resources))
@@ -316,6 +425,7 @@ defmodule AshTypescript.Codegen do
     #{relationship_schema}
 
     #{unions_schema}
+
 
     #{resource_schema}
     """
@@ -677,6 +787,7 @@ defmodule AshTypescript.Codegen do
     export type #{resource_name}ResourceSchema = {
       fields: #{resource_name}FieldsSchema;
       relationships: #{resource_name}RelationshipSchema;
+      typedStructs: #{resource_name}TypedStructsSchema;
       complexCalculations: #{resource_name}ComplexCalculationsSchema;
       unions: #{resource_name}UnionsSchema;
       __complexCalculationsInternal: __#{resource_name}ComplexCalculationsInternal;
@@ -721,6 +832,40 @@ defmodule AshTypescript.Codegen do
     #{input_fields}
     };
     """
+  end
+
+  def generate_typed_structs_schema(resource) do
+    resource_name = resource |> Module.split() |> List.last()
+
+    # Find all TypedStruct attributes in the resource
+    typed_struct_attributes =
+      resource
+      |> Ash.Resource.Info.public_attributes()
+      |> Enum.filter(&is_typed_struct_attribute?/1)
+
+    if Enum.empty?(typed_struct_attributes) do
+      "type #{resource_name}TypedStructsSchema = {};"
+    else
+      typed_struct_fields =
+        typed_struct_attributes
+        |> Enum.map(fn attr ->
+          formatted_name =
+            AshTypescript.FieldFormatter.format_field(
+              attr.name,
+              AshTypescript.Rpc.output_field_formatter()
+            )
+
+          # Generate the TypedStruct field selection type - allows field arrays
+          "  #{formatted_name}: string[];"
+        end)
+        |> Enum.join("\n")
+
+      """
+      type #{resource_name}TypedStructsSchema = {
+      #{typed_struct_fields}
+      };
+      """
+    end
   end
 
   # Input-specific type mapping for embedded resources
@@ -980,6 +1125,11 @@ defmodule AshTypescript.Codegen do
   # Special function for union member types - uses FieldsSchema for embedded resources
   defp get_union_member_type(%{type: type, constraints: constraints}) do
     cond do
+      is_typed_struct?(type) ->
+        # TypedStruct in union supports field selection
+        resource_name = type |> Module.split() |> List.last()
+        "#{resource_name}TypedStructFieldSelection"
+
       is_embedded_resource?(type) ->
         # For union members, use FieldsSchema instead of ResourceSchema
         resource_name = type |> Module.split() |> List.last()
@@ -994,6 +1144,11 @@ defmodule AshTypescript.Codegen do
   # Special function for union member input types - uses InputSchema for embedded resources
   defp get_union_member_input_type(%{type: type, constraints: constraints}) do
     cond do
+      is_typed_struct?(type) ->
+        # For TypedStruct union member inputs, use InputSchema
+        resource_name = type |> Module.split() |> List.last()
+        "#{resource_name}TypedStructInputSchema"
+
       is_embedded_resource?(type) ->
         # For union member inputs, use InputSchema instead of FieldsSchema
         resource_name = type |> Module.split() |> List.last()

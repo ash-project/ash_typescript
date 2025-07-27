@@ -37,48 +37,84 @@ defmodule AshTypescript.Rpc.FieldParser do
 
     {select_fields, load_statements, calculation_specs} =
       Enum.reduce(fields, {[], [], %{}}, fn field, {select_acc, load_acc, calc_specs_acc} ->
-        case process_field(field, context) do
-          {:select, field_atom} ->
-            {[field_atom | select_acc], load_acc, calc_specs_acc}
+        # Handle maps with multiple entries (e.g., multiple TypedStruct field selections)
+        case field do
+          field_map when is_map(field_map) and map_size(field_map) > 1 ->
+            # Process each entry in the map as a separate field
+            Enum.reduce(field_map, {select_acc, load_acc, calc_specs_acc}, fn {field_name,
+                                                                               field_spec},
+                                                                              acc ->
+              process_single_field({field_name, field_spec}, context, acc)
+            end)
 
-          {:load, load_statement} ->
-            {select_acc, [load_statement | load_acc], calc_specs_acc}
-
-          {:both, field_atom, load_statement} ->
-            {[field_atom | select_acc], [load_statement | load_acc], calc_specs_acc}
-
-          {:calculation_load, load_entry, field_specs} ->
-            # Handle complex calculations with field specifications
-            updated_calc_specs =
-              if field_specs do
-                # Extract calculation name from load entry
-                calc_name =
-                  case load_entry do
-                    {name, _} -> name
-                    name -> name
-                  end
-
-                Map.put(calc_specs_acc, calc_name, field_specs)
-              else
-                calc_specs_acc
-              end
-
-            {select_acc, [load_entry | load_acc], updated_calc_specs}
-
-          {:union_field_selection, field_atom, union_member_specs} ->
-            # Handle union field selection - select the union field and store member specs for result processing
-            updated_calc_specs =
-              Map.put(calc_specs_acc, field_atom, {:union_selection, union_member_specs})
-
-            {[field_atom | select_acc], load_acc, updated_calc_specs}
-
-          {:skip, _field_atom} ->
-            # Skip unknown fields gracefully
-            {select_acc, load_acc, calc_specs_acc}
+          _ ->
+            # Process single field normally
+            process_single_field(field, context, {select_acc, load_acc, calc_specs_acc})
         end
       end)
 
     {Enum.reverse(select_fields), Enum.reverse(load_statements), calculation_specs}
+  end
+
+  # Process a single field and update accumulators
+  defp process_single_field(field, context, {select_acc, load_acc, calc_specs_acc}) do
+    case process_field(field, context) do
+      {:select, field_atom} ->
+        {[field_atom | select_acc], load_acc, calc_specs_acc}
+
+      {:load, load_statement} ->
+        {select_acc, [load_statement | load_acc], calc_specs_acc}
+
+      {:both, field_atom, load_statement} ->
+        {[field_atom | select_acc], [load_statement | load_acc], calc_specs_acc}
+
+      {:calculation_load, load_entry, field_specs} ->
+        # Handle complex calculations with field specifications
+        updated_calc_specs =
+          if field_specs do
+            # Extract calculation name from load entry
+            calc_name =
+              case load_entry do
+                {name, _} -> name
+                name -> name
+              end
+
+            Map.put(calc_specs_acc, calc_name, field_specs)
+          else
+            calc_specs_acc
+          end
+
+        {select_acc, [load_entry | load_acc], updated_calc_specs}
+
+      {:union_field_selection, field_atom, union_member_specs} ->
+        # Handle union field selection - select the union field and store member specs for result processing
+        updated_calc_specs =
+          Map.put(calc_specs_acc, field_atom, {:union_selection, union_member_specs})
+
+        {[field_atom | select_acc], load_acc, updated_calc_specs}
+
+      {:typed_struct_selection, field_atom, field_specs} ->
+        # Handle TypedStruct field selection - select the TypedStruct field and store field specs for result processing
+        updated_calc_specs =
+          Map.put(calc_specs_acc, field_atom, {:typed_struct_selection, field_specs})
+
+        {[field_atom | select_acc], load_acc, updated_calc_specs}
+
+      {:typed_struct_nested_selection, field_atom, nested_field_specs} ->
+        # Handle TypedStruct nested field selection - select the TypedStruct field and store nested field specs for result processing
+        updated_calc_specs =
+          Map.put(
+            calc_specs_acc,
+            field_atom,
+            {:typed_struct_nested_selection, nested_field_specs}
+          )
+
+        {[field_atom | select_acc], load_acc, updated_calc_specs}
+
+      {:skip, _field_atom} ->
+        # Skip unknown fields gracefully
+        {select_acc, load_acc, calc_specs_acc}
+    end
   end
 
   @doc """
@@ -91,6 +127,12 @@ defmodule AshTypescript.Rpc.FieldParser do
   - {:calculation_load, load_entry, field_specs} - Complex calculation with specs
   - {:skip, field_atom} - Unknown field to skip
   """
+  # Handle tuple input directly (from map entries)
+  def process_field({field_name, field_spec}, %Context{} = context) do
+    field_atom = FieldFormatter.parse_input_field(field_name, context.formatter)
+    classify_and_process(field_atom, field_spec, context)
+  end
+
   def process_field(field, %Context{} = context) do
     {field_atom, field_spec} = normalize_field(field, context)
     classify_and_process(field_atom, field_spec, context)
@@ -188,6 +230,111 @@ defmodule AshTypescript.Rpc.FieldParser do
         # Embedded resources are attributes that should be selected, not loaded
         {:select, field_atom}
 
+      :typed_struct when is_list(field_spec) ->
+        # TypedStruct with field selection (may include both simple fields and nested composite fields)
+        # Check if all items are simple field names or if we have mixed content
+        {simple_fields, nested_fields} =
+          Enum.reduce(field_spec, {[], %{}}, fn item, {simple_acc, nested_acc} ->
+            case item do
+              field_name when is_binary(field_name) or is_atom(field_name) ->
+                # Simple field name
+                parsed_field =
+                  AshTypescript.FieldFormatter.parse_input_field(field_name, context.formatter)
+
+                {[parsed_field | simple_acc], nested_acc}
+
+              %{} = nested_map when map_size(nested_map) == 1 ->
+                # Single nested field specification (composite field)
+                [{composite_field_name, composite_field_spec}] = Map.to_list(nested_map)
+
+                parsed_composite_field =
+                  AshTypescript.FieldFormatter.parse_input_field(
+                    composite_field_name,
+                    context.formatter
+                  )
+
+                parsed_composite_spec =
+                  case composite_field_spec do
+                    spec when is_list(spec) ->
+                      Enum.map(spec, fn field_name ->
+                        AshTypescript.FieldFormatter.parse_input_field(
+                          field_name,
+                          context.formatter
+                        )
+                      end)
+
+                    _ ->
+                      []
+                  end
+
+                updated_nested_acc =
+                  Map.put(nested_acc, parsed_composite_field, parsed_composite_spec)
+
+                {simple_acc, updated_nested_acc}
+
+              _ ->
+                # Unsupported format, skip
+                {simple_acc, nested_acc}
+            end
+          end)
+
+        # Decide how to handle based on what we found
+        case {simple_fields, nested_fields} do
+          {[], nested_specs} when map_size(nested_specs) > 0 ->
+            # Only nested field specifications
+            {:typed_struct_nested_selection, field_atom, nested_specs}
+
+          {simple_specs, nested_specs} when map_size(nested_specs) > 0 ->
+            # Mixed simple and nested - for now, combine into nested format
+            # Include simple fields as "include all" and nested fields as specific selections
+            combined_specs =
+              Enum.reduce(simple_specs, nested_specs, fn simple_field, acc ->
+                # For simple fields, we just include them without sub-field selection
+                Map.put(acc, simple_field, [])
+              end)
+
+            {:typed_struct_nested_selection, field_atom, combined_specs}
+
+          {simple_specs, _} ->
+            # Only simple field specifications
+            {:typed_struct_selection, field_atom, Enum.reverse(simple_specs)}
+        end
+
+      :typed_struct when is_map(field_spec) ->
+        # TypedStruct with nested field selection for composite fields
+        # Parse nested field specifications for composite type fields within the typed struct
+        parsed_nested_field_specs =
+          Enum.reduce(field_spec, %{}, fn {composite_field_name, composite_field_spec}, acc ->
+            # Parse the composite field name from client format to internal format
+            parsed_composite_field =
+              AshTypescript.FieldFormatter.parse_input_field(
+                composite_field_name,
+                context.formatter
+              )
+
+            # Parse the field specifications for this composite field
+            parsed_composite_spec =
+              case composite_field_spec do
+                spec when is_list(spec) ->
+                  # List of field names for the composite field
+                  Enum.map(spec, fn field_name ->
+                    AshTypescript.FieldFormatter.parse_input_field(field_name, context.formatter)
+                  end)
+
+                _ ->
+                  # Unsupported composite field spec format
+                  []
+              end
+
+            Map.put(acc, parsed_composite_field, parsed_composite_spec)
+          end)
+
+        {:typed_struct_nested_selection, field_atom, parsed_nested_field_specs}
+
+      :typed_struct ->
+        # TypedStruct without field selection - SELECT the full TypedStruct attribute
+        {:select, field_atom}
+
       :union_type when is_list(field_spec) ->
         # Union type with member field selection
         # Parse the union member specifications and generate proper load statement
@@ -219,6 +366,9 @@ defmodule AshTypescript.Rpc.FieldParser do
     cond do
       is_union_type_field?(field_name, resource) ->
         :union_type
+
+      is_typed_struct_field?(field_name, resource) ->
+        :typed_struct
 
       is_embedded_resource_field?(field_name, resource) ->
         :embedded_resource
@@ -322,7 +472,7 @@ defmodule AshTypescript.Rpc.FieldParser do
         end
 
       [{field_name, calc_spec}] when is_binary(field_name) and is_map(calc_spec) ->
-        # Handle complex calculation with calcArgs within embedded resource
+        # Handle complex calculation with args within embedded resource
         field_atom = FieldFormatter.parse_input_field(field_name, context.formatter)
 
         case classify_field(field_atom, embedded_module) do
@@ -434,6 +584,14 @@ defmodule AshTypescript.Rpc.FieldParser do
     case Ash.Resource.Info.attribute(resource, field_name) do
       nil -> false
       attribute -> is_embedded_resource_type?(attribute.type)
+    end
+  end
+
+  @doc "Check if a field is a TypedStruct attribute."
+  def is_typed_struct_field?(field_name, resource) when is_atom(field_name) do
+    case Ash.Resource.Info.attribute(resource, field_name) do
+      nil -> false
+      attribute -> is_typed_struct_type?(attribute.type)
     end
   end
 
@@ -561,6 +719,21 @@ defmodule AshTypescript.Rpc.FieldParser do
   end
 
   defp is_embedded_resource_type?(_), do: false
+
+  defp is_typed_struct_type?(module) when is_atom(module) do
+    try do
+      # Use the same detection logic as in the main codebase
+      AshTypescript.Codegen.is_typed_struct?(module)
+    rescue
+      _ -> false
+    end
+  end
+
+  defp is_typed_struct_type?({:array, module}) when is_atom(module) do
+    is_typed_struct_type?(module)
+  end
+
+  defp is_typed_struct_type?(_), do: false
 
   defp is_union_type?(Ash.Type.Union), do: true
   defp is_union_type?({:array, Ash.Type.Union}), do: true

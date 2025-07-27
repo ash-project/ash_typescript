@@ -106,6 +106,8 @@ defmodule AshTypescript.Rpc.Codegen do
 
     #{generate_all_schemas_for_resources(all_resources_for_schemas, all_resources_for_schemas)}
 
+    #{generate_typed_structs_schemas(all_resources_for_schemas)}
+
     #{generate_filter_types(all_resources_for_schemas, all_resources_for_schemas)}
 
     #{generate_utility_types()}
@@ -122,6 +124,7 @@ defmodule AshTypescript.Rpc.Codegen do
     type ResourceBase = {
       fields: Record<string, any>;
       relationships: Record<string, any>;
+      typedStructs: Record<string, any>;
       complexCalculations: Record<string, any>;
       unions: Record<string, any>;
       __complexCalculationsInternal: Record<string, any>;
@@ -134,6 +137,9 @@ defmodule AshTypescript.Rpc.Codegen do
             Resource["relationships"][K] extends { __resource: infer R }
             ? R extends ResourceBase ? R : never : never
           >[];
+        }
+      | {
+          [K in keyof Resource["typedStructs"]]?: string[];
         }
       | {
           [K in keyof Resource["complexCalculations"]]?: Resource["__complexCalculationsInternal"][K] extends { __returnType: infer ReturnType }
@@ -178,6 +184,18 @@ defmodule AshTypescript.Rpc.Codegen do
             : {}
         : {};
 
+    // Process TypedStruct field selection - extract only requested fields from structured data
+    type InferTypedStructResult<TypedStructField, Selection> =
+      Selection extends string[]
+        ? TypedStructField extends Record<string, any>
+          ? {
+              [K in Selection[number]]: K extends keyof TypedStructField
+                ? TypedStructField[K]
+                : never
+            }
+          : TypedStructField
+        : TypedStructField;
+
     // Process individual fields using schema keys as classifiers
     type ProcessField<Resource extends ResourceBase, Field> =
       Field extends string
@@ -208,10 +226,15 @@ defmodule AshTypescript.Rpc.Codegen do
                           : InferResourceResult<R, Field[K]>
                         : any
                       : any
-                  : K extends keyof Resource["unions"]
-                    ? // Union field selection - process union member selection
-                      ProcessUnionFieldSelection<Resource["unions"][K], Field[K]>
-                    : any
+                  : K extends keyof Resource["typedStructs"]
+                    ? // TypedStruct field selection - apply field filtering to structured data
+                      Field[K] extends string[]
+                        ? InferTypedStructResult<Resource["typedStructs"][K], Field[K]>
+                        : Resource["typedStructs"][K]
+                    : K extends keyof Resource["unions"]
+                      ? // Union field selection - process union member selection
+                        ProcessUnionFieldSelection<Resource["unions"][K], Field[K]>
+                      : any
             }
           : any;
 
@@ -683,7 +706,7 @@ defmodule AshTypescript.Rpc.Codegen do
     has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
     limit_field = AshTypescript.FieldFormatter.format_field("limit", formatter)
     offset_field = AshTypescript.FieldFormatter.format_field("offset", formatter)
-    
+
     """
     type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
       Config["page"] extends undefined
@@ -706,7 +729,7 @@ defmodule AshTypescript.Rpc.Codegen do
     before_field = AshTypescript.FieldFormatter.format_field("before", formatter)
     previous_page_field = AshTypescript.FieldFormatter.format_field("previous_page", formatter)
     next_page_field = AshTypescript.FieldFormatter.format_field("next_page", formatter)
-    
+
     """
     type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
       Config["page"] extends undefined
@@ -734,7 +757,7 @@ defmodule AshTypescript.Rpc.Codegen do
     previous_page_field = AshTypescript.FieldFormatter.format_field("previous_page", formatter)
     next_page_field = AshTypescript.FieldFormatter.format_field("next_page", formatter)
     type_field = AshTypescript.FieldFormatter.format_field("type", formatter)
-    
+
     """
     type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
       Config["page"] extends undefined
@@ -1455,6 +1478,163 @@ defmodule AshTypescript.Rpc.Codegen do
           }
         }
         """
+    end
+  end
+
+  @doc """
+  Generates TypedStruct schemas for field selection.
+  Creates separate typedStructs schema section with field selection arrays.
+  """
+  def generate_typed_structs_schemas(resources) do
+    typed_structs = AshTypescript.Codegen.find_typed_structs(resources)
+
+    # Always generate resource-level TypedStruct schemas (empty for resources without TypedStruct)
+    resource_schemas =
+      resources
+      |> Enum.map(&generate_typed_struct_schema_for_resource/1)
+      |> Enum.join("\n\n")
+
+    # Only generate individual TypedStruct schemas if TypedStruct modules exist
+    individual_schemas =
+      if Enum.empty?(typed_structs) do
+        ""
+      else
+        typed_structs
+        |> Enum.map(&generate_individual_typed_struct_schemas/1)
+        |> Enum.filter(&(&1 != ""))
+        |> Enum.join("\n\n")
+      end
+
+    schemas =
+      [resource_schemas, individual_schemas]
+      |> Enum.filter(&(&1 != ""))
+      |> Enum.join("\n\n")
+
+    if schemas == "" do
+      ""
+    else
+      """
+      // TypedStruct Schemas
+      #{schemas}
+      """
+    end
+  end
+
+  defp generate_typed_struct_schema_for_resource(resource) do
+    typed_struct_fields = get_typed_struct_fields_for_resource(resource)
+    resource_name = resource |> Module.split() |> List.last()
+
+    if Enum.empty?(typed_struct_fields) do
+      "type #{resource_name}TypedStructsSchema = {};"
+    else
+      field_entries =
+        typed_struct_fields
+        |> Enum.map(fn {field_name, _typed_struct_module} ->
+          field_name_str = Atom.to_string(field_name)
+          "  #{field_name_str}: string[];"
+        end)
+        |> Enum.join("\n")
+
+      """
+      type #{resource_name}TypedStructsSchema = {
+      #{field_entries}
+      };
+      """
+    end
+  end
+
+  defp get_typed_struct_fields_for_resource(resource) do
+    resource
+    |> Ash.Resource.Info.public_attributes()
+    |> Enum.filter(fn attr ->
+      case attr.type do
+        module when is_atom(module) -> AshTypescript.Codegen.is_typed_struct?(module)
+        {:array, module} when is_atom(module) -> AshTypescript.Codegen.is_typed_struct?(module)
+        _ -> false
+      end
+    end)
+    |> Enum.map(fn attr ->
+      typed_struct_module =
+        case attr.type do
+          module when is_atom(module) -> module
+          {:array, module} when is_atom(module) -> module
+          _ -> nil
+        end
+
+      {attr.name, typed_struct_module}
+    end)
+    |> Enum.filter(fn {_name, module} -> module != nil end)
+  end
+
+  defp generate_individual_typed_struct_schemas(typed_struct_module) do
+    module_name = typed_struct_module |> Module.split() |> List.last()
+
+    # Get TypedStruct field information
+    fields = AshTypescript.Codegen.get_typed_struct_fields(typed_struct_module)
+
+    if Enum.empty?(fields) do
+      ""
+    else
+      # Generate field selection type (for unions and field selection)
+      field_selection_type = """
+      type #{module_name}TypedStructFieldSelection = string[];
+      """
+
+      # Generate individual field schemas (for type inference)
+      field_schema_entries =
+        fields
+        |> Enum.map(fn %{name: field_name, type: field_type} ->
+          ts_type = get_typed_struct_field_ts_type(field_type)
+          "  #{field_name}: #{ts_type};"
+        end)
+        |> Enum.join("\n")
+
+      field_schema_type = """
+      type #{module_name}TypedStructSchema = {
+      #{field_schema_entries}
+      };
+      """
+
+      # Generate input schema (for create/update operations)
+      input_schema_entries =
+        fields
+        |> Enum.map(fn %{name: field_name, type: field_type, constraints: constraints} ->
+          ts_type = get_typed_struct_field_ts_type(field_type)
+
+          is_optional =
+            Keyword.get(constraints, :allow_nil?, false) ||
+              Keyword.get(constraints, :default) != nil
+
+          optional_marker = if is_optional, do: "?", else: ""
+          "  #{field_name}#{optional_marker}: #{ts_type};"
+        end)
+        |> Enum.join("\n")
+
+      input_schema_type = """
+      type #{module_name}TypedStructInputSchema = {
+      #{input_schema_entries}
+      };
+      """
+
+      [field_selection_type, field_schema_type, input_schema_type]
+      |> Enum.join("\n")
+    end
+  end
+
+  defp get_typed_struct_field_ts_type(field_type) do
+    # Map Ash types to TypeScript types for TypedStruct fields
+    case field_type do
+      :string -> "string"
+      :integer -> "number"
+      :float -> "number"
+      :boolean -> "boolean"
+      :utc_datetime -> "string"
+      :date -> "string"
+      :time -> "string"
+      :decimal -> "number"
+      :uuid -> "string"
+      {:array, inner_type} -> "Array<#{get_typed_struct_field_ts_type(inner_type)}>"
+      _ -> "any"
     end
   end
 end

@@ -52,7 +52,6 @@ defmodule AshTypescript.Rpc.PaginationInputFieldFormattingTest do
     end)
   end
 
-
   setup do
     # Store original formatter to restore later
     original_input_field_formatter =
@@ -110,7 +109,8 @@ defmodule AshTypescript.Rpc.PaginationInputFieldFormattingTest do
         "page" => %{
           "limit" => 3,
           "offset" => 0,
-          "count" => true  # This should be converted correctly
+          # This should be converted correctly
+          "count" => true
         }
       }
 
@@ -147,7 +147,8 @@ defmodule AshTypescript.Rpc.PaginationInputFieldFormattingTest do
         "input" => %{},
         "page" => %{
           "limit" => 4,
-          "after" => nil,  # This should be handled correctly
+          # This should be handled correctly
+          "after" => nil,
           "count" => true
         }
       }
@@ -257,7 +258,7 @@ defmodule AshTypescript.Rpc.PaginationInputFieldFormattingTest do
       assert data["limit"] == 5
       assert data["offset"] == 0
       assert data["type"] == "offset"
-      
+
       # Should work correctly with field formatting
       assert is_list(data["results"])
     end
@@ -271,6 +272,7 @@ defmodule AshTypescript.Rpc.PaginationInputFieldFormattingTest do
         :input_field_formatter,
         {__MODULE__, :custom_format}
       )
+
       Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
 
       # Client sends pagination parameters with custom prefix
@@ -281,7 +283,8 @@ defmodule AshTypescript.Rpc.PaginationInputFieldFormattingTest do
         "page" => %{
           "limit" => 3,
           "offset" => 0,
-          "custom_count" => true  # Custom formatter should convert this
+          # Custom formatter should convert this
+          "custom_count" => true
         }
       }
 
@@ -298,10 +301,14 @@ defmodule AshTypescript.Rpc.PaginationInputFieldFormattingTest do
   # Custom formatter function for testing
   def custom_format(field_name) do
     case String.downcase(to_string(field_name)) do
-      "limit" -> "limit"  # Keep limit as-is
-      "offset" -> "offset"  # Keep offset as-is  
-      "count" -> "count"  # Keep count as-is
-      other -> String.replace(other, "custom_", "")  # Remove custom_ prefix
+      # Keep limit as-is
+      "limit" -> "limit"
+      # Keep offset as-is  
+      "offset" -> "offset"
+      # Keep count as-is
+      "count" -> "count"
+      # Remove custom_ prefix
+      other -> String.replace(other, "custom_", "")
     end
   end
 end

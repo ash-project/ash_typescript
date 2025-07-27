@@ -159,6 +159,14 @@ defmodule AshTypescript.Test.Todo do
                   storage: :map_with_tag
     end
 
+    attribute :timestamp_info, AshTypescript.Test.TodoTimestamp do
+      public? true
+    end
+
+    attribute :statistics, AshTypescript.Test.TodoStatistics do
+      public? true
+    end
+
     create_timestamp :created_at do
       public? true
     end
@@ -275,7 +283,9 @@ defmodule AshTypescript.Test.Todo do
         :attachments,
         :status_info,
         :priority_score,
-        :color_palette
+        :color_palette,
+        :timestamp_info,
+        :statistics
       ]
 
       argument :auto_complete, :boolean do
@@ -307,7 +317,9 @@ defmodule AshTypescript.Test.Todo do
         :attachments,
         :status_info,
         :priority_score,
-        :color_palette
+        :color_palette,
+        :timestamp_info,
+        :statistics
       ]
     end
 
