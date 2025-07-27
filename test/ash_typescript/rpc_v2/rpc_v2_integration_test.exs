@@ -1,0 +1,369 @@
+defmodule AshTypescript.RpcV2.IntegrationTest do
+  use ExUnit.Case
+
+  alias AshTypescript.RpcV2
+  alias AshTypescript.Test.{Domain, Todo, User}
+
+  @moduletag :ash_typescript
+
+  describe "request parsing validation" do
+    test "valid simple field requests parse successfully" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title", "description", "status"]
+      }
+
+      conn = %Plug.Conn{}
+
+      # Valid requests should always parse successfully
+      assert {:ok, request} = AshTypescript.RpcV2.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      
+      # Verify parsed structure
+      assert request.resource == Todo
+      assert :id in request.select
+      assert :title in request.select
+      assert :description in request.select
+      assert :status in request.select
+      assert is_map(request.extraction_template)
+    end
+
+    test "valid complex field combinations parse successfully" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => [
+          "id",
+          "title",
+          "isOverdue",  # Simple calculation
+          %{"user" => ["id", "name"]},  # Relationship
+          %{"metadata" => ["category"]},  # Embedded resource
+          %{"self" => %{"args" => %{"prefix" => "test"}}}  # Complex calculation
+        ]
+      }
+
+      conn = %Plug.Conn{}
+
+      # Valid complex requests should always parse successfully
+      assert {:ok, request} = AshTypescript.RpcV2.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      
+      # Verify correct field classification
+      assert :id in request.select
+      assert :title in request.select
+      assert :is_overdue in request.load
+      
+      # Verify relationships and calculations are in load
+      assert Enum.any?(request.load, fn
+        {:user, _} -> true
+        _ -> false
+      end)
+      
+      assert Enum.any?(request.load, fn
+        {:self, %{prefix: "test"}} -> true
+        _ -> false
+      end)
+    end
+
+    test "end-to-end strict validation - fails fast on unknown fields" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title", "unknown_field"]
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:error, error_response} = RpcV2.run_action(:ash_typescript, conn, params)
+      
+      # Should fail with validation error, not execution error
+      assert error_response.success == false
+      assert error_response.errors.type == "unknown_field"
+      assert String.contains?(error_response.errors.message, "unknown_field")
+      assert String.contains?(error_response.errors.message, "Todo")
+    end
+
+    test "validation-only endpoint works correctly" do
+      valid_params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title"],
+        "input" => %{"userId" => "123"}
+      }
+
+      conn = %Plug.Conn{}
+
+      # Valid request should pass validation
+      assert {:ok, response} = RpcV2.validate_action(:ash_typescript, conn, valid_params)
+      assert response.success == true
+
+      # Invalid request should fail validation
+      invalid_params = %{
+        "action" => "list_todos", 
+        "fields" => ["id", "unknown_field"]
+      }
+
+      assert {:error, error_response} = RpcV2.validate_action(:ash_typescript, conn, invalid_params)
+      assert error_response.success == false
+      assert error_response.errors.type == "unknown_field"
+    end
+  end
+
+  describe "field processing integration" do
+    test "camelCase to snake_case conversion throughout pipeline" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "createdAt", "isOverdue"],  # camelCase input
+        "input" => %{"userId" => "123", "searchTerm" => "test"}  # camelCase input
+      }
+
+      conn = %Plug.Conn{}
+
+      # Valid camelCase requests should always parse successfully
+      assert {:ok, request} = AshTypescript.RpcV2.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      
+      # Field names should be converted to snake_case internally
+      assert :created_at in request.select  # Converted from createdAt
+      assert :is_overdue in request.load  # Converted from isOverdue (calculation)
+      
+      # Input should be converted to snake_case
+      assert request.input[:user_id] == "123"  # Converted from userId
+      assert request.input[:search_term] == "test"  # Converted from searchTerm
+    end
+
+    test "output formatting converts back to camelCase" do
+      # Mock internal data with snake_case keys (as it would come from Ash)
+      internal_data = [
+        %{id: 1, title: "Test", created_at: ~U[2024-01-01 00:00:00Z], user_id: "123"},
+        %{id: 2, title: "Another", created_at: ~U[2024-01-02 00:00:00Z], user_id: "456"}
+      ]
+
+      request = %AshTypescript.RpcV2.Request{}
+
+      # Test the output formatting stage
+      {:ok, formatted_result} = AshTypescript.RpcV2.Pipeline.format_output(internal_data, request)
+
+      # Should convert snake_case back to camelCase for client consumption
+      first_item = List.first(formatted_result)
+      assert Map.has_key?(first_item, "id")         # No conversion needed
+      assert Map.has_key?(first_item, "title")      # No conversion needed  
+      assert Map.has_key?(first_item, "createdAt")  # Converted from created_at
+      assert Map.has_key?(first_item, "userId")     # Converted from user_id
+      
+      # Should not have snake_case keys in output
+      refute Map.has_key?(first_item, "created_at")
+      refute Map.has_key?(first_item, "user_id")
+    end
+  end
+
+  describe "pagination integration" do
+    test "pagination parameters are processed correctly" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title"],
+        "page" => %{"limit" => 10, "offset" => 20}
+      }
+
+      conn = %Plug.Conn{}
+
+      # Valid pagination should always parse successfully
+      assert {:ok, request} = AshTypescript.RpcV2.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      
+      # Pagination should be parsed and included
+      assert request.pagination[:limit] == 10
+      assert request.pagination[:offset] == 20
+    end
+
+    test "invalid pagination format is rejected" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title"],
+        "page" => "invalid_pagination"  # Should be a map
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:error, {:invalid_pagination, "invalid_pagination"}} = 
+        AshTypescript.RpcV2.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+    end
+  end
+
+  describe "error handling integration" do
+    test "action not found flows through complete error handling" do
+      params = %{
+        "action" => "nonexistent_action",
+        "fields" => ["id"]
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:error, error_response} = RpcV2.run_action(:ash_typescript, conn, params)
+      
+      # Should get properly formatted error response
+      assert error_response.success == false
+      assert error_response.errors.type == "action_not_found"
+      assert error_response.errors.message == "RPC action 'nonexistent_action' not found"
+      assert error_response.errors.details.action_name == "nonexistent_action"
+      assert String.contains?(error_response.errors.details.suggestion, "rpc block")
+    end
+
+    test "field validation errors are user-friendly" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "completely_unknown_field"]
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:error, error_response} = RpcV2.run_action(:ash_typescript, conn, params)
+      
+      # Error should be clear and actionable
+      assert error_response.success == false
+      assert error_response.errors.type == "unknown_field"
+      assert String.contains?(error_response.errors.message, "completely_unknown_field")
+      assert String.contains?(error_response.errors.message, "Todo")
+      assert String.contains?(error_response.errors.details.suggestion, "field name spelling")
+    end
+
+    test "nested field errors provide context" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => [%{"user" => ["id", "nonexistent_user_field"]}]
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:error, error_response} = RpcV2.run_action(:ash_typescript, conn, params)
+      
+      # Should show it's a relationship field error with nested context
+      assert error_response.success == false
+      assert error_response.errors.type == "relationship_field_error"
+      assert String.contains?(error_response.errors.message, "user")
+      assert error_response.errors.details.nested_error.type == "unknown_field"
+      assert String.contains?(error_response.errors.details.nested_error.message, "nonexistent_user_field")
+    end
+  end
+
+
+  describe "real-world scenarios" do
+    test "simple list view request parsing" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title", "status", "createdAt"]
+      }
+
+      conn = %Plug.Conn{}
+
+      # Simple list requests should always parse successfully
+      assert {:ok, request} = AshTypescript.RpcV2.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      
+      assert request.resource == Todo
+      assert :id in request.select
+      assert :title in request.select
+      assert :status in request.select
+      assert :created_at in request.select
+    end
+
+    test "list with relationship request parsing" do
+      params = %{
+        "action" => "list_todos", 
+        "fields" => [
+          "id", "title", "status",
+          %{"user" => ["id", "name"]}
+        ]
+      }
+
+      conn = %Plug.Conn{}
+
+      # Relationship requests should always parse successfully
+      assert {:ok, request} = AshTypescript.RpcV2.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      
+      assert request.resource == Todo
+      assert :id in request.select
+      assert :title in request.select
+      assert :status in request.select
+      
+      # Should have user relationship in load
+      assert Enum.any?(request.load, fn
+        {:user, _} -> true
+        _ -> false
+      end)
+    end
+
+    test "detailed view with calculations request parsing" do
+      params = %{
+        "action" => "get_todo",
+        "fields" => [
+          "id", "title", "description", "status", "createdAt",
+          "isOverdue", "daysUntilDue",
+          %{"user" => ["id", "name", "email"]},
+          %{"metadata" => ["category", "priorityScore"]}
+        ]
+      }
+
+      conn = %Plug.Conn{}
+
+      # Complex detailed requests should always parse successfully
+      assert {:ok, request} = AshTypescript.RpcV2.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      
+      assert request.resource == Todo
+      # Verify calculations are in load
+      assert :is_overdue in request.load
+      assert :days_until_due in request.load
+    end
+
+    test "request with filtering and pagination parsing" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title", "status", "createdAt"],
+        "filter" => %{"status" => "active"},
+        "sort" => ["createdAt"],
+        "page" => %{"limit" => 20, "offset" => 0}
+      }
+
+      conn = %Plug.Conn{}
+
+      # Requests with pagination should always parse successfully
+      assert {:ok, request} = AshTypescript.RpcV2.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      
+      assert request.resource == Todo
+      assert request.pagination[:limit] == 20
+      assert request.pagination[:offset] == 0
+    end
+
+    test "typo in field name should fail" do
+      params = %{"action" => "list_todos", "fields" => ["id", "titel"]}  # typo: titel instead of title
+      conn = %Plug.Conn{}
+
+      # Invalid field names should always fail
+      assert {:error, error_response} = RpcV2.run_action(:ash_typescript, conn, params)
+      assert error_response.success == false
+      assert error_response.errors.type == "unknown_field"
+    end
+
+    test "wrong action name should fail" do
+      params = %{"action" => "list_todo", "fields" => ["id"]}  # missing 's'
+      conn = %Plug.Conn{}
+
+      # Invalid action names should always fail
+      assert {:error, error_response} = RpcV2.run_action(:ash_typescript, conn, params)
+      assert error_response.success == false
+      assert error_response.errors.type == "action_not_found"
+    end
+
+    test "invalid nested structure should fail" do
+      params = %{"action" => "list_todos", "fields" => [%{"user" => "should_be_array"}]}
+      conn = %Plug.Conn{}
+
+      # Invalid nested structures should always fail
+      assert {:error, error_response} = RpcV2.run_action(:ash_typescript, conn, params)
+      assert error_response.success == false
+      assert error_response.errors.type == "unsupported_field_combination"
+    end
+
+    test "invalid pagination format should fail" do
+      params = %{"action" => "list_todos", "fields" => ["id"], "page" => 10}  # should be object
+      conn = %Plug.Conn{}
+
+      # Invalid pagination should always fail
+      assert {:error, error_response} = RpcV2.run_action(:ash_typescript, conn, params)
+      assert error_response.success == false
+      assert error_response.errors.type == "invalid_pagination"
+    end
+  end
+end

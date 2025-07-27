@@ -284,6 +284,7 @@ defmodule AshTypescript.Rpc do
                 output_field_formatter()
               )
 
+
             %{success: true, data: processed_result}
 
           {:error, error} ->
