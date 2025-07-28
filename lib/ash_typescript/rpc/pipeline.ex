@@ -12,7 +12,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   No side effects, easy to test, easy to understand.
   """
 
-  alias AshTypescript.Rpc.{Request, FieldParser, ResultFilter}
+  alias AshTypescript.Rpc.{Request, RequestedFieldsParser, ResultFilter}
   alias AshTypescript.{FieldFormatter, Rpc}
 
   @doc """
@@ -30,7 +30,7 @@ defmodule AshTypescript.Rpc.Pipeline do
 
     with {:ok, {resource, action}} <- discover_rpc_action(otp_app, normalized_params),
          {:ok, tenant} <- resolve_tenant(resource, conn, normalized_params),
-         {:ok, {select, load, template}} <- parse_fields_strict(normalized_params, resource),
+         {:ok, {select, load, template}} <- parse_fields_strict(normalized_params, resource, action),
          {:ok, input} <- parse_input_strict(normalized_params, action),
          {:ok, pagination} <- parse_pagination_strict(normalized_params) do
       request =
@@ -51,6 +51,8 @@ defmodule AshTypescript.Rpc.Pipeline do
         })
 
       {:ok, request}
+    else
+      error -> error
     end
   end
 
@@ -172,12 +174,10 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp parse_fields_strict(params, resource) do
-    # Fields should already be under the :fields atom key after normalization
+  defp parse_fields_strict(params, resource, action) do
     client_fields = Map.get(params, :fields, [])
-    formatter = Rpc.input_field_formatter()
 
-    case FieldParser.parse_requested_fields(client_fields, resource, formatter) do
+    case RequestedFieldsParser.parse_requested_fields(resource, action, client_fields) do
       {:ok, {select, load, template}} ->
         {:ok, {select, load, template}}
 
@@ -188,18 +188,23 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp parse_input_strict(params, action) do
     raw_input = Map.get(params, :input, %{})
+    
+    # Validate that input is a map
+    unless is_map(raw_input) do
+      {:error, {:invalid_input_format, raw_input}}
+    else
+      # Add primary key for get actions
+      raw_input_with_pk =
+        if params[:primary_key] && action.type == :read do
+          Map.put(raw_input, "id", params[:primary_key])
+        else
+          raw_input
+        end
 
-    # Add primary key for get actions
-    raw_input_with_pk =
-      if params[:primary_key] && action.type == :read do
-        Map.put(raw_input, "id", params[:primary_key])
-      else
-        raw_input
-      end
-
-    formatter = Rpc.input_field_formatter()
-    parsed_input = FieldFormatter.parse_input_fields(raw_input_with_pk, formatter)
-    {:ok, parsed_input}
+      formatter = Rpc.input_field_formatter()
+      parsed_input = FieldFormatter.parse_input_fields(raw_input_with_pk, formatter)
+      {:ok, parsed_input}
+    end
   end
 
   defp parse_pagination_strict(params) do

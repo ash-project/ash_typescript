@@ -41,6 +41,17 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
       {:invalid_fields, field_error} ->
         build_field_error_response(field_error)
 
+      # Input validation errors
+      {:invalid_input_format, invalid_input} ->
+        %{
+          type: "invalid_input_format",
+          message: "Input parameter must be a map",
+          details: %{
+            received: inspect(invalid_input),
+            expected: "Map containing input parameters"
+          }
+        }
+
       # Pagination errors
       {:invalid_pagination, invalid_value} ->
         %{
@@ -186,6 +197,129 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
             field_type: field_type,
             field_spec: inspect(field_spec),
             suggestion: "Check the documentation for valid field specification formats"
+          }
+        }
+
+      {:field_normalization_error, exception} ->
+        %{
+          type: "field_normalization_error",
+          message: "Error normalizing field format: #{Exception.message(exception)}",
+          details: %{
+            error: Exception.message(exception),
+            suggestion: "Check that all fields are strings or valid field specifications"
+          }
+        }
+
+      {:calculation_requires_args, field_atom} ->
+        %{
+          type: "calculation_requires_args",
+          message: "Calculation '#{field_atom}' requires arguments",
+          details: %{
+            field: to_string(field_atom),
+            suggestion: "Provide arguments in the format: {\"#{field_atom}\": {\"args\": {...}}}"
+          }
+        }
+
+      {:invalid_calculation_args, field_atom, args} ->
+        %{
+          type: "invalid_calculation_args",
+          message: "Invalid arguments for calculation '#{field_atom}'",
+          details: %{
+            field: to_string(field_atom),
+            received: inspect(args),
+            expected: "Map containing argument values"
+          }
+        }
+
+      {:calculation_field_error, field_atom, nested_error} ->
+        %{
+          type: "calculation_field_error",
+          message: "Error in calculation field '#{field_atom}'",
+          details: %{
+            field: to_string(field_atom),
+            nested_error: build_field_error_response(nested_error)
+          }
+        }
+
+      {:nested_field_error, field_atom, nested_error} ->
+        %{
+          type: "relationship_field_error",
+          message: "Error in relationship field '#{field_atom}'",
+          details: %{
+            field: to_string(field_atom),
+            nested_error: build_field_error_response(nested_error)
+          }
+        }
+
+      {:fields_not_allowed, message} ->
+        %{
+          type: "fields_not_allowed",
+          message: message,
+          details: %{
+            suggestion: "Remove the fields parameter for actions with primitive return types"
+          }
+        }
+
+      {:invalid_field_format, field, resource} ->
+        %{
+          type: "invalid_field_format",
+          message: "Invalid field format '#{inspect(field)}' for resource #{inspect(resource)}",
+          details: %{
+            field: inspect(field),
+            resource: inspect(resource),
+            expected: "String field name or map with single key-value pair"
+          }
+        }
+
+      {:field_does_not_support_nesting, field_atom} ->
+        %{
+          type: "field_does_not_support_nesting",
+          message: "Field '#{field_atom}' does not support nested field selection",
+          details: %{
+            field: to_string(field_atom),
+            suggestion: "Remove the nested specification for this field"
+          }
+        }
+
+      {:invalid_relationship_spec, field_atom, spec} ->
+        %{
+          type: "invalid_relationship_spec",
+          message: "Invalid relationship specification for '#{field_atom}'",
+          details: %{
+            field: to_string(field_atom),
+            received: inspect(spec),
+            expected: "List of field names for relationship field selection"
+          }
+        }
+
+      {:invalid_embedded_spec, field_atom, spec} ->
+        %{
+          type: "invalid_embedded_spec",
+          message: "Invalid embedded resource specification for '#{field_atom}'",
+          details: %{
+            field: to_string(field_atom),
+            received: inspect(spec),
+            expected: "List of field names for embedded resource field selection"
+          }
+        }
+
+      {:unknown_map_field, field_atom} ->
+        %{
+          type: "unknown_map_field",
+          message: "Unknown field '#{field_atom}' for map return type",
+          details: %{
+            field: to_string(field_atom),
+            suggestion: "Check that the field name is valid for the map's field constraints"
+          }
+        }
+
+      {:invalid_map_field_format, field} ->
+        %{
+          type: "invalid_map_field_format",
+          message: "Invalid field format for map field selection",
+          details: %{
+            received: inspect(field),
+            expected: "String field name or atom for map field selection"
           }
         }
 

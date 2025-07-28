@@ -28,7 +28,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
       conn = %Plug.Conn{}
 
       assert {:error, error} = Pipeline.parse_request_strict(:ash_typescript, conn, params)
-      assert {:invalid_fields, {:unsupported_field_format, 123}} = error
+      assert {:invalid_fields, {:field_normalization_error, %ArgumentError{}}} = error
     end
 
     test "fails on invalid nested field specification" do
@@ -53,7 +53,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
       conn = %Plug.Conn{}
 
       assert {:error, error} = Pipeline.parse_request_strict(:ash_typescript, conn, params)
-      assert {:invalid_fields, {:simple_attribute_with_spec, :title, [:nested]}} = error
+      assert {:invalid_fields, {:field_does_not_support_nesting, :title}} = error
     end
 
     test "succeeds with valid fields" do
