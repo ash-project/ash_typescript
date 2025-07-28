@@ -27,6 +27,12 @@ defmodule AshTypescript.Test.Formatters do
   @doc """
   Custom input parser that strips "input_" prefix.
   """
+  def parse_input_with_prefix(field_name) when is_atom(field_name) do
+    field_name
+    |> Atom.to_string()
+    |> parse_input_with_prefix()
+  end
+
   def parse_input_with_prefix(field_name) do
     field_name
     |> String.replace_leading("input_", "")

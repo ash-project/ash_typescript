@@ -230,7 +230,7 @@ defmodule AshTypescript.Test.TestHelpers do
   Returns the data portion of the result.
   """
   def assert_rpc_success(result, expected_data_check \\ &is_map/1) do
-    assert %{success: true, data: data} = result
+    assert %{"success" => true, "data" => data} = result
     assert expected_data_check.(data), "Data validation failed for: #{inspect(data)}"
     data
   end
@@ -244,7 +244,7 @@ defmodule AshTypescript.Test.TestHelpers do
   Returns the error portion of the result.
   """
   def assert_rpc_error(result) do
-    assert %{success: false, errors: error} = result
+    assert %{"success" => false, "errors" => error} = result
     error
   end
 
@@ -315,7 +315,7 @@ defmodule AshTypescript.Test.TestHelpers do
       "fields" => opts[:fields],
       "input" => %{
         "title" => opts[:title],
-        "completed" => opts[:completed],
+        "autoComplete" => opts[:completed],
         "userId" => opts[:user_id]
       }
     }

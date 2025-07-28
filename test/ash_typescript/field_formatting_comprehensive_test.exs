@@ -556,7 +556,7 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       }
 
       user_result = Rpc.run_action(:ash_typescript, conn, user_params)
-      assert %{success: true, data: user} = user_result
+      assert %{"custom_success" => true, "custom_data" => user} = user_result
 
       todo_params = %{
         "action" => "create_todo",
@@ -568,7 +568,7 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       }
 
       create_result = Rpc.run_action(:ash_typescript, conn, todo_params)
-      assert %{success: true, data: _todo} = create_result
+      assert %{"custom_success" => true, "custom_data" => _todo} = create_result
 
       read_params = %{
         "action" => "list_todos",
@@ -576,7 +576,7 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       }
 
       result = Rpc.run_action(:ash_typescript, conn, read_params)
-      assert %{success: true, data: formatted_todos} = result
+      assert %{"custom_success" => true, "custom_data" => formatted_todos} = result
 
       if length(formatted_todos) > 0 do
         formatted_todo = List.first(formatted_todos)
