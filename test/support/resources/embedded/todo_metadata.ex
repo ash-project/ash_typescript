@@ -67,6 +67,16 @@ defmodule AshTypescript.Test.TodoMetadata do
       public? true
     end
 
+    # Simple calculation renamed to match test expectations
+    calculate :displayCategory, :string, expr(category || "Uncategorized") do
+      public? true
+    end
+
+    # Simple calculation renamed to match test expectations  
+    calculate :isOverdue, :boolean, expr(deadline < ^Date.utc_today()) do
+      public? true
+    end
+
     # Calculation with arguments
     calculate :adjusted_priority,
               :integer,

@@ -1,43 +1,43 @@
 defmodule AshTypescript.Rpc.Pipeline do
   @moduledoc """
-  Pure functional RPC processing pipeline.
-
   Implements the four-stage pipeline:
   1. parse_request_strict/3 - Parse and validate input with fail-fast
   2. execute_ash_action/1 - Execute Ash operations
   3. filter_result_fields/2 - Apply field selection
   4. format_output/2 - Format for client consumption
-
-  Each stage is a pure function with clear inputs/outputs.
-  No side effects, easy to test, easy to understand.
   """
 
-  alias AshTypescript.Rpc.{Request, RequestedFieldsParser, ResultFilter}
+  alias AshTypescript.Rpc.{Request, ResultProcessor, RequestedFieldsProcessor}
   alias AshTypescript.{FieldFormatter, Rpc}
 
   @doc """
-  Stage 1: Parse and validate request with strict validation.
+  Stage 1: Parse and validate request.
 
   Converts raw request parameters into a structured Request with validated fields.
   Fails fast on any invalid input - no permissive modes.
   """
-  @spec parse_request_strict(atom(), Plug.Conn.t(), map()) ::
+  @spec parse_request(atom(), Plug.Conn.t(), map()) ::
           {:ok, Request.t()} | {:error, term()}
-  def parse_request_strict(otp_app, conn, params) do
-    # Transform client field names to internal format, but preserve certain params as-is
+  def parse_request(otp_app, conn, params) do
     input_formatter = Rpc.input_field_formatter()
-    normalized_params = normalize_request_params(params, input_formatter)
+    normalized_params = FieldFormatter.parse_input_fields(params, input_formatter)
 
     with {:ok, {resource, action}} <- discover_rpc_action(otp_app, normalized_params),
-         {:ok, tenant} <- resolve_tenant(resource, conn, normalized_params),
-         {:ok, {select, load, template}} <- parse_fields_strict(normalized_params, resource, action),
-         {:ok, input} <- parse_input_strict(normalized_params, action),
-         {:ok, pagination} <- parse_pagination_strict(normalized_params) do
+         requested_fields <-
+           RequestedFieldsProcessor.atomize_requested_fields(normalized_params[:fields] || []),
+         {:ok, {select, load, template}} <-
+           RequestedFieldsProcessor.process(
+             resource,
+             action.name,
+             requested_fields
+           ),
+         {:ok, input} <- parse_action_input(normalized_params, action),
+         {:ok, pagination} <- parse_pagination(normalized_params) do
       request =
         Request.new(%{
           resource: resource,
           action: action,
-          tenant: tenant,
+          tenant: Ash.PlugHelpers.get_tenant(conn),
           actor: Ash.PlugHelpers.get_actor(conn),
           context: Ash.PlugHelpers.get_context(conn) || %{},
           select: select,
@@ -94,23 +94,18 @@ defmodule AshTypescript.Rpc.Pipeline do
   Applies field selection to the Ash result using the pre-computed template.
   Performance-optimized single-pass filtering.
   """
-  @spec filter_result_fields(term(), Request.t()) :: {:ok, term()} | {:error, term()}
-  def filter_result_fields(ash_result, %Request{} = request) do
+  @spec process_result(term(), Request.t()) :: {:ok, term()} | {:error, term()}
+  def process_result(ash_result, %Request{} = request) do
     case ash_result do
-      :ok ->
-        {:ok, %{}}
-
-      {:ok, result} ->
-        filtered = ResultFilter.extract_fields(result, request.extraction_template)
-        {:ok, filtered}
-
-      # Handle direct results (from testing or successful reads)
       result when is_list(result) or is_map(result) ->
-        filtered = ResultFilter.extract_fields(result, request.extraction_template)
+        filtered = ResultProcessor.process(result, request.extraction_template)
         {:ok, filtered}
 
       {:error, error} ->
         {:error, error}
+
+      primitive_value ->
+        {:ok, ResultProcessor.normalize_value_for_json(primitive_value)}
     end
   end
 
@@ -119,18 +114,9 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   Applies output field formatting and final response structure.
   """
-  @spec format_output(term()) :: term()
   def format_output(filtered_result) do
-    # Apply output formatting using the configured formatter
     formatter = Rpc.output_field_formatter()
     format_field_names(filtered_result, formatter)
-  end
-
-  # Private implementation functions
-
-  defp normalize_request_params(params, input_formatter) do
-    # Apply field formatting to all parameters consistently
-    FieldFormatter.parse_input_fields(params, input_formatter)
   end
 
   defp discover_rpc_action(otp_app, params) do
@@ -160,39 +146,11 @@ defmodule AshTypescript.Rpc.Pipeline do
     end)
   end
 
-  defp resolve_tenant(resource, conn, params) do
-    if Rpc.requires_tenant_parameter?(resource) do
-      case Map.get(params, :tenant) do
-        nil ->
-          {:error, {:tenant_required, resource}}
-
-        tenant_value ->
-          {:ok, tenant_value}
-      end
-    else
-      {:ok, Ash.PlugHelpers.get_tenant(conn)}
-    end
-  end
-
-  defp parse_fields_strict(params, resource, action) do
-    client_fields = Map.get(params, :fields, [])
-
-    case RequestedFieldsParser.parse_requested_fields(resource, action, client_fields) do
-      {:ok, {select, load, template}} ->
-        {:ok, {select, load, template}}
-
-      {:error, reason} ->
-        {:error, {:invalid_fields, reason}}
-    end
-  end
-
-  defp parse_input_strict(params, action) do
+  defp parse_action_input(params, action) do
     raw_input = Map.get(params, :input, %{})
-    
+
     # Validate that input is a map
-    unless is_map(raw_input) do
-      {:error, {:invalid_input_format, raw_input}}
-    else
+    if is_map(raw_input) do
       # Add primary key for get actions
       raw_input_with_pk =
         if params[:primary_key] && action.type == :read do
@@ -204,10 +162,12 @@ defmodule AshTypescript.Rpc.Pipeline do
       formatter = Rpc.input_field_formatter()
       parsed_input = FieldFormatter.parse_input_fields(raw_input_with_pk, formatter)
       {:ok, parsed_input}
+    else
+      {:error, {:invalid_input_format, raw_input}}
     end
   end
 
-  defp parse_pagination_strict(params) do
+  defp parse_pagination(params) do
     case params[:page] do
       nil ->
         {:ok, nil}
@@ -265,8 +225,6 @@ defmodule AshTypescript.Rpc.Pipeline do
     with {:ok, record} <- Ash.get(request.resource, request.primary_key, opts) do
       record
       |> Ash.Changeset.for_destroy(request.action.name, request.input, opts)
-      |> Ash.Changeset.select(request.select)
-      |> Ash.Changeset.load(request.load)
       |> Ash.destroy()
       |> case do
         :ok -> {:ok, %{}}

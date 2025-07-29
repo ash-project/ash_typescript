@@ -37,62 +37,165 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
-      # Field validation errors
+      # Field validation errors (nested tuple format)
       {:invalid_fields, field_error} ->
-        build_field_error_response(field_error)
+        build_error_response(field_error)
 
-      # Input validation errors
-      {:invalid_input_format, invalid_input} ->
+      # Direct field error from RequestedFieldsProcessor
+      %{type: :invalid_field, field: field_name} ->
         %{
-          type: "invalid_input_format",
-          message: "Input parameter must be a map",
-          details: %{
-            received: inspect(invalid_input),
-            expected: "Map containing input parameters"
-          }
+          type: "invalid_field",
+          message: "Invalid field '#{field_name}'",
+          field: field_name
         }
 
-      # Pagination errors
-      {:invalid_pagination, invalid_value} ->
-        %{
-          type: "invalid_pagination",
-          message: "Invalid pagination parameter format",
-          details: %{
-            received: inspect(invalid_value),
-            expected: "Map with pagination parameters (limit, offset, before, after, etc.)"
-          }
-        }
+      # === FIELD VALIDATION ERRORS WITH FIELD PATHS ===
 
-      # Generic Ash errors
-      %{class: _class} = ash_error ->
-        build_ash_error_response(ash_error)
-
-      # Unknown errors
-      other ->
-        %{
-          type: "unknown_error",
-          message: "An unexpected error occurred",
-          details: %{
-            error: inspect(other)
-          }
-        }
-    end
-  end
-
-  # Build detailed error responses for field validation errors
-  defp build_field_error_response(field_error) do
-    case field_error do
-      {:unknown_field, field_atom, resource} ->
+      # Unknown field errors
+      {:unknown_field, field_atom, resource, field_path} ->
         %{
           type: "unknown_field",
-          message: "Unknown field '#{field_atom}' for resource #{inspect(resource)}",
+          message: "Unknown field '#{field_path}' for resource #{inspect(resource)}",
+          field_path: field_path,
           details: %{
-            field: to_string(field_atom),
+            field: field_path,
             resource: inspect(resource),
             suggestion:
               "Check the field name spelling and ensure it's a public attribute, calculation, or relationship"
           }
         }
+
+      {:unknown_field, field_atom, "map", field_path} ->
+        %{
+          type: "unknown_map_field",
+          message: "Unknown field '#{field_path}' for map return type",
+          field_path: field_path,
+          details: %{
+            field: field_path,
+            suggestion: "Check that the field name is valid for the map's field constraints"
+          }
+        }
+
+      {:unknown_field, field_atom, "typed_struct", field_path} ->
+        %{
+          type: "unknown_typed_struct_field",
+          message: "Unknown field '#{field_path}' for typed struct",
+          field_path: field_path,
+          details: %{
+            field: field_path,
+            suggestion: "Check that the field name is valid for the typed struct definition"
+          }
+        }
+
+      {:unknown_field, field_atom, "union_attribute", field_path} ->
+        %{
+          type: "unknown_union_field",
+          message: "Unknown union member '#{field_path}'",
+          field_path: field_path,
+          details: %{
+            field: field_path,
+            suggestion: "Check that the union member name is valid for the union attribute definition"
+          }
+        }
+
+      # Calculation errors
+      {:calculation_requires_args, field_atom, field_path} ->
+        %{
+          type: "invalid_field_format",
+          message: "Calculation '#{field_path}' requires arguments",
+          field_path: field_path,
+          details: %{
+            field: field_path,
+            suggestion: "Provide arguments in the format: {\"#{field_atom}\": {\"args\": {...}}}"
+          }
+        }
+
+      {:invalid_calculation_args, field_atom, field_path} ->
+        %{
+          type: "invalid_calculation_args",
+          message: "Invalid arguments for calculation '#{field_path}'",
+          field_path: field_path,
+          details: %{
+            field: field_path,
+            expected: "Map containing argument values or valid field selection format"
+          }
+        }
+
+      # Field selection requirement errors
+      {:requires_field_selection, field_type, field_path} ->
+        %{
+          type: "requires_field_selection",
+          message: "#{String.capitalize(to_string(field_type))} '#{field_path}' requires field selection",
+          field_path: field_path,
+          details: %{
+            field_type: field_type,
+            field: field_path,
+            suggestion: "Specify which fields to select from this #{field_type}"
+          }
+        }
+
+      {:invalid_field_selection, field_atom, field_type, field_path} ->
+        %{
+          type: "invalid_field_selection",
+          message: "Cannot select fields from #{field_type} '#{field_path}'",
+          field_path: field_path,
+          details: %{
+            field: field_path,
+            field_type: field_type,
+            suggestion: "Remove the field selection for this #{field_type} field"
+          }
+        }
+
+      {:invalid_field_selection, field_type, field_path} ->
+        %{
+          type: "invalid_field_selection",
+          message: "Cannot select fields from #{field_type} '#{field_path}'",
+          field_path: field_path,
+          details: %{
+            field_type: field_type,
+            suggestion: "Remove the field selection for this #{field_type} field"
+          }
+        }
+
+      # Field nesting errors
+      {:field_does_not_support_nesting, field_path} ->
+        %{
+          type: "field_does_not_support_nesting",
+          message: "Field '#{field_path}' does not support nested field selection",
+          field_path: field_path,
+          details: %{
+            field: field_path,
+            suggestion: "Remove the nested specification for this field"
+          }
+        }
+
+      # Duplicate field errors
+      {:duplicate_field, field_atom, field_path} ->
+        %{
+          type: "duplicate_field",
+          message: "Field '#{field_path}' was requested multiple times",
+          field_path: field_path,
+          details: %{
+            field: field_path,
+            suggestion: "Remove duplicate field specifications"
+          }
+        }
+
+      # Field combination errors
+      {:unsupported_field_combination, field_type, field_atom, field_spec, field_path} ->
+        %{
+          type: "unsupported_field_combination",
+          message: "Unsupported combination of field type and specification for '#{field_path}'",
+          field_path: field_path,
+          details: %{
+            field: field_path,
+            field_type: field_type,
+            field_spec: inspect(field_spec),
+            suggestion: "Check the documentation for valid field specification formats"
+          }
+        }
+
+      # === LEGACY FIELD VALIDATION ERRORS (WITHOUT FIELD PATHS) ===
 
       {:invalid_field_format, invalid_format} ->
         %{
@@ -130,7 +233,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "simple_attribute_with_spec",
           message: "Simple attribute '#{field_atom}' cannot have field specification",
           details: %{
-            field: to_string(field_atom),
+            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
             received_spec: inspect(field_spec),
             suggestion: "Remove the field specification or use just the field name"
           }
@@ -141,7 +244,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "simple_calculation_with_spec",
           message: "Simple calculation '#{field_atom}' cannot have field specification",
           details: %{
-            field: to_string(field_atom),
+            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
             received_spec: inspect(field_spec),
             suggestion: "Remove the field specification or use just the field name"
           }
@@ -152,7 +255,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "invalid_calculation_spec",
           message: "Invalid calculation specification for '#{field_atom}'",
           details: %{
-            field: to_string(field_atom),
+            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
             received: inspect(invalid_spec),
             expected: "Map with 'args' key and optional 'fields' key"
           }
@@ -163,8 +266,8 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "relationship_field_error",
           message: "Error in relationship field '#{field_atom}'",
           details: %{
-            field: to_string(field_atom),
-            nested_error: build_field_error_response(nested_error)
+            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
+            nested_error: build_error_response(nested_error)
           }
         }
 
@@ -173,8 +276,8 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "embedded_resource_field_error",
           message: "Error in embedded resource field '#{field_atom}'",
           details: %{
-            field: to_string(field_atom),
-            nested_error: build_field_error_response(nested_error)
+            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
+            nested_error: build_error_response(nested_error)
           }
         }
 
@@ -183,20 +286,8 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "embedded_resource_module_not_found",
           message: "Embedded resource module not found for field '#{field_atom}'",
           details: %{
-            field: to_string(field_atom),
+            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
             suggestion: "Ensure the field is properly configured as an embedded resource"
-          }
-        }
-
-      {:unsupported_field_combination, field_type, field_atom, field_spec} ->
-        %{
-          type: "unsupported_field_combination",
-          message: "Unsupported combination of field type and specification",
-          details: %{
-            field: to_string(field_atom),
-            field_type: field_type,
-            field_spec: inspect(field_spec),
-            suggestion: "Check the documentation for valid field specification formats"
           }
         }
 
@@ -210,34 +301,13 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
-      {:calculation_requires_args, field_atom} ->
-        %{
-          type: "calculation_requires_args",
-          message: "Calculation '#{field_atom}' requires arguments",
-          details: %{
-            field: to_string(field_atom),
-            suggestion: "Provide arguments in the format: {\"#{field_atom}\": {\"args\": {...}}}"
-          }
-        }
-
-      {:invalid_calculation_args, field_atom, args} ->
-        %{
-          type: "invalid_calculation_args",
-          message: "Invalid arguments for calculation '#{field_atom}'",
-          details: %{
-            field: to_string(field_atom),
-            received: inspect(args),
-            expected: "Map containing argument values"
-          }
-        }
-
       {:calculation_field_error, field_atom, nested_error} ->
         %{
           type: "calculation_field_error",
           message: "Error in calculation field '#{field_atom}'",
           details: %{
-            field: to_string(field_atom),
-            nested_error: build_field_error_response(nested_error)
+            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
+            nested_error: build_error_response(nested_error)
           }
         }
 
@@ -246,8 +316,8 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "relationship_field_error",
           message: "Error in relationship field '#{field_atom}'",
           details: %{
-            field: to_string(field_atom),
-            nested_error: build_field_error_response(nested_error)
+            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
+            nested_error: build_error_response(nested_error)
           }
         }
 
@@ -271,22 +341,12 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
-      {:field_does_not_support_nesting, field_atom} ->
-        %{
-          type: "field_does_not_support_nesting",
-          message: "Field '#{field_atom}' does not support nested field selection",
-          details: %{
-            field: to_string(field_atom),
-            suggestion: "Remove the nested specification for this field"
-          }
-        }
-
       {:invalid_relationship_spec, field_atom, spec} ->
         %{
           type: "invalid_relationship_spec",
           message: "Invalid relationship specification for '#{field_atom}'",
           details: %{
-            field: to_string(field_atom),
+            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
             received: inspect(spec),
             expected: "List of field names for relationship field selection"
           }
@@ -297,19 +357,9 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "invalid_embedded_spec",
           message: "Invalid embedded resource specification for '#{field_atom}'",
           details: %{
-            field: to_string(field_atom),
+            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
             received: inspect(spec),
             expected: "List of field names for embedded resource field selection"
-          }
-        }
-
-      {:unknown_map_field, field_atom} ->
-        %{
-          type: "unknown_map_field",
-          message: "Unknown field '#{field_atom}' for map return type",
-          details: %{
-            field: to_string(field_atom),
-            suggestion: "Check that the field name is valid for the map's field constraints"
           }
         }
 
@@ -323,10 +373,48 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
-      other ->
+      # === INPUT AND SYSTEM VALIDATION ERRORS ===
+
+      {:invalid_input_format, invalid_input} ->
+        %{
+          type: "invalid_input_format",
+          message: "Input parameter must be a map",
+          details: %{
+            received: inspect(invalid_input),
+            expected: "Map containing input parameters"
+          }
+        }
+
+      {:invalid_pagination, invalid_value} ->
+        %{
+          type: "invalid_pagination",
+          message: "Invalid pagination parameter format",
+          details: %{
+            received: inspect(invalid_value),
+            expected: "Map with pagination parameters (limit, offset, before, after, etc.)"
+          }
+        }
+
+      # === ASH FRAMEWORK ERRORS ===
+
+      %{class: _class} = ash_error ->
+        build_ash_error_response(ash_error)
+
+      # === FALLBACK ERROR HANDLERS ===
+
+      {field_error_type, _} when is_atom(field_error_type) ->
         %{
           type: "field_validation_error",
-          message: "Field validation error",
+          message: "Field validation error: #{field_error_type}",
+          details: %{
+            error: inspect(error)
+          }
+        }
+
+      other ->
+        %{
+          type: "unknown_error",
+          message: "An unexpected error occurred",
           details: %{
             error: inspect(other)
           }

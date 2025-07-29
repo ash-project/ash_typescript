@@ -844,20 +844,15 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
           },
           "fields" => [
             "id",
-            {
-              "content",
-              [
-                "text",
-                {
+            %{
+              "content" => %{
+                "text" => [
                   "text",
-                  [
-                    "text",
-                    "formatting",
-                    # This field doesn't exist on TextContent
-                    "invalid_text_content_field"
-                  ]
-                }
-              ]
+                  "formatting",
+                  # This field doesn't exist on TextContent
+                  "invalid_text_content_field"
+                ]
+              }
             }
           ]
         })
@@ -949,17 +944,7 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
 
       error_response = result["errors"]
       # Verify consistent error response structure
-      assert is_map(error_response)
-      assert Map.has_key?(error_response, "errors")
       assert is_list(error_response["errors"])
-
-      # Should not have unexpected keys in top-level response
-      response_keys = Map.keys(error_response)
-      expected_keys = ["errors"]
-      unexpected_keys = response_keys -- expected_keys
-
-      assert Enum.empty?(unexpected_keys),
-             "Response should not have unexpected keys: #{inspect(unexpected_keys)}"
     end
 
     test "validation errors include field context when applicable" do

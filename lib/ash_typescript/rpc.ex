@@ -144,10 +144,10 @@ defmodule AshTypescript.Rpc do
   """
   @spec run_action(atom(), Plug.Conn.t(), map()) :: {:ok, map()} | {:error, map()}
   def run_action(otp_app, conn, params) do
-    with {:ok, parsed_request} <- Pipeline.parse_request_strict(otp_app, conn, params),
+    with {:ok, parsed_request} <- Pipeline.parse_request(otp_app, conn, params),
          {:ok, ash_result} <- Pipeline.execute_ash_action(parsed_request),
-         {:ok, filtered_result} <- Pipeline.filter_result_fields(ash_result, parsed_request) do
-      %{success: true, data: filtered_result}
+         {:ok, processed_result} <- Pipeline.process_result(ash_result, parsed_request) do
+      %{success: true, data: processed_result}
     else
       {:error, reason} ->
         %{success: false, errors: [ErrorBuilder.build_error_response(reason)]}
@@ -162,7 +162,7 @@ defmodule AshTypescript.Rpc do
   @spec validate_action(atom(), Plug.Conn.t(), map()) ::
           {:ok, map()} | {:error, map()}
   def validate_action(otp_app, conn, params) do
-    case Pipeline.parse_request_strict(otp_app, conn, params) do
+    case Pipeline.parse_request(otp_app, conn, params) do
       {:ok, _parsed_request} ->
         %{success: true}
 

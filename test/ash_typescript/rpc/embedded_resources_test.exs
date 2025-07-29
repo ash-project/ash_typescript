@@ -128,7 +128,7 @@ defmodule AshTypescript.Rpc.EmbeddedResourcesTest do
 
       # Verify numeric fields
       assert todo_metadata["priorityScore"] == 85
-      assert todo_metadata["estimated_hours"] == 4.5
+      assert todo_metadata["estimatedHours"] == 4.5
       # Decimal formatted as string
       assert is_binary(todo_metadata["budget"])
 
@@ -141,7 +141,7 @@ defmodule AshTypescript.Rpc.EmbeddedResourcesTest do
       # Verify date fields (should be string formatted)
       assert is_binary(todo_metadata["deadline"])
       assert is_binary(todo_metadata["createdAt"])
-      assert is_binary(todo_metadata["reminder_time"])
+      assert is_binary(todo_metadata["reminderTime"])
 
       # Verify array fields
       assert is_list(todo_metadata["tags"])
@@ -151,8 +151,8 @@ defmodule AshTypescript.Rpc.EmbeddedResourcesTest do
 
       # Verify map fields
       assert is_map(todo_metadata["custom_fields"])
-      assert todo_metadata["custom_fields"]["difficulty"] == "medium"
-      assert todo_metadata["custom_fields"]["reviewer"] == "john.doe"
+      assert todo_metadata["customFields"]["difficulty"] == "medium"
+      assert todo_metadata["customFields"]["reviewer"] == "john.doe"
 
       assert is_map(todo_metadata["settings"])
       assert todo_metadata["settings"]["notifications"] == true

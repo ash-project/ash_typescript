@@ -54,34 +54,27 @@ defmodule AshTypescript.Rpc.ResultFilterTest do
 
     test "handles nested structures with mixed native types" do
       nested_data = %{
-        "id" => "123",
-        "created_at" => ~U[2024-01-15 10:30:00Z],
-        "due_date" => ~D[2024-01-20],
-        "status" => :pending,  
-        "priority" => :high,
-        "active" => true,
-        "tags" => [:urgent, :important]
+        id: "123",
+        created_at: ~U[2024-01-15 10:30:00Z],
+        due_date: ~D[2024-01-20],
+        status: :pending,  
+        priority: :high,
+        active: true,
+        tags: [:urgent, :important]
       }
 
-      template = %{
-        "id" => {:extract, "id"},
-        "created_at" => {:extract, "created_at"},
-        "due_date" => {:extract, "due_date"},  
-        "status" => {:extract, "status"},
-        "priority" => {:extract, "priority"},
-        "active" => {:extract, "active"},
-        "tags" => {:extract, "tags"}
-      }
+      # New format: simple list of atoms
+      template = [:id, :created_at, :due_date, :status, :priority, :active, :tags]
 
       result = ResultFilter.extract_fields(nested_data, template)
 
-      assert result["id"] == "123"
-      assert result["created_at"] == "2024-01-15T10:30:00Z"
-      assert result["due_date"] == "2024-01-20"
-      assert result["status"] == "pending"
-      assert result["priority"] == "high" 
-      assert result["active"] == true
-      assert result["tags"] == ["urgent", "important"]
+      assert result[:id] == "123"
+      assert result[:created_at] == "2024-01-15T10:30:00Z"
+      assert result[:due_date] == "2024-01-20"
+      assert result[:status] == "pending"
+      assert result[:priority] == "high" 
+      assert result[:active] == true
+      assert result[:tags] == ["urgent", "important"]
     end
 
     test "handles lists with mixed native types" do

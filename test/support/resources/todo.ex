@@ -199,17 +199,37 @@ defmodule AshTypescript.Test.Todo do
       filter expr(is_helpful == true)
     end
 
-    exists :has_comments, :comments
+    exists :has_comments, :comments do
+      public? true
+    end
 
-    avg :average_rating, :comments, :rating
+    avg :average_rating, :comments, :rating do
+      public? true
+    end
 
-    max :highest_rating, :comments, :rating
+    max :highest_rating, :comments, :rating do
+      public? true
+    end
 
     first :latest_comment_content, :comments, :content do
+      public? true
       sort created_at: :desc
     end
 
-    list :comment_authors, :comments, :author_name
+    list :comment_authors, :comments, :author_name do
+      public? true
+    end
+
+    # Additional field-based aggregates
+    first :latest_comment_id, :comments, :id do
+      public? true
+      sort created_at: :desc
+    end
+
+    list :recent_comment_ids, :comments, :id do
+      public? true
+      sort created_at: :desc
+    end
   end
 
   calculations do
@@ -229,6 +249,27 @@ defmodule AshTypescript.Test.Todo do
         allow_nil? true
         default nil
       end
+
+      argument :count, :integer do
+        allow_nil? true
+        default nil
+      end
+
+      argument :enabled, :boolean do
+        allow_nil? true
+        default nil
+      end
+
+      argument :data, :map do
+        allow_nil? true
+        default nil
+      end
+    end
+
+    calculate :summary,
+              AshTypescript.Test.TodoStatistics,
+              AshTypescript.Test.SummaryCalculation do
+      public? true
     end
   end
 

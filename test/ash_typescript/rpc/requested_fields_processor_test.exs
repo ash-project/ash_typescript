@@ -2,6 +2,178 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
+  describe "atomize_requested_fields/1" do
+    setup do
+      # Store original configuration
+      original_input_field_formatter =
+        Application.get_env(:ash_typescript, :input_field_formatter)
+
+      on_exit(fn ->
+        # Restore original configuration
+        if original_input_field_formatter do
+          Application.put_env(
+            :ash_typescript,
+            :input_field_formatter,
+            original_input_field_formatter
+          )
+        else
+          Application.delete_env(:ash_typescript, :input_field_formatter)
+        end
+      end)
+
+      {:ok, original_input_field_formatter: original_input_field_formatter}
+    end
+
+    test "atomizes simple string fields with snake_case formatter" do
+      Application.put_env(:ash_typescript, :input_field_formatter, :snake_case)
+
+      result = RequestedFieldsProcessor.atomize_requested_fields(["id", "title", "is_overdue"])
+
+      assert result == [:id, :title, :is_overdue]
+    end
+
+    test "atomizes simple string fields with camelCase formatter" do
+      Application.put_env(:ash_typescript, :input_field_formatter, :camel_case)
+
+      result = RequestedFieldsProcessor.atomize_requested_fields(["id", "title", "isOverdue"])
+
+      assert result == [:id, :title, :is_overdue]
+    end
+
+    test "passes through atom fields unchanged" do
+      Application.put_env(:ash_typescript, :input_field_formatter, :snake_case)
+
+      result = RequestedFieldsProcessor.atomize_requested_fields([:id, :title, :is_overdue])
+
+      assert result == [:id, :title, :is_overdue]
+    end
+
+    test "atomizes map keys in relationship fields with snake_case formatter" do
+      Application.put_env(:ash_typescript, :input_field_formatter, :snake_case)
+
+      result =
+        RequestedFieldsProcessor.atomize_requested_fields([
+          "id",
+          "title",
+          %{"user" => ["id", "name"]},
+          %{"metadata" => ["category"]}
+        ])
+
+      assert result == [
+               :id,
+               :title,
+               %{user: [:id, :name]},
+               %{metadata: [:category]}
+             ]
+    end
+
+    test "atomizes map keys in relationship fields with camelCase formatter" do
+      Application.put_env(:ash_typescript, :input_field_formatter, :camel_case)
+
+      result =
+        RequestedFieldsProcessor.atomize_requested_fields([
+          "id",
+          "title",
+          %{"user" => ["id", "name"]},
+          %{"createdBy" => ["id", "userName"]}
+        ])
+
+      assert result == [
+               :id,
+               :title,
+               %{user: [:id, :name]},
+               %{created_by: [:id, :user_name]}
+             ]
+    end
+
+    test "handles complex calculation with arguments format" do
+      Application.put_env(:ash_typescript, :input_field_formatter, :snake_case)
+
+      result =
+        RequestedFieldsProcessor.atomize_requested_fields([
+          "id",
+          "title",
+          %{"self" => %{"args" => %{"prefix" => "test"}}}
+        ])
+
+      assert result == [
+               :id,
+               :title,
+               %{self: %{args: %{prefix: "test"}}}
+             ]
+    end
+
+    test "handles complex calculation with arguments and fields format" do
+      Application.put_env(:ash_typescript, :input_field_formatter, :camel_case)
+
+      result =
+        RequestedFieldsProcessor.atomize_requested_fields([
+          "id",
+          "title",
+          %{
+            "selfWithFields" => %{
+              "args" => %{"prefix" => "test"},
+              "fields" => ["id", "createdAt"]
+            }
+          }
+        ])
+
+      assert result == [
+               :id,
+               :title,
+               %{self_with_fields: %{args: %{prefix: "test"}, fields: [:id, :created_at]}}
+             ]
+    end
+
+    test "handles mixed atom and string keys in maps" do
+      Application.put_env(:ash_typescript, :input_field_formatter, :camel_case)
+
+      result =
+        RequestedFieldsProcessor.atomize_requested_fields([
+          "id",
+          %{"user" => ["id", "name"]},
+          # Already atom key
+          %{metadata: ["category"]}
+        ])
+
+      assert result == [
+               :id,
+               %{user: [:id, :name]},
+               %{metadata: [:category]}
+             ]
+    end
+
+    test "handles nested maps recursively" do
+      Application.put_env(:ash_typescript, :input_field_formatter, :camel_case)
+
+      result =
+        RequestedFieldsProcessor.atomize_requested_fields([
+          "id",
+          %{"deeplyNested" => %{"nestedField" => %{"innerField" => "value"}}}
+        ])
+
+      assert result == [
+               :id,
+               %{deeply_nested: %{nested_field: %{inner_field: "value"}}}
+             ]
+    end
+
+    test "preserves primitive values in nested structures" do
+      Application.put_env(:ash_typescript, :input_field_formatter, :snake_case)
+
+      result =
+        RequestedFieldsProcessor.atomize_requested_fields([
+          "id",
+          %{"calc" => %{"args" => %{"count" => 5, "active" => true, "ratio" => 0.5}}}
+        ])
+
+      assert result == [
+               :id,
+               %{calc: %{args: %{count: 5, active: true, ratio: 0.5}}}
+             ]
+    end
+  end
+
   describe "CRUD actions" do
     test "processes valid fields for read actions correctly" do
       {:ok, {select, load, extraction_template}} =
@@ -15,7 +187,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
 
       assert select == [:id, :title]
       assert load == [{:user, [:id, :email]}]
-      assert extraction_template == [:id, :title, [user: [:id, :email]]]
+      assert extraction_template == [:id, :title, {:user, [:id, :email]}]
     end
 
     test "processes fields for create actions correctly" do
@@ -37,7 +209,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
           %{user: [:non_existing_field]}
         ])
 
-      assert error == %{type: :invalid_field, field: "user.nonExistingField"}
+      assert error == {:unknown_field, :non_existing_field, AshTypescript.Test.User, "user.nonExistingField"}
     end
   end
 
@@ -70,7 +242,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
           ]
         )
 
-      assert error == %{type: :invalid_field, field: "invalidField"}
+      assert error == {:unknown_field, :invalid_field, "map", "invalidField"}
     end
   end
 
@@ -97,8 +269,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
           [:id]
         )
 
-      assert error.type == :invalid_field
-      assert error.field =~ "Cannot select fields from primitive type"
+      assert error == {:invalid_field_selection, :primitive_type, {:ash_type, Ash.Type.UUID, []}}
     end
 
     test "processes fields for array of structs correctly" do
@@ -112,7 +283,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
       # Array of Todo structs - processes like regular resource fields
       assert select == [:id, :title]
       assert load == [{:user, [:id, :name]}]
-      assert extraction_template == [:id, :title, [user: [:id, :name]]]
+      assert extraction_template == [:id, :title, {:user, [:id, :name]}]
     end
   end
 
@@ -125,11 +296,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
           []
         )
 
-      assert error == %{
-               type: :invalid_field,
-               field:
-                 "Action non_existent_action not found on resource Elixir.AshTypescript.Test.Todo"
-             }
+      assert error == {:action_not_found, :non_existent_action}
     end
   end
 
@@ -152,7 +319,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
       assert select == [:id]
       # Now properly includes nested relationship loads
       assert load == [{:user, [:id, :name, {:comments, [:id, :content]}]}]
-      assert extraction_template == [:id, [user: [:id, :name, [comments: [:id, :content]]]]]
+      assert extraction_template == [:id, {:user, [:id, :name, {:comments, [:id, :content]}]}]
     end
 
     test "handles multiple nested relationships in same resource" do
@@ -173,8 +340,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
       assert extraction_template == [
                :id,
                :title,
-               [user: [:id, :name]],
-               [comments: [:id, :content]]
+               {:user, [:id, :name]},
+               {:comments, [:id, :content]}
              ]
     end
 
@@ -203,8 +370,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
                :id,
                :title,
                :completed,
-               [user: [:id, :email, [comments: [:id, :content, :rating]]]],
-               :created_at
+               :created_at,
+               {:user, [:id, :email, {:comments, [:id, :content, :rating]}]}
              ]
     end
   end

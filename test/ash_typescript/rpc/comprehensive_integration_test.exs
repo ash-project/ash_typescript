@@ -76,24 +76,31 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           "userId" => user_id,
           "metadata" => %{
             "category" => "work",
-            "priorityScore" => 8.5
+            "priorityScore" => 85
           },
-          "priorityScore" => %{
-            "value" => 85,
-            "scale" => "percentage"
-          },
+          "priorityScore" => 85,
           "colorPalette" => %{
             "primary" => "#FF5733",
-            "secondary" => "#33FF57"
+            "secondary" => "#33FF57",
+            "accent" => "#3357FF"
           },
           "timestampInfo" => %{
-            "scheduledAt" => "2024-01-15T10:00:00Z",
-            "reminderAt" => "2024-01-14T18:00:00Z"
+            "createdBy" => "test-user",
+            "createdAt" => "2024-01-15T10:00:00Z",
+            "updatedBy" => "test-user",
+            "updatedAt" => "2024-01-14T18:00:00Z"
           },
           "statistics" => %{
             "viewCount" => 0,
             "editCount" => 1,
-            "lastViewedAt" => "2024-01-01T00:00:00Z"
+            "completionTimeSeconds" => 3600,
+            "difficultyRating" => 3.5,
+            "performanceMetrics" => %{
+              "focusTimeSeconds" => 2400,
+              "interruptionCount" => 2,
+              "efficiencyScore" => 0.85,
+              "taskComplexity" => "medium"
+            }
           }
         },
         "fields" => [
@@ -105,11 +112,19 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           "dueDate",
           "tags",
           "createdAt",
-          "metadata",
+          %{"metadata" => ["category", "priorityScore"]},
           "priorityScore",
           "colorPalette",
-          "timestampInfo",
-          "statistics"
+          %{"timestampInfo" => ["createdBy", "createdAt", "updatedBy", "updatedAt"]},
+          %{
+            "statistics" => [
+              "viewCount",
+              "editCount",
+              "completionTimeSeconds",
+              "difficultyRating",
+              "performanceMetrics"
+            ]
+          }
         ]
       }
 
@@ -129,11 +144,27 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       # Assert embedded resource data
       assert todo_data["metadata"]["category"] == "work"
-      assert todo_data["metadata"]["priorityScore"] == 8.5
-      assert todo_data["priorityScore"]["value"] == 85
-      assert todo_data["priorityScore"]["scale"] == "percentage"
+      assert todo_data["metadata"]["priorityScore"] == 85
+
+      # Assert custom type data (no nesting)
+      assert todo_data["priorityScore"] == 85
       assert todo_data["colorPalette"]["primary"] == "#FF5733"
       assert todo_data["colorPalette"]["secondary"] == "#33FF57"
+      assert todo_data["colorPalette"]["accent"] == "#3357FF"
+
+      # Assert TypedStruct data
+      assert todo_data["timestampInfo"]["createdBy"] == "test-user"
+      assert todo_data["timestampInfo"]["createdAt"] == "2024-01-15T10:00:00Z"
+      assert todo_data["timestampInfo"]["updatedBy"] == "test-user"
+      assert todo_data["timestampInfo"]["updatedAt"] == "2024-01-14T18:00:00Z"
+      assert todo_data["statistics"]["viewCount"] == 0
+      assert todo_data["statistics"]["editCount"] == 1
+      assert todo_data["statistics"]["completionTimeSeconds"] == 3600
+      assert todo_data["statistics"]["difficultyRating"] == 3.5
+      assert todo_data["statistics"]["performanceMetrics"]["focusTimeSeconds"] == 2400
+      assert todo_data["statistics"]["performanceMetrics"]["interruptionCount"] == 2
+      assert todo_data["statistics"]["performanceMetrics"]["efficiencyScore"] == 0.85
+      assert todo_data["statistics"]["performanceMetrics"]["taskComplexity"] == "medium"
 
       todo_id = todo_data["id"]
 
@@ -154,9 +185,11 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           # Relationship
           %{"user" => ["id", "name", "email"]},
           # Embedded resources
-          "metadata",
+          %{"metadata" => ["category", "priorityScore"]},
+          # Custom types (no field selection)
           "priorityScore",
-          "timestampInfo"
+          # TypedStruct fields (require field selection)
+          %{"timestampInfo" => ["createdBy", "createdAt", "updatedBy", "updatedAt"]}
         ]
       }
 
@@ -182,9 +215,8 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       # Assert embedded resources are preserved
       assert get_data["metadata"]["category"] == "work"
-      assert get_data["metadata"]["priorityScore"] == 8.5
-      assert get_data["priorityScore"]["value"] == 85
-      assert get_data["priorityScore"]["scale"] == "percentage"
+      assert get_data["metadata"]["priorityScore"] == 85
+      assert get_data["priorityScore"] == 85
 
       # Step 4: List todos with filtering and field selection
       list_params = %{
@@ -205,10 +237,10 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       list_result = Rpc.run_action(:ash_typescript, conn, list_params)
       assert list_result["success"] == true
-      assert is_list(list_result["data"])
-      assert length(list_result["data"]) == 1
+      assert is_list(list_result["data"]["results"])
+      assert length(list_result["data"]["results"]) == 1
 
-      listed_todo = List.first(list_result["data"])
+      listed_todo = List.first(list_result["data"]["results"])
       assert listed_todo["id"] == todo_id
       assert listed_todo["title"] == "Test Todo"
       assert listed_todo["status"] == "pending"
@@ -222,19 +254,20 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         "action" => "update_todo",
         "primaryKey" => todo_id,
         "input" => %{
-          "status" => "in_progress",
+          "status" => "ongoing",
           "description" => "Updated description"
         },
         "fields" => ["id", "title", "status", "description"]
       }
 
       update_result = Rpc.run_action(:ash_typescript, conn, update_params)
+      IO.inspect(update_result, label: "UPDATE RESULT DEBUG")
       assert update_result["success"] == true
       assert update_result["data"]["id"] == todo_id
       # Unchanged
       assert update_result["data"]["title"] == "Test Todo"
       # Updated
-      assert update_result["data"]["status"] == "in_progress"
+      assert update_result["data"]["status"] == "ongoing"
       # Updated
       assert update_result["data"]["description"] == "Updated description"
     end

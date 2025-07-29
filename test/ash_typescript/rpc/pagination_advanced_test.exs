@@ -663,7 +663,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
         "fields" => ["id", "title", "priority"],
         "limit" => 7,
         "offset" => 5,
-        "sort" => "order"
+        "sort" => "title"
       }
 
       # Make multiple requests for the same page
