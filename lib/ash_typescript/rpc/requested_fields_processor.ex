@@ -1260,6 +1260,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
           field_name when is_binary(field_name) -> [String.to_atom(field_name)]
           %{} = field_map -> Map.keys(field_map)
           {field_name, _field_spec} -> [field_name]
+          invalid_field -> 
+            throw({:invalid_field_type, invalid_field, path})
         end
       end)
 

@@ -506,9 +506,10 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
       # Filter for todos that have content AND where at least one requested union member has a value
       todos_with_content =
         Enum.filter(result["data"], fn todo ->
+          # At least one requested union member should have a non-nil value
           Map.has_key?(todo, "content") && todo["content"] &&
-            # At least one requested union member should have a non-nil value
-            (todo["content"]["note"] != nil || todo["content"]["text"] != nil || todo["content"]["checklist"] != nil)
+            (todo["content"]["note"] != nil || todo["content"]["text"] != nil ||
+               todo["content"]["checklist"] != nil)
         end)
 
       # Each todo should have exactly one union member with a non-nil value

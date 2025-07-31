@@ -16,7 +16,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
       conn = %Plug.Conn{}
 
       assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
-      assert {:invalid_fields, {:unknown_field, :unknown_field, Todo}} = error
+      assert {:unknown_field, :unknown_field, Todo, "unknownField"} = error
     end
 
     test "fails on invalid field format" do
@@ -29,7 +29,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
       conn = %Plug.Conn{}
 
       assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
-      assert {:invalid_fields, {:field_normalization_error, %ArgumentError{}}} = error
+      assert {:invalid_field_type, 123, []} = error
     end
 
     test "fails on invalid nested field specification" do
@@ -43,7 +43,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
       # Should fail when trying to process relationship with invalid spec
-      assert {:invalid_fields, _reason} = error
+      assert {:unsupported_field_combination, :relationship, :user, "invalid_spec", "user"} = error
     end
 
     test "fails on simple attribute with specification" do
@@ -56,7 +56,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
       conn = %Plug.Conn{}
 
       assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
-      assert {:invalid_fields, {:field_does_not_support_nesting, :title}} = error
+      assert {:field_does_not_support_nesting, "title"} = error
     end
 
     test "succeeds with valid fields" do
@@ -97,7 +97,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
       # Formatted from camelCase
       assert request.input == %{user_id: "123"}
       assert request.filter == %{status: "active"}
-      assert request.sort == ["title"]
+      assert request.sort == "title"
     end
 
     test "stage 2: execute_ash_action builds proper query" do
@@ -131,15 +131,12 @@ defmodule AshTypescript.Rpc.PipelineTest do
         %{id: 2, title: "Another Todo", description: "Another description"}
       ]
 
-      # Create extraction template for id and title only
-      extraction_template = %{
-        "id" => {:extract, :id},
-        "title" => {:extract, :title}
-      }
+      # Create extraction template for id and title only (list format used by implementation)
+      extraction_template = [:id, :title]
 
       request = %AshTypescript.Rpc.Request{extraction_template: extraction_template}
 
-      assert {:ok, filtered_result} = Pipeline.filter_result_fields(ash_result, request)
+      assert {:ok, filtered_result} = Pipeline.process_result(ash_result, request)
 
       # Verify only requested fields are present (still with atom keys at this stage)
       assert is_list(filtered_result)
@@ -288,7 +285,12 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       # Embedded resource should handle both select and load appropriately
       # This tests the dual-nature processing of embedded resources
-      assert request.extraction_template["metadata"] != nil
+      # Check if metadata field is present in the extraction template list
+      metadata_present = Enum.any?(request.extraction_template, fn
+        {:metadata, _} -> true
+        _ -> false
+      end)
+      assert metadata_present
     end
   end
 

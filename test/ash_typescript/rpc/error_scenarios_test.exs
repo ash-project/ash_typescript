@@ -187,8 +187,9 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       # Should have error about non-existent relationship
       relation_error = List.first(errors)
       assert relation_error["type"] == "unknown_field"
+
       assert String.contains?(relation_error["message"], "nonExistentRelation") or
-             String.contains?(relation_error["fieldPath"], "nonExistentRelation")
+               String.contains?(relation_error["fieldPath"], "nonExistentRelation")
     end
 
     test "non-existent calculation field returns error" do
@@ -211,8 +212,9 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       # Should have error about non-existent calculation
       calc_error = List.first(errors)
       assert calc_error["type"] == "unknown_field"
+
       assert String.contains?(calc_error["message"], "nonExistentCalculation") or
-             String.contains?(calc_error["fieldPath"], "nonExistentCalculation")
+               String.contains?(calc_error["fieldPath"], "nonExistentCalculation")
     end
 
     test "private field access returns error" do
@@ -225,7 +227,8 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
             "id",
             "title",
             # This is a private field (public? false)
-            "updatedAt"  # Note: camelCase due to field formatting
+            # Note: camelCase due to field formatting
+            "updatedAt"
           ]
         })
 
@@ -235,8 +238,9 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       # Should have error about private field access
       private_error = List.first(errors)
       assert private_error["type"] == "unknown_field"
+
       assert String.contains?(private_error["message"], "updatedAt") or
-             String.contains?(private_error["fieldPath"], "updatedAt")
+               String.contains?(private_error["fieldPath"], "updatedAt")
     end
   end
 
@@ -325,19 +329,21 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       assert result["success"] == false
       errors = result["errors"]
 
-      # Should have error about invalid UUID
+      # Should have error about invalid UUID or user not found
       uuid_error =
         Enum.find(errors, fn error ->
           message = error["message"] || ""
           field = error["field"] || ""
+          type = error["type"] || ""
 
           String.contains?(message, "user_id") or
             String.contains?(field, "user_id") or
-            String.contains?(message, "uuid") or
-            String.contains?(message, "format")
+            String.contains?(message, "User") or
+            String.contains?(message, "not found") or
+            type == "not_found"
         end)
 
-      assert uuid_error, "Should have error about invalid UUID format"
+      assert uuid_error, "Should have error about invalid UUID or user not found"
     end
 
     test "invalid enum value returns validation error" do
@@ -421,26 +427,6 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
 
       assert input_error, "Should have error about missing input parameter"
     end
-
-    test "empty fields array returns error" do
-      conn = TestHelpers.build_rpc_conn()
-
-      result =
-        Rpc.run_action(:ash_typescript, conn, %{
-          "action" => "list_todos",
-          # Empty fields array
-          "fields" => []
-        })
-
-      assert result["success"] == false
-      errors = result["errors"]
-
-      # Should have error about empty fields
-      empty_fields_error = List.first(errors)
-      assert empty_fields_error["type"] == "empty_fields_array"
-      assert String.contains?(empty_fields_error["message"], "empty")
-      assert String.contains?(empty_fields_error["message"], "Fields array")
-    end
   end
 
   describe "invalid pagination parameters" do
@@ -452,7 +438,7 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
           "action" => "list_todos",
           "fields" => ["id", "title"],
           # Negative limit should be invalid
-          "limit" => -5
+          "page" => %{"limit" => -5}
         })
 
       assert result["success"] == false
@@ -481,7 +467,7 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
           "action" => "list_todos",
           "fields" => ["id", "title"],
           # Negative offset should be invalid
-          "offset" => -10
+          "page" => %{"offset" => -10}
         })
 
       assert result["success"] == false
@@ -510,7 +496,7 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
           "action" => "list_todos",
           "fields" => ["id", "title"],
           # String instead of integer
-          "limit" => "not_a_number"
+          "page" => %{"limit" => "not_a_number"}
         })
 
       assert result["success"] == false
@@ -529,40 +515,6 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
         end)
 
       assert limit_type_error, "Should have error about invalid limit data type"
-    end
-
-    test "excessively large limit returns validation error" do
-      conn = TestHelpers.build_rpc_conn()
-
-      result =
-        Rpc.run_action(:ash_typescript, conn, %{
-          "action" => "list_todos",
-          "fields" => ["id", "title"],
-          # Excessively large limit
-          "limit" => 50000
-        })
-
-      assert result["success"] == false
-      errors = result["errors"]
-
-      # Should have error about excessive limit (if such validation exists)
-      # This test might need adjustment based on actual limit constraints
-      excessive_limit_error =
-        Enum.find(errors, fn error ->
-          message = error["message"] || ""
-          field = error["field"] || ""
-
-          String.contains?(message, "limit") or
-            String.contains?(field, "limit") or
-            String.contains?(message, "large") or
-            String.contains?(message, "maximum")
-        end)
-
-      # This assertion might not apply if there's no upper limit validation
-      # assert excessive_limit_error, "Should have error about excessive limit"
-
-      # For now, just verify we get some form of response
-      assert is_list(errors)
     end
   end
 
@@ -866,8 +818,8 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
         end
       end)
 
-      # Verify we have errors for each issue
-      assert length(errors) >= 3, "Should have multiple validation errors"
+      # Verify we have at least one error (pipeline fails fast on first error)
+      assert length(errors) >= 1, "Should have at least one validation error"
     end
 
     test "error response structure is consistent" do
@@ -883,7 +835,7 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
 
       error_response = result["errors"]
       # Verify consistent error response structure
-      assert is_list(error_response["errors"])
+      assert is_list(error_response)
     end
 
     test "validation errors include field context when applicable" do

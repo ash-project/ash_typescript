@@ -97,8 +97,8 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
             "priority",
             "dueDate",
             "tags",
-            "createdAt",
-            "metadata"
+            "created_at",
+            %{"metadata" => ["category", "priorityScore", "isUrgent", "tags"]}
           ]
         })
 
@@ -142,7 +142,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
             # Relationship
             %{"user" => ["id", "name", "email"]},
             # Embedded resource
-            "metadata"
+            %{"metadata" => ["category", "priorityScore", "isUrgent", "tags"]}
           ]
         })
 
@@ -184,17 +184,17 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
             "title",
             "status",
             "priority",
-            "createdAt",
+            "created_at",
             %{"user" => ["id", "name"]}
           ],
           "page" => %{"limit" => 10, "offset" => 0}
         })
 
       assert list_result["success"] == true
-      assert is_list(list_result["data"])
-      assert length(list_result["data"]) == 1
+      assert is_list(list_result["data"]["results"])
+      assert length(list_result["data"]["results"]) == 1
 
-      listed_todo = List.first(list_result["data"])
+      listed_todo = List.first(list_result["data"]["results"])
       assert listed_todo["id"] == todo_id
       assert listed_todo["title"] == "Test Todo"
       assert listed_todo["status"] == "pending"
@@ -209,7 +209,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
           "action" => "update_todo",
           "primaryKey" => todo_id,
           "input" => %{
-            "status" => "in_progress",
+            "status" => "ongoing",
             "description" => "Updated description"
           },
           "fields" => ["id", "title", "status", "description"]
@@ -220,7 +220,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       # Unchanged
       assert update_result["data"]["title"] == "Test Todo"
       # Updated
-      assert update_result["data"]["status"] == "in_progress"
+      assert update_result["data"]["status"] == "ongoing"
       # Updated
       assert update_result["data"]["description"] == "Updated description"
     end
@@ -430,7 +430,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
           fields: ["id", "title"]
         )
 
-      todo2 =
+      _todo2 =
         TestHelpers.create_test_todo(conn,
           title: "User 2 Todo",
           user_id: user2["id"],
@@ -479,12 +479,11 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
             # Comments relationship with nested user data
             %{
               "comments" => [
-                "id",
+                "id", 
                 "content",
                 "rating",
                 "isHelpful",
                 "authorName",
-                "createdAt",
                 %{"user" => ["id", "name", "email"]}
               ]
             },
@@ -495,6 +494,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
           ]
         })
 
+# Debug removed for cleaner output
       assert get_result["success"] == true
 
       data = get_result["data"]
@@ -557,21 +557,17 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
           "input" => %{
             "title" => "Note Content Todo",
             "userId" => user_id,
-            "content" => %{
-              "type" => "note",
-              "value" => "This is a simple note"
-            }
+            "content" => "This is a simple note"
           },
-          "fields" => ["id", "title", "content"]
+          "fields" => ["id", "title", %{"content" => ["note"]}]
         })
 
       assert note_result["success"] == true
       note_data = note_result["data"]
 
-      # Assert note content structure
+      # Assert note content structure (selective field format)
       note_content = note_data["content"]
-      assert note_content["type"] == "note"
-      assert note_content["value"] == "This is a simple note"
+      assert note_content["note"] == "This is a simple note"
 
       # Test priority_value content (untagged integer union member)
       priority_result =
@@ -580,21 +576,17 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
           "input" => %{
             "title" => "Priority Content Todo",
             "userId" => user_id,
-            "content" => %{
-              "type" => "priority_value",
-              "value" => 8
-            }
+            "content" => 8
           },
-          "fields" => ["id", "title", "content"]
+          "fields" => ["id", "title", %{"content" => ["priorityValue"]}]
         })
 
       assert priority_result["success"] == true
       priority_data = priority_result["data"]
 
-      # Assert priority content structure
+      # Assert priority content structure (selective field format)
       priority_content = priority_data["content"]
-      assert priority_content["type"] == "priority_value"
-      assert priority_content["value"] == 8
+      assert priority_content["priorityValue"] == 8
     end
   end
 
@@ -627,7 +619,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       assert result["success"] == false
       first_error = List.first(result["errors"])
       assert first_error["type"] == "unknown_field"
-      assert String.contains?(first_error["message"], "nonexistent_field")
+      assert String.contains?(first_error["message"], "nonexistentField")
       assert String.contains?(first_error["message"], "Todo")
     end
 
@@ -646,14 +638,9 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       assert result["success"] == false
       first_error = List.first(result["errors"])
-      assert first_error["type"] == "relationship_field_error"
-      assert String.contains?(first_error["message"], "user")
-      assert first_error["details"]["nestedError"]["type"] == "unknown_field"
-
-      assert String.contains?(
-               first_error["details"]["nestedError"]["message"],
-               "invalid_user_field"
-             )
+      assert first_error["type"] == "unknown_field"
+      assert String.contains?(first_error["message"], "invalidUserField")
+      assert String.contains?(first_error["fieldPath"], "user.invalidUserField")
     end
 
     test "missing required input parameters return validation errors" do
@@ -727,7 +714,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
           "fields" => [
             "id",
             "title",
-            "createdAt",
+            "created_at",
             %{"user" => ["id", "name", "email"]},
             "commentCount"
           ],
@@ -736,8 +723,8 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
         })
 
       assert page1_result["success"] == true
-      assert is_list(page1_result["data"])
-      assert length(page1_result["data"]) == 2
+      assert is_list(page1_result["data"]["results"])
+      assert length(page1_result["data"]["results"]) == 2
 
       # Test second page
       page2_result =
@@ -746,7 +733,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
           "fields" => [
             "id",
             "title",
-            "createdAt",
+            "created_at",
             %{"user" => ["id", "name", "email"]},
             "commentCount"
           ],
@@ -755,16 +742,16 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
         })
 
       assert page2_result["success"] == true
-      assert is_list(page2_result["data"])
-      assert length(page2_result["data"]) == 2
+      assert is_list(page2_result["data"]["results"])
+      assert length(page2_result["data"]["results"]) == 2
 
       # Verify different todos on different pages
-      page1_ids = Enum.map(page1_result["data"], & &1["id"])
-      page2_ids = Enum.map(page2_result["data"], & &1["id"])
+      page1_ids = Enum.map(page1_result["data"]["results"], & &1["id"])
+      page2_ids = Enum.map(page2_result["data"]["results"], & &1["id"])
       assert MapSet.disjoint?(MapSet.new(page1_ids), MapSet.new(page2_ids))
 
       # Verify all have user relationship data
-      for todo_data <- page1_result["data"] ++ page2_result["data"] do
+      for todo_data <- page1_result["data"]["results"] ++ page2_result["data"]["results"] do
         assert Map.has_key?(todo_data, "user")
         assert Map.has_key?(todo_data["user"], "name")
         assert Map.has_key?(todo_data["user"], "email")

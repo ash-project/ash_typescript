@@ -126,7 +126,9 @@ defmodule AshTypescript.MixProject do
       {:sobelow, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:picosat_elixir, "~> 0.2", only: [:dev, :test]},
       {:mix_audit, ">= 0.0.0", only: [:dev, :test], runtime: false},
-      {:usage_rules, "~> 0.1", only: [:dev]}
+      {:usage_rules, "~> 0.1", only: [:dev]},
+      {:tidewave, "~> 0.2", only: [:dev, :test]},
+      {:bandit, "~> 1.0", only: [:dev, :test]}
     ]
   end
 
@@ -136,6 +138,8 @@ defmodule AshTypescript.MixProject do
       "test.compile_generated": "cmd cd test/ts && npm run compileGenerated",
       "test.compile_should_pass": "cmd cd test/ts && npm run compileShouldPass",
       "test.compile_should_fail": "cmd cd test/ts && npm run compileShouldFail",
+      tidewave:
+        "run --no-halt -e 'Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4002) end)'",
       sobelow: "sobelow --skip",
       docs: [
         "spark.cheat_sheets",

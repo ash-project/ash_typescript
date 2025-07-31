@@ -52,7 +52,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
       # === FIELD VALIDATION ERRORS WITH FIELD PATHS ===
 
       # Unknown field errors
-      {:unknown_field, field_atom, resource, field_path} ->
+      {:unknown_field, _field_atom, resource, field_path} ->
         %{
           type: "unknown_field",
           message: "Unknown field '#{field_path}' for resource #{inspect(resource)}",
@@ -65,7 +65,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
-      {:unknown_field, field_atom, "map", field_path} ->
+      {:unknown_field, _field_atom, "map", field_path} ->
         %{
           type: "unknown_map_field",
           message: "Unknown field '#{field_path}' for map return type",
@@ -76,7 +76,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
-      {:unknown_field, field_atom, "typed_struct", field_path} ->
+      {:unknown_field, _field_atom, "typed_struct", field_path} ->
         %{
           type: "unknown_typed_struct_field",
           message: "Unknown field '#{field_path}' for typed struct",
@@ -87,7 +87,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
-      {:unknown_field, field_atom, "union_attribute", field_path} ->
+      {:unknown_field, _field_atom, "union_attribute", field_path} ->
         %{
           type: "unknown_union_field",
           message: "Unknown union member '#{field_path}'",
@@ -110,7 +110,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
-      {:invalid_calculation_args, field_atom, field_path} ->
+      {:invalid_calculation_args, _field_atom, field_path} ->
         %{
           type: "invalid_calculation_args",
           message: "Invalid arguments for calculation '#{field_path}'",
@@ -134,7 +134,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
-      {:invalid_field_selection, field_atom, field_type, field_path} ->
+      {:invalid_field_selection, _field_atom, field_type, field_path} ->
         %{
           type: "invalid_field_selection",
           message: "Cannot select fields from #{field_type} '#{field_path}'",
@@ -170,7 +170,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
         }
 
       # Duplicate field errors
-      {:duplicate_field, field_atom, field_path} ->
+      {:duplicate_field, _field_atom, field_path} ->
         %{
           type: "duplicate_field",
           message: "Field '#{field_path}' was requested multiple times",
@@ -182,7 +182,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
         }
 
       # Field combination errors
-      {:unsupported_field_combination, field_type, field_atom, field_spec, field_path} ->
+      {:unsupported_field_combination, field_type, _field_atom, field_spec, field_path} ->
         %{
           type: "unsupported_field_combination",
           message: "Unsupported combination of field type and specification for '#{field_path}'",
@@ -440,6 +440,34 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
 
       # === ASH FRAMEWORK ERRORS ===
 
+      # NotFound errors (specific handling)
+      %Ash.Error.Query.NotFound{} = not_found_error ->
+        %{
+          type: "not_found",
+          message: Exception.message(not_found_error),
+          details: %{
+            resource: not_found_error.resource,
+            primary_key: not_found_error.primary_key
+          }
+        }
+
+      # Check for NotFound errors nested inside other Ash errors
+      %{class: :invalid, errors: errors} = ash_error when is_list(errors) ->
+        case Enum.find(errors, &is_struct(&1, Ash.Error.Query.NotFound)) do
+          %Ash.Error.Query.NotFound{} = not_found_error ->
+            %{
+              type: "not_found",
+              message: Exception.message(not_found_error),
+              details: %{
+                resource: not_found_error.resource,
+                primary_key: not_found_error.primary_key
+              }
+            }
+          _ ->
+            build_ash_error_response(ash_error)
+        end
+
+      # Generic Ash errors
       %{class: _class} = ash_error ->
         build_ash_error_response(ash_error)
 

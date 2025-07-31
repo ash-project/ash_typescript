@@ -43,12 +43,13 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
 
   describe "field validation error messages" do
     test "unknown field error provides debugging context" do
-      error = {:invalid_fields, {:unknown_field, :nonexistent, Todo}}
+      error = {:invalid_fields, {:unknown_field, :nonexistent, Todo, "nonexistent"}}
 
       response = ErrorBuilder.build_error_response(error)
 
       assert response.type == "unknown_field"
       assert response.message == "Unknown field 'nonexistent' for resource #{inspect(Todo)}"
+      assert response.field_path == "nonexistent"
       assert response.details.field == "nonexistent"
       assert response.details.resource == inspect(Todo)
       assert String.contains?(response.details.suggestion, "public attribute")
@@ -114,7 +115,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     end
 
     test "relationship field error includes nested error context" do
-      nested_error = {:unknown_field, :invalid_user_field, User}
+      nested_error = {:unknown_field, :invalid_user_field, User, "user.invalidUserField"}
       error = {:invalid_fields, {:relationship_field_error, :user, nested_error}}
 
       response = ErrorBuilder.build_error_response(error)
@@ -122,12 +123,12 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       assert response.type == "relationship_field_error"
       assert String.contains?(response.message, "user")
       assert response.details.field == "user"
-      assert response.details.nested_error.type == "unknown_error"
-      assert String.contains?(response.details.nested_error.message, "invalid_user_field")
+      assert response.details.nested_error.type == "unknown_field"
+      assert String.contains?(response.details.nested_error.message, "Unknown field")
     end
 
     test "embedded resource field error includes nested context" do
-      nested_error = {:unknown_field, :invalid_metadata_field, Todo.Metadata}
+      nested_error = {:unknown_field, :invalid_metadata_field, Todo.Metadata, "metadata.invalidMetadataField"}
       error = {:invalid_fields, {:embedded_resource_field_error, :metadata, nested_error}}
 
       response = ErrorBuilder.build_error_response(error)
@@ -151,11 +152,12 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
 
     test "unsupported field combination error shows all context" do
       error =
-        {:invalid_fields, {:unsupported_field_combination, :relationship, :user, "invalid_spec"}}
+        {:invalid_fields, {:unsupported_field_combination, :relationship, :user, "invalid_spec", "user"}}
 
       response = ErrorBuilder.build_error_response(error)
 
       assert response.type == "unsupported_field_combination"
+      assert response.field_path == "user"
       assert response.details.field == "user"
       assert response.details.field_type == :relationship
       assert response.details.field_spec == "\"invalid_spec\""
@@ -208,7 +210,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
         {:action_not_found, "test"},
         {:tenant_required, Todo},
         {:invalid_pagination, "invalid"},
-        {:invalid_fields, {:unknown_field, :test, Todo}},
+        {:invalid_fields, {:unknown_field, :test, Todo, "test"}},
         {:invalid_fields, {:invalid_field_format, "invalid"}},
         "unknown error"
       ]
@@ -231,7 +233,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     end
 
     test "error messages are user-friendly" do
-      error = {:invalid_fields, {:unknown_field, :nonexistent, Todo}}
+      error = {:invalid_fields, {:unknown_field, :nonexistent, Todo, "nonexistent"}}
       response = ErrorBuilder.build_error_response(error)
 
       # Message should be clear and not contain internal terms
@@ -248,7 +250,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       errors_with_suggestions = [
         {:action_not_found, "test"},
         {:tenant_required, Todo},
-        {:invalid_fields, {:unknown_field, :test, Todo}},
+        {:invalid_fields, {:unknown_field, :test, Todo, "test"}},
         {:invalid_fields, {:simple_attribute_with_spec, :title, ["spec"]}},
         {:invalid_fields, {:embedded_resource_module_not_found, :metadata}}
       ]
@@ -304,7 +306,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
                Pipeline.parse_request(:ash_typescript, conn, params)
 
       # Should be a field validation error
-      assert {:invalid_fields, {:unknown_field, :unknown_field, Todo}} = error_response
+      assert {:unknown_field, :unknown_field, Todo, "unknownField"} = error_response
     end
 
     test "nested field validation errors are preserved" do
@@ -319,8 +321,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
                Pipeline.parse_request(:ash_typescript, conn, params)
 
       # Should be a relationship field error with nested context
-      assert {:invalid_fields, {:relationship_field_error, :user, nested_error}} = error_response
-      assert {:unknown_field, :unknown_user_field, User} = nested_error
+      assert {:unknown_field, :unknown_user_field, User, "user.unknownUserField"} = error_response
     end
   end
 end
