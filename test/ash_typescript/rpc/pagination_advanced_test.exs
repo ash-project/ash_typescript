@@ -230,23 +230,32 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
             "id",
             "title",
             "priority",
-            {
-              "metadata",
-              [
+            %{"metadata" => [
                 "category",
-                "priorityScore",
+                "priority_score",
                 "is_urgent",
                 "display_category"
-              ]
-            }
+              ]}
           ],
-          "limit" => 4,
-          "offset" => 2
+          "page" => %{
+            "limit" => 4,
+            "offset" => 2
+          }
         })
 
+      if result["success"] == false do
+        IO.inspect(result, label: "DEBUG: Pagination test failure")
+      end
+
       assert result["success"] == true
-      todo_list = result["data"]
+      page_result = result["data"]
+      todo_list = page_result["results"]
       assert length(todo_list) == 4
+
+      # Verify pagination metadata
+      assert page_result["limit"] == 4
+      assert page_result["offset"] == 2
+      assert page_result["hasMore"] == true
 
       # Verify embedded resource data is properly included
       Enum.each(todo_list, fn todo ->
@@ -254,15 +263,15 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
         metadata = todo["metadata"]
         assert is_map(metadata)
         assert Map.has_key?(metadata, "category")
-        assert Map.has_key?(metadata, "priorityScore")
-        assert Map.has_key?(metadata, "is_urgent")
-        assert Map.has_key?(metadata, "display_category")
+        assert Map.has_key?(metadata, "priorityScore")  
+        assert Map.has_key?(metadata, "isUrgent")
+        assert Map.has_key?(metadata, "displayCategory")
 
         # Verify data types
         assert is_binary(metadata["category"])
         assert is_integer(metadata["priorityScore"])
-        assert is_boolean(metadata["is_urgent"])
-        assert is_binary(metadata["display_category"])
+        assert is_boolean(metadata["isUrgent"])
+        assert is_binary(metadata["displayCategory"])
       end)
     end
 
@@ -295,29 +304,26 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
           "fields" => [
             "id",
             "title",
-            {
-              "comments",
-              [
+            %{"comments" => [
                 "id",
                 "content",
-                "author_name",
+                "authorName",
                 "rating"
-              ]
-            },
-            {
-              "user",
-              [
+              ]},
+            %{"user" => [
                 "id",
                 "name"
-              ]
-            }
+              ]}
           ],
-          "limit" => 5,
-          "offset" => 0
+          "page" => %{
+            "limit" => 5,
+            "offset" => 0
+          }
         })
 
       assert result["success"] == true
-      todo_list = result["data"]
+      page_result = result["data"]
+      todo_list = page_result["results"]
       assert length(todo_list) == 5
 
       # Verify relationship data is properly loaded
@@ -343,7 +349,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
         Enum.each(todo["comments"], fn comment ->
           assert Map.has_key?(comment, "id")
           assert Map.has_key?(comment, "content")
-          assert Map.has_key?(comment, "author_name")
+          assert Map.has_key?(comment, "authorName")
           assert Map.has_key?(comment, "rating")
         end)
       end
@@ -652,10 +658,12 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
               "title",
               "priority",
               "completed",
-              {"metadata", ["category", "priorityScore"]}
+              %{"metadata" => ["category", "priorityScore"]}
             ],
-            "limit" => limit,
-            "offset" => offset
+            "page" => %{
+              "limit" => limit,
+              "offset" => offset
+            }
           })
 
         end_time = System.monotonic_time(:millisecond)
@@ -663,7 +671,9 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
         # Verify response is successful
         assert result["success"] == true
-        todo_list = result["data"]
+        paginated_data = result["data"]
+        assert is_map(paginated_data)
+        todo_list = paginated_data["results"]
         assert is_list(todo_list)
         assert length(todo_list) <= limit
 
@@ -746,27 +756,24 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
         "due_date",
         "isOverdue",
         "days_until_due",
-        {
-          "metadata",
-          [
+        %{
+          "metadata" => [
             "category",
             "priorityScore",
             "is_urgent",
             "display_category"
           ]
         },
-        {
-          "comments",
-          [
+        %{
+          "comments" => [
             "id",
             "content",
             "author_name",
             "rating"
           ]
         },
-        {
-          "user",
-          [
+        %{
+          "user" => [
             "id",
             "name",
             "email"
@@ -780,15 +787,19 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos",
           "fields" => complex_fields,
-          "limit" => 8,
-          "offset" => 10
+          "page" => %{
+            "limit" => 8,
+            "offset" => 10
+          }
         })
 
       end_time = System.monotonic_time(:millisecond)
       duration = end_time - start_time
 
       assert result["success"] == true
-      todo_list = result["data"]
+      paginated_data = result["data"]
+      assert is_map(paginated_data)
+      todo_list = paginated_data["results"]
       assert length(todo_list) == 8
 
       # Verify all complex fields are present and properly structured
@@ -829,11 +840,13 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
             Rpc.run_action(:ash_typescript, conn, %{
               "action" => "list_todos",
               "fields" => ["id", "title"],
-              "limit" => page_size,
-              "offset" => offset
+              "page" => %{
+                "limit" => page_size,
+                "offset" => offset
+              }
             })
 
-          result["data"]
+          result["data"]["results"]
         end
 
       # First two pages should be full
@@ -846,13 +859,15 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
-          "limit" => page_size,
-          # Beyond all data
-          "offset" => 12
+          "page" => %{
+            "limit" => page_size,
+            # Beyond all data
+            "offset" => 12
+          }
         })
 
       assert beyond_result["success"] == true
-      assert beyond_result["data"] == []
+      assert beyond_result["data"]["results"] == []
 
       # Verify all results are unique across pages
       all_page_ids =
@@ -876,13 +891,16 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
-          "limit" => page_size,
-          # Skip first 10, get last 3
-          "offset" => 10
+          "page" => %{
+            "limit" => page_size,
+            # Skip first 10, get last 3
+            "offset" => 10
+          }
         })
 
       assert last_page_result["success"] == true
-      last_page_todos = last_page_result["data"]
+      page_result = last_page_result["data"]
+      last_page_todos = page_result["results"]
 
       # Should have exactly 3 results (the remainder)
       assert length(last_page_todos) == 3

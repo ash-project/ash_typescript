@@ -22,10 +22,8 @@ defmodule AshTypescript.Rpc.Pipeline do
     input_formatter = Rpc.input_field_formatter()
     normalized_params = FieldFormatter.parse_input_fields(params, input_formatter)
 
-    with :ok <- validate_required_parameters(normalized_params),
-         :ok <- validate_fields_parameter(normalized_params),
-         :ok <- validate_pagination_parameters(normalized_params),
-         {:ok, {resource, action}} <- discover_rpc_action(otp_app, normalized_params),
+    with {:ok, {resource, action}} <- discover_rpc_action(otp_app, normalized_params),
+         :ok <- validate_required_parameters_for_action_type(normalized_params, action),
          requested_fields <-
            RequestedFieldsProcessor.atomize_requested_fields(normalized_params[:fields] || []),
          {:ok, {select, load, template}} <-
@@ -123,13 +121,20 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp discover_rpc_action(otp_app, params) do
-    case find_rpc_action(otp_app, params[:action]) do
-      nil ->
-        {:error, {:action_not_found, params[:action]}}
+    action_name = params[:action]
 
-      {resource, rpc_action} ->
-        action = Ash.Resource.Info.action(resource, rpc_action.action)
-        {:ok, {resource, action}}
+    # Check if action parameter is missing or empty first
+    if action_name in [nil, ""] do
+      {:error, {:missing_required_parameter, :action}}
+    else
+      case find_rpc_action(otp_app, action_name) do
+        nil ->
+          {:error, {:action_not_found, action_name}}
+
+        {resource, rpc_action} ->
+          action = Ash.Resource.Info.action(resource, rpc_action.action)
+          {:ok, {resource, action}}
+      end
     end
   end
 
@@ -188,21 +193,28 @@ defmodule AshTypescript.Rpc.Pipeline do
   # Action execution helpers
 
   defp execute_read_action(%Request{} = request, opts) do
-    query =
-      request.resource
-      |> Ash.Query.for_read(request.action.name, request.input, opts)
-      |> Ash.Query.select(request.select)
-      |> Ash.Query.load(request.load)
-      |> apply_filter(request.filter)
-      |> apply_sort(request.sort)
-      |> apply_pagination(request.pagination)
+    if Map.get(request.action, :get?, false) do
+      # For get-style actions, use Ash.read_one with select and load support
+      # Skip filter, sort, and pagination for get actions
+      query =
+        request.resource
+        |> Ash.Query.for_read(request.action.name, request.input, opts)
+        |> Ash.Query.select(request.select)
+        |> Ash.Query.load(request.load)
 
-    case Ash.read(query) do
-      {:ok, [single_item]} when request.action.get? ->
-        {:ok, single_item}
+      Ash.read_one(query, not_found_error?: true)
+    else
+      # For regular read actions, build query with all modifiers
+      query =
+        request.resource
+        |> Ash.Query.for_read(request.action.name, request.input, opts)
+        |> Ash.Query.select(request.select)
+        |> Ash.Query.load(request.load)
+        |> apply_filter(request.filter)
+        |> apply_sort(request.sort)
+        |> apply_pagination(request.pagination)
 
-      result ->
-        result
+      Ash.read(query)
     end
   end
 
@@ -227,7 +239,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   defp execute_destroy_action(%Request{} = request, opts) do
     with {:ok, record} <- Ash.get(request.resource, request.primary_key, opts) do
       record
-      |> Ash.Changeset.for_destroy(request.action.name, request.input, opts)
+      |> Ash.Changeset.for_destroy(request.action.name, request.input, opts ++ [error?: true])
       |> Ash.destroy()
       |> case do
         :ok -> {:ok, %{}}
@@ -285,55 +297,27 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   # Request validation functions
 
-  defp validate_required_parameters(params) do
-    missing_action = not Map.has_key?(params, :action) or params[:action] in [nil, ""]
-    
-    cond do
-      missing_action ->
-        {:error, {:missing_required_parameter, :action}}
-      
-      true ->
-        :ok
-    end
-  end
+  defp validate_required_parameters_for_action_type(params, action) do
+    # Only require fields for read, create, and update actions
+    # Destroy actions do not require fields parameter
+    if action.type in [:read, :create, :update] do
+      fields = params[:fields]
 
-  defp validate_fields_parameter(params) do
-    fields = params[:fields]
-    
-    cond do
-      is_nil(fields) ->
-        {:error, {:missing_required_parameter, :fields}}
-      
-      not is_list(fields) ->
-        {:error, {:invalid_fields_type, fields}}
-      
-      Enum.empty?(fields) ->
-        {:error, {:empty_fields_array, fields}}
-      
-      true ->
-        :ok
-    end
-  end
+      cond do
+        is_nil(fields) ->
+          {:error, {:missing_required_parameter, :fields}}
 
-  defp validate_pagination_parameters(params) do
-    cond do
-      params[:limit] && not is_integer(params[:limit]) ->
-        {:error, {:invalid_pagination_type, :limit, params[:limit]}}
-      
-      params[:offset] && not is_integer(params[:offset]) ->
-        {:error, {:invalid_pagination_type, :offset, params[:offset]}}
-      
-      params[:limit] && is_integer(params[:limit]) && params[:limit] < 0 ->
-        {:error, {:invalid_pagination_value, :limit, params[:limit], "must be non-negative"}}
-      
-      params[:offset] && is_integer(params[:offset]) && params[:offset] < 0 ->
-        {:error, {:invalid_pagination_value, :offset, params[:offset], "must be non-negative"}}
-      
-      params[:limit] && is_integer(params[:limit]) && params[:limit] > 10000 ->
-        {:error, {:invalid_pagination_value, :limit, params[:limit], "must be <= 10000"}}
-      
-      true ->
-        :ok
+        not is_list(fields) ->
+          {:error, {:invalid_fields_type, fields}}
+
+        Enum.empty?(fields) ->
+          {:error, {:empty_fields_array, fields}}
+
+        true ->
+          :ok
+      end
+    else
+      :ok
     end
   end
 end

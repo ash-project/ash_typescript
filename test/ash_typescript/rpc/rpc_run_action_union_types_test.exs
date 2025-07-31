@@ -1328,7 +1328,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["type"] == "unknown_field"
+      assert error["type"] == "unknown_union_field"
       assert error["details"]["field"] == "content.invalidMember"
     end
 
@@ -1374,7 +1374,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["type"] == "unknown_field"
+      assert error["type"] == "unknown_map_field"
       assert error["details"]["field"] == "attachments.file.invalidField"
     end
 
@@ -1394,7 +1394,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["type"] == "unknown_field"
+      assert error["type"] == "unknown_union_field"
       assert error["details"]["field"] == "attachments.invalidAttachmentType"
     end
 
@@ -1414,7 +1414,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["type"] == "unknown_field"
+      assert error["type"] == "unknown_union_field"
       assert error["details"]["field"] == "statusInfo.invalidStatus"
     end
 

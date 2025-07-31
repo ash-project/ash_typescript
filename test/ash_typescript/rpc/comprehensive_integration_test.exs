@@ -261,7 +261,6 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       }
 
       update_result = Rpc.run_action(:ash_typescript, conn, update_params)
-      IO.inspect(update_result, label: "UPDATE RESULT DEBUG")
       assert update_result["success"] == true
       assert update_result["data"]["id"] == todo_id
       # Unchanged
@@ -299,16 +298,17 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       assert todo_result["success"] == true
       todo_id = todo_result["data"]["id"]
 
-      # Destroy the todo
+      # Destroy the todo - now requires fields parameter with at least one field
       destroy_params = %{
         "action" => "destroy_todo",
-        "primaryKey" => todo_id
+        "primaryKey" => todo_id,
+        "fields" => ["id"]
       }
 
       destroy_result = Rpc.run_action(:ash_typescript, conn, destroy_params)
       assert destroy_result["success"] == true
-      # Destroy returns empty data
-      assert destroy_result["data"] == %{}
+      # Destroy now returns data with the requested fields (id is nil after destruction)
+      assert destroy_result["data"] == %{"id" => nil}
 
       # Verify todo is actually deleted
       get_params = %{
@@ -318,6 +318,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       }
 
       get_result = Rpc.run_action(:ash_typescript, conn, get_params)
+      # Get operations now return not found errors when records don't exist
       assert get_result["success"] == false
       first_error = List.first(get_result["errors"])
       assert first_error["type"] == "not_found"
@@ -1081,7 +1082,11 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
               "https://example.com/reference"
             ]
           },
-          "fields" => ["id", "title", "attachments"]
+          "fields" => ["id", "title", %{"attachments" => [
+            %{"file" => ["filename", "size", "mimeType"]},
+            %{"image" => ["filename", "width", "height", "altText"]},
+            "url"
+          ]}]
         })
 
       assert todo_result["success"] == true
@@ -1092,32 +1097,26 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       assert is_list(attachments)
       assert length(attachments) == 3
 
-      IO.puts("=== ATTACHMENTS DEBUG ===")
-      IO.puts("Attachments: #{inspect(attachments, pretty: true)}")
-      IO.puts("=== END DEBUG ===")
-
       [file_attachment, image_attachment, url_attachment] = attachments
 
-      # Assert file attachment
-      assert file_attachment["type"] == "file"
-      file_value = file_attachment["value"]
-      assert file_value["attachmentType"] == "file"
+      # Assert file attachment - new structure uses union member name as key
+      assert Map.has_key?(file_attachment, "file")
+      file_value = file_attachment["file"]
       assert file_value["filename"] == "document.pdf"
       assert file_value["size"] == 1_024_000
       assert file_value["mimeType"] == "application/pdf"
 
-      # Assert image attachment
-      assert image_attachment["type"] == "image"
-      image_value = image_attachment["value"]
-      assert image_value["attachmentType"] == "image"
+      # Assert image attachment - new structure uses union member name as key
+      assert Map.has_key?(image_attachment, "image")
+      image_value = image_attachment["image"]
       assert image_value["filename"] == "screenshot.png"
       assert image_value["width"] == 1920
       assert image_value["height"] == 1080
       assert image_value["altText"] == "Application screenshot"
 
-      # Assert URL attachment (untagged)
-      assert url_attachment["type"] == "url"
-      assert url_attachment["value"] == "https://example.com/reference"
+      # Assert URL attachment (untagged) - new structure uses union member name as key
+      assert Map.has_key?(url_attachment, "url")
+      assert url_attachment["url"] == "https://example.com/reference"
     end
   end
 
@@ -1272,12 +1271,10 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       first_error = List.first(result["errors"])
       assert first_error["type"] == "unknown_field"
       assert String.contains?(first_error["message"], "user")
-      assert first_error["details"]["nestedError"]["type"] == "unknown_field"
-
-      assert String.contains?(
-               first_error["details"]["nestedError"]["message"],
-               "invalid_user_field"
-             )
+      # The error structure is now flatter - field path contains full path
+      assert first_error["details"]["field"] == "user.invalidUserField"
+      assert first_error["details"]["resource"] == "AshTypescript.Test.User"
+      assert String.contains?(first_error["message"], "invalidUserField")
     end
 
     test "missing required input parameters return validation errors" do
@@ -1311,6 +1308,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           "fields" => ["id", "title"]
         })
 
+      # Get operations return not found errors when records don't exist
       assert result["success"] == false
       first_error = List.first(result["errors"])
       assert first_error["type"] == "not_found"

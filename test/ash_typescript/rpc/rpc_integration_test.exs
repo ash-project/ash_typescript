@@ -25,7 +25,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       assert :title in request.select
       assert :description in request.select
       assert :status in request.select
-      assert is_map(request.extraction_template)
+      assert is_list(request.extraction_template)
     end
 
     test "valid complex field combinations parse successfully" do
@@ -40,8 +40,8 @@ defmodule AshTypescript.Rpc.IntegrationTest do
           %{"user" => ["id", "name"]},
           # Embedded resource
           %{"metadata" => ["category"]},
-          # Complex calculation
-          %{"self" => %{"args" => %{"prefix" => "test"}}}
+          # Complex calculation with field selection
+          %{"self" => %{"args" => %{"prefix" => "test"}, "fields" => ["id", "title"]}}
         ]
       }
 
@@ -63,7 +63,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
              end)
 
       assert Enum.any?(request.load, fn
-               {:self, %{prefix: "test"}} -> true
+               {:self, {%{prefix: "test"}, [:id, :title]}} -> true
                _ -> false
              end)
     end
@@ -80,9 +80,11 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Should fail with validation error, not execution error
       assert error_response["success"] == false
-      assert error_response["errors"]["type"] == "unknown_field"
-      assert String.contains?(error_response["errors"]["message"], "unknown_field")
-      assert String.contains?(error_response["errors"]["message"], "Todo")
+      
+      error = List.first(error_response["errors"])
+      assert error["type"] == "unknown_field"
+      assert String.contains?(error["message"], "unknownField")
+      assert String.contains?(error["message"], "Todo")
     end
 
     test "validation-only endpoint works correctly" do
@@ -106,7 +108,9 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       error_response = Rpc.validate_action(:ash_typescript, conn, invalid_params)
       assert error_response["success"] == false
-      assert error_response["errors"]["type"] == "unknown_field"
+      
+      error = List.first(error_response["errors"])
+      assert error["type"] == "unknown_field"
     end
   end
 
@@ -149,7 +153,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       request = %AshTypescript.Rpc.Request{}
 
       # Test the output formatting stage
-      {:ok, formatted_result} = AshTypescript.Rpc.Pipeline.format_output(internal_data)
+      formatted_result = AshTypescript.Rpc.Pipeline.format_output(internal_data)
 
       # Should convert snake_case back to camelCase for client consumption
       first_item = List.first(formatted_result)
@@ -215,10 +219,12 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Should get properly formatted error response
       assert error_response["success"] == false
-      assert error_response["errors"]["type"] == "action_not_found"
-      assert error_response["errors"]["message"] == "RPC action 'nonexistent_action' not found"
-      assert error_response["errors"].details.action_name == "nonexistent_action"
-      assert String.contains?(error_response["errors"].details.suggestion, "rpc block")
+      
+      error = List.first(error_response["errors"])
+      assert error["type"] == "action_not_found"
+      assert error["message"] == "RPC action 'nonexistent_action' not found"
+      assert error["details"]["actionName"] == "nonexistent_action"
+      assert String.contains?(error["details"]["suggestion"], "rpc block")
     end
 
     test "field validation errors are user-friendly" do
@@ -233,10 +239,12 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Error should be clear and actionable
       assert error_response["success"] == false
-      assert error_response["errors"]["type"] == "unknown_field"
-      assert String.contains?(error_response["errors"]["message"], "completely_unknown_field")
-      assert String.contains?(error_response["errors"]["message"], "Todo")
-      assert String.contains?(error_response["errors"].details.suggestion, "field name spelling")
+      
+      error = List.first(error_response["errors"])
+      assert error["type"] == "unknown_field"
+      assert String.contains?(error["message"], "completelyUnknownField")
+      assert String.contains?(error["message"], "Todo")
+      assert String.contains?(error["details"]["suggestion"], "field name spelling")
     end
 
     test "nested field errors provide context" do
@@ -249,16 +257,14 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       error_response = Rpc.run_action(:ash_typescript, conn, params)
 
-      # Should show it's a relationship field error with nested context
+      # Should show it's an unknown field error with relationship context
       assert error_response["success"] == false
-      assert error_response["errors"]["type"] == "relationship_field_error"
-      assert String.contains?(error_response["errors"]["message"], "user")
-      assert error_response["errors"].details.nested_error.type == "unknown_field"
-
-      assert String.contains?(
-               error_response["errors"].details.nested_error.message,
-               "nonexistent_user_field"
-             )
+      
+      error = List.first(error_response["errors"])
+      assert error["type"] == "unknown_field"
+      assert String.contains?(error["message"], "user")
+      assert String.contains?(error["message"], "nonexistentUserField")
+      assert String.contains?(error["fieldPath"], "user.nonexistentUserField")
     end
   end
 
@@ -367,7 +373,9 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       # Invalid field names should always fail
       error_response = Rpc.run_action(:ash_typescript, conn, params)
       assert error_response["success"] == false
-      assert error_response["errors"]["type"] == "unknown_field"
+      
+      error = List.first(error_response["errors"])
+      assert error["type"] == "unknown_field"
     end
 
     test "wrong action name should fail" do
@@ -378,7 +386,9 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       # Invalid action names should always fail
       error_response = Rpc.run_action(:ash_typescript, conn, params)
       assert error_response["success"] == false
-      assert error_response["errors"]["type"] == "action_not_found"
+      
+      error = List.first(error_response["errors"])
+      assert error["type"] == "action_not_found"
     end
 
     test "invalid nested structure should fail" do
@@ -388,7 +398,9 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       # Invalid nested structures should always fail
       error_response = Rpc.run_action(:ash_typescript, conn, params)
       assert error_response["success"] == false
-      assert error_response["errors"]["type"] == "unsupported_field_combination"
+      
+      error = List.first(error_response["errors"])
+      assert error["type"] == "unsupported_field_combination"
     end
 
     test "invalid pagination format should fail" do
@@ -399,7 +411,9 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       # Invalid pagination should always fail
       error_response = Rpc.run_action(:ash_typescript, conn, params)
       assert error_response["success"] == false
-      assert error_response["errors"]["type"] == "invalid_pagination"
+      
+      error = List.first(error_response["errors"])
+      assert error["type"] == "invalid_pagination"
     end
   end
 end

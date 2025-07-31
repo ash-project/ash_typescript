@@ -14,6 +14,8 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
   """
   @spec build_error_response(term()) :: map()
   def build_error_response(error) do
+    IO.inspect(error)
+
     case error do
       # Action discovery errors
       {:action_not_found, action_name} ->
@@ -52,19 +54,6 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
       # === FIELD VALIDATION ERRORS WITH FIELD PATHS ===
 
       # Unknown field errors
-      {:unknown_field, _field_atom, resource, field_path} ->
-        %{
-          type: "unknown_field",
-          message: "Unknown field '#{field_path}' for resource #{inspect(resource)}",
-          field_path: field_path,
-          details: %{
-            field: field_path,
-            resource: inspect(resource),
-            suggestion:
-              "Check the field name spelling and ensure it's a public attribute, calculation, or relationship"
-          }
-        }
-
       {:unknown_field, _field_atom, "map", field_path} ->
         %{
           type: "unknown_map_field",
@@ -94,7 +83,21 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           field_path: field_path,
           details: %{
             field: field_path,
-            suggestion: "Check that the union member name is valid for the union attribute definition"
+            suggestion:
+              "Check that the union member name is valid for the union attribute definition"
+          }
+        }
+
+      {:unknown_field, _field_atom, resource, field_path} ->
+        %{
+          type: "unknown_field",
+          message: "Unknown field '#{field_path}' for resource #{inspect(resource)}",
+          field_path: field_path,
+          details: %{
+            field: field_path,
+            resource: inspect(resource),
+            suggestion:
+              "Check the field name spelling and ensure it's a public attribute, calculation, or relationship"
           }
         }
 
@@ -125,7 +128,8 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
       {:requires_field_selection, field_type, field_path} ->
         %{
           type: "requires_field_selection",
-          message: "#{String.capitalize(to_string(field_type))} '#{field_path}' requires field selection",
+          message:
+            "#{String.capitalize(to_string(field_type))} '#{field_path}' requires field selection",
           field_path: field_path,
           details: %{
             field_type: field_type,
@@ -233,7 +237,11 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "simple_attribute_with_spec",
           message: "Simple attribute '#{field_atom}' cannot have field specification",
           details: %{
-            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
+            field:
+              AshTypescript.FieldFormatter.format_field(
+                field_atom,
+                AshTypescript.Rpc.output_field_formatter()
+              ),
             received_spec: inspect(field_spec),
             suggestion: "Remove the field specification or use just the field name"
           }
@@ -244,7 +252,11 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "simple_calculation_with_spec",
           message: "Simple calculation '#{field_atom}' cannot have field specification",
           details: %{
-            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
+            field:
+              AshTypescript.FieldFormatter.format_field(
+                field_atom,
+                AshTypescript.Rpc.output_field_formatter()
+              ),
             received_spec: inspect(field_spec),
             suggestion: "Remove the field specification or use just the field name"
           }
@@ -255,7 +267,11 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "invalid_calculation_spec",
           message: "Invalid calculation specification for '#{field_atom}'",
           details: %{
-            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
+            field:
+              AshTypescript.FieldFormatter.format_field(
+                field_atom,
+                AshTypescript.Rpc.output_field_formatter()
+              ),
             received: inspect(invalid_spec),
             expected: "Map with 'args' key and optional 'fields' key"
           }
@@ -266,7 +282,11 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "relationship_field_error",
           message: "Error in relationship field '#{field_atom}'",
           details: %{
-            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
+            field:
+              AshTypescript.FieldFormatter.format_field(
+                field_atom,
+                AshTypescript.Rpc.output_field_formatter()
+              ),
             nested_error: build_error_response(nested_error)
           }
         }
@@ -276,7 +296,11 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "embedded_resource_field_error",
           message: "Error in embedded resource field '#{field_atom}'",
           details: %{
-            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
+            field:
+              AshTypescript.FieldFormatter.format_field(
+                field_atom,
+                AshTypescript.Rpc.output_field_formatter()
+              ),
             nested_error: build_error_response(nested_error)
           }
         }
@@ -286,7 +310,11 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "embedded_resource_module_not_found",
           message: "Embedded resource module not found for field '#{field_atom}'",
           details: %{
-            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
+            field:
+              AshTypescript.FieldFormatter.format_field(
+                field_atom,
+                AshTypescript.Rpc.output_field_formatter()
+              ),
             suggestion: "Ensure the field is properly configured as an embedded resource"
           }
         }
@@ -306,7 +334,11 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "calculation_field_error",
           message: "Error in calculation field '#{field_atom}'",
           details: %{
-            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
+            field:
+              AshTypescript.FieldFormatter.format_field(
+                field_atom,
+                AshTypescript.Rpc.output_field_formatter()
+              ),
             nested_error: build_error_response(nested_error)
           }
         }
@@ -316,7 +348,11 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "relationship_field_error",
           message: "Error in relationship field '#{field_atom}'",
           details: %{
-            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
+            field:
+              AshTypescript.FieldFormatter.format_field(
+                field_atom,
+                AshTypescript.Rpc.output_field_formatter()
+              ),
             nested_error: build_error_response(nested_error)
           }
         }
@@ -346,7 +382,11 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "invalid_relationship_spec",
           message: "Invalid relationship specification for '#{field_atom}'",
           details: %{
-            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
+            field:
+              AshTypescript.FieldFormatter.format_field(
+                field_atom,
+                AshTypescript.Rpc.output_field_formatter()
+              ),
             received: inspect(spec),
             expected: "List of field names for relationship field selection"
           }
@@ -357,7 +397,11 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "invalid_embedded_spec",
           message: "Invalid embedded resource specification for '#{field_atom}'",
           details: %{
-            field: AshTypescript.FieldFormatter.format_field(field_atom, AshTypescript.Rpc.output_field_formatter()),
+            field:
+              AshTypescript.FieldFormatter.format_field(
+                field_atom,
+                AshTypescript.Rpc.output_field_formatter()
+              ),
             received: inspect(spec),
             expected: "List of field names for embedded resource field selection"
           }
@@ -463,6 +507,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
                 primary_key: not_found_error.primary_key
               }
             }
+
           _ ->
             build_ash_error_response(ash_error)
         end
