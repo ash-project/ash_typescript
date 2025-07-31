@@ -2,6 +2,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
   use ExUnit.Case, async: false
   alias AshTypescript.Test.TestHelpers
   alias AshTypescript.Rpc
+  require Ash.Query
 
   describe "simple embedded resource fields" do
     setup do
@@ -53,9 +54,10 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      metadata_todo = Enum.find(result["data"], fn todo ->
-        todo["title"] == "Todo with Metadata"
-      end)
+      metadata_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] == "Todo with Metadata"
+        end)
 
       assert metadata_todo != nil
       assert Map.has_key?(metadata_todo, "id")
@@ -89,23 +91,24 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      metadata_todo = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "metadata") && todo["metadata"] &&
-          Map.has_key?(todo["metadata"], "category") &&
-          todo["metadata"]["category"] == "work"
-      end)
+      metadata_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "metadata") && todo["metadata"] &&
+            Map.has_key?(todo["metadata"], "category") &&
+            todo["metadata"]["category"] == "work"
+        end)
 
       assert metadata_todo != nil
       assert Map.has_key?(metadata_todo, "metadata")
 
       metadata = metadata_todo["metadata"]
       assert Map.has_key?(metadata, "category")
-      
+
       # These should be calculations if they exist
       if Map.has_key?(metadata, "displayCategory") do
         assert is_binary(metadata["displayCategory"])
       end
-      
+
       if Map.has_key?(metadata, "isOverdue") do
         assert is_boolean(metadata["isOverdue"])
       end
@@ -121,8 +124,8 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
               "metadata" => [
                 "category",
                 %{
-                  "adjustedPriority" => %{
-                    "args" => %{"urgencyMultiplier" => 1.5, "deadlineFactor" => true}
+                  "adjusted_priority" => %{
+                    "args" => %{"urgency_multiplier" => 1.5, "deadline_factor" => true}
                   }
                 }
               ]
@@ -134,17 +137,18 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      metadata_todo = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "metadata") && todo["metadata"] &&
-          Map.has_key?(todo["metadata"], "category")
-      end)
+      metadata_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "metadata") && todo["metadata"] &&
+            Map.has_key?(todo["metadata"], "category")
+        end)
 
       assert metadata_todo != nil
       assert Map.has_key?(metadata_todo, "metadata")
 
       metadata = metadata_todo["metadata"]
       assert Map.has_key?(metadata, "category")
-      
+
       # Verify calculation with arguments result
       if Map.has_key?(metadata, "adjustedPriority") do
         # The result should be a calculated value based on the arguments
@@ -174,17 +178,18 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      metadata_todo = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "metadata") && todo["metadata"] &&
-          Map.has_key?(todo["metadata"], "category") &&
-          todo["metadata"]["category"] == "work"
-      end)
+      metadata_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "metadata") && todo["metadata"] &&
+            Map.has_key?(todo["metadata"], "category") &&
+            todo["metadata"]["category"] == "work"
+        end)
 
       assert metadata_todo != nil
       assert Map.has_key?(metadata_todo, "metadata")
 
       metadata = metadata_todo["metadata"]
-      
+
       # Verify attributes
       assert Map.has_key?(metadata, "category")
       assert Map.has_key?(metadata, "priorityScore")
@@ -192,12 +197,12 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert metadata["category"] == "work"
       assert metadata["priorityScore"] == 85
       assert metadata["isUrgent"] == true
-      
+
       # Verify calculations if they exist
       if Map.has_key?(metadata, "displayCategory") do
         assert is_binary(metadata["displayCategory"])
       end
-      
+
       if Map.has_key?(metadata, "isOverdue") do
         assert is_boolean(metadata["isOverdue"])
       end
@@ -217,11 +222,12 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      metadata_todo = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "metadata") && todo["metadata"] &&
-          Map.has_key?(todo["metadata"], "category") &&
-          todo["metadata"]["category"] == "work"
-      end)
+      metadata_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "metadata") && todo["metadata"] &&
+            Map.has_key?(todo["metadata"], "category") &&
+            todo["metadata"]["category"] == "work"
+        end)
 
       assert metadata_todo != nil
       assert Map.has_key?(metadata_todo, "metadata")
@@ -249,22 +255,23 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      metadata_todo = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "metadata") && todo["metadata"] &&
-          Map.has_key?(todo["metadata"], "category")
-      end)
+      metadata_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "metadata") && todo["metadata"] &&
+            Map.has_key?(todo["metadata"], "category")
+        end)
 
       assert metadata_todo != nil
       assert Map.has_key?(metadata_todo, "metadata")
 
       metadata = metadata_todo["metadata"]
       assert Map.has_key?(metadata, "category")
-      
+
       # Verify calculations if they exist
       if Map.has_key?(metadata, "displayCategory") do
         assert is_binary(metadata["displayCategory"])
       end
-      
+
       if Map.has_key?(metadata, "isOverdue") do
         assert is_boolean(metadata["isOverdue"])
       end
@@ -302,7 +309,8 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
               %{
                 "category" => "work",
                 "priorityScore" => 90,
-                "createdAt" => DateTime.utc_now() |> DateTime.add(3600, :second) |> DateTime.to_iso8601()
+                "createdAt" =>
+                  DateTime.utc_now() |> DateTime.add(3600, :second) |> DateTime.to_iso8601()
               }
             ]
           },
@@ -327,9 +335,10 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      history_todo = Enum.find(result["data"], fn todo ->
-        todo["title"] == "Todo with History"
-      end)
+      history_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] == "Todo with History"
+        end)
 
       assert history_todo != nil
       assert Map.has_key?(history_todo, "id")
@@ -347,7 +356,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
         assert Map.has_key?(metadata, "category")
         assert Map.has_key?(metadata, "createdAt")
         assert is_binary(metadata["category"])
-        
+
         # Should not have other fields we didn't request
         refute Map.has_key?(metadata, "priorityScore")
       end)
@@ -372,10 +381,11 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      history_todo = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "metadataHistory") && todo["metadataHistory"] &&
-          is_list(todo["metadataHistory"]) && length(todo["metadataHistory"]) > 0
-      end)
+      history_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "metadataHistory") && todo["metadataHistory"] &&
+            is_list(todo["metadataHistory"]) && length(todo["metadataHistory"]) > 0
+        end)
 
       assert history_todo != nil
       assert Map.has_key?(history_todo, "metadataHistory")
@@ -387,7 +397,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       Enum.each(history, fn metadata ->
         assert Map.has_key?(metadata, "category")
         assert Map.has_key?(metadata, "priorityScore")
-        
+
         # Verify calculation if it exists
         if Map.has_key?(metadata, "displayCategory") do
           assert is_binary(metadata["displayCategory"])
@@ -484,10 +494,11 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["data"])
 
       # Find our text content todo
-      text_todo = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "content") && todo["content"] &&
-          Map.has_key?(todo["content"], "text")
-      end)
+      text_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "content") && todo["content"] &&
+            Map.has_key?(todo["content"], "text")
+        end)
 
       assert text_todo != nil
       assert Map.has_key?(text_todo, "content")
@@ -521,10 +532,11 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["data"])
 
       # Find our checklist content todo
-      checklist_todo = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "content") && todo["content"] &&
-          Map.has_key?(todo["content"], "checklist")
-      end)
+      checklist_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "content") && todo["content"] &&
+            Map.has_key?(todo["content"], "checklist")
+        end)
 
       assert checklist_todo != nil
       assert Map.has_key?(checklist_todo, "content")
@@ -558,10 +570,11 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["data"])
 
       # Find our link content todo
-      link_todo = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "content") && todo["content"] &&
-          Map.has_key?(todo["content"], "link")
-      end)
+      link_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "content") && todo["content"] &&
+            Map.has_key?(todo["content"], "link")
+        end)
 
       assert link_todo != nil
       assert Map.has_key?(link_todo, "content")
@@ -595,10 +608,11 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["data"])
 
       # Find our text content todo
-      text_todo = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "content") && todo["content"] &&
-          Map.has_key?(todo["content"], "text")
-      end)
+      text_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "content") && todo["content"] &&
+            Map.has_key?(todo["content"], "text")
+        end)
 
       assert text_todo != nil
       assert Map.has_key?(text_todo, "content")
@@ -703,7 +717,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["type"] in ["unknown_field", "invalid_field_format"]
+      assert error["type"] == "invalid_field_format"
       assert error["details"]["field"] =~ "adjustedPriority"
     end
 
@@ -727,7 +741,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["type"] in ["unknown_field", "invalid_field_format"]
+      assert error["type"] == "invalid_calculation_args"
       assert error["details"]["field"] =~ "displayCategory"
     end
 
@@ -743,10 +757,12 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["type"] in ["unknown_field", "invalid_field_format"]
+      assert error["type"] == "requires_field_selection"
     end
 
-    test "returns error when primitive calculation with arguments includes fields parameter", %{conn: conn} do
+    test "returns error when primitive calculation with arguments includes fields parameter", %{
+      conn: conn
+    } do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos",
@@ -767,7 +783,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["type"] in ["unknown_field", "invalid_field_format"]
+      assert error["type"] == "invalid_field_selection"
     end
   end
 
@@ -789,7 +805,10 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       %{conn: conn, user: user}
     end
 
-    test "processes embedded resource fields correctly in create actions", %{conn: conn, user: user} do
+    test "processes embedded resource fields correctly in create actions", %{
+      conn: conn,
+      user: user
+    } do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "create_todo",

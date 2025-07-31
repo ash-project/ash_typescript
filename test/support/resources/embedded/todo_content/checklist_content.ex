@@ -22,6 +22,7 @@ defmodule AshTypescript.Test.TodoContent.ChecklistContent do
       ]
 
     attribute :allow_reordering, :boolean, public?: true, default: true
+    attribute :content_type, :string, public?: true, default: "checklist"
   end
 
   calculations do

@@ -22,7 +22,10 @@ defmodule AshTypescript.Rpc.Pipeline do
     input_formatter = Rpc.input_field_formatter()
     normalized_params = FieldFormatter.parse_input_fields(params, input_formatter)
 
-    with {:ok, {resource, action}} <- discover_rpc_action(otp_app, normalized_params),
+    with :ok <- validate_required_parameters(normalized_params),
+         :ok <- validate_fields_parameter(normalized_params),
+         :ok <- validate_pagination_parameters(normalized_params),
+         {:ok, {resource, action}} <- discover_rpc_action(otp_app, normalized_params),
          requested_fields <-
            RequestedFieldsProcessor.atomize_requested_fields(normalized_params[:fields] || []),
          {:ok, {select, load, template}} <-
@@ -277,6 +280,60 @@ defmodule AshTypescript.Rpc.Pipeline do
       # Don't try to format structs like DateTime, UUID, etc.
       other ->
         other
+    end
+  end
+
+  # Request validation functions
+
+  defp validate_required_parameters(params) do
+    missing_action = not Map.has_key?(params, :action) or params[:action] in [nil, ""]
+    
+    cond do
+      missing_action ->
+        {:error, {:missing_required_parameter, :action}}
+      
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_fields_parameter(params) do
+    fields = params[:fields]
+    
+    cond do
+      is_nil(fields) ->
+        {:error, {:missing_required_parameter, :fields}}
+      
+      not is_list(fields) ->
+        {:error, {:invalid_fields_type, fields}}
+      
+      Enum.empty?(fields) ->
+        {:error, {:empty_fields_array, fields}}
+      
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_pagination_parameters(params) do
+    cond do
+      params[:limit] && not is_integer(params[:limit]) ->
+        {:error, {:invalid_pagination_type, :limit, params[:limit]}}
+      
+      params[:offset] && not is_integer(params[:offset]) ->
+        {:error, {:invalid_pagination_type, :offset, params[:offset]}}
+      
+      params[:limit] && is_integer(params[:limit]) && params[:limit] < 0 ->
+        {:error, {:invalid_pagination_value, :limit, params[:limit], "must be non-negative"}}
+      
+      params[:offset] && is_integer(params[:offset]) && params[:offset] < 0 ->
+        {:error, {:invalid_pagination_value, :offset, params[:offset], "must be non-negative"}}
+      
+      params[:limit] && is_integer(params[:limit]) && params[:limit] > 10000 ->
+        {:error, {:invalid_pagination_value, :limit, params[:limit], "must be <= 10000"}}
+      
+      true ->
+        :ok
     end
   end
 end

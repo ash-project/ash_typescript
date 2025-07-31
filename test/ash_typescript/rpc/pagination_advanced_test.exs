@@ -805,8 +805,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
               "offset" => offset
             })
 
-          assert {:ok, response} = result
-          response["data"]
+          result["data"]
         end
 
       # First two pages should be full

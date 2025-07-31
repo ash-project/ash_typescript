@@ -288,6 +288,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
           "action" => "list_todos",
           "fields" => [
             "id",
+            "title",
             %{
               "user" => [
                 "id",
@@ -716,7 +717,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["type"] in ["unknown_field", "invalid_field_format"]
+      assert error["type"] == "requires_field_selection"
       assert error["details"]["field"] =~ "user"
     end
   end
@@ -775,7 +776,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["type"] in ["unknown_field", "invalid_field_format"]
+      assert error["type"] == "requires_field_selection"
     end
 
     test "handles relationship with only nested relationships (no direct fields)", %{conn: conn} do
@@ -784,6 +785,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
           "action" => "list_todos",
           "fields" => [
             "id",
+            "title",
             %{
               "user" => [
                 %{"comments" => ["id", "content"]}

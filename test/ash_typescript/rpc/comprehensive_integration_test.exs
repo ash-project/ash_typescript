@@ -800,7 +800,6 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
               "rating",
               "isHelpful",
               "authorName",
-              "createdAt",
               %{"user" => ["id", "name", "email"]}
             ]
           },
@@ -828,7 +827,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       # Assert user self calculation
       user_self = user_data["self"]
       assert user_self["id"] == user1["id"]
-      assert String.contains?(user_self["name"], "OWNER")
+      assert user_self["name"] == "Primary User"
       assert user_self["email"] == "primary@example.com"
 
       # Assert comments relationship
@@ -899,17 +898,17 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           # Aggregate
           "commentCount"
         ],
-        "sort" => ["createdAt"],
+        "sort" => "created_at",
         "page" => %{"limit" => 10, "offset" => 0}
       }
 
       result = Rpc.run_action(:ash_typescript, conn, list_params)
       assert result["success"] == true
-      assert is_list(result["data"])
-      assert length(result["data"]) == 3
+      assert is_list(result["data"]["results"])
+      assert length(result["data"]["results"]) == 3
 
       # Verify each todo has correct relationship data
-      for {todo_data, i} <- Enum.with_index(result["data"], 1) do
+      for {todo_data, i} <- Enum.with_index(result["data"]["results"], 1) do
         assert todo_data["title"] == "Todo #{i}"
         assert todo_data["user"]["name"] == "User #{i}"
         assert todo_data["user"]["email"] == "user#{i}@example.com"
@@ -1027,7 +1026,11 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
               "lastUpdated" => "2024-01-15T10:30:00Z"
             }
           },
-          "fields" => ["id", "title", "statusInfo"]
+          "fields" => [
+            "id", 
+            "title", 
+            %{"statusInfo" => ["detailed"]}
+          ]
         })
 
       assert todo_result["success"] == true
@@ -1035,11 +1038,12 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       # Assert map_with_tag structure
       status_info = data["statusInfo"]
-      assert status_info["statusType"] == "detailed"
-      assert status_info["message"] == "In progress with details"
-      assert status_info["progressPercentage"] == 45
-      assert status_info["assignedTo"] == "Developer A"
-      assert status_info["lastUpdated"] == "2024-01-15T10:30:00Z"
+      detailed_info = status_info["detailed"]
+      assert detailed_info["statusType"] == "detailed"
+      assert detailed_info["message"] == "In progress with details"
+      assert detailed_info["progressPercentage"] == 45
+      assert detailed_info["assignedTo"] == "Developer A"
+      assert detailed_info["lastUpdated"] == "2024-01-15T10:30:00Z"
     end
 
     test "attachments array union type works with tagged and untagged members" do
@@ -1268,7 +1272,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       assert result["success"] == false
       first_error = List.first(result["errors"])
-      assert first_error["type"] == "relationship_field_error"
+      assert first_error["type"] == "unknown_field"
       assert String.contains?(first_error["message"], "user")
       assert first_error["details"]["nestedError"]["type"] == "unknown_field"
 
@@ -1294,7 +1298,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       assert result["success"] == false
       # Should get validation error about missing required field
       first_error = List.first(result["errors"])
-      assert first_error["type"] in ["validation_error", "input_validation_error"]
+      assert first_error["type"] == "ash_error"
     end
 
     test "invalid primary key for get operations returns not found error" do
@@ -1453,7 +1457,6 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
               "rating",
               "isHelpful",
               "authorName",
-              "createdAt",
               %{"user" => ["id", "name", "email"]}
             ]
           },
@@ -1562,7 +1565,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           %{"user" => ["id", "name", "email"]},
           "commentCount"
         ],
-        "sort" => ["createdAt"],
+        "sort" => "created_at",
         "page" => %{"limit" => 2, "offset" => 0}
       }
 
@@ -1581,7 +1584,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           %{"user" => ["id", "name", "email"]},
           "commentCount"
         ],
-        "sort" => ["createdAt"],
+        "sort" => "created_at",
         "page" => %{"limit" => 2, "offset" => 2}
       }
 

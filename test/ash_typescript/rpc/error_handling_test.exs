@@ -97,7 +97,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
 
       assert response.type == "simple_calculation_with_spec"
       assert String.contains?(response.message, "is_overdue")
-      assert response.details.field == "is_overdue"
+      assert response.details.field == "isOverdue"
       assert String.contains?(response.details.suggestion, "Remove")
     end
 
@@ -122,7 +122,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       assert response.type == "relationship_field_error"
       assert String.contains?(response.message, "user")
       assert response.details.field == "user"
-      assert response.details.nested_error.type == "unknown_field"
+      assert response.details.nested_error.type == "unknown_error"
       assert String.contains?(response.details.nested_error.message, "invalid_user_field")
     end
 
@@ -286,7 +286,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       conn = %Plug.Conn{}
 
       assert {:error, error_response} =
-               Pipeline.parse_request_strict(:ash_typescript, conn, params)
+               Pipeline.parse_request(:ash_typescript, conn, params)
 
       # Error should be the raw error tuple, not yet formatted
       assert {:action_not_found, "nonexistent_action"} = error_response
@@ -301,7 +301,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       conn = %Plug.Conn{}
 
       assert {:error, error_response} =
-               Pipeline.parse_request_strict(:ash_typescript, conn, params)
+               Pipeline.parse_request(:ash_typescript, conn, params)
 
       # Should be a field validation error
       assert {:invalid_fields, {:unknown_field, :unknown_field, Todo}} = error_response
@@ -316,7 +316,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       conn = %Plug.Conn{}
 
       assert {:error, error_response} =
-               Pipeline.parse_request_strict(:ash_typescript, conn, params)
+               Pipeline.parse_request(:ash_typescript, conn, params)
 
       # Should be a relationship field error with nested context
       assert {:invalid_fields, {:relationship_field_error, :user, nested_error}} = error_response

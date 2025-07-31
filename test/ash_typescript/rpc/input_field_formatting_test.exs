@@ -151,16 +151,18 @@ defmodule AshTypescript.Rpc.InputFieldFormattingTest do
 
       # The pipeline should fail because list_todos action doesn't exist in our test domain,
       # but it should fail AFTER the field formatting step, proving the formatting worked
-      result = Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      result = Pipeline.parse_request(:ash_typescript, conn, params)
 
-      # Should succeed or get a different error (not action_not_found), 
+      # Should succeed or get a different error (not action_not_found),
       # which means field formatting worked and action was found
       case result do
-        {:ok, _request} -> 
+        {:ok, _request} ->
           # Success means field formatting worked perfectly
           assert true
+
         {:error, {:action_not_found, _}} ->
           flunk("Action should have been found - field formatting may have failed")
+
         {:error, _other_error} ->
           # Other errors are fine - they prove we got past field formatting and action discovery
           assert true
@@ -182,15 +184,17 @@ defmodule AshTypescript.Rpc.InputFieldFormattingTest do
 
       # Even though we expect this to eventually fail (due to missing required fields),
       # the initial parsing should work and show that field formatting succeeded
-      result = Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      result = Pipeline.parse_request(:ash_typescript, conn, params)
 
       # The fact that we get past the action discovery step proves field formatting worked
       case result do
         {:error, {:action_not_found, _}} ->
           flunk("Action should have been found - field formatting may have failed")
+
         {:ok, _request} ->
           # Success means field formatting worked and action was found
           assert true
+
         {:error, _other_error} ->
           # Other errors are fine - they prove we got past field formatting
           assert true
@@ -229,7 +233,7 @@ defmodule AshTypescript.Rpc.InputFieldFormattingTest do
 
       normalized = FieldFormatter.parse_input_fields(client_params, :camel_case)
       mixed_array = normalized[:mixed_array]
-      
+
       assert Enum.at(mixed_array, 0) == "string_value"
       assert Enum.at(mixed_array, 1) == 42
       assert Enum.at(mixed_array, 2)[:nested_key] == "nested_value"

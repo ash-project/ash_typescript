@@ -320,6 +320,7 @@ defmodule AshTypescript.Test.Todo do
         :due_date,
         :tags,
         :metadata,
+        :metadata_history,
         :content,
         :attachments,
         :status_info,

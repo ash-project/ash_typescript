@@ -16,10 +16,11 @@ defmodule AshTypescript.Test.TodoContent.LinkContent do
     attribute :preview_image_url, :string, public?: true
     attribute :is_external, :boolean, public?: true, default: true
     attribute :last_checked_at, :utc_datetime, public?: true
+    attribute :content_type, :string, public?: true, default: "link"
   end
 
   calculations do
-    calculate :display_title, :string, expr(coalesce(title, url)) do
+    calculate :display_title, :string, expr(if(is_nil(title), url, title)) do
       public? true
     end
 
@@ -47,7 +48,7 @@ defmodule AshTypescript.Test.TodoContent.LinkContent do
 
     create :create do
       primary? true
-      accept [:url, :title, :description, :preview_image_url, :is_external, :last_checked_at]
+      accept [:url, :title, :description, :preview_image_url, :is_external, :last_checked_at, :content_type]
     end
   end
 end

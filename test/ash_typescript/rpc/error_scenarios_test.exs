@@ -62,17 +62,10 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       assert length(errors) > 0
 
       # Should have clear error about non-existent action
-      action_error =
-        Enum.find(errors, fn error ->
-          message = error["message"] || ""
-
-          String.contains?(message, "action") or
-            String.contains?(message, "non_existent_action") or
-            String.contains?(message, "not found")
-        end)
-
-      assert action_error, "Should have error about non-existent action"
-      assert is_binary(action_error["message"])
+      action_error = List.first(errors)
+      assert action_error["type"] == "action_not_found"
+      assert String.contains?(action_error["message"], "non_existent_action")
+      assert String.contains?(action_error["message"], "not found")
     end
 
     test "RPC action not configured for resource returns error" do
@@ -90,16 +83,10 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       assert is_list(errors)
 
       # Should have error about action not being available via RPC
-      rpc_error =
-        Enum.find(errors, fn error ->
-          message = error["message"] || ""
-
-          String.contains?(message, "action") or
-            String.contains?(message, "not found") or
-            String.contains?(message, "available")
-        end)
-
-      assert rpc_error, "Should have error about action not available via RPC"
+      rpc_error = List.first(errors)
+      assert rpc_error["type"] == "action_not_found"
+      assert String.contains?(rpc_error["message"], "some_internal_action")
+      assert String.contains?(rpc_error["message"], "not found")
     end
 
     test "empty action name returns validation error" do
@@ -115,16 +102,10 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       errors = result["errors"]
 
       # Should have error about empty action
-      empty_action_error =
-        Enum.find(errors, fn error ->
-          message = error["message"] || ""
-
-          String.contains?(message, "action") or
-            String.contains?(message, "required") or
-            String.contains?(message, "empty")
-        end)
-
-      assert empty_action_error, "Should have error about empty action name"
+      empty_action_error = List.first(errors)
+      assert empty_action_error["type"] == "missing_required_parameter"
+      assert String.contains?(empty_action_error["message"], "action")
+      assert String.contains?(empty_action_error["message"], "missing or empty")
     end
 
     test "missing action parameter returns validation error" do
@@ -140,16 +121,10 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       errors = result["errors"]
 
       # Should have error about missing action parameter
-      missing_action_error =
-        Enum.find(errors, fn error ->
-          message = error["message"] || ""
-
-          String.contains?(message, "action") or
-            String.contains?(message, "required") or
-            String.contains?(message, "missing")
-        end)
-
-      assert missing_action_error, "Should have error about missing action parameter"
+      missing_action_error = List.first(errors)
+      assert missing_action_error["type"] == "missing_required_parameter"
+      assert String.contains?(missing_action_error["message"], "action")
+      assert String.contains?(missing_action_error["message"], "missing or empty")
     end
   end
 
@@ -210,18 +185,10 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       errors = result["errors"]
 
       # Should have error about non-existent relationship
-      relation_error =
-        Enum.find(errors, fn error ->
-          message = error["message"] || ""
-          field = error["field"] || ""
-
-          String.contains?(message, "non_existent_relation") or
-            String.contains?(field, "non_existent_relation") or
-            String.contains?(message, "relationship") or
-            String.contains?(message, "not found")
-        end)
-
-      assert relation_error, "Should have error about non-existent relationship"
+      relation_error = List.first(errors)
+      assert relation_error["type"] == "unknown_field"
+      assert String.contains?(relation_error["message"], "nonExistentRelation") or
+             String.contains?(relation_error["fieldPath"], "nonExistentRelation")
     end
 
     test "non-existent calculation field returns error" do
@@ -242,18 +209,10 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       errors = result["errors"]
 
       # Should have error about non-existent calculation
-      calc_error =
-        Enum.find(errors, fn error ->
-          message = error["message"] || ""
-          field = error["field"] || ""
-
-          String.contains?(message, "non_existent_calculation") or
-            String.contains?(field, "non_existent_calculation") or
-            String.contains?(message, "calculation") or
-            String.contains?(message, "not found")
-        end)
-
-      assert calc_error, "Should have error about non-existent calculation"
+      calc_error = List.first(errors)
+      assert calc_error["type"] == "unknown_field"
+      assert String.contains?(calc_error["message"], "nonExistentCalculation") or
+             String.contains?(calc_error["fieldPath"], "nonExistentCalculation")
     end
 
     test "private field access returns error" do
@@ -266,7 +225,7 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
             "id",
             "title",
             # This is a private field (public? false)
-            "updated_at"
+            "updatedAt"  # Note: camelCase due to field formatting
           ]
         })
 
@@ -274,18 +233,10 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       errors = result["errors"]
 
       # Should have error about private field access
-      private_error =
-        Enum.find(errors, fn error ->
-          message = error["message"] || ""
-          field = error["field"] || ""
-
-          String.contains?(message, "updated_at") or
-            String.contains?(field, "updated_at") or
-            String.contains?(message, "private") or
-            String.contains?(message, "not accessible")
-        end)
-
-      assert private_error, "Should have error about accessing private field"
+      private_error = List.first(errors)
+      assert private_error["type"] == "unknown_field"
+      assert String.contains?(private_error["message"], "updatedAt") or
+             String.contains?(private_error["fieldPath"], "updatedAt")
     end
   end
 
@@ -439,16 +390,10 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       errors = result["errors"]
 
       # Should have error about missing fields parameter
-      fields_error =
-        Enum.find(errors, fn error ->
-          message = error["message"] || ""
-
-          String.contains?(message, "fields") or
-            String.contains?(message, "required") or
-            String.contains?(message, "missing")
-        end)
-
-      assert fields_error, "Should have error about missing fields parameter"
+      fields_error = List.first(errors)
+      assert fields_error["type"] == "missing_required_parameter"
+      assert String.contains?(fields_error["message"], "fields")
+      assert String.contains?(fields_error["message"], "missing or empty")
     end
 
     test "missing input for create action returns error" do
@@ -491,16 +436,10 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       errors = result["errors"]
 
       # Should have error about empty fields
-      empty_fields_error =
-        Enum.find(errors, fn error ->
-          message = error["message"] || ""
-
-          String.contains?(message, "fields") or
-            String.contains?(message, "empty") or
-            String.contains?(message, "required")
-        end)
-
-      assert empty_fields_error, "Should have error about empty fields array"
+      empty_fields_error = List.first(errors)
+      assert empty_fields_error["type"] == "empty_fields_array"
+      assert String.contains?(empty_fields_error["message"], "empty")
+      assert String.contains?(empty_fields_error["message"], "Fields array")
     end
   end
 
@@ -1050,16 +989,9 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       errors = result["errors"]
 
       # Should handle null input gracefully
-      null_error =
-        Enum.find(errors, fn error ->
-          message = error["message"] || ""
-
-          String.contains?(message, "input") or
-            String.contains?(message, "required") or
-            String.contains?(message, "nil")
-        end)
-
-      assert null_error, "Should have error for null input"
+      null_error = List.first(errors)
+      assert null_error["type"] == "invalid_input_format"
+      assert String.contains?(null_error["message"], "Input parameter must be a map")
     end
 
     test "malformed JSON-like structures return parsing errors" do

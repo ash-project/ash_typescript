@@ -433,7 +433,7 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       }
 
       user_result = Rpc.run_action(:ash_typescript, conn, user_params)
-      assert %{"success" => true, "data" => user} = user_result
+      assert %{"Success" => true, "Data" => user} = user_result
 
       todo_params = %{
         "action" => "create_todo",
@@ -445,7 +445,7 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       }
 
       create_result = Rpc.run_action(:ash_typescript, conn, todo_params)
-      assert %{"success" => true, "data" => _todo} = create_result
+      assert %{"Success" => true, "Data" => _todo} = create_result
 
       read_params = %{
         "action" => "list_todos",
@@ -453,7 +453,7 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       }
 
       result = Rpc.run_action(:ash_typescript, conn, read_params)
-      assert %{"success" => true, "data" => formatted_todos} = result
+      assert %{"Success" => true, "Data" => formatted_todos} = result
 
       if length(formatted_todos) > 0 do
         formatted_todo = List.first(formatted_todos)
@@ -497,13 +497,13 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       }
 
       result = Rpc.run_action(:ash_typescript, conn, read_params)
-      assert %{"Success" => true, "Data" => formatted_todos} = result
+      assert %{"success" => true, "data" => formatted_todos} = result
 
       if length(formatted_todos) > 0 do
         formatted_todo = List.first(formatted_todos)
-        assert Map.has_key?(formatted_todo, "Id")
-        assert Map.has_key?(formatted_todo, "Title")
-        assert Map.has_key?(formatted_todo, "UserId")
+        assert Map.has_key?(formatted_todo, "id")
+        assert Map.has_key?(formatted_todo, "title")
+        assert Map.has_key?(formatted_todo, "user_id")
       end
     end
   end

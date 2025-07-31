@@ -642,7 +642,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "invalid_calculation_args"
-      assert error["details"]["field"] == "is_overdue"
+      assert error["details"]["field"] == "isOverdue"
     end
 
     test "returns error for aggregate when requested with nested structure", %{conn: conn} do
@@ -660,7 +660,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "invalid_field_selection"
-      assert error["details"]["field"] == "comment_count"
+      assert error["details"]["field"] == "commentCount"
     end
 
     test "returns error for attribute when requested with nested structure", %{conn: conn} do
@@ -699,7 +699,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "invalid_field"
+      assert error["details"]["field"] == "self.invalidField"
     end
 
     test "returns error for invalid nested relationship fields in calculations", %{conn: conn} do
@@ -720,7 +720,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "invalid_field"
+      assert error["details"]["field"] == "self.user.invalidField"
     end
 
     test "returns error for calculations with missing fields key", %{conn: conn} do
@@ -777,7 +777,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "non_existent_calc"
+      assert error["details"]["field"] == "nonExistentCalc"
     end
 
     test "handles malformed calculation request structure", %{conn: conn} do

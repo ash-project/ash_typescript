@@ -279,7 +279,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           }
         ])
 
-      assert error == {:invalid_field_selection, :aggregate, "commentCount"}
+      assert error == {:invalid_field_selection, :comment_count, :aggregate, "commentCount"}
     end
 
     test "rejects attribute when requested with nested structure" do
@@ -417,7 +417,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           }
         ])
 
-      assert error == {:invalid_field_selection, :calculation, "metadata.formattedSummary"}
+      assert error == {:invalid_field_selection, :formatted_summary, :calculation, "metadata.formattedSummary"}
     end
 
     test "rejects complex calculation without fields parameter" do

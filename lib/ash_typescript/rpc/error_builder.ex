@@ -375,6 +375,49 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
 
       # === INPUT AND SYSTEM VALIDATION ERRORS ===
 
+      {:missing_required_parameter, parameter} ->
+        %{
+          type: "missing_required_parameter",
+          message: "Required parameter '#{parameter}' is missing or empty",
+          details: %{
+            parameter: parameter,
+            suggestion: "Ensure '#{parameter}' parameter is provided and not empty"
+          }
+        }
+
+      {:empty_fields_array, _fields} ->
+        %{
+          type: "empty_fields_array",
+          message: "Fields array cannot be empty",
+          details: %{
+            suggestion: "Provide at least one field name in the fields array"
+          }
+        }
+
+      {:invalid_pagination_type, parameter, value} ->
+        %{
+          type: "invalid_pagination_type",
+          message: "Invalid data type for pagination parameter '#{parameter}'",
+          details: %{
+            parameter: parameter,
+            received: inspect(value),
+            expected: "Integer",
+            suggestion: "Provide an integer value for #{parameter}"
+          }
+        }
+
+      {:invalid_pagination_value, parameter, value, constraint} ->
+        %{
+          type: "invalid_pagination_value",
+          message: "Invalid value for pagination parameter '#{parameter}': #{constraint}",
+          details: %{
+            parameter: parameter,
+            received: value,
+            constraint: constraint,
+            suggestion: "Ensure #{parameter} meets the constraint: #{constraint}"
+          }
+        }
+
       {:invalid_input_format, invalid_input} ->
         %{
           type: "invalid_input_format",

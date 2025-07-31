@@ -214,7 +214,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
             %Ash.ForbiddenField{} -> nil
             %Ash.NotLoaded{} -> nil
             nil -> nil
-            valid_item -> extract_single_result(valid_item, template)
+            %Ash.Union{type: active_type, value: union_value} -> 
+              extract_union_fields(active_type, union_value, template)
+            valid_item -> 
+              extract_single_result(valid_item, template)
           end
         end)
 
@@ -238,8 +241,8 @@ defmodule AshTypescript.Rpc.ResultProcessor do
             # This is the active member, return the normalized union value
             Map.put(acc, member_atom, normalize_value_for_json(union_value))
           else
-            # This is not the active member, set to nil
-            Map.put(acc, member_atom, nil)
+            # This is not the active member, don't include it in the result
+            acc
           end
 
         # Complex member with field selection
@@ -249,8 +252,8 @@ defmodule AshTypescript.Rpc.ResultProcessor do
             extracted_fields = extract_single_result(union_value, member_template)
             Map.put(acc, member_atom, extracted_fields)
           else
-            # This is not the active member, set to nil
-            Map.put(acc, member_atom, nil)
+            # This is not the active member, don't include it in the result
+            acc
           end
 
         # Unknown template format

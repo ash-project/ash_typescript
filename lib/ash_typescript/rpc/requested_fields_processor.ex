@@ -222,6 +222,155 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
               throw({:unknown_field, field_name, resource, field_path})
           end
 
+        field_name when is_binary(field_name) ->
+          # Convert string to atom and process
+          atom_field_name = String.to_existing_atom(field_name)
+          case classify_field(resource, atom_field_name, path) do
+            :attribute ->
+              {select ++ [atom_field_name], load, template ++ [atom_field_name]}
+
+            :calculation ->
+              {select, load ++ [atom_field_name], template ++ [atom_field_name]}
+
+            :calculation_with_args ->
+              # This calculation requires arguments but was requested as simple string
+              field_path = build_field_path(path, atom_field_name)
+              throw({:calculation_requires_args, atom_field_name, field_path})
+
+            :calculation_complex ->
+              # Complex calculation requested as simple string - this is not allowed
+              field_path = build_field_path(path, atom_field_name)
+              throw({:requires_field_selection, :calculation_complex, field_path})
+
+            :aggregate ->
+              {select, load ++ [atom_field_name], template ++ [atom_field_name]}
+
+            :complex_aggregate ->
+              # Complex aggregate requested as simple string - this is not allowed
+              field_path = build_field_path(path, atom_field_name)
+              throw({:requires_field_selection, :complex_aggregate, field_path})
+
+            :relationship ->
+              # Relationship requested as simple string - this is not allowed
+              field_path = build_field_path(path, atom_field_name)
+              throw({:requires_field_selection, :relationship, field_path})
+
+            :embedded_resource ->
+              # Embedded resource requested as simple string - this is not allowed
+              field_path = build_field_path(path, atom_field_name)
+              throw({:requires_field_selection, :embedded_resource, field_path})
+
+            :embedded_resource_array ->
+              # Array of embedded resources requested as simple string - this is not allowed
+              field_path = build_field_path(path, atom_field_name)
+              throw({:requires_field_selection, :embedded_resource_array, field_path})
+
+            :typed_struct ->
+              # Typed struct requested as simple string - this is not allowed
+              field_path = build_field_path(path, atom_field_name)
+              throw({:requires_field_selection, :typed_struct, field_path})
+
+            :union_attribute ->
+              # Union attribute requested as simple string - this is not allowed
+              field_path = build_field_path(path, atom_field_name)
+              throw({:requires_field_selection, :union_attribute, field_path})
+
+            {:error, :not_found} ->
+              field_path = build_field_path(path, atom_field_name)
+              throw({:unknown_field, atom_field_name, resource, field_path})
+          end
+
+        field_name when is_atom(field_name) ->
+          case classify_field(resource, field_name, path) do
+            :attribute ->
+              {select ++ [field_name], load, template ++ [field_name]}
+
+            :calculation ->
+              {select, load ++ [field_name], template ++ [field_name]}
+
+            :calculation_with_args ->
+              # This calculation requires arguments but was requested as simple atom
+              field_path = build_field_path(path, field_name)
+              throw({:calculation_requires_args, field_name, field_path})
+
+            :calculation_complex ->
+              # Complex calculation requested as simple atom - this is not allowed
+              field_path = build_field_path(path, field_name)
+
+              throw({:requires_field_selection, :calculation_complex, field_path})
+
+            :aggregate ->
+              {select, load ++ [field_name], template ++ [field_name]}
+
+            :complex_aggregate ->
+              # Complex aggregate requested as simple atom - this is not allowed
+              field_path = build_field_path(path, field_name)
+
+              throw({:requires_field_selection, :complex_aggregate, field_path})
+
+            :relationship ->
+              # Relationship requested as simple atom - this is not allowed
+              field_path = build_field_path(path, field_name)
+              throw({:requires_field_selection, :relationship, field_path})
+
+            :embedded_resource ->
+              # Embedded resource requested as simple atom - this is not allowed
+              field_path = build_field_path(path, field_name)
+              throw({:requires_field_selection, :embedded_resource, field_path})
+
+            :embedded_resource_array ->
+              # Array of embedded resources requested as simple atom - this is not allowed
+              field_path = build_field_path(path, field_name)
+              throw({:requires_field_selection, :embedded_resource_array, field_path})
+
+            :typed_struct ->
+              # Typed struct requested as simple atom - this is not allowed
+              field_path = build_field_path(path, field_name)
+              throw({:requires_field_selection, :typed_struct, field_path})
+
+            :union_attribute ->
+              # Union attribute requested as simple atom - this is not allowed
+              field_path = build_field_path(path, field_name)
+              throw({:requires_field_selection, :union_attribute, field_path})
+
+            {:error, :not_found} ->
+              field_path = build_field_path(path, field_name)
+              throw({:unknown_field, field_name, resource, field_path})
+          end
+
+        {field_name, nested_fields} ->
+          # Handle tuple format {field_name, field_spec}
+          case classify_field(resource, field_name, path) do
+            :relationship ->
+              process_relationship(resource, field_name, nested_fields, path, select, load, template)
+
+            :embedded_resource ->
+              process_embedded_resource(resource, field_name, nested_fields, path, select, load, template)
+
+            :embedded_resource_array ->
+              process_embedded_resource(resource, field_name, nested_fields, path, select, load, template)
+
+            :calculation_complex ->
+              process_calculation_complex(resource, field_name, nested_fields, path, select, load, template)
+
+            :complex_aggregate ->
+              process_calculation_complex(resource, field_name, nested_fields, path, select, load, template)
+
+            :typed_struct ->
+              process_typed_struct(resource, field_name, nested_fields, path, select, load, template)
+
+            :union_attribute ->
+              process_union_attribute(resource, field_name, nested_fields, path, select, load, template)
+
+            {:error, :not_found} ->
+              field_path = build_field_path(path, field_name)
+              throw({:unknown_field, field_name, resource, field_path})
+
+            _ ->
+              field_path = build_field_path(path, field_name)
+              throw({:invalid_field_selection, field_name, :simple_field, field_path})
+          end
+
         %{} = field_map ->
           {new_select, new_load, new_template} =
             Enum.reduce(field_map, {select, load, template}, fn {field_name, nested_fields},
@@ -430,7 +579,14 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
         _ -> nested_select ++ nested_load
       end
 
-    load_spec = {calc_name, {args, load_fields}}
+    load_spec = 
+      if load_fields == [] do
+        # When there are no nested fields to load, just pass the args directly
+        {calc_name, args}
+      else
+        # When there are nested fields, use the tuple format
+        {calc_name, {args, load_fields}}
+      end
 
     # For calculations, if there's no nested template (empty fields), just use the calc name
     # Otherwise, include the nested structure
@@ -1101,7 +1257,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
       Enum.flat_map(fields, fn field ->
         case field do
           field_name when is_atom(field_name) -> [field_name]
+          field_name when is_binary(field_name) -> [String.to_atom(field_name)]
           %{} = field_map -> Map.keys(field_map)
+          {field_name, _field_spec} -> [field_name]
         end
       end)
 

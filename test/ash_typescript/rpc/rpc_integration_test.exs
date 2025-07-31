@@ -17,7 +17,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Valid requests should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
 
       # Verify parsed structure
       assert request.resource == Todo
@@ -49,7 +49,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Valid complex requests should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
 
       # Verify correct field classification
       assert :id in request.select
@@ -124,7 +124,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Valid camelCase requests should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
 
       # Field names should be converted to snake_case internally
       # Converted from createdAt
@@ -180,7 +180,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Valid pagination should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
 
       # Pagination should be parsed and included
       assert request.pagination[:limit] == 10
@@ -198,7 +198,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:invalid_pagination, "invalid_pagination"}} =
-               AshTypescript.Rpc.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
     end
   end
 
@@ -273,7 +273,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Simple list requests should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
 
       assert request.resource == Todo
       assert :id in request.select
@@ -297,7 +297,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Relationship requests should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
 
       assert request.resource == Todo
       assert :id in request.select
@@ -331,7 +331,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Complex detailed requests should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
 
       assert request.resource == Todo
       # Verify calculations are in load
@@ -344,7 +344,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
         "action" => "list_todos",
         "fields" => ["id", "title", "status", "createdAt"],
         "filter" => %{"status" => "active"},
-        "sort" => ["createdAt"],
+        "sort" => "created_at",
         "page" => %{"limit" => 20, "offset" => 0}
       }
 
@@ -352,7 +352,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Requests with pagination should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request_strict(:ash_typescript, conn, params)
+               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
 
       assert request.resource == Todo
       assert request.pagination[:limit] == 20

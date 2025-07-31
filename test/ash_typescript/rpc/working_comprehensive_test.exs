@@ -649,7 +649,11 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       assert first_error["type"] == "relationship_field_error"
       assert String.contains?(first_error["message"], "user")
       assert first_error["details"]["nestedError"]["type"] == "unknown_field"
-      assert String.contains?(first_error["details"]["nestedError"]["message"], "invalid_user_field")
+
+      assert String.contains?(
+               first_error["details"]["nestedError"]["message"],
+               "invalid_user_field"
+             )
     end
 
     test "missing required input parameters return validation errors" do
@@ -668,6 +672,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       assert result["success"] == false
       # Should get validation error about missing required field
       first_error = List.first(result["errors"])
+
       assert first_error["type"] in [
                "validation_error",
                "input_validation_error",
@@ -726,7 +731,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
             %{"user" => ["id", "name", "email"]},
             "commentCount"
           ],
-          "sort" => ["createdAt"],
+          "sort" => "created_at",
           "page" => %{"limit" => 2, "offset" => 0}
         })
 
@@ -745,7 +750,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
             %{"user" => ["id", "name", "email"]},
             "commentCount"
           ],
-          "sort" => ["createdAt"],
+          "sort" => "created_at",
           "page" => %{"limit" => 2, "offset" => 2}
         })
 

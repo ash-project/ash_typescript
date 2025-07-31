@@ -48,4 +48,17 @@ defmodule AshTypescript.Test.TodoMetadata.AdjustedPriorityCalculation do
       max(0, min(100, final_priority))
     end)
   end
+
+  # Workaround for Ash framework compatibility issue with calculations that have arguments
+  # in embedded resources. This should not be needed but is required in Ash 3.5.33
+  def merge_load(_left, _right, _constraints, _context) do
+    # For simple calculations that return basic types like :integer,
+    # there's no complex loading to merge, so we just return success
+    {:ok, []}
+  end
+
+  def get_rewrites(_merged_load, _calculation, _path, _constraints) do
+    # No rewrites needed for this simple calculation
+    []
+  end
 end

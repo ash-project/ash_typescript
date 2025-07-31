@@ -85,7 +85,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           %{comment_count: [:id]}
         ])
 
-      assert error == {:invalid_field_selection, :aggregate, "commentCount"}
+      assert error == {:invalid_field_selection, :comment_count, :aggregate, "commentCount"}
     end
 
     test "rejects nested field selection on exists aggregate" do
@@ -94,7 +94,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           %{has_comments: [:id]}
         ])
 
-      assert error == {:invalid_field_selection, :aggregate, "hasComments"}
+      assert error == {:invalid_field_selection, :has_comments, :aggregate, "hasComments"}
     end
 
     test "rejects nested field selection on primitive list aggregate" do
@@ -103,7 +103,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           %{comment_authors: [:id]}
         ])
 
-      assert error == {:invalid_field_selection, :aggregate, "commentAuthors"}
+      assert error == {:invalid_field_selection, :comment_authors, :aggregate, "commentAuthors"}
     end
   end
 

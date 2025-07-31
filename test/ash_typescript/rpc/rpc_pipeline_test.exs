@@ -15,31 +15,33 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:error, error} = Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
       assert {:invalid_fields, {:unknown_field, :unknown_field, Todo}} = error
     end
 
     test "fails on invalid field format" do
       params = %{
         "action" => "list_todos",
-        "fields" => [123]  # Invalid field format
+        # Invalid field format
+        "fields" => [123]
       }
 
       conn = %Plug.Conn{}
 
-      assert {:error, error} = Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
       assert {:invalid_fields, {:field_normalization_error, %ArgumentError{}}} = error
     end
 
     test "fails on invalid nested field specification" do
       params = %{
         "action" => "list_todos",
-        "fields" => [%{"user" => "invalid_spec"}]  # Should be a list
+        # Should be a list
+        "fields" => [%{"user" => "invalid_spec"}]
       }
 
       conn = %Plug.Conn{}
 
-      assert {:error, error} = Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
       # Should fail when trying to process relationship with invalid spec
       assert {:invalid_fields, _reason} = error
     end
@@ -47,12 +49,13 @@ defmodule AshTypescript.Rpc.PipelineTest do
     test "fails on simple attribute with specification" do
       params = %{
         "action" => "list_todos",
-        "fields" => [%{"title" => ["nested"]}]  # title is simple attribute, cannot have spec
+        # title is simple attribute, cannot have spec
+        "fields" => [%{"title" => ["nested"]}]
       }
 
       conn = %Plug.Conn{}
 
-      assert {:error, error} = Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
       assert {:invalid_fields, {:field_does_not_support_nesting, :title}} = error
     end
 
@@ -64,7 +67,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
       assert request.resource == Todo
       assert :id in request.select
       assert :title in request.select
@@ -73,25 +76,26 @@ defmodule AshTypescript.Rpc.PipelineTest do
   end
 
   describe "four-stage pipeline architecture" do
-    test "stage 1: parse_request_strict validates and structures request" do
+    test "stage 1: parse_request validates and structures request" do
       params = %{
         "action" => "list_todos",
         "fields" => ["id", "title"],
         "input" => %{"userId" => "123"},
         "filter" => %{"status" => "active"},
-        "sort" => ["title"]
+        "sort" => "title"
       }
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
 
       # Verify structured request contains all parsed data
       assert request.resource == Todo
       assert request.action.name == :read
       assert request.select == [:id, :title]
       assert request.load == []
-      assert request.input == %{user_id: "123"}  # Formatted from camelCase
+      # Formatted from camelCase
+      assert request.input == %{user_id: "123"}
       assert request.filter == %{status: "active"}
       assert request.sort == ["title"]
     end
@@ -142,7 +146,8 @@ defmodule AshTypescript.Rpc.PipelineTest do
       first_item = List.first(filtered_result)
       assert Map.has_key?(first_item, :id)
       assert Map.has_key?(first_item, :title)
-      refute Map.has_key?(first_item, :description)  # Should be filtered out
+      # Should be filtered out
+      refute Map.has_key?(first_item, :description)
     end
 
     test "stage 4: format_output applies field name formatting" do
@@ -159,9 +164,12 @@ defmodule AshTypescript.Rpc.PipelineTest do
       # Verify field names are formatted for client consumption (camelCase by default)
       assert is_list(formatted_result)
       first_item = List.first(formatted_result)
-      assert Map.has_key?(first_item, "id")     # Simple field
-      assert Map.has_key?(first_item, "title")  # Simple field
-      refute Map.has_key?(first_item, :id)      # No atom keys in output
+      # Simple field
+      assert Map.has_key?(first_item, "id")
+      # Simple field
+      assert Map.has_key?(first_item, "title")
+      # No atom keys in output
+      refute Map.has_key?(first_item, :id)
     end
   end
 
@@ -174,8 +182,8 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request_strict(:ash_typescript, conn, params)
-      
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+
       # All simple attributes should go to select
       assert :id in request.select
       assert :title in request.select
@@ -187,16 +195,18 @@ defmodule AshTypescript.Rpc.PipelineTest do
     test "handles simple calculations correctly" do
       params = %{
         "action" => "list_todos",
-        "fields" => ["id", "isOverdue"]  # isOverdue is a simple calculation
+        # isOverdue is a simple calculation
+        "fields" => ["id", "isOverdue"]
       }
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request_strict(:ash_typescript, conn, params)
-      
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+
       # Simple attributes go to select, calculations go to load
       assert :id in request.select
-      assert :is_overdue in request.load  # Converted from camelCase
+      # Converted from camelCase
+      assert :is_overdue in request.load
       refute :is_overdue in request.select
     end
 
@@ -211,23 +221,25 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request_strict(:ash_typescript, conn, params)
-      
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+
       # Verify complex calculation load statement
       assert :id in request.select
-      
-      # Should have a load statement for the self calculation  
+
+      # Should have a load statement for the self calculation
       # Updated to match the new format with field selection
-      self_load = Enum.find(request.load, fn
-        {:self, {%{prefix: "test"}, [:id, :title]}} -> true
-        _ -> false
-      end)
+      self_load =
+        Enum.find(request.load, fn
+          {:self, {%{prefix: "test"}, [:id, :title]}} -> true
+          _ -> false
+        end)
+
       assert self_load != nil
     end
 
     test "handles relationships with nested fields" do
       params = %{
-        "action" => "list_todos", 
+        "action" => "list_todos",
         "fields" => [
           "id",
           %{"user" => ["id", "name", "email"]}
@@ -236,22 +248,24 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request_strict(:ash_typescript, conn, params)
-      
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+
       # Simple field goes to select
       assert :id in request.select
-      
+
       # Relationship should create nested load
-      user_load = Enum.find(request.load, fn
-        {:user, nested_fields} when is_list(nested_fields) -> true
-        _ -> false
-      end)
+      user_load =
+        Enum.find(request.load, fn
+          {:user, nested_fields} when is_list(nested_fields) -> true
+          _ -> false
+        end)
+
       assert user_load != nil
-      
+
       # Verify nested fields are parsed
       {_user, nested_fields} = user_load
       assert :id in nested_fields
-      assert :name in nested_fields  
+      assert :name in nested_fields
       assert :email in nested_fields
     end
 
@@ -260,17 +274,18 @@ defmodule AshTypescript.Rpc.PipelineTest do
         "action" => "list_todos",
         "fields" => [
           "id",
-          %{"metadata" => ["category", "displayCategory"]}  # displayCategory is a calculation
+          # displayCategory is a calculation
+          %{"metadata" => ["category", "displayCategory"]}
         ]
       }
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request_strict(:ash_typescript, conn, params)
-      
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+
       # Simple field goes to select
       assert :id in request.select
-      
+
       # Embedded resource should handle both select and load appropriately
       # This tests the dual-nature processing of embedded resources
       assert request.extraction_template["metadata"] != nil
@@ -286,14 +301,15 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:error, {:action_not_found, "nonexistent_action"}} = 
-        Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      assert {:error, {:action_not_found, "nonexistent_action"}} =
+               Pipeline.parse_request(:ash_typescript, conn, params)
     end
 
     test "provides clear error for tenant requirement" do
       # Assuming we have a multitenant resource in our test suite
       params = %{
-        "action" => "list_org_todos",  # This might be a multitenant action
+        # This might be a multitenant action
+        "action" => "list_org_todos",
         "fields" => ["id"]
       }
 
@@ -301,13 +317,15 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       # This test would need a multitenant resource to be meaningful
       # For now, just verify the error structure is expected
-      case Pipeline.parse_request_strict(:ash_typescript, conn, params) do
-        {:error, {:tenant_required, _resource}} -> 
+      case Pipeline.parse_request(:ash_typescript, conn, params) do
+        {:error, {:tenant_required, _resource}} ->
           # Expected error format
           assert true
+
         {:error, {:action_not_found, _}} ->
           # Action might not exist in test suite, that's ok
           assert true
+
         {:ok, _} ->
           # If no tenant required, that's also ok for this test
           assert true
@@ -318,13 +336,14 @@ defmodule AshTypescript.Rpc.PipelineTest do
       params = %{
         "action" => "list_todos",
         "fields" => ["id"],
-        "page" => "invalid"  # Should be a map
+        # Should be a map
+        "page" => "invalid"
       }
 
       conn = %Plug.Conn{}
 
-      assert {:error, {:invalid_pagination, "invalid"}} = 
-        Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      assert {:error, {:invalid_pagination, "invalid"}} =
+               Pipeline.parse_request(:ash_typescript, conn, params)
     end
 
     test "handles valid pagination correctly" do
@@ -336,9 +355,8 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request_strict(:ash_typescript, conn, params)
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
       assert request.pagination == %{limit: 10, offset: 0}
     end
   end
-
 end
