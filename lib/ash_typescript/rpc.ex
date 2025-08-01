@@ -142,7 +142,7 @@ defmodule AshTypescript.Rpc do
   This implementation uses strict validation and fails fast on any invalid input.
   No permissive modes - all errors are reported immediately.
   """
-  @spec run_action(atom(), Plug.Conn.t(), map()) :: {:ok, map()} | {:error, map()}
+  @spec run_action(atom(), Plug.Conn.t(), map()) :: map()
   def run_action(otp_app, conn, params) do
     with {:ok, parsed_request} <- Pipeline.parse_request(otp_app, conn, params),
          {:ok, ash_result} <- Pipeline.execute_ash_action(parsed_request),

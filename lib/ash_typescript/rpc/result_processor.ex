@@ -165,6 +165,9 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       %Decimal{} = decimal ->
         Decimal.to_string(decimal)
 
+      %Ash.CiString{} = ci_string ->
+        to_string(ci_string)
+
       atom when is_atom(atom) and not is_nil(atom) and not is_boolean(atom) ->
         Atom.to_string(atom)
 
@@ -211,12 +214,19 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       list when is_list(list) ->
         Enum.map(list, fn item ->
           case item do
-            %Ash.ForbiddenField{} -> nil
-            %Ash.NotLoaded{} -> nil
-            nil -> nil
-            %Ash.Union{type: active_type, value: union_value} -> 
+            %Ash.ForbiddenField{} ->
+              nil
+
+            %Ash.NotLoaded{} ->
+              nil
+
+            nil ->
+              nil
+
+            %Ash.Union{type: active_type, value: union_value} ->
               extract_union_fields(active_type, union_value, template)
-            valid_item -> 
+
+            valid_item ->
               extract_single_result(valid_item, template)
           end
         end)

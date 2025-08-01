@@ -298,8 +298,6 @@ defmodule AshTypescript.Rpc.Pipeline do
   # Request validation functions
 
   defp validate_required_parameters_for_action_type(params, action) do
-    # Only require fields for read, create, and update actions
-    # Destroy actions do not require fields parameter
     if action.type in [:read, :create, :update] do
       fields = params[:fields]
 
