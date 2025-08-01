@@ -145,7 +145,7 @@ mix test test/ash_typescript/field_parser_comprehensive_test.exs
 
 ### Level 2: Detailed Diagnosis
 1. **Complex Type Issues** → Deep dive into schema generation
-2. **Field Processing Issues** → Analyze three-stage pipeline
+2. **Field Processing Issues** → Analyze four-stage pipeline
 3. **Embedded Resource Issues** → Check discovery and integration
 
 ### Level 3: Advanced Debugging

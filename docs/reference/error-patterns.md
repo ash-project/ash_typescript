@@ -153,7 +153,7 @@ end
 
 #### Field selection not working
 **Cause**: Pipeline processing issue  
-**Solution**: Check three-stage pipeline
+**Solution**: Check four-stage pipeline (parse_request → execute_ash_action → process_result → format_output)
 
 ```bash
 # Debug field processing

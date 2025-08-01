@@ -4,17 +4,17 @@
 
 ### Main Generation Files
 - `lib/ash_typescript/codegen.ex` - Core TypeScript type generation
+- `lib/ash_typescript/rpc.ex` - Main RPC module with DSL configuration
 - `lib/ash_typescript/rpc/codegen.ex` - Advanced type inference, RPC client generation
-- `lib/ash_typescript/rpc/helpers.ex` - Runtime parsing and processing utilities
-- `lib/ash_typescript/field_formatter.ex` - Field selection and formatting logic
-- `lib/ash_typescript/rpc.ex` - Main RPC processing with debug outputs
+- `lib/ash_typescript/field_formatter.ex` - Field name formatting utilities
 
-### FieldParser Architecture (Post-Refactoring)
-- `lib/ash_typescript/rpc/field_parser.ex` - Main field parser (434 lines)
-- `lib/ash_typescript/rpc/field_parser/context.ex` - Context struct (35 lines)
-- `lib/ash_typescript/rpc/field_parser/calc_args_processor.ex` - Args processing (55 lines)
-- `lib/ash_typescript/rpc/field_parser/load_builder.ex` - Load building utilities (165 lines)
-- `lib/ash_typescript/rpc/result_processor.ex` - Result filtering and formatting
+### RPC Pipeline Architecture (Post-Refactoring)
+- `lib/ash_typescript/rpc/pipeline.ex` - Four-stage processing pipeline
+- `lib/ash_typescript/rpc/requested_fields_processor.ex` - Field selection and validation
+- `lib/ash_typescript/rpc/result_processor.ex` - Result extraction and JSON normalization
+- `lib/ash_typescript/rpc/request.ex` - Request data structure
+- `lib/ash_typescript/rpc/error_builder.ex` - Comprehensive error handling
+- `lib/ash_typescript/rpc/info.ex` - Spark DSL introspection
 
 ## Test Resources (test/support/)
 

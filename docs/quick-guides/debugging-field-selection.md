@@ -87,6 +87,118 @@ end
 
 Run the test: `mix test test/ash_typescript/rpc/debug_field_classification_test.exs`
 
+## Using Tidewave MCP for Field Selection Debugging
+
+**IMPORTANT**: This project has Tidewave MCP enabled. Use these tools for real-time debugging instead of writing temporary test files.
+
+### Quick Field Processing Debug
+
+**✅ Debug field processing in real-time:**
+```elixir
+mcp__tidewave__project_eval("""
+alias AshTypescript.Rpc.RequestedFieldsProcessor
+
+# Test your specific field selection
+fields = ["id", "title", %{"metadata" => ["category", "priority"]}]
+atomized = RequestedFieldsProcessor.atomize_requested_fields(fields)
+
+IO.inspect(atomized, label: "Atomized fields")
+
+{:ok, {select, load, template}} = RequestedFieldsProcessor.process(
+  AshTypescript.Test.Todo, 
+  :read, 
+  atomized
+)
+
+IO.inspect(select, label: "Select fields")
+IO.inspect(load, label: "Load fields") 
+IO.inspect(template, label: "Extraction template")
+""")
+```
+
+### Explore Resource Structure
+
+**✅ Inspect resource structure instantly:**
+```elixir
+mcp__tidewave__project_eval("""
+resource = AshTypescript.Test.Todo
+
+# Get all available fields
+attributes = Ash.Resource.Info.public_attributes(resource) |> Enum.map(&(&1.name))
+calculations = Ash.Resource.Info.calculations(resource) |> Enum.map(&(&1.name))
+relationships = Ash.Resource.Info.relationships(resource) |> Enum.map(&(&1.name))
+
+IO.puts("Attributes: #{inspect(attributes)}")
+IO.puts("Calculations: #{inspect(calculations)}")
+IO.puts("Relationships: #{inspect(relationships)}")
+""")
+```
+
+### Debug Specific Field Classification
+
+**✅ Check how a specific field is classified:**
+```elixir
+mcp__tidewave__project_eval("""
+# Replace :your_field with the field you're debugging
+field_name = :metadata
+resource = AshTypescript.Test.Todo
+
+# Check what type of field it is
+cond do
+  Ash.Resource.Info.public_attribute(resource, field_name) ->
+    attr = Ash.Resource.Info.public_attribute(resource, field_name)
+    IO.puts("Field is an attribute with type: #{inspect(attr.type)}")
+    
+  Ash.Resource.Info.calculation(resource, field_name) ->
+    calc = Ash.Resource.Info.calculation(resource, field_name)
+    IO.puts("Field is a calculation with type: #{inspect(calc.type)}")
+    IO.puts("Arguments: #{inspect(calc.arguments)}")
+    
+  Ash.Resource.Info.relationship(resource, field_name) ->
+    rel = Ash.Resource.Info.relationship(resource, field_name)
+    IO.puts("Field is a relationship: #{rel.type} to #{rel.destination}")
+    
+  true ->
+    IO.puts("Field #{field_name} not found in resource")
+end
+""")
+```
+
+### Test Full RPC Pipeline
+
+**✅ Test the complete pipeline with your field selection:**
+```elixir
+mcp__tidewave__project_eval("""
+# Create a mock connection for testing
+conn = %Plug.Conn{}
+|> Plug.Conn.put_private(:ash, %{actor: nil, tenant: nil})
+
+params = %{
+  "action" => "list_todos",
+  "fields" => ["id", "title", %{"metadata" => ["category"]}]
+}
+
+# Test the full pipeline
+case AshTypescript.Rpc.run_action(:ash_typescript, conn, params) do
+  %{success: true, data: data} ->
+    IO.puts("SUCCESS!")
+    IO.inspect(data, label: "Response data")
+    
+  %{success: false, errors: errors} ->
+    IO.puts("FAILED!")
+    IO.inspect(errors, label: "Errors")
+end
+""")
+```
+
+### Advantages of Tidewave vs Test Files
+
+- **Real-time feedback** - See results immediately
+- **No file creation** - No need to create/cleanup test files
+- **Full context** - Runs in actual project environment
+- **Interactive exploration** - Easy to modify and re-run
+- **No test pollution** - Doesn't affect your test suite
+
 ## Common Issues and Solutions
 
 ### Issue 1: Field Not Found
@@ -140,27 +252,32 @@ Run: `mix test test/ash_typescript/rpc/debug_field_existence_test.exs`
 **Debug Steps**: Write a test to verify field parser output:
 
 ```elixir
-# test/ash_typescript/rpc/debug_field_parser_test.exs
-defmodule AshTypescript.Rpc.DebugFieldParserTest do
+# test/ash_typescript/rpc/debug_field_processor_test.exs
+defmodule AshTypescript.Rpc.DebugFieldProcessorTest do
   use ExUnit.Case, async: true
-  alias AshTypescript.Rpc.FieldParser
+  alias AshTypescript.Rpc.RequestedFieldsProcessor
   
-  test "field parser generates correct select/load statements" do
+  test "field processor generates correct select/load statements" do
     resource = AshTypescript.Test.Todo
-    formatter = AshTypescript.FieldFormatter.Default
-    context = FieldParser.Context.new(resource, formatter)
+    action_name = :read
     
     client_fields = ["id", "title", "description"]
+    atomized_fields = RequestedFieldsProcessor.atomize_requested_fields(client_fields)
     
-    {select, load} = FieldParser.parse_requested_fields(client_fields, context)
+    {:ok, {select, load, template}} = RequestedFieldsProcessor.process(
+      resource,
+      action_name,
+      atomized_fields
+    )
     
     IO.inspect(select, label: "Select fields")
     IO.inspect(load, label: "Load fields")
+    IO.inspect(template, label: "Extraction template")
     
     # Add assertions based on expected behavior
     assert is_list(select), "Select should be a list"
     assert is_list(load), "Load should be a list"
-    assert length(select) == length(client_fields), "Select should match requested fields"
+    assert is_list(template), "Template should be a list"
   end
 end
 ```

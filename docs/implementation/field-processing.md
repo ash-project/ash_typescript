@@ -1,26 +1,28 @@
-# Field Processing Pipeline
+# Field Processing in RPC Pipeline
 
 ## Overview
 
-This guide covers the field processing system architecture, including the three-stage pipeline, field classification, and unified field format patterns.
+This guide covers the field processing system within the new RPC pipeline architecture, including field classification, validation, and the unified field format patterns.
 
-## Field Processing Pipeline Architecture
+## Field Processing Architecture
 
-The field processing system uses a three-stage pipeline for handling complex field selection.
+Field processing is integrated into the RPC pipeline's Stage 1 (parse_request) through the `RequestedFieldsProcessor` module.
 
-### Three-Stage Pipeline Pattern
+### Integration with Four-Stage Pipeline
 
 ```elixir
-# Stage 1: Field Parser - Generate dual statements
-{select, load} = FieldParser.parse_requested_fields(client_fields, resource, formatter)
+# Within Pipeline.parse_request/3
+requested_fields = RequestedFieldsProcessor.atomize_requested_fields(params[:fields] || [])
 
-# Stage 2: Ash Query - Execute both select and load
-query
-|> Ash.Query.select(select)
-|> Ash.Query.load(load)
+{:ok, {select, load, template}} = RequestedFieldsProcessor.process(
+  resource,
+  action.name,
+  requested_fields
+)
 
-# Stage 3: Result Processor - Filter and format response
-ResultProcessor.process_action_result(result, original_client_fields, resource, formatter)
+# select: List of attributes to select
+# load: List of calculations/relationships to load
+# template: Extraction template for result processing
 ```
 
 ### Field Classification Priority Pattern

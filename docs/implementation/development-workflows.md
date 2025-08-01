@@ -4,6 +4,73 @@
 
 This guide covers development workflows, testing patterns, debugging techniques, and extension points for AshTypescript development.
 
+## Runtime Introspection with Tidewave MCP
+
+**NEW**: This project now has Tidewave MCP enabled for powerful runtime introspection during development.
+
+### Tidewave-Enhanced Development Workflow
+
+**✅ Modern approach using Tidewave tools:**
+
+```elixir
+# 1. Explore the codebase
+mcp__tidewave__project_eval("exports(AshTypescript.Rpc.Pipeline)")
+
+# 2. Test specific functions in context
+mcp__tidewave__project_eval("""
+alias AshTypescript.Rpc.RequestedFieldsProcessor
+
+fields = ["id", "title", %{"user" => ["name"]}]
+atomized = RequestedFieldsProcessor.atomize_requested_fields(fields)
+RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, atomized)
+""")
+
+# 3. Check configuration
+mcp__tidewave__project_eval("Application.get_all_env(:ash_typescript)")
+
+# 4. Debug issues in real-time
+mcp__tidewave__project_eval("""
+# Test your hypothesis immediately
+conn = %Plug.Conn{} |> Plug.Conn.put_private(:ash, %{actor: nil, tenant: nil})
+AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+  "action" => "list_todos",
+  "fields" => ["id", "title"]
+})
+""")
+```
+
+### When to Use Tidewave vs Tests
+
+**Use Tidewave for:**
+- ✅ Quick hypothesis testing
+- ✅ Exploring function behavior
+- ✅ Configuration checking
+- ✅ Interactive debugging
+- ✅ Understanding runtime state
+
+**Use Tests for:**
+- ✅ Permanent regression prevention
+- ✅ Complex scenario validation
+- ✅ CI/CD pipeline integration
+- ✅ Documentation of expected behavior
+
+### Tidewave-First Debugging Pattern
+
+```elixir
+# 1. First, understand the current state
+mcp__tidewave__project_eval("Ash.Info.domains(:ash_typescript)")
+
+# 2. Test your assumption interactively
+mcp__tidewave__project_eval("AshTypescript.Test.Todo |> Ash.Resource.Info.public_attributes() |> Enum.map(&(&1.name))")
+
+# 3. Once you understand the issue, write a proper test
+# test/debug_specific_issue_test.exs
+defmodule DebugSpecificIssueTest do
+  use ExUnit.Case
+  # ... proper test implementation
+end
+```
+
 ## Development Workflows
 
 ### 1. Test-Driven Development Pattern
@@ -91,12 +158,15 @@ end
 mix ash_typescript.codegen
 iex -S mix
 
-# ❌ WRONG - One-off debugging commands
+# ❌ WRONG - One-off debugging commands without context
 echo "Code.ensure_loaded(...)" | iex -S mix
 
-# ✅ CORRECT - Test environment with proper tests
+# ✅ CORRECT - Test environment with Tidewave tools
 mix test.codegen
-MIX_ENV=test iex -S mix
+# Use Tidewave for exploration and debugging:
+mcp__tidewave__project_eval("Code.ensure_loaded(AshTypescript.Test.Todo)")
+
+# ✅ CORRECT - Then write proper tests for permanent validation
 # Write proper tests for debugging
 ```
 

@@ -16,6 +16,7 @@
 - **Dependencies**: AshPhoenix ~> 2.0, Spark (DSL framework)
 - **Generated Output**: TypeScript ~> 5.8, Zod schemas
 - **Build Tools**: Mix, npm (for TypeScript validation)
+- **Runtime Introspection**: Tidewave MCP server (enabled)
 
 ## 🚨 CRITICAL DEVELOPMENT RULES (MANDATORY)
 
@@ -101,15 +102,82 @@ INCORRECT Approach:
 
 The AI Index provides task-specific guidance, context window optimization, and direct links to the appropriate documentation based on your specific needs.
 
+## Runtime Introspection with Tidewave MCP
+
+**IMPORTANT**: This project has the Tidewave MCP server enabled, providing powerful runtime introspection capabilities. Use these tools for debugging, evaluation, and understanding the system.
+
+### Available Tidewave Tools
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| `mcp__tidewave__project_eval` | **Evaluate Elixir code in project context** | **Primary tool** - Use instead of shell commands for Elixir evaluation |
+| `mcp__tidewave__get_docs` | Get documentation for modules/functions | Understanding API behavior, checking function signatures |
+| `mcp__tidewave__get_source_location` | Find source location for references | Locating module/function definitions |
+| `mcp__tidewave__get_logs` | Get application logs | Debugging runtime issues, checking for errors |
+| `mcp__tidewave__get_package_location` | Get dependency locations | Understanding project structure, exploring dependencies |
+| `mcp__tidewave__search_package_docs` | Search Hex documentation | Finding documentation for dependencies |
+| `mcp__tidewave__list_liveview_pages` | List connected LiveViews | Phoenix LiveView debugging |
+
+### Critical Usage Patterns
+
+**✅ ALWAYS use `project_eval` instead of shell commands for Elixir:**
+```elixir
+# ✅ CORRECT - Use project_eval
+mcp__tidewave__project_eval("Ash.Info.domains(:ash_typescript)")
+
+# ❌ WRONG - Don't use shell commands for Elixir
+# bash: iex -e "Ash.Info.domains(:ash_typescript)"
+```
+
+**✅ Use for debugging RPC pipeline issues:**
+```elixir
+# Debug field processing
+mcp__tidewave__project_eval("""
+alias AshTypescript.Rpc.RequestedFieldsProcessor
+
+fields = ["id", "title", %{"user" => ["id", "name"]}]
+atomized = RequestedFieldsProcessor.atomize_requested_fields(fields)
+RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, atomized)
+""")
+```
+
+**✅ Use for runtime state inspection:**
+```elixir
+# Check current configuration
+mcp__tidewave__project_eval("Application.get_all_env(:ash_typescript)")
+
+# Inspect module functions
+mcp__tidewave__project_eval("exports(AshTypescript.Rpc.Pipeline)")
+```
+
+### When to Use Tidewave Tools
+
+1. **Understanding behavior** - When you need to see how code actually behaves at runtime
+2. **Debugging issues** - When shell commands aren't sufficient for investigating problems
+3. **Exploring the codebase** - When you need to understand how modules are structured
+4. **Checking configuration** - When you need to verify application settings
+5. **Testing hypotheses** - When you want to quickly test code behavior without writing files
+
+### Performance Considerations
+
+- Use `project_eval` for one-off evaluations and debugging
+- For permanent code changes, still write proper test files
+- Tidewave evaluation runs in the actual project context with all dependencies loaded
+
 ## Codebase Navigation
 
 ### Critical Files
 
 **Core Library (`lib/`):**
 - `ash_typescript/codegen.ex` - Core TypeScript type generation
+- `ash_typescript/rpc.ex` - Main RPC module with DSL configuration
 - `ash_typescript/rpc/codegen.ex` - Advanced type inference, RPC client generation
-- `ash_typescript/rpc/helpers.ex` - Runtime parsing and processing utilities
-- `ash_typescript/field_formatter.ex` - Field selection and formatting logic
+- `ash_typescript/rpc/pipeline.ex` - Four-stage processing pipeline
+- `ash_typescript/rpc/requested_fields_processor.ex` - Field selection and validation
+- `ash_typescript/rpc/result_processor.ex` - Result extraction and JSON normalization
+- `ash_typescript/rpc/request.ex` - Request data structure
+- `ash_typescript/rpc/error_builder.ex` - Comprehensive error handling
+- `ash_typescript/field_formatter.ex` - Field name formatting utilities
 
 **Test Resources (`test/support/`):**
 - `domain.ex` - Comprehensive test domain with RPC configuration
@@ -250,11 +318,21 @@ cd test/ts && npx tsc -p . --noEmit --traceResolution
 - **[README.md](README.md)** - Installation, features, quick start guide
 - **[CHANGELOG.md](CHANGELOG.md)** - Version history and changes
 
-### Developer Documentation
-- **[docs/development.md](docs/development.md)** - Development workflows, commands, troubleshooting, architectural decisions
-- **[docs/testing.md](docs/testing.md)** - Test architecture, patterns, multitenancy testing, field selection best practices
-- **[docs/rpc-advanced.md](docs/rpc-advanced.md)** - Advanced RPC features, nested calculations, complex operations
-- **[docs/type-inference.md](docs/type-inference.md)** - Deep dive into type inference system architecture
+### Developer Documentation (Organized by Topic)
+- **[docs/implementation/](docs/implementation/)** - Implementation guides for core features
+  - `development-workflows.md` - Development workflows and commands
+  - `field-processing.md` - Field selection and processing architecture
+  - `type-system.md` - Type inference and generation system
+  - `embedded-resources.md` - Embedded resource implementation
+  - `union-systems-core.md` & `union-systems-advanced.md` - Union type handling
+  - `custom-types.md` - Custom type implementation
+  - `environment-setup.md` - Environment configuration
+- **[docs/quick-guides/](docs/quick-guides/)** - Task-specific guides
+  - `test-organization.md` - Test architecture and patterns
+  - `multitenancy-setup.md` - Multitenancy configuration
+  - `debugging-field-selection.md` - Field selection debugging
+- **[docs/troubleshooting/](docs/troubleshooting/)** - Issue resolution guides
+- **[docs/reference/](docs/reference/)** - Quick reference materials
 
 ### API Reference
 - **[documentation/dsls/DSL-AshTypescript.RPC.md](documentation/dsls/DSL-AshTypescript.RPC.md)** - Auto-generated DSL reference
@@ -325,6 +403,7 @@ mix dialyzer                      # Type checking
 - **Headers Support**: All RPC configs accept optional headers parameter for custom authentication
 - **CSRF Helpers**: `getPhoenixCSRFToken()` and `buildCSRFHeaders()` for Phoenix integration
 - **Server-Side Usage**: `AshTypescript.Rpc.run_action/3` for SSR and backend data fetching
+- **RPC Pipeline Architecture**: Four-stage processing pipeline for strict validation and clean separation of concerns
 
 ### Critical Safety Checks
 
@@ -348,4 +427,8 @@ For understanding the current state of the project and the reasoning behind arch
 
 **Field Format**: Unified field format required - NEVER use deprecated `calculations` parameter format.
 
-**Architecture**: Clean utilities with Context struct, pipeline pattern (Normalize → Classify → Process), and elimination of code duplication.
+**Architecture**: Clean four-stage pipeline with Request struct:
+1. **parse_request** - Parse and validate input with fail-fast approach
+2. **execute_ash_action** - Execute Ash operations (read, create, update, destroy, action)
+3. **process_result** - Apply field selection using extraction templates
+4. **format_output** - Format for client consumption with proper field name formatting

@@ -193,24 +193,28 @@ If any of these fail, **STOP** and fix the baseline before proceeding.
 
 ### For Runtime Logic Changes
 
-**When**: Modifying `lib/ash_typescript/rpc/helpers.ex` or runtime processing
+**When**: Modifying RPC pipeline modules:
+- `lib/ash_typescript/rpc/pipeline.ex` - Four-stage processing
+- `lib/ash_typescript/rpc/requested_fields_processor.ex` - Field validation
+- `lib/ash_typescript/rpc/result_processor.ex` - Result extraction
+- `lib/ash_typescript/rpc/error_builder.ex` - Error handling
 
 **Critical Checks**:
 
 1. **Field Selection Validation**:
    ```bash
    # Test field selection works at all levels
-   mix test test/ash_typescript/rpc/rpc_calcs_test.exs -t field_selection
+   mix test test/ash_typescript/rpc/rpc_field_selection_test.exs
    
    # Test complex nested scenarios
-   mix test test/ash_typescript/rpc/rpc_calcs_test.exs -t nested
+   mix test test/ash_typescript/rpc/rpc_embedded_calculations_test.exs
    ```
 
 2. **Data Integrity Checks**:
    ```elixir
    # Add temporary debug output to verify data flow
-   # In lib/ash_typescript/rpc/helpers.ex:extract_return_value/3
-   def extract_return_value(result, fields, calc_specs) do
+   # In lib/ash_typescript/rpc/result_processor.ex:process/2
+   def process(result, extraction_template) do
      IO.inspect(result, label: "Input result")
      IO.inspect(fields, label: "Fields to extract")
      IO.inspect(calc_specs, label: "Calculation specs")

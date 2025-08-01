@@ -4,6 +4,126 @@
 
 This guide covers troubleshooting problems in the AshTypescript runtime processing pipeline, including field selection, calculation arguments, and field classification issues.
 
+## Quick Debug with Tidewave MCP
+
+**✅ RECOMMENDED: Use Tidewave tools for immediate debugging without creating test files.**
+
+### Debug Field Selection Pipeline
+
+```elixir
+mcp__tidewave__project_eval("""
+# Test your specific field selection issue
+fields = ["id", "title", %{"metadata" => ["category", "priority"]}]
+
+# Create a mock connection
+conn = %Plug.Conn{}
+|> Plug.Conn.put_private(:ash, %{actor: nil, tenant: nil})
+
+params = %{
+  "action" => "list_todos",
+  "fields" => fields
+}
+
+# Test the full pipeline
+IO.puts("🔍 Testing RPC pipeline...")
+result = AshTypescript.Rpc.run_action(:ash_typescript, conn, params)
+
+case result do
+  %{success: true, data: data} ->
+    IO.puts("✅ SUCCESS!")
+    IO.inspect(data, label: "Response data")
+    
+    # Check if field selection worked
+    if is_list(data) and length(data) > 0 do
+      first_item = hd(data)
+      IO.inspect(Map.keys(first_item), label: "Fields in response")
+    end
+    
+  %{success: false, errors: errors} ->
+    IO.puts("❌ FAILED!")
+    IO.inspect(errors, label: "Errors")
+end
+""")
+```
+
+### Debug Field Processing Step-by-Step
+
+```elixir
+mcp__tidewave__project_eval("""
+alias AshTypescript.Rpc.{Pipeline, RequestedFieldsProcessor}
+
+# Step 1: Parse request
+fields = ["id", "title", %{"metadata" => ["category"]}]
+conn = %Plug.Conn{} |> Plug.Conn.put_private(:ash, %{actor: nil, tenant: nil})
+params = %{"action" => "list_todos", "fields" => fields}
+
+IO.puts("Step 1: Parsing request...")
+case Pipeline.parse_request(:ash_typescript, conn, params) do
+  {:ok, request} ->
+    IO.puts("✅ Request parsed successfully")
+    IO.inspect(request.select, label: "Select fields")
+    IO.inspect(request.load, label: "Load fields")
+    IO.inspect(request.extraction_template, label: "Template")
+    
+    # Step 2: Execute action
+    IO.puts("\\nStep 2: Executing Ash action...")
+    case Pipeline.execute_ash_action(request) do
+      {:ok, ash_result} ->
+        IO.puts("✅ Action executed successfully")
+        IO.inspect(ash_result, label: "Ash result", limit: 3)
+        
+        # Step 3: Process result
+        IO.puts("\\nStep 3: Processing result...")
+        case Pipeline.process_result(ash_result, request) do
+          {:ok, processed} ->
+            IO.puts("✅ Result processed successfully")
+            IO.inspect(processed, label: "Processed result", limit: 3)
+            
+          {:error, error} ->
+            IO.puts("❌ Result processing failed")
+            IO.inspect(error, label: "Processing error")
+        end
+        
+      {:error, error} ->
+        IO.puts("❌ Action execution failed")
+        IO.inspect(error, label: "Execution error")
+    end
+    
+  {:error, error} ->
+    IO.puts("❌ Request parsing failed")
+    IO.inspect(error, label: "Parsing error")
+end
+""")
+```
+
+### Check Resource Configuration
+
+```elixir
+mcp__tidewave__project_eval("""
+# Verify your resource has the fields you're trying to access
+resource = AshTypescript.Test.Todo
+
+IO.puts("📋 Available fields in #{resource}:")
+IO.puts("Attributes: #{inspect(Ash.Resource.Info.public_attributes(resource) |> Enum.map(&(&1.name)))}")
+IO.puts("Calculations: #{inspect(Ash.Resource.Info.calculations(resource) |> Enum.map(&(&1.name)))}")
+IO.puts("Relationships: #{inspect(Ash.Resource.Info.relationships(resource) |> Enum.map(&(&1.name)))}")
+
+# Check RPC configuration
+domains = Ash.Info.domains(:ash_typescript)
+IO.puts("\\n🌐 RPC Configuration:")
+Enum.each(domains, fn domain ->
+  rpc_config = AshTypescript.Rpc.Info.rpc(domain)
+  IO.puts("Domain #{domain}:")
+  Enum.each(rpc_config, fn %{resource: res, rpc_actions: actions} ->
+    if res == resource do
+      action_names = Enum.map(actions, &(&1.name))
+      IO.puts("  Resource #{res}: #{inspect(action_names)}")
+    end
+  end)
+end)
+""")
+```
+
 ## Runtime Processing Issues
 
 ### Problem: Field Selection Not Working
@@ -311,20 +431,21 @@ mix test test/ash_typescript/rpc/rpc_calcs_test.exs --only line:142
 
 ## Debugging Workflows
 
-### Three-Stage Pipeline
+### Four-Stage Pipeline
 
-AshTypescript uses a three-stage runtime processing pipeline:
+AshTypescript uses a four-stage runtime processing pipeline:
 
-1. **Field Parser** - Classifies and parses requested fields
-2. **Ash Query** - Executes query with proper select/load statements
-3. **Result Processor** - Extracts and formats response data
+1. **Parse Request** - Parse and validate input with fail-fast approach
+2. **Execute Ash Action** - Execute Ash operations (read, create, update, destroy, action)
+3. **Process Result** - Apply field selection using extraction templates
+4. **Format Output** - Format for client consumption with proper field name formatting
 
 **Pipeline Debug Pattern**:
 ```bash
-# Test each stage independently
-mix test test/ash_typescript/field_parser_comprehensive_test.exs  # Stage 1
-mix test test/ash_typescript/rpc/rpc_actions_test.exs             # Stage 2
-mix test test/ash_typescript/rpc/rpc_result_processing_test.exs   # Stage 3
+# Test RPC pipeline components
+mix test test/ash_typescript/rpc/rpc_field_selection_test.exs      # Field processing
+mix test test/ash_typescript/rpc/rpc_actions_test.exs              # Action execution
+mix test test/ash_typescript/rpc/rpc_embedded_calculations_test.exs # Complex scenarios
 ```
 
 ### Field Classification Debug

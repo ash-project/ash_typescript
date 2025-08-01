@@ -4,6 +4,8 @@
 
 This index helps AI assistants quickly find the most relevant documentation for specific tasks, optimizing context window usage.
 
+**🆕 TIDEWAVE MCP ENABLED**: This project now has runtime introspection capabilities. Use `mcp__tidewave__project_eval` and other tidewave tools for debugging instead of shell commands.
+
 ## Core Files (Always Start Here)
 
 | File | Purpose | When to Use |
@@ -20,7 +22,7 @@ This index helps AI assistants quickly find the most relevant documentation for 
 |------|----------------------|------------------|
 | **Type Generation/Inference** | [implementation/type-system.md](implementation/type-system.md) | [test/ash_typescript/](../test/ash_typescript/) |
 | **Custom Types** | [implementation/custom-types.md](implementation/custom-types.md) | [quick-guides/adding-new-types.md](quick-guides/adding-new-types.md), [test/ash_typescript/custom_types_test.exs](../test/ash_typescript/custom_types_test.exs) |
-| **RPC Features** | [implementation/environment-setup.md](implementation/environment-setup.md), [implementation/development-workflows.md](implementation/development-workflows.md) | [test/ash_typescript/rpc/](../test/ash_typescript/rpc/), [ai-quick-reference.md](ai-quick-reference.md) |
+| **RPC Features** | [implementation/rpc-pipeline.md](implementation/rpc-pipeline.md), [implementation/environment-setup.md](implementation/environment-setup.md), [implementation/development-workflows.md](implementation/development-workflows.md) | [test/ash_typescript/rpc/](../test/ash_typescript/rpc/), [ai-quick-reference.md](ai-quick-reference.md) |
 | **Field Selection** | [implementation/field-processing.md](implementation/field-processing.md) | [ai-quick-reference.md](ai-quick-reference.md) |
 | **Embedded Resources** | [implementation/embedded-resources.md](implementation/embedded-resources.md) | [test/support/resources/embedded/](../test/support/resources/embedded/) |
 | **Union Types** | [implementation/union-systems-core.md](implementation/union-systems-core.md), [implementation/union-systems-advanced.md](implementation/union-systems-advanced.md) | [test/ash_typescript/rpc/rpc_union_*_test.exs](../test/ash_typescript/rpc/) |
@@ -61,6 +63,7 @@ This index helps AI assistants quickly find the most relevant documentation for 
 - [implementation/environment-setup.md](implementation/environment-setup.md) (230 lines)
 - [implementation/type-system.md](implementation/type-system.md) (289 lines)
 - [implementation/field-processing.md](implementation/field-processing.md) (311 lines)
+- [implementation/rpc-pipeline.md](implementation/rpc-pipeline.md) (~250 lines)
 - [implementation/union-systems-core.md](implementation/union-systems-core.md) (323 lines)
 - [implementation/custom-types.md](implementation/custom-types.md) (330 lines)
 - [implementation/embedded-resources.md](implementation/embedded-resources.md) (392 lines)
