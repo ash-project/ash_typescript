@@ -2,7 +2,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
   use ExUnit.Case
 
   alias AshTypescript.Rpc.Pipeline
-  alias AshTypescript.Test.{Domain, Todo, User}
+  alias AshTypescript.Test.Todo
 
   @moduletag :ash_typescript
 
@@ -102,7 +102,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
     test "stage 2: execute_ash_action builds proper query" do
       # Create a minimal valid request
-      request = %AshTypescript.Rpc.Request{
+      _request = %AshTypescript.Rpc.Request{
         resource: Todo,
         action: Ash.Resource.Info.action(Todo, :list_todos),
         tenant: nil,
@@ -154,7 +154,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
         %{id: 2, title: "Another Todo"}
       ]
 
-      request = %AshTypescript.Rpc.Request{}
+      _request = %AshTypescript.Rpc.Request{}
 
       formatted_result = Pipeline.format_output(filtered_result)
 

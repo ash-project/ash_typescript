@@ -21,16 +21,13 @@ defmodule AshTypescript.MixProject do
       description: @description,
       source_url: "https://github.com/ash-project/ash_typescript",
       homepage_url: "https://github.com/ash-project/ash_typescript",
-      preferred_cli_env: [
-        "test.codegen": :test
-      ],
       dialyzer: [
         plt_add_apps: [:mix]
       ]
     ]
   end
 
-  defp ash_version(default_version) do
+  def ash_version(default_version) do
     case System.get_env("ASH_VERSION") do
       nil -> default_version
       "local" -> [path: "../ash", override: true]

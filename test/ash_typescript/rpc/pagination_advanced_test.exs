@@ -46,7 +46,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
   end
 
   # Helper to create test dataset
-  defp create_test_dataset(conn, count \\ 25) do
+  defp create_test_dataset(conn, count) do
     user = TestHelpers.create_test_user(conn, fields: ["id"])
 
     # Create todos with varying data for pagination testing
@@ -171,7 +171,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
       {_user, _todos} = create_test_dataset(conn, 30)
 
       page_size = 7
-      all_results = []
+      _all_results = []
 
       # Collect results from multiple pages
       results_from_pages =
@@ -230,12 +230,14 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
             "id",
             "title",
             "priority",
-            %{"metadata" => [
+            %{
+              "metadata" => [
                 "category",
                 "priority_score",
                 "is_urgent",
                 "display_category"
-              ]}
+              ]
+            }
           ],
           "page" => %{
             "limit" => 4,
@@ -263,7 +265,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
         metadata = todo["metadata"]
         assert is_map(metadata)
         assert Map.has_key?(metadata, "category")
-        assert Map.has_key?(metadata, "priorityScore")  
+        assert Map.has_key?(metadata, "priorityScore")
         assert Map.has_key?(metadata, "isUrgent")
         assert Map.has_key?(metadata, "displayCategory")
 
@@ -304,16 +306,20 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
           "fields" => [
             "id",
             "title",
-            %{"comments" => [
+            %{
+              "comments" => [
                 "id",
                 "content",
                 "authorName",
                 "rating"
-              ]},
-            %{"user" => [
+              ]
+            },
+            %{
+              "user" => [
                 "id",
                 "name"
-              ]}
+              ]
+            }
           ],
           "page" => %{
             "limit" => 5,
@@ -551,7 +557,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
     test "limit larger than available results returns all available" do
       conn = TestHelpers.build_rpc_conn()
       # Only 3 todos
-      {_user, todos} = create_test_dataset(conn, 3)
+      {_user, _todos} = create_test_dataset(conn, 3)
 
       result =
         Rpc.run_action(:ash_typescript, conn, %{
@@ -826,7 +832,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
     test "exact page boundary conditions" do
       conn = TestHelpers.build_rpc_conn()
       # Exactly 12 todos
-      {_user, todos} = create_test_dataset(conn, 12)
+      {_user, _todos} = create_test_dataset(conn, 12)
 
       # Should give exactly 3 pages
       page_size = 4

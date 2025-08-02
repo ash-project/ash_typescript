@@ -38,7 +38,7 @@ defmodule AshTypescript.Rpc.Pipeline do
         Request.new(%{
           resource: resource,
           action: action,
-          tenant: Ash.PlugHelpers.get_tenant(conn),
+          tenant: normalized_params[:tenant] || Ash.PlugHelpers.get_tenant(conn),
           actor: Ash.PlugHelpers.get_actor(conn),
           context: Ash.PlugHelpers.get_context(conn) || %{},
           select: select,

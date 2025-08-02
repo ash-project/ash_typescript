@@ -20,8 +20,10 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
       # Create todos with different due dates for testing calculations
       now = DateTime.utc_now()
-      past_date = DateTime.add(now, -86400, :second)  # 1 day ago (overdue)
-      future_date = DateTime.add(now, 86400, :second)  # 1 day from now
+      # 1 day ago (overdue)
+      past_date = DateTime.add(now, -86400, :second)
+      # 1 day from now
+      future_date = DateTime.add(now, 86400, :second)
 
       %{"success" => true, "data" => overdue_todo} =
         Rpc.run_action(:ash_typescript, conn, %{
@@ -69,20 +71,22 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
         assert Map.has_key?(todo, "title")
         assert Map.has_key?(todo, "isOverdue")
         assert is_boolean(todo["isOverdue"])
-        
+
         # Should not have other fields
         refute Map.has_key?(todo, "description")
         refute Map.has_key?(todo, "completed")
       end)
 
       # Find specific todos to verify calculation logic
-      overdue_todo = Enum.find(result["data"], fn todo ->
-        todo["title"] == "Overdue Todo"
-      end)
+      overdue_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] == "Overdue Todo"
+        end)
 
-      future_todo = Enum.find(result["data"], fn todo ->
-        todo["title"] == "Future Todo"
-      end)
+      future_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] == "Future Todo"
+        end)
 
       # Verify calculation results if we found the todos
       if overdue_todo do
@@ -108,11 +112,11 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       Enum.each(result["data"], fn todo ->
         assert Map.has_key?(todo, "id")
         assert Map.has_key?(todo, "daysUntilDue")
-        
+
         if todo["daysUntilDue"] != nil do
           assert is_integer(todo["daysUntilDue"])
         end
-        
+
         # Should not have other fields
         refute Map.has_key?(todo, "title")
         refute Map.has_key?(todo, "description")
@@ -134,13 +138,13 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
         assert Map.has_key?(todo, "id")
         assert Map.has_key?(todo, "isOverdue")
         assert Map.has_key?(todo, "daysUntilDue")
-        
+
         assert is_boolean(todo["isOverdue"])
-        
+
         if todo["daysUntilDue"] != nil do
           assert is_integer(todo["daysUntilDue"])
         end
-        
+
         # Should not have other fields
         refute Map.has_key?(todo, "title")
         refute Map.has_key?(todo, "description")
@@ -199,9 +203,10 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      test_todo = Enum.find(result["data"], fn todo ->
-        todo["title"] == "Self Calculation Todo"
-      end)
+      test_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] == "Self Calculation Todo"
+        end)
 
       assert test_todo != nil
       assert Map.has_key?(test_todo, "id")
@@ -212,11 +217,11 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       self_result = test_todo["self"]
       assert Map.has_key?(self_result, "description")
       assert Map.has_key?(self_result, "completed")
-      
+
       # Should not have other fields like "title" since we didn't select it
       refute Map.has_key?(self_result, "title")
       refute Map.has_key?(self_result, "id")
-      
+
       # The self calculation should return the same todo with the prefix applied
       assert is_binary(self_result["description"])
       assert is_boolean(self_result["completed"])
@@ -245,11 +250,12 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      test_todo = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "self") && todo["self"] &&
-          Map.has_key?(todo["self"], "title") &&
-          todo["self"]["title"] == "Self Calculation Todo"
-      end)
+      test_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "self") && todo["self"] &&
+            Map.has_key?(todo["self"], "title") &&
+            todo["self"]["title"] == "Self Calculation Todo"
+        end)
 
       assert test_todo != nil
       assert Map.has_key?(test_todo, "id")
@@ -264,7 +270,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       user_result = self_result["user"]
       assert Map.has_key?(user_result, "id")
       assert Map.has_key?(user_result, "name")
-      
+
       # Should not have email since we didn't select it
       refute Map.has_key?(user_result, "email")
     end
@@ -281,7 +287,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
           "fields" => ["id"]
         })
 
-      %{"success" => true, "data" => todo} =
+      %{"success" => true, "data" => _todo} =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "create_todo",
           "input" => %{
@@ -320,11 +326,12 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["data"])
 
       # Find our complex todo
-      complex_todo = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "self") && todo["self"] &&
-          Map.has_key?(todo["self"], "title") &&
-          todo["self"]["title"] == "Complex Nested Todo"
-      end)
+      complex_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "self") && todo["self"] &&
+            Map.has_key?(todo["self"], "title") &&
+            todo["self"]["title"] == "Complex Nested Todo"
+        end)
 
       assert complex_todo != nil
       assert Map.has_key?(complex_todo, "self")
@@ -398,11 +405,12 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      test_todo = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "self") && todo["self"] &&
-          Map.has_key?(todo["self"], "title") &&
-          todo["self"]["title"] == "Args Todo"
-      end)
+      test_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "self") && todo["self"] &&
+            Map.has_key?(todo["self"], "title") &&
+            todo["self"]["title"] == "Args Todo"
+        end)
 
       assert test_todo != nil
       assert Map.has_key?(test_todo, "self")
@@ -431,11 +439,12 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      test_todo = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "self") && todo["self"] &&
-          Map.has_key?(todo["self"], "title") &&
-          todo["self"]["title"] == "Args Todo"
-      end)
+      test_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "self") && todo["self"] &&
+            Map.has_key?(todo["self"], "title") &&
+            todo["self"]["title"] == "Args Todo"
+        end)
 
       assert test_todo != nil
       assert Map.has_key?(test_todo, "self")
@@ -467,10 +476,11 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      test_todo = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "self") && todo["self"] &&
-          Map.has_key?(todo["self"], "title")
-      end)
+      test_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "self") && todo["self"] &&
+            Map.has_key?(todo["self"], "title")
+        end)
 
       assert test_todo != nil
       assert Map.has_key?(test_todo, "self")
@@ -535,15 +545,15 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
         # Attributes
         assert Map.has_key?(todo, "id")
         assert Map.has_key?(todo, "title")
-        
+
         # Simple calculation
         assert Map.has_key?(todo, "isOverdue")
         assert is_boolean(todo["isOverdue"])
-        
+
         # Aggregate
         assert Map.has_key?(todo, "commentCount")
         assert is_integer(todo["commentCount"])
-        
+
         # Should not have other fields
         refute Map.has_key?(todo, "description")
         refute Map.has_key?(todo, "completed")
@@ -575,26 +585,27 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      test_todo = Enum.find(result["data"], fn todo ->
-        todo["title"] != nil || (Map.has_key?(todo, "self") && todo["self"])
-      end)
+      test_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] != nil || (Map.has_key?(todo, "self") && todo["self"])
+        end)
 
       assert test_todo != nil
-      
+
       # Verify attribute
       assert Map.has_key?(test_todo, "id")
-      
+
       # Verify simple calculation
       assert Map.has_key?(test_todo, "isOverdue")
       assert is_boolean(test_todo["isOverdue"])
-      
+
       # Verify relationship
       assert Map.has_key?(test_todo, "user")
       user_data = test_todo["user"]
       assert Map.has_key?(user_data, "id")
       assert Map.has_key?(user_data, "name")
       refute Map.has_key?(user_data, "email")
-      
+
       # Verify calculation with args
       assert Map.has_key?(test_todo, "self")
       self_result = test_todo["self"]
@@ -610,13 +621,16 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       %{conn: conn}
     end
 
-    test "returns error for calculation that requires arguments when requested as simple atom", %{conn: conn} do
+    test "returns error for calculation that requires arguments when requested as simple atom", %{
+      conn: conn
+    } do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
-            "self"  # This calculation requires arguments but requested as simple atom
+            # This calculation requires arguments but requested as simple atom
+            "self"
           ]
         })
 
@@ -627,13 +641,15 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert error["details"]["field"] =~ "self"
     end
 
-    test "returns error for calculation that doesn't take arguments when requested with nested structure", %{conn: conn} do
+    test "returns error for calculation that doesn't take arguments when requested with nested structure",
+         %{conn: conn} do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
-              "isOverdue" => %{"args" => %{}}  # This calculation doesn't take arguments
+              # This calculation doesn't take arguments
+              "isOverdue" => %{"args" => %{}}
             }
           ]
         })
@@ -651,7 +667,8 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
           "action" => "list_todos",
           "fields" => [
             %{
-              "commentCount" => ["id"]  # Aggregates don't support nested field selection
+              # Aggregates don't support nested field selection
+              "commentCount" => ["id"]
             }
           ]
         })
@@ -669,7 +686,8 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
           "action" => "list_todos",
           "fields" => [
             %{
-              "title" => ["invalid"]  # Attributes don't support nested field selection
+              # Attributes don't support nested field selection
+              "title" => ["invalid"]
             }
           ]
         })
@@ -851,7 +869,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
           ]
         })
 
-      # This should either succeed (if formattedSummary is not primitive) 
+      # This should either succeed (if formattedSummary is not primitive)
       # or fail with appropriate error
       if result["success"] == false do
         assert is_list(result["errors"])
@@ -918,9 +936,10 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["data"])
 
       # Find a todo with self calculation
-      todo_with_self = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "self") && todo["self"]
-      end)
+      todo_with_self =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "self") && todo["self"]
+        end)
 
       if todo_with_self do
         self_result = todo_with_self["self"]
@@ -948,14 +967,15 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["data"])
 
       # Find a todo with self calculation
-      todo_with_self = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "self") && todo["self"]
-      end)
+      todo_with_self =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "self") && todo["self"]
+        end)
 
       if todo_with_self do
         self_result = todo_with_self["self"]
         assert Map.has_key?(self_result, "user")
-        
+
         user_result = self_result["user"]
         assert Map.has_key?(user_result, "id")
         assert Map.has_key?(user_result, "name")
@@ -982,20 +1002,22 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["data"])
 
       # Find a todo with self calculation
-      todo_with_self = Enum.find(result["data"], fn todo ->
-        Map.has_key?(todo, "self") && todo["self"]
-      end)
+      todo_with_self =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "self") && todo["self"]
+        end)
 
       if todo_with_self do
         self_result = todo_with_self["self"]
         assert Map.has_key?(self_result, "isOverdue")
         assert is_boolean(self_result["isOverdue"])
-        
+
         assert Map.has_key?(self_result, "daysUntilDue")
+
         if self_result["daysUntilDue"] != nil do
           assert is_integer(self_result["daysUntilDue"])
         end
-        
+
         # Should not have other fields
         refute Map.has_key?(self_result, "title")
         refute Map.has_key?(self_result, "description")

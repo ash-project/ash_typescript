@@ -2,7 +2,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
   use ExUnit.Case
 
   alias AshTypescript.Rpc
-  alias AshTypescript.Test.{Domain, Todo, User}
+  alias AshTypescript.Test.Todo
 
   @moduletag :ash_typescript
 
@@ -80,7 +80,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Should fail with validation error, not execution error
       assert error_response["success"] == false
-      
+
       error = List.first(error_response["errors"])
       assert error["type"] == "unknown_field"
       assert String.contains?(error["message"], "unknownField")
@@ -108,7 +108,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       error_response = Rpc.validate_action(:ash_typescript, conn, invalid_params)
       assert error_response["success"] == false
-      
+
       error = List.first(error_response["errors"])
       assert error["type"] == "unknown_field"
     end
@@ -150,7 +150,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
         %{id: 2, title: "Another", created_at: ~U[2024-01-02 00:00:00Z], user_id: "456"}
       ]
 
-      request = %AshTypescript.Rpc.Request{}
+      _request = %AshTypescript.Rpc.Request{}
 
       # Test the output formatting stage
       formatted_result = AshTypescript.Rpc.Pipeline.format_output(internal_data)
@@ -219,7 +219,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Should get properly formatted error response
       assert error_response["success"] == false
-      
+
       error = List.first(error_response["errors"])
       assert error["type"] == "action_not_found"
       assert error["message"] == "RPC action 'nonexistent_action' not found"
@@ -239,7 +239,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Error should be clear and actionable
       assert error_response["success"] == false
-      
+
       error = List.first(error_response["errors"])
       assert error["type"] == "unknown_field"
       assert String.contains?(error["message"], "completelyUnknownField")
@@ -259,7 +259,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Should show it's an unknown field error with relationship context
       assert error_response["success"] == false
-      
+
       error = List.first(error_response["errors"])
       assert error["type"] == "unknown_field"
       assert String.contains?(error["message"], "user")
@@ -373,7 +373,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       # Invalid field names should always fail
       error_response = Rpc.run_action(:ash_typescript, conn, params)
       assert error_response["success"] == false
-      
+
       error = List.first(error_response["errors"])
       assert error["type"] == "unknown_field"
     end
@@ -386,7 +386,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       # Invalid action names should always fail
       error_response = Rpc.run_action(:ash_typescript, conn, params)
       assert error_response["success"] == false
-      
+
       error = List.first(error_response["errors"])
       assert error["type"] == "action_not_found"
     end
@@ -398,7 +398,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       # Invalid nested structures should always fail
       error_response = Rpc.run_action(:ash_typescript, conn, params)
       assert error_response["success"] == false
-      
+
       error = List.first(error_response["errors"])
       assert error["type"] == "unsupported_field_combination"
     end
@@ -411,7 +411,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       # Invalid pagination should always fail
       error_response = Rpc.run_action(:ash_typescript, conn, params)
       assert error_response["success"] == false
-      
+
       error = List.first(error_response["errors"])
       assert error["type"] == "invalid_pagination"
     end

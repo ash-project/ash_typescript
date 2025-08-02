@@ -18,7 +18,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
   use ExUnit.Case, async: false
 
   alias AshTypescript.Rpc
-  alias AshTypescript.Test.{Domain, Todo, User, TodoComment, TestHelpers}
+  alias AshTypescript.Test.{Todo, User, TodoComment, TestHelpers}
 
   @moduletag :ash_typescript
 
@@ -667,7 +667,15 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           "priorityScore",
           "colorPalette",
           %{"timestampInfo" => ["created_by", "created_at", "updated_by", "updated_at"]},
-          %{"statistics" => ["view_count", "edit_count", "completion_time_seconds", "difficulty_rating", "performance_metrics"]}
+          %{
+            "statistics" => [
+              "view_count",
+              "edit_count",
+              "completion_time_seconds",
+              "difficulty_rating",
+              "performance_metrics"
+            ]
+          }
         ]
       }
 
@@ -707,7 +715,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       assert statistics["editCount"] == 3
       assert statistics["completionTimeSeconds"] == 1800
       assert statistics["difficultyRating"] == 4.5
-      
+
       # Assert performance metrics
       performance_metrics = statistics["performanceMetrics"]
       assert performance_metrics["focusTimeSeconds"] == 1200
@@ -744,7 +752,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           fields: ["id", "title"]
         )
 
-      todo2 =
+      _todo2 =
         TestHelpers.create_test_todo(conn,
           title: "User 2 Todo",
           user_id: user2["id"],
@@ -886,14 +894,13 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           )
         end
 
-      todos =
-        for {user, i} <- Enum.with_index(users, 1) do
-          TestHelpers.create_test_todo(conn,
-            title: "Todo #{i}",
-            user_id: user["id"],
-            fields: ["id", "title"]
-          )
-        end
+      for {user, i} <- Enum.with_index(users, 1) do
+        TestHelpers.create_test_todo(conn,
+          title: "Todo #{i}",
+          user_id: user["id"],
+          fields: ["id", "title"]
+        )
+      end
 
       # List todos with relationship data
       list_params = %{
@@ -960,7 +967,8 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       text_content = content["text"]
       assert text_content["text"] == "This is text content"
       assert text_content["wordCount"] == 5
-      assert is_binary(text_content["id"])  # ID is auto-generated
+      # ID is auto-generated
+      assert is_binary(text_content["id"])
 
       # Test note content (untagged union member)
       note_todo_result =
@@ -1024,8 +1032,8 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
             }
           },
           "fields" => [
-            "id", 
-            "title", 
+            "id",
+            "title",
             %{"statusInfo" => ["detailed"]}
           ]
         })
@@ -1082,11 +1090,17 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
               "https://example.com/reference"
             ]
           },
-          "fields" => ["id", "title", %{"attachments" => [
-            %{"file" => ["filename", "size", "mimeType"]},
-            %{"image" => ["filename", "width", "height", "altText"]},
-            "url"
-          ]}]
+          "fields" => [
+            "id",
+            "title",
+            %{
+              "attachments" => [
+                %{"file" => ["filename", "size", "mimeType"]},
+                %{"image" => ["filename", "width", "height", "altText"]},
+                "url"
+              ]
+            }
+          ]
         })
 
       assert todo_result["success"] == true
@@ -1197,7 +1211,10 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
               "estimated_hours" => 2.0
             }
           },
-          "fields" => ["id", %{"metadata" => ["category", "priority_score", "deadline", "tags", "estimated_hours"]}]
+          "fields" => [
+            "id",
+            %{"metadata" => ["category", "priority_score", "deadline", "tags", "estimated_hours"]}
+          ]
         })
 
       assert metadata_result["success"] == true
@@ -1213,10 +1230,12 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       assert metadata["category"] == "testing"
 
       # Assert other embedded fields maintain proper types
-      assert is_integer(metadata["priorityScore"])  # Changed to integer
+      # Changed to integer
+      assert is_integer(metadata["priorityScore"])
       assert metadata["priorityScore"] == 85
       assert is_list(metadata["tags"])
-      assert is_float(metadata["estimatedHours"])  # Changed to estimatedHours and float
+      # Changed to estimatedHours and float
+      assert is_float(metadata["estimatedHours"])
       assert metadata["estimatedHours"] == 2.0
     end
   end
@@ -1567,7 +1586,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       page1_result = Rpc.run_action(:ash_typescript, conn, page1_params)
       assert page1_result["success"] == true
-      
+
       # Pagination returns object with metadata and results
       page1_data = page1_result["data"]
       assert page1_data["hasMore"] == true
@@ -1592,10 +1611,11 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       page2_result = Rpc.run_action(:ash_typescript, conn, page2_params)
       assert page2_result["success"] == true
-      
+
       # Second page pagination structure
       page2_data = page2_result["data"]
-      assert page2_data["hasMore"] == true  # Should still have more records
+      # Should still have more records
+      assert page2_data["hasMore"] == true
       assert page2_data["limit"] == 2
       assert page2_data["offset"] == 2
       assert is_list(page2_data["results"])

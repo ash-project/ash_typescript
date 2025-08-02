@@ -978,7 +978,7 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       user = TestHelpers.create_test_user(conn, fields: ["id"])
 
       # Create a very large field list
-      large_field_list = 1..1000 |> Enum.map(&"field_#{&1}") |> Enum.into(["id", "title"])
+      large_field_list = ["id", "title"] ++ (1..1000 |> Enum.map(&"field_#{&1}"))
 
       result =
         Rpc.run_action(:ash_typescript, conn, %{

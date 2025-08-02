@@ -14,8 +14,6 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
   """
   @spec build_error_response(term()) :: map()
   def build_error_response(error) do
-    IO.inspect(error)
-
     case error do
       # Action discovery errors
       {:action_not_found, action_name} ->

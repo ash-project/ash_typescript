@@ -15,7 +15,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         processed_results = extract_list_fields(results, extraction_template)
 
         page
-        |> Map.take([:limit, :offset])
+        |> Map.take([:limit, :offset, :count])
         |> Map.put(:results, processed_results)
         |> Map.put(:has_more, page.more? || false)
         |> Map.put(:type, :offset)
@@ -31,7 +31,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           end
 
         page
-        |> Map.take([:before, :after, :limit])
+        |> Map.take([:before, :after, :limit, :count])
         |> Map.put(:has_more, page.more? || false)
         |> Map.put(:results, processed_results)
         |> Map.put(:previous_page, previous_page_cursor)
