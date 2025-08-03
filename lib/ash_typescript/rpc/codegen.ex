@@ -709,14 +709,14 @@ defmodule AshTypescript.Rpc.Codegen do
 
     """
     type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-      Config["page"] extends undefined
-        ? Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>
-        : {
+      Config extends { page: any; }
+        ? {
             #{results_field}: Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
             #{has_more_field}: boolean;
             #{limit_field}: number;
             #{offset_field}: number;
-          };
+          }
+        : Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
     """
   end
 
@@ -732,9 +732,8 @@ defmodule AshTypescript.Rpc.Codegen do
 
     """
     type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-      Config["page"] extends undefined
-        ? Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>
-        : {
+      Config extends { page: any; }
+        ? {
             #{results_field}: Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
             #{has_more_field}: boolean;
             #{limit_field}: number;
@@ -742,7 +741,8 @@ defmodule AshTypescript.Rpc.Codegen do
             #{before_field}: string | null;
             #{previous_page_field}: string;
             #{next_page_field}: string;
-          };
+          }
+        : Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
     """
   end
 
@@ -760,9 +760,8 @@ defmodule AshTypescript.Rpc.Codegen do
 
     """
     type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-      Config["page"] extends undefined
-        ? Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>
-        : ({
+      Config extends { page: any; }
+        ? ({
             #{results_field}: Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
             #{has_more_field}: boolean;
             #{limit_field}: number;
@@ -777,7 +776,8 @@ defmodule AshTypescript.Rpc.Codegen do
             #{previous_page_field}: string;
             #{next_page_field}: string;
             #{type_field}: "keyset";
-          });
+          })
+        : Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
     """
   end
 
@@ -1301,32 +1301,30 @@ defmodule AshTypescript.Rpc.Codegen do
 
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
 
-    result_handling =
+    result_type =
       case action.type do
         :destroy ->
-          "return;"
+          """
+          {success: true, data: {}} |
+          {success: false, errors: Array<{type: string, message: string, field_path?: string, details: Record<string, string>}>}
+          """
 
         _ when is_generic_action ->
           """
-          const result = await response.json();
-          return result.data as Infer#{rpc_action_name_pascal}Result;
+          {success: true, data: Infer#{rpc_action_name_pascal}Result} |
+          {success: false, errors: Array<{type: string, message: string, field_path?: string, details: Record<string, string>}>}
           """
 
         _ ->
           """
-          const result = await response.json();
-          return result.data as Infer#{rpc_action_name_pascal}Result<#{rpc_action_name_pascal}Config>;
+            {success: true, data: Infer#{rpc_action_name_pascal}Result<#{rpc_action_name_pascal}Config>} |
+            {success: false, errors: Array<{type: string, message: string, field_path?: string, details: Record<string, string>}>}
           """
       end
 
-    result_type =
-      case action.type do
-        :destroy -> "void"
-        _ when is_generic_action -> "Infer#{rpc_action_name_pascal}Result"
-        _ -> "Infer#{rpc_action_name_pascal}Result<#{rpc_action_name_pascal}Config>"
-      end
-
     """
+    export type #{rpc_action_name_pascal}Result = #{result_type};
+
     export async function #{function_name}(
       config: #{rpc_action_name_pascal}Config
     ): Promise<#{result_type}> {
@@ -1344,10 +1342,13 @@ defmodule AshTypescript.Rpc.Codegen do
       });
 
       if (!response.ok) {
-        throw new Error(`Rpc call failed: ${response.statusText}`);
+        return {success: false, errors: [
+          {type: 'network', message: response.statusText, details: {}}
+        ]};
       }
 
-      #{result_handling}
+      const result = await response.json()
+      return result as #{rpc_action_name_pascal}Result
     }
     """
   end
