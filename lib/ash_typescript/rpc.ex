@@ -157,7 +157,7 @@ defmodule AshTypescript.Rpc do
   This combines resource multitenancy requirements with the configuration setting.
   """
   def requires_tenant_parameter?(resource) do
-    requires_tenant?(resource) && require_tenant_parameters?()
+    requires_tenant?(resource) and require_tenant_parameters?()
   end
 
   @doc """

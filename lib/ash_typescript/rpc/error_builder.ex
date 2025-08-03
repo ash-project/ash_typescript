@@ -28,6 +28,13 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
 
       # Tenant resolution errors
       {:tenant_required, resource} ->
+        suggestion =
+          if AshTypescript.Rpc.require_tenant_parameters?() do
+            "Add a 'tenant' parameter to your request, or set config :ash_typescript, require_tenant_parameters: false if the tenant will be added to the conn assigns in other ways."
+          else
+            "Make sure your request pipeline is properly setting a tenant in the conn assigns, or set config :ash_typescript, require_tenant_parameters: true to generate tenant parameters for multitenant resource actions."
+          end
+
         %{
           type: "tenant_required",
           message: "Tenant parameter is required for multitenant resource #{inspect(resource)}",
