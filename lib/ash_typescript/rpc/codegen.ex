@@ -1325,8 +1325,32 @@ defmodule AshTypescript.Rpc.Codegen do
           """
       end
 
+    result_type_def =
+      case action.type do
+        :destroy ->
+          "export type #{rpc_action_name_pascal}Result = #{result_type};"
+
+        _ when is_generic_action ->
+          "export type #{rpc_action_name_pascal}Result = #{result_type};"
+
+        _ ->
+          "export type #{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> = #{result_type};"
+      end
+
+    return_type_def =
+      case action.type do
+        :destroy ->
+          "#{rpc_action_name_pascal}Result;"
+
+        _ when is_generic_action ->
+          "#{rpc_action_name_pascal}Result;"
+
+        _ ->
+          "#{rpc_action_name_pascal}Result<Config>;"
+      end
+
     """
-    type #{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> = #{result_type};
+    #{result_type_def}
 
     export async function #{function_name}<Config extends #{rpc_action_name_pascal}Config>(
       config: Config
@@ -1351,7 +1375,7 @@ defmodule AshTypescript.Rpc.Codegen do
       }
 
       const result = await response.json()
-      return result as #{rpc_action_name_pascal}Result<Config>;
+      return result as #{return_type_def}
     }
     """
   end
