@@ -754,6 +754,7 @@ defmodule AshTypescript.Rpc.Codegen do
     offset_field = AshTypescript.FieldFormatter.format_field("offset", formatter)
     after_field = AshTypescript.FieldFormatter.format_field("after", formatter)
     before_field = AshTypescript.FieldFormatter.format_field("before", formatter)
+    count_field = AshTypescript.FieldFormatter.format_field("count", formatter)
     previous_page_field = AshTypescript.FieldFormatter.format_field("previous_page", formatter)
     next_page_field = AshTypescript.FieldFormatter.format_field("next_page", formatter)
     type_field = AshTypescript.FieldFormatter.format_field("type", formatter)
@@ -766,6 +767,7 @@ defmodule AshTypescript.Rpc.Codegen do
             #{has_more_field}: boolean;
             #{limit_field}: number;
             #{offset_field}: number;
+            #{count_field}?: number | null;
             #{type_field}: "offset";
           } | {
             #{results_field}: Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
@@ -775,6 +777,7 @@ defmodule AshTypescript.Rpc.Codegen do
             #{before_field}: string | null;
             #{previous_page_field}: string;
             #{next_page_field}: string;
+            #{count_field}?: number | null;
             #{type_field}: "keyset";
           })
         : Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
@@ -1317,16 +1320,16 @@ defmodule AshTypescript.Rpc.Codegen do
 
         _ ->
           """
-            {success: true, data: Infer#{rpc_action_name_pascal}Result<#{rpc_action_name_pascal}Config>} |
+            {success: true, data: Infer#{rpc_action_name_pascal}Result<Config>} |
             {success: false, errors: Array<{type: string, message: string, field_path?: string, details: Record<string, string>}>}
           """
       end
 
     """
-    export type #{rpc_action_name_pascal}Result = #{result_type};
+    type #{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> = #{result_type};
 
-    export async function #{function_name}(
-      config: #{rpc_action_name_pascal}Config
+    export async function #{function_name}<Config extends #{rpc_action_name_pascal}Config>(
+      config: Config
     ): Promise<#{result_type}> {
       const payload = build#{rpc_action_name_pascal}Payload(config);
 
@@ -1348,7 +1351,7 @@ defmodule AshTypescript.Rpc.Codegen do
       }
 
       const result = await response.json()
-      return result as #{rpc_action_name_pascal}Result
+      return result as #{rpc_action_name_pascal}Result<Config>;
     }
     """
   end

@@ -34,6 +34,9 @@ defmodule AshTypescript.Rpc.Pipeline do
            ),
          {:ok, input} <- parse_action_input(normalized_params, action),
          {:ok, pagination} <- parse_pagination(normalized_params) do
+      # Format the sort parameter to convert field names
+      formatted_sort = format_sort_string(normalized_params[:sort], input_formatter)
+
       request =
         Request.new(%{
           resource: resource,
@@ -47,7 +50,7 @@ defmodule AshTypescript.Rpc.Pipeline do
           input: input,
           primary_key: normalized_params[:primary_key],
           filter: normalized_params[:filter],
-          sort: normalized_params[:sort],
+          sort: formatted_sort,
           pagination: pagination
         })
 
@@ -264,6 +267,64 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp apply_pagination(query, nil), do: query
   defp apply_pagination(query, page), do: Ash.Query.page(query, page)
+
+  @doc """
+  Formats a sort string by converting field names from client format to internal format.
+
+  Handles Ash.Query.sort_input format:
+  - "name" or "+name" (ascending)
+  - "++name" (ascending with nils first)
+  - "-name" (descending)
+  - "--name" (descending with nils last)
+  - "-name,++title" (multiple fields with different modifiers)
+
+  Preserves sort modifiers while converting field names using the input formatter.
+
+  ## Examples
+
+      iex> format_sort_string("--startDate,++insertedAt", :camel_case)
+      "--start_date,++inserted_at"
+
+      iex> format_sort_string("-userName", :camel_case)
+      "-user_name"
+
+      iex> format_sort_string(nil, :camel_case)
+      nil
+  """
+  def format_sort_string(nil, _formatter), do: nil
+
+  def format_sort_string(sort_string, formatter) when is_binary(sort_string) do
+    sort_string
+    |> String.split(",")
+    |> Enum.map(&format_single_sort_field(&1, formatter))
+    |> Enum.join(",")
+  end
+
+  defp format_single_sort_field(field_with_modifier, formatter) do
+    # Extract modifier and field name - check longer prefixes first
+    case field_with_modifier do
+      "++" <> field_name ->
+        formatted_field = FieldFormatter.parse_input_field(field_name, formatter)
+        "++#{formatted_field}"
+
+      "--" <> field_name ->
+        formatted_field = FieldFormatter.parse_input_field(field_name, formatter)
+        "--#{formatted_field}"
+
+      "+" <> field_name ->
+        formatted_field = FieldFormatter.parse_input_field(field_name, formatter)
+        "+#{formatted_field}"
+
+      "-" <> field_name ->
+        formatted_field = FieldFormatter.parse_input_field(field_name, formatter)
+        "-#{formatted_field}"
+
+      field_name ->
+        # No modifier, ascending by default
+        formatted_field = FieldFormatter.parse_input_field(field_name, formatter)
+        "#{formatted_field}"
+    end
+  end
 
   # Output formatting
 

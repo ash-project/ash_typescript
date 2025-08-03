@@ -173,14 +173,15 @@ defmodule AshTypescript.Codegen do
 
     types =
       Enum.reduce(actions, resource_types, fn action, types ->
-        action.arguments
-        |> Enum.reduce(types, fn argument, types ->
-          if Ash.Type.ash_type?(argument.type) do
-            MapSet.put(types, argument.type)
-          else
-            types
-          end
-        end)
+        types =
+          action.arguments
+          |> Enum.reduce(types, fn argument, types ->
+            if Ash.Type.ash_type?(argument.type) do
+              MapSet.put(types, argument.type)
+            else
+              types
+            end
+          end)
 
         if action.type == :action do
           if Ash.Type.ash_type?(action.returns) do
@@ -196,12 +197,15 @@ defmodule AshTypescript.Codegen do
         end
       end)
 
-    Enum.map(types, fn type ->
+    types
+    |> Enum.map(fn type ->
       case type do
-        {:array, type} -> generate_ash_type_alias(type)
-        type -> generate_ash_type_alias(type)
+        {:array, type} -> type
+        type -> type
       end
     end)
+    |> Enum.uniq()
+    |> Enum.map(&generate_ash_type_alias/1)
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n")
   end

@@ -294,6 +294,170 @@ defmodule AshTypescript.Rpc.PipelineTest do
     end
   end
 
+  describe "format_sort_string/2 function" do
+    test "formats nil sort string" do
+      assert Pipeline.format_sort_string(nil, :camel_case) == nil
+    end
+
+    test "formats single field without modifier" do
+      assert Pipeline.format_sort_string("userName", :camel_case) == "user_name"
+    end
+
+    test "formats single field with + modifier" do
+      assert Pipeline.format_sort_string("+userName", :camel_case) == "+user_name"
+    end
+
+    test "formats single field with ++ modifier" do
+      assert Pipeline.format_sort_string("++startDate", :camel_case) == "++start_date"
+    end
+
+    test "formats single field with - modifier" do
+      assert Pipeline.format_sort_string("-endDate", :camel_case) == "-end_date"
+    end
+
+    test "formats single field with -- modifier" do
+      assert Pipeline.format_sort_string("--dueDate", :camel_case) == "--due_date"
+    end
+
+    test "formats multiple fields with mixed modifiers" do
+      input = "userName,-createdAt,++priority,--dueDate,+status"
+      expected = "user_name,-created_at,++priority,--due_date,+status"
+      assert Pipeline.format_sort_string(input, :camel_case) == expected
+    end
+
+    test "handles empty field names correctly" do
+      # Edge case: empty string should be handled gracefully
+      assert Pipeline.format_sort_string("", :camel_case) == ""
+    end
+
+    test "preserves whitespace-free formatting" do
+      # No spaces should be added or removed
+      input = "-userName,+createdAt"
+      expected = "-user_name,+created_at"
+      assert Pipeline.format_sort_string(input, :camel_case) == expected
+    end
+  end
+
+  describe "sort parameter formatting" do
+    test "formats simple sort field with camelCase to snake_case" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title"],
+        "sort" => "createdAt"
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert request.sort == "created_at"
+    end
+
+    test "preserves descending modifier while formatting field name" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title"],
+        "sort" => "-updatedAt"
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert request.sort == "-updated_at"
+    end
+
+    test "preserves descending with nils last modifier" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title"],
+        "sort" => "--dueDate"
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert request.sort == "--due_date"
+    end
+
+    test "preserves ascending with nils first modifier" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title"],
+        "sort" => "++startDate"
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert request.sort == "++start_date"
+    end
+
+    test "preserves explicit ascending modifier" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title"],
+        "sort" => "+insertedAt"
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert request.sort == "+inserted_at"
+    end
+
+    test "handles multiple sort fields with different modifiers" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title"],
+        "sort" => "--dueDate,+insertedAt,-userName"
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert request.sort == "--due_date,+inserted_at,-user_name"
+    end
+
+    test "handles complex multi-field sort with all modifier types" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title"],
+        "sort" => "status,++priority,--dueDate,-updatedAt,+createdAt"
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert request.sort == "status,++priority,--due_date,-updated_at,+created_at"
+    end
+
+    test "handles nil sort parameter" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title"]
+        # No sort parameter
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert request.sort == nil
+    end
+
+    test "preserves already snake_case field names" do
+      params = %{
+        "action" => "list_todos",
+        "fields" => ["id", "title"],
+        "sort" => "-user_id,++is_active"
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      # Should preserve snake_case fields as-is
+      assert request.sort == "-user_id,++is_active"
+    end
+  end
+
   describe "comprehensive error handling" do
     test "provides clear error for action not found" do
       params = %{
