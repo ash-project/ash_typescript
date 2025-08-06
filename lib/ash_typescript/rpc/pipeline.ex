@@ -22,7 +22,7 @@ defmodule AshTypescript.Rpc.Pipeline do
     input_formatter = Rpc.input_field_formatter()
     normalized_params = FieldFormatter.parse_input_fields(params, input_formatter)
 
-    with {:ok, {resource, action}} <- discover_rpc_action(otp_app, normalized_params),
+    with {:ok, {resource, action}} <- discover_action(otp_app, normalized_params),
          :ok <- validate_required_parameters_for_action_type(normalized_params, action),
          requested_fields <-
            RequestedFieldsProcessor.atomize_requested_fields(normalized_params[:fields] || []),
@@ -123,22 +123,58 @@ defmodule AshTypescript.Rpc.Pipeline do
     format_field_names(filtered_result, formatter)
   end
 
-  defp discover_rpc_action(otp_app, params) do
-    action_name = params[:action]
+  defp discover_action(otp_app, params) do
+    cond do
+      # Check for typed query first (but not empty string)
+      typed_query_name = params[:typed_query_action] ->
+        if typed_query_name == "" do
+          {:error, {:missing_required_parameter, :typed_query_action}}
+        else
+          case find_typed_query(otp_app, typed_query_name) do
+            nil ->
+              {:error, {:typed_query_not_found, typed_query_name}}
 
-    # Check if action parameter is missing or empty first
-    if action_name in [nil, ""] do
-      {:error, {:missing_required_parameter, :action}}
-    else
-      case find_rpc_action(otp_app, action_name) do
-        nil ->
-          {:error, {:action_not_found, action_name}}
+            {resource, typed_query} ->
+              action = Ash.Resource.Info.action(resource, typed_query.action)
+              {:ok, {resource, action}}
+          end
+        end
 
-        {resource, rpc_action} ->
-          action = Ash.Resource.Info.action(resource, rpc_action.action)
-          {:ok, {resource, action}}
-      end
+      # Fall back to RPC action (but not empty string)
+      action_name = params[:action] ->
+        if action_name == "" do
+          {:error, {:missing_required_parameter, :action}}
+        else
+          case find_rpc_action(otp_app, action_name) do
+            nil ->
+              {:error, {:action_not_found, action_name}}
+
+            {resource, rpc_action} ->
+              action = Ash.Resource.Info.action(resource, rpc_action.action)
+              {:ok, {resource, action}}
+          end
+        end
+
+      # Neither typed_query_action nor action provided
+      true ->
+        {:error, {:missing_required_parameter, :action}}
     end
+  end
+
+  defp find_typed_query(otp_app, typed_query_name)
+       when is_binary(typed_query_name) or is_atom(typed_query_name) do
+    query_string = to_string(typed_query_name)
+
+    otp_app
+    |> Ash.Info.domains()
+    |> Enum.flat_map(&AshTypescript.Rpc.Info.rpc/1)
+    |> Enum.find_value(fn %{resource: resource, typed_queries: typed_queries} ->
+      Enum.find_value(typed_queries, fn typed_query ->
+        if to_string(typed_query.name) == query_string do
+          {resource, typed_query}
+        end
+      end)
+    end)
   end
 
   defp find_rpc_action(otp_app, action_name)

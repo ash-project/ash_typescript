@@ -66,13 +66,11 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
       result = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, %{}, conn)
 
       case result do
-        {:ok, data} ->
+        %{"success" => true, "data" => data} ->
           # Success case - should return the test todos with the specified fields
           assert is_list(data)
           assert length(data) == 2
 
-          IO.inspect(data, label: "Typed Query Data")
-          # Verify the data structure matches the typed query fields
           first_todo = List.first(data)
           assert Map.has_key?(first_todo, "id")
           assert Map.has_key?(first_todo, "title")
@@ -99,7 +97,7 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
       result = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, params, conn)
 
       # Should succeed and return filtered data
-      assert {:ok, data} = result
+      assert %{"success" => true, "data" => data} = result
       assert is_list(data)
       # Only the high priority todo
       assert length(data) == 1
@@ -113,7 +111,10 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
       result = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, params, conn)
 
       # Should succeed and return pagination metadata with limited results
-      assert {:ok, %{"limit" => 1, "offset" => 0, "results" => results} = pagination_data} =
+      assert %{
+               "success" => true,
+               "data" => %{"limit" => 1, "offset" => 0, "results" => results} = pagination_data
+             } =
                result
 
       assert is_list(results)
@@ -130,8 +131,8 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
       result2 = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, conn)
 
       # Both should succeed with the same data
-      assert {:ok, data1} = result1
-      assert {:ok, data2} = result2
+      assert %{"success" => true, "data" => data1} = result1
+      assert %{"success" => true, "data" => data2} = result2
       assert data1 == data2
       assert length(data1) == 2
     end
@@ -139,7 +140,8 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
     test "returns data with exact field structure from typed query", %{todos: _todos} do
       conn = %Plug.Conn{}
 
-      {:ok, data} = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, %{}, conn)
+      %{"success" => true, "data" => data} =
+        Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, %{}, conn)
 
       first_todo = List.first(data)
 

@@ -48,6 +48,16 @@ defmodule AshTypescript.Rpc do
       fields: [
         type: {:list, :any},
         doc: "The fields to query"
+      ],
+      filter: [
+        type: :map,
+        doc:
+          "The filter to apply to the query, using the same input format as Ash.Query.filter_input"
+      ],
+      sort: [
+        type: :string,
+        doc:
+          "The sorting to apply to the query, using the same input format as Ash.Query.sort_input"
       ]
     ],
     args: [:name, :action]
@@ -215,7 +225,7 @@ defmodule AshTypescript.Rpc do
 
   ## Parameters
   - `otp_app` - The OTP application name
-  - `typed_query_name` - The atom name of the typed query to execute  
+  - `typed_query_name` - The atom name of the typed query to execute
   - `params` - Map with optional `:input` and `:page` keys
   - `conn` - The Plug connection (for tenant context, etc.)
 
@@ -237,42 +247,37 @@ defmodule AshTypescript.Rpc do
   """
   @spec run_typed_query(atom(), atom(), map(), Plug.Conn.t()) :: {:ok, any()} | {:error, any()}
   def run_typed_query(otp_app, typed_query_name, params \\ %{}, conn) do
-    with {:ok, {resource, action, typed_query}} <- find_typed_query(otp_app, typed_query_name),
-         {:ok, rpc_action} <- find_rpc_action_for_typed_query(otp_app, resource, action.name) do
-      
-      # Build RPC parameters with the typed query's fields and RPC action name
+    with {:ok, {_resource, _action, typed_query}} <- find_typed_query(otp_app, typed_query_name) do
+      # Build RPC parameters with the typed query name and fields
       rpc_params = %{
-        "action" => Atom.to_string(rpc_action.name),
+        "typed_query_action" => Atom.to_string(typed_query_name),
         "fields" => typed_query.fields
       }
-      
-      # Add input and page if provided
-      rpc_params = 
+
+      rpc_params =
         rpc_params
         |> maybe_add_param("input", params[:input])
         |> maybe_add_param("page", params[:page])
-      
-      # Execute using the existing run_action pipeline
-      case run_action(otp_app, conn, rpc_params) do
-        %{"success" => true, "data" => data} -> {:ok, data}
-        %{"success" => false, "errors" => errors} -> {:error, {:rpc_errors, errors}}
-        other -> {:error, {:unexpected_response, other}}
-      end
+        |> maybe_add_param("filter", params[:filter])
+        |> maybe_add_param("sort", params[:sort])
+
+      run_action(otp_app, conn, rpc_params)
     end
   end
 
-  # Helper function to find a typed query by name across all domains
   defp find_typed_query(otp_app, typed_query_name) do
     otp_app
     |> Ash.Info.domains()
     |> Enum.reduce_while({:error, :not_found}, fn domain, _acc ->
       rpc_config = AshTypescript.Rpc.Info.rpc(domain)
-      
-      result = 
+
+      result =
         Enum.find_value(rpc_config, fn %{resource: resource, typed_queries: typed_queries} ->
           case Enum.find(typed_queries, &(&1.name == typed_query_name)) do
-            nil -> nil
-            typed_query -> 
+            nil ->
+              nil
+
+            typed_query ->
               action = Ash.Resource.Info.action(resource, typed_query.action)
               {resource, action, typed_query}
           end
@@ -284,39 +289,14 @@ defmodule AshTypescript.Rpc do
       end
     end)
     |> case do
-      {:error, :not_found} -> 
+      {:error, :not_found} ->
         {:error, {:typed_query_not_found, typed_query_name}}
-      result -> 
+
+      result ->
         result
     end
   end
 
-  # Helper function to find the corresponding RPC action for a typed query
-  defp find_rpc_action_for_typed_query(otp_app, resource, action_name) do
-    otp_app
-    |> Ash.Info.domains()
-    |> Enum.reduce_while({:error, :not_found}, fn domain, _acc ->
-      rpc_config = AshTypescript.Rpc.Info.rpc(domain)
-      
-      result = 
-        Enum.find_value(rpc_config, fn %{resource: ^resource, rpc_actions: rpc_actions} ->
-          Enum.find(rpc_actions, &(&1.action == action_name))
-        end)
-
-      case result do
-        nil -> {:cont, {:error, :not_found}}
-        found -> {:halt, {:ok, found}}
-      end
-    end)
-    |> case do
-      {:error, :not_found} -> 
-        {:error, {:rpc_action_not_found, {resource, action_name}}}
-      result -> 
-        result
-    end
-  end
-
-  # Helper to add optional parameters
   defp maybe_add_param(params, _key, nil), do: params
   defp maybe_add_param(params, key, value), do: Map.put(params, key, value)
 end
