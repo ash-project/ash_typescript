@@ -18,6 +18,21 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :list_recent_todos, :list_recent
       rpc_action :list_high_priority_todos, :list_high_priority
       rpc_action :destroy_todo, :destroy
+
+      typed_query :list_todos_user_page, :read do
+        ts_fields_const_name "listTodosUserPage"
+        ts_result_type_name "ListTodosUserPageResult"
+
+        fields [
+          :id,
+          :title,
+          :description,
+          :priority,
+          :comment_count,
+          %{comments: [:id, :content]},
+          %{self: %{args: %{prefix: "some prefix"}, fields: [:id, :title, :is_overdue]}}
+        ]
+      end
     end
 
     resource AshTypescript.Test.TodoComment do

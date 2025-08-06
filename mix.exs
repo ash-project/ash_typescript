@@ -147,8 +147,8 @@ defmodule AshTypescript.MixProject do
         "usage_rules.sync CLAUDE.md --all --link-to-folder deps --link-style at"
       ],
       credo: "credo --strict",
-      "spark.formatter": "spark.formatter --extensions AshTypescript.RPC",
-      "spark.cheat_sheets": "spark.cheat_sheets --extensions AshTypescript.RPC"
+      "spark.formatter": "spark.formatter --extensions AshTypescript.Rpc",
+      "spark.cheat_sheets": "spark.cheat_sheets --extensions AshTypescript.Rpc"
     ]
   end
 end

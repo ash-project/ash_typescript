@@ -6,6 +6,8 @@ defmodule AshTypescript.Rpc.Codegen do
   import AshTypescript.Filter
   import AshTypescript.Helpers
 
+  alias AshTypescript.Rpc.RequestedFieldsProcessor
+
   def generate_typescript_types(otp_app, opts \\ []) do
     endpoint_process = Keyword.get(opts, :run_endpoint, "/rpc/run")
     endpoint_validate = Keyword.get(opts, :validate_endpoint, "/rpc/validate")
@@ -31,6 +33,22 @@ defmodule AshTypescript.Rpc.Codegen do
         Enum.map(rpc_actions, fn rpc_action ->
           action = Ash.Resource.Info.action(resource, rpc_action.action)
           {resource, action, rpc_action}
+        end)
+      end)
+    end)
+  end
+
+  defp get_typed_queries(otp_app) do
+    otp_app
+    |> Ash.Info.domains()
+    |> Enum.flat_map(fn domain ->
+      # Get Rpc configuration from the domain
+      rpc_config = AshTypescript.Rpc.Info.rpc(domain)
+
+      Enum.flat_map(rpc_config, fn %{resource: resource, typed_queries: typed_queries} ->
+        Enum.map(typed_queries, fn typed_query ->
+          action = Ash.Resource.Info.action(resource, typed_query.action)
+          {resource, action, typed_query}
         end)
       end)
     end)
@@ -92,6 +110,9 @@ defmodule AshTypescript.Rpc.Codegen do
         end)
       end)
 
+    # Get typed queries
+    typed_queries = get_typed_queries(otp_app)
+
     # Discover embedded resources and include them in schema generation
     embedded_resources = AshTypescript.Codegen.find_embedded_resources(rpc_resources)
     all_resources_for_schemas = rpc_resources ++ embedded_resources
@@ -113,6 +134,8 @@ defmodule AshTypescript.Rpc.Codegen do
     #{generate_utility_types()}
 
     #{generate_helper_functions()}
+
+    #{generate_typed_queries_section(typed_queries, all_resources_for_schemas)}
 
     #{generate_rpc_functions(rpc_resources_and_actions, endpoint_process, endpoint_validate, otp_app, all_resources_for_schemas)}
     """
@@ -1664,5 +1687,160 @@ defmodule AshTypescript.Rpc.Codegen do
       {:array, inner_type} -> "Array<#{get_typed_struct_field_ts_type(inner_type)}>"
       _ -> "any"
     end
+  end
+
+  defp generate_typed_queries_section([], _all_resources), do: ""
+
+  defp generate_typed_queries_section(typed_queries, all_resources) do
+    # Group typed queries by resource for better organization
+    queries_by_resource =
+      Enum.group_by(typed_queries, fn {resource, _action, _query} -> resource end)
+
+    sections =
+      Enum.map(queries_by_resource, fn {resource, queries} ->
+        resource_name = resource |> Module.split() |> List.last()
+
+        query_types_and_consts =
+          Enum.map(queries, fn {resource, action, typed_query} ->
+            generate_typed_query_type_and_const(resource, action, typed_query, all_resources)
+          end)
+
+        """
+        // #{resource_name} Typed Queries
+        #{Enum.join(query_types_and_consts, "\n\n")}
+        """
+      end)
+
+    """
+    // ============================
+    // Typed Queries
+    // ============================
+    // Use these types and field constants for server-side rendering and data fetching.
+    // The field constants can be used with the corresponding RPC actions for client-side refetching.
+
+    #{Enum.join(sections, "\n\n")}
+    """
+  end
+
+  defp generate_typed_query_type_and_const(resource, action, typed_query, _all_resources) do
+    resource_name = resource |> Module.split() |> List.last()
+
+    # Process fields to get the template
+    atomized_fields = RequestedFieldsProcessor.atomize_requested_fields(typed_query.fields)
+
+    case RequestedFieldsProcessor.process(resource, action.name, atomized_fields) do
+      {:ok, {_select, _load, _template}} ->
+        # Format the original fields for both type and constant (preserves args structure)
+        const_fields = format_fields_for_typescript(atomized_fields)
+
+        # Generate the type
+        type_name = typed_query.ts_result_type_name
+        const_name = typed_query.ts_fields_const_name
+
+        # Check if action returns array or single result
+        is_array = action.type == :read && !action.get?
+
+        result_type =
+          if is_array do
+            "Array<InferResourceResult<#{resource_name}ResourceSchema, #{const_fields}>>"
+          else
+            "InferResourceResult<#{resource_name}ResourceSchema, #{const_fields}>"
+          end
+
+        """
+        // Type for #{typed_query.name}
+        export type #{type_name} = #{result_type};
+
+        // Field selection for #{typed_query.name} - use with RPC actions for refetching
+        export const #{const_name} = #{const_fields} as const;
+        """
+
+      {:error, error} ->
+        raise "Error processing typed query #{typed_query.name}: #{inspect(error)}"
+    end
+  end
+
+  defp format_fields_for_typescript(fields) do
+    "[" <> format_fields_array(fields) <> "]"
+  end
+
+  defp format_fields_array(fields) do
+    fields
+    |> Enum.map(&format_field_item/1)
+    |> Enum.join(", ")
+  end
+
+  defp format_field_item(field) when is_atom(field) do
+    ~s["#{format_field_name(field)}"]
+  end
+
+  defp format_field_item({field, nested_fields}) when is_atom(field) and is_list(nested_fields) do
+    # Relationship
+    "{ #{format_field_name(field)}: [#{format_fields_array(nested_fields)}] }"
+  end
+
+  defp format_field_item({field, {args, nested_fields}})
+       when is_atom(field) and is_map(args) and is_list(nested_fields) do
+    # Calculation with args - this comes from the extraction template after processing
+    args_json = format_args_map(args)
+
+    "{ #{format_field_name(field)}: { args: #{args_json}, fields: [#{format_fields_array(nested_fields)}] } }"
+  end
+
+  defp format_field_item({field, nested_fields}) when is_atom(field) and is_map(nested_fields) do
+    # Handle map structure (this might be a calculation with args and fields)
+    case nested_fields do
+      %{args: args, fields: fields} ->
+        # Complex calculation from template
+        args_json = format_args_map(args)
+
+        "{ #{format_field_name(field)}: { args: #{args_json}, fields: [#{format_fields_array(fields)}] } }"
+
+      _ ->
+        # Other map structure - treat as generic
+        inspect(nested_fields)
+    end
+  end
+
+  defp format_field_item(%{} = field_map) do
+    # Handle map - convert to JavaScript object syntax
+    formatted_pairs =
+      field_map
+      |> Enum.map(fn {k, v} ->
+        key = format_field_name(k)
+        value = format_field_item(v)
+        "#{key}: #{value}"
+      end)
+      |> Enum.join(", ")
+
+    "{ #{formatted_pairs} }"
+  end
+
+  defp format_field_item(list) when is_list(list) do
+    # Handle list - convert to JavaScript array syntax
+    formatted_items =
+      list
+      |> Enum.map(&format_field_item/1)
+      |> Enum.join(", ")
+
+    "[#{formatted_items}]"
+  end
+
+  defp format_field_item(field), do: inspect(field)
+
+  defp format_field_name(atom) do
+    formatter = AshTypescript.Rpc.output_field_formatter()
+    AshTypescript.FieldFormatter.format_field(atom, formatter)
+  end
+
+  defp format_args_map(args) do
+    formatted_args =
+      args
+      |> Enum.map(fn {k, v} ->
+        "\"#{format_field_name(k)}\": #{Jason.encode!(v)}"
+      end)
+      |> Enum.join(", ")
+
+    "{ #{formatted_args} }"
   end
 end
