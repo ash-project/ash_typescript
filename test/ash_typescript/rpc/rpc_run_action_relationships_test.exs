@@ -82,9 +82,10 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      test_todo = Enum.find(result["data"], fn todo ->
-        todo["title"] == "Todo with User"
-      end)
+      test_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] == "Todo with User"
+        end)
 
       assert test_todo != nil
       assert Map.has_key?(test_todo, "id")
@@ -119,9 +120,10 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      test_todo = Enum.find(result["data"], fn todo ->
-        todo["title"] == "Todo with User"
-      end)
+      test_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] == "Todo with User"
+        end)
 
       assert test_todo != nil
       assert Map.has_key?(test_todo, "id")
@@ -131,7 +133,8 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       # Verify the comments relationship is properly loaded
       comments = test_todo["comments"]
       assert is_list(comments)
-      assert length(comments) >= 2  # We created 2 comments
+      # We created 2 comments
+      assert length(comments) >= 2
 
       # Verify each comment has the requested fields
       Enum.each(comments, fn comment ->
@@ -140,7 +143,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
         assert Map.has_key?(comment, "rating")
         assert is_binary(comment["content"])
         assert is_integer(comment["rating"])
-        
+
         # Should not have other fields
         refute Map.has_key?(comment, "userId")
         refute Map.has_key?(comment, "todoId")
@@ -170,9 +173,10 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      test_todo = Enum.find(result["data"], fn todo ->
-        todo["title"] == "Todo with User"
-      end)
+      test_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] == "Todo with User"
+        end)
 
       assert test_todo != nil
       assert Map.has_key?(test_todo, "id")
@@ -190,7 +194,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       # Verify comments relationship
       comments = test_todo["comments"]
       assert is_list(comments)
-      
+
       Enum.each(comments, fn comment ->
         assert Map.has_key?(comment, "id")
         assert Map.has_key?(comment, "content")
@@ -305,9 +309,10 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert is_list(result["data"])
 
       # Find our nested todo
-      nested_todo = Enum.find(result["data"], fn todo ->
-        todo["title"] == "Nested Todo"
-      end)
+      nested_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] == "Nested Todo"
+        end)
 
       assert nested_todo != nil
       assert Map.has_key?(nested_todo, "id")
@@ -323,7 +328,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       # Verify nested comments relationship
       user_comments = user_data["comments"]
       assert is_list(user_comments)
-      
+
       # Verify comment structure
       Enum.each(user_comments, fn comment ->
         assert Map.has_key?(comment, "id")
@@ -361,9 +366,10 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert is_list(result["data"])
 
       # Find our nested user
-      nested_user = Enum.find(result["data"], fn user ->
-        user["name"] == "Nested User 1"
-      end)
+      nested_user =
+        Enum.find(result["data"], fn user ->
+          user["name"] == "Nested User 1"
+        end)
 
       assert nested_user != nil
       assert Map.has_key?(nested_user, "id")
@@ -373,11 +379,12 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       # Verify user's todos
       todos = nested_user["todos"]
       assert is_list(todos)
-      
+
       # Find our specific todo
-      nested_todo = Enum.find(todos, fn todo ->
-        todo["title"] == "Nested Todo"
-      end)
+      nested_todo =
+        Enum.find(todos, fn todo ->
+          todo["title"] == "Nested Todo"
+        end)
 
       if nested_todo do
         assert Map.has_key?(nested_todo, "id")
@@ -387,13 +394,13 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
         # Verify todo's comments
         todo_comments = nested_todo["comments"]
         assert is_list(todo_comments)
-        
+
         # Verify three-level nesting: user -> todos -> comments -> user
         Enum.each(todo_comments, fn comment ->
           assert Map.has_key?(comment, "id")
           assert Map.has_key?(comment, "content")
           assert Map.has_key?(comment, "user")
-          
+
           comment_user = comment["user"]
           assert Map.has_key?(comment_user, "id")
           assert Map.has_key?(comment_user, "name")
@@ -427,9 +434,10 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert is_list(result["data"])
 
       # Find our nested todo
-      nested_todo = Enum.find(result["data"], fn todo ->
-        todo["title"] == "Nested Todo"
-      end)
+      nested_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] == "Nested Todo"
+        end)
 
       assert nested_todo != nil
       assert Map.has_key?(nested_todo, "id")
@@ -442,19 +450,19 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert Map.has_key?(user_data, "id")
       assert Map.has_key?(user_data, "name")
       assert Map.has_key?(user_data, "comments")
-      
+
       user_comments = user_data["comments"]
       assert is_list(user_comments)
 
       # Verify second branch: comments -> user
       todo_comments = nested_todo["comments"]
       assert is_list(todo_comments)
-      
+
       Enum.each(todo_comments, fn comment ->
         assert Map.has_key?(comment, "id")
         assert Map.has_key?(comment, "rating")
         assert Map.has_key?(comment, "user")
-        
+
         comment_user = comment["user"]
         assert Map.has_key?(comment_user, "id")
         assert Map.has_key?(comment_user, "email")
@@ -533,12 +541,13 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      mixed_todo = Enum.find(result["data"], fn todo ->
-        todo["title"] == "Mixed Fields Todo"
-      end)
+      mixed_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] == "Mixed Fields Todo"
+        end)
 
       assert mixed_todo != nil
-      
+
       # Verify simple attributes
       assert Map.has_key?(mixed_todo, "id")
       assert Map.has_key?(mixed_todo, "title")
@@ -546,21 +555,21 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert Map.has_key?(mixed_todo, "createdAt")
       assert mixed_todo["title"] == "Mixed Fields Todo"
       assert is_boolean(mixed_todo["completed"])
-      
+
       # Verify nested relationship
       assert Map.has_key?(mixed_todo, "user")
       user_data = mixed_todo["user"]
       assert Map.has_key?(user_data, "id")
       assert Map.has_key?(user_data, "email")
       assert Map.has_key?(user_data, "comments")
-      
+
       # Should not have name since we only requested email
       refute Map.has_key?(user_data, "name")
-      
+
       # Verify nested comments
       user_comments = user_data["comments"]
       assert is_list(user_comments)
-      
+
       Enum.each(user_comments, fn comment ->
         assert Map.has_key?(comment, "id")
         assert Map.has_key?(comment, "content")
@@ -588,36 +597,37 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert is_list(result["data"])
 
       # Find our test todo
-      mixed_todo = Enum.find(result["data"], fn todo ->
-        todo["title"] == "Mixed Fields Todo"
-      end)
+      mixed_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] == "Mixed Fields Todo"
+        end)
 
       assert mixed_todo != nil
-      
+
       # Verify attributes
       assert Map.has_key?(mixed_todo, "id")
       assert Map.has_key?(mixed_todo, "title")
-      
+
       # Verify aggregate
       assert Map.has_key?(mixed_todo, "commentCount")
       assert is_integer(mixed_todo["commentCount"])
-      
+
       # Verify calculation
       assert Map.has_key?(mixed_todo, "isOverdue")
       assert is_boolean(mixed_todo["isOverdue"])
-      
+
       # Verify user relationship
       assert Map.has_key?(mixed_todo, "user")
       user_data = mixed_todo["user"]
       assert Map.has_key?(user_data, "id")
       assert Map.has_key?(user_data, "name")
       refute Map.has_key?(user_data, "email")
-      
+
       # Verify comments relationship
       assert Map.has_key?(mixed_todo, "comments")
       comments = mixed_todo["comments"]
       assert is_list(comments)
-      
+
       Enum.each(comments, fn comment ->
         assert Map.has_key?(comment, "id")
         assert Map.has_key?(comment, "content")
@@ -703,7 +713,8 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert error["details"]["field"] == "nonexistentRelation"
     end
 
-    test "returns error for relationships requested as simple atoms without field specification", %{conn: conn} do
+    test "returns error for relationships requested as simple atoms without field specification",
+         %{conn: conn} do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos",
@@ -798,9 +809,10 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert is_list(result["data"])
 
       # Find our edge todo
-      edge_todo = Enum.find(result["data"], fn todo ->
-        todo["title"] == "Edge Todo"
-      end)
+      edge_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] == "Edge Todo"
+        end)
 
       assert edge_todo != nil
       assert Map.has_key?(edge_todo, "id")
@@ -809,7 +821,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       # Verify user has only nested relationship, no direct fields
       user_data = edge_todo["user"]
       assert Map.has_key?(user_data, "comments")
-      
+
       # Should not have direct user fields like name or email
       refute Map.has_key?(user_data, "name")
       refute Map.has_key?(user_data, "email")
@@ -818,7 +830,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       # Verify nested comments
       user_comments = user_data["comments"]
       assert is_list(user_comments)
-      
+
       Enum.each(user_comments, fn comment ->
         assert Map.has_key?(comment, "id")
         assert Map.has_key?(comment, "content")

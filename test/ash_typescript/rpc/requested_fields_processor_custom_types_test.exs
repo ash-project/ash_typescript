@@ -241,14 +241,17 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           :non_existent_custom_type
         ])
 
-      assert error == {:unknown_field, :non_existent_custom_type, AshTypescript.Test.Todo, "nonExistentCustomType"}
+      assert error ==
+               {:unknown_field, :non_existent_custom_type, AshTypescript.Test.Todo,
+                "nonExistentCustomType"}
     end
 
     test "rejects duplicate custom type fields" do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           :priority_score,
-          :priority_score  # Duplicate
+          # Duplicate
+          :priority_score
         ])
 
       assert error == {:duplicate_field, :priority_score, "priorityScore"}
@@ -257,8 +260,10 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
     test "rejects mixed atom and map for same custom type" do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :color_palette,  # Simple custom type
-          %{color_palette: []}  # Same custom type with nested structure - should be rejected
+          # Simple custom type
+          :color_palette,
+          # Same custom type with nested structure - should be rejected
+          %{color_palette: []}
         ])
 
       assert error == {:duplicate_field, :color_palette, "colorPalette"}
@@ -337,7 +342,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
     test "handles custom types in all action types consistently" do
       actions = [:read, :create, :update]
-      
+
       for action <- actions do
         {:ok, {select, load, extraction_template}} =
           RequestedFieldsProcessor.process(AshTypescript.Test.Todo, action, [

@@ -48,16 +48,6 @@ defmodule AshTypescript.Rpc do
       fields: [
         type: {:list, :any},
         doc: "The fields to query"
-      ],
-      filter: [
-        type: :map,
-        doc:
-          "The filter to apply to the query, using the same input format as Ash.Query.filter_input"
-      ],
-      sort: [
-        type: :string,
-        doc:
-          "The sorting to apply to the query, using the same input format as Ash.Query.sort_input"
       ]
     ],
     args: [:name, :action]
@@ -247,7 +237,7 @@ defmodule AshTypescript.Rpc do
   """
   @spec run_typed_query(atom(), atom(), map(), Plug.Conn.t()) :: {:ok, any()} | {:error, any()}
   def run_typed_query(otp_app, typed_query_name, params \\ %{}, conn) do
-    with {:ok, {_resource, _action, typed_query}} <- find_typed_query(otp_app, typed_query_name) do
+    with {:ok, typed_query} <- find_typed_query(otp_app, typed_query_name) do
       # Build RPC parameters with the typed query name and fields
       rpc_params = %{
         "typed_query_action" => Atom.to_string(typed_query_name),
@@ -268,33 +258,17 @@ defmodule AshTypescript.Rpc do
   defp find_typed_query(otp_app, typed_query_name) do
     otp_app
     |> Ash.Info.domains()
-    |> Enum.reduce_while({:error, :not_found}, fn domain, _acc ->
+    |> Enum.reduce_while({:error, {:typed_query_not_found, typed_query_name}}, fn domain, _acc ->
       rpc_config = AshTypescript.Rpc.Info.rpc(domain)
 
-      result =
-        Enum.find_value(rpc_config, fn %{resource: resource, typed_queries: typed_queries} ->
-          case Enum.find(typed_queries, &(&1.name == typed_query_name)) do
-            nil ->
-              nil
-
-            typed_query ->
-              action = Ash.Resource.Info.action(resource, typed_query.action)
-              {resource, action, typed_query}
-          end
-        end)
-
-      case result do
-        nil -> {:cont, {:error, :not_found}}
+      Enum.find_value(rpc_config, fn %{typed_queries: typed_queries} ->
+        Enum.find(typed_queries, &(&1.name == typed_query_name))
+      end)
+      |> case do
+        nil -> {:cont, {:error, {:typed_query_not_found, typed_query_name}}}
         found -> {:halt, {:ok, found}}
       end
     end)
-    |> case do
-      {:error, :not_found} ->
-        {:error, {:typed_query_not_found, typed_query_name}}
-
-      result ->
-        result
-    end
   end
 
   defp maybe_add_param(params, _key, nil), do: params

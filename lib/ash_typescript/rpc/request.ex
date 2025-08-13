@@ -1,26 +1,26 @@
 defmodule AshTypescript.Rpc.Request do
   @moduledoc """
   Request data structure for the new RPC pipeline.
-  
+
   Contains all parsed and validated request data needed for Ash execution.
   Immutable structure that flows through the pipeline stages.
   """
 
   @type t :: %__MODULE__{
-    resource: module(),
-    action: map(),
-    tenant: term(),
-    actor: term(),
-    context: map(),
-    select: list(atom()),
-    load: list(),
-    extraction_template: map(),
-    input: map(),
-    primary_key: term(),
-    filter: map() | nil,
-    sort: list() | nil,
-    pagination: map() | nil
-  }
+          resource: module(),
+          action: map(),
+          tenant: term(),
+          actor: term(),
+          context: map(),
+          select: list(atom()),
+          load: list(),
+          extraction_template: map(),
+          input: map(),
+          primary_key: term(),
+          filter: map() | nil,
+          sort: list() | nil,
+          pagination: map() | nil
+        }
 
   defstruct [
     :resource,

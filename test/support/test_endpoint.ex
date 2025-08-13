@@ -6,6 +6,6 @@ defmodule AshTypescript.Test.TestEndpoint do
 
   # Add Tidewave plug conditionally (only if the module is loaded)
   if Code.ensure_loaded?(Tidewave) do
-    plug Tidewave
+    plug(Tidewave)
   end
 end

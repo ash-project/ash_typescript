@@ -216,7 +216,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
           %{user: [:invalid_field]}
         ])
 
-      assert error == {:unknown_field, :invalid_field, AshTypescript.Test.User, "user.invalidField"}
+      assert error ==
+               {:unknown_field, :invalid_field, AshTypescript.Test.User, "user.invalidField"}
     end
 
     test "returns error for invalid nested relationship" do
@@ -225,7 +226,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
           %{user: [%{invalid_relationship: [:id]}]}
         ])
 
-      assert error == {:unknown_field, :invalid_relationship, AshTypescript.Test.User, "user.invalidRelationship"}
+      assert error ==
+               {:unknown_field, :invalid_relationship, AshTypescript.Test.User,
+                "user.invalidRelationship"}
     end
 
     test "returns error for invalid deeply nested field" do
@@ -241,7 +244,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
           }
         ])
 
-      assert error == {:unknown_field, :invalid_field, AshTypescript.Test.TodoComment, "user.comments.invalidField"}
+      assert error ==
+               {:unknown_field, :invalid_field, AshTypescript.Test.TodoComment,
+                "user.comments.invalidField"}
     end
 
     test "validates relationship existence before processing nested fields" do
@@ -250,7 +255,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
           %{nonexistent_relation: [:id, :name]}
         ])
 
-      assert error == {:unknown_field, :nonexistent_relation, AshTypescript.Test.Todo, "nonexistentRelation"}
+      assert error ==
+               {:unknown_field, :nonexistent_relation, AshTypescript.Test.Todo,
+                "nonexistentRelation"}
     end
 
     test "rejects relationships requested as simple atoms without field specification" do

@@ -22,29 +22,6 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
   @moduletag :ash_typescript
 
-  # Setup helpers
-  defp clean_ets_tables do
-    [
-      AshTypescript.Test.Todo,
-      AshTypescript.Test.User,
-      AshTypescript.Test.TodoComment
-    ]
-    |> Enum.each(fn resource ->
-      try do
-        resource
-        |> Ash.read!(authorize?: false)
-        |> Enum.each(&Ash.destroy!(&1, authorize?: false))
-      rescue
-        _ -> :ok
-      end
-    end)
-  end
-
-  setup do
-    clean_ets_tables()
-    :ok
-  end
-
   # Helper to create test dataset
   defp create_test_dataset(conn, count) do
     user = TestHelpers.create_test_user(conn, fields: ["id"])

@@ -125,7 +125,6 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp discover_action(otp_app, params) do
     cond do
-      # Check for typed query first (but not empty string)
       typed_query_name = params[:typed_query_action] ->
         if typed_query_name == "" do
           {:error, {:missing_required_parameter, :typed_query_action}}
@@ -140,7 +139,6 @@ defmodule AshTypescript.Rpc.Pipeline do
           end
         end
 
-      # Fall back to RPC action (but not empty string)
       action_name = params[:action] ->
         if action_name == "" do
           {:error, {:missing_required_parameter, :action}}

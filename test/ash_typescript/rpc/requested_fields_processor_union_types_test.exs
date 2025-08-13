@@ -107,15 +107,17 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
       # that all the expected fields are present regardless of order
       assert [:id | rest] = extraction_template
       assert [{:content, content_fields}] = rest
-      
+
       # Sort the content fields to compare them
       sorted_content_fields = Enum.sort(content_fields)
-      expected_sorted = Enum.sort([
-        {:text, [:id, :text, :formatting]},
-        {:checklist, [:id, :title, :items]},
-        {:link, [:id, :url, :title]}
-      ])
-      
+
+      expected_sorted =
+        Enum.sort([
+          {:text, [:id, :text, :formatting]},
+          {:checklist, [:id, :title, :items]},
+          {:link, [:id, :url, :title]}
+        ])
+
       assert sorted_content_fields == expected_sorted
     end
 
@@ -230,20 +232,23 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
       # Check extraction template, handling potential ordering issues
       assert [:id | rest] = extraction_template
       assert [{:content, content_fields}] = rest
-      
+
       # Simple members should be first, then complex members
       assert :note in content_fields
-      
+
       # Find the complex members
-      text_entry = Enum.find(content_fields, fn 
-        {:text, _} -> true
-        _ -> false
-      end)
-      checklist_entry = Enum.find(content_fields, fn 
-        {:checklist, _} -> true
-        _ -> false
-      end)
-      
+      text_entry =
+        Enum.find(content_fields, fn
+          {:text, _} -> true
+          _ -> false
+        end)
+
+      checklist_entry =
+        Enum.find(content_fields, fn
+          {:checklist, _} -> true
+          _ -> false
+        end)
+
       assert text_entry == {:text, [:id, :text, :formatting, :display_text]}
       assert checklist_entry == {:checklist, [:id, :title, :total_items]}
     end
@@ -330,7 +335,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
       # Check extraction template, handling ordering
       assert [:id | rest] = extraction_template
       assert [{:attachments, attachment_fields}] = rest
-      
+
       # Check all expected fields are present
       assert :url in attachment_fields
       assert {:file, [:filename, :size, :mime_type]} in attachment_fields
@@ -359,7 +364,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
       # Check extraction template, handling ordering
       assert [:id | rest] = extraction_template
       assert [{:attachments, attachment_fields}] = rest
-      
+
       # Check all expected fields are present
       assert :url in attachment_fields
       assert {:file, [:filename, :size, :mime_type]} in attachment_fields
@@ -721,17 +726,19 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
       assert select == [:content]
       assert load == []
-      
+
       # Check extraction template, handling ordering
       assert [{:content, content_fields}] = extraction_template
-      
+
       # Sort to compare
       sorted_fields = Enum.sort(content_fields)
-      expected_sorted = Enum.sort([
-        {:text, [:id, :text]},
-        {:checklist, [:id, :title]}
-      ])
-      
+
+      expected_sorted =
+        Enum.sort([
+          {:text, [:id, :text]},
+          {:checklist, [:id, :title]}
+        ])
+
       assert sorted_fields == expected_sorted
     end
 

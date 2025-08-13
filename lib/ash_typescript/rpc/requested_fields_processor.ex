@@ -225,6 +225,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
         field_name when is_binary(field_name) ->
           # Convert string to atom and process
           atom_field_name = String.to_existing_atom(field_name)
+
           case classify_field(resource, atom_field_name, path) do
             :attribute ->
               {select ++ [atom_field_name], load, template ++ [atom_field_name]}
@@ -342,25 +343,81 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
           # Handle tuple format {field_name, field_spec}
           case classify_field(resource, field_name, path) do
             :relationship ->
-              process_relationship(resource, field_name, nested_fields, path, select, load, template)
+              process_relationship(
+                resource,
+                field_name,
+                nested_fields,
+                path,
+                select,
+                load,
+                template
+              )
 
             :embedded_resource ->
-              process_embedded_resource(resource, field_name, nested_fields, path, select, load, template)
+              process_embedded_resource(
+                resource,
+                field_name,
+                nested_fields,
+                path,
+                select,
+                load,
+                template
+              )
 
             :embedded_resource_array ->
-              process_embedded_resource(resource, field_name, nested_fields, path, select, load, template)
+              process_embedded_resource(
+                resource,
+                field_name,
+                nested_fields,
+                path,
+                select,
+                load,
+                template
+              )
 
             :calculation_complex ->
-              process_calculation_complex(resource, field_name, nested_fields, path, select, load, template)
+              process_calculation_complex(
+                resource,
+                field_name,
+                nested_fields,
+                path,
+                select,
+                load,
+                template
+              )
 
             :complex_aggregate ->
-              process_calculation_complex(resource, field_name, nested_fields, path, select, load, template)
+              process_calculation_complex(
+                resource,
+                field_name,
+                nested_fields,
+                path,
+                select,
+                load,
+                template
+              )
 
             :typed_struct ->
-              process_typed_struct(resource, field_name, nested_fields, path, select, load, template)
+              process_typed_struct(
+                resource,
+                field_name,
+                nested_fields,
+                path,
+                select,
+                load,
+                template
+              )
 
             :union_attribute ->
-              process_union_attribute(resource, field_name, nested_fields, path, select, load, template)
+              process_union_attribute(
+                resource,
+                field_name,
+                nested_fields,
+                path,
+                select,
+                load,
+                template
+              )
 
             {:error, :not_found} ->
               field_path = build_field_path(path, field_name)
@@ -579,7 +636,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
         _ -> nested_select ++ nested_load
       end
 
-    load_spec = 
+    load_spec =
       if load_fields == [] do
         # When there are no nested fields to load, just pass the args directly
         {calc_name, args}
@@ -778,13 +835,15 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
     # Also supports shorthand: %{member_name: member_fields} for single member selection
 
     # Normalize shorthand map format to list format
-    normalized_fields = 
+    normalized_fields =
       case nested_fields do
         %{} = field_map when map_size(field_map) > 0 ->
           # Convert map to list format: %{member: fields} -> [%{member: fields}]
           [field_map]
+
         fields when is_list(fields) ->
           fields
+
         _ ->
           nested_fields
       end
@@ -839,7 +898,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
           %{} = member_map ->
             # Union member(s) with field selection - process each member in the map
             # Map can have one or more key-value pairs
-            Enum.reduce(member_map, {load_acc, template_acc}, fn {member, member_fields}, {l_acc, t_acc} ->
+            Enum.reduce(member_map, {load_acc, template_acc}, fn {member, member_fields},
+                                                                 {l_acc, t_acc} ->
               if Keyword.has_key?(union_types, member) do
                 member_config = Keyword.get(union_types, member)
 
@@ -1256,11 +1316,19 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
     field_names =
       Enum.flat_map(fields, fn field ->
         case field do
-          field_name when is_atom(field_name) -> [field_name]
-          field_name when is_binary(field_name) -> [String.to_atom(field_name)]
-          %{} = field_map -> Map.keys(field_map)
-          {field_name, _field_spec} -> [field_name]
-          invalid_field -> 
+          field_name when is_atom(field_name) ->
+            [field_name]
+
+          field_name when is_binary(field_name) ->
+            [String.to_atom(field_name)]
+
+          %{} = field_map ->
+            Map.keys(field_map)
+
+          {field_name, _field_spec} ->
+            [field_name]
+
+          invalid_field ->
             throw({:invalid_field_type, invalid_field, path})
         end
       end)

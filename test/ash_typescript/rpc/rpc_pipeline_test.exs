@@ -43,7 +43,8 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
       # Should fail when trying to process relationship with invalid spec
-      assert {:unsupported_field_combination, :relationship, :user, "invalid_spec", "user"} = error
+      assert {:unsupported_field_combination, :relationship, :user, "invalid_spec", "user"} =
+               error
     end
 
     test "fails on simple attribute with specification" do
@@ -286,10 +287,12 @@ defmodule AshTypescript.Rpc.PipelineTest do
       # Embedded resource should handle both select and load appropriately
       # This tests the dual-nature processing of embedded resources
       # Check if metadata field is present in the extraction template list
-      metadata_present = Enum.any?(request.extraction_template, fn
-        {:metadata, _} -> true
-        _ -> false
-      end)
+      metadata_present =
+        Enum.any?(request.extraction_template, fn
+          {:metadata, _} -> true
+          _ -> false
+        end)
+
       assert metadata_present
     end
   end

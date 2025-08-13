@@ -2,7 +2,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-
   describe "simple typed struct fields" do
     test "processes typed struct attribute fields correctly" do
       {:ok, {select, load, extraction_template}} =
@@ -14,7 +13,12 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
       assert select == [:id, :title, :timestamp_info]
       assert load == []
-      assert extraction_template == [:id, :title, timestamp_info: [:created_by, :created_at, :updated_by]]
+
+      assert extraction_template == [
+               :id,
+               :title,
+               timestamp_info: [:created_by, :created_at, :updated_by]
+             ]
     end
 
     test "processes all typed struct fields" do
@@ -26,7 +30,11 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
       assert select == [:id, :timestamp_info]
       assert load == []
-      assert extraction_template == [:id, timestamp_info: [:created_by, :created_at, :updated_by, :updated_at]]
+
+      assert extraction_template == [
+               :id,
+               timestamp_info: [:created_by, :created_at, :updated_by, :updated_at]
+             ]
     end
 
     test "processes statistics typed struct with numeric fields" do
@@ -38,7 +46,11 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
       assert select == [:id, :statistics]
       assert load == []
-      assert extraction_template == [:id, statistics: [:view_count, :edit_count, :completion_time_seconds]]
+
+      assert extraction_template == [
+               :id,
+               statistics: [:view_count, :edit_count, :completion_time_seconds]
+             ]
     end
 
     test "processes statistics typed struct with composite fields" do
@@ -137,7 +149,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           %{timestamp_info: [:invalid_field]}
         ])
 
-      assert error == {:unknown_field, :invalid_field, "typed_struct", "timestampInfo.invalidField"}
+      assert error ==
+               {:unknown_field, :invalid_field, "typed_struct", "timestampInfo.invalidField"}
     end
 
     test "returns error for invalid nested typed struct field" do
@@ -241,12 +254,14 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
       result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
 
       assert {:ok, {[:statistics], [], template}} = result
+
       assert template == [
-        {:statistics, [
-          :view_count,
-          {:performance_metrics, [:focus_time_seconds, :efficiency_score]}
-        ]}
-      ]
+               {:statistics,
+                [
+                  :view_count,
+                  {:performance_metrics, [:focus_time_seconds, :efficiency_score]}
+                ]}
+             ]
     end
 
     test "rejects invalid field names in nested maps within typed structs" do
@@ -260,7 +275,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
       result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
 
-      assert {:error, {:unknown_field, :invalid_field, "map", "statistics.performanceMetrics.invalidField"}} = result
+      assert {:error,
+              {:unknown_field, :invalid_field, "map",
+               "statistics.performanceMetrics.invalidField"}} = result
     end
 
     test "validates duplicate field detection in maps within typed structs" do
@@ -270,7 +287,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
             %{
               performance_metrics: [
                 :efficiency_score,
-                :efficiency_score  # duplicate
+                # duplicate
+                :efficiency_score
               ]
             }
           ]
@@ -279,7 +297,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
       result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
 
-      assert {:error, {:duplicate_field, :efficiency_score, "statistics.performanceMetrics.efficiencyScore"}} = result
+      assert {:error,
+              {:duplicate_field, :efficiency_score,
+               "statistics.performanceMetrics.efficiencyScore"}} = result
     end
 
     test "supports all valid fields in performance_metrics map" do
@@ -301,16 +321,19 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
       result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
 
       assert {:ok, {[:statistics], [], template}} = result
+
       assert template == [
-        {:statistics, [
-          {:performance_metrics, [
-            :focus_time_seconds,
-            :interruption_count,
-            :efficiency_score,
-            :task_complexity
-          ]}
-        ]}
-      ]
+               {:statistics,
+                [
+                  {:performance_metrics,
+                   [
+                     :focus_time_seconds,
+                     :interruption_count,
+                     :efficiency_score,
+                     :task_complexity
+                   ]}
+                ]}
+             ]
     end
 
     test "handles mixed selection of map fields and regular fields in typed struct" do
@@ -329,15 +352,17 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
       result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
 
       assert {:ok, {[:id, :statistics], [], template}} = result
+
       assert template == [
-        :id,
-        {:statistics, [
-          :view_count,
-          :edit_count,
-          :difficulty_rating,
-          {:performance_metrics, [:efficiency_score, :task_complexity]}
-        ]}
-      ]
+               :id,
+               {:statistics,
+                [
+                  :view_count,
+                  :edit_count,
+                  :difficulty_rating,
+                  {:performance_metrics, [:efficiency_score, :task_complexity]}
+                ]}
+             ]
     end
   end
 end

@@ -23,6 +23,9 @@ defmodule AshTypescript.MixProject do
       homepage_url: "https://github.com/ash-project/ash_typescript",
       dialyzer: [
         plt_add_apps: [:mix]
+      ],
+      preferred_cli_env: [
+        "test.codegen": :test
       ]
     ]
   end

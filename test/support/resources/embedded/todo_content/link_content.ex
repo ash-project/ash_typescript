@@ -48,7 +48,16 @@ defmodule AshTypescript.Test.TodoContent.LinkContent do
 
     create :create do
       primary? true
-      accept [:url, :title, :description, :preview_image_url, :is_external, :last_checked_at, :content_type]
+
+      accept [
+        :url,
+        :title,
+        :description,
+        :preview_image_url,
+        :is_external,
+        :last_checked_at,
+        :content_type
+      ]
     end
   end
 end

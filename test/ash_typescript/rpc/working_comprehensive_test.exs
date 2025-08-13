@@ -23,30 +23,6 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
   @moduletag :ash_typescript
 
-  # Setup helpers
-  defp clean_ets_tables do
-    # Clean up ETS tables between tests to ensure isolation
-    [
-      AshTypescript.Test.Todo,
-      AshTypescript.Test.User,
-      AshTypescript.Test.TodoComment
-    ]
-    |> Enum.each(fn resource ->
-      try do
-        resource
-        |> Ash.read!(authorize?: false)
-        |> Enum.each(&Ash.destroy!(&1, authorize?: false))
-      rescue
-        _ -> :ok
-      end
-    end)
-  end
-
-  setup do
-    clean_ets_tables()
-    :ok
-  end
-
   describe "basic CRUD operations with precise assertions" do
     test "create_todo -> get_todo -> list_todos complete workflow" do
       conn = TestHelpers.build_rpc_conn()
@@ -479,7 +455,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
             # Comments relationship with nested user data
             %{
               "comments" => [
-                "id", 
+                "id",
                 "content",
                 "rating",
                 "isHelpful",
@@ -494,7 +470,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
           ]
         })
 
-# Debug removed for cleaner output
+      # Debug removed for cleaner output
       assert get_result["success"] == true
 
       data = get_result["data"]

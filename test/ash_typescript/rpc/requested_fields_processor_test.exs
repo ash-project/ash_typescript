@@ -209,7 +209,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
           %{user: [:non_existing_field]}
         ])
 
-      assert error == {:unknown_field, :non_existing_field, AshTypescript.Test.User, "user.nonExistingField"}
+      assert error ==
+               {:unknown_field, :non_existing_field, AshTypescript.Test.User,
+                "user.nonExistingField"}
     end
   end
 

@@ -18,28 +18,9 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
   use ExUnit.Case, async: false
 
   alias AshTypescript.Rpc
-  alias AshTypescript.Test.{Todo, User, TodoComment, TestHelpers}
+  alias AshTypescript.Test.TestHelpers
 
   @moduletag :ash_typescript
-
-  defp clean_ets_tables do
-    # Clean up ETS tables between tests to ensure isolation
-    [Todo, User, TodoComment]
-    |> Enum.each(fn resource ->
-      try do
-        resource
-        |> Ash.read!(authorize?: false)
-        |> Enum.each(&Ash.destroy!(&1, authorize?: false))
-      rescue
-        _ -> :ok
-      end
-    end)
-  end
-
-  setup do
-    clean_ets_tables()
-    :ok
-  end
 
   describe "basic CRUD operations with precise assertions" do
     test "create_todo -> get_todo -> list_todos complete workflow" do

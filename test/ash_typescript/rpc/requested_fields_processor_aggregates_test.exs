@@ -125,7 +125,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           %{recent_comments: [:id, :content, :rating]}
         ])
 
-      assert error == {:unknown_field, :recent_comments, AshTypescript.Test.Todo, "recentComments"}
+      assert error ==
+               {:unknown_field, :recent_comments, AshTypescript.Test.Todo, "recentComments"}
     end
 
     test "rejects non-existent complex aggregate with nested relationships" do
@@ -156,7 +157,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
     test "rejects non-existent complex aggregate as simple atom" do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :latest_comment  # Non-existent aggregate requested as simple atom
+          # Non-existent aggregate requested as simple atom
+          :latest_comment
         ])
 
       assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, "latestComment"}
@@ -166,8 +168,10 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           :id,
-          :comment_count,  # Valid primitive aggregate
-          %{latest_comment: [:id, :content]}  # Invalid complex aggregate
+          # Valid primitive aggregate
+          :comment_count,
+          # Invalid complex aggregate
+          %{latest_comment: [:id, :content]}
         ])
 
       assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, "latestComment"}
@@ -252,7 +256,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           :non_existent_aggregate
         ])
 
-      assert error == {:unknown_field, :non_existent_aggregate, AshTypescript.Test.Todo, "nonExistentAggregate"}
+      assert error ==
+               {:unknown_field, :non_existent_aggregate, AshTypescript.Test.Todo,
+                "nonExistentAggregate"}
     end
 
     test "rejects duplicate aggregate fields" do
@@ -278,7 +284,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
     test "handles non-existent aggregate" do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :latest_comment  # Non-existent aggregate requested as simple atom
+          # Non-existent aggregate requested as simple atom
+          :latest_comment
         ])
 
       assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, "latestComment"}

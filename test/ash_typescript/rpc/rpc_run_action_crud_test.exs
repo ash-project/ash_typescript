@@ -42,7 +42,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
       assert result["success"] == true
       assert is_list(result["data"])
-      
+
       # Verify each todo has only the requested fields
       Enum.each(result["data"], fn todo ->
         assert Map.has_key?(todo, "id")
@@ -61,7 +61,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
       assert result["success"] == true
       assert is_list(result["data"])
-      
+
       # Verify each todo has attributes and aggregate
       Enum.each(result["data"], fn todo ->
         assert Map.has_key?(todo, "id")
@@ -78,12 +78,12 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
       assert result["success"] == true
       assert is_list(result["data"])
-      
+
       # Verify each todo has attributes and loaded relationship
       Enum.each(result["data"], fn todo ->
         assert Map.has_key?(todo, "id")
         assert Map.has_key?(todo, "user")
-        
+
         if todo["user"] do
           user = todo["user"]
           assert Map.has_key?(user, "id")
@@ -127,7 +127,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
       assert result["success"] == true
       todo = result["data"]
-      
+
       # Verify created todo has only the requested fields
       assert todo["title"] == "New Todo"
       assert todo["completed"] == false
@@ -149,11 +149,11 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
       assert result["success"] == true
       todo = result["data"]
-      
+
       # Verify created todo has attributes and loaded relationship
       assert Map.has_key?(todo, "user")
       assert todo["title"] == "Todo with User"
-      
+
       user_data = todo["user"]
       assert user_data["id"] == user["id"]
       assert user_data["name"] == "Jane Doe"
@@ -206,7 +206,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
       assert result["success"] == true
       updated_todo = result["data"]
-      
+
       # Verify updated todo has only the requested fields
       assert updated_todo["id"] == todo["id"]
       assert updated_todo["title"] == "Updated Title"

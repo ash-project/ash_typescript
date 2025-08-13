@@ -93,15 +93,18 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
       case result do
         {:ok, {[], load_fields, template}} ->
           assert load_fields == [{:summary, []}]
+
           assert template == [
-            {:summary, [
-              :view_count,
-              {:performance_metrics, [
-                :focus_time_seconds,
-                {:nested_data, [:value, :timestamp]}
-              ]}
-            ]}
-          ]
+                   {:summary,
+                    [
+                      :view_count,
+                      {:performance_metrics,
+                       [
+                         :focus_time_seconds,
+                         {:nested_data, [:value, :timestamp]}
+                       ]}
+                    ]}
+                 ]
 
         {:error, _} ->
           # If this fails, it's because the test data doesn't have nested_data
@@ -128,7 +131,12 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
 
       result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
 
-      assert {:ok, {[:statistics], [], [{:statistics, [:view_count, {:performance_metrics, [:efficiency_score, :task_complexity]}]}]}} = result
+      assert {:ok,
+              {[:statistics], [],
+               [
+                 {:statistics,
+                  [:view_count, {:performance_metrics, [:efficiency_score, :task_complexity]}]}
+               ]}} = result
     end
   end
 end

@@ -31,31 +31,33 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
         })
 
       # Create some comments for aggregates
-      %{"success" => true} = Rpc.run_action(:ash_typescript, conn, %{
-        "action" => "create_todo_comment",
-        "input" => %{
-          "content" => "First comment",
-          "authorName" => "John Doe",
-          "todoId" => todo["id"],
-          "userId" => user["id"],
-          "rating" => 5,
-          "isHelpful" => true
-        },
-        "fields" => ["id"]
-      })
+      %{"success" => true} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_todo_comment",
+          "input" => %{
+            "content" => "First comment",
+            "authorName" => "John Doe",
+            "todoId" => todo["id"],
+            "userId" => user["id"],
+            "rating" => 5,
+            "isHelpful" => true
+          },
+          "fields" => ["id"]
+        })
 
-      %{"success" => true} = Rpc.run_action(:ash_typescript, conn, %{
-        "action" => "create_todo_comment", 
-        "input" => %{
-          "content" => "Second comment",
-          "authorName" => "John Doe",
-          "todoId" => todo["id"],
-          "userId" => user["id"],
-          "rating" => 3,
-          "isHelpful" => false
-        },
-        "fields" => ["id"]
-      })
+      %{"success" => true} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_todo_comment",
+          "input" => %{
+            "content" => "Second comment",
+            "authorName" => "John Doe",
+            "todoId" => todo["id"],
+            "userId" => user["id"],
+            "rating" => 3,
+            "isHelpful" => false
+          },
+          "fields" => ["id"]
+        })
 
       %{conn: conn, user: user, todo: todo}
     end
@@ -69,7 +71,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       assert result["success"] == true
       assert is_list(result["data"])
-      
+
       # Verify each todo has the aggregate field
       Enum.each(result["data"], fn todo ->
         assert Map.has_key?(todo, "id")
@@ -88,7 +90,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       assert result["success"] == true
       assert is_list(result["data"])
-      
+
       # Verify each todo has the filtered aggregate
       Enum.each(result["data"], fn todo ->
         assert Map.has_key?(todo, "id")
@@ -106,7 +108,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       assert result["success"] == true
       assert is_list(result["data"])
-      
+
       # Verify each todo has the exists aggregate
       Enum.each(result["data"], fn todo ->
         assert Map.has_key?(todo, "id")
@@ -123,16 +125,16 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       assert result["success"] == true
       assert is_list(result["data"])
-      
+
       # Verify each todo has the numeric aggregates
       Enum.each(result["data"], fn todo ->
         assert Map.has_key?(todo, "id")
-        
+
         # These can be null if no comments exist
         if todo["averageRating"] do
           assert is_number(todo["averageRating"])
         end
-        
+
         if todo["highestRating"] do
           assert is_number(todo["highestRating"])
         end
@@ -148,11 +150,11 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       assert result["success"] == true
       assert is_list(result["data"])
-      
+
       # Verify each todo has the first aggregate
       Enum.each(result["data"], fn todo ->
         assert Map.has_key?(todo, "id")
-        
+
         # Can be null if no comments
         if todo["latestCommentContent"] do
           assert is_binary(todo["latestCommentContent"])
@@ -169,7 +171,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       assert result["success"] == true
       assert is_list(result["data"])
-      
+
       # Verify each todo has the list aggregate
       Enum.each(result["data"], fn todo ->
         assert Map.has_key?(todo, "id")
@@ -281,7 +283,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
           "fields" => [%{"latestComment" => []}]
         })
 
-      assert result["success"] == false  
+      assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
@@ -292,7 +294,8 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos",
-          "fields" => ["latestComment"]  # Non-existent aggregate requested as simple string
+          # Non-existent aggregate requested as simple string
+          "fields" => ["latestComment"]
         })
 
       assert result["success"] == false
@@ -331,17 +334,18 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
         })
 
       # Create comments for mixed testing
-      %{"success" => true} = Rpc.run_action(:ash_typescript, conn, %{
-        "action" => "create_todo_comment",
-        "input" => %{
-          "content" => "Test comment",
-          "authorName" => "Mixed User",
-          "todoId" => todo["id"],
-          "userId" => user["id"],
-          "rating" => 4
-        },
-        "fields" => ["id"]
-      })
+      %{"success" => true} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_todo_comment",
+          "input" => %{
+            "content" => "Test comment",
+            "authorName" => "Mixed User",
+            "todoId" => todo["id"],
+            "userId" => user["id"],
+            "rating" => 4
+          },
+          "fields" => ["id"]
+        })
 
       %{conn: conn, user: user, todo: todo}
     end
@@ -365,23 +369,23 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       assert result["success"] == true
       assert is_list(result["data"])
-      
+
       # Verify each todo has all requested fields
       Enum.each(result["data"], fn todo ->
         assert Map.has_key?(todo, "id")
         assert Map.has_key?(todo, "user")
-        
+
         # Verify types
         assert is_integer(todo["commentCount"])
         assert is_boolean(todo["hasComments"])
         assert is_binary(todo["title"])
         assert is_list(todo["commentAuthors"])
-        
+
         # latestCommentContent can be null if no comments
         if todo["latestCommentContent"] do
           assert is_binary(todo["latestCommentContent"])
         end
-        
+
         # Verify relationship structure
         if todo["user"] do
           user = todo["user"]
@@ -411,16 +415,16 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       assert result["success"] == true
       assert is_list(result["data"])
-      
+
       # Verify each todo has all requested fields including aggregates and calculations
       Enum.each(result["data"], fn todo ->
         assert Map.has_key?(todo, "id")
-        
+
         # Verify types
         assert is_integer(todo["commentCount"])
         assert is_list(todo["recentCommentIds"])
         assert is_boolean(todo["isOverdue"])
-        
+
         # Verify calculation with args
         if todo["self"] do
           self_data = todo["self"]
@@ -515,14 +519,16 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       assert result["success"] == true
       todo = result["data"]
-      
+
       # Verify created todo has the requested fields including aggregates
       assert Map.has_key?(todo, "id")
-      
+
       assert todo["title"] == "New Todo with Aggregates"
       assert is_integer(todo["commentCount"])
-      assert todo["commentCount"] == 0  # New todo should have no comments
-      assert is_nil(todo["latestCommentContent"])  # New todo should have no latest comment
+      # New todo should have no comments
+      assert todo["commentCount"] == 0
+      # New todo should have no latest comment
+      assert is_nil(todo["latestCommentContent"])
     end
 
     test "processes aggregates in update actions", %{conn: conn, user: user} do
@@ -539,17 +545,18 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
         })
 
       # Create a comment
-      %{"success" => true} = Rpc.run_action(:ash_typescript, conn, %{
-        "action" => "create_todo_comment",
-        "input" => %{
-          "content" => "Update test comment",
-          "authorName" => "Action User",
-          "todoId" => todo["id"],
-          "userId" => user["id"],
-          "rating" => 4
-        },
-        "fields" => ["id"]
-      })
+      %{"success" => true} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_todo_comment",
+          "input" => %{
+            "content" => "Update test comment",
+            "authorName" => "Action User",
+            "todoId" => todo["id"],
+            "userId" => user["id"],
+            "rating" => 4
+          },
+          "fields" => ["id"]
+        })
 
       # Now update the todo and request aggregates
       result =
@@ -561,7 +568,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
           },
           "fields" => [
             "id",
-            "title", 
+            "title",
             "commentCount",
             "recentCommentIds"
           ]
@@ -569,18 +576,21 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       assert result["success"] == true
       updated_todo = result["data"]
-      
+
       # Verify updated todo has the requested fields including aggregates
       assert updated_todo["id"] == todo["id"]
       assert updated_todo["title"] == "Updated Title"
       assert is_integer(updated_todo["commentCount"])
-      assert updated_todo["commentCount"] == 1  # Should have exactly 1 comment
+      # Should have exactly 1 comment
+      assert updated_todo["commentCount"] == 1
       assert is_list(updated_todo["recentCommentIds"])
-      assert length(updated_todo["recentCommentIds"]) == 1  # Should have exactly 1 comment ID
-      
+      # Should have exactly 1 comment ID
+      assert length(updated_todo["recentCommentIds"]) == 1
+
       # Verify the comment IDs structure
       Enum.each(updated_todo["recentCommentIds"], fn comment_id ->
-        assert is_binary(comment_id)  # Should be UUID strings
+        # Should be UUID strings
+        assert is_binary(comment_id)
       end)
     end
   end

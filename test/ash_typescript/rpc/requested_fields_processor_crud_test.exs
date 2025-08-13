@@ -104,7 +104,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
           %{user: [:invalid_field]}
         ])
 
-      assert error == {:unknown_field, :invalid_field, AshTypescript.Test.User, "user.invalidField"}
+      assert error ==
+               {:unknown_field, :invalid_field, AshTypescript.Test.User, "user.invalidField"}
     end
 
     test "returns error for invalid relationship" do
@@ -113,7 +114,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
           %{invalid_relationship: [:id]}
         ])
 
-      assert error == {:unknown_field, :invalid_relationship, AshTypescript.Test.Todo, "invalidRelationship"}
+      assert error ==
+               {:unknown_field, :invalid_relationship, AshTypescript.Test.Todo,
+                "invalidRelationship"}
     end
   end
 end

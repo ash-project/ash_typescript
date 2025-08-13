@@ -128,7 +128,9 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     end
 
     test "embedded resource field error includes nested context" do
-      nested_error = {:unknown_field, :invalid_metadata_field, Todo.Metadata, "metadata.invalidMetadataField"}
+      nested_error =
+        {:unknown_field, :invalid_metadata_field, Todo.Metadata, "metadata.invalidMetadataField"}
+
       error = {:invalid_fields, {:embedded_resource_field_error, :metadata, nested_error}}
 
       response = ErrorBuilder.build_error_response(error)
@@ -152,7 +154,8 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
 
     test "unsupported field combination error shows all context" do
       error =
-        {:invalid_fields, {:unsupported_field_combination, :relationship, :user, "invalid_spec", "user"}}
+        {:invalid_fields,
+         {:unsupported_field_combination, :relationship, :user, "invalid_spec", "user"}}
 
       response = ErrorBuilder.build_error_response(error)
 

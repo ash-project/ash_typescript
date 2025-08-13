@@ -21,29 +21,6 @@ defmodule AshTypescript.Rpc.CalculationsTest do
 
   @moduletag :ash_typescript
 
-  # Setup helpers
-  defp clean_ets_tables do
-    [
-      AshTypescript.Test.Todo,
-      AshTypescript.Test.User,
-      AshTypescript.Test.TodoComment
-    ]
-    |> Enum.each(fn resource ->
-      try do
-        resource
-        |> Ash.read!(authorize?: false)
-        |> Enum.each(&Ash.destroy!(&1, authorize?: false))
-      rescue
-        _ -> :ok
-      end
-    end)
-  end
-
-  setup do
-    clean_ets_tables()
-    :ok
-  end
-
   describe "boolean calculations" do
     test "isOverdue calculation returns correct boolean values" do
       conn = TestHelpers.build_rpc_conn()

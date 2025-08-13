@@ -254,7 +254,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           :id,
-          :self  # This calculation requires arguments but requested as simple atom
+          # This calculation requires arguments but requested as simple atom
+          :self
         ])
 
       assert error == {:calculation_requires_args, :self, "self"}
@@ -264,7 +265,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           %{
-            is_overdue: %{args: %{}}  # This calculation doesn't take arguments
+            # This calculation doesn't take arguments
+            is_overdue: %{args: %{}}
           }
         ])
 
@@ -275,7 +277,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           %{
-            comment_count: [:id]  # Aggregates don't support nested field selection
+            # Aggregates don't support nested field selection
+            comment_count: [:id]
           }
         ])
 
@@ -286,7 +289,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           %{
-            title: [:invalid]  # Attributes don't support nested field selection
+            # Attributes don't support nested field selection
+            title: [:invalid]
           }
         ])
 
@@ -301,7 +305,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           }
         ])
 
-      assert error == {:unknown_field, :invalid_field, AshTypescript.Test.Todo, "self.invalidField"}
+      assert error ==
+               {:unknown_field, :invalid_field, AshTypescript.Test.Todo, "self.invalidField"}
     end
 
     test "rejects invalid nested relationship fields in calculations" do
@@ -315,7 +320,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           }
         ])
 
-      assert error == {:unknown_field, :invalid_field, AshTypescript.Test.User, "self.user.invalidField"}
+      assert error ==
+               {:unknown_field, :invalid_field, AshTypescript.Test.User, "self.user.invalidField"}
     end
 
     test "rejects calculations with missing fields key" do
@@ -353,7 +359,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           }
         ])
 
-      assert error == {:unknown_field, :non_existent_calc, AshTypescript.Test.Todo, "nonExistentCalc"}
+      assert error ==
+               {:unknown_field, :non_existent_calc, AshTypescript.Test.Todo, "nonExistentCalc"}
     end
 
     test "handles malformed calculation request structure" do
@@ -374,7 +381,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           :id,
           :title,
-          :id  # Duplicate attribute
+          # Duplicate attribute
+          :id
         ])
 
       assert error == {:duplicate_field, :id, "id"}
@@ -384,7 +392,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           %{user: [:id, :name]},
-          %{user: [:email]}  # Duplicate relationship
+          # Duplicate relationship
+          %{user: [:email]}
         ])
 
       assert error == {:duplicate_field, :user, "user"}
@@ -393,8 +402,10 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
     test "rejects mixed atom and map for same field" do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :is_overdue,  # Simple calculation
-          %{is_overdue: %{args: %{}}}  # Same calculation with args - should be rejected
+          # Simple calculation
+          :is_overdue,
+          # Same calculation with args - should be rejected
+          %{is_overdue: %{args: %{}}}
         ])
 
       assert error == {:duplicate_field, :is_overdue, "isOverdue"}
@@ -417,7 +428,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           }
         ])
 
-      assert error == {:invalid_field_selection, :formatted_summary, :calculation, "metadata.formattedSummary"}
+      assert error ==
+               {:invalid_field_selection, :formatted_summary, :calculation,
+                "metadata.formattedSummary"}
     end
 
     test "rejects complex calculation without fields parameter" do
