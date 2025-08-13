@@ -189,7 +189,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["message"] =~ "Cannot select fields from aggregate 'commentCount'"
+      assert error["message"] =~ "Cannot select fields from :aggregate 'commentCount'"
     end
 
     test "rejects nested field selection on exists aggregate", %{conn: conn} do
@@ -202,7 +202,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["message"] =~ "Cannot select fields from aggregate 'hasComments'"
+      assert error["message"] =~ "Cannot select fields from :aggregate 'hasComments'"
     end
 
     test "rejects nested field selection on primitive list aggregate", %{conn: conn} do
@@ -215,7 +215,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["message"] =~ "Cannot select fields from aggregate 'commentAuthors'"
+      assert error["message"] =~ "Cannot select fields from :aggregate 'commentAuthors'"
     end
   end
 

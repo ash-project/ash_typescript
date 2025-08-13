@@ -137,25 +137,40 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
         }
 
       {:invalid_field_selection, _field_atom, field_type, field_path} ->
+        field_type_string = format_field_type(field_type)
         %{
           type: "invalid_field_selection",
-          message: "Cannot select fields from #{field_type} '#{field_path}'",
+          message: "Cannot select fields from #{field_type_string} '#{field_path}'",
           field_path: field_path,
           details: %{
             field: field_path,
-            field_type: field_type,
-            suggestion: "Remove the field selection for this #{field_type} field"
+            field_type: field_type_string,
+            suggestion: "Remove the field selection for this #{field_type_string} field"
+          }
+        }
+
+      {:invalid_field_selection, :primitive_type, return_type} ->
+        return_type_string = format_field_type(return_type)
+        %{
+          type: "invalid_field_selection",
+          message: "Cannot select fields from primitive type #{return_type_string}",
+          details: %{
+            field_type: "primitive_type",
+            return_type: return_type_string,
+            suggestion: "Remove the field selection for this primitive type"
           }
         }
 
       {:invalid_field_selection, field_type, field_path} ->
+        field_type_string = format_field_type(field_type)
+        field_path_string = format_field_type(field_path)
         %{
           type: "invalid_field_selection",
-          message: "Cannot select fields from #{field_type} '#{field_path}'",
-          field_path: field_path,
+          message: "Cannot select fields from #{field_type_string} '#{field_path_string}'",
+          field_path: field_path_string,
           details: %{
-            field_type: field_type,
-            suggestion: "Remove the field selection for this #{field_type} field"
+            field_type: field_type_string,
+            suggestion: "Remove the field selection for this #{field_type_string} field"
           }
         }
 
@@ -577,4 +592,9 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
   defp serialize_single_error(error) do
     %{message: inspect(error)}
   end
+
+  # Format field type for error messages
+  defp format_field_type(:primitive_type), do: "primitive type"
+  defp format_field_type({:ash_type, type, _}), do: "#{inspect(type)}"
+  defp format_field_type(other), do: "#{inspect(other)}"
 end

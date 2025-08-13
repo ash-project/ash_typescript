@@ -286,9 +286,29 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp execute_generic_action(%Request{} = request, opts) do
-    request.resource
-    |> Ash.ActionInput.for_action(request.action.name, request.input, opts)
-    |> Ash.run_action()
+    result_tuple =
+      request.resource
+      |> Ash.ActionInput.for_action(request.action.name, request.input, opts)
+      |> Ash.run_action()
+
+    case result_tuple do
+      {:ok, result} ->
+        returns_resource? =
+          case AshTypescript.Rpc.Codegen.action_returns_field_selectable_type?(request.action) do
+            {:ok, :resource, _} -> true
+            {:ok, :array_of_resource, _} -> true
+            _ -> false
+          end
+
+        if returns_resource? and not Enum.empty?(request.load) do
+          Ash.load(result, request.load, opts)
+        else
+          result_tuple
+        end
+
+      _ ->
+        result_tuple
+    end
   end
 
   # Query modifiers

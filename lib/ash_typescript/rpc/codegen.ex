@@ -219,6 +219,18 @@ defmodule AshTypescript.Rpc.Codegen do
           : TypedStructField
         : TypedStructField;
 
+    // Process TypedMap field selection - extract only requested fields from typed map
+    type InferTypedMapResult<TypedMapSchema, Selection> =
+      Selection extends string[]
+        ? TypedMapSchema extends Record<string, any>
+          ? {
+              [K in Selection[number]]: K extends keyof TypedMapSchema
+                ? TypedMapSchema[K]
+                : never
+            }
+          : TypedMapSchema
+        : TypedMapSchema;
+
     // Process individual fields using schema keys as classifiers
     type ProcessField<Resource extends ResourceBase, Field> =
       Field extends string
@@ -584,6 +596,73 @@ defmodule AshTypescript.Rpc.Codegen do
       %{pagination: pagination} when is_map(pagination) -> pagination
       _ -> nil
     end
+  end
+
+  # Helper to detect if a generic action returns a type that supports field selection
+  def action_returns_field_selectable_type?(action) do
+    case action.returns do
+      # Array of structs (resources)
+      {:array, Ash.Type.Struct} ->
+        items_constraints = Keyword.get(action.constraints || [], :items, [])
+
+        if Keyword.has_key?(items_constraints, :instance_of) do
+          {:ok, :array_of_resource, Keyword.get(items_constraints, :instance_of)}
+        else
+          {:error, :no_instance_of_defined}
+        end
+
+      # Array of maps (typed maps with field definitions)
+      {:array, Ash.Type.Map} ->
+        items_constraints = Keyword.get(action.constraints || [], :items, [])
+
+        if Keyword.has_key?(items_constraints, :fields) do
+          {:ok, :array_of_typed_map, Keyword.get(items_constraints, :fields)}
+        else
+          {:error, :no_fields_defined}
+        end
+
+      # Single struct (resource)
+      Ash.Type.Struct ->
+        constraints = action.constraints || []
+
+        if Keyword.has_key?(constraints, :instance_of) do
+          {:ok, :resource, Keyword.get(constraints, :instance_of)}
+        else
+          {:error, :no_instance_of_defined}
+        end
+
+      # Single map (typed map with field definitions)
+      Ash.Type.Map ->
+        constraints = action.constraints || []
+
+        if Keyword.has_key?(constraints, :fields) do
+          {:ok, :typed_map, Keyword.get(constraints, :fields)}
+        else
+          {:error, :no_fields_defined}
+        end
+
+      _ ->
+        {:error, :not_field_selectable_type}
+    end
+  end
+
+  # Generate a TypeScript schema from typed map field constraints
+  defp generate_typed_map_schema(fields) do
+    field_definitions =
+      Enum.map(fields, fn {field_name, field_config} ->
+        # Create a type descriptor that AshTypescript.Codegen.get_ts_type can handle
+        type_descriptor = %{
+          type: Keyword.get(field_config, :type),
+          constraints: Keyword.get(field_config, :constraints, []),
+          allow_nil?: Keyword.get(field_config, :allow_nil?, false)
+        }
+
+        field_type = AshTypescript.Codegen.get_ts_type(type_descriptor)
+
+        "#{field_name}: #{field_type}"
+      end)
+
+    "{ #{Enum.join(field_definitions, ", ")} }"
   end
 
   defp generate_pagination_fields_only(action) do
@@ -982,22 +1061,44 @@ defmodule AshTypescript.Rpc.Codegen do
         :action ->
           arguments = action.arguments
 
-          if arguments != [] do
-            ["  input: {"] ++
-              Enum.map(arguments, fn arg ->
-                optional = arg.allow_nil? || arg.default != nil
+          input_fields =
+            if arguments != [] do
+              ["  input: {"] ++
+                Enum.map(arguments, fn arg ->
+                  optional = arg.allow_nil? || arg.default != nil
 
-                formatted_arg_name =
-                  AshTypescript.FieldFormatter.format_field(
-                    arg.name,
-                    AshTypescript.Rpc.output_field_formatter()
-                  )
+                  formatted_arg_name =
+                    AshTypescript.FieldFormatter.format_field(
+                      arg.name,
+                      AshTypescript.Rpc.output_field_formatter()
+                    )
 
-                "    #{formatted_arg_name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
-              end) ++
-              ["  };"]
-          else
-            []
+                  "    #{formatted_arg_name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
+                end) ++
+                ["  };"]
+            else
+              []
+            end
+
+          # Check if this generic action returns a field-selectable type
+          case action_returns_field_selectable_type?(action) do
+            {:ok, type, _value} when type in [:resource, :array_of_resource] ->
+              # For resources, use the standard resource schema field selection
+              input_fields ++ fields_field
+
+            {:ok, type, fields} when type in [:typed_map, :array_of_typed_map] ->
+              # For typed maps, use a custom field selection for the map's fields
+              typed_map_field_names =
+                Enum.map(fields, fn {field_name, _} -> Atom.to_string(field_name) end)
+
+              typed_map_fields = [
+                "  fields: (\"#{Enum.join(typed_map_field_names, "\" | \"")}\")[];"
+              ]
+
+              input_fields ++ typed_map_fields
+
+            _ ->
+              input_fields
           end
       end
 
@@ -1025,7 +1126,11 @@ defmodule AshTypescript.Rpc.Codegen do
         action_type when action_type in [:create, :update] ->
           tenant_field ++ input_fields ++ fields_field ++ headers_field
 
+        :destroy ->
+          tenant_field ++ input_fields ++ headers_field
+
         _ ->
+          # This shouldn't happen but keep as fallback
           tenant_field ++ input_fields ++ headers_field
       end
 
@@ -1068,18 +1173,54 @@ defmodule AshTypescript.Rpc.Codegen do
         # No result type needed - function signatures use void directly
         ""
 
-      action_type when action_type in [:action, :generic] ->
-        # For generic actions, use the returns type if specified
-        if action.returns do
-          return_type = get_ts_type(%{type: action.returns, constraints: action.constraints})
+      :action ->
+        # Check if generic action returns a field-selectable type
+        case action_returns_field_selectable_type?(action) do
+          {:ok, type, value} when type in [:resource, :array_of_resource] ->
+            # For resources, use the resource's schema for field selection
+            target_resource_name = value |> Module.split() |> List.last()
 
-          """
-          type Infer#{rpc_action_name_pascal}Result = #{return_type};
-          """
-        else
-          """
-          type Infer#{rpc_action_name_pascal}Result = any;
-          """
+            if type == :array_of_resource do
+              """
+              type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
+                Array<InferResourceResult<#{target_resource_name}ResourceSchema, Config["fields"]>>;
+              """
+            else
+              """
+              type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
+                InferResourceResult<#{target_resource_name}ResourceSchema, Config["fields"]>;
+              """
+            end
+
+          {:ok, type, fields} when type in [:typed_map, :array_of_typed_map] ->
+            # For typed maps, generate a field-selectable schema
+            typed_map_schema = generate_typed_map_schema(fields)
+
+            if type == :array_of_typed_map do
+              """
+              type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
+                Array<InferTypedMapResult<#{typed_map_schema}, Config["fields"]>>;
+              """
+            else
+              """
+              type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
+                InferTypedMapResult<#{typed_map_schema}, Config["fields"]>;
+              """
+            end
+
+          _ ->
+            # Non-field-selectable types or no return type
+            if action.returns do
+              return_type = get_ts_type(%{type: action.returns, constraints: action.constraints})
+
+              """
+              type Infer#{rpc_action_name_pascal}Result = #{return_type};
+              """
+            else
+              """
+              type Infer#{rpc_action_name_pascal}Result = {};
+              """
+            end
         end
     end
   end
@@ -1281,20 +1422,44 @@ defmodule AshTypescript.Rpc.Codegen do
         """
 
       action.type == :action ->
+        # Check if this generic action supports field selection
+        has_field_selection = match?({:ok, _, _}, action_returns_field_selectable_type?(action))
+
         action_payload_base =
-          if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
-            """
-            const payload: Record<string, any> = {
-              action: "#{rpc_action_name}",
-              tenant: config.tenant
-            };
-            """
+          if has_field_selection do
+            # Include fields in the payload for field-selectable generic actions
+            if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
+              """
+              const payload: Record<string, any> = {
+                action: "#{rpc_action_name}",
+                tenant: config.tenant,
+                fields: config.#{formatted_fields_name}
+              };
+              """
+            else
+              """
+              const payload: Record<string, any> = {
+                action: "#{rpc_action_name}",
+                fields: config.#{formatted_fields_name}
+              };
+              """
+            end
           else
-            """
-            const payload: Record<string, any> = {
-              action: "#{rpc_action_name}"
-            };
-            """
+            # No field selection for non-field-selectable generic actions
+            if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
+              """
+              const payload: Record<string, any> = {
+                action: "#{rpc_action_name}",
+                tenant: config.tenant
+              };
+              """
+            else
+              """
+              const payload: Record<string, any> = {
+                action: "#{rpc_action_name}"
+              };
+              """
+            end
           end
 
         """
@@ -1325,51 +1490,59 @@ defmodule AshTypescript.Rpc.Codegen do
     # Add proper type handling for different action types
     is_generic_action = action.type in [:action, :generic]
 
+    is_field_selectable_generic =
+      is_generic_action && match?({:ok, _, _}, action_returns_field_selectable_type?(action))
+
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
 
-    result_type =
-      case action.type do
-        :destroy ->
-          """
+    {result_type, result_type_def, return_type_def} =
+      cond do
+        action.type == :destroy ->
+          result_type = """
           {success: true, data: {}} |
           {success: false, errors: Array<{type: string, message: string, field_path?: string, details: Record<string, string>}>}
           """
 
-        _ when is_generic_action ->
+          result_type_def =
+            "export type #{rpc_action_name_pascal}Result = #{result_type};"
+
+          {result_type, result_type_def, "#{rpc_action_name_pascal}Result;"}
+
+        is_field_selectable_generic ->
+          # Generic actions with field selection need Config parameter
+          result_type = """
+            {success: true, data: Infer#{rpc_action_name_pascal}Result<Config>} |
+            {success: false, errors: Array<{type: string, message: string, field_path?: string, details: Record<string, string>}>}
           """
+
+          result_type_def =
+            "export type #{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> = #{result_type};"
+
+          {result_type, result_type_def, "#{rpc_action_name_pascal}Result<Config>;"}
+
+        is_generic_action ->
+          # Generic actions without field selection
+          result_type = """
           {success: true, data: Infer#{rpc_action_name_pascal}Result} |
           {success: false, errors: Array<{type: string, message: string, field_path?: string, details: Record<string, string>}>}
           """
 
-        _ ->
-          """
+          result_type_def =
+            "export type #{rpc_action_name_pascal}Result = #{result_type};"
+
+          {result_type, result_type_def, "#{rpc_action_name_pascal}Result;"}
+
+        true ->
+          # Standard CRUD actions with field selection
+          result_type = """
             {success: true, data: Infer#{rpc_action_name_pascal}Result<Config>} |
             {success: false, errors: Array<{type: string, message: string, field_path?: string, details: Record<string, string>}>}
           """
-      end
 
-    result_type_def =
-      case action.type do
-        :destroy ->
-          "export type #{rpc_action_name_pascal}Result = #{result_type};"
+          result_type_def =
+            "export type #{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> = #{result_type};"
 
-        _ when is_generic_action ->
-          "export type #{rpc_action_name_pascal}Result = #{result_type};"
-
-        _ ->
-          "export type #{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> = #{result_type};"
-      end
-
-    return_type_def =
-      case action.type do
-        :destroy ->
-          "#{rpc_action_name_pascal}Result;"
-
-        _ when is_generic_action ->
-          "#{rpc_action_name_pascal}Result;"
-
-        _ ->
-          "#{rpc_action_name_pascal}Result<Config>;"
+          {result_type, result_type_def, "#{rpc_action_name_pascal}Result<Config>;"}
       end
 
     """

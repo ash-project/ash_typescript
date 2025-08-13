@@ -5,6 +5,8 @@ import {
   getTodo,
   listTodos,
   createTodo,
+  searchTodos,
+  getStatisticsTodo,
 } from "../generated";
 
 // Test 4: List operation with nested self calculations
@@ -39,7 +41,7 @@ export const listWithNestedSelf = await listTodos({
   ],
 });
 
-// Type validation for list results with nested calculations  
+// Type validation for list results with nested calculations
 for (const todo of listWithNestedSelf.results) {
   // Each todo should have the basic fields
   const todoId: string = todo.id;
@@ -110,9 +112,9 @@ if (createWithNestedSelf.self?.self) {
 export const listWithInputParams = await listTodos({
   input: {
     filterCompleted: true,
-    priorityFilter: "high"
+    priorityFilter: "high",
   },
-  fields: ["id", "title", "completed", "priority"]
+  fields: ["id", "title", "completed", "priority"],
 });
 
 // Type validation for list with input parameters
@@ -126,15 +128,38 @@ for (const todo of listWithInputParams.results) {
 // Test 7: Read operations with partial input parameters (optional fields)
 export const listWithPartialInput = await listTodos({
   input: {
-    filterCompleted: false
+    filterCompleted: false,
     // priorityFilter is optional and omitted
   },
-  fields: ["id", "title", "status"]
+  fields: ["id", "title", "status"],
 });
 
 // Test 8: Read operations with no input parameters (should still work)
 export const listWithoutInput = await listTodos({
-  fields: ["id", "title"]
+  fields: ["id", "title"],
 });
 
+const searchTodosResult = await searchTodos({
+  input: {
+    query: "example",
+  },
+  fields: [
+    "id",
+    "title",
+    { comments: ["id", "content"], user: ["id", "email"] },
+  ],
+});
+
+if (searchTodosResult.success) {
+  const id: string = searchTodosResult.data[0].id;
+  const userEmail: string = searchTodosResult.data[0].user.email;
+}
+
+const getStatisticsTodoResult = await getStatisticsTodo({
+  fields: ["completed", "pending"],
+});
+
+if (getStatisticsTodoResult.success) {
+  const completed: number = getStatisticsTodoResult.data.completed;
+}
 console.log("Operations tests should compile successfully!");

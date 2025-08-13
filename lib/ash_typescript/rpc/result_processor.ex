@@ -54,7 +54,12 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   # Extract fields from a list of results
   defp extract_list_fields(results, extraction_template) do
-    Enum.map(results, &extract_single_result(&1, extraction_template))
+    # If extraction template is empty and results are primitives, return them unchanged
+    if extraction_template == [] and Enum.any?(results, &(not is_map(&1))) do
+      Enum.map(results, &normalize_value_for_json/1)
+    else
+      Enum.map(results, &extract_single_result(&1, extraction_template))
+    end
   end
 
   # Extract fields from a single result using the new list-based template format
