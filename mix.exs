@@ -116,7 +116,7 @@ defmodule AshTypescript.MixProject do
       {:ash, path: "../ash", override: true},
       {:ash_phoenix, "~> 2.0"},
       {:git_ops, "~> 2.0", only: [:dev], runtime: false},
-      {:spark, "2.2.67", override: true},
+      {:spark, "~> 2.0", override: true},
       {:sourceror, "~> 1.7", only: [:dev, :test]},
       {:faker, "~> 0.18", only: :test},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},

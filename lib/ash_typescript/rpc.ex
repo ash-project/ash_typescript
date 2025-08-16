@@ -94,7 +94,9 @@ defmodule AshTypescript.Rpc do
     ]
   }
 
-  use Spark.Dsl.Extension, sections: [@rpc]
+  use Spark.Dsl.Extension,
+    sections: [@rpc],
+    verifiers: [AshTypescript.Rpc.VerifyRpc]
 
   alias AshTypescript.Rpc.{Pipeline, ErrorBuilder}
 
