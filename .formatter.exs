@@ -7,8 +7,8 @@ spark_locals_without_parens = [
   rpc_action: 3,
   ts_fields_const_name: 1,
   ts_result_type_name: 1,
-  typed_query: 1,
-  typed_query: 2
+  typed_query: 2,
+  typed_query: 3
 ]
 
 [
