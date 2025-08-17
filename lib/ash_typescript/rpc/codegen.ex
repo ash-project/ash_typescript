@@ -208,6 +208,7 @@ defmodule AshTypescript.Rpc.Codegen do
         : {};
 
     // Process TypedStruct field selection - extract only requested fields from structured data
+    // @ts-expect-error
     type InferTypedStructResult<TypedStructField, Selection> =
       Selection extends string[]
         ? TypedStructField extends Record<string, any>
@@ -220,6 +221,7 @@ defmodule AshTypescript.Rpc.Codegen do
         : TypedStructField;
 
     // Process TypedMap field selection - extract only requested fields from typed map
+    // @ts-expect-error
     type InferTypedMapResult<TypedMapSchema, Selection> =
       Selection extends string[]
         ? TypedMapSchema extends Record<string, any>

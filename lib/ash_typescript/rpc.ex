@@ -240,7 +240,6 @@ defmodule AshTypescript.Rpc do
   @spec run_typed_query(atom(), atom(), map(), Plug.Conn.t()) :: {:ok, any()} | {:error, any()}
   def run_typed_query(otp_app, typed_query_name, params \\ %{}, conn) do
     with {:ok, typed_query} <- find_typed_query(otp_app, typed_query_name) do
-      # Build RPC parameters with the typed query name and fields
       rpc_params = %{
         "typed_query_action" => Atom.to_string(typed_query_name),
         "fields" => typed_query.fields
@@ -254,6 +253,8 @@ defmodule AshTypescript.Rpc do
         |> maybe_add_param("sort", params[:sort])
 
       run_action(otp_app, conn, rpc_params)
+    else
+      error -> error
     end
   end
 

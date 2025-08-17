@@ -546,53 +546,402 @@ const todos = await listTodos({
 });
 ```
 
-## Server-Side Usage with run_action
+## Typed Queries for Server-Side Rendering
 
-### Using run_action for SSR
+### What are Typed Queries?
 
-**For server-side rendering in full-stack applications, use `AshTypescript.Rpc.run_action/3`:**
+**Typed queries are predefined field selections for server-side rendering (SSR) and initial page props. They provide:**
+- **Compile-time field selection** - Fields are defined in the domain, not at runtime
+- **TypeScript type generation** - Generates specific types for the query results
+- **Reusable field constants** - Exports constants for consistent field selection
+- **Backend execution** - Primarily for server-side data fetching
+
+### When to Use Typed Queries
+
+**Use typed queries when:**
+- Fetching initial props for server-rendered pages
+- Providing consistent data shapes across your application
+- Optimizing SSR performance with predefined field selections
+- Sharing field selections between backend and frontend
+
+**Example scenarios:**
+- Initial page load data in Phoenix LiveView or controllers
+- Server-side props in Next.js or similar frameworks
+- Consistent API responses for specific views
+
+### Defining Typed Queries
+
+**Add typed queries to your domain's RPC configuration:**
 
 ```elixir
-# In your Phoenix controller or LiveView
+defmodule MyApp.Domain do
+  use Ash.Domain,
+    extensions: [AshTypescript.Rpc]
+
+  rpc do
+    resource MyApp.Todo do
+      # Regular RPC actions
+      rpc_action :list_todos, :read
+      rpc_action :get_todo, :get_by_id
+      
+      # Typed query definition
+      typed_query :todos_dashboard_view, :read do
+        # TypeScript type name for the result
+        ts_result_type_name "TodosDashboardView"
+        
+        # TypeScript constant name for field selection
+        ts_fields_const_name "todosDashboardFields"
+        
+        # Predefined field selection
+        fields [
+          :id,
+          :title,
+          :priority,
+          :completed,
+          :due_date,
+          :comment_count,
+          %{user: [:id, :name, :avatar]},
+          %{recent_comments: [:id, :content, :created_at]}
+        ]
+      end
+      
+      # Another typed query for a different view
+      typed_query :todo_detail_view, :get_by_id do
+        ts_result_type_name "TodoDetailView"
+        ts_fields_const_name "todoDetailFields"
+        
+        fields [
+          :id,
+          :title,
+          :description,
+          :priority,
+          :completed,
+          :tags,
+          :created_at,
+          :updated_at,
+          %{user: [:id, :name, :email, :avatar]},
+          %{comments: [
+            :id, 
+            :content, 
+            :rating,
+            %{user: [:id, :name]}
+          ]},
+          %{
+            self: %{
+              args: %{prefix: "related_"},
+              fields: [:id, :title, :priority]
+            }
+          }
+        ]
+      end
+    end
+  end
+end
+```
+
+### Using Typed Queries on the Backend
+
+**Execute typed queries using `AshTypescript.Rpc.run_typed_query/4`:**
+
+```elixir
+# In a Phoenix controller
 defmodule MyAppWeb.TodoController do
   use MyAppWeb, :controller
   
-  def index(conn, _params) do
-    params = %{
-      "action" => "list_todos",
-      "fields" => ["id", "title", "completed"]
-    }
-    
-    result = AshTypescript.Rpc.run_action(:my_app, conn, params)
+  def index(conn, params) do
+    # Execute typed query for dashboard view
+    result = AshTypescript.Rpc.run_typed_query(
+      :my_app,                    # OTP app name
+      :todos_dashboard_view,      # Typed query name
+      %{                         # Optional parameters
+        filter: %{completed: false},
+        sort: "-priority,due_date",
+        page: %{limit: 20, offset: 0}
+      },
+      conn                       # Plug.Conn for auth/tenant context
+    )
     
     case result do
-      %{success: true, data: todos} ->
-        render(conn, "index.html", todos: todos)
+      %{"success" => true, "data" => todos} ->
+        render(conn, "index.html", initial_props: %{todos: todos})
         
-      %{success: false, errors: errors} ->
+      %{"success" => false, "errors" => errors} ->
+        handle_error(conn, errors)
+    end
+  end
+  
+  def show(conn, %{"id" => id}) do
+    # Execute typed query for detail view
+    result = AshTypescript.Rpc.run_typed_query(
+      :my_app,
+      :todo_detail_view,
+      %{input: %{id: id}},  # Pass action arguments via input
+      conn
+    )
+    
+    case result do
+      %{"success" => true, "data" => todo} ->
+        render(conn, "show.html", initial_props: %{todo: todo})
+        
+      %{"success" => false, "errors" => errors} ->
         handle_error(conn, errors)
     end
   end
 end
 ```
 
-**Result structure:**
-```elixir
-# Success case
-%{success: true, data: result_data}
+**In Phoenix LiveView:**
 
-# Error case  
-%{success: false, errors: error_details}
+```elixir
+defmodule MyAppWeb.TodoLive.Index do
+  use MyAppWeb, :live_view
+  
+  @impl true
+  def mount(_params, _session, socket) do
+    # Load initial data using typed query
+    result = AshTypescript.Rpc.run_typed_query(
+      :my_app,
+      :todos_dashboard_view,
+      %{filter: %{completed: false}},
+      socket
+    )
+    
+    case result do
+      %{"success" => true, "data" => todos} ->
+        {:ok, assign(socket, todos: todos)}
+        
+      %{"success" => false, "errors" => errors} ->
+        {:ok, put_flash(socket, :error, "Failed to load todos")}
+    end
+  end
+end
 ```
 
-**With authentication and multitenancy:**
+### Generated TypeScript Types and Constants
+
+**Typed queries generate TypeScript types and constants:**
+
+```typescript
+// Generated in ash_rpc.ts
+
+// Type for the todos_dashboard_view result
+export type TodosDashboardView = {
+  id: string;
+  title: string;
+  priority: "low" | "medium" | "high";
+  completed: boolean;
+  dueDate: string | null;
+  commentCount: number;
+  user: {
+    id: string;
+    name: string;
+    avatar: string | null;
+  };
+  recentComments: Array<{
+    id: string;
+    content: string;
+    createdAt: string;
+  }>;
+}[];
+
+// Field selection constant - can be reused with regular RPC actions
+export const todosDashboardFields = [
+  "id",
+  "title", 
+  "priority",
+  "completed",
+  "dueDate",
+  "commentCount",
+  { user: ["id", "name", "avatar"] },
+  { recentComments: ["id", "content", "createdAt"] }
+] as const;
+
+// Type for todo_detail_view result  
+export type TodoDetailView = {
+  id: string;
+  title: string;
+  description: string | null;
+  // ... other typed fields
+};
+
+export const todoDetailFields = [
+  // ... field selection
+] as const;
+```
+
+### Using Generated Constants with RPC Actions
+
+**The generated field constants can be reused with regular RPC actions for consistency:**
+
+```typescript
+import { listTodos, todosDashboardFields, type TodosDashboardView } from './ash_rpc';
+
+// Use the predefined field selection for client-side refetching
+async function refreshDashboard() {
+  const todos = await listTodos({
+    fields: todosDashboardFields,  // Reuse the typed query fields
+    filter: { completed: { eq: false } },
+    headers: buildCSRFHeaders()
+  });
+  
+  // todos is typed as TodosDashboardView
+  updateUI(todos);
+}
+
+// Ensure consistency between SSR and client-side data
+function DashboardComponent({ initialData }: { initialData: TodosDashboardView }) {
+  const [todos, setTodos] = useState(initialData);
+  
+  const refresh = async () => {
+    // Use same field selection as server
+    const updated = await listTodos({
+      fields: todosDashboardFields,
+      filter: { completed: { eq: false } }
+    });
+    setTodos(updated);
+  };
+  
+  return (
+    // Component rendering
+  );
+}
+```
+
+### Typed Query Parameters
+
+**Typed queries support all standard RPC parameters:**
+
 ```elixir
-# run_action automatically uses actor and tenant from conn
-result = AshTypescript.Rpc.run_action(:my_app, conn, %{
-  "action" => "list_user_todos",
-  "tenant" => "org-123",  # For multitenant resources
-  "fields" => ["id", "title", "priority"]
-})
+# All parameters are optional
+result = AshTypescript.Rpc.run_typed_query(
+  :my_app,
+  :todos_dashboard_view,
+  %{
+    # Input for action arguments (if the action has arguments)
+    input: %{user_id: "123"},
+    
+    # Filtering (for read actions)
+    filter: %{
+      and: [
+        %{priority: "high"},
+        %{completed: false}
+      ]
+    },
+    
+    # Sorting (for read actions)
+    sort: "-priority,due_date",
+    
+    # Pagination (for read actions)
+    page: %{
+      limit: 10,
+      offset: 0
+    }
+  },
+  conn
+)
+
+# Minimal usage - just the typed query
+result = AshTypescript.Rpc.run_typed_query(
+  :my_app,
+  :todos_dashboard_view,
+  conn  # Can pass conn as third argument when no params
+)
+```
+
+### Best Practices for Typed Queries
+
+**1. Name queries by their view/page:**
+```elixir
+# Good - clearly indicates the view it serves
+typed_query :user_profile_page, :read
+typed_query :admin_dashboard_view, :read
+typed_query :todo_list_sidebar, :read
+
+# Less clear
+typed_query :get_todos, :read
+typed_query :fetch_data, :read
+```
+
+**2. Keep field selections focused:**
+```elixir
+# Good - only fields needed for the view
+typed_query :todo_card_view, :read do
+  fields [:id, :title, :completed, :priority]
+end
+
+# Avoid - including everything "just in case"
+typed_query :todo_everything, :read do
+  fields [:id, :title, :description, :completed, :priority, 
+          :tags, :created_at, :updated_at, :due_date, ...]
+end
+```
+
+**3. Create multiple typed queries for different views:**
+```elixir
+# Different queries for different views
+typed_query :todo_list_item, :read do
+  fields [:id, :title, :completed, :priority]
+end
+
+typed_query :todo_detail_view, :get_by_id do
+  fields [:id, :title, :description, :completed, 
+          %{user: [:id, :name]}, %{comments: [:id, :content]}]
+end
+
+typed_query :todo_edit_form, :get_by_id do
+  fields [:id, :title, :description, :priority, :tags, :due_date]
+end
+```
+
+**4. Use typed queries for consistent API contracts:**
+```elixir
+# Define typed queries for public API endpoints
+typed_query :public_api_v1_todos, :read do
+  ts_result_type_name "PublicAPITodoV1"
+  fields [:id, :title, :completed, :created_at]
+end
+
+# Use in API controller
+def index(conn, _params) do
+  result = AshTypescript.Rpc.run_typed_query(
+    :my_app, 
+    :public_api_v1_todos,
+    conn
+  )
+  json(conn, result)
+end
+```
+
+### Error Handling for Typed Queries
+
+**Handle typed query errors appropriately:**
+
+```elixir
+defmodule MyAppWeb.ErrorHelpers do
+  def handle_typed_query_error(conn, {:typed_query_not_found, query_name}) do
+    # Development error - typed query not configured
+    Logger.error("Typed query not found: #{query_name}")
+    conn
+    |> put_status(500)
+    |> render("500.html")
+  end
+  
+  def handle_typed_query_error(conn, {:rpc_action_not_found, action}) do
+    # Configuration error - action doesn't exist
+    Logger.error("RPC action not found for typed query: #{action}")
+    conn
+    |> put_status(500)
+    |> render("500.html")
+  end
+  
+  def handle_typed_query_error(conn, error) do
+    # Other errors (validation, authorization, etc.)
+    Logger.error("Typed query error: #{inspect(error)}")
+    conn
+    |> put_status(422)
+    |> json(%{error: "Unable to fetch data"})
+  end
+end
 ```
 
 ## Advanced Features
