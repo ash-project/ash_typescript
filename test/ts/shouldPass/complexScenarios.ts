@@ -1,9 +1,7 @@
 // Complex Scenarios Tests - shouldPass
 // Tests that combine multiple features and complex usage patterns
 
-import {
-  getTodo,
-} from "../generated";
+import { getTodo } from "../generated";
 
 // Test 7: Complex scenario combining multiple patterns
 export const complexScenario = await getTodo({
@@ -54,48 +52,62 @@ export const complexScenario = await getTodo({
 });
 
 // Validate complex type inference
-if (complexScenario) {
+if (complexScenario.success) {
   // Top level
-  const topIsOverdue: boolean | null | undefined = complexScenario.isOverdue;
-  const topCommentCount: number = complexScenario.commentCount;
+  const topIsOverdue: boolean | null | undefined =
+    complexScenario.data.isOverdue;
+  const topCommentCount: number = complexScenario.data.commentCount;
 
   // Top level colorPalette custom type
-  if (complexScenario.colorPalette) {
-    const topColorPalette: { primary: string; secondary: string; accent: string } = complexScenario.colorPalette;
+  if (complexScenario.data.colorPalette) {
+    const topColorPalette: {
+      primary: string;
+      secondary: string;
+      accent: string;
+    } = complexScenario.data.colorPalette;
     const topPrimary: string = topColorPalette.primary;
     const topSecondary: string = topColorPalette.secondary;
     const topAccent: string = topColorPalette.accent;
   }
 
   // First level self
-  if (complexScenario.self) {
+  if (complexScenario.data.self) {
     const selfDaysUntilDue: number | null | undefined =
-      complexScenario.self.daysUntilDue;
-    const selfHelpfulCount: number = complexScenario.self.helpfulCommentCount;
+      complexScenario.data.self.daysUntilDue;
+    const selfHelpfulCount: number =
+      complexScenario.data.self.helpfulCommentCount;
 
     // First level self colorPalette custom type
-    if (complexScenario.self.colorPalette) {
-      const selfColorPalette: { primary: string; secondary: string; accent: string } = complexScenario.self.colorPalette;
+    if (complexScenario.data.self.colorPalette) {
+      const selfColorPalette: {
+        primary: string;
+        secondary: string;
+        accent: string;
+      } = complexScenario.data.self.colorPalette;
       const selfPrimary: string = selfColorPalette.primary;
       const selfSecondary: string = selfColorPalette.secondary;
       const selfAccent: string = selfColorPalette.accent;
     }
 
     // Second level self
-    if (complexScenario.self.self) {
+    if (complexScenario.data.self.self) {
       const nestedTags: string[] | null | undefined =
-        complexScenario.self.self.tags;
+        complexScenario.data.self.self.tags;
 
       // Second level self colorPalette custom type
-      if (complexScenario.self.self.colorPalette) {
-        const nestedColorPalette: { primary: string; secondary: string; accent: string } = complexScenario.self.self.colorPalette;
+      if (complexScenario.data.self.self.colorPalette) {
+        const nestedColorPalette: {
+          primary: string;
+          secondary: string;
+          accent: string;
+        } = complexScenario.data.self.self.colorPalette;
         const nestedPrimary: string = nestedColorPalette.primary;
         const nestedSecondary: string = nestedColorPalette.secondary;
         const nestedAccent: string = nestedColorPalette.accent;
       }
 
       // Nested relationships should be properly typed
-      const nestedComments = complexScenario.self.self.comments;
+      const nestedComments = complexScenario.data.self.self.comments;
       if (nestedComments.length > 0) {
         const nestedComment = nestedComments[0];
         const isHelpful: boolean | null | undefined = nestedComment.isHelpful;

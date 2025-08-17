@@ -42,14 +42,14 @@ export const selfWithRelationships = await getTodo({
 });
 
 // Type validation for relationships in calculations
-if (selfWithRelationships?.self) {
+if (selfWithRelationships.success && selfWithRelationships.data.self) {
   // Outer self should have the specified relationships
-  const selfUser = selfWithRelationships.self.user;
+  const selfUser = selfWithRelationships.data.self.user;
   const selfUserId: string = selfUser.id;
   const selfUserName: string = selfUser.name;
   const selfUserEmail: string = selfUser.email;
 
-  const selfComments = selfWithRelationships.self.comments;
+  const selfComments = selfWithRelationships.data.self.comments;
   if (selfComments.length > 0) {
     const firstComment = selfComments[0];
     const commentId: string = firstComment.id;
@@ -58,12 +58,12 @@ if (selfWithRelationships?.self) {
   }
 
   // Nested self should have its specified relationships
-  if (selfWithRelationships.self.self) {
-    const nestedSelfUser = selfWithRelationships.self.self.user;
+  if (selfWithRelationships.data.self.self) {
+    const nestedSelfUser = selfWithRelationships.data.self.self.user;
     const nestedUserId: string = nestedSelfUser.id;
     const nestedUserName: string = nestedSelfUser.name;
 
-    const nestedComments = selfWithRelationships.self.self.comments;
+    const nestedComments = selfWithRelationships.data.self.self.comments;
     if (nestedComments.length > 0) {
       const nestedComment = nestedComments[0];
       const nestedCommentId: string = nestedComment.id;

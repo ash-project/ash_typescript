@@ -21,13 +21,14 @@ export const todoWithPrimitiveUnion = await getTodo({
 });
 
 // Type validation for primitive union selection
-if (todoWithPrimitiveUnion?.content) {
+if (todoWithPrimitiveUnion.success && todoWithPrimitiveUnion.data?.content) {
   // Should have only the requested primitive union members
-  if ("note" in todoWithPrimitiveUnion.content) {
-    const noteValue: string = todoWithPrimitiveUnion.content.note;
+  if ("note" in todoWithPrimitiveUnion.data.content) {
+    const noteValue: string = todoWithPrimitiveUnion.data.content.note;
   }
-  if ("priorityValue" in todoWithPrimitiveUnion.content) {
-    const priorityValue: number = todoWithPrimitiveUnion.content.priorityValue;
+  if ("priorityValue" in todoWithPrimitiveUnion.data.content) {
+    const priorityValue: number =
+      todoWithPrimitiveUnion.data.content.priorityValue;
   }
 }
 
@@ -47,9 +48,9 @@ export const todoWithComplexUnion = await getTodo({
 });
 
 // Type validation for complex union selection
-if (todoWithComplexUnion?.content) {
-  if ("text" in todoWithComplexUnion.content) {
-    const textContent = todoWithComplexUnion.content.text;
+if (todoWithComplexUnion.success && todoWithComplexUnion.data.content) {
+  if ("text" in todoWithComplexUnion.data.content) {
+    const textContent = todoWithComplexUnion.data.content.text;
     const textId: string = textContent.id;
     const textValue: string = textContent.text;
     const wordCount: number = textContent.wordCount;
@@ -75,18 +76,18 @@ export const todoWithMixedUnion = await getTodo({
 });
 
 // Type validation for mixed union selection
-if (todoWithMixedUnion?.content) {
-  if ("note" in todoWithMixedUnion.content) {
-    const noteValue: string = todoWithMixedUnion.content.note;
+if (todoWithMixedUnion.success && todoWithMixedUnion.data.content) {
+  if ("note" in todoWithMixedUnion.data.content) {
+    const noteValue: string = todoWithMixedUnion.data.content.note;
   }
-  if ("text" in todoWithMixedUnion.content) {
-    const textContent = todoWithMixedUnion.content.text;
+  if ("text" in todoWithMixedUnion.data.content) {
+    const textContent = todoWithMixedUnion.data.content.text;
     const textValue: string = textContent.text;
     const formatting: string = textContent.formatting;
     // Should NOT have other fields like wordCount
   }
-  if ("priorityValue" in todoWithMixedUnion.content) {
-    const priorityValue: number = todoWithMixedUnion.content.priorityValue;
+  if ("priorityValue" in todoWithMixedUnion.data.content) {
+    const priorityValue: number = todoWithMixedUnion.data.content.priorityValue;
   }
 }
 
@@ -125,27 +126,27 @@ export const todoWithFail = await createTodo({
     },
   },
   fields: [
-    "id", 
-    "title", 
-    { content: [{ text: ["id", "text", "wordCount", "formatting"] }] }
+    "id",
+    "title",
+    { content: [{ text: ["id", "text", "wordCount", "formatting"] }] },
   ],
 });
 
 // Validate text content union type - now using FieldsSchema
-if (todoWithTextContent?.content) {
+if (todoWithTextContent.success && todoWithTextContent.data.content) {
   // Content should be a union type with optional members
-  if (todoWithTextContent.content.text) {
-    const textData = todoWithTextContent.content.text;
-    
+  if (todoWithTextContent.data.content.text) {
+    const textData = todoWithTextContent.data.content.text;
+
     // Type casting checks - these should compile without errors
     const textContent: string = textData.text;
     const textId: string = textData.id;
     const wordCount: number | null | undefined = textData.wordCount;
     const formatting: string | null | undefined = textData.formatting;
-    
+
     // Verify union field selection worked - should only have requested fields
-    const hasOnlyRequestedFields = Object.keys(textData).every(key => 
-      ["id", "text", "wordCount", "formatting"].includes(key)
+    const hasOnlyRequestedFields = Object.keys(textData).every((key) =>
+      ["id", "text", "wordCount", "formatting"].includes(key),
     );
   }
 }
@@ -181,27 +182,31 @@ export const todoWithChecklistContent = await createTodo({
     },
   },
   fields: [
-    "id", 
-    "title", 
-    { content: [{ checklist: ["title", "items", "completedCount"] }] }
+    "id",
+    "title",
+    { content: [{ checklist: ["title", "items", "completedCount"] }] },
   ],
 });
 
 // Validate checklist content union type
-if (todoWithChecklistContent?.content?.checklist) {
-  const checklistData = todoWithChecklistContent.content.checklist;
-  
+if (
+  todoWithChecklistContent.success &&
+  todoWithChecklistContent.data.content?.checklist
+) {
+  const checklistData = todoWithChecklistContent.data.content.checklist;
+
   // Type casting checks - validate field selection worked
   const checklistTitle: string = checklistData.title;
   const items:
     | Array<{ text: string; completed?: boolean; createdAt?: string }>
     | null
     | undefined = checklistData.items;
-  const completedCount: number | null | undefined = checklistData.completedCount;
+  const completedCount: number | null | undefined =
+    checklistData.completedCount;
 
-  // Verify union field selection worked - should only have requested fields  
-  const hasOnlyRequestedFields = Object.keys(checklistData).every(key => 
-    ["title", "items", "completedCount"].includes(key)
+  // Verify union field selection worked - should only have requested fields
+  const hasOnlyRequestedFields = Object.keys(checklistData).every((key) =>
+    ["title", "items", "completedCount"].includes(key),
   );
 
   if (items && items.length > 0) {
@@ -220,22 +225,18 @@ export const todoWithStringNote = await createTodo({
       note: "Just a simple text note",
     },
   },
-  fields: [
-    "id", 
-    "title", 
-    { content: ["note"] }
-  ],
+  fields: ["id", "title", { content: ["note"] }],
 });
 
 // Validate string note union type
-if (todoWithStringNote?.content) {
+if (todoWithStringNote.success && todoWithStringNote.data.content) {
   // Type casting check - validate primitive union member selection
-  if (todoWithStringNote.content.note !== undefined) {
-    const noteContent: string = todoWithStringNote.content.note;
-    
+  if (todoWithStringNote.data.content.note !== undefined) {
+    const noteContent: string = todoWithStringNote.data.content.note;
+
     // Verify union field selection worked - should only have note field
-    const hasOnlyNoteField = Object.keys(todoWithStringNote.content).every(key => 
-      ["note"].includes(key)
+    const hasOnlyNoteField = Object.keys(todoWithStringNote.data.content).every(
+      (key) => ["note"].includes(key),
     );
   }
 }
@@ -249,23 +250,20 @@ export const todoWithPriorityValue = await createTodo({
       priorityValue: 8,
     },
   },
-  fields: [
-    "id", 
-    "title", 
-    { content: ["priorityValue"] }
-  ],
+  fields: ["id", "title", { content: ["priorityValue"] }],
 });
 
 // Validate integer priority union type
-if (todoWithPriorityValue?.content) {
+if (todoWithPriorityValue.success && todoWithPriorityValue.data.content) {
   // Type casting check - validate primitive union member selection
-  if (todoWithPriorityValue.content.priorityValue !== undefined) {
-    const priorityValue: number = todoWithPriorityValue.content.priorityValue;
-    
+  if (todoWithPriorityValue.data.content.priorityValue !== undefined) {
+    const priorityValue: number =
+      todoWithPriorityValue.data.content.priorityValue;
+
     // Verify union field selection worked - should only have priorityValue field
-    const hasOnlyPriorityField = Object.keys(todoWithPriorityValue.content).every(key => 
-      ["priorityValue"].includes(key)
-    );
+    const hasOnlyPriorityField = Object.keys(
+      todoWithPriorityValue.content,
+    ).every((key) => ["priorityValue"].includes(key));
   }
 }
 
@@ -290,9 +288,9 @@ export const todoWithAttachments = await createTodo({
     ],
   },
   fields: [
-    "id", 
-    "title", 
-    { attachments: [{ file: ["filename", "size", "mimeType"] }, "url"] }
+    "id",
+    "title",
+    { attachments: [{ file: ["filename", "size", "mimeType"] }, "url"] },
   ],
 });
 
@@ -304,23 +302,23 @@ if (todoWithAttachments?.attachments) {
     // Type casting check - validate array union member selection
     if (attachment.file) {
       const fileData = attachment.file;
-      
+
       // Validate field selection worked for complex union member
       const filename: string = fileData.filename;
       const size: number | null | undefined = fileData.size;
       const mimeType: string | null | undefined = fileData.mimeType;
-      
+
       // Verify union field selection worked - should only have requested fields
-      const hasOnlyRequestedFields = Object.keys(fileData).every(key => 
-        ["filename", "size", "mimeType"].includes(key)
+      const hasOnlyRequestedFields = Object.keys(fileData).every((key) =>
+        ["filename", "size", "mimeType"].includes(key),
       );
     } else if (attachment.url !== undefined) {
-      // Type casting check - validate primitive union member  
+      // Type casting check - validate primitive union member
       const urlValue: string = attachment.url;
-      
+
       // Verify union field selection worked - should only have url field
-      const hasOnlyUrlField = Object.keys(attachment).every(key => 
-        ["url"].includes(key)
+      const hasOnlyUrlField = Object.keys(attachment).every((key) =>
+        ["url"].includes(key),
       );
     }
   }
@@ -356,47 +354,48 @@ export const complexUnionScenario = await getTodo({
 });
 
 // Validate complex union type scenario
-if (complexUnionScenario) {
+if (complexUnionScenario.success) {
   // Top level union types
-  if (complexUnionScenario.content) {
+  if (complexUnionScenario.data.content) {
     // Handle all possible union type members
-    if (complexUnionScenario.content.text) {
-      const textContent: string = complexUnionScenario.content.text.text;
-    } else if (complexUnionScenario.content.checklist) {
+    if (complexUnionScenario.data.content.text) {
+      const textContent: string = complexUnionScenario.data.content.text.text;
+    } else if (complexUnionScenario.data.content.checklist) {
       const checklistTitle: string =
-        complexUnionScenario.content.checklist.title;
-    } else if (complexUnionScenario.content.link) {
-      const linkUrl: string = complexUnionScenario.content.link.url;
-    } else if (complexUnionScenario.content.note) {
-      const noteText: string = complexUnionScenario.content.note;
-    } else if (complexUnionScenario.content.priorityValue) {
-      const priority: number = complexUnionScenario.content.priorityValue;
+        complexUnionScenario.data.content.checklist.title;
+    } else if (complexUnionScenario.data.content.link) {
+      const linkUrl: string = complexUnionScenario.data.content.link.url;
+    } else if (complexUnionScenario.data.content.note) {
+      const noteText: string = complexUnionScenario.data.content.note;
+    } else if (complexUnionScenario.data.content.priorityValue) {
+      const priority: number = complexUnionScenario.data.content.priorityValue;
     }
   }
 
   // Nested calculation union types
-  if (complexUnionScenario.self?.content) {
-    if (complexUnionScenario.self.content.text) {
+  if (complexUnionScenario.data.self?.content) {
+    if (complexUnionScenario.data.self.content.text) {
       const nestedTextContent: string =
-        complexUnionScenario.self.content.text.text;
+        complexUnionScenario.data.self.content.text.text;
       const nestedWordCount: number | null | undefined =
-        complexUnionScenario.self.content.text.wordCount;
+        complexUnionScenario.data.self.content.text.wordCount;
     }
 
     // Double nested calculation union types
-    if (complexUnionScenario.self.self?.content) {
-      if (complexUnionScenario.self.self.content.link) {
+    if (complexUnionScenario.data.self.self?.content) {
+      if (complexUnionScenario.data.self.self.content.link) {
         const deepNestedUrl: string =
-          complexUnionScenario.self.self.content.link.url;
+          complexUnionScenario.data.self.self.content.link.url;
         const deepNestedTitle: string | null | undefined =
-          complexUnionScenario.self.self.content.link.title;
+          complexUnionScenario.data.self.self.content.link.title;
       }
     }
   }
 
   // Array union types in calculations
-  if (complexUnionScenario.self?.attachments) {
-    for (const attachment of complexUnionScenario.self.attachments as any[]) {
+  if (complexUnionScenario.data.self?.attachments) {
+    for (const attachment of complexUnionScenario.data.self
+      .attachments as any[]) {
       if (attachment.file) {
         const calcFileSize: number | null | undefined = attachment.file.size;
       } else if (attachment.url) {
@@ -478,11 +477,11 @@ const createUnionTypeConfig: CreateTodoConfig = {
     ],
   },
   fields: [
-    "id", 
-    "title", 
+    "id",
+    "title",
     { content: [{ link: ["url", "title", "description"] }] },
     { attachments: [{ file: ["filename", "size", "mimeType"] }, "url"] },
-    "createdAt"
+    "createdAt",
   ],
 };
 
@@ -540,16 +539,16 @@ const updateUnionTypeConfig: UpdateTodoConfig = {
     },
   },
   fields: [
-    "id", 
-    "title", 
-    { content: [{ checklist: ["title", "items", "completedCount"] }] }
+    "id",
+    "title",
+    { content: [{ checklist: ["title", "items", "completedCount"] }] },
   ],
 };
 
 export const updatedUnionTodo = await updateTodo(updateUnionTypeConfig);
 
 // Validate updated union type
-if (updatedUnionTodo?.content?.checklist) {
+if (updatedUnionTodo.success && updatedUnionTodo.content?.checklist) {
   const updatedTitle: string = updatedUnionTodo.content.checklist.title;
   const updatedItems = updatedUnionTodo.content.checklist.items;
   const completedCount: number | null | undefined =
@@ -572,25 +571,25 @@ export const unionFormattingTest = await getTodo({
   ],
 });
 
-if (unionFormattingTest) {
+if (unionFormattingTest.success) {
   // Test that embedded resource fields are properly camelCased
-  if (unionFormattingTest.content?.text) {
+  if (unionFormattingTest.data.content?.text) {
     const wordCount: number | null | undefined =
-      unionFormattingTest.content.text.wordCount; // snake_case -> camelCase
+      unionFormattingTest.data.content.text.wordCount; // snake_case -> camelCase
     const displayText: string | null | undefined =
-      unionFormattingTest.content.text.displayText; // calculation field
+      unionFormattingTest.data.content.text.displayText; // calculation field
     const isFormatted: boolean | null | undefined =
-      unionFormattingTest.content.text.isFormatted; // calculation field
+      unionFormattingTest.data.content.text.isFormatted; // calculation field
   }
 
-  if (unionFormattingTest.content?.checklist) {
+  if (unionFormattingTest.data.content?.checklist) {
     const completedCount: number | null | undefined =
-      unionFormattingTest.content.checklist.completedCount; // snake_case -> camelCase
+      unionFormattingTest.data.content.checklist.completedCount; // snake_case -> camelCase
   }
 
   // Test that map union member fields are properly camelCased
-  if (unionFormattingTest.attachments) {
-    for (const attachment of unionFormattingTest.attachments as any[]) {
+  if (unionFormattingTest.data.attachments) {
+    for (const attachment of unionFormattingTest.data.attachments) {
       if (attachment.file) {
         const mimeType: string | null | undefined = attachment.file.mimeType; // mime_type -> mimeType
       }

@@ -46,18 +46,18 @@ export const createWithEmbedded = await createTodo({
 });
 
 // Validate created todo has proper embedded resource structure
-if (createWithEmbedded) {
-  const todoId: string = createWithEmbedded.id;
-  const todoTitle: string = createWithEmbedded.title;
-  const todoStatus: string | null | undefined = createWithEmbedded.status;
+if (createWithEmbedded.success) {
+  const todoId: string = createWithEmbedded.data.id;
+  const todoTitle: string = createWithEmbedded.data.title;
+  const todoStatus: string | null | undefined = createWithEmbedded.data.status;
 
   // Embedded resource should be properly typed
-  if (createWithEmbedded.metadata) {
-    const metadataCategory: string = createWithEmbedded.metadata.category;
+  if (createWithEmbedded.data.metadata) {
+    const metadataCategory: string = createWithEmbedded.data.metadata.category;
     const metadataPriority: number | null | undefined =
-      createWithEmbedded.metadata.priorityScore;
+      createWithEmbedded.data.metadata.priorityScore;
     const metadataTags: string[] | null | undefined =
-      createWithEmbedded.metadata.tags;
+      createWithEmbedded.data.metadata.tags;
   }
 }
 
@@ -79,17 +79,17 @@ export const updateWithEmbedded = await updateTodo({
 });
 
 // Validate updated todo structure
-if (updateWithEmbedded) {
-  const updatedId: string = updateWithEmbedded.id;
-  const updatedTitle: string = updateWithEmbedded.title;
+if (updateWithEmbedded.success) {
+  const updatedId: string = updateWithEmbedded.data.id;
+  const updatedTitle: string = updateWithEmbedded.data.title;
   const updatedCompleted: boolean | null | undefined =
-    updateWithEmbedded.completed;
+    updateWithEmbedded.data.completed;
 
-  if (updateWithEmbedded.metadata) {
-    const updatedCategory: string = updateWithEmbedded.metadata.category;
+  if (updateWithEmbedded.data.metadata) {
+    const updatedCategory: string = updateWithEmbedded.data.metadata.category;
     // priorityScore should be optional and possibly undefined since we used minimal metadata
     const updatedPriority: number | null | undefined =
-      updateWithEmbedded.metadata.priorityScore;
+      updateWithEmbedded.data.metadata.priorityScore;
   }
 }
 
@@ -117,26 +117,26 @@ export const todoWithSelectedMetadata = await getTodo({
 });
 
 // Validate field selection worked correctly
-if (todoWithSelectedMetadata) {
-  const selectedId: string = todoWithSelectedMetadata.id;
-  const selectedTitle: string = todoWithSelectedMetadata.title;
+if (todoWithSelectedMetadata.success) {
+  const selectedId: string = todoWithSelectedMetadata.data.id;
+  const selectedTitle: string = todoWithSelectedMetadata.data.title;
 
   // metadata should be available since it was selected in embedded section
-  if (todoWithSelectedMetadata.metadata) {
+  if (todoWithSelectedMetadata.data.metadata) {
     // Only the selected embedded fields should be available
-    const metadataCategory: string = todoWithSelectedMetadata.metadata.category;
+    const metadataCategory: string = todoWithSelectedMetadata.data.metadata.category;
     const metadataPriority: number | null | undefined =
-      todoWithSelectedMetadata.metadata.priorityScore;
+      todoWithSelectedMetadata.data.metadata.priorityScore;
     const metadataIsUrgent: boolean | null | undefined =
-      todoWithSelectedMetadata.metadata.isUrgent;
+      todoWithSelectedMetadata.data.metadata.isUrgent;
   }
 
   // Self calculation should also have metadata with selected fields
-  if (todoWithSelectedMetadata.self?.metadata) {
+  if (todoWithSelectedMetadata.data.self?.metadata) {
     const selfMetadataCategory: string =
-      todoWithSelectedMetadata.self.metadata.category;
+      todoWithSelectedMetadata.data.self.metadata.category;
     const selfMetadataTags: string[] | null | undefined =
-      todoWithSelectedMetadata.self.metadata.tags;
+      todoWithSelectedMetadata.data.self.metadata.tags;
   }
 }
 
@@ -177,17 +177,17 @@ export const complexEmbeddedScenario = await getTodo({
 });
 
 // Validate complex embedded resource scenario
-if (complexEmbeddedScenario) {
+if (complexEmbeddedScenario.success) {
   // Top level embedded resources
-  if (complexEmbeddedScenario.metadata) {
-    const topCategory: string = complexEmbeddedScenario.metadata.category;
+  if (complexEmbeddedScenario.data.metadata) {
+    const topCategory: string = complexEmbeddedScenario.data.metadata.category;
     const topSettings: Record<string, any> | null | undefined =
-      complexEmbeddedScenario.metadata.settings;
+      complexEmbeddedScenario.data.metadata.settings;
   }
 
   // Array embedded resources (metadataHistory)
-  if (complexEmbeddedScenario.metadataHistory) {
-    const historyArray = complexEmbeddedScenario.metadataHistory;
+  if (complexEmbeddedScenario.data.metadataHistory) {
+    const historyArray = complexEmbeddedScenario.data.metadataHistory;
     if (historyArray.length > 0) {
       const firstHistoryItem = historyArray[0];
       const historyCategory: string = firstHistoryItem.category;
@@ -197,27 +197,27 @@ if (complexEmbeddedScenario) {
   }
 
   // Nested calculations with embedded resources
-  if (complexEmbeddedScenario.self) {
+  if (complexEmbeddedScenario.data.self) {
     const outerDays: number | null | undefined =
-      complexEmbeddedScenario.self.daysUntilDue;
+      complexEmbeddedScenario.data.self.daysUntilDue;
 
-    if (complexEmbeddedScenario.self.metadata) {
+    if (complexEmbeddedScenario.data.self.metadata) {
       const outerMetadataCategory: string =
-        complexEmbeddedScenario.self.metadata.category;
+        complexEmbeddedScenario.data.self.metadata.category;
     }
 
     // Inner nested calculation
-    if (complexEmbeddedScenario.self.self) {
+    if (complexEmbeddedScenario.data.self.self) {
       const innerStatus: string | null | undefined =
-        complexEmbeddedScenario.self.self.status;
+        complexEmbeddedScenario.data.self.self.status;
       const innerPriority: string | null | undefined =
-        complexEmbeddedScenario.self.self.priority;
+        complexEmbeddedScenario.data.self.self.priority;
 
-      if (complexEmbeddedScenario.self.self.metadata) {
+      if (complexEmbeddedScenario.data.self.self.metadata) {
         const innerMetadataCategory: string =
-          complexEmbeddedScenario.self.self.metadata.category;
+          complexEmbeddedScenario.data.self.self.metadata.category;
         const innerMetadataIsUrgent: boolean | null | undefined =
-          complexEmbeddedScenario.self.self.metadata.isUrgent;
+          complexEmbeddedScenario.data.self.self.metadata.isUrgent;
       }
     }
   }
@@ -262,16 +262,16 @@ export const createWithStrictInput = await createTodo({
 });
 
 // Validate that all input fields were properly handled
-if (createWithStrictInput?.metadata) {
-  const strictCategory: string = createWithStrictInput.metadata.category;
+if (createWithStrictInput.success && createWithStrictInput.data.metadata) {
+  const strictCategory: string = createWithStrictInput.data.metadata.category;
   const strictSubcategory: string | null | undefined =
-    createWithStrictInput.metadata.subcategory;
+    createWithStrictInput.data.metadata.subcategory;
   const strictPriority: number | null | undefined =
-    createWithStrictInput.metadata.priorityScore;
+    createWithStrictInput.data.metadata.priorityScore;
   const strictTags: string[] | null | undefined =
-    createWithStrictInput.metadata.tags;
+    createWithStrictInput.data.metadata.tags;
   const strictCustom: Record<string, any> | null | undefined =
-    createWithStrictInput.metadata.customFields;
+    createWithStrictInput.data.metadata.customFields;
 }
 
 console.log("Embedded resources tests should compile successfully!");

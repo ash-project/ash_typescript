@@ -13,8 +13,8 @@ export const customTypeTest = await getTodo({
 });
 
 // Type assertion: priorityScore should be number type (PriorityScore maps to number)
-if (customTypeTest?.priorityScore) {
-  const score: number = customTypeTest.priorityScore;
+if (customTypeTest.success && customTypeTest.data.priorityScore) {
+  const score: number = customTypeTest.data.priorityScore;
   console.log(`Priority score: ${score}`);
 }
 
@@ -24,8 +24,8 @@ export const colorPaletteTest = await getTodo({
 });
 
 // Type assertion: colorPalette should be ColorPalette type (custom type with complex structure)
-if (colorPaletteTest?.colorPalette) {
-  const palette: { primary: string; secondary: string; accent: string } = colorPaletteTest.colorPalette;
+if (colorPaletteTest.success && colorPaletteTest.data.colorPalette) {
+  const palette: { primary: string; secondary: string; accent: string } = colorPaletteTest.data.colorPalette;
   const primary: string = palette.primary;
   const secondary: string = palette.secondary;
   const accent: string = palette.accent;
@@ -53,15 +53,17 @@ export const createWithColorPalette = await createTodo({
 });
 
 // Type validation for created color palette todo
-const createdColorPaletteId: string = createWithColorPalette.id;
-const createdColorPaletteTitle: string = createWithColorPalette.title;
-const createdAt: string = createWithColorPalette.createdAt;
+if (createWithColorPalette.success) {
+  const createdColorPaletteId: string = createWithColorPalette.data.id;
+  const createdColorPaletteTitle: string = createWithColorPalette.data.title;
+  const createdAt: string = createWithColorPalette.data.createdAt;
 
-if (createWithColorPalette.colorPalette) {
-  const createdPalette: { primary: string; secondary: string; accent: string } = createWithColorPalette.colorPalette;
-  const createdPrimary: string = createdPalette.primary;
-  const createdSecondary: string = createdPalette.secondary;
-  const createdAccent: string = createdPalette.accent;
+  if (createWithColorPalette.data.colorPalette) {
+    const createdPalette: { primary: string; secondary: string; accent: string } = createWithColorPalette.data.colorPalette;
+    const createdPrimary: string = createdPalette.primary;
+    const createdSecondary: string = createdPalette.secondary;
+    const createdAccent: string = createdPalette.accent;
+  }
 }
 
 console.log("Custom types tests should compile successfully!");

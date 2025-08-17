@@ -42,24 +42,26 @@ export const listWithNestedSelf = await listTodos({
 });
 
 // Type validation for list results with nested calculations
-for (const todo of listWithNestedSelf.results) {
-  // Each todo should have the basic fields
-  const todoId: string = todo.id;
-  const todoTitle: string = todo.title;
-  const todoCompleted: boolean | null | undefined = todo.completed;
+if (listWithNestedSelf.success) {
+  for (const todo of listWithNestedSelf.data) {
+    // Each todo should have the basic fields
+    const todoId: string = todo.id;
+    const todoTitle: string = todo.title;
+    const todoCompleted: boolean | null | undefined = todo.completed;
 
-  // Each todo should have the self calculation
-  if (todo.self) {
-    const selfStatus: string | null | undefined = todo.self.status;
-    const selfPriority: string | null | undefined = todo.self.priority;
+    // Each todo should have the self calculation
+    if (todo.self) {
+      const selfStatus: string | null | undefined = todo.self.status;
+      const selfPriority: string | null | undefined = todo.self.priority;
 
-    // Each self should have the nested self calculation
-    if (todo.self.self) {
-      const nestedDescription: string | null | undefined =
-        todo.self.self.description;
-      const nestedTags: string[] | null | undefined = todo.self.self.tags;
-      const nestedMetadata: Record<string, any> | null | undefined =
-        todo.self.self.metadata;
+      // Each self should have the nested self calculation
+      if (todo.self.self) {
+        const nestedDescription: string | null | undefined =
+          todo.self.self.description;
+        const nestedTags: string[] | null | undefined = todo.self.self.tags;
+        const nestedMetadata: Record<string, any> | null | undefined =
+          todo.self.self.metadata;
+      }
     }
   }
 }
@@ -96,16 +98,18 @@ export const createWithNestedSelf = await createTodo({
 });
 
 // Type validation for created result
-const createdId: string = createWithNestedSelf.id;
-const createdTitle: string = createWithNestedSelf.title;
+if (createWithNestedSelf.success) {
+  const createdId: string = createWithNestedSelf.data.id;
+  const createdTitle: string = createWithNestedSelf.data.title;
 
-if (createWithNestedSelf.self?.self) {
-  const nestedCompleted: boolean | null | undefined =
-    createWithNestedSelf.self.self.completed;
-  const nestedPriority: string | null | undefined =
-    createWithNestedSelf.self.self.priority;
-  const nestedDueDate: string | null | undefined =
-    createWithNestedSelf.self.self.dueDate;
+  if (createWithNestedSelf.data.self?.self) {
+    const nestedCompleted: boolean | null | undefined =
+      createWithNestedSelf.data.self.self.completed;
+    const nestedPriority: string | null | undefined =
+      createWithNestedSelf.data.self.self.priority;
+    const nestedDueDate: string | null | undefined =
+      createWithNestedSelf.data.self.self.dueDate;
+  }
 }
 
 // Test 6: Read operations with input parameters
@@ -118,11 +122,13 @@ export const listWithInputParams = await listTodos({
 });
 
 // Type validation for list with input parameters
-for (const todo of listWithInputParams.results) {
-  const todoId: string = todo.id;
-  const todoTitle: string = todo.title;
-  const todoCompleted: boolean | null | undefined = todo.completed;
-  const todoPriority: string | null | undefined = todo.priority;
+if (listWithInputParams.success) {
+  for (const todo of listWithInputParams.data) {
+    const todoId: string = todo.id;
+    const todoTitle: string = todo.title;
+    const todoCompleted: boolean | null | undefined = todo.completed;
+    const todoPriority: string | null | undefined = todo.priority;
+  }
 }
 
 // Test 7: Read operations with partial input parameters (optional fields)

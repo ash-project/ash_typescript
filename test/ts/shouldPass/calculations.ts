@@ -37,21 +37,21 @@ export const basicNestedSelf = await getTodo({
 });
 
 // Type assertion: basicNestedSelf should have properly typed nested structure
-if (basicNestedSelf?.self) {
+if (basicNestedSelf.success && basicNestedSelf.data.self) {
   // Outer self calculation should have the specified fields
-  const outerId: string = basicNestedSelf.self.id;
-  const outerTitle: string = basicNestedSelf.self.title;
+  const outerId: string = basicNestedSelf.data.self.id;
+  const outerTitle: string = basicNestedSelf.data.self.title;
   const outerCompleted: boolean | null | undefined =
-    basicNestedSelf.self.completed;
-  const outerDueDate: string | null | undefined = basicNestedSelf.self.dueDate;
+    basicNestedSelf.data.self.completed;
+  const outerDueDate: string | null | undefined = basicNestedSelf.data.self.dueDate;
 
   // Inner nested self calculation should have its specified fields
-  if (basicNestedSelf.self.self) {
-    const innerId: string = basicNestedSelf.self.self.id;
+  if (basicNestedSelf.data.self.self) {
+    const innerId: string = basicNestedSelf.data.self.self.id;
     const innerStatus: string | null | undefined =
-      basicNestedSelf.self.self.status;
+      basicNestedSelf.data.self.self.status;
     const innerMetadata: Record<string, any> | null | undefined =
-      basicNestedSelf.self.self.metadata;
+      basicNestedSelf.data.self.self.metadata;
   }
 }
 
@@ -98,14 +98,14 @@ export const deepNestedSelf = await getTodo({
 });
 
 // Type validation for deep nested structure
-if (deepNestedSelf?.self?.self?.self) {
+if (deepNestedSelf.success && deepNestedSelf.data.self?.self?.self) {
   // Level 3 (deepest) should only have the fields specified in level 3
   const level3Description: string | null | undefined =
-    deepNestedSelf.self.self.self.description;
+    deepNestedSelf.data.self.self.self.description;
   const level3Metadata: Record<string, any> | null | undefined =
-    deepNestedSelf.self.self.self.metadata;
+    deepNestedSelf.data.self.self.self.metadata;
   const level3DueDate: string | null | undefined =
-    deepNestedSelf.self.self.self.dueDate;
+    deepNestedSelf.data.self.self.self.dueDate;
 }
 
 // Test 6: Edge case - self calculation with minimal fields
@@ -130,8 +130,8 @@ export const minimalSelf = await getTodo({
 });
 
 // Should compile successfully with minimal fields
-if (minimalSelf?.self?.self) {
-  const minimalTitle: string = minimalSelf.self.self.title;
+if (minimalSelf.success && minimalSelf.data.self?.self) {
+  const minimalTitle: string = minimalSelf.data.self.self.title;
 }
 
 // Test 8: Verify that different args types work correctly
@@ -164,9 +164,9 @@ export const varyingCalcArgs = await getTodo({
 });
 
 // Should handle all args variants correctly
-if (varyingCalcArgs?.self?.self?.self) {
+if (varyingCalcArgs.success && varyingCalcArgs.data.self?.self?.self) {
   const finalStatus: string | null | undefined =
-    varyingCalcArgs.self.self.self.status;
+    varyingCalcArgs.data.self.self.self.status;
 }
 
 console.log("Calculations tests should compile successfully!");
