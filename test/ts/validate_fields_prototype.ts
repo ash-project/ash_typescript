@@ -101,22 +101,20 @@ type TodoMetadataArrayEmbedded = {
   __array: true;
 };
 
-type TextResourceSchema = {
-  __type: "Resource";
-  __primitiveFields: "content" | "wordCount" | "text" | "formatting";
-  content: string;
-  wordCount: number;
-  text: string;
-  formatting: "plain" | "markdown" | "html";
-};
-
 type ContentUnion = {
   __type: "Union";
   __primitiveFields: "note" | "priorityValue";
 
   note?: string;
   priorityValue?: number;
-  text?: TextResourceSchema;
+  text?: {
+    __type: "Resource";
+    __primitiveFields: "content" | "wordCount" | "text" | "formatting";
+    content: string;
+    wordCount: number;
+    text: string;
+    formatting: "plain" | "markdown" | "html";
+  };
 }; // Simplified
 type AttachmentUnion = Record<string, any>; // Simplified
 
