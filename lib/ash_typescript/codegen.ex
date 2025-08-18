@@ -1105,7 +1105,7 @@ defmodule AshTypescript.Codegen do
       end)
       |> Enum.join(", ")
 
-    "{#{field_types}}"
+    "{#{field_types}, __type: \"TypedMap\"}"
   end
 
   def build_union_type(types) do
