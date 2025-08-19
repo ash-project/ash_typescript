@@ -5,26 +5,38 @@ import {
   getTodo,
 } from "../generated";
 
-// Test 4: Missing required fields property in calculations
-export const missingFields = await getTodo({
+// Test 1: Invalid property name instead of fields
+export const invalidPropertyInsteadOfFields = await getTodo({
+  input: {},
   fields: [
     "id",
     {
       self: {
         args: { prefix: "test_" },
-        calculations: {
-          self: {
-            args: { prefix: "nested_" },
-            fields: ["title"]
-          }
-        }
+        // @ts-expect-error - "calculations" is not valid, should be "fields"
+        calculations: ["title", "status"]
       }
     }
   ]
 });
 
-// Test 6: Invalid nested calculation structure
+// Test 2: Missing required fields property in calculations
+export const missingFieldsProperty = await getTodo({
+  input: {},
+  fields: [
+    "id",
+    {
+      // @ts-expect-error - fields property is required
+      self: {
+        args: { prefix: "test_" }
+      }
+    }
+  ]
+});
+
+// Test 3: Invalid nested calculation structure
 export const invalidNestedStructure = await getTodo({
+  input: {},
   fields: [
     "id",
     {
@@ -45,8 +57,9 @@ export const invalidNestedStructure = await getTodo({
   ]
 });
 
-// Test 10: Array instead of object for calculations
+// Test 4: Array instead of object for calculation structure
 export const arrayInsteadOfObject = await getTodo({
+  input: {},
   fields: [
     "id",
     // @ts-expect-error - calculation objects should be properly structured, not arrays
@@ -61,8 +74,24 @@ export const arrayInsteadOfObject = await getTodo({
   ]
 });
 
-// Test 13: Wrong relationship structure in nested calculations
+// Test 5: Wrong property name for calculation args
+export const wrongArgsProperty = await getTodo({
+  input: {},
+  fields: [
+    "id",
+    {
+      self: {
+        // @ts-expect-error - "arguments" is not valid, should be "args"
+        arguments: { prefix: "test_" },
+        fields: ["title"]
+      }
+    }
+  ]
+});
+
+// Test 6: Wrong structure for relationship in calculation
 export const wrongRelationshipStructure = await getTodo({
+  input: {},
   fields: [
     "id",
     {
@@ -71,10 +100,10 @@ export const wrongRelationshipStructure = await getTodo({
         fields: [
           "title",
           {
-            user: ["id", "name"],
             comments: [
               "id",
               {
+                // @ts-expect-error - invalidNesting is not a valid field in comments
                 invalidNesting: ["invalidField"]
               }
             ]
@@ -85,8 +114,9 @@ export const wrongRelationshipStructure = await getTodo({
   ]
 });
 
-// Test 17: Wrong calculation nesting level
-export const wrongNestingLevel = await getTodo({
+// Test 7: Invalid calculation nesting
+export const invalidCalculationNesting = await getTodo({
+  input: {},
   fields: [
     "id",
     {
@@ -119,6 +149,36 @@ export const wrongNestingLevel = await getTodo({
           }
         ]
       }
+    }
+  ]
+});
+
+// Test 8: Fields as object instead of array
+export const fieldsAsObject = await getTodo({
+  input: {},
+  fields: [
+    "id",
+    {
+      self: {
+        args: { prefix: "test_" },
+        fields: {
+          // @ts-expect-error - fields should be an array, not an object
+          title: true,
+          status: true
+        }
+      }
+    }
+  ]
+});
+
+// Test 9: Empty calculation object
+export const emptyCalculationObject = await getTodo({
+  input: {},
+  fields: [
+    "id",
+    {
+      // @ts-expect-error - calculation object cannot be empty
+      self: {}
     }
   ]
 });

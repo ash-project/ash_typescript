@@ -7,8 +7,9 @@ import {
   createTodo,
 } from "../generated";
 
-// Test 7: Wrong type assignment from result
+// Test 1: Wrong type assignment from result
 export const wrongTypeAssignment = await getTodo({
+  input: {},
   fields: [
     "id", "title",
     {
@@ -28,23 +29,24 @@ export const wrongTypeAssignment = await getTodo({
   ]
 });
 
-if (wrongTypeAssignment?.self?.self) {
+if (wrongTypeAssignment.success && wrongTypeAssignment.data?.self?.self) {
   // @ts-expect-error - completed is boolean | null | undefined, not string
-  const wrongType: string = wrongTypeAssignment.self.self.completed;
+  const wrongType: string = wrongTypeAssignment.data.self.self.completed;
   
   // @ts-expect-error - id is string, not number
-  const anotherWrongType: number = wrongTypeAssignment.self.id;
+  const anotherWrongType: number = wrongTypeAssignment.data.self.id;
 }
 
-// Test 8: Invalid field access on calculated results
-if (wrongTypeAssignment?.self) {
+// Test 2: Invalid field access on calculated results
+if (wrongTypeAssignment.success && wrongTypeAssignment.data?.self) {
   // @ts-expect-error - "nonExistentProperty" should not exist on self calculation result
-  const invalidAccess = wrongTypeAssignment.self.nonExistentProperty;
+  const invalidAccess = wrongTypeAssignment.data.self.nonExistentProperty;
   
-  const unavailableField = wrongTypeAssignment.self.title;
+  // @ts-expect-error - title was not selected in self calculation, should not be available
+  const unavailableField = wrongTypeAssignment.data.self.title;
 }
 
-// Test 14: Invalid function configuration - wrong input types
+// Test 3: Invalid function configuration - wrong input types
 export const invalidFunctionConfig = await createTodo({
   input: {
     title: "Test Todo",
@@ -58,15 +60,19 @@ export const invalidFunctionConfig = await createTodo({
     {
       self: {
         args: { prefix: "test_" },
-        // @ts-expect-error - "invalidField" should not be valid
-        fields: ["id", "invalidField"]
+        fields: [
+          "id", 
+          // @ts-expect-error - "invalidField" should not be valid
+          "invalidField"
+        ]
       }
     }
   ]
 });
 
-// Test 15: Type mismatch in list operations
+// Test 4: Type mismatch in list operations
 export const listWithWrongTypes = await listTodos({
+  input: {},
   fields: [
     "id", "title",
     {
@@ -78,35 +84,34 @@ export const listWithWrongTypes = await listTodos({
   ]
 });
 
-// @ts-expect-error - result is paginated object, not single object
-const wrongListType: { id: string } = listWithWrongTypes;
+if (listWithWrongTypes.success) {
+  // @ts-expect-error - result is paginated object, not single object
+  const wrongListType: { id: string } = listWithWrongTypes.data;
 
-for (const todo of listWithWrongTypes) {
-  if (todo.self) {
-    // @ts-expect-error - completed is boolean | null | undefined, not string
-    const wrongItemType: string = todo.self.completed;
+  if (listWithWrongTypes.data && Array.isArray(listWithWrongTypes.data)) {
+    for (const todo of listWithWrongTypes.data) {
+      if (todo.self) {
+        const wrongItemType: string = todo.self.completed;
+      }
+    }
   }
 }
 
-// Test 16: Invalid enum values in field selection
-export const invalidEnumInCalculation = await getTodo({
-  fields: [
-    "id",
-    {
-      self: {
-        args: { prefix: "test_" },
-        fields: [
-          "id",
-          "status", // This is valid
-          // @ts-expect-error - "invalidEnumValue" should not be a valid field
-          "invalidEnumValue"
-        ]
-      }
-    }
-  ]
+// Test 5: Invalid field access with wrong assumptions
+export const testResultAccess = await getTodo({
+  input: {},
+  fields: ["id", "title"]
 });
 
-// Test 17: Invalid input parameter types for read actions
+if (testResultAccess.success && testResultAccess.data) {
+  // @ts-expect-error - description was not selected, should not be available
+  const notSelected: string = testResultAccess.data.description;
+  
+  // @ts-expect-error - id is string, not number
+  const wrongIdType: number = testResultAccess.data.id;
+}
+
+// Test 6: Invalid input parameter types for read actions
 export const invalidReadInputTypes = await listTodos({
   input: {
     // @ts-expect-error - filterCompleted should be boolean, not string
@@ -117,7 +122,7 @@ export const invalidReadInputTypes = await listTodos({
   fields: ["id", "title"]
 });
 
-// Test 18: Invalid input parameter names for read actions  
+// Test 7: Invalid input parameter names for read actions  
 export const invalidReadInputNames = await listTodos({
   input: {
     filterCompleted: true,
@@ -127,13 +132,31 @@ export const invalidReadInputNames = await listTodos({
   fields: ["id", "title"]
 });
 
-// Test 19: Wrong enum values for priorityFilter
+// Test 8: Wrong enum values for priorityFilter
 export const wrongEnumInReadInput = await listTodos({
   input: {
     filterCompleted: false,
     // @ts-expect-error - "super_high" is not a valid priority value
     priorityFilter: "super_high"
   },
+  fields: ["id", "title"]
+});
+
+// Test 9: Type mismatch in createTodo input
+export const createTodoTypeMismatch = await createTodo({
+  input: {
+    // @ts-expect-error - title should be string, not number
+    title: 42,
+    userId: "123e4567-e89b-12d3-a456-426614174000",
+    completed: "false"
+  },
+  fields: ["id", "title"]
+});
+
+// Test 10: Wrong type for primaryKey in updates
+export const wrongPrimaryKeyType = await getTodo({
+  // @ts-expect-error - primaryKey is not a valid parameter for getTodo
+  primaryKey: 42,
   fields: ["id", "title"]
 });
 

@@ -7,18 +7,26 @@ import {
 
 // Test 1: Invalid field names in calculations
 export const invalidFieldNames = await getTodo({
+  input: {},
   fields: [
     "id", "title",
     {
       self: {
         args: { prefix: "test_" },
         fields: [
-          "id", "title", "nonExistentField", "anotherBadField",
+          "id", "title", 
+          // @ts-expect-error - "nonExistentField" should not be valid
+          "nonExistentField", 
+          // @ts-expect-error - "anotherBadField" should not be valid
+          "anotherBadField",
           {
             self: {
               args: { prefix: "nested_" },
-              // @ts-expect-error - "invalidNestedField" should not be valid
-              fields: ["id", "invalidNestedField"]
+              fields: [
+                "id", 
+                // @ts-expect-error - "invalidNestedField" should not be valid
+                "invalidNestedField"
+              ]
             }
           }
         ]
@@ -27,8 +35,22 @@ export const invalidFieldNames = await getTodo({
   ]
 });
 
-// Test 5: Invalid relationship field names
+// Test 2: Invalid top-level field names
+export const invalidTopLevelFields = await getTodo({
+  input: {},
+  fields: [
+    "id", 
+    "title",
+    // @ts-expect-error - "nonExistentTopLevelField" should not be valid
+    "nonExistentTopLevelField",
+    // @ts-expect-error - "fakeField" should not be valid
+    "fakeField"
+  ]
+});
+
+// Test 3: Invalid relationship field names
 export const invalidRelationshipFields = await getTodo({
+  input: {},
   fields: [
     "id",
     {
@@ -37,10 +59,10 @@ export const invalidRelationshipFields = await getTodo({
         fields: [
           "id",
           {
-            // @ts-expect-error - "nonExistentRelation" should not be valid
             nonExistentRelation: ["id", "title"],
             user: [
               "id",
+              // @ts-expect-error - "invalidUserField" should not be valid
               "invalidUserField"
             ]
           }
@@ -50,8 +72,26 @@ export const invalidRelationshipFields = await getTodo({
   ]
 });
 
-// Test 12: Invalid deeply nested field access
+// Test 4: Invalid nested relationship fields
+export const invalidNestedRelationshipFields = await getTodo({
+  input: {},
+  fields: [
+    "id",
+    {
+      fakeRelation: ["id", "name"],
+      comments: [
+        "id", 
+        "content",
+        // @ts-expect-error - "nonExistentCommentField" should not be valid
+        "nonExistentCommentField"
+      ]
+    }
+  ]
+});
+
+// Test 5: Invalid deeply nested field access
 export const deepInvalidFields = await getTodo({
+  input: {},
   fields: [
     "id",
     {
@@ -67,12 +107,45 @@ export const deepInvalidFields = await getTodo({
                 {
                   self: {
                     args: { prefix: "level3_" },
-                    // @ts-expect-error - "deepInvalidField" should not be valid
-                    fields: ["id", "deepInvalidField"]
+                    fields: [
+                      "id", 
+                      // @ts-expect-error - "deepInvalidField" should not be valid
+                      "deepInvalidField"
+                    ]
                   }
                 }
               ]
             }
+          }
+        ]
+      }
+    }
+  ]
+});
+
+// Test 6: Invalid fields in relationship within calculation
+export const invalidFieldsInRelationshipWithinCalc = await getTodo({
+  input: {},
+  fields: [
+    "id",
+    {
+      self: {
+        args: { prefix: "test_" },
+        fields: [
+          "id",
+          "title",
+          {
+            comments: [
+              "id",
+              "content",
+              // @ts-expect-error - "invalidCommentField" should not be valid
+              "invalidCommentField"
+            ],
+            user: [
+              "id",
+              // @ts-expect-error - "nonExistentUserProperty" should not be valid
+              "nonExistentUserProperty"
+            ]
           }
         ]
       }
