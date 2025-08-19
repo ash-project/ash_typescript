@@ -187,14 +187,110 @@ defmodule AshTypescript.Rpc do
   @spec validate_action(atom(), Plug.Conn.t(), map()) ::
           {:ok, map()} | {:error, map()}
   def validate_action(otp_app, conn, params) do
-    case Pipeline.parse_request(otp_app, conn, params) do
-      {:ok, _parsed_request} ->
-        %{success: true}
+    case Pipeline.parse_request(otp_app, conn, params, validation_mode?: true) do
+      {:ok, parsed_request} ->
+        validate_form_input(parsed_request)
 
       {:error, reason} ->
         %{success: false, errors: [ErrorBuilder.build_error_response(reason)]}
     end
     |> Pipeline.format_output()
+  end
+
+  defp validate_form_input(%{action: action, resource: resource, input: input} = request) do
+    opts = [
+      actor: request.actor,
+      tenant: request.tenant,
+      context: request.context
+    ]
+
+    case action.type do
+      :read ->
+        # For read actions, validate by building a query
+        validate_read_action(resource, action, input, opts)
+
+      action_type when action_type in [:update, :destroy] ->
+        case Ash.get(resource, request.primary_key, opts) do
+          {:ok, record} ->
+            perform_form_validation(record, action.name, input, opts)
+
+          {:error, error} ->
+            %{success: false, errors: [ErrorBuilder.build_error_response(error)]}
+        end
+
+      _ ->
+        perform_form_validation(resource, action.name, input, opts)
+    end
+  end
+
+  defp validate_read_action(resource, action, input, opts) do
+    # For read actions, validate by building a query
+    try do
+      query =
+        resource
+        |> Ash.Query.for_read(action.name, input, opts)
+
+      # If we can build the query without errors, validation passes
+      case query do
+        %Ash.Query{errors: []} ->
+          %{success: true}
+
+        %Ash.Query{errors: errors} when errors != [] ->
+          formatted_errors =
+            errors
+            |> Enum.map(fn error ->
+              %{
+                type: "validation_error",
+                message: Exception.message(error)
+              }
+            end)
+
+          %{success: false, errors: formatted_errors}
+
+        _ ->
+          %{success: true}
+      end
+    rescue
+      e ->
+        %{
+          success: false,
+          errors: [
+            %{
+              type: "validation_error",
+              message: Exception.message(e)
+            }
+          ]
+        }
+    end
+  end
+
+  defp perform_form_validation(record_or_resource, action_name, input, opts) do
+    form_errors =
+      record_or_resource
+      |> AshPhoenix.Form.for_action(action_name, opts)
+      |> AshPhoenix.Form.validate(input)
+      |> AshPhoenix.Form.errors()
+
+    if Enum.empty?(form_errors) do
+      %{success: true}
+    else
+      formatted_errors =
+        form_errors
+        |> Enum.map(fn {field, messages} ->
+          formatted_messages =
+            messages
+            |> List.wrap()
+            |> Enum.map(&to_string/1)
+
+          %{
+            type: "validation_error",
+            field: to_string(field),
+            message: Enum.join(formatted_messages, "; ")
+          }
+        end)
+
+      %{success: false, errors: formatted_errors}
+    end
   end
 
   @doc """

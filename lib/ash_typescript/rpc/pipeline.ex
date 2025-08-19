@@ -16,14 +16,15 @@ defmodule AshTypescript.Rpc.Pipeline do
   Converts raw request parameters into a structured Request with validated fields.
   Fails fast on any invalid input - no permissive modes.
   """
-  @spec parse_request(atom(), Plug.Conn.t(), map()) ::
+  @spec parse_request(atom(), Plug.Conn.t(), map(), keyword()) ::
           {:ok, Request.t()} | {:error, term()}
-  def parse_request(otp_app, conn, params) do
+  def parse_request(otp_app, conn, params, opts \\ []) do
+    validation_mode? = Keyword.get(opts, :validation_mode?, false)
     input_formatter = Rpc.input_field_formatter()
     normalized_params = FieldFormatter.parse_input_fields(params, input_formatter)
 
     with {:ok, {resource, action}} <- discover_action(otp_app, normalized_params),
-         :ok <- validate_required_parameters_for_action_type(normalized_params, action),
+         :ok <- validate_required_parameters_for_action_type(normalized_params, action, validation_mode?),
          requested_fields <-
            RequestedFieldsProcessor.atomize_requested_fields(normalized_params[:fields] || []),
          {:ok, {select, load, template}} <-
@@ -412,8 +413,24 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   # Request validation functions
 
-  defp validate_required_parameters_for_action_type(params, action) do
-    if action.type in [:read, :create, :update] do
+  defp validate_required_parameters_for_action_type(params, action, validation_mode?) do
+    needs_fields = if validation_mode? do
+      # Validation never needs fields - we only validate input parameters
+      false
+    else
+      # Execution context - determine if fields are needed based on action type
+      case action.type do
+        type when type in [:read, :create, :update] -> 
+          true
+        :action -> 
+          # Only require fields for generic actions that return field-selectable types
+          match?({:ok, _, _}, AshTypescript.Rpc.Codegen.action_returns_field_selectable_type?(action))
+        _ -> 
+          false
+      end
+    end
+
+    if needs_fields do
       fields = params[:fields]
 
       cond do

@@ -91,7 +91,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       valid_params = %{
         "action" => "list_todos",
         "fields" => ["id", "title"],
-        "input" => %{"userId" => "123"}
+        "input" => %{"filterCompleted" => true, "priorityFilter" => "high"}
       }
 
       conn = %Plug.Conn{}

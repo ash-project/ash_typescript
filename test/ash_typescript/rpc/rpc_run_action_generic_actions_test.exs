@@ -117,18 +117,31 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
       assert error_message =~ "nested" or error_message =~ "unknown" or error_message =~ "field"
     end
 
-    test "handles empty field list for map types", %{conn: conn} do
+    test "requires fields for field-selectable map types", %{conn: conn} do
+      # Empty fields should now be rejected for field-selectable actions
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_statistics_todo",
           "fields" => []
         })
 
+      assert result["success"] == false
+      error_message = inspect(result["errors"])
+      assert error_message =~ "empty_fields_array" or error_message =~ "fields"
+
+      # But valid fields should work
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_statistics_todo",
+          "fields" => ["total", "completed"]
+        })
+
       assert result["success"] == true
       data = result["data"]
-
-      # With empty fields, should get empty map
-      assert data == %{}
+      assert Map.has_key?(data, "total")
+      assert Map.has_key?(data, "completed")
+      # Should not have other fields since they weren't requested
+      assert map_size(data) == 2
     end
   end
 
