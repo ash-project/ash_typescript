@@ -185,12 +185,12 @@ defmodule AshTypescript.Rpc.Codegen do
           ? T[K] extends { __args: infer Args }
             ? NonNullable<ReturnType> extends TypedSchema
               ? {
-                  args: Args;
-                  fields: UnifiedFieldSelection<NonNullable<ReturnType>>[];
+                  #{formatted_args_field()}: Args;
+                  #{formatted_fields_field()}: UnifiedFieldSelection<NonNullable<ReturnType>>[];
                 }
-              : { args: Args }
+              : { #{formatted_args_field()}: Args }
             : NonNullable<ReturnType> extends TypedSchema
-              ? { fields: UnifiedFieldSelection<NonNullable<ReturnType>>[] }
+              ? { #{formatted_fields_field()}: UnifiedFieldSelection<NonNullable<ReturnType>>[] }
               : never
           : NonNullable<T[K]> extends TypedSchema
             ? UnifiedFieldSelection<NonNullable<T[K]>>[]
@@ -508,7 +508,7 @@ defmodule AshTypescript.Rpc.Codegen do
     # Calculation with args - this comes from the extraction template after processing
     args_json = format_args_map(args)
 
-    "{ #{format_field_name(field)}: { args: #{args_json}, fields: [#{format_fields_array(nested_fields)}] } }"
+    "{ #{format_field_name(field)}: { #{formatted_args_field()}: #{args_json}, #{formatted_fields_field()}: [#{format_fields_array(nested_fields)}] } }"
   end
 
   defp format_field_item({field, nested_fields}) when is_atom(field) and is_map(nested_fields) do
@@ -518,7 +518,7 @@ defmodule AshTypescript.Rpc.Codegen do
         # Complex calculation from template
         args_json = format_args_map(args)
 
-        "{ #{format_field_name(field)}: { args: #{args_json}, fields: [#{format_fields_array(fields)}] } }"
+        "{ #{format_field_name(field)}: { #{formatted_args_field()}: #{args_json}, #{formatted_fields_field()}: [#{format_fields_array(fields)}] } }"
 
       _ ->
         # Other map structure - treat as generic
@@ -824,11 +824,10 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   defp generate_offset_pagination_result_type(rpc_action_name_pascal, resource_name) do
-    formatter = AshTypescript.Rpc.output_field_formatter()
-    results_field = AshTypescript.FieldFormatter.format_field("results", formatter)
-    has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
-    limit_field = AshTypescript.FieldFormatter.format_field("limit", formatter)
-    offset_field = AshTypescript.FieldFormatter.format_field("offset", formatter)
+    results_field = formatted_results_field()
+    has_more_field = formatted_has_more_field()
+    limit_field = formatted_limit_field()
+    offset_field = formatted_offset_field()
 
     """
     type Infer#{rpc_action_name_pascal}Result<
@@ -843,14 +842,13 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   defp generate_keyset_pagination_result_type(rpc_action_name_pascal, resource_name) do
-    formatter = AshTypescript.Rpc.output_field_formatter()
-    results_field = AshTypescript.FieldFormatter.format_field("results", formatter)
-    has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
-    limit_field = AshTypescript.FieldFormatter.format_field("limit", formatter)
-    after_field = AshTypescript.FieldFormatter.format_field("after", formatter)
-    before_field = AshTypescript.FieldFormatter.format_field("before", formatter)
-    previous_page_field = AshTypescript.FieldFormatter.format_field("previous_page", formatter)
-    next_page_field = AshTypescript.FieldFormatter.format_field("next_page", formatter)
+    results_field = formatted_results_field()
+    has_more_field = formatted_has_more_field()
+    limit_field = formatted_limit_field()
+    after_field = formatted_after_field()
+    before_field = formatted_before_field()
+    previous_page_field = formatted_previous_page_field()
+    next_page_field = formatted_next_page_field()
 
     """
     type Infer#{rpc_action_name_pascal}Result<
@@ -868,17 +866,16 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   defp generate_mixed_pagination_result_type(rpc_action_name_pascal, resource_name) do
-    formatter = AshTypescript.Rpc.output_field_formatter()
-    results_field = AshTypescript.FieldFormatter.format_field("results", formatter)
-    has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
-    limit_field = AshTypescript.FieldFormatter.format_field("limit", formatter)
-    offset_field = AshTypescript.FieldFormatter.format_field("offset", formatter)
-    after_field = AshTypescript.FieldFormatter.format_field("after", formatter)
-    before_field = AshTypescript.FieldFormatter.format_field("before", formatter)
-    count_field = AshTypescript.FieldFormatter.format_field("count", formatter)
-    previous_page_field = AshTypescript.FieldFormatter.format_field("previous_page", formatter)
-    next_page_field = AshTypescript.FieldFormatter.format_field("next_page", formatter)
-    type_field = AshTypescript.FieldFormatter.format_field("type", formatter)
+    results_field = formatted_results_field()
+    has_more_field = formatted_has_more_field()
+    limit_field = formatted_limit_field()
+    offset_field = formatted_offset_field()
+    after_field = formatted_after_field()
+    before_field = formatted_before_field()
+    count_field = format_output_field(:count)
+    previous_page_field = formatted_previous_page_field()
+    next_page_field = formatted_next_page_field()
+    type_field = format_output_field(:type)
 
     """
     type Infer#{rpc_action_name_pascal}Result<
@@ -942,17 +939,17 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   defp generate_offset_pagination_config_fields(limit_required, supports_countable, optional_mark) do
-    fields = ["    limit#{limit_required}: number;", "    offset?: number;"]
+    fields = ["    #{formatted_limit_field()}#{limit_required}: number;", "    #{formatted_offset_field()}?: number;"]
 
     fields =
       if supports_countable do
-        fields ++ ["    count?: boolean;"]
+        fields ++ ["    #{format_output_field(:count)}?: boolean;"]
       else
         fields
       end
 
     [
-      "  page#{optional_mark}: {"
+      "  #{formatted_page_field()}#{optional_mark}: {"
     ] ++
       fields ++
       [
@@ -962,13 +959,13 @@ defmodule AshTypescript.Rpc.Codegen do
 
   defp generate_keyset_pagination_config_fields(limit_required, optional_mark) do
     fields = [
-      "    limit#{limit_required}: number;",
-      "    after?: string;",
-      "    before?: string;"
+      "    #{formatted_limit_field()}#{limit_required}: number;",
+      "    #{formatted_after_field()}?: string;",
+      "    #{formatted_before_field()}?: string;"
     ]
 
     [
-      "  page#{optional_mark}: {"
+      "  #{formatted_page_field()}#{optional_mark}: {"
     ] ++
       fields ++
       [
@@ -979,25 +976,25 @@ defmodule AshTypescript.Rpc.Codegen do
   defp generate_mixed_pagination_config_fields(limit_required, supports_countable, optional_mark) do
     # Generate union type for mixed pagination support (without type discriminator)
     offset_fields = [
-      "      limit#{limit_required}: number;",
-      "      offset?: number;"
+      "      #{formatted_limit_field()}#{limit_required}: number;",
+      "      #{formatted_offset_field()}?: number;"
     ]
 
     offset_fields =
       if supports_countable do
-        offset_fields ++ ["      count?: boolean;"]
+        offset_fields ++ ["      #{format_output_field(:count)}?: boolean;"]
       else
         offset_fields
       end
 
     keyset_fields = [
-      "      limit#{limit_required}: number;",
-      "      after?: string;",
-      "      before?: string;"
+      "      #{formatted_limit_field()}#{limit_required}: number;",
+      "      #{formatted_after_field()}?: string;",
+      "      #{formatted_before_field()}?: string;"
     ]
 
     [
-      "  page#{optional_mark}: ("
+      "  #{formatted_page_field()}#{optional_mark}: ("
     ] ++
       [
         "    {"
@@ -1036,7 +1033,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     config_fields =
       if requires_tenant do
-        ["  tenant: string;"]
+        ["  #{format_output_field(:tenant)}: string;"]
       else
         []
       end
@@ -1049,15 +1046,19 @@ defmodule AshTypescript.Rpc.Codegen do
         if Enum.count(primary_key_attrs) == 1 do
           attr_name = Enum.at(primary_key_attrs, 0)
           attr = Ash.Resource.Info.attribute(resource, attr_name)
-          config_fields ++ ["  primaryKey: #{get_ts_type(attr)};"]
+          formatted_primary_key = format_output_field(:primary_key)
+          config_fields ++ ["  #{formatted_primary_key}: #{get_ts_type(attr)};"]
         else
+          formatted_primary_key = format_output_field(:primary_key)
+
           primary_key_def =
             [
-              "  primaryKey: {"
+              "  #{formatted_primary_key}: {"
             ] ++
               Enum.map(primary_key_attrs, fn attr_name ->
                 attr = Ash.Resource.Info.attribute(resource, attr_name)
-                "    #{attr.name}: #{get_ts_type(attr)};"
+                formatted_attr_name = format_output_field(attr.name)
+                "    #{formatted_attr_name}: #{get_ts_type(attr)};"
               end) ++
               [
                 "  };"
@@ -1070,7 +1071,7 @@ defmodule AshTypescript.Rpc.Codegen do
       end
 
     # Add input field
-    config_fields = config_fields ++ ["  input: #{input_type_name};"]
+    config_fields = config_fields ++ ["  #{format_output_field(:input)}: #{input_type_name};"]
 
     # Add fields field (always present for non-destroy actions)
     {config_fields, has_fields, fields_generic} =
@@ -1080,7 +1081,7 @@ defmodule AshTypescript.Rpc.Codegen do
             # Check if this generic action returns a field-selectable type
             case action_returns_field_selectable_type?(action) do
               {:ok, type, _value} when type in [:resource, :array_of_resource] ->
-                updated_fields = config_fields ++ ["  fields: Fields;"]
+                updated_fields = config_fields ++ ["  #{formatted_fields_field()}: Fields;"]
 
                 {updated_fields, true,
                  "Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[]"}
@@ -1093,7 +1094,7 @@ defmodule AshTypescript.Rpc.Codegen do
                 updated_fields =
                   config_fields ++
                     [
-                      "  fields: Fields;"
+                      "  #{formatted_fields_field()}: Fields;"
                     ]
 
                 {updated_fields, true,
@@ -1105,7 +1106,7 @@ defmodule AshTypescript.Rpc.Codegen do
             end
 
           _ ->
-            updated_fields = config_fields ++ ["  fields: Fields;"]
+            updated_fields = config_fields ++ ["  #{formatted_fields_field()}: Fields;"]
 
             {updated_fields, true,
              "Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[]"}
@@ -1117,7 +1118,7 @@ defmodule AshTypescript.Rpc.Codegen do
     # Add filter field for read actions (except get)
     config_fields =
       if supports_filtering do
-        config_fields ++ ["  filter?: #{resource_name}FilterInput;"]
+        config_fields ++ ["  #{format_output_field(:filter)}?: #{resource_name}FilterInput;"]
       else
         config_fields
       end
@@ -1125,7 +1126,7 @@ defmodule AshTypescript.Rpc.Codegen do
     # Add sort field for read actions (except get)
     config_fields =
       if supports_filtering do
-        config_fields ++ ["  sort?: string;"]
+        config_fields ++ ["  #{format_output_field(:sort)}?: string;"]
       else
         config_fields
       end
@@ -1143,20 +1144,22 @@ defmodule AshTypescript.Rpc.Codegen do
     config_fields = config_fields ++ ["  headers?: Record<string, string>;"]
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
+    success_field = format_output_field(:success)
+    errors_field = format_output_field(:errors)
 
     # Generate result types and function signature
     {result_type_def, return_type_def, generic_param, function_signature} =
       cond do
         action.type == :destroy ->
           result_type = """
-          | { success: true; data: {} }
+          | { #{success_field}: true; data: {} }
           | {
-              success: false;
-              errors: Array<{
-                type: string;
-                message: string;
-                field_path?: string;
-                details: Record<string, string>;
+              #{success_field}: false;
+              #{errors_field}: Array<{
+                #{formatted_error_type_field()}: string;
+                #{formatted_error_message_field()}: string;
+                #{formatted_error_field_path_field()}?: string;
+                #{formatted_error_details_field()}: Record<string, string>;
               }>;
             }
           """
@@ -1168,14 +1171,14 @@ defmodule AshTypescript.Rpc.Codegen do
         has_fields ->
           # Actions with field selection (CRUD + field-selectable generic actions)
           result_type = """
-          | { success: true; data: Infer#{rpc_action_name_pascal}Result<Fields> }
+          | { #{success_field}: true; data: Infer#{rpc_action_name_pascal}Result<Fields> }
           | {
-              success: false;
-              errors: Array<{
-                type: string;
-                message: string;
-                field_path?: string;
-                details: Record<string, string>;
+              #{success_field}: false;
+              #{errors_field}: Array<{
+                #{formatted_error_type_field()}: string;
+                #{formatted_error_message_field()}: string;
+                #{formatted_error_field_path_field()}?: string;
+                #{formatted_error_details_field()}: Record<string, string>;
               }>;
             }
           """
@@ -1189,14 +1192,14 @@ defmodule AshTypescript.Rpc.Codegen do
         true ->
           # Generic actions without field selection
           result_type = """
-          | { success: true; data: Infer#{rpc_action_name_pascal}Result }
+          | { #{success_field}: true; data: Infer#{rpc_action_name_pascal}Result }
           | {
-              success: false;
-              errors: Array<{
-                type: string;
-                message: string;
-                field_path?: string;
-                details: Record<string, string>;
+              #{success_field}: false;
+              #{errors_field}: Array<{
+                #{formatted_error_type_field()}: string;
+                #{formatted_error_message_field()}: string;
+                #{formatted_error_field_path_field()}?: string;
+                #{formatted_error_details_field()}: Record<string, string>;
               }>;
             }
           """
@@ -1233,8 +1236,8 @@ defmodule AshTypescript.Rpc.Codegen do
 
       if (!response.ok) {
         return {
-          success: false,
-          errors: [{ type: "network", message: response.statusText, details: {} }],
+          #{success_field}: false,
+          #{errors_field}: [{ #{formatted_error_type_field()}: "network", #{formatted_error_message_field()}: response.statusText, #{formatted_error_details_field()}: {} }],
         };
       }
 
@@ -1263,7 +1266,7 @@ defmodule AshTypescript.Rpc.Codegen do
     # Add tenant field if needed
     config_fields =
       if requires_tenant do
-        config_fields ++ ["  tenant: string;"]
+        config_fields ++ ["  #{format_output_field(:tenant)}: string;"]
       else
         config_fields
       end
@@ -1271,31 +1274,34 @@ defmodule AshTypescript.Rpc.Codegen do
     # Add primary key field for update/destroy actions
     config_fields =
       if requires_primary_key do
-        config_fields ++ ["  primaryKey: string;"]
+        formatted_primary_key = format_output_field(:primary_key)
+        config_fields ++ ["  #{formatted_primary_key}: string;"]
       else
         config_fields
       end
 
     # Add input field - always present for validation
-    config_fields = config_fields ++ ["  input: #{rpc_action_name_pascal}Input;"]
+    config_fields = config_fields ++ ["  #{format_output_field(:input)}: #{rpc_action_name_pascal}Input;"]
 
     # Add headers field (always optional)
     config_fields = config_fields ++ ["  headers?: Record<string, string>;"]
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
 
+    success_field = format_output_field(:success)
+    errors_field = format_output_field(:errors)
     # Generate validation result type
     validation_result_type = """
     export type Validate#{rpc_action_name_pascal}Result =
-      | { success: true }
+      | { #{success_field}: true }
       | {
-          success: false;
-          errors: Array<{
-            type: string;
-            message: string;
-            field?: string;
-            field_path?: string;
-            details?: Record<string, any>;
+          #{success_field}: false;
+          #{errors_field}: Array<{
+            #{formatted_error_type_field()}: string;
+            #{formatted_error_message_field()}: string;
+            #{format_output_field(:field)}?: string;
+            #{formatted_error_field_path_field()}?: string;
+            #{formatted_error_details_field()}?: Record<string, any>;
           }>;
         };
     """
@@ -1325,8 +1331,8 @@ defmodule AshTypescript.Rpc.Codegen do
 
       if (!response.ok) {
         return {
-          success: false,
-          errors: [{ type: "network", message: response.statusText }],
+          #{success_field}: false,
+          #{errors_field}: [{ #{formatted_error_type_field()}: "network", #{formatted_error_message_field()}: response.statusText }],
         };
       }
 
