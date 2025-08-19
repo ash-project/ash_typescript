@@ -82,7 +82,9 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Map, constraints: constraints})
-      assert result == "{name: string, age: number| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
+
+      assert result ==
+               "{name: string, age: number| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
     end
 
     test "converts keyword type with fields" do
@@ -94,7 +96,9 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Keyword, constraints: constraints})
-      assert result == "{key1: string, key2: boolean| null, __type: \"TypedMap\", __primitiveFields: \"key1\" | \"key2\"}"
+
+      assert result ==
+               "{key1: string, key2: boolean| null, __type: \"TypedMap\", __primitiveFields: \"key1\" | \"key2\"}"
     end
 
     test "converts tuple type with fields" do
@@ -106,7 +110,9 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Tuple, constraints: constraints})
-      assert result == "{first: string, second: number, __type: \"TypedMap\", __primitiveFields: \"first\" | \"second\"}"
+
+      assert result ==
+               "{first: string, second: number, __type: \"TypedMap\", __primitiveFields: \"first\" | \"second\"}"
     end
   end
 
@@ -138,7 +144,9 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Union, constraints: constraints})
-      assert result == "{ __type: \"Union\"; __primitiveFields: \"string\" | \"integer\"; string?: string; integer?: number; }"
+
+      assert result ==
+               "{ __type: \"Union\"; __primitiveFields: \"string\" | \"integer\"; string?: string; integer?: number; }"
     end
 
     test "removes duplicate types in union" do
@@ -151,7 +159,9 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Union, constraints: constraints})
-      assert result == "{ __type: \"Union\"; __primitiveFields: \"string1\" | \"string2\" | \"integer\"; string1?: string; string2?: string; integer?: number; }"
+
+      assert result ==
+               "{ __type: \"Union\"; __primitiveFields: \"string1\" | \"string2\" | \"integer\"; string1?: string; string2?: string; integer?: number; }"
     end
   end
 
@@ -165,7 +175,9 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Struct, constraints: constraints})
-      assert result == "{name: string, active: boolean| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"active\"}"
+
+      assert result ==
+               "{name: string, active: boolean| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"active\"}"
     end
 
     test "converts struct with instance_of to resource type" do
@@ -201,7 +213,9 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Map, constraints: constraints})
-      assert result == "{status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\", __type: \"TypedMap\", __primitiveFields: \"status\"}"
+
+      assert result ==
+               "{status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\", __type: \"TypedMap\", __primitiveFields: \"status\"}"
     end
 
     test "handles enum in union type" do
@@ -239,7 +253,9 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.build_map_type(fields)
-      assert result == "{name: string, age: number| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
+
+      assert result ==
+               "{name: string, age: number| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
     end
 
     test "builds map type with selected fields only" do
@@ -250,7 +266,9 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.build_map_type(fields, ["name", "age"])
-      assert result == "{name: string, age: number| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
+
+      assert result ==
+               "{name: string, age: number| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
     end
 
     test "handles empty field list" do
@@ -267,7 +285,9 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.build_union_type(types)
-      assert result == "{ __type: \"Union\"; __primitiveFields: \"string\" | \"integer\"; string?: string; integer?: number; }"
+
+      assert result ==
+               "{ __type: \"Union\"; __primitiveFields: \"string\" | \"integer\"; string?: string; integer?: number; }"
     end
 
     test "handles empty types list" do

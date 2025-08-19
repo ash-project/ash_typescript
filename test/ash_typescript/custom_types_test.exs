@@ -91,12 +91,20 @@ defmodule AshTypescript.CustomTypesTest do
 
   describe "Resource schema generation with custom types" do
     test "Todo resource includes priority_score with custom type" do
-      schema = Codegen.generate_unified_resource_schema(AshTypescript.Test.Todo, [AshTypescript.Test.Todo])
+      schema =
+        Codegen.generate_unified_resource_schema(AshTypescript.Test.Todo, [
+          AshTypescript.Test.Todo
+        ])
+
       assert schema =~ "priorityScore: CustomTypes.PriorityScore | null"
     end
 
     test "Todo resource includes color_palette with complex custom type" do
-      schema = Codegen.generate_unified_resource_schema(AshTypescript.Test.Todo, [AshTypescript.Test.Todo])
+      schema =
+        Codegen.generate_unified_resource_schema(AshTypescript.Test.Todo, [
+          AshTypescript.Test.Todo
+        ])
+
       assert schema =~ "colorPalette: CustomTypes.ColorPalette | null"
     end
 

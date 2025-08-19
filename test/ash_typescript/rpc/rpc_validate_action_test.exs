@@ -1,6 +1,6 @@
 defmodule AshTypescript.Rpc.RpcValidateActionTest do
   use ExUnit.Case, async: true
-  
+
   alias AshTypescript.Rpc
 
   describe "validate_action functionality" do
@@ -56,7 +56,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
     test "works across all action types without field specification", %{conn: conn} do
       actions_to_test = [
         "create_todo",
-        "list_todos", 
+        "list_todos",
         "get_statistics_todo",
         "bulk_complete_todo"
       ]
@@ -71,7 +71,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
         # All actions should parse successfully in validation mode
         assert is_map(result)
         assert Map.has_key?(result, "success")
-        
+
         # If validation fails, it should be for input validation, not field requirements
         if not result["success"] do
           error_message = inspect(result["errors"])
@@ -134,7 +134,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
       # May fail due to record not existing, but not due to missing fields
       assert is_map(result)
       assert Map.has_key?(result, "success")
-      
+
       if not result["success"] do
         error_message = inspect(result["errors"])
         refute error_message =~ "fields"
@@ -183,7 +183,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
       # Invalid pagination format
       invalid_result =
         Rpc.validate_action(:ash_typescript, conn, %{
-          "action" => "list_todos", 
+          "action" => "list_todos",
           "page" => "invalid_pagination_format"
         })
 
@@ -202,14 +202,15 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
       form_data = %{
         "action" => "create_todo",
         "input" => %{
-          "title" => "",  # Invalid: empty title
+          # Invalid: empty title
+          "title" => "",
           "autoComplete" => false,
           "userId" => "550e8400-e29b-41d4-a716-446655440000"
         }
       }
 
       result = Rpc.validate_action(:ash_typescript, conn, form_data)
-      
+
       # Works without field specification
       assert is_map(result)
       assert Map.has_key?(result, "success")
@@ -277,7 +278,8 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
       run_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_statistics_todo",
-          "fields" => []  # Empty fields should fail
+          # Empty fields should fail
+          "fields" => []
         })
 
       assert run_result["success"] == false

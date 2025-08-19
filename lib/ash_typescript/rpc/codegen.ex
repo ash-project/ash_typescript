@@ -939,7 +939,10 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   defp generate_offset_pagination_config_fields(limit_required, supports_countable, optional_mark) do
-    fields = ["    #{formatted_limit_field()}#{limit_required}: number;", "    #{formatted_offset_field()}?: number;"]
+    fields = [
+      "    #{formatted_limit_field()}#{limit_required}: number;",
+      "    #{formatted_offset_field()}?: number;"
+    ]
 
     fields =
       if supports_countable do
@@ -1281,7 +1284,8 @@ defmodule AshTypescript.Rpc.Codegen do
       end
 
     # Add input field - always present for validation
-    config_fields = config_fields ++ ["  #{format_output_field(:input)}: #{rpc_action_name_pascal}Input;"]
+    config_fields =
+      config_fields ++ ["  #{format_output_field(:input)}: #{rpc_action_name_pascal}Input;"]
 
     # Add headers field (always optional)
     config_fields = config_fields ++ ["  headers?: Record<string, string>;"]

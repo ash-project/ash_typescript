@@ -292,7 +292,6 @@ defmodule AshTypescript.Codegen do
     end
   end
 
-
   @doc """
   Gets the field information from a TypedStruct module using Ash's DSL pattern.
   Returns a list of field definitions.
@@ -960,11 +959,11 @@ defmodule AshTypescript.Codegen do
             # Handle direct embedded resource types (e.g., attribute :metadata, TodoMetadata)
             resource_name = build_resource_type_name(embedded_type)
             "#{resource_name}InputSchema"
-          
+
           is_typed_struct?(embedded_type) ->
             # Handle TypedStruct types - generate input version without metadata
             build_typed_struct_input_type(embedded_type)
-          
+
           true ->
             # For all other atomic types, use the regular type mapping
             get_ts_type(attr)
@@ -1228,10 +1227,9 @@ defmodule AshTypescript.Codegen do
     "{#{field_types}, __type: \"TypedMap\", __primitiveFields: #{primitive_fields_union}}"
   end
 
-
   def build_typed_struct_input_type(typed_struct_module) do
     fields = get_typed_struct_fields(typed_struct_module)
-    
+
     field_types =
       fields
       |> Enum.map(fn field ->
@@ -1239,23 +1237,23 @@ defmodule AshTypescript.Codegen do
         field_type = field.type
         allow_nil = Map.get(field, :allow_nil?, false)
         constraints = Map.get(field, :constraints, [])
-        
+
         # Use get_ts_input_type to ensure no metadata in nested fields
         field_attr = %{type: field_type, constraints: constraints}
         ts_type = get_ts_input_type(field_attr)
-        
+
         # Apply field formatter to field name
         formatted_field_name =
           AshTypescript.FieldFormatter.format_field(
             field_name,
             AshTypescript.Rpc.output_field_formatter()
           )
-        
+
         optional = if allow_nil, do: "| null", else: ""
         "#{formatted_field_name}: #{ts_type}#{optional}"
       end)
       |> Enum.join(", ")
-    
+
     # No metadata fields for input schemas
     "{#{field_types}}"
   end
