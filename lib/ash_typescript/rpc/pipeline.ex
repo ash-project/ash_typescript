@@ -1,7 +1,7 @@
 defmodule AshTypescript.Rpc.Pipeline do
   @moduledoc """
   Implements the four-stage pipeline:
-  1. parse_request_strict/3 - Parse and validate input with fail-fast
+  1. parse_request/3 - Parse and validate input with fail-fast
   2. execute_ash_action/1 - Execute Ash operations
   3. filter_result_fields/2 - Apply field selection
   4. format_output/2 - Format for client consumption
@@ -24,7 +24,12 @@ defmodule AshTypescript.Rpc.Pipeline do
     normalized_params = FieldFormatter.parse_input_fields(params, input_formatter)
 
     with {:ok, {resource, action}} <- discover_action(otp_app, normalized_params),
-         :ok <- validate_required_parameters_for_action_type(normalized_params, action, validation_mode?),
+         :ok <-
+           validate_required_parameters_for_action_type(
+             normalized_params,
+             action,
+             validation_mode?
+           ),
          requested_fields <-
            RequestedFieldsProcessor.atomize_requested_fields(normalized_params[:fields] || []),
          {:ok, {select, load, template}} <-
@@ -414,21 +419,27 @@ defmodule AshTypescript.Rpc.Pipeline do
   # Request validation functions
 
   defp validate_required_parameters_for_action_type(params, action, validation_mode?) do
-    needs_fields = if validation_mode? do
-      # Validation never needs fields - we only validate input parameters
-      false
-    else
-      # Execution context - determine if fields are needed based on action type
-      case action.type do
-        type when type in [:read, :create, :update] -> 
-          true
-        :action -> 
-          # Only require fields for generic actions that return field-selectable types
-          match?({:ok, _, _}, AshTypescript.Rpc.Codegen.action_returns_field_selectable_type?(action))
-        _ -> 
-          false
+    needs_fields =
+      if validation_mode? do
+        # Validation never needs fields - we only validate input parameters
+        false
+      else
+        # Execution context - determine if fields are needed based on action type
+        case action.type do
+          type when type in [:read, :create, :update] ->
+            true
+
+          :action ->
+            # Only require fields for generic actions that return field-selectable types
+            match?(
+              {:ok, _, _},
+              AshTypescript.Rpc.Codegen.action_returns_field_selectable_type?(action)
+            )
+
+          _ ->
+            false
+        end
       end
-    end
 
     if needs_fields do
       fields = params[:fields]
