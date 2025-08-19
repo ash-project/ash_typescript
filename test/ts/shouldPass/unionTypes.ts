@@ -263,19 +263,19 @@ if (todoWithAttachments.success && todoWithAttachments.data) {
   const todoId: string = todoWithAttachments.data.id;
   const todoTitle: string = todoWithAttachments.data.title;
 
-  if (todoWithAttachments.data.attachments) {
+  if (todoWithAttachments.data.attachments && Array.isArray(todoWithAttachments.data.attachments)) {
     const attachments = todoWithAttachments.data.attachments;
     
     for (const attachment of attachments) {
       // Test file attachment (complex union member)
-      if ("file" in attachment && attachment.file) {
+      if (attachment && typeof attachment === 'object' && "file" in attachment && attachment.file) {
         const filename: string = attachment.file.filename;
         const size: number | null | undefined = attachment.file.size;
         const mimeType: string | null | undefined = attachment.file.mimeType;
       }
       
       // Test URL attachment (primitive union member)
-      if ("url" in attachment && attachment.url) {
+      if (attachment && typeof attachment === 'object' && "url" in attachment && attachment.url) {
         const urlValue: string = attachment.url;
       }
     }
@@ -344,7 +344,7 @@ if (todoWithUnionCalculation.success && todoWithUnionCalculation.data) {
 }
 
 // Test 9: Update todo with union content
-const updateConfig: UpdateTodoConfig = {
+export const updatedUnionTodo = await updateTodo({
   primaryKey: "123e4567-e89b-12d3-a456-426614174000",
   input: {
     title: "Updated Union Todo",
@@ -359,9 +359,7 @@ const updateConfig: UpdateTodoConfig = {
       content: ["priorityValue", "note"],
     },
   ],
-};
-
-export const updatedUnionTodo = await updateTodo(updateConfig);
+});
 
 // Validate updated union todo
 if (updatedUnionTodo.success && updatedUnionTodo.data) {
@@ -369,11 +367,11 @@ if (updatedUnionTodo.success && updatedUnionTodo.data) {
   const updatedTitle: string = updatedUnionTodo.data.title;
 
   if (updatedUnionTodo.data.content) {
-    if ("priorityValue" in updatedUnionTodo.data.content && updatedUnionTodo.data.content.priorityValue) {
+    if ("priorityValue" in updatedUnionTodo.data.content && updatedUnionTodo.data.content.priorityValue !== undefined) {
       const priorityValue: number = updatedUnionTodo.data.content.priorityValue;
     }
     
-    if ("note" in updatedUnionTodo.data.content && updatedUnionTodo.data.content.note) {
+    if ("note" in updatedUnionTodo.data.content && updatedUnionTodo.data.content.note !== undefined) {
       const noteContent: string = updatedUnionTodo.data.content.note;
     }
   }
@@ -420,9 +418,9 @@ if (todoWithNullableUnion.success && todoWithNullableUnion.data) {
     // This should be valid - array union types are nullable
   } else if (Array.isArray(todoWithNullableUnion.data.attachments) && todoWithNullableUnion.data.attachments.length === 0) {
     // Empty array should be valid
-  } else {
+  } else if (Array.isArray(todoWithNullableUnion.data.attachments)) {
     for (const attachment of todoWithNullableUnion.data.attachments) {
-      if ("file" in attachment && attachment.file) {
+      if (attachment && typeof attachment === 'object' && "file" in attachment && attachment.file) {
         const filename: string = attachment.file.filename;
       }
     }

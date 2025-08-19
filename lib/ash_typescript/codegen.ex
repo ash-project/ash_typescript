@@ -504,6 +504,34 @@ defmodule AshTypescript.Codegen do
     primitive_attrs ++ simple_calcs ++ aggregate_names
   end
 
+  defp get_union_primitive_fields(union_types) do
+    union_types
+    |> Enum.filter(fn {_name, config} ->
+      type = Keyword.get(config, :type)
+
+      case type do
+        Ash.Type.Map ->
+          false
+
+        Ash.Type.Keyword ->
+          false
+
+        Ash.Type.Struct ->
+          false
+
+        Ash.Type.Union ->
+          false
+
+        atom_type when is_atom(atom_type) ->
+          not is_embedded_resource?(atom_type) and not is_typed_struct?(atom_type)
+
+        _ ->
+          false
+      end
+    end)
+    |> Enum.map(fn {name, _config} -> name end)
+  end
+
   defp generate_primitive_fields_union(fields) do
     if Enum.empty?(fields) do
       "never"
@@ -855,33 +883,26 @@ defmodule AshTypescript.Codegen do
 
   defp generate_union_metadata(attr) do
     constraints = attr.constraints || []
-    union_types = Keyword.get(constraints, :types, [])
 
-    # Get primitive fields from union
-    primitive_fields =
-      union_types
-      |> Enum.filter(fn {_name, config} ->
-        type = Keyword.get(config, :type)
-        not is_embedded_resource?(type) and not is_typed_struct?(type)
-      end)
-      |> Enum.map(fn {name, _config} -> name end)
+    # Handle both regular unions and array unions
+    union_types =
+      case attr.type do
+        {:array, Ash.Type.Union} ->
+          # For array unions, types are under items
+          items_constraints = Keyword.get(constraints, :items, [])
+          Keyword.get(items_constraints, :types, [])
 
-    primitive_union =
-      if Enum.empty?(primitive_fields) do
-        "never"
-      else
-        primitive_fields
-        |> Enum.map(fn name ->
-          formatted =
-            AshTypescript.FieldFormatter.format_field(
-              name,
-              AshTypescript.Rpc.output_field_formatter()
-            )
+        Ash.Type.Union ->
+          # For regular unions, types are directly under constraints
+          Keyword.get(constraints, :types, [])
 
-          "\"#{formatted}\""
-        end)
-        |> Enum.join(" | ")
+        _ ->
+          []
       end
+
+    # Get primitive fields from union using helper
+    primitive_fields = get_union_primitive_fields(union_types)
+    primitive_union = generate_primitive_fields_union(primitive_fields)
 
     # Generate union member fields
     member_fields =
@@ -1279,6 +1300,10 @@ defmodule AshTypescript.Codegen do
   end
 
   def build_union_type(types) do
+    # Get primitive fields from union using helper
+    primitive_fields = get_union_primitive_fields(types)
+    primitive_union = generate_primitive_fields_union(primitive_fields)
+
     member_properties =
       types
       |> Enum.map(fn {type_name, type_config} ->
@@ -1299,8 +1324,8 @@ defmodule AshTypescript.Codegen do
       |> Enum.join("; ")
 
     case member_properties do
-      "" -> "any"
-      properties -> "{ __type: \"Union\", #{properties} }"
+      "" -> "{ __type: \"Union\"; __primitiveFields: #{primitive_union}; }"
+      properties -> "{ __type: \"Union\"; __primitiveFields: #{primitive_union}; #{properties}; }"
     end
   end
 

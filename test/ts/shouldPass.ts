@@ -10,6 +10,7 @@ import "./shouldPass/relationships";
 import "./shouldPass/operations";
 import "./shouldPass/embeddedResources";
 import "./shouldPass/unionTypes";
+import "./shouldPass/typedMaps";
 import "./shouldPass/complexScenarios";
 import "./shouldPass/typedStructs";
 import "./validate_fields_prototype";
