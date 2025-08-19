@@ -1006,13 +1006,19 @@ defmodule AshTypescript.Codegen do
 
       # Handle embedded resource atoms (after specific Ash types)
       embedded_type when is_atom(embedded_type) and not is_nil(embedded_type) ->
-        if is_embedded_resource?(embedded_type) do
-          # Handle direct embedded resource types (e.g., attribute :metadata, TodoMetadata)
-          resource_name = build_resource_type_name(embedded_type)
-          "#{resource_name}InputSchema"
-        else
-          # For all other atomic types, use the regular type mapping
-          get_ts_type(attr)
+        cond do
+          is_embedded_resource?(embedded_type) ->
+            # Handle direct embedded resource types (e.g., attribute :metadata, TodoMetadata)
+            resource_name = build_resource_type_name(embedded_type)
+            "#{resource_name}InputSchema"
+          
+          is_typed_struct?(embedded_type) ->
+            # Handle TypedStruct types - generate input version without metadata
+            build_typed_struct_input_type(embedded_type)
+          
+          true ->
+            # For all other atomic types, use the regular type mapping
+            get_ts_type(attr)
         end
 
       {:array, embedded_type} when is_atom(embedded_type) ->
@@ -1299,6 +1305,37 @@ defmodule AshTypescript.Codegen do
     "{#{field_types}}"
   end
 
+  def build_typed_struct_input_type(typed_struct_module) do
+    fields = get_typed_struct_fields(typed_struct_module)
+    
+    field_types =
+      fields
+      |> Enum.map(fn field ->
+        field_name = field.name
+        field_type = field.type
+        allow_nil = Map.get(field, :allow_nil?, false)
+        constraints = Map.get(field, :constraints, [])
+        
+        # Use get_ts_input_type to ensure no metadata in nested fields
+        field_attr = %{type: field_type, constraints: constraints}
+        ts_type = get_ts_input_type(field_attr)
+        
+        # Apply field formatter to field name
+        formatted_field_name =
+          AshTypescript.FieldFormatter.format_field(
+            field_name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+        
+        optional = if allow_nil, do: "| null", else: ""
+        "#{formatted_field_name}: #{ts_type}#{optional}"
+      end)
+      |> Enum.join(", ")
+    
+    # No metadata fields for input schemas
+    "{#{field_types}}"
+  end
+
   def build_union_type(types) do
     # Get primitive fields from union using helper
     primitive_fields = get_union_primitive_fields(types)
@@ -1360,6 +1397,10 @@ defmodule AshTypescript.Codegen do
         # For union member inputs, use InputSchema (not the old FieldsSchema)
         resource_name = build_resource_type_name(type)
         "#{resource_name}InputSchema"
+
+      # For TypedMaps, use input-specific type generation (no metadata fields)
+      type == Ash.Type.Map ->
+        get_ts_input_type(%{type: type, constraints: constraints})
 
       # For all other types, use the regular get_ts_type function
       true ->
