@@ -292,93 +292,6 @@ defmodule AshTypescript.Codegen do
     end
   end
 
-  @doc """
-  Discovers TypedStruct modules from a list of regular resources by scanning their attributes.
-  Returns a list of unique TypedStruct modules.
-  """
-  def find_typed_structs(resources) do
-    resources
-    |> Enum.flat_map(&extract_typed_structs_from_resource/1)
-    |> Enum.uniq()
-  end
-
-  defp extract_typed_structs_from_resource(resource) do
-    resource
-    |> Ash.Resource.Info.public_attributes()
-    |> Enum.filter(&is_typed_struct_attribute?/1)
-    |> Enum.flat_map(&extract_typed_struct_modules/1)
-    |> Enum.filter(& &1)
-  end
-
-  defp is_typed_struct_attribute?(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
-    case type do
-      # Handle union types FIRST (before general atom patterns)
-      Ash.Type.Union ->
-        union_types = Keyword.get(constraints, :types, [])
-
-        Enum.any?(union_types, fn {_type_name, type_config} ->
-          type = Keyword.get(type_config, :type)
-          type && is_typed_struct?(type)
-        end)
-
-      # Handle array of union types FIRST (before general array patterns)
-      {:array, Ash.Type.Union} ->
-        items_constraints = Keyword.get(constraints, :items, [])
-        union_types = Keyword.get(items_constraints, :types, [])
-
-        Enum.any?(union_types, fn {_type_name, type_config} ->
-          type = Keyword.get(type_config, :type)
-          type && is_typed_struct?(type)
-        end)
-
-      # Handle direct TypedStruct module
-      module when is_atom(module) ->
-        is_typed_struct?(module)
-
-      # Handle array of TypedStruct
-      {:array, module} when is_atom(module) ->
-        is_typed_struct?(module)
-
-      _ ->
-        false
-    end
-  end
-
-  defp is_typed_struct_attribute?(_), do: false
-
-  defp extract_typed_struct_modules(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
-    case type do
-      # Handle union types FIRST (before general atom patterns)
-      Ash.Type.Union ->
-        union_types = Keyword.get(constraints, :types, [])
-
-        Enum.flat_map(union_types, fn {_type_name, type_config} ->
-          type = Keyword.get(type_config, :type)
-          if type && is_typed_struct?(type), do: [type], else: []
-        end)
-
-      # Handle array of union types FIRST (before general array patterns)
-      {:array, Ash.Type.Union} ->
-        items_constraints = Keyword.get(constraints, :items, [])
-        union_types = Keyword.get(items_constraints, :types, [])
-
-        Enum.flat_map(union_types, fn {_type_name, type_config} ->
-          type = Keyword.get(type_config, :type)
-          if type && is_typed_struct?(type), do: [type], else: []
-        end)
-
-      # Handle direct TypedStruct module
-      module when is_atom(module) ->
-        if is_typed_struct?(module), do: [module], else: []
-
-      # Handle array of TypedStruct
-      {:array, module} when is_atom(module) ->
-        if is_typed_struct?(module), do: [module], else: []
-
-      _ ->
-        []
-    end
-  end
 
   @doc """
   Gets the field information from a TypedStruct module using Ash's DSL pattern.
@@ -428,6 +341,42 @@ defmodule AshTypescript.Codegen do
       base_schemas
     end
   end
+
+  defp is_typed_struct_attribute?(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
+    case type do
+      # Handle union types FIRST (before general atom patterns)
+      Ash.Type.Union ->
+        union_types = Keyword.get(constraints, :types, [])
+
+        Enum.any?(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          type && is_typed_struct?(type)
+        end)
+
+      # Handle array of union types FIRST (before general array patterns)
+      {:array, Ash.Type.Union} ->
+        items_constraints = Keyword.get(constraints, :items, [])
+        union_types = Keyword.get(items_constraints, :types, [])
+
+        Enum.any?(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          type && is_typed_struct?(type)
+        end)
+
+      # Handle direct TypedStruct module
+      module when is_atom(module) ->
+        is_typed_struct?(module)
+
+      # Handle array of TypedStruct
+      {:array, module} when is_atom(module) ->
+        is_typed_struct?(module)
+
+      _ ->
+        false
+    end
+  end
+
+  defp is_typed_struct_attribute?(_), do: false
 
   @doc """
   Generates a unified resource schema with metadata fields and direct field access.
@@ -1279,31 +1228,6 @@ defmodule AshTypescript.Codegen do
     "{#{field_types}, __type: \"TypedMap\", __primitiveFields: #{primitive_fields_union}}"
   end
 
-  # Build map type for input schemas - excludes metadata fields
-  def build_map_input_type(fields) do
-    field_types =
-      fields
-      |> Enum.map(fn {field_name, field_config} ->
-        # Use get_ts_input_type for nested fields to ensure no metadata in nested Maps
-        field_attr = %{type: field_config[:type], constraints: field_config[:constraints] || []}
-        field_type = get_ts_input_type(field_attr)
-
-        # Apply field formatter to field name
-        formatted_field_name =
-          AshTypescript.FieldFormatter.format_field(
-            field_name,
-            AshTypescript.Rpc.output_field_formatter()
-          )
-
-        allow_nil = Keyword.get(field_config, :allow_nil?, true)
-        optional = if allow_nil, do: "| null", else: ""
-        "#{formatted_field_name}: #{field_type}#{optional}"
-      end)
-      |> Enum.join(", ")
-
-    # No metadata fields for input schemas
-    "{#{field_types}}"
-  end
 
   def build_typed_struct_input_type(typed_struct_module) do
     fields = get_typed_struct_fields(typed_struct_module)
