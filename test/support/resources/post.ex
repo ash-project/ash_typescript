@@ -1,7 +1,12 @@
 defmodule AshTypescript.Test.Post do
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
-    data_layer: Ash.DataLayer.Ets
+    data_layer: Ash.DataLayer.Ets,
+    extensions: [AshTypescript.Resource]
+
+  typescript do
+    type_name "Post"
+  end
 
   ets do
     private? true

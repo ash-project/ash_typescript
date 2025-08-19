@@ -1,10 +1,11 @@
 // Custom Types Tests - shouldPass
 // Tests for custom type field selection and usage
 
-import { getTodo, createTodo, CreateTodoConfig } from "../generated";
+import { getTodo, createTodo } from "../generated";
 
 // Test 0: Custom type field selection
 export const customTypeTest = await getTodo({
+  input: {},
   fields: ["id", "title", "priorityScore"],
 });
 
@@ -16,6 +17,7 @@ if (customTypeTest.success && customTypeTest.data?.priorityScore) {
 
 // Test 0.1: ColorPalette custom type field selection
 export const colorPaletteTest = await getTodo({
+  input: {},
   fields: ["id", "title", "colorPalette"],
 });
 

@@ -10,6 +10,7 @@ import {
 
 // Test 1: Basic typed map field selection - settings map with all fields
 export const todoWithFullSettings = await getTodo({
+  input: {},
   fields: [
     "id",
     "title",
@@ -45,6 +46,7 @@ if (todoWithFullSettings.success && todoWithFullSettings.data) {
 
 // Test 2: Typed map with field selection - selecting specific fields
 export const todoWithPartialSettings = await getTodo({
+  input: {},
   fields: [
     "id",
     "title",
@@ -72,6 +74,7 @@ if (todoWithPartialSettings.success && todoWithPartialSettings.data) {
 
 // Test 3: Multiple typed maps - settings and customFields
 export const todoWithMultipleTypedMaps = await getTodo({
+  input: {},
   fields: [
     "id",
     "title",
@@ -219,6 +222,7 @@ if (updateTodoWithTypedMap.success && updateTodoWithTypedMap.data) {
 
 // Test 6: Typed map with calculations
 export const todoWithTypedMapCalculation = await getTodo({
+  input: {},
   fields: [
     "id",
     "title",
@@ -278,6 +282,7 @@ if (todoWithTypedMapCalculation.success && todoWithTypedMapCalculation.data) {
 
 // Test 7: Null/undefined handling for typed maps
 export const todoWithNullableTypedMaps = await getTodo({
+  input: {},
   fields: [
     "id",
     "title",
@@ -370,6 +375,7 @@ if (
 
 // Test 9: Typed map field formatting (camelCase conversion)
 export const typedMapFormattingTest = await getTodo({
+  input: {},
   fields: [
     "id",
     "title",
@@ -403,6 +409,7 @@ if (typedMapFormattingTest.success && typedMapFormattingTest.data) {
 
 // Test 10: Complex nested scenario with typed maps
 export const complexTypedMapScenario = await getTodo({
+  input: {},
   fields: [
     "id",
     "title",

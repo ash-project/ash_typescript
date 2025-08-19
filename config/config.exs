@@ -12,7 +12,6 @@ if Mix.env() == :test do
       AshTypescript.Test.Domain
     ],
     output_file: "./test/ts/generated.ts",
-    use_new_action_pattern: true,
     import_into_generated: [
       %{
         import_name: "CustomTypes",

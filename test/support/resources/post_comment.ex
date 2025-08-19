@@ -1,7 +1,12 @@
 defmodule AshTypescript.Test.PostComment do
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
-    data_layer: Ash.DataLayer.Ets
+    data_layer: Ash.DataLayer.Ets,
+    extensions: [AshTypescript.Resource]
+
+  typescript do
+    type_name "PostComment"
+  end
 
   ets do
     private? true

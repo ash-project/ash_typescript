@@ -5,6 +5,7 @@ import { getTodo } from "../generated";
 
 // Test 3: Self calculation with relationships in field selection
 export const selfWithRelationships = await getTodo({
+  input: {},
   fields: [
     "id",
     "title",

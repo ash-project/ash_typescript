@@ -11,6 +11,7 @@ import {
 
 // Test 4: List operation with nested self calculations
 export const listWithNestedSelf = await listTodos({
+  input: {},
   fields: [
     "id",
     "title",
@@ -43,7 +44,7 @@ export const listWithNestedSelf = await listTodos({
 
 // Type validation for list results with nested calculations
 if (listWithNestedSelf.success) {
-  for (const todo of listWithNestedSelf.data) {
+  for (const todo of listWithNestedSelf.data.results) {
     // Each todo should have the basic fields
     const todoId: string = todo.id;
     const todoTitle: string = todo.title;
@@ -123,7 +124,7 @@ export const listWithInputParams = await listTodos({
 
 // Type validation for list with input parameters
 if (listWithInputParams.success) {
-  for (const todo of listWithInputParams.data) {
+  for (const todo of listWithInputParams.data.results) {
     const todoId: string = todo.id;
     const todoTitle: string = todo.title;
     const todoCompleted: boolean | null | undefined = todo.completed;
@@ -142,6 +143,7 @@ export const listWithPartialInput = await listTodos({
 
 // Test 8: Read operations with no input parameters (should still work)
 export const listWithoutInput = await listTodos({
+  input: {},
   fields: ["id", "title"],
 });
 
@@ -162,6 +164,7 @@ if (searchTodosResult.success) {
 }
 
 const getStatisticsTodoResult = await getStatisticsTodo({
+  input: {},
   fields: ["completed", "pending"],
 });
 

@@ -5,6 +5,7 @@ import { getTodo } from "../generated";
 
 // Test 7: Complex scenario combining multiple patterns
 export const complexScenario = await getTodo({
+  input: {},
   fields: [
     "id",
     "title",

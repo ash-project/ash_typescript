@@ -126,7 +126,7 @@ defmodule AshTypescript.CodegenTest do
     test "converts empty union to any" do
       constraints = [types: []]
       result = Codegen.get_ts_type(%{type: Ash.Type.Union, constraints: constraints})
-      assert result == "any"
+      assert result == "{ __type: \"Union\"; __primitiveFields: never; }"
     end
 
     test "converts union with multiple types" do
@@ -138,7 +138,7 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Union, constraints: constraints})
-      assert result == "{ __type: \"Union\", string?: string; integer?: number }"
+      assert result == "{ __type: \"Union\"; __primitiveFields: \"string\" | \"integer\"; string?: string; integer?: number; }"
     end
 
     test "removes duplicate types in union" do
@@ -151,7 +151,7 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Union, constraints: constraints})
-      assert result == "{ __type: \"Union\", string1?: string; string2?: string; integer?: number }"
+      assert result == "{ __type: \"Union\"; __primitiveFields: \"string1\" | \"string2\" | \"integer\"; string1?: string; string2?: string; integer?: number; }"
     end
   end
 
@@ -267,12 +267,12 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.build_union_type(types)
-      assert result == "{ __type: \"Union\", string?: string; integer?: number }"
+      assert result == "{ __type: \"Union\"; __primitiveFields: \"string\" | \"integer\"; string?: string; integer?: number; }"
     end
 
     test "handles empty types list" do
       result = Codegen.build_union_type([])
-      assert result == "any"
+      assert result == "{ __type: \"Union\"; __primitiveFields: never; }"
     end
   end
 

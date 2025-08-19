@@ -5,12 +5,11 @@ import {
   getTodo,
   createTodo,
   updateTodo,
-  CreateTodoConfig,
-  UpdateTodoConfig,
 } from "../generated";
 
 // Test 1: Basic union field selection - primitive members only
 export const todoWithPrimitiveUnion = await getTodo({
+  input: {},
   fields: [
     "id",
     "title",
@@ -40,6 +39,7 @@ if (todoWithPrimitiveUnion.success && todoWithPrimitiveUnion.data) {
 
 // Test 2: Complex union member field selection
 export const todoWithComplexUnion = await getTodo({
+  input: {},
   fields: [
     "id",
     "title",
@@ -71,6 +71,7 @@ if (todoWithComplexUnion.success && todoWithComplexUnion.data) {
 
 // Test 3: Mixed union field selection (primitive + complex)
 export const todoWithMixedUnion = await getTodo({
+  input: {},
   fields: [
     "id",
     "title",
@@ -174,7 +175,6 @@ export const createTodoWithChecklistContent = await createTodo({
             createdAt: "2024-01-02T00:00:00Z",
           },
         ],
-        completedCount: 1,
       },
     },
   },
@@ -244,6 +244,7 @@ if (createTodoWithPrimitiveContent.success && createTodoWithPrimitiveContent.dat
 
 // Test 7: Array union types with attachments
 export const todoWithAttachments = await getTodo({
+  input: {},
   fields: [
     "id",
     "title",
@@ -284,6 +285,7 @@ if (todoWithAttachments.success && todoWithAttachments.data) {
 
 // Test 8: Union types with calculations
 export const todoWithUnionCalculation = await getTodo({
+  input: {},
   fields: [
     "id",
     "title",
@@ -379,6 +381,7 @@ if (updatedUnionTodo.success && updatedUnionTodo.data) {
 
 // Test 10: Null/undefined handling for union types
 export const todoWithNullableUnion = await getTodo({
+  input: {},
   fields: [
     "id",
     "title",

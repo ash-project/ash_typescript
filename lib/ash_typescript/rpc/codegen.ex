@@ -305,28 +305,18 @@ defmodule AshTypescript.Rpc.Codegen do
          otp_app,
          _resources
        ) do
-    # Check configuration flag to determine which pattern to use
-    use_new_pattern = Application.get_env(:ash_typescript, :use_new_action_pattern, false)
-
-    # Choose the appropriate generator function
-    generator_function = if use_new_pattern do
-      &generate_new_rpc_function/5
-    else
-      &generate_rpc_function/5
-    end
-
     # Generate functions for each Rpc action
     rpc_functions =
       resources_and_actions
-      |> Enum.map(
-        &generator_function.(
-          &1,
+      |> Enum.map(fn resource_and_action ->
+        generate_rpc_function(
+          resource_and_action,
           resources_and_actions,
           endpoint_process,
           endpoint_validate,
           otp_app
         )
-      )
+      end)
       |> Enum.join("\n\n")
 
     """
@@ -334,60 +324,6 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
-  defp generate_rpc_function(
-         {resource, action, rpc_action},
-         _resources_and_actions,
-         endpoint_process,
-         endpoint_validate,
-         _otp_app
-       ) do
-    # Convert Rpc action name to formatted function name using output_field_formatter
-    rpc_action_name = to_string(rpc_action.name)
-
-    # Generate config type
-    config_type = generate_config_type(resource, action, rpc_action_name)
-
-    # Generate result inference type
-    result_type = generate_result_type(resource, action, rpc_action_name)
-
-    # Generate payload builder
-    payload_builder = generate_payload_builder(resource, rpc_action, action, rpc_action_name)
-
-    # Generate Rpc function
-    rpc_function =
-      generate_rpc_execution_function(rpc_action, action, rpc_action_name, endpoint_process)
-
-    # Generate validation function (for create, update, destroy actions only)
-    validation_function =
-      generate_validation_function(
-        resource,
-        rpc_action,
-        action,
-        rpc_action_name,
-        endpoint_validate
-      )
-
-    functions_section =
-      if validation_function == "" do
-        rpc_function
-      else
-        """
-        #{rpc_function}
-
-        #{validation_function}
-        """
-      end
-
-    """
-    #{config_type}
-
-    #{result_type}
-
-    #{payload_builder}
-
-    #{functions_section}
-    """
-  end
 
   # Pagination detection functions - read actual Ash configuration
   def action_supports_pagination?(action) do
@@ -609,927 +545,10 @@ defmodule AshTypescript.Rpc.Codegen do
       ]
   end
 
-  defp generate_pagination_result_type(_resource, action, rpc_action_name_pascal, resource_name) do
-    supports_offset = action_supports_offset_pagination?(action)
-    supports_keyset = action_supports_keyset_pagination?(action)
 
-    cond do
-      supports_offset and supports_keyset ->
-        # Generate union type for mixed pagination support
-        generate_mixed_pagination_result_type(rpc_action_name_pascal, resource_name)
 
-      supports_offset ->
-        # Generate offset-only pagination result type
-        generate_offset_pagination_result_type(rpc_action_name_pascal, resource_name)
 
-      supports_keyset ->
-        # Generate keyset-only pagination result type
-        generate_keyset_pagination_result_type(rpc_action_name_pascal, resource_name)
-    end
-  end
 
-  defp generate_offset_pagination_result_type(rpc_action_name_pascal, resource_name) do
-    formatter = AshTypescript.Rpc.output_field_formatter()
-    results_field = AshTypescript.FieldFormatter.format_field("results", formatter)
-    has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
-    limit_field = AshTypescript.FieldFormatter.format_field("limit", formatter)
-    offset_field = AshTypescript.FieldFormatter.format_field("offset", formatter)
-
-    """
-    type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-      Config extends { page: any; }
-        ? {
-            #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
-            #{has_more_field}: boolean;
-            #{limit_field}: number;
-            #{offset_field}: number;
-          }
-        : Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
-    """
-  end
-
-  defp generate_keyset_pagination_result_type(rpc_action_name_pascal, resource_name) do
-    formatter = AshTypescript.Rpc.output_field_formatter()
-    results_field = AshTypescript.FieldFormatter.format_field("results", formatter)
-    has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
-    limit_field = AshTypescript.FieldFormatter.format_field("limit", formatter)
-    after_field = AshTypescript.FieldFormatter.format_field("after", formatter)
-    before_field = AshTypescript.FieldFormatter.format_field("before", formatter)
-    previous_page_field = AshTypescript.FieldFormatter.format_field("previous_page", formatter)
-    next_page_field = AshTypescript.FieldFormatter.format_field("next_page", formatter)
-
-    """
-    type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-      Config extends { page: any; }
-        ? {
-            #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
-            #{has_more_field}: boolean;
-            #{limit_field}: number;
-            #{after_field}: string | null;
-            #{before_field}: string | null;
-            #{previous_page_field}: string;
-            #{next_page_field}: string;
-          }
-        : Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
-    """
-  end
-
-  defp generate_mixed_pagination_result_type(rpc_action_name_pascal, resource_name) do
-    formatter = AshTypescript.Rpc.output_field_formatter()
-    results_field = AshTypescript.FieldFormatter.format_field("results", formatter)
-    has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
-    limit_field = AshTypescript.FieldFormatter.format_field("limit", formatter)
-    offset_field = AshTypescript.FieldFormatter.format_field("offset", formatter)
-    after_field = AshTypescript.FieldFormatter.format_field("after", formatter)
-    before_field = AshTypescript.FieldFormatter.format_field("before", formatter)
-    count_field = AshTypescript.FieldFormatter.format_field("count", formatter)
-    previous_page_field = AshTypescript.FieldFormatter.format_field("previous_page", formatter)
-    next_page_field = AshTypescript.FieldFormatter.format_field("next_page", formatter)
-    type_field = AshTypescript.FieldFormatter.format_field("type", formatter)
-
-    """
-    type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-      Config extends { page: any; }
-        ? ({
-            #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
-            #{has_more_field}: boolean;
-            #{limit_field}: number;
-            #{offset_field}: number;
-            #{count_field}?: number | null;
-            #{type_field}: "offset";
-          } | {
-            #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
-            #{has_more_field}: boolean;
-            #{limit_field}: number;
-            #{after_field}: string | null;
-            #{before_field}: string | null;
-            #{previous_page_field}: string;
-            #{next_page_field}: string;
-            #{count_field}?: number | null;
-            #{type_field}: "keyset";
-          })
-        : Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
-    """
-  end
-
-  defp generate_config_type(resource, action, rpc_action_name) do
-    resource_name = build_resource_type_name(resource)
-    config_name = "#{snake_to_pascal_case(rpc_action_name)}Config"
-
-    # Add tenant field if resource requires tenant
-    tenant_field =
-      if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
-        ["  tenant: string;"]
-      else
-        []
-      end
-
-    # Base config fields - use formatted field names
-    formatted_fields_name =
-      AshTypescript.FieldFormatter.format_field(
-        "fields",
-        AshTypescript.Rpc.output_field_formatter()
-      )
-
-    fields_field = [
-      "  #{formatted_fields_name}: UnifiedFieldSelection<#{resource_name}ResourceSchema>[];"
-    ]
-
-    # Add headers field (optional)
-    headers_field = [
-      "  headers?: Record<string, string>;"
-    ]
-
-    # Add input fields based on action type
-    input_fields =
-      case action.type do
-        :read ->
-          # For read actions, only use arguments (get_by automatically creates arguments)
-          arguments = action.arguments
-
-          if arguments != [] do
-            # Generate input field definitions from arguments
-            argument_field_defs =
-              Enum.map(arguments, fn arg ->
-                optional = arg.allow_nil? || arg.default != nil
-
-                formatted_arg_name =
-                  AshTypescript.FieldFormatter.format_field(
-                    arg.name,
-                    AshTypescript.Rpc.output_field_formatter()
-                  )
-
-                {formatted_arg_name, get_ts_type(arg), optional}
-              end)
-
-            # Check if ALL arguments are optional
-            all_optional =
-              Enum.all?(argument_field_defs, fn {_name, _type, optional} -> optional end)
-
-            input_property = if all_optional, do: "  input?: {", else: "  input: {"
-
-            field_lines =
-              Enum.map(argument_field_defs, fn {name, type, optional} ->
-                "    #{name}#{if optional, do: "?", else: ""}: #{type};"
-              end)
-
-            [input_property] ++ field_lines ++ ["  };"]
-          else
-            []
-          end
-
-        :create ->
-          accepts = Ash.Resource.Info.action(resource, action.name).accept || []
-          arguments = action.arguments
-
-          if accepts != [] || arguments != [] do
-            # Generate input field definitions
-            accept_field_defs =
-              Enum.map(accepts, fn field_name ->
-                attr = Ash.Resource.Info.attribute(resource, field_name)
-                optional = attr.allow_nil? || attr.default != nil
-                base_type = AshTypescript.Codegen.get_ts_input_type(attr)
-                field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
-
-                formatted_field_name =
-                  AshTypescript.FieldFormatter.format_field(
-                    field_name,
-                    AshTypescript.Rpc.output_field_formatter()
-                  )
-
-                {formatted_field_name, field_type, optional}
-              end)
-
-            argument_field_defs =
-              Enum.map(arguments, fn arg ->
-                optional = arg.allow_nil? || arg.default != nil
-
-                formatted_arg_name =
-                  AshTypescript.FieldFormatter.format_field(
-                    arg.name,
-                    AshTypescript.Rpc.output_field_formatter()
-                  )
-
-                {formatted_arg_name, get_ts_type(arg), optional}
-              end)
-
-            all_input_fields = accept_field_defs ++ argument_field_defs
-
-            # Check if ALL fields are optional
-            all_optional =
-              Enum.all?(all_input_fields, fn {_name, _type, optional} -> optional end)
-
-            input_property = if all_optional, do: "  input?: {", else: "  input: {"
-
-            field_lines =
-              Enum.map(all_input_fields, fn {name, type, optional} ->
-                "    #{name}#{if optional, do: "?", else: ""}: #{type};"
-              end)
-
-            [input_property] ++ field_lines ++ ["  };"]
-          else
-            []
-          end
-
-        action_type when action_type in [:update, :destroy] ->
-          primary_key_attrs = Ash.Resource.Info.primary_key(resource)
-
-          primary_key_field =
-            if Enum.count(primary_key_attrs) == 1 do
-              attr_name = Enum.at(primary_key_attrs, 0)
-              attr = Ash.Resource.Info.attribute(resource, attr_name)
-              ["  primaryKey: #{get_ts_type(attr)};"]
-            else
-              ["  primaryKey: {"] ++
-                Enum.map(primary_key_attrs, fn attr_name ->
-                  attr = Ash.Resource.Info.attribute(resource, attr_name)
-                  "    #{attr.name}: #{get_ts_type(attr)};"
-                end) ++
-                ["  };"]
-            end
-
-          input_fields =
-            if action.accept != [] || action.arguments != [] do
-              ["  input: {"] ++
-                Enum.map(action.accept, fn field_name ->
-                  attr = Ash.Resource.Info.attribute(resource, field_name)
-
-                  formatted_field_name =
-                    AshTypescript.FieldFormatter.format_field(
-                      field_name,
-                      AshTypescript.Rpc.output_field_formatter()
-                    )
-
-                  if attr.allow_nil? do
-                    "    #{formatted_field_name}?: #{AshTypescript.Codegen.get_ts_input_type(attr)} | null;"
-                  else
-                    "    #{formatted_field_name}: #{AshTypescript.Codegen.get_ts_input_type(attr)};"
-                  end
-                end) ++
-                Enum.map(action.arguments, fn arg ->
-                  optional = arg.allow_nil? || arg.default != nil
-
-                  formatted_arg_name =
-                    AshTypescript.FieldFormatter.format_field(
-                      arg.name,
-                      AshTypescript.Rpc.output_field_formatter()
-                    )
-
-                  "    #{formatted_arg_name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
-                end) ++
-                ["  };"]
-            else
-              []
-            end
-
-          primary_key_field ++ input_fields
-
-        :action ->
-          arguments = action.arguments
-
-          input_fields =
-            if arguments != [] do
-              ["  input: {"] ++
-                Enum.map(arguments, fn arg ->
-                  optional = arg.allow_nil? || arg.default != nil
-
-                  formatted_arg_name =
-                    AshTypescript.FieldFormatter.format_field(
-                      arg.name,
-                      AshTypescript.Rpc.output_field_formatter()
-                    )
-
-                  "    #{formatted_arg_name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
-                end) ++
-                ["  };"]
-            else
-              []
-            end
-
-          # Check if this generic action returns a field-selectable type
-          case action_returns_field_selectable_type?(action) do
-            {:ok, type, _value} when type in [:resource, :array_of_resource] ->
-              # For resources, use the standard resource schema field selection
-              input_fields ++ fields_field
-
-            {:ok, type, fields} when type in [:typed_map, :array_of_typed_map] ->
-              # For typed maps, use a custom field selection for the map's fields
-              typed_map_field_names =
-                Enum.map(fields, fn {field_name, _} -> Atom.to_string(field_name) end)
-
-              typed_map_fields = [
-                "  fields: (\"#{Enum.join(typed_map_field_names, "\" | \"")}\")[];"
-              ]
-
-              input_fields ++ typed_map_fields
-
-            _ ->
-              input_fields
-          end
-      end
-
-    all_fields =
-      case action.type do
-        :read ->
-          # Generate read-specific fields (filters and pagination)
-          filters =
-            if action.get? do
-              []
-            else
-              [
-                "  filter?: #{resource_name}FilterInput;"
-              ]
-            end
-
-          # Generate sort and pagination separately
-          sort_fields = if not action.get?, do: ["  sort?: string;"], else: []
-          pagination_fields = generate_pagination_fields_only(action)
-          pagination_and_sort = sort_fields ++ pagination_fields
-
-          tenant_field ++
-            input_fields ++ filters ++ pagination_and_sort ++ fields_field ++ headers_field
-
-        action_type when action_type in [:create, :update] ->
-          tenant_field ++ input_fields ++ fields_field ++ headers_field
-
-        :destroy ->
-          tenant_field ++ input_fields ++ headers_field
-
-        _ ->
-          # This shouldn't happen but keep as fallback
-          tenant_field ++ input_fields ++ headers_field
-      end
-
-    """
-    export type #{config_name} = {
-    #{Enum.join(all_fields, "\n")}
-    };
-    """
-  end
-
-  defp generate_result_type(resource, action, rpc_action_name) do
-    resource_name = build_resource_type_name(resource)
-    rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
-
-    case action.type do
-      :read when action.get? ->
-        """
-        type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          InferResult<#{resource_name}ResourceSchema, Config["fields"]> | null;
-        """
-
-      :read ->
-        # Check if action supports pagination to determine return type
-        if action_supports_pagination?(action) do
-          generate_pagination_result_type(resource, action, rpc_action_name_pascal, resource_name)
-        else
-          """
-          type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-            Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
-          """
-        end
-
-      action_type when action_type in [:create, :update] ->
-        """
-        type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          InferResult<#{resource_name}ResourceSchema, Config["fields"]>;
-        """
-
-      :destroy ->
-        # No result type needed - function signatures use void directly
-        ""
-
-      :action ->
-        # Check if generic action returns a field-selectable type
-        case action_returns_field_selectable_type?(action) do
-          {:ok, type, value} when type in [:resource, :array_of_resource] ->
-            # For resources, use the resource's schema for field selection
-            target_resource_name = build_resource_type_name(value)
-
-            if type == :array_of_resource do
-              """
-              type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-                Array<InferResult<#{target_resource_name}ResourceSchema, Config["fields"]>>;
-              """
-            else
-              """
-              type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-                InferResult<#{target_resource_name}ResourceSchema, Config["fields"]>;
-              """
-            end
-
-          {:ok, type, fields} when type in [:typed_map, :array_of_typed_map] ->
-            # For typed maps, generate a field-selectable schema
-            typed_map_schema = build_map_type(fields)
-
-            if type == :array_of_typed_map do
-              """
-              type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-                Array<InferResult<#{typed_map_schema}, Config["fields"]>>;
-              """
-            else
-              """
-              type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-                InferResult<#{typed_map_schema}, Config["fields"]>;
-              """
-            end
-
-          _ ->
-            # Non-field-selectable types or no return type
-            if action.returns do
-              return_type = get_ts_type(%{type: action.returns, constraints: action.constraints})
-
-              """
-              type Infer#{rpc_action_name_pascal}Result = #{return_type};
-              """
-            else
-              """
-              type Infer#{rpc_action_name_pascal}Result = {};
-              """
-            end
-        end
-    end
-  end
-
-  defp generate_payload_builder(resource, _rpc_action, action, rpc_action_name) do
-    rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
-
-    # Base payload construction with tenant handling
-    formatted_fields_name =
-      AshTypescript.FieldFormatter.format_field(
-        "fields",
-        AshTypescript.Rpc.output_field_formatter()
-      )
-
-    base_payload_with_tenant = fn ->
-      if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
-        """
-          const payload: Record<string, any> = {
-            action: "#{rpc_action_name}",
-            tenant: config.tenant,
-            fields: config.#{formatted_fields_name}
-          };
-        """
-      else
-        """
-          const payload: Record<string, any> = {
-            action: "#{rpc_action_name}",
-            fields: config.#{formatted_fields_name}
-          };
-        """
-      end
-    end
-
-    cond do
-      # Read actions with pagination support
-      action.type == :read and not action.get? and action_supports_pagination?(action) ->
-        """
-        export function build#{rpc_action_name_pascal}Payload(
-          config: #{rpc_action_name_pascal}Config
-        ): Record<string, any> {
-        #{base_payload_with_tenant.()}
-
-          if (config.filter) {
-            payload.filter = config.filter;
-          } else {
-            payload.filter = {};
-          }
-
-          if (config.page) {
-            payload.page = config.page;
-          }
-
-          if (config.sort) {
-            payload.sort = config.sort;
-          }
-
-          if ("input" in config && config.input) {
-            payload.input = config.input;
-          } else {
-            payload.input = {};
-          }
-
-          return payload;
-        }
-        """
-
-      # Read actions without pagination support
-      action.type == :read and not action.get? and not action_supports_pagination?(action) ->
-        """
-        export function build#{rpc_action_name_pascal}Payload(
-          config: #{rpc_action_name_pascal}Config
-        ): Record<string, any> {
-        #{base_payload_with_tenant.()}
-
-          if (config.filter) {
-            payload.filter = config.filter;
-          } else {
-            payload.filter = {};
-          }
-
-          if (config.sort) {
-            payload.sort = config.sort;
-          }
-
-          if ("input" in config && config.input) {
-            payload.input = config.input;
-          } else {
-            payload.input = {};
-          }
-
-          return payload;
-        }
-        """
-
-      action.type == :read and action.get? ->
-        """
-        export function build#{rpc_action_name_pascal}Payload(
-          config: #{rpc_action_name_pascal}Config
-        ): Record<string, any> {
-        #{base_payload_with_tenant.()}
-
-          if ("input" in config && config.input) {
-            payload.input = config.input;
-          } else {
-            payload.input = {};
-          }
-
-          return payload;
-        }
-        """
-
-      action.type == :create ->
-        """
-        export function build#{rpc_action_name_pascal}Payload(
-          config: #{rpc_action_name_pascal}Config
-        ): Record<string, any> {
-        #{base_payload_with_tenant.()}
-
-          if ("input" in config && config.input) {
-            payload.input = config.input;
-          } else {
-            payload.input = {};
-          }
-
-          return payload;
-        }
-        """
-
-      action.type == :update ->
-        update_payload_base =
-          if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
-            """
-            const payload: Record<string, any> = {
-              action: "#{rpc_action_name}",
-              tenant: config.tenant,
-              fields: config.#{formatted_fields_name},
-              primary_key: config.primaryKey
-            };
-            """
-          else
-            """
-            const payload: Record<string, any> = {
-              action: "#{rpc_action_name}",
-              fields: config.#{formatted_fields_name},
-              primary_key: config.primaryKey
-            };
-            """
-          end
-
-        """
-        export function build#{rpc_action_name_pascal}Payload(
-          config: #{rpc_action_name_pascal}Config
-        ): Record<string, any> {
-        #{update_payload_base}
-
-          if ("input" in config && config.input) {
-            payload.input = config.input;
-          } else {
-            payload.input = {};
-          }
-
-          return payload;
-        }
-        """
-
-      action.type == :destroy ->
-        destroy_payload_base =
-          if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
-            """
-            const payload: Record<string, any> = {
-              action: "#{rpc_action_name}",
-              tenant: config.tenant,
-              primary_key: config.primaryKey
-            };
-            """
-          else
-            """
-            const payload: Record<string, any> = {
-              action: "#{rpc_action_name}",
-              primary_key: config.primaryKey
-            };
-            """
-          end
-
-        """
-        export function build#{rpc_action_name_pascal}Payload(
-          config: #{rpc_action_name_pascal}Config
-        ): Record<string, any> {
-        #{destroy_payload_base}
-
-          if ("input" in config && config.input) {
-            payload.input = config.input;
-          } else {
-            payload.input = {};
-          }
-
-          return payload;
-        }
-        """
-
-      action.type == :action ->
-        # Check if this generic action supports field selection
-        has_field_selection = match?({:ok, _, _}, action_returns_field_selectable_type?(action))
-
-        action_payload_base =
-          if has_field_selection do
-            # Include fields in the payload for field-selectable generic actions
-            if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
-              """
-              const payload: Record<string, any> = {
-                action: "#{rpc_action_name}",
-                tenant: config.tenant,
-                fields: config.#{formatted_fields_name}
-              };
-              """
-            else
-              """
-              const payload: Record<string, any> = {
-                action: "#{rpc_action_name}",
-                fields: config.#{formatted_fields_name}
-              };
-              """
-            end
-          else
-            # No field selection for non-field-selectable generic actions
-            if AshTypescript.Rpc.requires_tenant_parameter?(resource) do
-              """
-              const payload: Record<string, any> = {
-                action: "#{rpc_action_name}",
-                tenant: config.tenant
-              };
-              """
-            else
-              """
-              const payload: Record<string, any> = {
-                action: "#{rpc_action_name}"
-              };
-              """
-            end
-          end
-
-        """
-        export function build#{rpc_action_name_pascal}Payload(
-          config: #{rpc_action_name_pascal}Config
-        ): Record<string, any> {
-        #{action_payload_base}
-
-          if ("input" in config && config.input) {
-            payload.input = config.input;
-          } else {
-            payload.input = {};
-          }
-
-          return payload;
-        }
-        """
-    end
-  end
-
-  defp generate_rpc_execution_function(_rpc_action, action, rpc_action_name, endpoint_process) do
-    function_name =
-      AshTypescript.FieldFormatter.format_field(
-        rpc_action_name,
-        AshTypescript.Rpc.output_field_formatter()
-      )
-
-    # Add proper type handling for different action types
-    is_generic_action = action.type in [:action, :generic]
-
-    is_field_selectable_generic =
-      is_generic_action && match?({:ok, _, _}, action_returns_field_selectable_type?(action))
-
-    rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
-
-    {result_type, result_type_def, return_type_def} =
-      cond do
-        action.type == :destroy ->
-          result_type = """
-          {success: true, data: {}} |
-          {success: false, errors: Array<{type: string, message: string, field_path?: string, details: Record<string, string>}>}
-          """
-
-          result_type_def =
-            "export type #{rpc_action_name_pascal}Result = #{result_type};"
-
-          {result_type, result_type_def, "#{rpc_action_name_pascal}Result;"}
-
-        is_field_selectable_generic ->
-          # Generic actions with field selection need Config parameter
-          result_type = """
-            {success: true, data: Infer#{rpc_action_name_pascal}Result<Config>} |
-            {success: false, errors: Array<{type: string, message: string, field_path?: string, details: Record<string, string>}>}
-          """
-
-          result_type_def =
-            "export type #{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> = #{result_type};"
-
-          {result_type, result_type_def, "#{rpc_action_name_pascal}Result<Config>;"}
-
-        is_generic_action ->
-          # Generic actions without field selection
-          result_type = """
-          {success: true, data: Infer#{rpc_action_name_pascal}Result} |
-          {success: false, errors: Array<{type: string, message: string, field_path?: string, details: Record<string, string>}>}
-          """
-
-          result_type_def =
-            "export type #{rpc_action_name_pascal}Result = #{result_type};"
-
-          {result_type, result_type_def, "#{rpc_action_name_pascal}Result;"}
-
-        true ->
-          # Standard CRUD actions with field selection
-          result_type = """
-            {success: true, data: Infer#{rpc_action_name_pascal}Result<Config>} |
-            {success: false, errors: Array<{type: string, message: string, field_path?: string, details: Record<string, string>}>}
-          """
-
-          result_type_def =
-            "export type #{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> = #{result_type};"
-
-          {result_type, result_type_def, "#{rpc_action_name_pascal}Result<Config>;"}
-      end
-
-    """
-    #{result_type_def}
-
-    export async function #{function_name}<Config extends #{rpc_action_name_pascal}Config>(
-      config: Config
-    ): Promise<#{result_type}> {
-      const payload = build#{rpc_action_name_pascal}Payload(config);
-
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        ...config.headers,
-      };
-
-      const response = await fetch("#{endpoint_process}", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        return {success: false, errors: [
-          {type: 'network', message: response.statusText, details: {}}
-        ]};
-      }
-
-      const result = await response.json()
-      return result as #{return_type_def}
-    }
-    """
-  end
-
-  defp generate_validation_function(
-         resource,
-         rpc_action,
-         action,
-         rpc_action_name,
-         endpoint_validate
-       ) do
-    # Only generate validation functions for create, update, and destroy actions
-    case action.type do
-      :read ->
-        ""
-
-      :action ->
-        ""
-
-      _ ->
-        # Convert Rpc action name using output formatter and add validate prefix
-        validation_function_name =
-          AshTypescript.FieldFormatter.format_field(
-            "validate_" <> rpc_action_name,
-            AshTypescript.Rpc.output_field_formatter()
-          )
-
-        primary_key_field_name =
-          AshTypescript.FieldFormatter.format_field(
-            "primary_key",
-            AshTypescript.Rpc.output_field_formatter()
-          )
-
-        # Keep pascal case for config type references (TypeScript convention)
-        rpc_action_name_pascal = AshTypescript.Helpers.snake_to_pascal_case(rpc_action_name)
-
-        # Determine if we need primary_key parameter
-        needs_primary_key = action.type in [:update, :destroy]
-
-        # Check if action has input parameters
-        has_input = length(action.accept) > 0 or length(action.arguments) > 0
-
-        # Check if resource requires tenant
-        requires_tenant = AshTypescript.Rpc.requires_tenant_parameter?(resource)
-
-        # Build function signature including tenant parameter when needed
-        base_params =
-          case {needs_primary_key, has_input} do
-            {true, true} ->
-              [
-                "#{primary_key_field_name}: string | number",
-                "input: #{rpc_action_name_pascal}Config[\"input\"]"
-              ]
-
-            {true, false} ->
-              ["#{primary_key_field_name}: string | number"]
-
-            {false, true} ->
-              ["input: #{rpc_action_name_pascal}Config[\"input\"]"]
-
-            {false, false} ->
-              []
-          end
-
-        all_params =
-          if requires_tenant do
-            ["tenant: string"] ++ base_params
-          else
-            base_params
-          end
-
-        params = Enum.join(all_params, ", ")
-
-        # Build payload construction
-        base_payload =
-          if requires_tenant do
-            ["action: \"#{rpc_action.name}\"", "tenant: tenant"]
-          else
-            ["action: \"#{rpc_action.name}\""]
-          end
-
-        payload_with_pk =
-          if needs_primary_key do
-            base_payload ++ ["primary_key: #{primary_key_field_name}"]
-          else
-            base_payload
-          end
-
-        payload_lines =
-          if has_input do
-            payload_with_pk ++ ["input: input"]
-          else
-            payload_with_pk ++ ["input: {}"]
-          end
-
-        payload_content = Enum.join(payload_lines, ",\n    ")
-
-        """
-        export async function #{validation_function_name}(#{params}, headers?: Record<string, string>): Promise<{
-          success: boolean;
-          errors?: Record<string, string[]>;
-        }> {
-          const payload = {
-            #{payload_content}
-          };
-
-          const requestHeaders: Record<string, string> = {
-            "Content-Type": "application/json",
-            ...headers,
-          };
-
-          const response = await fetch("#{endpoint_validate}", {
-            method: "POST",
-            headers: requestHeaders,
-            body: JSON.stringify(payload),
-          });
-
-          if (!response.ok) {
-            throw new Error(`Validation call failed: ${response.statusText}`);
-          }
-
-          const result = await response.json();
-
-          if (result.success) {
-            return { success: true };
-          } else {
-            return { success: false, errors: result.errors };
-          }
-        }
-        """
-    end
-  end
 
   defp generate_typed_queries_section([], _all_resources), do: ""
 
@@ -1831,7 +850,7 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
-  defp generate_new_result_type(resource, action, rpc_action_name) do
+  defp generate_result_type(resource, action, rpc_action_name) do
     resource_name = build_resource_type_name(resource)
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
 
@@ -1846,7 +865,7 @@ defmodule AshTypescript.Rpc.Codegen do
       :read ->
         # For read actions, check if pagination is supported
         if action_supports_pagination?(action) do
-          generate_new_pagination_result_type(resource, action, rpc_action_name_pascal, resource_name)
+          generate_pagination_result_type(resource, action, rpc_action_name_pascal, resource_name)
         else
           """
           type Infer#{rpc_action_name_pascal}Result<
@@ -1922,26 +941,26 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
-  defp generate_new_pagination_result_type(_resource, action, rpc_action_name_pascal, resource_name) do
+  defp generate_pagination_result_type(_resource, action, rpc_action_name_pascal, resource_name) do
     supports_offset = action_supports_offset_pagination?(action)
     supports_keyset = action_supports_keyset_pagination?(action)
 
     cond do
       supports_offset and supports_keyset ->
         # Generate union type for mixed pagination support
-        generate_new_mixed_pagination_result_type(rpc_action_name_pascal, resource_name)
+        generate_mixed_pagination_result_type(rpc_action_name_pascal, resource_name)
 
       supports_offset ->
         # Generate offset-only pagination result type
-        generate_new_offset_pagination_result_type(rpc_action_name_pascal, resource_name)
+        generate_offset_pagination_result_type(rpc_action_name_pascal, resource_name)
 
       supports_keyset ->
         # Generate keyset-only pagination result type
-        generate_new_keyset_pagination_result_type(rpc_action_name_pascal, resource_name)
+        generate_keyset_pagination_result_type(rpc_action_name_pascal, resource_name)
     end
   end
 
-  defp generate_new_offset_pagination_result_type(rpc_action_name_pascal, resource_name) do
+  defp generate_offset_pagination_result_type(rpc_action_name_pascal, resource_name) do
     formatter = AshTypescript.Rpc.output_field_formatter()
     results_field = AshTypescript.FieldFormatter.format_field("results", formatter)
     has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
@@ -1960,7 +979,7 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
-  defp generate_new_keyset_pagination_result_type(rpc_action_name_pascal, resource_name) do
+  defp generate_keyset_pagination_result_type(rpc_action_name_pascal, resource_name) do
     formatter = AshTypescript.Rpc.output_field_formatter()
     results_field = AshTypescript.FieldFormatter.format_field("results", formatter)
     has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
@@ -1985,7 +1004,7 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
-  defp generate_new_mixed_pagination_result_type(rpc_action_name_pascal, resource_name) do
+  defp generate_mixed_pagination_result_type(rpc_action_name_pascal, resource_name) do
     formatter = AshTypescript.Rpc.output_field_formatter()
     results_field = AshTypescript.FieldFormatter.format_field("results", formatter)
     has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
@@ -2022,7 +1041,7 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
-  defp generate_new_payload_builder(resource, _rpc_action, action, rpc_action_name) do
+  defp generate_payload_builder(resource, _rpc_action, action, rpc_action_name) do
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
     input_type_name = "#{rpc_action_name_pascal}Input"
     resource_name = build_resource_type_name(resource)
@@ -2117,7 +1136,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     # Add pagination field for read actions with pagination
     config_fields = if supports_pagination do
-      pagination_fields = generate_new_pagination_config_fields(action)
+      pagination_fields = generate_pagination_config_fields(action)
       config_fields ++ pagination_fields
     else
       config_fields
@@ -2130,7 +1149,7 @@ defmodule AshTypescript.Rpc.Codegen do
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
 
     # Generate payload construction logic
-    payload_construction = generate_new_payload_construction(resource, action, rpc_action_name, requires_tenant, requires_primary_key, supports_filtering, supports_pagination)
+    payload_construction = generate_payload_construction(resource, action, rpc_action_name, requires_tenant, requires_primary_key, supports_filtering, supports_pagination)
 
     """
     export function build#{rpc_action_name_pascal}Payload(config: #{config_type_def}): Record<string, any> {
@@ -2139,7 +1158,7 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
-  defp generate_new_pagination_config_fields(action) do
+  defp generate_pagination_config_fields(action) do
     supports_offset = action_supports_offset_pagination?(action)
     supports_keyset = action_supports_keyset_pagination?(action)
     supports_countable = action_supports_countable?(action)
@@ -2153,22 +1172,22 @@ defmodule AshTypescript.Rpc.Codegen do
       cond do
         supports_offset and supports_keyset ->
           # Generate union type for mixed pagination support
-          generate_new_mixed_pagination_config_fields(limit_required, supports_countable, optional_mark)
+          generate_mixed_pagination_config_fields(limit_required, supports_countable, optional_mark)
 
         supports_offset ->
           # Generate offset-only pagination interface
-          generate_new_offset_pagination_config_fields(limit_required, supports_countable, optional_mark)
+          generate_offset_pagination_config_fields(limit_required, supports_countable, optional_mark)
 
         supports_keyset ->
           # Generate keyset-only pagination interface
-          generate_new_keyset_pagination_config_fields(limit_required, optional_mark)
+          generate_keyset_pagination_config_fields(limit_required, optional_mark)
       end
     else
       []
     end
   end
 
-  defp generate_new_offset_pagination_config_fields(limit_required, supports_countable, optional_mark) do
+  defp generate_offset_pagination_config_fields(limit_required, supports_countable, optional_mark) do
     fields = ["    limit#{limit_required}: number;", "    offset?: number;"]
 
     fields =
@@ -2187,7 +1206,7 @@ defmodule AshTypescript.Rpc.Codegen do
       ]
   end
 
-  defp generate_new_keyset_pagination_config_fields(limit_required, optional_mark) do
+  defp generate_keyset_pagination_config_fields(limit_required, optional_mark) do
     fields = [
       "    limit#{limit_required}: number;",
       "    after?: string;",
@@ -2203,7 +1222,7 @@ defmodule AshTypescript.Rpc.Codegen do
       ]
   end
 
-  defp generate_new_mixed_pagination_config_fields(limit_required, supports_countable, optional_mark) do
+  defp generate_mixed_pagination_config_fields(limit_required, supports_countable, optional_mark) do
     # Generate union type for mixed pagination support (without type discriminator)
     offset_fields = [
       "      limit#{limit_required}: number;",
@@ -2249,7 +1268,7 @@ defmodule AshTypescript.Rpc.Codegen do
       ]
   end
 
-  defp generate_new_payload_construction(_resource, action, rpc_action_name, requires_tenant, requires_primary_key, supports_filtering, supports_pagination) do
+  defp generate_payload_construction(_resource, action, rpc_action_name, requires_tenant, requires_primary_key, supports_filtering, supports_pagination) do
     # Start with base payload
     base_fields = ["action: \"#{rpc_action_name}\""]
 
@@ -2337,7 +1356,7 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
-  defp generate_new_rpc_execution_function(resource, action, rpc_action_name, endpoint_process) do
+  defp generate_rpc_execution_function(resource, action, rpc_action_name, endpoint_process) do
     function_name =
       AshTypescript.FieldFormatter.format_field(
         rpc_action_name,
@@ -2444,7 +1463,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     # Add pagination field for read actions with pagination
     config_fields = if supports_pagination do
-      pagination_fields = generate_new_pagination_config_fields(action)
+      pagination_fields = generate_pagination_config_fields(action)
       config_fields ++ pagination_fields
     else
       config_fields
@@ -2550,11 +1569,11 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
-  defp generate_new_rpc_function(
+  defp generate_rpc_function(
          {resource, action, rpc_action},
          _resources_and_actions,
          endpoint_process,
-         endpoint_validate,
+         _endpoint_validate,
          _otp_app
        ) do
     # Convert Rpc action name to formatted function name using output_field_formatter
@@ -2564,14 +1583,14 @@ defmodule AshTypescript.Rpc.Codegen do
     input_type = generate_input_type(resource, action, rpc_action_name)
 
     # Generate result inference type with direct field generics
-    result_type = generate_new_result_type(resource, action, rpc_action_name)
+    result_type = generate_result_type(resource, action, rpc_action_name)
 
     # Generate payload builder with inline config objects
-    payload_builder = generate_new_payload_builder(resource, rpc_action, action, rpc_action_name)
+    payload_builder = generate_payload_builder(resource, rpc_action, action, rpc_action_name)
 
     # Generate RPC function with new pattern
     rpc_function =
-      generate_new_rpc_execution_function(resource, action, rpc_action_name, endpoint_process)
+      generate_rpc_execution_function(resource, action, rpc_action_name, endpoint_process)
 
     # Generate validation function (for create, update, destroy actions only)
     # TODO: Create a new validation function pattern for the new action pattern
