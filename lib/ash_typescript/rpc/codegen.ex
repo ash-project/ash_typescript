@@ -305,11 +305,21 @@ defmodule AshTypescript.Rpc.Codegen do
          otp_app,
          _resources
        ) do
+    # Check configuration flag to determine which pattern to use
+    use_new_pattern = Application.get_env(:ash_typescript, :use_new_action_pattern, false)
+
+    # Choose the appropriate generator function
+    generator_function = if use_new_pattern do
+      &generate_new_rpc_function/5
+    else
+      &generate_rpc_function/5
+    end
+
     # Generate functions for each Rpc action
     rpc_functions =
       resources_and_actions
       |> Enum.map(
-        &generate_rpc_function(
+        &generator_function.(
           &1,
           resources_and_actions,
           endpoint_process,
@@ -1674,5 +1684,919 @@ defmodule AshTypescript.Rpc.Codegen do
       |> Enum.join(", ")
 
     "{ #{formatted_args} }"
+  end
+
+  # New pattern generators for improved type safety
+
+  defp generate_input_type(resource, action, rpc_action_name) do
+    input_type_name = "#{snake_to_pascal_case(rpc_action_name)}Input"
+
+    input_field_defs =
+      case action.type do
+        :read ->
+          # For read actions, only use arguments (get_by automatically creates arguments)
+          arguments = action.arguments
+
+          if arguments != [] do
+            Enum.map(arguments, fn arg ->
+              optional = arg.allow_nil? || arg.default != nil
+
+              formatted_arg_name =
+                AshTypescript.FieldFormatter.format_field(
+                  arg.name,
+                  AshTypescript.Rpc.output_field_formatter()
+                )
+
+              {formatted_arg_name, get_ts_type(arg), optional}
+            end)
+          else
+            []
+          end
+
+        :create ->
+          accepts = Ash.Resource.Info.action(resource, action.name).accept || []
+          arguments = action.arguments
+
+          if accepts != [] || arguments != [] do
+            # Generate input field definitions
+            accept_field_defs =
+              Enum.map(accepts, fn field_name ->
+                attr = Ash.Resource.Info.attribute(resource, field_name)
+                optional = attr.allow_nil? || attr.default != nil
+                base_type = AshTypescript.Codegen.get_ts_input_type(attr)
+                field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
+
+                formatted_field_name =
+                  AshTypescript.FieldFormatter.format_field(
+                    field_name,
+                    AshTypescript.Rpc.output_field_formatter()
+                  )
+
+                {formatted_field_name, field_type, optional}
+              end)
+
+            argument_field_defs =
+              Enum.map(arguments, fn arg ->
+                optional = arg.allow_nil? || arg.default != nil
+
+                formatted_arg_name =
+                  AshTypescript.FieldFormatter.format_field(
+                    arg.name,
+                    AshTypescript.Rpc.output_field_formatter()
+                  )
+
+                {formatted_arg_name, get_ts_type(arg), optional}
+              end)
+
+            accept_field_defs ++ argument_field_defs
+          else
+            []
+          end
+
+        action_type when action_type in [:update, :destroy] ->
+          # For update/destroy, generate only input fields, not primary key
+          # Primary key will be handled separately in the config object
+          if action.accept != [] || action.arguments != [] do
+            accept_field_defs =
+              Enum.map(action.accept, fn field_name ->
+                attr = Ash.Resource.Info.attribute(resource, field_name)
+                optional = attr.allow_nil? || attr.default != nil
+                base_type = AshTypescript.Codegen.get_ts_input_type(attr)
+                field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
+
+                formatted_field_name =
+                  AshTypescript.FieldFormatter.format_field(
+                    field_name,
+                    AshTypescript.Rpc.output_field_formatter()
+                  )
+
+                {formatted_field_name, field_type, optional}
+              end)
+
+            argument_field_defs =
+              Enum.map(action.arguments, fn arg ->
+                optional = arg.allow_nil? || arg.default != nil
+
+                formatted_arg_name =
+                  AshTypescript.FieldFormatter.format_field(
+                    arg.name,
+                    AshTypescript.Rpc.output_field_formatter()
+                  )
+
+                {formatted_arg_name, get_ts_type(arg), optional}
+              end)
+
+            accept_field_defs ++ argument_field_defs
+          else
+            []
+          end
+
+        :action ->
+          arguments = action.arguments
+
+          if arguments != [] do
+            Enum.map(arguments, fn arg ->
+              optional = arg.allow_nil? || arg.default != nil
+
+              formatted_arg_name =
+                AshTypescript.FieldFormatter.format_field(
+                  arg.name,
+                  AshTypescript.Rpc.output_field_formatter()
+                )
+
+              {formatted_arg_name, get_ts_type(arg), optional}
+            end)
+          else
+            []
+          end
+      end
+
+    # Generate TypeScript type definition
+    if input_field_defs != [] do
+      field_lines =
+        Enum.map(input_field_defs, fn {name, type, optional} ->
+          "  #{name}#{if optional, do: "?", else: ""}: #{type};"
+        end)
+
+      """
+      export type #{input_type_name} = {
+      #{Enum.join(field_lines, "\n")}
+      };
+      """
+    else
+      # If no input fields, generate an empty input type
+      """
+      export type #{input_type_name} = {};
+      """
+    end
+  end
+
+  defp generate_new_result_type(resource, action, rpc_action_name) do
+    resource_name = build_resource_type_name(resource)
+    rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
+
+    case action.type do
+      :read when action.get? ->
+        """
+        type Infer#{rpc_action_name_pascal}Result<
+          Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[],
+        > = InferResult<#{resource_name}ResourceSchema, Fields> | null;
+        """
+
+      :read ->
+        # For read actions, check if pagination is supported
+        if action_supports_pagination?(action) do
+          generate_new_pagination_result_type(resource, action, rpc_action_name_pascal, resource_name)
+        else
+          """
+          type Infer#{rpc_action_name_pascal}Result<
+            Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[],
+          > = Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+          """
+        end
+
+      action_type when action_type in [:create, :update] ->
+        """
+        type Infer#{rpc_action_name_pascal}Result<
+          Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[],
+        > = InferResult<#{resource_name}ResourceSchema, Fields>;
+        """
+
+      :destroy ->
+        # No result type needed - function signatures use void directly
+        ""
+
+      :action ->
+        # Check if generic action returns a field-selectable type
+        case action_returns_field_selectable_type?(action) do
+          {:ok, type, value} when type in [:resource, :array_of_resource] ->
+            # For resources, use the resource's schema for field selection
+            target_resource_name = build_resource_type_name(value)
+
+            if type == :array_of_resource do
+              """
+              type Infer#{rpc_action_name_pascal}Result<
+                Fields extends UnifiedFieldSelection<#{target_resource_name}ResourceSchema>[],
+              > = Array<InferResult<#{target_resource_name}ResourceSchema, Fields>>;
+              """
+            else
+              """
+              type Infer#{rpc_action_name_pascal}Result<
+                Fields extends UnifiedFieldSelection<#{target_resource_name}ResourceSchema>[],
+              > = InferResult<#{target_resource_name}ResourceSchema, Fields>;
+              """
+            end
+
+          {:ok, type, fields} when type in [:typed_map, :array_of_typed_map] ->
+            # For typed maps, generate a field-selectable schema
+            typed_map_schema = build_map_type(fields)
+
+            if type == :array_of_typed_map do
+              """
+              type Infer#{rpc_action_name_pascal}Result<
+                Fields extends UnifiedFieldSelection<#{typed_map_schema}>[],
+              > = Array<InferResult<#{typed_map_schema}, Fields>>;
+              """
+            else
+              """
+              type Infer#{rpc_action_name_pascal}Result<
+                Fields extends UnifiedFieldSelection<#{typed_map_schema}>[],
+              > = InferResult<#{typed_map_schema}, Fields>;
+              """
+            end
+
+          _ ->
+            # Non-field-selectable types or no return type
+            if action.returns do
+              return_type = get_ts_type(%{type: action.returns, constraints: action.constraints})
+
+              """
+              type Infer#{rpc_action_name_pascal}Result = #{return_type};
+              """
+            else
+              """
+              type Infer#{rpc_action_name_pascal}Result = {};
+              """
+            end
+        end
+    end
+  end
+
+  defp generate_new_pagination_result_type(_resource, action, rpc_action_name_pascal, resource_name) do
+    supports_offset = action_supports_offset_pagination?(action)
+    supports_keyset = action_supports_keyset_pagination?(action)
+
+    cond do
+      supports_offset and supports_keyset ->
+        # Generate union type for mixed pagination support
+        generate_new_mixed_pagination_result_type(rpc_action_name_pascal, resource_name)
+
+      supports_offset ->
+        # Generate offset-only pagination result type
+        generate_new_offset_pagination_result_type(rpc_action_name_pascal, resource_name)
+
+      supports_keyset ->
+        # Generate keyset-only pagination result type
+        generate_new_keyset_pagination_result_type(rpc_action_name_pascal, resource_name)
+    end
+  end
+
+  defp generate_new_offset_pagination_result_type(rpc_action_name_pascal, resource_name) do
+    formatter = AshTypescript.Rpc.output_field_formatter()
+    results_field = AshTypescript.FieldFormatter.format_field("results", formatter)
+    has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
+    limit_field = AshTypescript.FieldFormatter.format_field("limit", formatter)
+    offset_field = AshTypescript.FieldFormatter.format_field("offset", formatter)
+
+    """
+    type Infer#{rpc_action_name_pascal}Result<
+      Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[],
+    > = {
+      #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+      #{has_more_field}: boolean;
+      #{limit_field}: number;
+      #{offset_field}: number;
+    };
+    """
+  end
+
+  defp generate_new_keyset_pagination_result_type(rpc_action_name_pascal, resource_name) do
+    formatter = AshTypescript.Rpc.output_field_formatter()
+    results_field = AshTypescript.FieldFormatter.format_field("results", formatter)
+    has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
+    limit_field = AshTypescript.FieldFormatter.format_field("limit", formatter)
+    after_field = AshTypescript.FieldFormatter.format_field("after", formatter)
+    before_field = AshTypescript.FieldFormatter.format_field("before", formatter)
+    previous_page_field = AshTypescript.FieldFormatter.format_field("previous_page", formatter)
+    next_page_field = AshTypescript.FieldFormatter.format_field("next_page", formatter)
+
+    """
+    type Infer#{rpc_action_name_pascal}Result<
+      Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[],
+    > = {
+      #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+      #{has_more_field}: boolean;
+      #{limit_field}: number;
+      #{after_field}: string | null;
+      #{before_field}: string | null;
+      #{previous_page_field}: string;
+      #{next_page_field}: string;
+    };
+    """
+  end
+
+  defp generate_new_mixed_pagination_result_type(rpc_action_name_pascal, resource_name) do
+    formatter = AshTypescript.Rpc.output_field_formatter()
+    results_field = AshTypescript.FieldFormatter.format_field("results", formatter)
+    has_more_field = AshTypescript.FieldFormatter.format_field("has_more", formatter)
+    limit_field = AshTypescript.FieldFormatter.format_field("limit", formatter)
+    offset_field = AshTypescript.FieldFormatter.format_field("offset", formatter)
+    after_field = AshTypescript.FieldFormatter.format_field("after", formatter)
+    before_field = AshTypescript.FieldFormatter.format_field("before", formatter)
+    count_field = AshTypescript.FieldFormatter.format_field("count", formatter)
+    previous_page_field = AshTypescript.FieldFormatter.format_field("previous_page", formatter)
+    next_page_field = AshTypescript.FieldFormatter.format_field("next_page", formatter)
+    type_field = AshTypescript.FieldFormatter.format_field("type", formatter)
+
+    """
+    type Infer#{rpc_action_name_pascal}Result<
+      Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[],
+    > = {
+      #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+      #{has_more_field}: boolean;
+      #{limit_field}: number;
+      #{offset_field}: number;
+      #{count_field}?: number | null;
+      #{type_field}: "offset";
+    } | {
+      #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+      #{has_more_field}: boolean;
+      #{limit_field}: number;
+      #{after_field}: string | null;
+      #{before_field}: string | null;
+      #{previous_page_field}: string;
+      #{next_page_field}: string;
+      #{count_field}?: number | null;
+      #{type_field}: "keyset";
+    };
+    """
+  end
+
+  defp generate_new_payload_builder(resource, _rpc_action, action, rpc_action_name) do
+    rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
+    input_type_name = "#{rpc_action_name_pascal}Input"
+    resource_name = build_resource_type_name(resource)
+
+    # Check various action characteristics
+    requires_tenant = AshTypescript.Rpc.requires_tenant_parameter?(resource)
+    requires_primary_key = action.type in [:update, :destroy]
+    supports_pagination = action.type == :read and not action.get? and action_supports_pagination?(action)
+    supports_filtering = action.type == :read and not action.get?
+
+    # Build config object type definition
+    config_fields = []
+
+    # Add tenant field if needed
+    config_fields = if requires_tenant do
+      config_fields ++ ["  tenant: string;"]
+    else
+      config_fields
+    end
+
+    # Add primary key field for update/destroy actions
+    config_fields = if requires_primary_key do
+      primary_key_attrs = Ash.Resource.Info.primary_key(resource)
+
+      if Enum.count(primary_key_attrs) == 1 do
+        attr_name = Enum.at(primary_key_attrs, 0)
+        attr = Ash.Resource.Info.attribute(resource, attr_name)
+        config_fields ++ ["  primaryKey: #{get_ts_type(attr)};"]
+      else
+        primary_key_def = [
+          "  primaryKey: {"
+        ] ++
+        Enum.map(primary_key_attrs, fn attr_name ->
+          attr = Ash.Resource.Info.attribute(resource, attr_name)
+          "    #{attr.name}: #{get_ts_type(attr)};"
+        end) ++
+        [
+          "  };"
+        ]
+        config_fields ++ primary_key_def
+      end
+    else
+      config_fields
+    end
+
+    # Add input field
+    config_fields = config_fields ++ ["  input: #{input_type_name};"]
+
+    # Add fields field (always present for non-destroy actions)
+    config_fields = if action.type != :destroy do
+      case action.type do
+        :action ->
+          # Check if this generic action returns a field-selectable type
+          case action_returns_field_selectable_type?(action) do
+            {:ok, type, _value} when type in [:resource, :array_of_resource] ->
+              config_fields ++ ["  fields: UnifiedFieldSelection<#{resource_name}ResourceSchema>[];"]
+
+            {:ok, type, fields} when type in [:typed_map, :array_of_typed_map] ->
+              # For typed maps, use a custom field selection for the map's fields
+              typed_map_field_names =
+                Enum.map(fields, fn {field_name, _} -> Atom.to_string(field_name) end)
+
+              config_fields ++ [
+                "  fields: (\"#{Enum.join(typed_map_field_names, "\" | \"")}\")[];"
+              ]
+
+            _ ->
+              # No fields for non-field-selectable generic actions
+              config_fields
+          end
+
+        _ ->
+          config_fields ++ ["  fields: UnifiedFieldSelection<#{resource_name}ResourceSchema>[];"]
+      end
+    else
+      config_fields
+    end
+
+    # Add filter field for read actions (except get)
+    config_fields = if supports_filtering do
+      config_fields ++ ["  filter?: #{resource_name}FilterInput;"]
+    else
+      config_fields
+    end
+
+    # Add sort field for read actions (except get)
+    config_fields = if supports_filtering do
+      config_fields ++ ["  sort?: string;"]
+    else
+      config_fields
+    end
+
+    # Add pagination field for read actions with pagination
+    config_fields = if supports_pagination do
+      pagination_fields = generate_new_pagination_config_fields(action)
+      config_fields ++ pagination_fields
+    else
+      config_fields
+    end
+
+    # Add headers field (always optional)
+    config_fields = config_fields ++ ["  headers?: Record<string, string>;"]
+
+    # Generate function
+    config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
+
+    # Generate payload construction logic
+    payload_construction = generate_new_payload_construction(resource, action, rpc_action_name, requires_tenant, requires_primary_key, supports_filtering, supports_pagination)
+
+    """
+    export function build#{rpc_action_name_pascal}Payload(config: #{config_type_def}): Record<string, any> {
+    #{payload_construction}
+    }
+    """
+  end
+
+  defp generate_new_pagination_config_fields(action) do
+    supports_offset = action_supports_offset_pagination?(action)
+    supports_keyset = action_supports_keyset_pagination?(action)
+    supports_countable = action_supports_countable?(action)
+    is_required = action_requires_pagination?(action)
+    has_default_limit = action_has_default_limit?(action)
+
+    if supports_offset or supports_keyset do
+      optional_mark = if is_required, do: "", else: "?"
+      limit_required = if is_required and not has_default_limit, do: "", else: "?"
+
+      cond do
+        supports_offset and supports_keyset ->
+          # Generate union type for mixed pagination support
+          generate_new_mixed_pagination_config_fields(limit_required, supports_countable, optional_mark)
+
+        supports_offset ->
+          # Generate offset-only pagination interface
+          generate_new_offset_pagination_config_fields(limit_required, supports_countable, optional_mark)
+
+        supports_keyset ->
+          # Generate keyset-only pagination interface
+          generate_new_keyset_pagination_config_fields(limit_required, optional_mark)
+      end
+    else
+      []
+    end
+  end
+
+  defp generate_new_offset_pagination_config_fields(limit_required, supports_countable, optional_mark) do
+    fields = ["    limit#{limit_required}: number;", "    offset?: number;"]
+
+    fields =
+      if supports_countable do
+        fields ++ ["    count?: boolean;"]
+      else
+        fields
+      end
+
+    [
+      "  page#{optional_mark}: {"
+    ] ++
+      fields ++
+      [
+        "  };"
+      ]
+  end
+
+  defp generate_new_keyset_pagination_config_fields(limit_required, optional_mark) do
+    fields = [
+      "    limit#{limit_required}: number;",
+      "    after?: string;",
+      "    before?: string;"
+    ]
+
+    [
+      "  page#{optional_mark}: {"
+    ] ++
+      fields ++
+      [
+        "  };"
+      ]
+  end
+
+  defp generate_new_mixed_pagination_config_fields(limit_required, supports_countable, optional_mark) do
+    # Generate union type for mixed pagination support (without type discriminator)
+    offset_fields = [
+      "      limit#{limit_required}: number;",
+      "      offset?: number;"
+    ]
+
+    offset_fields =
+      if supports_countable do
+        offset_fields ++ ["      count?: boolean;"]
+      else
+        offset_fields
+      end
+
+    keyset_fields = [
+      "      limit#{limit_required}: number;",
+      "      after?: string;",
+      "      before?: string;"
+    ]
+
+    keyset_fields =
+      if supports_countable do
+        keyset_fields ++ ["      count?: boolean;"]
+      else
+        keyset_fields
+      end
+
+    [
+      "  page#{optional_mark}:"
+    ] ++
+      [
+        "    | {"
+      ] ++
+      offset_fields ++
+      [
+        "    }"
+      ] ++
+      [
+        "    | {"
+      ] ++
+      keyset_fields ++
+      [
+        "    };"
+      ]
+  end
+
+  defp generate_new_payload_construction(_resource, action, rpc_action_name, requires_tenant, requires_primary_key, supports_filtering, supports_pagination) do
+    # Start with base payload
+    base_fields = ["action: \"#{rpc_action_name}\""]
+
+    # Add tenant if required
+    base_fields = if requires_tenant do
+      base_fields ++ ["tenant: config.tenant"]
+    else
+      base_fields
+    end
+
+    # Add primary key if required
+    base_fields = if requires_primary_key do
+      base_fields ++ ["primary_key: config.primaryKey"]
+    else
+      base_fields
+    end
+
+    # Add fields if action needs them (all except destroy)
+    base_fields = if action.type != :destroy do
+      case action.type do
+        :action ->
+          # Check if this generic action returns a field-selectable type
+          case action_returns_field_selectable_type?(action) do
+            {:ok, type, _value} when type in [:resource, :array_of_resource, :typed_map, :array_of_typed_map] ->
+              base_fields ++ ["fields: config.fields"]
+
+            _ ->
+              base_fields
+          end
+
+        _ ->
+          base_fields ++ ["fields: config.fields"]
+      end
+    else
+      base_fields
+    end
+
+    base_payload_content = Enum.join(base_fields, ",\n    ")
+
+    payload_construction = """
+      const payload: Record<string, any> = {
+        #{base_payload_content}
+      };
+
+      if (config.input) {
+        payload.input = config.input;
+      } else {
+        payload.input = {};
+      }
+    """
+
+    # Add filter handling for read actions
+    payload_construction = if supports_filtering do
+      payload_construction <> """
+
+      if (config.filter) {
+        payload.filter = config.filter;
+      } else {
+        payload.filter = {};
+      }
+
+      if (config.sort) {
+        payload.sort = config.sort;
+      }
+      """
+    else
+      payload_construction
+    end
+
+    # Add pagination handling
+    payload_construction = if supports_pagination do
+      payload_construction <> """
+
+      if (config.page) {
+        payload.page = config.page;
+      }
+      """
+    else
+      payload_construction
+    end
+
+    payload_construction <> """
+
+      return payload;
+    """
+  end
+
+  defp generate_new_rpc_execution_function(resource, action, rpc_action_name, endpoint_process) do
+    function_name =
+      AshTypescript.FieldFormatter.format_field(
+        rpc_action_name,
+        AshTypescript.Rpc.output_field_formatter()
+      )
+
+    rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
+    input_type_name = "#{rpc_action_name_pascal}Input"
+    resource_name = build_resource_type_name(resource)
+
+    # Check action characteristics
+    is_generic_action = action.type in [:action, :generic]
+    _is_field_selectable_generic =
+      is_generic_action && match?({:ok, _, _}, action_returns_field_selectable_type?(action))
+    requires_tenant = AshTypescript.Rpc.requires_tenant_parameter?(resource)
+    requires_primary_key = action.type in [:update, :destroy]
+    supports_pagination = action.type == :read and not action.get? and action_supports_pagination?(action)
+    supports_filtering = action.type == :read and not action.get?
+
+    # Generate config object type definition (same as payload builder)
+    config_fields = []
+
+    # Add tenant field if needed
+    config_fields = if requires_tenant do
+      config_fields ++ ["  tenant: string;"]
+    else
+      config_fields
+    end
+
+    # Add primary key field for update/destroy actions
+    config_fields = if requires_primary_key do
+      primary_key_attrs = Ash.Resource.Info.primary_key(resource)
+
+      if Enum.count(primary_key_attrs) == 1 do
+        attr_name = Enum.at(primary_key_attrs, 0)
+        attr = Ash.Resource.Info.attribute(resource, attr_name)
+        config_fields ++ ["  primaryKey: #{get_ts_type(attr)};"]
+      else
+        primary_key_def = [
+          "  primaryKey: {"
+        ] ++
+        Enum.map(primary_key_attrs, fn attr_name ->
+          attr = Ash.Resource.Info.attribute(resource, attr_name)
+          "    #{attr.name}: #{get_ts_type(attr)};"
+        end) ++
+        [
+          "  };"
+        ]
+        config_fields ++ primary_key_def
+      end
+    else
+      config_fields
+    end
+
+    # Add input field
+    config_fields = config_fields ++ ["  input: #{input_type_name};"]
+
+    # Add fields field (always present for non-destroy actions)
+    {config_fields, has_fields, fields_generic} = if action.type != :destroy do
+      case action.type do
+        :action ->
+          # Check if this generic action returns a field-selectable type
+          case action_returns_field_selectable_type?(action) do
+            {:ok, type, _value} when type in [:resource, :array_of_resource] ->
+              updated_fields = config_fields ++ ["  fields: Fields;"]
+              {updated_fields, true, "Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[]"}
+
+            {:ok, type, fields} when type in [:typed_map, :array_of_typed_map] ->
+              # For typed maps, use a custom field selection for the map's fields
+              typed_map_field_names =
+                Enum.map(fields, fn {field_name, _} -> Atom.to_string(field_name) end)
+
+              updated_fields = config_fields ++ [
+                "  fields: Fields;"
+              ]
+              {updated_fields, true, "Fields extends (\"#{Enum.join(typed_map_field_names, "\" | \"")}\")[]"}
+
+            _ ->
+              # No fields for non-field-selectable generic actions
+              {config_fields, false, nil}
+          end
+
+        _ ->
+          updated_fields = config_fields ++ ["  fields: Fields;"]
+          {updated_fields, true, "Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[]"}
+      end
+    else
+      {config_fields, false, nil}
+    end
+
+    # Add filter field for read actions (except get)
+    config_fields = if supports_filtering do
+      config_fields ++ ["  filter?: #{resource_name}FilterInput;"]
+    else
+      config_fields
+    end
+
+    # Add sort field for read actions (except get)
+    config_fields = if supports_filtering do
+      config_fields ++ ["  sort?: string;"]
+    else
+      config_fields
+    end
+
+    # Add pagination field for read actions with pagination
+    config_fields = if supports_pagination do
+      pagination_fields = generate_new_pagination_config_fields(action)
+      config_fields ++ pagination_fields
+    else
+      config_fields
+    end
+
+    # Add headers field (always optional)
+    config_fields = config_fields ++ ["  headers?: Record<string, string>;"]
+
+    config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
+
+    # Generate result types and function signature
+    {result_type_def, return_type_def, generic_param, function_signature} =
+      cond do
+        action.type == :destroy ->
+          result_type = """
+          | { success: true; data: {} }
+          | {
+              success: false;
+              errors: Array<{
+                type: string;
+                message: string;
+                field_path?: string;
+                details: Record<string, string>;
+              }>;
+            }
+          """
+
+          result_type_def = "export type #{rpc_action_name_pascal}Result = #{result_type};"
+
+          {result_type_def, "#{rpc_action_name_pascal}Result", "", "config: #{config_type_def}"}
+
+        has_fields ->
+          # Actions with field selection (CRUD + field-selectable generic actions)
+          result_type = """
+          | { success: true; data: Infer#{rpc_action_name_pascal}Result<Fields> }
+          | {
+              success: false;
+              errors: Array<{
+                type: string;
+                message: string;
+                field_path?: string;
+                details: Record<string, string>;
+              }>;
+            }
+          """
+
+          result_type_def = "export type #{rpc_action_name_pascal}Result<#{fields_generic}> = #{result_type};"
+
+          {result_type_def, "#{rpc_action_name_pascal}Result<Fields>", "#{fields_generic}", "config: #{config_type_def}"}
+
+        true ->
+          # Generic actions without field selection
+          result_type = """
+          | { success: true; data: Infer#{rpc_action_name_pascal}Result }
+          | {
+              success: false;
+              errors: Array<{
+                type: string;
+                message: string;
+                field_path?: string;
+                details: Record<string, string>;
+              }>;
+            }
+          """
+
+          result_type_def = "export type #{rpc_action_name_pascal}Result = #{result_type};"
+
+          {result_type_def, "#{rpc_action_name_pascal}Result", "", "config: #{config_type_def}"}
+      end
+
+    # Generate the complete function
+    generic_part = if generic_param != "", do: "<#{generic_param}>", else: ""
+
+    """
+    #{result_type_def}
+
+    export async function #{function_name}#{generic_part}(
+      #{function_signature}
+    ): Promise<#{return_type_def}> {
+      const payload = build#{rpc_action_name_pascal}Payload(config);
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...config.headers,
+      };
+
+      const response = await fetch("#{endpoint_process}", {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        return {
+          success: false,
+          errors: [{ type: "network", message: response.statusText, details: {} }],
+        };
+      }
+
+      const result = await response.json();
+      return result as #{return_type_def};
+    }
+    """
+  end
+
+  defp generate_new_rpc_function(
+         {resource, action, rpc_action},
+         _resources_and_actions,
+         endpoint_process,
+         endpoint_validate,
+         _otp_app
+       ) do
+    # Convert Rpc action name to formatted function name using output_field_formatter
+    rpc_action_name = to_string(rpc_action.name)
+
+    # Generate separate input type
+    input_type = generate_input_type(resource, action, rpc_action_name)
+
+    # Generate result inference type with direct field generics
+    result_type = generate_new_result_type(resource, action, rpc_action_name)
+
+    # Generate payload builder with inline config objects
+    payload_builder = generate_new_payload_builder(resource, rpc_action, action, rpc_action_name)
+
+    # Generate RPC function with new pattern
+    rpc_function =
+      generate_new_rpc_execution_function(resource, action, rpc_action_name, endpoint_process)
+
+    # Generate validation function (for create, update, destroy actions only)
+    # TODO: Create a new validation function pattern for the new action pattern
+    # For now, skip validation functions in the new pattern to avoid Config type references
+    validation_function = ""
+
+    functions_section =
+      if validation_function == "" do
+        rpc_function
+      else
+        """
+        #{rpc_function}
+
+        #{validation_function}
+        """
+      end
+
+    """
+    #{input_type}
+
+    #{result_type}
+
+    #{payload_builder}
+
+    #{functions_section}
+    """
   end
 end

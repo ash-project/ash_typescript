@@ -25,7 +25,8 @@ defmodule AshTypescript.MixProject do
         plt_add_apps: [:mix]
       ],
       preferred_cli_env: [
-        "test.codegen": :test
+        "test.codegen": :test,
+        tidewave: :test
       ]
     ]
   end

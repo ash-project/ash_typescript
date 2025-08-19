@@ -5,7 +5,7 @@ import {
   getTodo,
   createTodo,
   updateTodo,
-  TodoMetadataInputSchema,
+  buildCSRFHeaders,
 } from "../generated";
 
 // Test 1: Basic typed map field selection - settings map with all fields
@@ -106,12 +106,6 @@ if (todoWithMultipleTypedMaps.success && todoWithMultipleTypedMaps.data) {
 }
 
 // Test 4: Create todo with typed map input
-const validSettings = {
-  notifications: true,
-  autoArchive: false,
-  reminderFrequency: 24,
-} as const;
-
 export const createTodoWithTypedMap = await createTodo({
   input: {
     title: "Todo with Typed Map Settings",
@@ -119,7 +113,11 @@ export const createTodoWithTypedMap = await createTodo({
     metadata: {
       category: "Work",
       priorityScore: 85,
-      settings: validSettings,
+      settings: {
+        notifications: true,
+        autoArchive: false,
+        reminderFrequency: 24,
+      },
       customFields: {
         project: "ash-typescript",
         complexity: "high",
@@ -134,6 +132,7 @@ export const createTodoWithTypedMap = await createTodo({
       metadata: ["category", "priorityScore", "settings", "customFields"],
     },
   ],
+  headers: buildCSRFHeaders(),
 });
 
 // Validate created todo with typed maps
