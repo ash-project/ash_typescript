@@ -10,7 +10,7 @@ defmodule AshTypescript.Filter do
   end
 
   def generate_filter_type(resource) do
-    resource_name = resource |> Module.split() |> List.last()
+    resource_name = build_resource_type_name(resource)
     filter_type_name = "#{resource_name}FilterInput"
 
     attribute_filters = generate_attribute_filters(resource)
@@ -29,7 +29,7 @@ defmodule AshTypescript.Filter do
   end
 
   def generate_filter_type(resource, allowed_resources) do
-    resource_name = resource |> Module.split() |> List.last()
+    resource_name = build_resource_type_name(resource)
     filter_type_name = "#{resource_name}FilterInput"
 
     attribute_filters = generate_attribute_filters(resource)
@@ -219,7 +219,7 @@ defmodule AshTypescript.Filter do
 
   defp generate_relationship_filter(relationship) do
     related_resource = relationship.destination
-    related_resource_name = related_resource |> Module.split() |> List.last()
+    related_resource_name = build_resource_type_name(related_resource)
     filter_type_name = "#{related_resource_name}FilterInput"
 
     # Format field name using output formatter

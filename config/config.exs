@@ -21,3 +21,7 @@ if Mix.env() == :test do
 
   config :logger, :console, level: :info
 end
+
+if File.exists?("config/#{config_env()}.exs") do
+  import_config "#{config_env()}.exs"
+end

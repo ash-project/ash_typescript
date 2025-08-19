@@ -1,9 +1,7 @@
 // Relationships Tests - shouldPass
 // Tests for relationship field selection in calculations
 
-import {
-  getTodo,
-} from "../generated";
+import { getTodo } from "../generated";
 
 // Test 3: Self calculation with relationships in field selection
 export const selfWithRelationships = await getTodo({
@@ -42,7 +40,7 @@ export const selfWithRelationships = await getTodo({
 });
 
 // Type validation for relationships in calculations
-if (selfWithRelationships.success && selfWithRelationships.data.self) {
+if (selfWithRelationships.success && selfWithRelationships.data?.self) {
   // Outer self should have the specified relationships
   const selfUser = selfWithRelationships.data.self.user;
   const selfUserId: string = selfUser.id;

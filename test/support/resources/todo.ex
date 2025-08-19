@@ -2,7 +2,12 @@ defmodule AshTypescript.Test.Todo do
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
     data_layer: Ash.DataLayer.Ets,
-    primary_read_warning?: false
+    primary_read_warning?: false,
+    extensions: [AshTypescript.Resource]
+
+  typescript do
+    type_name "Todo"
+  end
 
   ets do
     private? true

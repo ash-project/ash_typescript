@@ -117,14 +117,15 @@ export const todoWithSelectedMetadata = await getTodo({
 });
 
 // Validate field selection worked correctly
-if (todoWithSelectedMetadata.success) {
+if (todoWithSelectedMetadata.success && todoWithSelectedMetadata.data) {
   const selectedId: string = todoWithSelectedMetadata.data.id;
   const selectedTitle: string = todoWithSelectedMetadata.data.title;
 
   // metadata should be available since it was selected in embedded section
   if (todoWithSelectedMetadata.data.metadata) {
     // Only the selected embedded fields should be available
-    const metadataCategory: string = todoWithSelectedMetadata.data.metadata.category;
+    const metadataCategory: string =
+      todoWithSelectedMetadata.data.metadata.category;
     const metadataPriority: number | null | undefined =
       todoWithSelectedMetadata.data.metadata.priorityScore;
     const metadataIsUrgent: boolean | null | undefined =
@@ -177,7 +178,7 @@ export const complexEmbeddedScenario = await getTodo({
 });
 
 // Validate complex embedded resource scenario
-if (complexEmbeddedScenario.success) {
+if (complexEmbeddedScenario.success && complexEmbeddedScenario.data) {
   // Top level embedded resources
   if (complexEmbeddedScenario.data.metadata) {
     const topCategory: string = complexEmbeddedScenario.data.metadata.category;

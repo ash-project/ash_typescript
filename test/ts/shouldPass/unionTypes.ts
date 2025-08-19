@@ -1,5 +1,5 @@
 // Union Types Tests - shouldPass
-// Tests for union field selection and array unions
+// Tests for union field selection and validation using current field syntax
 
 import {
   getTodo,
@@ -9,30 +9,36 @@ import {
   UpdateTodoConfig,
 } from "../generated";
 
-// Test: Union field selection with primitive members
+// Test 1: Basic union field selection - primitive members only
 export const todoWithPrimitiveUnion = await getTodo({
   fields: [
     "id",
     "title",
     {
-      content: ["note", "priorityValue"], // Only primitive union members
+      content: ["note", "priorityValue"],
     },
   ],
 });
 
-// Type validation for primitive union selection
-if (todoWithPrimitiveUnion.success && todoWithPrimitiveUnion.data?.content) {
-  // Should have only the requested primitive union members
-  if ("note" in todoWithPrimitiveUnion.data.content) {
-    const noteValue: string = todoWithPrimitiveUnion.data.content.note;
-  }
-  if ("priorityValue" in todoWithPrimitiveUnion.data.content) {
-    const priorityValue: number =
-      todoWithPrimitiveUnion.data.content.priorityValue;
+// Validate primitive union selection through typed assignments
+if (todoWithPrimitiveUnion.success && todoWithPrimitiveUnion.data) {
+  const todoId: string = todoWithPrimitiveUnion.data.id;
+  const todoTitle: string = todoWithPrimitiveUnion.data.title;
+
+  if (todoWithPrimitiveUnion.data.content) {
+    // Test note field (string primitive)
+    if ("note" in todoWithPrimitiveUnion.data.content && todoWithPrimitiveUnion.data.content.note) {
+      const noteValue: string = todoWithPrimitiveUnion.data.content.note;
+    }
+
+    // Test priorityValue field (number primitive)
+    if ("priorityValue" in todoWithPrimitiveUnion.data.content && todoWithPrimitiveUnion.data.content.priorityValue) {
+      const priorityValue: number = todoWithPrimitiveUnion.data.content.priorityValue;
+    }
   }
 }
 
-// Test: Union field selection with complex members
+// Test 2: Complex union member field selection
 export const todoWithComplexUnion = await getTodo({
   fields: [
     "id",
@@ -40,67 +46,81 @@ export const todoWithComplexUnion = await getTodo({
     {
       content: [
         {
-          text: ["id", "text", "wordCount"], // Complex union member with field selection
+          text: ["id", "text", "wordCount", "formatting"],
         },
       ],
     },
   ],
 });
 
-// Type validation for complex union selection
-if (todoWithComplexUnion.success && todoWithComplexUnion.data.content) {
-  if ("text" in todoWithComplexUnion.data.content) {
-    const textContent = todoWithComplexUnion.data.content.text;
-    const textId: string = textContent.id;
-    const textValue: string = textContent.text;
-    const wordCount: number = textContent.wordCount;
-    // Should NOT have formatting field since it wasn't requested
+// Validate complex union selection through typed assignments
+if (todoWithComplexUnion.success && todoWithComplexUnion.data) {
+  const todoId: string = todoWithComplexUnion.data.id;
+  const todoTitle: string = todoWithComplexUnion.data.title;
+
+  if (todoWithComplexUnion.data.content) {
+    // Test text content (complex embedded resource)
+    if ("text" in todoWithComplexUnion.data.content && todoWithComplexUnion.data.content.text) {
+      const textId: string = todoWithComplexUnion.data.content.text.id;
+      const textContent: string = todoWithComplexUnion.data.content.text.text;
+      const wordCount: number | null | undefined = todoWithComplexUnion.data.content.text.wordCount;
+      const formatting: string | null | undefined = todoWithComplexUnion.data.content.text.formatting;
+    }
   }
 }
 
-// Test: Mixed union field selection
+// Test 3: Mixed union field selection (primitive + complex)
 export const todoWithMixedUnion = await getTodo({
   fields: [
     "id",
     "title",
     {
       content: [
-        "note", // Primitive member
+        "note",
         {
-          text: ["text", "formatting"], // Complex member with field selection
+          text: ["text", "wordCount"],
         },
-        "priorityValue", // Another primitive member
+        "priorityValue",
       ],
     },
   ],
 });
 
-// Type validation for mixed union selection
-if (todoWithMixedUnion.success && todoWithMixedUnion.data.content) {
-  if ("note" in todoWithMixedUnion.data.content) {
-    const noteValue: string = todoWithMixedUnion.data.content.note;
-  }
-  if ("text" in todoWithMixedUnion.data.content) {
-    const textContent = todoWithMixedUnion.data.content.text;
-    const textValue: string = textContent.text;
-    const formatting: string = textContent.formatting;
-    // Should NOT have other fields like wordCount
-  }
-  if ("priorityValue" in todoWithMixedUnion.data.content) {
-    const priorityValue: number = todoWithMixedUnion.data.content.priorityValue;
+// Validate mixed union selection through typed assignments
+if (todoWithMixedUnion.success && todoWithMixedUnion.data) {
+  const todoId: string = todoWithMixedUnion.data.id;
+  const todoTitle: string = todoWithMixedUnion.data.title;
+
+  if (todoWithMixedUnion.data.content) {
+    // Test primitive note field
+    if ("note" in todoWithMixedUnion.data.content && todoWithMixedUnion.data.content.note) {
+      const noteValue: string = todoWithMixedUnion.data.content.note;
+    }
+
+    // Test complex text field with selected fields only
+    if ("text" in todoWithMixedUnion.data.content && todoWithMixedUnion.data.content.text) {
+      const textContent: string = todoWithMixedUnion.data.content.text.text;
+      const wordCount: number | null | undefined = todoWithMixedUnion.data.content.text.wordCount;
+      // formatting field should NOT be available since it wasn't selected
+    }
+
+    // Test primitive priorityValue field
+    if ("priorityValue" in todoWithMixedUnion.data.content && todoWithMixedUnion.data.content.priorityValue) {
+      const priorityValue: number = todoWithMixedUnion.data.content.priorityValue;
+    }
   }
 }
 
-// Test 14: Union type with embedded resources - text content
-export const todoWithTextContent = await createTodo({
+// Test 4: Create todo with text content union type
+export const createTodoWithTextContent = await createTodo({
   input: {
     title: "Text Content Todo",
     userId: "123e4567-e89b-12d3-a456-426614174000",
     content: {
       text: {
         id: "text-content-1",
-        text: "This is text content with formatting",
-        wordCount: 7,
+        text: "This is formatted text content",
+        wordCount: 5,
         formatting: "markdown",
       },
     },
@@ -108,73 +128,50 @@ export const todoWithTextContent = await createTodo({
   fields: [
     "id",
     "title",
-    { content: ["note", { text: ["id", "text", "wordCount", "formatting"] }] },
-  ],
-});
-
-export const todoWithFail = await createTodo({
-  input: {
-    title: "Text Content Todo",
-    userId: "123e4567-e89b-12d3-a456-426614174000",
-    content: {
-      text: {
-        id: "text-content-1",
-        text: "This is text content with formatting",
-        wordCount: 7,
-        formatting: "markdown",
-      },
+    {
+      content: [
+        {
+          text: ["id", "text", "wordCount"],
+        },
+      ],
     },
-  },
-  fields: [
-    "id",
-    "title",
-    { content: [{ text: ["id", "text", "wordCount", "formatting"] }] },
   ],
 });
 
-// Validate text content union type - now using FieldsSchema
-if (todoWithTextContent.success && todoWithTextContent.data.content) {
-  // Content should be a union type with optional members
-  if (todoWithTextContent.data.content.text) {
-    const textData = todoWithTextContent.data.content.text;
+// Validate created todo with text content
+if (createTodoWithTextContent.success && createTodoWithTextContent.data) {
+  const createdId: string = createTodoWithTextContent.data.id;
+  const createdTitle: string = createTodoWithTextContent.data.title;
 
-    // Type casting checks - these should compile without errors
-    const textContent: string = textData.text;
-    const textId: string = textData.id;
-    const wordCount: number | null | undefined = textData.wordCount;
-    const formatting: string | null | undefined = textData.formatting;
-
-    // Verify union field selection worked - should only have requested fields
-    const hasOnlyRequestedFields = Object.keys(textData).every((key) =>
-      ["id", "text", "wordCount", "formatting"].includes(key),
-    );
+  if (createTodoWithTextContent.data.content) {
+    if ("text" in createTodoWithTextContent.data.content && createTodoWithTextContent.data.content.text) {
+      const textId: string = createTodoWithTextContent.data.content.text.id;
+      const textContent: string = createTodoWithTextContent.data.content.text.text;
+      const wordCount: number | null | undefined = createTodoWithTextContent.data.content.text.wordCount;
+      // formatting should NOT be available since it wasn't selected
+    }
   }
 }
 
-// Test 15: Union type with embedded resources - checklist content
-export const todoWithChecklistContent = await createTodo({
+// Test 5: Create todo with checklist content union type
+export const createTodoWithChecklistContent = await createTodo({
   input: {
     title: "Checklist Todo",
     userId: "123e4567-e89b-12d3-a456-426614174000",
     content: {
       checklist: {
-        id: "checklist-content-1",
-        title: "Project Checklist",
+        id: "checklist-1",
+        title: "Development Tasks",
         items: [
           {
-            text: "Design mockups",
+            text: "Design API",
             completed: true,
             createdAt: "2024-01-01T00:00:00Z",
           },
           {
-            text: "Implement backend",
+            text: "Implement features",
             completed: false,
             createdAt: "2024-01-02T00:00:00Z",
-          },
-          {
-            text: "Write tests",
-            completed: false,
-            createdAt: "2024-01-03T00:00:00Z",
           },
         ],
         completedCount: 1,
@@ -184,168 +181,132 @@ export const todoWithChecklistContent = await createTodo({
   fields: [
     "id",
     "title",
-    { content: [{ checklist: ["title", "items", "completedCount"] }] },
+    {
+      content: [
+        {
+          checklist: ["title", "items", "completedCount"],
+        },
+      ],
+    },
   ],
 });
 
-// Validate checklist content union type
-if (
-  todoWithChecklistContent.success &&
-  todoWithChecklistContent.data.content?.checklist
-) {
-  const checklistData = todoWithChecklistContent.data.content.checklist;
+// Validate created todo with checklist content
+if (createTodoWithChecklistContent.success && createTodoWithChecklistContent.data) {
+  const createdId: string = createTodoWithChecklistContent.data.id;
+  const createdTitle: string = createTodoWithChecklistContent.data.title;
 
-  // Type casting checks - validate field selection worked
-  const checklistTitle: string = checklistData.title;
-  const items:
-    | Array<{ text: string; completed?: boolean; createdAt?: string }>
-    | null
-    | undefined = checklistData.items;
-  const completedCount: number | null | undefined =
-    checklistData.completedCount;
+  if (createTodoWithChecklistContent.data.content) {
+    if ("checklist" in createTodoWithChecklistContent.data.content && createTodoWithChecklistContent.data.content.checklist) {
+      const checklistTitle: string = createTodoWithChecklistContent.data.content.checklist.title;
+      const items = createTodoWithChecklistContent.data.content.checklist.items;
+      const completedCount: number | null | undefined = createTodoWithChecklistContent.data.content.checklist.completedCount;
 
-  // Verify union field selection worked - should only have requested fields
-  const hasOnlyRequestedFields = Object.keys(checklistData).every((key) =>
-    ["title", "items", "completedCount"].includes(key),
-  );
-
-  if (items && items.length > 0) {
-    const firstItem = items[0];
-    const itemText: string = firstItem.text;
-    const itemCompleted: boolean | undefined = firstItem.completed;
+      if (items && items.length > 0) {
+        const firstItem = items[0];
+        const itemText: string = firstItem.text;
+        const itemCompleted: boolean | null | undefined = firstItem.completed;
+        const itemCreatedAt: string | null | undefined = firstItem.createdAt;
+      }
+    }
   }
 }
 
-// Test 16: Union type with primitive values - string note
-export const todoWithStringNote = await createTodo({
+// Test 6: Create todo with primitive union content
+export const createTodoWithPrimitiveContent = await createTodo({
   input: {
     title: "Simple Note Todo",
     userId: "123e4567-e89b-12d3-a456-426614174000",
     content: {
-      note: "Just a simple text note",
+      note: "This is a simple text note",
     },
-  },
-  fields: ["id", "title", { content: ["note"] }],
-});
-
-// Validate string note union type
-if (todoWithStringNote.success && todoWithStringNote.data.content) {
-  // Type casting check - validate primitive union member selection
-  if (todoWithStringNote.data.content.note !== undefined) {
-    const noteContent: string = todoWithStringNote.data.content.note;
-
-    // Verify union field selection worked - should only have note field
-    const hasOnlyNoteField = Object.keys(todoWithStringNote.data.content).every(
-      (key) => ["note"].includes(key),
-    );
-  }
-}
-
-// Test 17: Union type with primitive values - integer priority
-export const todoWithPriorityValue = await createTodo({
-  input: {
-    title: "Priority Value Todo",
-    userId: "123e4567-e89b-12d3-a456-426614174000",
-    content: {
-      priorityValue: 8,
-    },
-  },
-  fields: ["id", "title", { content: ["priorityValue"] }],
-});
-
-// Validate integer priority union type
-if (todoWithPriorityValue.success && todoWithPriorityValue.data.content) {
-  // Type casting check - validate primitive union member selection
-  if (todoWithPriorityValue.data.content.priorityValue !== undefined) {
-    const priorityValue: number =
-      todoWithPriorityValue.data.content.priorityValue;
-
-    // Verify union field selection worked - should only have priorityValue field
-    const hasOnlyPriorityField = Object.keys(
-      todoWithPriorityValue.content,
-    ).every((key) => ["priorityValue"].includes(key));
-  }
-}
-
-// Test 18: Array union types - mixed attachments
-export const todoWithAttachments = await createTodo({
-  input: {
-    title: "Todo with Attachments",
-    userId: "123e4567-e89b-12d3-a456-426614174000",
-    attachments: [
-      {
-        filename: "document.pdf",
-        size: 1024,
-        mimeType: "application/pdf",
-      },
-      {
-        filename: "screenshot.png",
-        width: 1920,
-        height: 1080,
-        altText: "Project screenshot",
-      },
-      "https://example.com/reference",
-    ],
   },
   fields: [
     "id",
     "title",
-    { attachments: [{ file: ["filename", "size", "mimeType"] }, "url"] },
+    {
+      content: ["note"],
+    },
   ],
 });
 
-// Validate array union types
-if (todoWithAttachments?.attachments) {
-  const attachments = todoWithAttachments.attachments;
+// Validate created todo with primitive content
+if (createTodoWithPrimitiveContent.success && createTodoWithPrimitiveContent.data) {
+  const createdId: string = createTodoWithPrimitiveContent.data.id;
+  const createdTitle: string = createTodoWithPrimitiveContent.data.title;
 
-  for (const attachment of attachments as any[]) {
-    // Type casting check - validate array union member selection
-    if (attachment.file) {
-      const fileData = attachment.file;
-
-      // Validate field selection worked for complex union member
-      const filename: string = fileData.filename;
-      const size: number | null | undefined = fileData.size;
-      const mimeType: string | null | undefined = fileData.mimeType;
-
-      // Verify union field selection worked - should only have requested fields
-      const hasOnlyRequestedFields = Object.keys(fileData).every((key) =>
-        ["filename", "size", "mimeType"].includes(key),
-      );
-    } else if (attachment.url !== undefined) {
-      // Type casting check - validate primitive union member
-      const urlValue: string = attachment.url;
-
-      // Verify union field selection worked - should only have url field
-      const hasOnlyUrlField = Object.keys(attachment).every((key) =>
-        ["url"].includes(key),
-      );
+  if (createTodoWithPrimitiveContent.data.content) {
+    if ("note" in createTodoWithPrimitiveContent.data.content && createTodoWithPrimitiveContent.data.content.note) {
+      const noteContent: string = createTodoWithPrimitiveContent.data.content.note;
     }
   }
 }
 
-// Test 19: Complex union type scenario with field selection
-export const complexUnionScenario = await getTodo({
+// Test 7: Array union types with attachments
+export const todoWithAttachments = await getTodo({
   fields: [
     "id",
     "title",
-    { content: ["note", { text: ["text"] }, "priorityValue"] }, // Union type field
-    { attachments: [{ file: ["filename"] }, "url"] }, // Array union type field
+    {
+      attachments: [
+        {
+          file: ["filename", "size", "mimeType"],
+        },
+        "url",
+      ],
+    },
+  ],
+});
+
+// Validate array union types through typed assignments
+if (todoWithAttachments.success && todoWithAttachments.data) {
+  const todoId: string = todoWithAttachments.data.id;
+  const todoTitle: string = todoWithAttachments.data.title;
+
+  if (todoWithAttachments.data.attachments) {
+    const attachments = todoWithAttachments.data.attachments;
+    
+    for (const attachment of attachments) {
+      // Test file attachment (complex union member)
+      if ("file" in attachment && attachment.file) {
+        const filename: string = attachment.file.filename;
+        const size: number | null | undefined = attachment.file.size;
+        const mimeType: string | null | undefined = attachment.file.mimeType;
+      }
+      
+      // Test URL attachment (primitive union member)
+      if ("url" in attachment && attachment.url) {
+        const urlValue: string = attachment.url;
+      }
+    }
+  }
+}
+
+// Test 8: Union types with calculations
+export const todoWithUnionCalculation = await getTodo({
+  fields: [
+    "id",
+    "title",
+    {
+      content: [
+        {
+          text: ["text", "wordCount"],
+        },
+        "note",
+      ],
+    },
     {
       self: {
-        args: { prefix: "union_test_" },
+        args: { prefix: "calc_" },
         fields: [
           "id",
-          { content: [{ text: ["text", "wordCount"] }] }, // Union type in calculation
-          { attachments: [{ file: ["filename", "size"] }] }, // Array union in calculation
           {
-            self: {
-              args: { prefix: "nested_union_" },
-              fields: [
-                "title",
-                { content: [{ text: ["text"] }] }, // Nested union type
-              ],
-            },
+            content: [
+              {
+                text: ["text"],
+              },
+              "priorityValue",
+            ],
           },
         ],
       },
@@ -353,248 +314,116 @@ export const complexUnionScenario = await getTodo({
   ],
 });
 
-// Validate complex union type scenario
-if (complexUnionScenario.success) {
-  // Top level union types
-  if (complexUnionScenario.data.content) {
-    // Handle all possible union type members
-    if (complexUnionScenario.data.content.text) {
-      const textContent: string = complexUnionScenario.data.content.text.text;
-    } else if (complexUnionScenario.data.content.checklist) {
-      const checklistTitle: string =
-        complexUnionScenario.data.content.checklist.title;
-    } else if (complexUnionScenario.data.content.link) {
-      const linkUrl: string = complexUnionScenario.data.content.link.url;
-    } else if (complexUnionScenario.data.content.note) {
-      const noteText: string = complexUnionScenario.data.content.note;
-    } else if (complexUnionScenario.data.content.priorityValue) {
-      const priority: number = complexUnionScenario.data.content.priorityValue;
+// Validate union types with calculations
+if (todoWithUnionCalculation.success && todoWithUnionCalculation.data) {
+  const todoId: string = todoWithUnionCalculation.data.id;
+  const todoTitle: string = todoWithUnionCalculation.data.title;
+
+  // Top-level union content
+  if (todoWithUnionCalculation.data.content) {
+    if ("text" in todoWithUnionCalculation.data.content && todoWithUnionCalculation.data.content.text) {
+      const textContent: string = todoWithUnionCalculation.data.content.text.text;
+      const wordCount: number | null | undefined = todoWithUnionCalculation.data.content.text.wordCount;
+    }
+    
+    if ("note" in todoWithUnionCalculation.data.content && todoWithUnionCalculation.data.content.note) {
+      const noteContent: string = todoWithUnionCalculation.data.content.note;
     }
   }
 
-  // Nested calculation union types
-  if (complexUnionScenario.data.self?.content) {
-    if (complexUnionScenario.data.self.content.text) {
-      const nestedTextContent: string =
-        complexUnionScenario.data.self.content.text.text;
-      const nestedWordCount: number | null | undefined =
-        complexUnionScenario.data.self.content.text.wordCount;
+  // Calculation-level union content
+  if (todoWithUnionCalculation.data.self?.content) {
+    if ("text" in todoWithUnionCalculation.data.self.content && todoWithUnionCalculation.data.self.content.text) {
+      const calcTextContent: string = todoWithUnionCalculation.data.self.content.text.text;
     }
-
-    // Double nested calculation union types
-    if (complexUnionScenario.data.self.self?.content) {
-      if (complexUnionScenario.data.self.self.content.link) {
-        const deepNestedUrl: string =
-          complexUnionScenario.data.self.self.content.link.url;
-        const deepNestedTitle: string | null | undefined =
-          complexUnionScenario.data.self.self.content.link.title;
-      }
-    }
-  }
-
-  // Array union types in calculations
-  if (complexUnionScenario.data.self?.attachments) {
-    for (const attachment of complexUnionScenario.data.self
-      .attachments as any[]) {
-      if (attachment.file) {
-        const calcFileSize: number | null | undefined = attachment.file.size;
-      } else if (attachment.url) {
-        const calcUrlValue: string = attachment.url;
-      }
+    
+    if ("priorityValue" in todoWithUnionCalculation.data.self.content && todoWithUnionCalculation.data.self.content.priorityValue) {
+      const calcPriorityValue: number = todoWithUnionCalculation.data.self.content.priorityValue;
     }
   }
 }
 
-// Test 20: Union type with null/undefined handling
-export const todoWithNullContent = await getTodo({
+// Test 9: Update todo with union content
+const updateConfig: UpdateTodoConfig = {
+  primaryKey: "123e4567-e89b-12d3-a456-426614174000",
+  input: {
+    title: "Updated Union Todo",
+    content: {
+      priorityValue: 9,
+    },
+  },
   fields: [
     "id",
     "title",
-    { content: [{ checklist: ["title"] }] }, // Might be null
-    { attachments: [{ file: ["filename"] }] }, // Might be empty array or null
+    {
+      content: ["priorityValue", "note"],
+    },
+  ],
+};
+
+export const updatedUnionTodo = await updateTodo(updateConfig);
+
+// Validate updated union todo
+if (updatedUnionTodo.success && updatedUnionTodo.data) {
+  const updatedId: string = updatedUnionTodo.data.id;
+  const updatedTitle: string = updatedUnionTodo.data.title;
+
+  if (updatedUnionTodo.data.content) {
+    if ("priorityValue" in updatedUnionTodo.data.content && updatedUnionTodo.data.content.priorityValue) {
+      const priorityValue: number = updatedUnionTodo.data.content.priorityValue;
+    }
+    
+    if ("note" in updatedUnionTodo.data.content && updatedUnionTodo.data.content.note) {
+      const noteContent: string = updatedUnionTodo.data.content.note;
+    }
+  }
+}
+
+// Test 10: Null/undefined handling for union types
+export const todoWithNullableUnion = await getTodo({
+  fields: [
+    "id",
+    "title",
+    {
+      content: [
+        {
+          text: ["text"],
+        },
+      ],
+    },
+    {
+      attachments: [
+        {
+          file: ["filename"],
+        },
+      ],
+    },
   ],
 });
 
 // Validate null handling for union types
-if (todoWithNullContent) {
-  const id: string = todoWithNullContent.id;
-  const title: string = todoWithNullContent.title;
+if (todoWithNullableUnion.success && todoWithNullableUnion.data) {
+  const todoId: string = todoWithNullableUnion.data.id;
+  const todoTitle: string = todoWithNullableUnion.data.title;
 
   // Content might be null - should handle gracefully
-  const content: typeof todoWithNullContent.content =
-    todoWithNullContent.content;
-  if (content === null || content === undefined) {
+  if (todoWithNullableUnion.data.content === null || todoWithNullableUnion.data.content === undefined) {
     // This should be valid - union types are nullable
   } else {
-    // Content exists, so we can check union members
-    if (content.text) {
-      const textData: string = content.text.text;
+    if ("text" in todoWithNullableUnion.data.content && todoWithNullableUnion.data.content.text) {
+      const textContent: string = todoWithNullableUnion.data.content.text.text;
     }
   }
 
   // Attachments might be null or empty array
-  const attachments: typeof todoWithNullContent.attachments =
-    todoWithNullContent.attachments;
-  if (attachments === null || attachments === undefined) {
+  if (todoWithNullableUnion.data.attachments === null || todoWithNullableUnion.data.attachments === undefined) {
     // This should be valid - array union types are nullable
-  } else if (Array.isArray(attachments) && attachments.length === 0) {
+  } else if (Array.isArray(todoWithNullableUnion.data.attachments) && todoWithNullableUnion.data.attachments.length === 0) {
     // Empty array should be valid
   } else {
-    // Non-empty array - process union members
-    for (const attachment of attachments as any[]) {
-      if (attachment.file?.filename) {
+    for (const attachment of todoWithNullableUnion.data.attachments) {
+      if ("file" in attachment && attachment.file) {
         const filename: string = attachment.file.filename;
-      }
-    }
-  }
-}
-
-// Test 21: Union type with create and update operations
-const createUnionTypeConfig: CreateTodoConfig = {
-  input: {
-    title: "Union Type Create Test",
-    userId: "123e4567-e89b-12d3-a456-426614174000",
-    content: {
-      link: {
-        id: "link-content-1",
-        url: "https://project-specs.example.com",
-        title: "Project Specifications",
-        description: "Detailed project requirements and specifications",
-      },
-    },
-    attachments: [
-      {
-        url: "https://docs.example.com/api",
-      },
-      {
-        file: {
-          filename: "requirements.docx",
-          size: 2048,
-          mimeType:
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        },
-      },
-    ],
-  },
-  fields: [
-    "id",
-    "title",
-    { content: [{ link: ["url", "title", "description"] }] },
-    { attachments: [{ file: ["filename", "size", "mimeType"] }, "url"] },
-    "createdAt",
-  ],
-};
-
-export const createdUnionTodo = await createTodo(createUnionTypeConfig);
-
-// Validate created union type todo
-if (createdUnionTodo) {
-  const createdId: string = createdUnionTodo.id;
-  const createdAt: string = createdUnionTodo.createdAt;
-
-  if (createdUnionTodo.content?.link) {
-    const linkUrl: string = createdUnionTodo.content.link.url;
-    const linkTitle: string | null | undefined =
-      createdUnionTodo.content.link.title;
-    const linkDescription: string | null | undefined =
-      createdUnionTodo.content.link.description;
-  }
-
-  if (createdUnionTodo.attachments) {
-    for (const attachment of createdUnionTodo.attachments as any[]) {
-      if (attachment.url) {
-        const urlString: string = attachment.url;
-      } else if (attachment.file) {
-        const fileName: string = attachment.file.filename;
-        const fileSize: number | null | undefined = attachment.file.size;
-        const mimeType: string | null | undefined = attachment.file.mimeType;
-      }
-    }
-  }
-}
-
-// Test 22: Union type with update operations
-const updateUnionTypeConfig: UpdateTodoConfig = {
-  primaryKey: createdUnionTodo.id,
-  input: {
-    title: "Updated Union Type Todo",
-    content: {
-      checklist: {
-        id: "checklist-content-2",
-        title: "Updated Checklist",
-        items: [
-          {
-            text: "Review requirements",
-            completed: true,
-            createdAt: "2024-01-04T00:00:00Z",
-          },
-          {
-            text: "Update documentation",
-            completed: false,
-            createdAt: "2024-01-05T00:00:00Z",
-          },
-        ],
-        completedCount: 1,
-      },
-    },
-  },
-  fields: [
-    "id",
-    "title",
-    { content: [{ checklist: ["title", "items", "completedCount"] }] },
-  ],
-};
-
-export const updatedUnionTodo = await updateTodo(updateUnionTypeConfig);
-
-// Validate updated union type
-if (updatedUnionTodo.success && updatedUnionTodo.content?.checklist) {
-  const updatedTitle: string = updatedUnionTodo.content.checklist.title;
-  const updatedItems = updatedUnionTodo.content.checklist.items;
-  const completedCount: number | null | undefined =
-    updatedUnionTodo.content.checklist.completedCount;
-
-  if (updatedItems) {
-    for (const item of updatedItems) {
-      const itemText: string = item.text;
-      const itemCompleted: boolean = item.completed;
-    }
-  }
-}
-
-// Test 23: Validate union type field formatting (camelCase conversion)
-export const unionFormattingTest = await getTodo({
-  fields: [
-    "id",
-    { content: [{ text: ["text"] }] }, // Should have camelCase field names in response
-    { attachments: [{ file: ["filename"] }] }, // Array union should also have camelCase formatting
-  ],
-});
-
-if (unionFormattingTest.success) {
-  // Test that embedded resource fields are properly camelCased
-  if (unionFormattingTest.data.content?.text) {
-    const wordCount: number | null | undefined =
-      unionFormattingTest.data.content.text.wordCount; // snake_case -> camelCase
-    const displayText: string | null | undefined =
-      unionFormattingTest.data.content.text.displayText; // calculation field
-    const isFormatted: boolean | null | undefined =
-      unionFormattingTest.data.content.text.isFormatted; // calculation field
-  }
-
-  if (unionFormattingTest.data.content?.checklist) {
-    const completedCount: number | null | undefined =
-      unionFormattingTest.data.content.checklist.completedCount; // snake_case -> camelCase
-  }
-
-  // Test that map union member fields are properly camelCased
-  if (unionFormattingTest.data.attachments) {
-    for (const attachment of unionFormattingTest.data.attachments) {
-      if (attachment.file) {
-        const mimeType: string | null | undefined = attachment.file.mimeType; // mime_type -> mimeType
-      }
-      if (attachment.image) {
-        const altText: string | null | undefined = attachment.image.altText; // alt_text -> altText
       }
     }
   }

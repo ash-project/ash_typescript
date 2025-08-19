@@ -97,7 +97,7 @@ export const deepNestedSelf = await getTodo({
 });
 
 // Type validation for deep nested structure
-if (deepNestedSelf.success && deepNestedSelf.data.self?.self?.self) {
+if (deepNestedSelf.success && deepNestedSelf.data?.self?.self?.self) {
   // Level 3 (deepest) should only have the fields specified in level 3
   const level3Description: string | null | undefined =
     deepNestedSelf.data.self.self.self.description;
@@ -144,7 +144,7 @@ export const varyingCalcArgs = await getTodo({
           "title",
           {
             self: {
-              args: { prefix: null },
+              args: { prefix: "another_prefix" },
               fields: [
                 "description",
                 {

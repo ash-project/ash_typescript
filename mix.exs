@@ -79,8 +79,10 @@ defmodule AshTypescript.MixProject do
       extra_section: "GUIDES",
       extras: [
         {"README.md", title: "Home"},
-        {"documentation/dsls/DSL-AshTypescript.RPC.md",
-         search_data: Spark.Docs.search_data_for(AshTypescript.RPC)},
+        {"documentation/dsls/DSL-AshTypescript.Rpc.md",
+         search_data: Spark.Docs.search_data_for(AshTypescript.Rpc)},
+        {"documentation/dsls/DSL-AshTypescript.Resource.md",
+         search_data: Spark.Docs.search_data_for(AshTypescript.Resource)},
         "CHANGELOG.md"
       ],
       groups_for_extras: [
@@ -147,10 +149,10 @@ defmodule AshTypescript.MixProject do
         "spark.replace_doc_links"
       ],
       sync_usage_rules: [
-        "usage_rules.sync CLAUDE.md --all --link-to-folder deps --link-style at"
+        "usage_rules.sync AGENTS.md --all --link-to-folder deps --link-style at"
       ],
       credo: "credo --strict",
-      "spark.formatter": "spark.formatter --extensions AshTypescript.Rpc",
+      "spark.formatter": "spark.formatter --extensions AshTypescript.Rpc,AshTypescript.Resource",
       "spark.cheat_sheets": "spark.cheat_sheets --extensions AshTypescript.Rpc"
     ]
   end

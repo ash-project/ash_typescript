@@ -1,7 +1,12 @@
 defmodule AshTypescript.Test.TodoMetadata do
   use Ash.Resource,
     data_layer: :embedded,
-    domain: nil
+    domain: nil,
+    extensions: [AshTypescript.Resource]
+
+  typescript do
+    type_name "TodoMetadata"
+  end
 
   attributes do
     # Primary key for identity testing

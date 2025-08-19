@@ -1,7 +1,12 @@
 defmodule AshTypescript.Test.TodoContent.ChecklistContent do
   use Ash.Resource,
     data_layer: :embedded,
-    domain: nil
+    domain: nil,
+    extensions: [AshTypescript.Resource]
+
+  typescript do
+    type_name("TodoContentChecklist")
+  end
 
   attributes do
     uuid_primary_key :id

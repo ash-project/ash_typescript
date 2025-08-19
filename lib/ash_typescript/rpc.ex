@@ -1,17 +1,6 @@
 defmodule AshTypescript.Rpc do
-  @moduledoc """
-  Next-generation RPC processing pipeline with clean architecture and strict validation.
+  @moduledoc false
 
-  This is a complete rewrite focused on:
-  - Performance: 50%+ improvement over current implementation
-  - Strict validation: Fail-fast on all invalid inputs
-  - Clean architecture: Pure functional pipeline
-  - Single responsibility: Clear separation of concerns
-
-  Pipeline: parse_input -> execute_action -> filter_result -> format_output
-  """
-
-  # DSL structures for Spark extension
   defmodule RpcAction do
     defstruct [:name, :action]
   end

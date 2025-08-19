@@ -127,8 +127,6 @@ defmodule AshTypescript.Rpc.Codegen do
 
     #{generate_all_schemas_for_resources(all_resources_for_schemas, all_resources_for_schemas)}
 
-    #{generate_typed_structs_schemas(all_resources_for_schemas)}
-
     #{generate_filter_types(all_resources_for_schemas, all_resources_for_schemas)}
 
     #{generate_utility_types()}
@@ -144,7 +142,7 @@ defmodule AshTypescript.Rpc.Codegen do
   defp generate_utility_types do
     """
     // Utility Types
-    
+
     // Resource schema constraint
     type TypedSchema = {
       __type: "Resource" | "TypedStruct" | "TypedMap" | "Union";
@@ -173,11 +171,13 @@ defmodule AshTypescript.Rpc.Codegen do
     type LeafFieldSelection<T extends TypedSchema> = T["__primitiveFields"];
 
     type ComplexFieldSelection<T extends TypedSchema> = {
-      [K in ComplexFieldKeys<T>]?: NonNullable<T[K]> extends {
+      [K in ComplexFieldKeys<T>]?: T[K] extends {
         __type: "Relationship";
-        __resource: infer Resource extends TypedSchema;
+        __resource: infer Resource;
       }
-        ? UnifiedFieldSelection<Resource>[]
+        ? NonNullable<Resource> extends TypedSchema
+          ? UnifiedFieldSelection<NonNullable<Resource>>[]
+          : never
         : T[K] extends {
               __type: "ComplexCalculation";
               __returnType: infer ReturnType;
@@ -215,27 +215,29 @@ defmodule AshTypescript.Rpc.Codegen do
             [K in keyof Field]: K extends keyof T
               ? T[K] extends {
                   __type: "Relationship";
-                  __resource: infer Resource extends TypedSchema;
+                  __resource: infer Resource;
                 }
-                ? T[K] extends { __array: true }
-                  ? Array<InferResult<Resource, Field[K]>>
-                  : null extends Resource
-                    ? InferResult<Resource, Field[K]> | null
-                    : InferResult<Resource, Field[K]>
-                : T[K] extends {
-                      __type: "ComplexCalculation";
-                      __returnType: infer ReturnType;
-                    }
-                  ? NonNullable<ReturnType> extends TypedSchema
-                    ? null extends ReturnType
-                      ? InferResult<NonNullable<ReturnType>, Field[K]> | null
-                      : InferResult<NonNullable<ReturnType>, Field[K]>
-                    : ReturnType
-                  : NonNullable<T[K]> extends TypedSchema
-                    ? null extends T[K]
-                      ? InferResult<NonNullable<T[K]>, Field[K]> | undefined
-                      : InferResult<NonNullable<T[K]>, Field[K]>
-                    : never
+                ? NonNullable<Resource> extends TypedSchema
+                  ? T[K] extends { __array: true }
+                    ? Array<InferResult<NonNullable<Resource>, Field[K]>>
+                    : null extends Resource
+                      ? InferResult<NonNullable<Resource>, Field[K]> | null
+                      : InferResult<NonNullable<Resource>, Field[K]>
+                : never
+              : T[K] extends {
+                    __type: "ComplexCalculation";
+                    __returnType: infer ReturnType;
+                  }
+                ? NonNullable<ReturnType> extends TypedSchema
+                  ? null extends ReturnType
+                    ? InferResult<NonNullable<ReturnType>, Field[K]["fields"]> | null
+                    : InferResult<NonNullable<ReturnType>, Field[K]["fields"]>
+                  : ReturnType
+                : NonNullable<T[K]> extends TypedSchema
+                  ? null extends T[K]
+                    ? InferResult<NonNullable<T[K]>, Field[K]> | null
+                    : InferResult<NonNullable<T[K]>, Field[K]>
+                  : never
               : never;
           }
         : never;
@@ -301,20 +303,8 @@ defmodule AshTypescript.Rpc.Codegen do
          endpoint_process,
          endpoint_validate,
          otp_app,
-         resources
+         _resources
        ) do
-    # Generate relationship types for all resources
-    relationship_types =
-      resources
-      |> Enum.map(&generate_relationship_types(&1, resources))
-      |> Enum.join("\n\n")
-
-    # Generate embedded types for all resources
-    embedded_types =
-      resources
-      |> Enum.map(&generate_embedded_types(&1, resources))
-      |> Enum.join("\n\n")
-
     # Generate functions for each Rpc action
     rpc_functions =
       resources_and_actions
@@ -330,141 +320,8 @@ defmodule AshTypescript.Rpc.Codegen do
       |> Enum.join("\n\n")
 
     """
-    #{relationship_types}
-
-    #{embedded_types}
-
     #{rpc_functions}
     """
-  end
-
-  defp generate_embedded_types(resource, all_resources) do
-    resource_name = resource |> Module.split() |> List.last()
-
-    # Check if any resource has this as a single embedded resource
-    has_single_embedded? =
-      all_resources
-      |> Enum.reject(&(&1 == resource))
-      |> Enum.any?(fn res ->
-        attributes = Ash.Resource.Info.public_attributes(res)
-
-        Enum.any?(attributes, fn attr ->
-          AshTypescript.Codegen.is_embedded_resource?(attr.type) and attr.type == resource
-        end)
-      end)
-
-    # Generate single embedded type
-    single_embedded =
-      if has_single_embedded? do
-        """
-          type #{resource_name}Embedded = {
-            __resource: #{resource_name}ResourceSchema;
-            fields: UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
-          };
-        """
-      else
-        ""
-      end
-
-    # Check if any resource has this as an array embedded resource
-    has_array_embedded? =
-      all_resources
-      |> Enum.reject(&(&1 == resource))
-      |> Enum.any?(fn res ->
-        attributes = Ash.Resource.Info.public_attributes(res)
-
-        Enum.any?(attributes, fn attr ->
-          case attr.type do
-            {:array, embedded_type} ->
-              AshTypescript.Codegen.is_embedded_resource?(embedded_type) and
-                embedded_type == resource
-
-            _ ->
-              false
-          end
-        end)
-      end)
-
-    # Generate array embedded type
-    array_embedded =
-      if has_array_embedded? do
-        """
-        type #{resource_name}ArrayEmbedded = {
-          __array: true;
-          __resource: #{resource_name}ResourceSchema;
-          fields: UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
-        };
-        """
-      else
-        ""
-      end
-
-    if has_single_embedded? or has_array_embedded? do
-      Enum.join([single_embedded, array_embedded], "\n")
-    else
-      ""
-    end
-  end
-
-  defp generate_relationship_types(resource, all_resources) do
-    resource_name = resource |> Module.split() |> List.last()
-
-    has_single_relationship? =
-      all_resources
-      |> Enum.reject(&(&1 == resource))
-      |> Enum.any?(fn res ->
-        relationships = Ash.Resource.Info.public_relationships(res)
-
-        Enum.any?(
-          relationships,
-          &(&1.type in [:belongs_to, :has_one] and &1.destination == resource)
-        )
-      end)
-
-    # Generate single relationship type
-    single_rel =
-      if has_single_relationship? do
-        """
-          type #{resource_name}Relationship = {
-            __resource: #{resource_name}ResourceSchema;
-            fields: UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
-          };
-        """
-      else
-        ""
-      end
-
-    has_many_relationship? =
-      all_resources
-      |> Enum.reject(&(&1 == resource))
-      |> Enum.any?(fn res ->
-        relationships = Ash.Resource.Info.public_relationships(res)
-
-        Enum.any?(
-          relationships,
-          &(&1.type in [:has_many, :many_to_many] and &1.destination == resource)
-        )
-      end)
-
-    # Generate array relationship type
-    array_rel =
-      if has_many_relationship? do
-        """
-        type #{resource_name}ArrayRelationship = {
-          __array: true;
-          __resource: #{resource_name}ResourceSchema;
-          fields: UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
-        };
-        """
-      else
-        ""
-      end
-
-    if has_single_relationship? or has_many_relationship? do
-      Enum.join([single_rel, array_rel], "\n")
-    else
-      ""
-    end
   end
 
   defp generate_rpc_function(
@@ -622,25 +479,6 @@ defmodule AshTypescript.Rpc.Codegen do
       _ ->
         {:error, :not_field_selectable_type}
     end
-  end
-
-  # Generate a TypeScript schema from typed map field constraints
-  defp generate_typed_map_schema(fields) do
-    field_definitions =
-      Enum.map(fields, fn {field_name, field_config} ->
-        # Create a type descriptor that AshTypescript.Codegen.get_ts_type can handle
-        type_descriptor = %{
-          type: Keyword.get(field_config, :type),
-          constraints: Keyword.get(field_config, :constraints, []),
-          allow_nil?: Keyword.get(field_config, :allow_nil?, false)
-        }
-
-        field_type = AshTypescript.Codegen.get_ts_type(type_descriptor)
-
-        "#{field_name}: #{field_type}"
-      end)
-
-    "{ #{Enum.join(field_definitions, ", ")} }"
   end
 
   defp generate_pagination_fields_only(action) do
@@ -865,7 +703,7 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   defp generate_config_type(resource, action, rpc_action_name) do
-    resource_name = resource |> Module.split() |> List.last()
+    resource_name = build_resource_type_name(resource)
     config_name = "#{snake_to_pascal_case(rpc_action_name)}Config"
 
     # Add tenant field if resource requires tenant
@@ -1120,7 +958,7 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   defp generate_result_type(resource, action, rpc_action_name) do
-    resource_name = resource |> Module.split() |> List.last()
+    resource_name = build_resource_type_name(resource)
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
 
     case action.type do
@@ -1156,7 +994,7 @@ defmodule AshTypescript.Rpc.Codegen do
         case action_returns_field_selectable_type?(action) do
           {:ok, type, value} when type in [:resource, :array_of_resource] ->
             # For resources, use the resource's schema for field selection
-            target_resource_name = value |> Module.split() |> List.last()
+            target_resource_name = build_resource_type_name(value)
 
             if type == :array_of_resource do
               """
@@ -1172,17 +1010,17 @@ defmodule AshTypescript.Rpc.Codegen do
 
           {:ok, type, fields} when type in [:typed_map, :array_of_typed_map] ->
             # For typed maps, generate a field-selectable schema
-            typed_map_schema = generate_typed_map_schema(fields)
+            typed_map_schema = build_map_type(fields)
 
             if type == :array_of_typed_map do
               """
               type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-                Array<InferTypedMapResult<#{typed_map_schema}, Config["fields"]>>;
+                Array<InferResult<#{typed_map_schema}, Config["fields"]>>;
               """
             else
               """
               type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-                InferTypedMapResult<#{typed_map_schema}, Config["fields"]>;
+                InferResult<#{typed_map_schema}, Config["fields"]>;
               """
             end
 
@@ -1683,163 +1521,6 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
-  @doc """
-  Generates TypedStruct schemas for field selection.
-  Creates separate typedStructs schema section with field selection arrays.
-  """
-  def generate_typed_structs_schemas(resources) do
-    typed_structs = AshTypescript.Codegen.find_typed_structs(resources)
-
-    # Always generate resource-level TypedStruct schemas (empty for resources without TypedStruct)
-    resource_schemas =
-      resources
-      |> Enum.map(&generate_typed_struct_schema_for_resource/1)
-      |> Enum.join("\n\n")
-
-    # Only generate individual TypedStruct schemas if TypedStruct modules exist
-    individual_schemas =
-      if Enum.empty?(typed_structs) do
-        ""
-      else
-        typed_structs
-        |> Enum.map(&generate_individual_typed_struct_schemas/1)
-        |> Enum.filter(&(&1 != ""))
-        |> Enum.join("\n\n")
-      end
-
-    schemas =
-      [resource_schemas, individual_schemas]
-      |> Enum.filter(&(&1 != ""))
-      |> Enum.join("\n\n")
-
-    if schemas == "" do
-      ""
-    else
-      """
-      // TypedStruct Schemas
-      #{schemas}
-      """
-    end
-  end
-
-  defp generate_typed_struct_schema_for_resource(resource) do
-    typed_struct_fields = get_typed_struct_fields_for_resource(resource)
-    resource_name = resource |> Module.split() |> List.last()
-
-    if Enum.empty?(typed_struct_fields) do
-      "type #{resource_name}TypedStructsSchema = {};"
-    else
-      field_entries =
-        typed_struct_fields
-        |> Enum.map(fn {field_name, _typed_struct_module} ->
-          field_name_str = Atom.to_string(field_name)
-          "  #{field_name_str}: string[];"
-        end)
-        |> Enum.join("\n")
-
-      """
-      type #{resource_name}TypedStructsSchema = {
-      #{field_entries}
-      };
-      """
-    end
-  end
-
-  defp get_typed_struct_fields_for_resource(resource) do
-    resource
-    |> Ash.Resource.Info.public_attributes()
-    |> Enum.filter(fn attr ->
-      case attr.type do
-        module when is_atom(module) -> AshTypescript.Codegen.is_typed_struct?(module)
-        {:array, module} when is_atom(module) -> AshTypescript.Codegen.is_typed_struct?(module)
-        _ -> false
-      end
-    end)
-    |> Enum.map(fn attr ->
-      typed_struct_module =
-        case attr.type do
-          module when is_atom(module) -> module
-          {:array, module} when is_atom(module) -> module
-          _ -> nil
-        end
-
-      {attr.name, typed_struct_module}
-    end)
-    |> Enum.filter(fn {_name, module} -> module != nil end)
-  end
-
-  defp generate_individual_typed_struct_schemas(typed_struct_module) do
-    module_name = typed_struct_module |> Module.split() |> List.last()
-
-    # Get TypedStruct field information
-    fields = AshTypescript.Codegen.get_typed_struct_fields(typed_struct_module)
-
-    if Enum.empty?(fields) do
-      ""
-    else
-      # Generate field selection type (for unions and field selection)
-      field_selection_type = """
-      type #{module_name}TypedStructFieldSelection = string[];
-      """
-
-      # Generate individual field schemas (for type inference)
-      field_schema_entries =
-        fields
-        |> Enum.map(fn %{name: field_name, type: field_type} ->
-          ts_type = get_typed_struct_field_ts_type(field_type)
-          "  #{field_name}: #{ts_type};"
-        end)
-        |> Enum.join("\n")
-
-      field_schema_type = """
-      type #{module_name}TypedStructSchema = {
-      #{field_schema_entries}
-      };
-      """
-
-      # Generate input schema (for create/update operations)
-      input_schema_entries =
-        fields
-        |> Enum.map(fn %{name: field_name, type: field_type, constraints: constraints} ->
-          ts_type = get_typed_struct_field_ts_type(field_type)
-
-          is_optional =
-            Keyword.get(constraints, :allow_nil?, false) ||
-              Keyword.get(constraints, :default) != nil
-
-          optional_marker = if is_optional, do: "?", else: ""
-          "  #{field_name}#{optional_marker}: #{ts_type};"
-        end)
-        |> Enum.join("\n")
-
-      input_schema_type = """
-      type #{module_name}TypedStructInputSchema = {
-      #{input_schema_entries}
-      };
-      """
-
-      [field_selection_type, field_schema_type, input_schema_type]
-      |> Enum.join("\n")
-    end
-  end
-
-  defp get_typed_struct_field_ts_type(field_type) do
-    # Map Ash types to TypeScript types for TypedStruct fields
-    case field_type do
-      :string -> "string"
-      :integer -> "number"
-      :float -> "number"
-      :boolean -> "boolean"
-      :utc_datetime -> "string"
-      :date -> "string"
-      :time -> "string"
-      :decimal -> "number"
-      :uuid -> "string"
-      {:array, inner_type} -> "Array<#{get_typed_struct_field_ts_type(inner_type)}>"
-      _ -> "any"
-    end
-  end
-
   defp generate_typed_queries_section([], _all_resources), do: ""
 
   defp generate_typed_queries_section(typed_queries, all_resources) do
@@ -1849,7 +1530,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     sections =
       Enum.map(queries_by_resource, fn {resource, queries} ->
-        resource_name = resource |> Module.split() |> List.last()
+        resource_name = build_resource_type_name(resource)
 
         query_types_and_consts =
           Enum.map(queries, fn {resource, action, typed_query} ->
@@ -1874,7 +1555,7 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   defp generate_typed_query_type_and_const(resource, action, typed_query, _all_resources) do
-    resource_name = resource |> Module.split() |> List.last()
+    resource_name = build_resource_type_name(resource)
 
     # Process fields to get the template
     atomized_fields = RequestedFieldsProcessor.atomize_requested_fields(typed_query.fields)

@@ -404,7 +404,7 @@ defmodule AshTypescript.Codegen do
   end
 
   def generate_all_schemas_for_resource(resource, allowed_resources) do
-    resource_name = resource |> Module.split() |> List.last()
+    resource_name = build_resource_type_name(resource)
 
     # Generate the new unified schema
     unified_schema = generate_unified_resource_schema(resource, allowed_resources)
@@ -434,42 +434,42 @@ defmodule AshTypescript.Codegen do
   This replaces the multiple separate schemas with a single, metadata-driven schema.
   """
   def generate_unified_resource_schema(resource, allowed_resources) do
-    resource_name = resource |> Module.split() |> List.last()
-    
+    resource_name = build_resource_type_name(resource)
+
     # Get all primitive fields
     primitive_fields = get_primitive_fields(resource)
     primitive_fields_union = generate_primitive_fields_union(primitive_fields)
-    
+
     # Add metadata fields
     metadata_fields = [
       "  __type: \"Resource\";",
       "  __primitiveFields: #{primitive_fields_union};"
     ]
-    
+
     # Add primitive fields directly
     primitive_field_defs = generate_primitive_field_definitions(resource)
-    
+
     # Add relationships with metadata
     relationship_field_defs = generate_relationship_field_definitions(resource, allowed_resources)
-    
+
     # Add embedded resources with metadata
     embedded_field_defs = generate_embedded_field_definitions(resource, allowed_resources)
-    
+
     # Add complex calculations with metadata
     complex_calc_field_defs = generate_complex_calculation_field_definitions(resource)
-    
+
     # Add union fields with metadata
     union_field_defs = generate_union_field_definitions(resource)
-    
+
     # Combine all fields
-    all_field_lines = 
+    all_field_lines =
       metadata_fields ++
-      primitive_field_defs ++
-      relationship_field_defs ++
-      embedded_field_defs ++
-      complex_calc_field_defs ++
-      union_field_defs
-    
+        primitive_field_defs ++
+        relationship_field_defs ++
+        embedded_field_defs ++
+        complex_calc_field_defs ++
+        union_field_defs
+
     """
     export type #{resource_name}ResourceSchema = {
     #{Enum.join(all_field_lines, "\n")}
@@ -481,528 +481,110 @@ defmodule AshTypescript.Codegen do
     attributes = Ash.Resource.Info.public_attributes(resource)
     calculations = Ash.Resource.Info.public_calculations(resource)
     aggregates = Ash.Resource.Info.public_aggregates(resource)
-    
+
     # Filter to only primitive fields (not embedded, union, or complex calculations)
-    primitive_attrs = 
+    primitive_attrs =
       attributes
       |> Enum.reject(fn attr ->
         is_union_attribute?(attr) or
-        is_embedded_attribute?(attr) or
-        is_typed_struct_attribute?(attr)
+          is_embedded_attribute?(attr) or
+          is_typed_struct_attribute?(attr)
       end)
       |> Enum.map(& &1.name)
-    
+
     # Simple calculations (no args, simple return type)
-    simple_calcs = 
+    simple_calcs =
       calculations
       |> Enum.filter(&is_simple_calculation/1)
       |> Enum.map(& &1.name)
-    
+
     # All aggregates are primitive
     aggregate_names = Enum.map(aggregates, & &1.name)
-    
+
     primitive_attrs ++ simple_calcs ++ aggregate_names
   end
-  
+
   defp generate_primitive_fields_union(fields) do
     if Enum.empty?(fields) do
       "never"
     else
       fields
       |> Enum.map(fn field_name ->
-        formatted = AshTypescript.FieldFormatter.format_field(
-          field_name,
-          AshTypescript.Rpc.output_field_formatter()
-        )
+        formatted =
+          AshTypescript.FieldFormatter.format_field(
+            field_name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
         "\"#{formatted}\""
       end)
       |> Enum.join(" | ")
     end
   end
-  
+
   defp generate_primitive_field_definitions(resource) do
     attributes = Ash.Resource.Info.public_attributes(resource)
     calculations = Ash.Resource.Info.public_calculations(resource)
     aggregates = Ash.Resource.Info.public_aggregates(resource)
-    
+
     # Filter to only primitive attributes
-    primitive_attrs = 
+    primitive_attrs =
       attributes
       |> Enum.reject(fn attr ->
         is_union_attribute?(attr) or
-        is_embedded_attribute?(attr) or
-        is_typed_struct_attribute?(attr)
+          is_embedded_attribute?(attr) or
+          is_typed_struct_attribute?(attr)
       end)
-    
+
     # Simple calculations
-    simple_calcs = 
+    simple_calcs =
       calculations
       |> Enum.filter(&is_simple_calculation/1)
-    
+
     # Generate field definitions
-    attr_defs = Enum.map(primitive_attrs, fn attr ->
-      formatted_name = AshTypescript.FieldFormatter.format_field(
-        attr.name,
-        AshTypescript.Rpc.output_field_formatter()
-      )
-      
-      type_str = get_ts_type(attr)
-      if attr.allow_nil? do
-        "  #{formatted_name}: #{type_str} | null;"
-      else
-        "  #{formatted_name}: #{type_str};"
-      end
-    end)
-    
-    calc_defs = Enum.map(simple_calcs, fn calc ->
-      formatted_name = AshTypescript.FieldFormatter.format_field(
-        calc.name,
-        AshTypescript.Rpc.output_field_formatter()
-      )
-      
-      type_str = get_ts_type(calc)
-      if calc.allow_nil? do
-        "  #{formatted_name}: #{type_str} | null;"
-      else
-        "  #{formatted_name}: #{type_str};"
-      end
-    end)
-    
-    agg_defs = Enum.map(aggregates, fn agg ->
-      formatted_name = AshTypescript.FieldFormatter.format_field(
-        agg.name,
-        AshTypescript.Rpc.output_field_formatter()
-      )
-      
-      type_str = case agg.kind do
-        :sum -> 
-          resource
-          |> lookup_aggregate_type(agg.relationship_path, agg.field)
-          |> get_ts_type()
-        :first ->
-          resource
-          |> lookup_aggregate_type(agg.relationship_path, agg.field)
-          |> get_ts_type()
-        _ ->
-          get_ts_type(agg.kind)
-      end
-      
-      if agg.include_nil? do
-        "  #{formatted_name}?: #{type_str} | null;"
-      else
-        "  #{formatted_name}: #{type_str};"
-      end
-    end)
-    
-    attr_defs ++ calc_defs ++ agg_defs
-  end
-  
-  defp generate_relationship_field_definitions(resource, allowed_resources) do
-    relationships = Ash.Resource.Info.public_relationships(resource)
-    
-    relationships
-    |> Enum.filter(fn rel ->
-      Enum.member?(allowed_resources, rel.destination)
-    end)
-    |> Enum.map(fn rel ->
-      formatted_name = AshTypescript.FieldFormatter.format_field(
-        rel.name,
-        AshTypescript.Rpc.output_field_formatter()
-      )
-      
-      related_resource_name = rel.destination |> Module.split() |> List.last()
-      
-      metadata = case rel.type do
-        :has_many -> 
-          "{ __type: \"Relationship\"; __array: true; __resource: #{related_resource_name}ResourceSchema; }"
-        :many_to_many ->
-          "{ __type: \"Relationship\"; __array: true; __resource: #{related_resource_name}ResourceSchema; }"
-        _ ->
-          "{ __type: \"Relationship\"; __resource: #{related_resource_name}ResourceSchema; }"
-      end
-      
-      # Handle nullability
-      if rel.type in [:has_many, :many_to_many] do
-        "  #{formatted_name}: #{metadata};"
-      else
-        if Map.get(rel, :allow_nil?, true) do
-          "  #{formatted_name}: #{metadata} | null;"
+    attr_defs =
+      Enum.map(primitive_attrs, fn attr ->
+        formatted_name =
+          AshTypescript.FieldFormatter.format_field(
+            attr.name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        type_str = get_ts_type(attr)
+
+        if attr.allow_nil? do
+          "  #{formatted_name}: #{type_str} | null;"
         else
-          "  #{formatted_name}: #{metadata};"
-        end
-      end
-    end)
-  end
-  
-  defp generate_embedded_field_definitions(resource, allowed_resources) do
-    attributes = Ash.Resource.Info.public_attributes(resource)
-    
-    attributes
-    |> Enum.filter(fn attr ->
-      is_embedded_attribute?(attr) and
-      embedded_resource_allowed?(attr, allowed_resources)
-    end)
-    |> Enum.map(fn attr ->
-      formatted_name = AshTypescript.FieldFormatter.format_field(
-        attr.name,
-        AshTypescript.Rpc.output_field_formatter()
-      )
-      
-      embedded_resource = get_embedded_resource_from_attr(attr)
-      embedded_resource_name = embedded_resource |> Module.split() |> List.last()
-      
-      metadata = case attr.type do
-        {:array, _} ->
-          "{ __type: \"Relationship\"; __array: true; __resource: #{embedded_resource_name}ResourceSchema; }"
-        _ ->
-          "{ __type: \"Relationship\"; __resource: #{embedded_resource_name}ResourceSchema; }"
-      end
-      
-      # Handle nullability
-      case attr.type do
-        {:array, _} ->
-          "  #{formatted_name}: #{metadata};"
-        _ ->
-          if attr.allow_nil? do
-            "  #{formatted_name}: #{metadata} | null;"
-          else
-            "  #{formatted_name}: #{metadata};"
-          end
-      end
-    end)
-  end
-  
-  defp generate_complex_calculation_field_definitions(resource) do
-    calculations = Ash.Resource.Info.public_calculations(resource)
-    
-    calculations
-    |> Enum.reject(&is_simple_calculation/1)
-    |> Enum.map(fn calc ->
-      formatted_name = AshTypescript.FieldFormatter.format_field(
-        calc.name,
-        AshTypescript.Rpc.output_field_formatter()
-      )
-      
-      # Generate metadata based on calculation type (nullability goes in return type)
-      return_type = get_calculation_return_type_for_metadata(calc, calc.allow_nil?)
-      
-      metadata = if Enum.empty?(calc.arguments) do
-        "{ __type: \"ComplexCalculation\"; __returnType: #{return_type}; }"
-      else
-        args_type = generate_calculation_args_type(calc.arguments)
-        "{ __type: \"ComplexCalculation\"; __returnType: #{return_type}; __args: #{args_type}; }"
-      end
-      
-      # Field itself is never nullable - nullability is in __returnType
-      "  #{formatted_name}: #{metadata};"
-    end)
-  end
-  
-  defp generate_union_field_definitions(resource) do
-    attributes = Ash.Resource.Info.public_attributes(resource)
-    
-    attributes
-    |> Enum.filter(&is_union_attribute?/1)
-    |> Enum.map(fn attr ->
-      formatted_name = AshTypescript.FieldFormatter.format_field(
-        attr.name,
-        AshTypescript.Rpc.output_field_formatter()
-      )
-      
-      union_metadata = generate_union_metadata(attr)
-      
-      if attr.allow_nil? do
-        "  #{formatted_name}: #{union_metadata} | null;"
-      else
-        "  #{formatted_name}: #{union_metadata};"
-      end
-    end)
-  end
-  
-  # Helper functions for the new unified schema generation
-  defp is_union_attribute?(%{type: Ash.Type.Union}), do: true
-  defp is_union_attribute?(%{type: {:array, Ash.Type.Union}}), do: true
-  defp is_union_attribute?(_), do: false
-  
-  defp is_embedded_attribute?(%{type: type}) when is_atom(type), do: is_embedded_resource?(type)
-  defp is_embedded_attribute?(%{type: {:array, type}}) when is_atom(type), do: is_embedded_resource?(type)
-  defp is_embedded_attribute?(_), do: false
-  
-  defp embedded_resource_allowed?(attr, allowed_resources) do
-    embedded_resource = get_embedded_resource_from_attr(attr)
-    Enum.member?(allowed_resources, embedded_resource)
-  end
-  
-  defp get_embedded_resource_from_attr(%{type: type}) when is_atom(type), do: type
-  defp get_embedded_resource_from_attr(%{type: {:array, type}}) when is_atom(type), do: type
-  
-  defp get_calculation_return_type_for_metadata(calc, allow_nil?) do
-    base_type = case calc.type do
-      Ash.Type.Struct ->
-        constraints = calc.constraints || []
-        instance_of = Keyword.get(constraints, :instance_of)
-        if instance_of && Ash.Resource.Info.resource?(instance_of) do
-          resource_name = instance_of |> Module.split() |> List.last()
-          "#{resource_name}ResourceSchema"
-        else
-          "any"
-        end
-      {:array, Ash.Type.Struct} ->
-        constraints = calc.constraints || []
-        items_constraints = Keyword.get(constraints, :items, [])
-        instance_of = Keyword.get(items_constraints, :instance_of)
-        if instance_of && Ash.Resource.Info.resource?(instance_of) do
-          resource_name = instance_of |> Module.split() |> List.last()
-          "Array<#{resource_name}ResourceSchema>"
-        else
-          "any[]"
-        end
-      _ ->
-        get_ts_type(calc)
-    end
-    
-    # Add nullability to the return type itself if allow_nil? is true
-    if allow_nil? do
-      "#{base_type} | null"
-    else
-      base_type
-    end
-  end
-  
-  defp generate_calculation_args_type(arguments) do
-    if Enum.empty?(arguments) do
-      "{}"
-    else
-      args = arguments
-      |> Enum.map(fn arg ->
-        formatted_name = AshTypescript.FieldFormatter.format_field(
-          arg.name,
-          AshTypescript.Rpc.output_field_formatter()
-        )
-        
-        optional = arg.allow_nil? || arg.default != nil
-        type_str = get_ts_type(arg)
-        
-        if optional do
-          "#{formatted_name}?: #{type_str}"
-        else
-          "#{formatted_name}: #{type_str}"
-        end
-      end)
-      |> Enum.join("; ")
-      
-      "{ #{args} }"
-    end
-  end
-  
-  defp generate_union_metadata(attr) do
-    constraints = attr.constraints || []
-    union_types = Keyword.get(constraints, :types, [])
-    
-    # Get primitive fields from union
-    primitive_fields = union_types
-    |> Enum.filter(fn {_name, config} ->
-      type = Keyword.get(config, :type)
-      not is_embedded_resource?(type) and not is_typed_struct?(type)
-    end)
-    |> Enum.map(fn {name, _config} -> name end)
-    
-    primitive_union = if Enum.empty?(primitive_fields) do
-      "never"
-    else
-      primitive_fields
-      |> Enum.map(fn name ->
-        formatted = AshTypescript.FieldFormatter.format_field(
-          name,
-          AshTypescript.Rpc.output_field_formatter()
-        )
-        "\"#{formatted}\""
-      end)
-      |> Enum.join(" | ")
-    end
-    
-    # Generate union member fields
-    member_fields = union_types
-    |> Enum.map(fn {name, config} ->
-      formatted_name = AshTypescript.FieldFormatter.format_field(
-        name,
-        AshTypescript.Rpc.output_field_formatter()
-      )
-      
-      type = Keyword.get(config, :type)
-      constraints = Keyword.get(config, :constraints, [])
-      
-      cond do
-        is_embedded_resource?(type) ->
-          resource_name = type |> Module.split() |> List.last()
-          # For embedded resources in unions, reference the resource schema
-          "#{formatted_name}?: #{resource_name}ResourceSchema"
-        
-        is_typed_struct?(type) ->
-          # Handle TypedStruct in union
-          "#{formatted_name}?: any"
-        
-        true ->
-          ts_type = get_ts_type(%{type: type, constraints: constraints})
-          "#{formatted_name}?: #{ts_type}"
-      end
-    end)
-    |> Enum.join("; ")
-    
-    # Handle empty member fields properly
-    if member_fields == "" do
-      "{ __type: \"Union\"; __primitiveFields: #{primitive_union}; }"
-    else
-      "{ __type: \"Union\"; __primitiveFields: #{primitive_union}; #{member_fields}; }"
-    end
-  end
-
-  def generate_attributes_schema(resource) do
-    resource_name = resource |> Module.split() |> List.last()
-
-    attributes =
-      resource
-      |> Ash.Resource.Info.public_attributes()
-      |> Enum.reject(fn attr ->
-        case attr.type do
-          # Exclude union types from fields schema FIRST - they go in unions section
-          Ash.Type.Union ->
-            true
-
-          {:array, Ash.Type.Union} ->
-            true
-
-          # Also check for atom-based union types
-          :union ->
-            true
-
-          {:array, :union} ->
-            true
-
-          # Exclude embedded resources from fields schema - they go in embedded section
-          embedded_type when is_atom(embedded_type) ->
-            is_embedded_resource?(embedded_type)
-
-          {:array, embedded_type} when is_atom(embedded_type) ->
-            is_embedded_resource?(embedded_type)
-
-          _ ->
-            false
+          "  #{formatted_name}: #{type_str};"
         end
       end)
 
-    calculations =
-      resource
-      |> Ash.Resource.Info.public_calculations()
+    calc_defs =
+      Enum.map(simple_calcs, fn calc ->
+        formatted_name =
+          AshTypescript.FieldFormatter.format_field(
+            calc.name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
 
-    aggregates =
-      resource
-      |> Ash.Resource.Info.public_aggregates()
+        type_str = get_ts_type(calc)
 
-    # Filter out complex calculations (those with arguments or complex return types)
-    {simple_calculations, _complex_calculations} =
-      Enum.split_with(calculations, &is_simple_calculation/1)
-
-    fields =
-      Enum.concat([attributes, simple_calculations, aggregates])
-      |> Enum.map(fn
-        %Ash.Resource.Attribute{} = attr ->
-          formatted_name =
-            AshTypescript.FieldFormatter.format_field(
-              attr.name,
-              AshTypescript.Rpc.output_field_formatter()
-            )
-
-          if attr.allow_nil? do
-            "  #{formatted_name}: #{get_ts_type(attr)} | null;"
-          else
-            "  #{formatted_name}: #{get_ts_type(attr)};"
-          end
-
-        %Ash.Resource.Calculation{} = calc ->
-          formatted_name =
-            AshTypescript.FieldFormatter.format_field(
-              calc.name,
-              AshTypescript.Rpc.output_field_formatter()
-            )
-
-          if calc.allow_nil? do
-            "  #{formatted_name}: #{get_ts_type(calc)} | null;"
-          else
-            "  #{formatted_name}: #{get_ts_type(calc)};"
-          end
-
-        %Ash.Resource.Aggregate{} = agg ->
-          type =
-            case agg.kind do
-              :sum ->
-                resource
-                |> lookup_aggregate_type(agg.relationship_path, agg.field)
-                |> get_ts_type()
-
-              :first ->
-                resource
-                |> lookup_aggregate_type(agg.relationship_path, agg.field)
-                |> get_ts_type()
-
-              _ ->
-                get_ts_type(agg.kind)
-            end
-
-          formatted_name =
-            AshTypescript.FieldFormatter.format_field(
-              agg.name,
-              AshTypescript.Rpc.output_field_formatter()
-            )
-
-          if agg.include_nil? do
-            "  #{formatted_name}?: #{type} | null;"
-          else
-            "  #{formatted_name}: #{type};"
-          end
-      end)
-      |> Enum.join("\n")
-
-    """
-    type #{resource_name}FieldsSchema = {
-    #{fields}
-    };
-    """
-  end
-
-  def generate_calculated_fields_schema(resource) do
-    resource_name = resource |> Module.split() |> List.last()
-
-    calculations =
-      resource
-      |> Ash.Resource.Info.public_calculations()
-      |> Enum.map(fn calc ->
         if calc.allow_nil? do
-          "  #{calc.name}: #{get_ts_type(calc)} | null;"
+          "  #{formatted_name}: #{type_str} | null;"
         else
-          "  #{calc.name}: #{get_ts_type(calc)};"
+          "  #{formatted_name}: #{type_str};"
         end
       end)
 
-    if Enum.empty?(calculations) do
-      "type #{resource_name}CalculatedFieldsSchema = {};"
-    else
-      """
-      type #{resource_name}CalculatedFieldsSchema = {
-      #{Enum.join(calculations, "\n")}
-      };
-      """
-    end
-  end
+    agg_defs =
+      Enum.map(aggregates, fn agg ->
+        formatted_name =
+          AshTypescript.FieldFormatter.format_field(
+            agg.name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
 
-  def generate_aggregate_fields_schema(resource) do
-    resource_name = resource |> Module.split() |> List.last()
-
-    aggregates =
-      resource
-      |> Ash.Resource.Info.public_aggregates()
-      |> Enum.map(fn agg ->
-        type =
+        type_str =
           case agg.kind do
             :sum ->
               resource
@@ -1019,204 +601,328 @@ defmodule AshTypescript.Codegen do
           end
 
         if agg.include_nil? do
-          "  #{agg.name}?: #{type} | null;"
+          "  #{formatted_name}?: #{type_str} | null;"
         else
-          "  #{agg.name}: #{type};"
+          "  #{formatted_name}: #{type_str};"
         end
       end)
 
-    if Enum.empty?(aggregates) do
-      "type #{resource_name}AggregateFieldsSchema = {};"
-    else
-      """
-      type #{resource_name}AggregateFieldsSchema = {
-      #{Enum.join(aggregates, "\n")}
-      };
-      """
-    end
+    attr_defs ++ calc_defs ++ agg_defs
   end
 
-  def generate_relationship_schema(resource) do
-    resource_name = resource |> Module.split() |> List.last()
+  defp generate_relationship_field_definitions(resource, allowed_resources) do
+    relationships = Ash.Resource.Info.public_relationships(resource)
 
-    relationships =
-      resource
-      |> Ash.Resource.Info.public_relationships()
-      |> Enum.map(fn rel ->
-        related_resource_name = rel.destination |> Module.split() |> List.last()
+    relationships
+    |> Enum.filter(fn rel ->
+      Enum.member?(allowed_resources, rel.destination)
+    end)
+    |> Enum.map(fn rel ->
+      formatted_name =
+        AshTypescript.FieldFormatter.format_field(
+          rel.name,
+          AshTypescript.Rpc.output_field_formatter()
+        )
 
+      related_resource_name = build_resource_type_name(rel.destination)
+
+      # Handle nullability by modifying the __resource field
+      resource_type =
+        if rel.type in [:has_many, :many_to_many] do
+          # Array relationships are never null
+          "#{related_resource_name}ResourceSchema"
+        else
+          # Single relationships can be null
+          if Map.get(rel, :allow_nil?, true) do
+            "#{related_resource_name}ResourceSchema | null"
+          else
+            "#{related_resource_name}ResourceSchema"
+          end
+        end
+
+      metadata =
         case rel.type do
-          :belongs_to ->
-            "  #{rel.name}: #{related_resource_name}Relationship;"
-
-          :has_one ->
-            "  #{rel.name}: #{related_resource_name}Relationship;"
-
           :has_many ->
-            "  #{rel.name}: #{related_resource_name}ArrayRelationship;"
+            "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
 
           :many_to_many ->
-            "  #{rel.name}: #{related_resource_name}ArrayRelationship;"
-        end
-      end)
-
-    if Enum.empty?(relationships) do
-      "type #{resource_name}RelationshipSchema = {};"
-    else
-      """
-      type #{resource_name}RelationshipSchema = {
-      #{Enum.join(relationships, "\n")}
-      };
-      """
-    end
-  end
-
-  def generate_relationship_schema(resource, allowed_resources) do
-    resource_name = resource |> Module.split() |> List.last()
-
-    # Get traditional relationships
-    relationships =
-      resource
-      |> Ash.Resource.Info.public_relationships()
-      |> Enum.filter(fn rel ->
-        # Only include relationships to allowed resources
-        Enum.member?(allowed_resources, rel.destination)
-      end)
-      |> Enum.map(fn rel ->
-        related_resource_name = rel.destination |> Module.split() |> List.last()
-
-        case rel.type do
-          :belongs_to ->
-            "  #{rel.name}: #{related_resource_name}Relationship;"
-
-          :has_one ->
-            "  #{rel.name}: #{related_resource_name}Relationship;"
-
-          :has_many ->
-            "  #{rel.name}: #{related_resource_name}ArrayRelationship;"
-
-          :many_to_many ->
-            "  #{rel.name}: #{related_resource_name}ArrayRelationship;"
-        end
-      end)
-
-    # Get embedded resources and add them to relationships
-    embedded_resources =
-      resource
-      |> Ash.Resource.Info.public_attributes()
-      |> Enum.filter(fn attr ->
-        case attr.type do
-          embedded_type when is_atom(embedded_type) ->
-            is_embedded_resource?(embedded_type) and
-              Enum.member?(allowed_resources, embedded_type)
-
-          {:array, embedded_type} when is_atom(embedded_type) ->
-            is_embedded_resource?(embedded_type) and
-              Enum.member?(allowed_resources, embedded_type)
+            "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
 
           _ ->
-            false
+            "{ __type: \"Relationship\"; __resource: #{resource_type}; }"
         end
-      end)
-      |> Enum.map(fn attr ->
-        embedded_resource_name =
-          case attr.type do
-            embedded_type when is_atom(embedded_type) ->
-              embedded_type |> Module.split() |> List.last()
 
-            {:array, embedded_type} when is_atom(embedded_type) ->
-              embedded_type |> Module.split() |> List.last()
+      "  #{formatted_name}: #{metadata};"
+    end)
+  end
+
+  defp generate_embedded_field_definitions(resource, allowed_resources) do
+    attributes = Ash.Resource.Info.public_attributes(resource)
+
+    attributes
+    |> Enum.filter(fn attr ->
+      is_embedded_attribute?(attr) and
+        embedded_resource_allowed?(attr, allowed_resources)
+    end)
+    |> Enum.map(fn attr ->
+      formatted_name =
+        AshTypescript.FieldFormatter.format_field(
+          attr.name,
+          AshTypescript.Rpc.output_field_formatter()
+        )
+
+      embedded_resource = get_embedded_resource_from_attr(attr)
+      embedded_resource_name = build_resource_type_name(embedded_resource)
+
+      # Handle nullability by modifying the __resource field
+      resource_type =
+        case attr.type do
+          {:array, _} ->
+            # Array embedded resources are never null
+            "#{embedded_resource_name}ResourceSchema"
+
+          _ ->
+            # Single embedded resources can be null
+            if attr.allow_nil? do
+              "#{embedded_resource_name}ResourceSchema | null"
+            else
+              "#{embedded_resource_name}ResourceSchema"
+            end
+        end
+
+      metadata =
+        case attr.type do
+          {:array, _} ->
+            "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
+
+          _ ->
+            "{ __type: \"Relationship\"; __resource: #{resource_type}; }"
+        end
+
+      "  #{formatted_name}: #{metadata};"
+    end)
+  end
+
+  defp generate_complex_calculation_field_definitions(resource) do
+    calculations = Ash.Resource.Info.public_calculations(resource)
+
+    calculations
+    |> Enum.reject(&is_simple_calculation/1)
+    |> Enum.map(fn calc ->
+      formatted_name =
+        AshTypescript.FieldFormatter.format_field(
+          calc.name,
+          AshTypescript.Rpc.output_field_formatter()
+        )
+
+      # Generate metadata based on calculation type (nullability goes in return type)
+      return_type = get_calculation_return_type_for_metadata(calc, calc.allow_nil?)
+
+      metadata =
+        if Enum.empty?(calc.arguments) do
+          "{ __type: \"ComplexCalculation\"; __returnType: #{return_type}; }"
+        else
+          args_type = generate_calculation_args_type(calc.arguments)
+
+          "{ __type: \"ComplexCalculation\"; __returnType: #{return_type}; __args: #{args_type}; }"
+        end
+
+      # Field itself is never nullable - nullability is in __returnType
+      "  #{formatted_name}: #{metadata};"
+    end)
+  end
+
+  defp generate_union_field_definitions(resource) do
+    attributes = Ash.Resource.Info.public_attributes(resource)
+
+    attributes
+    |> Enum.filter(&is_union_attribute?/1)
+    |> Enum.map(fn attr ->
+      formatted_name =
+        AshTypescript.FieldFormatter.format_field(
+          attr.name,
+          AshTypescript.Rpc.output_field_formatter()
+        )
+
+      union_metadata = generate_union_metadata(attr)
+
+      if attr.allow_nil? do
+        "  #{formatted_name}: #{union_metadata} | null;"
+      else
+        "  #{formatted_name}: #{union_metadata};"
+      end
+    end)
+  end
+
+  # Helper functions for the new unified schema generation
+  defp is_union_attribute?(%{type: Ash.Type.Union}), do: true
+  defp is_union_attribute?(%{type: {:array, Ash.Type.Union}}), do: true
+  defp is_union_attribute?(_), do: false
+
+  defp is_embedded_attribute?(%{type: type}) when is_atom(type), do: is_embedded_resource?(type)
+
+  defp is_embedded_attribute?(%{type: {:array, type}}) when is_atom(type),
+    do: is_embedded_resource?(type)
+
+  defp is_embedded_attribute?(_), do: false
+
+  defp embedded_resource_allowed?(attr, allowed_resources) do
+    embedded_resource = get_embedded_resource_from_attr(attr)
+    Enum.member?(allowed_resources, embedded_resource)
+  end
+
+  defp get_embedded_resource_from_attr(%{type: type}) when is_atom(type), do: type
+  defp get_embedded_resource_from_attr(%{type: {:array, type}}) when is_atom(type), do: type
+
+  defp get_calculation_return_type_for_metadata(calc, allow_nil?) do
+    base_type =
+      case calc.type do
+        Ash.Type.Struct ->
+          constraints = calc.constraints || []
+          instance_of = Keyword.get(constraints, :instance_of)
+
+          if instance_of && Ash.Resource.Info.resource?(instance_of) do
+            resource_name = build_resource_type_name(instance_of)
+            "#{resource_name}ResourceSchema"
+          else
+            "any"
           end
 
-        # Apply field formatting to embedded resource field names
-        formatted_attr_name =
-          AshTypescript.FieldFormatter.format_field(
-            attr.name,
-            AshTypescript.Rpc.output_field_formatter()
-          )
+        {:array, Ash.Type.Struct} ->
+          constraints = calc.constraints || []
+          items_constraints = Keyword.get(constraints, :items, [])
+          instance_of = Keyword.get(items_constraints, :instance_of)
 
-        case attr.type do
-          embedded_type when is_atom(embedded_type) ->
-            "  #{formatted_attr_name}: #{embedded_resource_name}Embedded;"
+          if instance_of && Ash.Resource.Info.resource?(instance_of) do
+            resource_name = build_resource_type_name(instance_of)
+            "Array<#{resource_name}ResourceSchema>"
+          else
+            "any[]"
+          end
 
-          {:array, _embedded_type} ->
-            "  #{formatted_attr_name}: #{embedded_resource_name}ArrayEmbedded;"
-        end
-      end)
+        _ ->
+          get_ts_type(calc)
+      end
 
-    # Combine relationships and embedded resources
-    all_relations = relationships ++ embedded_resources
-
-    if Enum.empty?(all_relations) do
-      "type #{resource_name}RelationshipSchema = {};"
+    # Add nullability to the return type itself if allow_nil? is true
+    if allow_nil? do
+      "#{base_type} | null"
     else
-      """
-      type #{resource_name}RelationshipSchema = {
-      #{Enum.join(all_relations, "\n")}
-      };
-      """
+      base_type
     end
   end
 
-  def generate_unions_schema(resource) do
-    resource_name = resource |> Module.split() |> List.last()
-
-    # Find all union attributes in the resource
-    union_attributes =
-      resource
-      |> Ash.Resource.Info.public_attributes()
-      |> Enum.filter(fn attr ->
-        case attr.type do
-          Ash.Type.Union -> true
-          {:array, Ash.Type.Union} -> true
-          :union -> true
-          {:array, :union} -> true
-          _ -> false
-        end
-      end)
-
-    if Enum.empty?(union_attributes) do
-      "type #{resource_name}UnionsSchema = {};"
+  defp generate_calculation_args_type(arguments) do
+    if Enum.empty?(arguments) do
+      "{}"
     else
-      union_fields =
-        union_attributes
-        |> Enum.map(fn attr ->
+      args =
+        arguments
+        |> Enum.map(fn arg ->
           formatted_name =
             AshTypescript.FieldFormatter.format_field(
-              attr.name,
+              arg.name,
               AshTypescript.Rpc.output_field_formatter()
             )
 
-          # Generate the union field selection type - this allows either primitive strings or complex member objects
-          "  #{formatted_name}: Record<string, any>;"
-        end)
-        |> Enum.join("\n")
+          # Field is optional if it has a default value (even if that default is nil)
+          has_default = Map.has_key?(arg, :default)
+          # Field can be null if allow_nil? is true
+          allows_null = arg.allow_nil?
 
-      """
-      type #{resource_name}UnionsSchema = {
-      #{union_fields}
-      };
-      """
+          base_type = get_ts_type(arg)
+
+          # Add | null if the field allows null
+          type_str =
+            if allows_null do
+              "#{base_type} | null"
+            else
+              base_type
+            end
+
+          # Make field optional if it has a default
+          if has_default do
+            "#{formatted_name}?: #{type_str}"
+          else
+            "#{formatted_name}: #{type_str}"
+          end
+        end)
+        |> Enum.join("; ")
+
+      "{ #{args} }"
     end
   end
 
-  def generate_resource_schema(resource) do
-    resource_name = resource |> Module.split() |> List.last()
+  defp generate_union_metadata(attr) do
+    constraints = attr.constraints || []
+    union_types = Keyword.get(constraints, :types, [])
 
-    """
-    export type #{resource_name}ResourceSchema = {
-      fields: #{resource_name}FieldsSchema;
-      relationships: #{resource_name}RelationshipSchema;
-      typedStructs: #{resource_name}TypedStructsSchema;
-      complexCalculations: #{resource_name}ComplexCalculationsSchema;
-      unions: #{resource_name}UnionsSchema;
-      __complexCalculationsInternal: __#{resource_name}ComplexCalculationsInternal;
-    };
-    """
+    # Get primitive fields from union
+    primitive_fields =
+      union_types
+      |> Enum.filter(fn {_name, config} ->
+        type = Keyword.get(config, :type)
+        not is_embedded_resource?(type) and not is_typed_struct?(type)
+      end)
+      |> Enum.map(fn {name, _config} -> name end)
+
+    primitive_union =
+      if Enum.empty?(primitive_fields) do
+        "never"
+      else
+        primitive_fields
+        |> Enum.map(fn name ->
+          formatted =
+            AshTypescript.FieldFormatter.format_field(
+              name,
+              AshTypescript.Rpc.output_field_formatter()
+            )
+
+          "\"#{formatted}\""
+        end)
+        |> Enum.join(" | ")
+      end
+
+    # Generate union member fields
+    member_fields =
+      union_types
+      |> Enum.map(fn {name, config} ->
+        formatted_name =
+          AshTypescript.FieldFormatter.format_field(
+            name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        type = Keyword.get(config, :type)
+        constraints = Keyword.get(config, :constraints, [])
+
+        cond do
+          is_embedded_resource?(type) ->
+            resource_name = build_resource_type_name(type)
+            # For embedded resources in unions, reference the resource schema
+            "#{formatted_name}?: #{resource_name}ResourceSchema"
+
+          is_typed_struct?(type) ->
+            # Handle TypedStruct in union
+            "#{formatted_name}?: any"
+
+          true ->
+            ts_type = get_ts_type(%{type: type, constraints: constraints})
+            "#{formatted_name}?: #{ts_type}"
+        end
+      end)
+      |> Enum.join("; ")
+
+    # Handle empty member fields properly
+    if member_fields == "" do
+      "{ __type: \"Union\"; __primitiveFields: #{primitive_union}; }"
+    else
+      "{ __type: \"Union\"; __primitiveFields: #{primitive_union}; #{member_fields}; }"
+    end
   end
 
   def generate_input_schema(resource) do
-    resource_name = resource |> Module.split() |> List.last()
+    resource_name = build_resource_type_name(resource)
 
     # Only include settable public attributes (no calculations, relationships, or private fields)
     input_fields =
@@ -1254,40 +960,6 @@ defmodule AshTypescript.Codegen do
     """
   end
 
-  def generate_typed_structs_schema(resource) do
-    resource_name = resource |> Module.split() |> List.last()
-
-    # Find all TypedStruct attributes in the resource
-    typed_struct_attributes =
-      resource
-      |> Ash.Resource.Info.public_attributes()
-      |> Enum.filter(&is_typed_struct_attribute?/1)
-
-    if Enum.empty?(typed_struct_attributes) do
-      "type #{resource_name}TypedStructsSchema = {};"
-    else
-      typed_struct_fields =
-        typed_struct_attributes
-        |> Enum.map(fn attr ->
-          formatted_name =
-            AshTypescript.FieldFormatter.format_field(
-              attr.name,
-              AshTypescript.Rpc.output_field_formatter()
-            )
-
-          # Generate the TypedStruct field selection type - allows field arrays
-          "  #{formatted_name}: string[];"
-        end)
-        |> Enum.join("\n")
-
-      """
-      type #{resource_name}TypedStructsSchema = {
-      #{typed_struct_fields}
-      };
-      """
-    end
-  end
-
   # Input-specific type mapping for embedded resources
   def get_ts_input_type(%{type: type} = attr) do
     case type do
@@ -1295,6 +967,7 @@ defmodule AshTypescript.Codegen do
       Ash.Type.Map ->
         # Handle Map types in input - use input version without metadata
         constraints = Map.get(attr, :constraints, [])
+
         case Keyword.get(constraints, :fields) do
           nil -> "Record<string, any>"
           fields -> build_map_input_type_inline(fields)
@@ -1304,6 +977,7 @@ defmodule AshTypescript.Codegen do
       Ash.Type.Union ->
         # Handle union types in input - use InputSchema for embedded resources
         constraints = Map.get(attr, :constraints, [])
+
         case Keyword.get(constraints, :types) do
           nil -> "any"
           types -> build_union_input_type(types)
@@ -1313,7 +987,7 @@ defmodule AshTypescript.Codegen do
       embedded_type when is_atom(embedded_type) and not is_nil(embedded_type) ->
         if is_embedded_resource?(embedded_type) do
           # Handle direct embedded resource types (e.g., attribute :metadata, TodoMetadata)
-          resource_name = embedded_type |> Module.split() |> List.last()
+          resource_name = build_resource_type_name(embedded_type)
           "#{resource_name}InputSchema"
         else
           # For all other atomic types, use the regular type mapping
@@ -1323,7 +997,7 @@ defmodule AshTypescript.Codegen do
       {:array, embedded_type} when is_atom(embedded_type) ->
         if is_embedded_resource?(embedded_type) do
           # Handle array of embedded resources (e.g., attribute :metadata_history, {:array, TodoMetadata})
-          resource_name = embedded_type |> Module.split() |> List.last()
+          resource_name = build_resource_type_name(embedded_type)
           "Array<#{resource_name}InputSchema>"
         else
           # Handle regular array types
@@ -1453,7 +1127,7 @@ defmodule AshTypescript.Codegen do
         # Check if instance_of is an Ash resource
         if Spark.Dsl.is?(instance_of, Ash.Resource) do
           # Return reference to the resource schema type
-          resource_name = instance_of |> Module.split() |> List.last()
+          resource_name = build_resource_type_name(instance_of)
           "#{resource_name}ResourceSchema"
         else
           build_resource_type(instance_of, select_and_loads)
@@ -1503,7 +1177,7 @@ defmodule AshTypescript.Codegen do
 
       is_embedded_resource?(type) ->
         # Handle direct embedded resource types (e.g., attribute :metadata, TodoMetadata)
-        resource_name = type |> Module.split() |> List.last()
+        resource_name = build_resource_type_name(type)
         "#{resource_name}ResourceSchema"
 
       Ash.Type.NewType.new_type?(type) ->
@@ -1569,6 +1243,7 @@ defmodule AshTypescript.Codegen do
               field_name,
               AshTypescript.Rpc.output_field_formatter()
             )
+
           "\"#{formatted_field_name}\""
         end)
         |> Enum.join(" | ")
@@ -1634,12 +1309,12 @@ defmodule AshTypescript.Codegen do
     cond do
       is_typed_struct?(type) ->
         # TypedStruct in union supports field selection
-        resource_name = type |> Module.split() |> List.last()
+        resource_name = build_resource_type_name(type)
         "#{resource_name}TypedStructFieldSelection"
 
       is_embedded_resource?(type) ->
         # For union members, use ResourceSchema instead of the old FieldsSchema
-        resource_name = type |> Module.split() |> List.last()
+        resource_name = build_resource_type_name(type)
         "#{resource_name}ResourceSchema"
 
       # For all other types, use the regular get_ts_type function
@@ -1653,12 +1328,12 @@ defmodule AshTypescript.Codegen do
     cond do
       is_typed_struct?(type) ->
         # For TypedStruct union member inputs, use InputSchema
-        resource_name = type |> Module.split() |> List.last()
+        resource_name = build_resource_type_name(type)
         "#{resource_name}TypedStructInputSchema"
 
       is_embedded_resource?(type) ->
         # For union member inputs, use InputSchema (not the old FieldsSchema)
-        resource_name = type |> Module.split() |> List.last()
+        resource_name = build_resource_type_name(type)
         "#{resource_name}InputSchema"
 
       # For all other types, use the regular get_ts_type function
@@ -1847,223 +1522,33 @@ defmodule AshTypescript.Codegen do
     not has_arguments and not has_complex_return_type
   end
 
-  defp is_resource_calculation?(calc) do
-    case calc.type do
-      Ash.Type.Struct ->
-        constraints = calc.constraints || []
-        instance_of = Keyword.get(constraints, :instance_of)
-        instance_of != nil and Ash.Resource.Info.resource?(instance_of)
-
-      {:array, Ash.Type.Struct} ->
-        constraints = calc.constraints || []
-        items_constraints = Keyword.get(constraints, :items, [])
-        instance_of = Keyword.get(items_constraints, :instance_of)
-        instance_of != nil and Ash.Resource.Info.resource?(instance_of)
-
-      Ash.Type.Map ->
-        constraints = calc.constraints || []
-        fields = Keyword.get(constraints, :fields)
-        # Maps with field constraints need field selection
-        fields != nil
-
-      _ ->
-        false
-    end
-  end
-
-  # Determine if a return type is complex (struct with fields or map with field constraints)
   defp is_complex_return_type(Ash.Type.Struct, constraints) do
     instance_of = Keyword.get(constraints, :instance_of)
-    fields = Keyword.get(constraints, :fields)
-
-    # Complex if it's a resource instance or has field definitions
-    instance_of != nil or fields != nil
+    instance_of != nil
   end
 
   defp is_complex_return_type(Ash.Type.Map, constraints) do
     fields = Keyword.get(constraints, :fields)
-    # Complex if it has field constraints
     fields != nil
   end
 
   defp is_complex_return_type(_, _), do: false
 
-  # Generate schema for complex calculations
-  def generate_complex_calculations_schema(resource) do
-    resource_name = resource |> Module.split() |> List.last()
+  def build_resource_type_name(resource_module) do
+    case AshTypescript.Resource.Info.typescript_type_name(resource_module) do
+      {:ok, name} ->
+        name
 
-    complex_calculations =
-      resource
-      |> Ash.Resource.Info.public_calculations()
-      |> Enum.reject(&is_simple_calculation/1)
-
-    # User-facing schema (what users configure)
-    user_calculations =
-      complex_calculations
-      |> Enum.map(fn calc ->
-        arguments_type = generate_calculation_arguments_type(calc)
-
-        args_field =
-          AshTypescript.FieldFormatter.format_field(
-            :args,
-            AshTypescript.Rpc.output_field_formatter()
-          )
-
-        # Only include fields for calculations that return resources
-        if is_resource_calculation?(calc) do
-          fields_type = generate_calculation_fields_type(calc)
-
-          """
-          #{calc.name}: {
-            #{args_field}: #{arguments_type};
-            fields: #{fields_type};
-          };
-          """
-        else
-          """
-          #{calc.name}: {
-            #{args_field}: #{arguments_type};
-          };
-          """
-        end
-      end)
-
-    # Internal schema with return types for inference
-    internal_calculations =
-      complex_calculations
-      |> Enum.map(fn calc ->
-        arguments_type = generate_calculation_arguments_type(calc)
-        return_type = get_ts_type(calc)
-
-        args_field =
-          AshTypescript.FieldFormatter.format_field(
-            :args,
-            AshTypescript.Rpc.output_field_formatter()
-          )
-
-        # Only include fields for calculations that return resources
-        if is_resource_calculation?(calc) do
-          fields_type = generate_calculation_fields_type(calc)
-
-          """
-          #{calc.name}: {
-            #{args_field}: #{arguments_type};
-            fields: #{fields_type};
-            __returnType: #{return_type};
-          };
-          """
-        else
-          """
-          #{calc.name}: {
-            #{args_field}: #{arguments_type};
-            __returnType: #{return_type};
-          };
-          """
-        end
-      end)
-
-    user_schema =
-      if Enum.empty?(user_calculations) do
-        "type #{resource_name}ComplexCalculationsSchema = {};"
-      else
-        """
-        type #{resource_name}ComplexCalculationsSchema = {
-        #{Enum.join(user_calculations, "\n")}
-        };
-        """
-      end
-
-    internal_schema =
-      if Enum.empty?(internal_calculations) do
-        "type __#{resource_name}ComplexCalculationsInternal = {};"
-      else
-        """
-        type __#{resource_name}ComplexCalculationsInternal = {
-        #{Enum.join(internal_calculations, "\n")}
-        };
-        """
-      end
-
-    """
-    #{user_schema}
-
-    #{internal_schema}
-    """
-  end
-
-  # Generate the arguments type for a calculation
-  defp generate_calculation_arguments_type(calc) do
-    if Enum.empty?(calc.arguments) do
-      "{}"
-    else
-      args =
-        calc.arguments
-        |> Enum.map(fn arg ->
-          optional = arg.allow_nil? || arg.default != nil
-
-          formatted_name =
-            AshTypescript.FieldFormatter.format_field(
-              arg.name,
-              AshTypescript.Rpc.output_field_formatter()
-            )
-
-          "#{formatted_name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)} #{if optional, do: "| null", else: ""};"
+      _ ->
+        resource_module
+        |> Module.split()
+        |> then(fn [first | rest] = list ->
+          if first == "Elixir" do
+            Enum.join(rest, "")
+          else
+            Enum.join(list, "")
+          end
         end)
-        |> Enum.join("\n    ")
-
-      "{\n    #{args}\n  }"
     end
-  end
-
-  # Generate the fields type for selecting from a calculation result
-  defp generate_calculation_fields_type(%Ash.Resource.Calculation{
-         type: Ash.Type.Struct,
-         constraints: constraints
-       }) do
-    instance_of = Keyword.get(constraints, :instance_of)
-    fields = Keyword.get(constraints, :fields)
-
-    cond do
-      instance_of != nil ->
-        # If it's a resource instance, use field selection for that resource
-        resource_name = instance_of |> Module.split() |> List.last()
-        "UnifiedFieldSelection<#{resource_name}ResourceSchema>[]"
-
-      fields != nil ->
-        # If it has field definitions, use the field names as string literals
-        field_names =
-          Keyword.keys(fields)
-          |> Enum.map(&to_string/1)
-          |> Enum.map(&"\"#{&1}\"")
-          |> Enum.join(" | ")
-
-        "(#{field_names})[]"
-
-      true ->
-        "string[]"
-    end
-  end
-
-  defp generate_calculation_fields_type(%Ash.Resource.Calculation{
-         type: Ash.Type.Map,
-         constraints: constraints
-       }) do
-    fields = Keyword.get(constraints, :fields)
-
-    if fields do
-      field_names =
-        Keyword.keys(fields)
-        |> Enum.map(&to_string/1)
-        |> Enum.map(&"\"#{&1}\"")
-        |> Enum.join(" | ")
-
-      "(#{field_names})[]"
-    else
-      "string[]"
-    end
-  end
-
-  defp generate_calculation_fields_type(_calc) do
-    "string[]"
   end
 end
