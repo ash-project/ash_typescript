@@ -13,6 +13,7 @@ type Relationship = {
 type ComplexCalculation = {
   __type: "ComplexCalculation";
   __returnType: any;
+  __args?: Record<string, any>;
 };
 
 // Now let's define the example schemas using the new approach
@@ -41,12 +42,24 @@ export type TodoResourceSchema = {
   userId: string;
 
   // Complex fields
-  user?: UserRelationship;
+  user: UserRelationship | null;
   comments: TodoCommentArrayRelationship;
   metadata: TodoMetadataEmbedded;
   metadataHistory: TodoMetadataArrayEmbedded;
   content: ContentUnion;
   attachments: AttachmentUnion;
+  self: {
+    __type: "ComplexCalculation";
+    __returnType: TodoResourceSchema;
+  };
+  selfWithArgs: {
+    __type: "ComplexCalculation";
+    __returnType: TodoResourceSchema;
+    __args: {
+      req: string;
+      notReq?: string;
+    };
+  };
 };
 
 export type UserResourceSchema = {
@@ -222,9 +235,23 @@ type ComplexFieldSelection<T extends TypedSchema> = {
     __resource: infer R extends TypedSchema;
   }
     ? UnifiedFieldSelection<R>[]
-    : NonNullable<T[K]> extends TypedSchema
-      ? UnifiedFieldSelection<NonNullable<T[K]>>[]
-      : never;
+    : NonNullable<T[K]> extends {
+          __type: "ComplexCalculation";
+          __returnType: infer ReturnType;
+        }
+      ? NonNullable<T[K]> extends { __args: infer Args }
+        ? NonNullable<ReturnType> extends TypedSchema
+          ? {
+              args: Args;
+              fields: UnifiedFieldSelection<NonNullable<ReturnType>>[];
+            }
+          : { args: Args }
+        : NonNullable<ReturnType> extends TypedSchema
+          ? { fields: UnifiedFieldSelection<NonNullable<ReturnType>>[] }
+          : never
+      : NonNullable<T[K]> extends TypedSchema
+        ? UnifiedFieldSelection<NonNullable<T[K]>>[]
+        : never;
 };
 
 // Main type: Use explicit base case detection to prevent infinite recursion
@@ -252,11 +279,20 @@ type InferFieldValue<
               : undefined extends T[K]
                 ? InferResult<R, Field[K]> | undefined
                 : InferResult<R, Field[K]>
-            : NonNullable<T[K]> extends TypedSchema
-              ? undefined extends T[K]
-                ? InferResult<NonNullable<T[K]>, Field[K]> | undefined
-                : InferResult<NonNullable<T[K]>, Field[K]>
-              : never
+            : T[K] extends {
+                  __type: "ComplexCalculation";
+                  __returnType: infer ReturnType;
+                }
+              ? NonNullable<ReturnType> extends TypedSchema
+                ? null extends ReturnType
+                  ? InferResult<NonNullable<ReturnType>, Field[K]> | null
+                  : InferResult<NonNullable<ReturnType>, Field[K]>
+                : ReturnType
+              : NonNullable<T[K]> extends TypedSchema
+                ? undefined extends T[K]
+                  ? InferResult<NonNullable<T[K]>, Field[K]> | undefined
+                  : InferResult<NonNullable<T[K]>, Field[K]>
+                : never
           : never;
       }
     : never;
@@ -277,13 +313,15 @@ async function testUnionFieldSelection() {
       "title",
       "description",
       {
-        user: ["id", "email", "name", { todos: ["id"] }],
+        user: ["id", "email", "name", { todos: ["id", "userId"] }],
         metadata: ["tags", "createdAt"],
         content: [
           "note",
           "priorityValue",
           { text: ["content", "text", "wordCount"] },
         ],
+        self: { fields: ["id"] },
+        selfWithArgs: { fields: ["id"], args: { req: "omg" } },
       },
     ],
   });

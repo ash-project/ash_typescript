@@ -498,7 +498,7 @@ defmodule AshTypescript.Codegen do
             )
 
           if attr.allow_nil? do
-            "  #{formatted_name}?: #{get_ts_type(attr)} | null;"
+            "  #{formatted_name}: #{get_ts_type(attr)} | null;"
           else
             "  #{formatted_name}: #{get_ts_type(attr)};"
           end
@@ -511,7 +511,7 @@ defmodule AshTypescript.Codegen do
             )
 
           if calc.allow_nil? do
-            "  #{formatted_name}?: #{get_ts_type(calc)} | null;"
+            "  #{formatted_name}: #{get_ts_type(calc)} | null;"
           else
             "  #{formatted_name}: #{get_ts_type(calc)};"
           end
@@ -562,7 +562,7 @@ defmodule AshTypescript.Codegen do
       |> Ash.Resource.Info.public_calculations()
       |> Enum.map(fn calc ->
         if calc.allow_nil? do
-          "  #{calc.name}?: #{get_ts_type(calc)} | null;"
+          "  #{calc.name}: #{get_ts_type(calc)} | null;"
         else
           "  #{calc.name}: #{get_ts_type(calc)};"
         end
@@ -1100,8 +1100,8 @@ defmodule AshTypescript.Codegen do
           )
 
         allow_nil = Keyword.get(field_config, :allow_nil?, true)
-        optional = if allow_nil, do: "?", else: ""
-        "#{formatted_field_name}#{optional}: #{field_type}"
+        optional = if allow_nil, do: "| null", else: ""
+        "#{formatted_field_name}: #{field_type}#{optional}"
       end)
       |> Enum.join(", ")
 
@@ -1130,7 +1130,7 @@ defmodule AshTypescript.Codegen do
 
     case member_properties do
       "" -> "any"
-      properties -> "{ #{properties} }"
+      properties -> "{ __type: \"Union\", #{properties} }"
     end
   end
 
@@ -1245,7 +1245,7 @@ defmodule AshTypescript.Codegen do
           )
 
         if attr.allow_nil? do
-          "  #{formatted_field}?: #{get_ts_type(attr)} | null;"
+          "  #{formatted_field}: #{get_ts_type(attr)} | null;"
         else
           "  #{formatted_field}: #{get_ts_type(attr)};"
         end
@@ -1258,7 +1258,7 @@ defmodule AshTypescript.Codegen do
           )
 
         if calc.allow_nil? do
-          "  #{formatted_field}?: #{get_ts_type(calc)} | null;"
+          "  #{formatted_field}: #{get_ts_type(calc)} | null;"
         else
           "  #{formatted_field}: #{get_ts_type(calc)};"
         end
@@ -1287,7 +1287,7 @@ defmodule AshTypescript.Codegen do
           )
 
         if agg.include_nil? do
-          "  #{formatted_field}?: #{type} | null;"
+          "  #{formatted_field}: #{type} | null;"
         else
           "  #{formatted_field}: #{type};"
         end
@@ -1308,6 +1308,12 @@ defmodule AshTypescript.Codegen do
         )
 
       %Ash.Resource.Relationships.HasMany{} = rel ->
+        id_fields = Ash.Resource.Info.primary_key(resource)
+        fields = Enum.uniq(fields ++ id_fields)
+
+        "  #{field_name}: {#{Enum.map_join(fields, "\n", &get_resource_field_spec(&1, rel.destination))}\n}[];\n"
+
+      %Ash.Resource.Relationships.ManyToMany{} = rel ->
         id_fields = Ash.Resource.Info.primary_key(resource)
         fields = Enum.uniq(fields ++ id_fields)
 
@@ -1506,7 +1512,7 @@ defmodule AshTypescript.Codegen do
               AshTypescript.Rpc.output_field_formatter()
             )
 
-          "#{formatted_name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)};"
+          "#{formatted_name}#{if optional, do: "?", else: ""}: #{get_ts_type(arg)} #{if optional, do: "| null", else: ""};"
         end)
         |> Enum.join("\n    ")
 
