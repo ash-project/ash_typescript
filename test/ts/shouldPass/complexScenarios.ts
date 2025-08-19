@@ -52,7 +52,7 @@ export const complexScenario = await getTodo({
 });
 
 // Validate complex type inference
-if (complexScenario.success) {
+if (complexScenario.success && complexScenario.data) {
   // Top level
   const topIsOverdue: boolean | null | undefined =
     complexScenario.data.isOverdue;

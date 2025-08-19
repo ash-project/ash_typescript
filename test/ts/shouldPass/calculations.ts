@@ -1,9 +1,7 @@
 // Calculations Tests - shouldPass
 // Tests for self calculations, nested calculations, and args variations
 
-import {
-  getTodo,
-} from "../generated";
+import { getTodo } from "../generated";
 
 // Test 1: Basic nested self calculation with field selection
 export const basicNestedSelf = await getTodo({
@@ -37,13 +35,14 @@ export const basicNestedSelf = await getTodo({
 });
 
 // Type assertion: basicNestedSelf should have properly typed nested structure
-if (basicNestedSelf.success && basicNestedSelf.data.self) {
+if (basicNestedSelf.success && basicNestedSelf.data?.self) {
   // Outer self calculation should have the specified fields
   const outerId: string = basicNestedSelf.data.self.id;
   const outerTitle: string = basicNestedSelf.data.self.title;
   const outerCompleted: boolean | null | undefined =
     basicNestedSelf.data.self.completed;
-  const outerDueDate: string | null | undefined = basicNestedSelf.data.self.dueDate;
+  const outerDueDate: string | null | undefined =
+    basicNestedSelf.data.self.dueDate;
 
   // Inner nested self calculation should have its specified fields
   if (basicNestedSelf.data.self.self) {
@@ -130,7 +129,7 @@ export const minimalSelf = await getTodo({
 });
 
 // Should compile successfully with minimal fields
-if (minimalSelf.success && minimalSelf.data.self?.self) {
+if (minimalSelf.success && minimalSelf.data?.self?.self) {
   const minimalTitle: string = minimalSelf.data.self.self.title;
 }
 
@@ -164,7 +163,7 @@ export const varyingCalcArgs = await getTodo({
 });
 
 // Should handle all args variants correctly
-if (varyingCalcArgs.success && varyingCalcArgs.data.self?.self?.self) {
+if (varyingCalcArgs.success && varyingCalcArgs.data?.self?.self?.self) {
   const finalStatus: string | null | undefined =
     varyingCalcArgs.data.self.self.self.status;
 }

@@ -42,28 +42,31 @@ defmodule AshTypescript.UnionFieldFormattingTest do
 
       # Test content union field formatting - priority_value should become PriorityValue
       assert String.contains?(typescript_output, "PriorityValue?: number")
+      # Test note field formatting 
+      assert String.contains?(typescript_output, "Note?: string")
 
-      # Test attachments union field formatting
-      # mime_type should become MimeType
-      assert String.contains?(typescript_output, "MimeType?: string")
-      # alt_text should become AltText  
-      assert String.contains?(typescript_output, "AltText?: string")
+      # Test status_info union field formatting - should become StatusInfo union members
+      assert String.contains?(typescript_output, "Simple?: Record<string, any>")
+      assert String.contains?(typescript_output, "Detailed?: Record<string, any>")
+      assert String.contains?(typescript_output, "Automated?: Record<string, any>")
 
       # Test that we're NOT using hardcoded camelCase formatting
       refute String.contains?(typescript_output, "priorityValue?: number")
-      refute String.contains?(typescript_output, "mimeType?: string")
-      refute String.contains?(typescript_output, "altText?: string")
+      refute String.contains?(typescript_output, "note?: string")
+      refute String.contains?(typescript_output, "simple?: Record<string, any>")
+      refute String.contains?(typescript_output, "detailed?: Record<string, any>")
+      refute String.contains?(typescript_output, "automated?: Record<string, any>")
 
       # Verify union field names themselves are formatted correctly in schemas
       # The union schema should use PascalCase field names
-      assert String.contains?(typescript_output, "Content: Record<string, any>")
-      assert String.contains?(typescript_output, "Attachments: Record<string, any>")
-      assert String.contains?(typescript_output, "StatusInfo: Record<string, any>")
+      assert String.contains?(typescript_output, "Content: { __type: \"Union\"")
+      assert String.contains?(typescript_output, "Attachments: { __type: \"Union\"")
+      assert String.contains?(typescript_output, "StatusInfo: { __type: \"Union\"")
 
       # Test that we're NOT using hardcoded camelCase for union field names
-      refute String.contains?(typescript_output, "content: Record<string, any>")
-      refute String.contains?(typescript_output, "attachments: Record<string, any>")
-      refute String.contains?(typescript_output, "statusInfo: Record<string, any>")
+      refute String.contains?(typescript_output, "content: { __type: \"Union\"")
+      refute String.contains?(typescript_output, "attachments: { __type: \"Union\"")
+      refute String.contains?(typescript_output, "statusInfo: { __type: \"Union\"")
     end
 
     test "generates camelCase union member names with :camel_case formatter (default)" do
@@ -75,28 +78,31 @@ defmodule AshTypescript.UnionFieldFormattingTest do
 
       # Test content union field formatting - priority_value should become priorityValue
       assert String.contains?(typescript_output, "priorityValue?: number")
+      # Test note field formatting
+      assert String.contains?(typescript_output, "note?: string")
 
-      # Test attachments union field formatting  
-      # mime_type should become mimeType
-      assert String.contains?(typescript_output, "mimeType?: string")
-      # alt_text should become altText
-      assert String.contains?(typescript_output, "altText?: string")
+      # Test status_info union field formatting - should use camelCase
+      assert String.contains?(typescript_output, "simple?: Record<string, any>")
+      assert String.contains?(typescript_output, "detailed?: Record<string, any>")
+      assert String.contains?(typescript_output, "automated?: Record<string, any>")
 
       # Test that we're NOT using PascalCase
       refute String.contains?(typescript_output, "PriorityValue?: number")
-      refute String.contains?(typescript_output, "MimeType?: string")
-      refute String.contains?(typescript_output, "AltText?: string")
+      refute String.contains?(typescript_output, "Note?: string")
+      refute String.contains?(typescript_output, "Simple?: Record<string, any>")
+      refute String.contains?(typescript_output, "Detailed?: Record<string, any>")
+      refute String.contains?(typescript_output, "Automated?: Record<string, any>")
 
       # Verify union field names themselves are formatted correctly in schemas
       # The union schema should use camelCase field names
-      assert String.contains?(typescript_output, "content: Record<string, any>")
-      assert String.contains?(typescript_output, "attachments: Record<string, any>")
-      assert String.contains?(typescript_output, "statusInfo: Record<string, any>")
+      assert String.contains?(typescript_output, "content: { __type: \"Union\"")
+      assert String.contains?(typescript_output, "attachments: { __type: \"Union\"")
+      assert String.contains?(typescript_output, "statusInfo: { __type: \"Union\"")
 
       # Test that we're NOT using PascalCase for union field names
-      refute String.contains?(typescript_output, "Content: Record<string, any>")
-      refute String.contains?(typescript_output, "Attachments: Record<string, any>")
-      refute String.contains?(typescript_output, "StatusInfo: Record<string, any>")
+      refute String.contains?(typescript_output, "Content: { __type: \"Union\"")
+      refute String.contains?(typescript_output, "Attachments: { __type: \"Union\"")
+      refute String.contains?(typescript_output, "StatusInfo: { __type: \"Union\"")
     end
 
     test "generates snake_case union member names with :snake_case formatter" do
@@ -108,30 +114,31 @@ defmodule AshTypescript.UnionFieldFormattingTest do
 
       # Test content union field formatting - priority_value should stay priority_value
       assert String.contains?(typescript_output, "priority_value?: number")
+      # Test note field formatting
+      assert String.contains?(typescript_output, "note?: string")
 
-      # Test attachments union field formatting
-      # mime_type should stay mime_type
-      assert String.contains?(typescript_output, "mime_type?: string")
-      # alt_text should stay alt_text
-      assert String.contains?(typescript_output, "alt_text?: string")
+      # Test status_info union field formatting - should use snake_case
+      assert String.contains?(typescript_output, "simple?: Record<string, any>")
+      assert String.contains?(typescript_output, "detailed?: Record<string, any>")
+      assert String.contains?(typescript_output, "automated?: Record<string, any>")
 
       # Test that we're NOT using camelCase or PascalCase
       refute String.contains?(typescript_output, "priorityValue?: number")
       refute String.contains?(typescript_output, "PriorityValue?: number")
-      refute String.contains?(typescript_output, "mimeType?: string")
-      refute String.contains?(typescript_output, "MimeType?: string")
-      refute String.contains?(typescript_output, "altText?: string")
-      refute String.contains?(typescript_output, "AltText?: string")
+      refute String.contains?(typescript_output, "Note?: string")
+      refute String.contains?(typescript_output, "Simple?: Record<string, any>")
+      refute String.contains?(typescript_output, "Detailed?: Record<string, any>")
+      refute String.contains?(typescript_output, "Automated?: Record<string, any>")
 
       # Verify union field names themselves are formatted correctly in schemas
       # The union schema should use snake_case field names
-      assert String.contains?(typescript_output, "content: Record<string, any>")
-      assert String.contains?(typescript_output, "attachments: Record<string, any>")
-      assert String.contains?(typescript_output, "status_info: Record<string, any>")
+      assert String.contains?(typescript_output, "content: { __type: \"Union\"")
+      assert String.contains?(typescript_output, "attachments: { __type: \"Union\"")
+      assert String.contains?(typescript_output, "status_info: { __type: \"Union\"")
 
       # Test that we're NOT using camelCase or PascalCase for union field names
-      refute String.contains?(typescript_output, "statusInfo: Record<string, any>")
-      refute String.contains?(typescript_output, "StatusInfo: Record<string, any>")
+      refute String.contains?(typescript_output, "statusInfo: { __type: \"Union\"")
+      refute String.contains?(typescript_output, "StatusInfo: { __type: \"Union\"")
     end
 
     test "union member formatting works for both build_union_type and build_union_input_type" do
@@ -144,6 +151,7 @@ defmodule AshTypescript.UnionFieldFormattingTest do
       # Test that both output types and input types use correct formatting
       # Content union should appear in both regular types and input types with PascalCase
       assert String.contains?(typescript_output, "PriorityValue?: number")
+      assert String.contains?(typescript_output, "Note?: string")
 
       # Check that input schemas also use the correct formatting
       # Look for input type definitions that should use the same formatter
@@ -178,27 +186,27 @@ defmodule AshTypescript.UnionFieldFormattingTest do
       assert String.contains?(typescript_output, "priority_value?: number"),
              "priority_value should be in snake_case when :snake_case formatter is configured"
 
-      assert String.contains?(typescript_output, "mime_type?: string"),
-             "mime_type should be in snake_case when :snake_case formatter is configured"
+      assert String.contains?(typescript_output, "note?: string"),
+             "note should be in snake_case when :snake_case formatter is configured"
 
-      assert String.contains?(typescript_output, "alt_text?: string"),
-             "alt_text should be in snake_case when :snake_case formatter is configured"
+      assert String.contains?(typescript_output, "simple?: Record<string, any>"),
+             "simple should be in snake_case when :snake_case formatter is configured"
 
       # These should NOT appear if the formatter is working correctly
       refute String.contains?(typescript_output, "priorityValue?: number"),
              "priorityValue should NOT appear when :snake_case formatter is configured (indicates hardcoded camelCase)"
 
-      refute String.contains?(typescript_output, "mimeType?: string"),
-             "mimeType should NOT appear when :snake_case formatter is configured (indicates hardcoded camelCase)"
+      refute String.contains?(typescript_output, "Note?: string"),
+             "Note should NOT appear when :snake_case formatter is configured (indicates hardcoded PascalCase)"
 
-      refute String.contains?(typescript_output, "altText?: string"),
-             "altText should NOT appear when :snake_case formatter is configured (indicates hardcoded camelCase)"
+      refute String.contains?(typescript_output, "Simple?: Record<string, any>"),
+             "Simple should NOT appear when :snake_case formatter is configured (indicates hardcoded PascalCase)"
 
       # Also check union field names in schemas
-      assert String.contains?(typescript_output, "status_info: Record<string, any>"),
+      assert String.contains?(typescript_output, "status_info: { __type: \"Union\""),
              "status_info should be in snake_case when :snake_case formatter is configured"
 
-      refute String.contains?(typescript_output, "statusInfo: Record<string, any>"),
+      refute String.contains?(typescript_output, "statusInfo: { __type: \"Union\""),
              "statusInfo should NOT appear when :snake_case formatter is configured (indicates hardcoded camelCase)"
     end
   end

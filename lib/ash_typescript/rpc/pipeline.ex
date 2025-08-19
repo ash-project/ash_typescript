@@ -74,8 +74,6 @@ defmodule AshTypescript.Rpc.Pipeline do
       context: request.context
     ]
 
-    IO.inspect(opts, label: "REQUESTOPTS")
-
     case request.action.type do
       :read ->
         execute_read_action(request, opts)

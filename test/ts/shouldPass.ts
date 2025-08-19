@@ -4,14 +4,14 @@
 // This is the entry point that imports all feature-specific test files
 
 // Import all shouldPass feature tests
-// import "./shouldPass/customTypes";
-// import "./shouldPass/calculations";
-// import "./shouldPass/relationships";
-// import "./shouldPass/operations";
-// import "./shouldPass/embeddedResources";
-//import "./shouldPass/unionTypes";
-// import "./shouldPass/complexScenarios";
-// import "./shouldPass/typedStructs";
+import "./shouldPass/customTypes";
+import "./shouldPass/calculations";
+import "./shouldPass/relationships";
+import "./shouldPass/operations";
+import "./shouldPass/embeddedResources";
+import "./shouldPass/unionTypes";
+import "./shouldPass/complexScenarios";
+import "./shouldPass/typedStructs";
 import "./validate_fields_prototype";
 
 console.log("All shouldPass tests should compile successfully!");

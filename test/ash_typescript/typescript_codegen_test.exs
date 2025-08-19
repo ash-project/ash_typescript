@@ -82,7 +82,7 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Map, constraints: constraints})
-      assert result == "{name: string, age?: number}"
+      assert result == "{name: string, age: number| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
     end
 
     test "converts keyword type with fields" do
@@ -94,7 +94,7 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Keyword, constraints: constraints})
-      assert result == "{key1: string, key2?: boolean}"
+      assert result == "{key1: string, key2: boolean| null, __type: \"TypedMap\", __primitiveFields: \"key1\" | \"key2\"}"
     end
 
     test "converts tuple type with fields" do
@@ -106,7 +106,7 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Tuple, constraints: constraints})
-      assert result == "{first: string, second: number}"
+      assert result == "{first: string, second: number, __type: \"TypedMap\", __primitiveFields: \"first\" | \"second\"}"
     end
   end
 
@@ -138,7 +138,7 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Union, constraints: constraints})
-      assert result == "{ string?: string; integer?: number }"
+      assert result == "{ __type: \"Union\", string?: string; integer?: number }"
     end
 
     test "removes duplicate types in union" do
@@ -151,7 +151,7 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Union, constraints: constraints})
-      assert result == "{ string1?: string; string2?: string; integer?: number }"
+      assert result == "{ __type: \"Union\", string1?: string; string2?: string; integer?: number }"
     end
   end
 
@@ -165,7 +165,7 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Struct, constraints: constraints})
-      assert result == "{name: string, active?: boolean}"
+      assert result == "{name: string, active: boolean| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"active\"}"
     end
 
     test "converts struct with instance_of to resource type" do
@@ -201,7 +201,7 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.get_ts_type(%{type: Ash.Type.Map, constraints: constraints})
-      assert result == "{status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\"}"
+      assert result == "{status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\", __type: \"TypedMap\", __primitiveFields: \"status\"}"
     end
 
     test "handles enum in union type" do
@@ -239,7 +239,7 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.build_map_type(fields)
-      assert result == "{name: string, age?: number}"
+      assert result == "{name: string, age: number| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
     end
 
     test "builds map type with selected fields only" do
@@ -250,12 +250,12 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.build_map_type(fields, ["name", "age"])
-      assert result == "{name: string, age?: number}"
+      assert result == "{name: string, age: number| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
     end
 
     test "handles empty field list" do
       result = Codegen.build_map_type([])
-      assert result == "{}"
+      assert result == "{, __type: \"TypedMap\", __primitiveFields: never}"
     end
   end
 
@@ -267,7 +267,7 @@ defmodule AshTypescript.CodegenTest do
       ]
 
       result = Codegen.build_union_type(types)
-      assert result == "{ string?: string; integer?: number }"
+      assert result == "{ __type: \"Union\", string?: string; integer?: number }"
     end
 
     test "handles empty types list" do
@@ -282,12 +282,12 @@ defmodule AshTypescript.CodegenTest do
 
       assert String.contains?(result, "id: UUID;")
       assert String.contains?(result, "title: string;")
-      assert String.contains?(result, "description?: string | null;")
-      assert String.contains?(result, "completed?: boolean | null;")
+      assert String.contains?(result, "description: string | null;")
+      assert String.contains?(result, "completed: boolean | null;")
 
       assert String.contains?(
                result,
-               "status?: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
+               "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
              )
     end
 
@@ -296,11 +296,11 @@ defmodule AshTypescript.CodegenTest do
 
       assert String.contains?(result, "id: UUID;")
       assert String.contains?(result, "title: string;")
-      assert String.contains?(result, "completed?: boolean | null;")
+      assert String.contains?(result, "completed: boolean | null;")
 
       assert String.contains?(
                result,
-               "status?: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
+               "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
              )
     end
   end
@@ -313,46 +313,46 @@ defmodule AshTypescript.CodegenTest do
 
     test "generates field spec for optional attribute" do
       result = Codegen.get_resource_field_spec(:description, Todo)
-      assert result == "  description?: string | null;"
+      assert result == "  description: string | null;"
     end
 
     test "generates field spec for boolean attribute with default" do
       result = Codegen.get_resource_field_spec(:completed, Todo)
-      assert result == "  completed?: boolean | null;"
+      assert result == "  completed: boolean | null;"
     end
 
     test "generates field spec for constrained atom attribute" do
       result = Codegen.get_resource_field_spec(:status, Todo)
 
       assert result ==
-               "  status?: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
+               "  status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
     end
 
     test "generates field spec for array attribute" do
       result = Codegen.get_resource_field_spec(:tags, Todo)
-      assert result == "  tags?: Array<string> | null;"
+      assert result == "  tags: Array<string> | null;"
     end
 
     test "generates field spec for enum attribute" do
       result = Codegen.get_resource_field_spec(:priority, Todo)
-      assert result == "  priority?: \"low\" | \"medium\" | \"high\" | \"urgent\" | null;"
+      assert result == "  priority: \"low\" | \"medium\" | \"high\" | \"urgent\" | null;"
     end
 
     test "generates field spec for embedded resource attribute" do
       result = Codegen.get_resource_field_spec(:metadata, Todo)
-      assert result == "  metadata?: TodoMetadataResourceSchema | null;"
+      assert result == "  metadata: TodoMetadataResourceSchema | null;"
     end
   end
 
   describe "get_resource_field_spec/2 - calculations" do
     test "generates field spec for boolean calculation" do
       result = Codegen.get_resource_field_spec(:is_overdue, Todo)
-      assert result == "  isOverdue?: boolean | null;"
+      assert result == "  isOverdue: boolean | null;"
     end
 
     test "generates field spec for integer calculation" do
       result = Codegen.get_resource_field_spec(:days_until_due, Todo)
-      assert result == "  daysUntilDue?: number | null;"
+      assert result == "  daysUntilDue: number | null;"
     end
   end
 
@@ -413,26 +413,26 @@ defmodule AshTypescript.CodegenTest do
 
       assert String.contains?(result, "id: UUID;")
       assert String.contains?(result, "title: string;")
-      assert String.contains?(result, "description?: string | null;")
-      assert String.contains?(result, "completed?: boolean | null;")
+      assert String.contains?(result, "description: string | null;")
+      assert String.contains?(result, "completed: boolean | null;")
 
       assert String.contains?(
                result,
-               "status?: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
+               "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
              )
 
       assert String.contains?(
                result,
-               "priority?: \"low\" | \"medium\" | \"high\" | \"urgent\" | null;"
+               "priority: \"low\" | \"medium\" | \"high\" | \"urgent\" | null;"
              )
 
-      assert String.contains?(result, "dueDate?: AshDate | null;")
-      assert String.contains?(result, "tags?: Array<string> | null;")
-      assert String.contains?(result, "metadata?: TodoMetadataResourceSchema | null;")
+      assert String.contains?(result, "dueDate: AshDate | null;")
+      assert String.contains?(result, "tags: Array<string> | null;")
+      assert String.contains?(result, "metadata: TodoMetadataResourceSchema | null;")
 
       assert String.contains?(
                result,
-               "metadataHistory?: Array<TodoMetadataResourceSchema> | null;"
+               "metadataHistory: Array<TodoMetadataResourceSchema> | null;"
              )
 
       assert String.contains?(result, "userId: UUID;")
@@ -444,8 +444,8 @@ defmodule AshTypescript.CodegenTest do
       assert String.contains?(result, "id: UUID;")
       assert String.contains?(result, "content: string;")
       assert String.contains?(result, "authorName: string;")
-      assert String.contains?(result, "rating?: number | null;")
-      assert String.contains?(result, "isHelpful?: boolean | null;")
+      assert String.contains?(result, "rating: number | null;")
+      assert String.contains?(result, "isHelpful: boolean | null;")
       assert String.contains?(result, "todoId: UUID;")
       assert String.contains?(result, "userId: UUID;")
     end
@@ -458,7 +458,7 @@ defmodule AshTypescript.CodegenTest do
 
       assert String.contains?(
                result,
-               "status?: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
+               "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
              )
     end
   end

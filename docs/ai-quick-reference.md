@@ -1,417 +1,142 @@
 # AshTypescript Quick Reference for AI Assistants
 
-## 🚨 CRITICAL: Environment Commands
-
-**ALWAYS use test environment for AshTypescript development:**
-
-| Task | Command | Notes |
-|------|---------|-------|
-| **Generate Types** | `mix test.codegen` | Primary development command |
-| **Run Tests** | `mix test` | Automatically uses test environment |
-| **Debug Issues** | Write proper tests | Always use test-based debugging |
-| **Validate TypeScript** | `cd test/ts && npm run compileGenerated` | After type generation |
-
-**Quick Reference**: See [Command Reference](reference/command-reference.md) for complete command list and aliases.
-
-## Core Development Patterns
-
-### Type Generation Workflow
-```bash
-# 1. Generate TypeScript types
-mix test.codegen
-
-# 2. Validate compilation
-cd test/ts && npm run compileGenerated
-
-# 3. Test valid patterns
-cd test/ts && npm run compileShouldPass
-
-# 4. Test invalid patterns (should fail)
-cd test/ts && npm run compileShouldFail
-
-# 5. Run Elixir tests
-mix test
-```
-
-**Testing**: See [Testing Patterns](reference/testing-patterns.md) for comprehensive testing approaches and validation workflows.
-
-## 🚨 CRITICAL: TypeScript Testing Standards
+## 🚨 Critical TypeScript Testing Standards
 
 **ALWAYS use regex patterns for TypeScript structure validation. NEVER use String.contains?**
 
 | ❌ WRONG | ✅ CORRECT |
 |----------|------------|
-| `String.contains?(output, "sort?: string")` | Comprehensive regex validation of complete structure |
-| Testing individual fields | Testing complete type definitions with field order |
-| Ignoring optional markers | Validating `?:` markers and required vs optional fields |
+| `String.contains?(output, "sort?: string")` | Comprehensive regex validation |
+| Testing individual fields | Testing complete type definitions |
+| Ignoring optional markers | Validating `?:` and required fields |
 
-**Quick Template:**
+### Regex Testing Template
 ```elixir
-# Complete structure validation
+# Complete structure validation pattern
 config_regex = ~r/export type ConfigName = \{\s*#{complete_field_pattern}\s*\};/m
-assert Regex.match?(config_regex, typescript_output), "Descriptive error message"
+assert Regex.match?(config_regex, typescript_output), 
+  "ConfigName type missing required structure"
+
+# Field validation pattern
+field_pattern = ~r/^\s*#{field_name}\??: #{expected_type}[;,]?\s*$/m
+assert Regex.match?(field_pattern, typescript_output)
 ```
 
-**Reference**: [TypeScript Testing Quick Reference](reference/typescript-testing-quick-reference.md)
+## Task-to-Documentation Mapping
 
-### Task-to-Documentation Mapping
+| Task | Primary Guide | Test Files |
+|------|---------------|------------|
+| **Type Generation** | [implementation/type-system.md](implementation/type-system.md) | `test/ash_typescript/typescript_codegen_test.exs` |
+| **Custom Types** | [implementation/custom-types.md](implementation/custom-types.md) | `test/ash_typescript/custom_types_test.exs` |
+| **RPC Pipeline** | [implementation/rpc-pipeline.md](implementation/rpc-pipeline.md) | `test/ash_typescript/rpc/rpc_*_test.exs` |
+| **Embedded Resources** | [implementation/embedded-resources.md](implementation/embedded-resources.md) | `test/support/resources/embedded/` |
+| **Field Processing** | [implementation/field-processing.md](implementation/field-processing.md) | `test/ash_typescript/rpc/requested_fields_processor_*_test.exs` |
+| **Union Types** | [implementation/union-systems-core.md](implementation/union-systems-core.md) | `test/ash_typescript/rpc/rpc_union_*_test.exs` |
 
-| Task Type | Must Read | Should Read |
-|-----------|-----------|-------------|
-| **Type generation/inference** | ai-implementation-guide.md | `test/ts_codegen_test.exs` |
-| **Custom types** | quick-guides/adding-new-types.md | `test/ash_typescript/custom_types_test.exs` |
-| **RPC features** | ai-implementation-guide.md | `test/ash_typescript/rpc/` tests |
-| **Embedded resources** | implementation/embedded-resources.md | troubleshooting/embedded-resources-issues.md |
-| **Field selection** | implementation/field-processing.md | `field_formatter.ex` |
-| **Troubleshooting** | troubleshooting/quick-reference.md | troubleshooting/ directory |
+## Current Architecture Quick Facts
 
-## FieldParser Architecture (2025-07-16 REFACTORED)
+### RPC Pipeline (Four Stages)
+1. **parse_request** - Validate input, create extraction templates
+2. **execute_ash_action** - Run Ash operations  
+3. **process_result** - Apply field selection using templates
+4. **format_output** - Format for client consumption
 
-### New Utility Modules
+### Key Modules
+- **RequestedFieldsProcessor** - Field validation and template building
+- **ResultProcessor** - Result extraction using templates
+- **Pipeline** - Four-stage orchestration
+- **ErrorBuilder** - Comprehensive error handling
 
-| Module | Purpose | Key Functions |
-|--------|---------|---------------|
-| `FieldParser.Context` | Parameter passing elimination | `Context.new/2`, `Context.child/2` |
-| `FieldParser.CalcArgsProcessor` | Args processing | `process_calc_args/2`, `atomize_keys/1` |
-| `FieldParser.LoadBuilder` | Unified load building | `build_calculation_load_entry/3` |
-
-### Required Imports
-```elixir
-alias AshTypescript.Rpc.FieldParser.{Context, LoadBuilder}
-```
-
-### Context Usage Pattern
-```elixir
-# ✅ NEW PATTERN: Use Context instead of separate parameters
-context = Context.new(resource, formatter)
-process_field(field, context)
-
-# For nested resources (embedded, relationships)
-child_context = Context.child(context, target_resource)
-```
-
-### Anti-Pattern: Dead "calculations" Field
+### Field Format (Unified)
 ```typescript
-// ❌ NEVER USE: This field is dead code (removed 2025-07-16)
-{ "args": {...}, "fields": [...], "calculations": {...} }
+// ✅ CORRECT: Unified field format
+{
+  fields: ["id", "title", {"user": ["name", "email"]}],
+  headers: { "Authorization": "Bearer token" }
+}
 
-// ✅ USE: Unified format with nested calcs in fields array
-{ "args": {...}, "fields": ["id", {"nested": {"args": {...}}}] }
-```
-
-## Key Abstractions
-
-### Field Types and Routing
-
-| Field Type | Ash Method | Query Target | Example |
-|------------|------------|--------------|---------|
-| **Simple Attributes** | `Ash.Resource.Info.public_attributes()` | `select` | `[:id, :title]` |
-| **Calculations** | `Ash.Resource.Info.calculations()` | `load` | `[:display_name]` |
-| **Aggregates** | `Ash.Resource.Info.aggregates()` | `load` | `[:comment_count]` |
-| **Relationships** | `Ash.Resource.Info.public_relationships()` | `load` | `[:user, :comments]` |
-| **Embedded Resources** | Attribute with embedded type | `select` + `load` | `[:metadata]` |
-
-### Common Error Patterns
-
-| Error Pattern | Root Cause | Solution |
-|---------------|------------|----------|
-| "No domains found" | Using `:dev` environment | Use `mix test.codegen` |
-| "Unknown type: Module" | Missing type mapping | Add to `generate_ash_type_alias/1` |
-| "No such attribute" | Aggregate in select | Route aggregates to load |
-| "Module not loaded" | Wrong environment | Use `MIX_ENV=test` |
-
-**Error Patterns**: See [Error Patterns](reference/error-patterns.md) for comprehensive error solutions and debugging commands.
-
-## Critical File Locations
-
-### Core Library
-- `lib/ash_typescript/codegen.ex` - Type generation and mappings
-- `lib/ash_typescript/rpc/codegen.ex` - Advanced type inference
-- `lib/ash_typescript/rpc/field_parser.ex` - Field classification and parsing
-- `lib/ash_typescript/rpc/result_processor.ex` - Response processing
-
-### Test Resources
-- `test/support/domain.ex` - Test domain configuration
-- `test/support/resources/todo.ex` - Primary test resource
-- `test/support/resources/embedded/` - Embedded resource definitions
-
-### Generated Output
-- `test/ts/generated.ts` - Generated TypeScript types
-- `test/ts/shouldPass.ts` - Valid usage patterns
-- `test/ts/shouldFail.ts` - Invalid usage patterns
-
-**File Locations**: See [File Locations](reference/file-locations.md) for comprehensive file organization and search patterns.
-
-## Field Selection Syntax
-
-### Unified Field Format (2025-07-15)
-```typescript
-// ✅ CORRECT - Single unified format with headers
-const result = await getTodo({
-  fields: [
-    "id", "title",  // Simple fields
-    {
-      user: ["id", "name"],  // Relationship
-      metadata: ["category", "priority"],  // Embedded resource
-      self: {  // Complex calculation
-        args: { prefix: "test" },
-        fields: ["id", "title"]
-      }
-    }
-  ],
-  headers: buildCSRFHeaders()  // Optional headers
-});
-```
-
-### RPC Headers Support
-```typescript
-// ✅ CORRECT - Headers patterns for different authentication
-import { getTodo, createTodo, buildCSRFHeaders, getPhoenixCSRFToken } from './ash_rpc';
-
-// Phoenix CSRF token pattern
-const todoWithCSRF = await getTodo({
-  fields: ["id", "title"],
-  headers: buildCSRFHeaders()
-});
-
-// Custom authentication headers
-const todoWithAuth = await createTodo({
-  input: { title: "New Task", userId: "123" },
-  fields: ["id", "title"],
-  headers: { 
-    "Authorization": "Bearer token",
-    "X-Custom-Header": "value"
-  }
-});
-
-// Manual CSRF token handling
-const csrfToken = getPhoenixCSRFToken();
-const todoManual = await getTodo({
-  fields: ["id", "title"],
-  headers: {
-    "X-CSRF-Token": csrfToken
-  }
-});
+// ❌ DEPRECATED: Never use (removed 2025-07-15)
+{
+  fields: [...], 
+  calculations: {...}  // This parameter is dead code
+}
 ```
 
 ### Type Inference Architecture
-```typescript
-// Schema keys are authoritative classifiers
-type ProcessField<Resource, Field> = 
-  Field extends keyof Resource["fields"] 
-    ? Resource["fields"][Field]
-    : Field extends keyof Resource["complexCalculations"]
-      ? /* Complex calculation handling */
-      : Field extends keyof Resource["relationships"]
-        ? /* Relationship handling */
-        : any;
-```
+- **Unified Schema**: Single ResourceSchema with `__type` metadata
+- **Schema Keys**: Direct classification via key lookup (no structural guessing)
+- **Utility Types**: `UnionToIntersection`, `InferFieldValue`, `InferResult`, etc.
+- **Metadata-Driven**: `__primitiveFields` for TypeScript performance optimization
 
-## Debugging Patterns
+## Quick Debug Patterns
 
-### Strategic Debug Outputs
+### With Tidewave MCP
 ```elixir
-# Add to lib/ash_typescript/rpc.ex for field processing issues
-IO.inspect({select, load}, label: "🌳 Field parser output")
-IO.inspect(combined_ash_load, label: "📋 Final load sent to Ash")
+# Debug field processing
+mcp__tidewave__project_eval("""
+fields = ["id", {"user" => ["name"]}]
+AshTypescript.Rpc.RequestedFieldsProcessor.process(
+  AshTypescript.Test.Todo, :read, fields
+)
+""")
+
+# Test type generation
+mcp__tidewave__project_eval("""
+AshTypescript.Codegen.create_typescript_interfaces(
+  AshTypescript.Test.Domain
+)
+""")
 ```
 
-### Test Module Debug Pattern
+### Environment Validation
 ```elixir
-# Create test/debug_issue_test.exs for isolated testing
-defmodule DebugIssueTest do
-  use ExUnit.Case
-  
-  test "debug specific issue" do
-    # Add debugging code here
-    assert true
-  end
-end
+# Verify test environment setup
+mcp__tidewave__project_eval("""
+domains = Ash.Info.domains(:ash_typescript)
+IO.puts("Domains: #{inspect(domains)}")
+IO.puts("Test resource loaded: #{Code.ensure_loaded?(AshTypescript.Test.Todo)}")
+""")
 ```
 
-## Production Readiness Checklist
+## Common Error Patterns
 
-### Before Changes
-- [ ] `mix test` passes
-- [ ] `mix test.codegen` succeeds
-- [ ] `cd test/ts && npm run compileGenerated` succeeds
-- [ ] `npm run compileShouldPass` succeeds
-- [ ] `npm run compileShouldFail` fails correctly
+| Error | Cause | Solution |
+|-------|-------|----------|
+| "No domains found" | Using dev environment | Use `mix test.codegen` |
+| "Module not loaded" | Test resources not compiled | Ensure MIX_ENV=test |
+| TypeScript `unknown` types | Schema key mismatch | Check `__type` metadata generation |
+| Field selection fails | Invalid field format | Use unified field format only |
 
-### After Changes
-- [ ] All above tests still pass
-- [ ] `mix format --check-formatted` passes
-- [ ] `mix credo --strict` passes
-- [ ] No new TypeScript compilation errors
-- [ ] Field selection security maintained
+## Validation Workflow
 
-## Architecture Insights
-
-### Type Inference System (2025-07-15)
-- **Schema Key Classification**: Field types determined by schema keys, not structural analysis
-- **Conditional Fields Property**: Only calculations returning resources get `fields` property
-- **Authoritative Detection**: `is_resource_calculation?/1` determines field selection needs
-
-### Embedded Resources Architecture
-- **Relationship-Like**: Embedded resources work exactly like relationships
-- **Unified API**: Same object notation for field selection
-- **Dual-Nature Processing**: Both attributes (select) and calculations (load) supported
-
-### Field Processing Pipeline
-1. **Field Parser**: Classifies fields and generates select/load statements
-2. **Ash Query**: Executes optimal database queries
-3. **Result Processor**: Filters and formats response
-
-### Union Types Architecture (2025-07-16)
-- **Object Syntax**: Uses `{ note?: string; priority?: number }` not `string | number`
-- **Preserves Type Names**: Meaningful aliases maintained for runtime identification
-- **Field Formatter Bug**: Fixed in `build_map_type/2` - embedded fields now formatted consistently
-
-## Union Field Selection Quick Patterns (2025-07-16)
-
-**Status**: ✅ **PRODUCTION READY** - Full support for both `:type_and_value` and `:map_with_tag` storage modes
-
-### Union Field Selection Syntax
-```typescript
-// Primitive members only
-{ content: ["note", "priorityValue"] }
-
-// Complex members with field selection
-{ content: [{ text: ["id", "text", "wordCount"] }] }
-
-// Mixed primitive and complex
-{ content: ["note", { text: ["text"] }, "priorityValue"] }
-
-// Array unions
-{ attachments: [{ file: ["filename", "size"] }, "url"] }
-```
-
-### Union Creation Patterns (Test Data)
-```elixir
-# ✅ CORRECT: :type_and_value storage with embedded resource
-content: %AshTypescript.Test.TodoContent.TextContent{
-  text: "Rich text content",
-  word_count: 3,
-  formatting: :markdown,
-  content_type: "text"  # Required tag field for tagged unions
-}
-
-# ✅ CORRECT: Array union with mixed types
-attachments: [
-  %{
-    filename: "doc.pdf",
-    size: 1024,
-    mime_type: "application/pdf",
-    attachment_type: "file"  # Tag field for tagged union
-  },
-  "https://example.com"  # Untagged union member
-]
-```
-
-### :map_with_tag Storage Mode Patterns (2025-07-16)
-
-```elixir
-# ✅ CORRECT: Simple :map_with_tag union definition
-attribute :status_info, :union do
-  public? true
-  constraints [
-    types: [
-      simple: [type: :map, tag: :status_type, tag_value: "simple"],
-      detailed: [type: :map, tag: :status_type, tag_value: "detailed"]
-    ],
-    storage: :map_with_tag
-  ]
-end
-
-# ✅ CORRECT: :map_with_tag creation with tag field included
-status_info: %{
-  status_type: "detailed",      # Tag field MUST be included
-  status: "in_progress",
-  reason: "testing",
-  updated_by: "system"
-}
-
-# ❌ WRONG: Complex field constraints break :map_with_tag
-simple: [
-  type: :map, tag: :status_type, tag_value: "simple",
-  constraints: [fields: [...]]  # This breaks creation!
-]
-```
-
-**Key Differences**:
-- **Definition**: Simple `:map` types only, NO field constraints
-- **Creation**: Include tag field directly in map data  
-- **Internal**: Identical `%Ash.Union{}` representation as `:type_and_value`
-- **Field Selection**: Same syntax as `:type_and_value` unions
-
-### RPC Field Selection Test Pattern
-```elixir
-# ✅ CORRECT: Union field selection in RPC params
-params = %{
-  "action" => "get_todo",
-  "primary_key" => todo.id,
-  "fields" => [
-    "id", "title",
-    %{"content" => [
-      %{"text" => ["text", "wordCount"]}  # Request specific fields only
-    ]}
-  ]
-}
-
-result = AshTypescript.Rpc.run_action(:ash_typescript, conn, params)
-
-# ✅ CORRECT: Assert union structure and field filtering
-assert %{"text" => text_content} = result.data["content"]
-assert text_content["text"] == "Rich text content"
-assert text_content["wordCount"] == 3
-# Verify field filtering - "formatting" not requested, shouldn't be present
-refute Map.has_key?(text_content, "formatting")
-```
-
-### Union Implementation Anti-Patterns
-```elixir
-# ❌ WRONG: Pattern matching without guards
-case field_spec do
-  {fields, nested_specs} -> # Matches {:union_selection, specs} incorrectly!
-    apply_field_based_calculation_specs(...)
-end
-
-# ✅ CORRECT: Pattern matching with guards
-case field_spec do
-  {:union_selection, union_member_specs} ->
-    apply_union_field_selection(value, union_member_specs, formatter)
-  {fields, nested_specs} when is_list(fields) ->
-    apply_field_based_calculation_specs(value, fields, nested_specs, formatter)
-end
-```
-
-### Storage Mode Support Status
-- **:type_and_value**: ✅ Fully supported with field selection (embedded resources, complex types)
-- **:map_with_tag**: ✅ Fully supported with field selection (simple map data, direct storage)
-
-### Union Testing Commands
 ```bash
-# Test union field selection specifically
-mix test test/ash_typescript/rpc/rpc_union_field_selection_test.exs
+# 1. Generate types
+mix test.codegen
 
-# Test basic union transformation
-mix test test/ash_typescript/rpc/rpc_union_types_test.exs
+# 2. Validate TypeScript compilation  
+cd test/ts && npm run compileGenerated
 
-# Test both storage modes (:type_and_value and :map_with_tag)
-mix test test/ash_typescript/rpc/rpc_union_storage_modes_test.exs
+# 3. Test patterns
+npm run compileShouldPass    # Must succeed
+npm run compileShouldFail    # Must fail (validates type safety)
 
-# Validate TypeScript generation
-mix test.codegen && cd test/ts && npm run compileGenerated
+# 4. Run Elixir tests
+mix test
 ```
 
-### Field Formatter Pattern
-```elixir
-# ✅ ALWAYS use this pattern for field names
-formatted_field_name = 
-  AshTypescript.FieldFormatter.format_field(
-    field_name,
-    AshTypescript.Rpc.output_field_formatter()
-  )
-```
+## File Location Quick Reference
 
-This quick reference provides AI assistants with immediate access to the most critical information for effective AshTypescript development.
+| Purpose | Location |
+|---------|----------|
+| **Core type generation** | `lib/ash_typescript/codegen.ex` |
+| **RPC client generation** | `lib/ash_typescript/rpc/codegen.ex` |
+| **Pipeline orchestration** | `lib/ash_typescript/rpc/pipeline.ex` |
+| **Field processing** | `lib/ash_typescript/rpc/requested_fields_processor.ex` |
+| **Result extraction** | `lib/ash_typescript/rpc/result_processor.ex` |
+| **Test domain** | `test/support/domain.ex` |
+| **Primary test resource** | `test/support/resources/todo.ex` |
+| **TypeScript validation** | `test/ts/shouldPass/` & `test/ts/shouldFail/` |
+
+---
+**Purpose**: Quick lookup for common development patterns and validation procedures.  
+**For comprehensive guidance**: Start with [CLAUDE.md](../CLAUDE.md)

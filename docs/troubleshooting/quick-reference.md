@@ -103,7 +103,7 @@ mix test test/ash_typescript/rpc/rpc_actions_test.exs
 - **Resource detection**: Use `Ash.Resource.Info.*` functions
 
 ### Runtime Processing Fixes
-- **Three-stage pipeline**: Field Parser → Ash Query → Result Processor
+- **Four-stage pipeline**: parse_request → execute_ash_action → process_result → format_output
 - **Unified field format**: Never use deprecated calculations parameter
 - **Field classification order**: Embedded resources checked first
 

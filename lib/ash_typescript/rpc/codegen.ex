@@ -144,84 +144,112 @@ defmodule AshTypescript.Rpc.Codegen do
   defp generate_utility_types do
     """
     // Utility Types
-    type ResourceBase = {
-      fields: Record<string, any>;
-      relationships: Record<string, any>;
-      typedStructs: Record<string, any>;
-      complexCalculations: Record<string, any>;
-      unions: Record<string, any>;
-      __complexCalculationsInternal: Record<string, any>;
+    
+    // Resource schema constraint
+    type TypedSchema = {
+      __type: "Resource" | "TypedStruct" | "TypedMap" | "Union";
+      __primitiveFields: string;
     };
 
-    type UnifiedFieldSelection<Resource extends ResourceBase> =
-      | keyof Resource["fields"]
-      | {
-          [K in keyof Resource["relationships"]]?: UnifiedFieldSelection<
-            Resource["relationships"][K] extends { __resource: infer R }
-            ? R extends ResourceBase ? R : never : never
-          >[];
-        }
-      | {
-          [K in keyof Resource["typedStructs"]]?: string[];
-        }
-      | {
-          [K in keyof Resource["complexCalculations"]]?: Resource["__complexCalculationsInternal"][K] extends { __returnType: infer ReturnType }
-            ? ReturnType extends ResourceBase
-              ? {
-                  args: Resource["complexCalculations"][K] extends { args: infer Args } ? Args : never;
-                  fields: UnifiedFieldSelection<ReturnType>[];
-                }
-              : {
-                  args: Resource["complexCalculations"][K] extends { args: infer Args } ? Args : never;
-                }
-            : never;
-        }
-      | {
-          [K in keyof Resource["unions"]]?: (string | { [UnionMember: string]: UnifiedFieldSelection<any>[] })[];
-        };
-
-
-
     // Utility type to convert union to intersection
-    type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (k: infer I) => void ? I : never;
+    type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
+      k: infer I,
+    ) => void
+      ? I
+      : never;
 
-    // Process union field selection - extract only requested union members
-    type ProcessUnionFieldSelection<UnionField, Selection> =
-      Selection extends (infer Item)[]
-        ? Item extends string
-          ? // Primitive union member - extract from union field
-            UnionField extends Record<string, any>
-              ? Item extends keyof UnionField
-                ? { [K in Item]: UnionField[K] }
-                : {}
-              : {}
-          : Item extends Record<string, any>
-            ? // Complex union member with field selection
-              {
-                [K in keyof Item]: K extends keyof UnionField
-                  ? UnionField[K] extends ResourceBase
-                    ? InferResourceResult<UnionField[K], Item[K]>
-                    : UnionField[K]
-                  : never
-              }
-            : {}
-        : {};
+    type HasComplexFields<T extends TypedSchema> = keyof Omit<
+      T,
+      "__primitiveFields" | "__type" | T["__primitiveFields"]
+    > extends never
+      ? false
+      : true;
 
-    // Process TypedStruct field selection - extract only requested fields from structured data
-    // @ts-expect-error
-    type InferTypedStructResult<TypedStructField, Selection> =
-      Selection extends string[]
-        ? TypedStructField extends Record<string, any>
-          ? {
-              [K in Selection[number]]: K extends keyof TypedStructField
-                ? TypedStructField[K]
-                : never
+    type ComplexFieldKeys<T extends TypedSchema> = keyof Omit<
+      T,
+      "__primitiveFields" | "__type" | T["__primitiveFields"]
+    >;
+
+    type LeafFieldSelection<T extends TypedSchema> = T["__primitiveFields"];
+
+    type ComplexFieldSelection<T extends TypedSchema> = {
+      [K in ComplexFieldKeys<T>]?: NonNullable<T[K]> extends {
+        __type: "Relationship";
+        __resource: infer Resource extends TypedSchema;
+      }
+        ? UnifiedFieldSelection<Resource>[]
+        : T[K] extends {
+              __type: "ComplexCalculation";
+              __returnType: infer ReturnType;
             }
-          : TypedStructField
-        : TypedStructField;
+          ? T[K] extends { __args: infer Args }
+            ? NonNullable<ReturnType> extends TypedSchema
+              ? {
+                  args: Args;
+                  fields: UnifiedFieldSelection<NonNullable<ReturnType>>[];
+                }
+              : { args: Args }
+            : NonNullable<ReturnType> extends TypedSchema
+              ? { fields: UnifiedFieldSelection<NonNullable<ReturnType>>[] }
+              : never
+          : NonNullable<T[K]> extends TypedSchema
+            ? UnifiedFieldSelection<NonNullable<T[K]>>[]
+            : never;
+    };
 
-    // Process TypedMap field selection - extract only requested fields from typed map
-    // @ts-expect-error
+    // Main type: Use explicit base case detection to prevent infinite recursion
+    type UnifiedFieldSelection<T extends TypedSchema> =
+      HasComplexFields<T> extends false
+        ? LeafFieldSelection<T> // Base case: only primitives, no recursion
+        : LeafFieldSelection<T> | ComplexFieldSelection<T>; // Recursive case
+
+    type InferFieldValue<
+      T extends TypedSchema,
+      Field,
+    > = Field extends T["__primitiveFields"]
+      ? Field extends keyof T
+        ? { [K in Field]: T[Field] }
+        : never
+      : Field extends Record<string, any>
+        ? {
+            [K in keyof Field]: K extends keyof T
+              ? T[K] extends {
+                  __type: "Relationship";
+                  __resource: infer Resource extends TypedSchema;
+                }
+                ? T[K] extends { __array: true }
+                  ? Array<InferResult<Resource, Field[K]>>
+                  : null extends Resource
+                    ? InferResult<Resource, Field[K]> | null
+                    : InferResult<Resource, Field[K]>
+                : T[K] extends {
+                      __type: "ComplexCalculation";
+                      __returnType: infer ReturnType;
+                    }
+                  ? NonNullable<ReturnType> extends TypedSchema
+                    ? null extends ReturnType
+                      ? InferResult<NonNullable<ReturnType>, Field[K]> | null
+                      : InferResult<NonNullable<ReturnType>, Field[K]>
+                    : ReturnType
+                  : NonNullable<T[K]> extends TypedSchema
+                    ? null extends T[K]
+                      ? InferResult<NonNullable<T[K]>, Field[K]> | undefined
+                      : InferResult<NonNullable<T[K]>, Field[K]>
+                    : never
+              : never;
+          }
+        : never;
+
+    type InferResult<
+      T extends TypedSchema,
+      SelectedFields extends UnifiedFieldSelection<T>[],
+    > = UnionToIntersection<
+      {
+        [K in keyof SelectedFields]: InferFieldValue<T, SelectedFields[K]>;
+      }[number]
+    >;
+
+    // Legacy type for typed map results (needed for generic actions)
     type InferTypedMapResult<TypedMapSchema, Selection> =
       Selection extends string[]
         ? TypedMapSchema extends Record<string, any>
@@ -232,58 +260,6 @@ defmodule AshTypescript.Rpc.Codegen do
             }
           : TypedMapSchema
         : TypedMapSchema;
-
-    // Process individual fields using schema keys as classifiers
-    type ProcessField<Resource extends ResourceBase, Field> =
-      Field extends string
-        ? // String field - pick from fields schema
-          Field extends keyof Resource["fields"]
-            ? { [K in Field]: Resource["fields"][K] }
-            : {}
-        : Field extends Record<string, any>
-          ? // Object field - use schema keys to classify
-            {
-              [K in keyof Field]: K extends keyof Resource["complexCalculations"]
-                ? // Complex calculation - use internal schema for inference
-                  Resource["__complexCalculationsInternal"][K] extends { __returnType: infer ReturnType }
-                    ? ReturnType extends ResourceBase
-                      ? Field[K] extends { fields: infer FieldSelection }
-                        ? FieldSelection extends UnifiedFieldSelection<ReturnType>[]
-                          ? InferResourceResult<ReturnType, FieldSelection>
-                          : ReturnType
-                        : ReturnType
-                      : ReturnType
-                    : any
-                : K extends keyof Resource["relationships"]
-                  ? // Relationship - use relationship schema for inference
-                    Resource["relationships"][K] extends { __resource: infer R }
-                      ? R extends ResourceBase
-                        ? Resource["relationships"][K] extends { __array: true }
-                          ? Array<InferResourceResult<R, Field[K]>>
-                          : InferResourceResult<R, Field[K]>
-                        : any
-                      : any
-                  : K extends keyof Resource["typedStructs"]
-                    ? // TypedStruct field selection - apply field filtering to structured data
-                      Field[K] extends string[]
-                        ? InferTypedStructResult<Resource["typedStructs"][K], Field[K]>
-                        : Resource["typedStructs"][K]
-                    : K extends keyof Resource["unions"]
-                      ? // Union field selection - process union member selection
-                        ProcessUnionFieldSelection<Resource["unions"][K], Field[K]>
-                      : any
-            }
-          : any;
-
-    // Main result type that processes each field using schema keys as classifiers
-    type InferResourceResult<
-      Resource extends ResourceBase,
-      SelectedFields extends UnifiedFieldSelection<Resource>[]
-    > = UnionToIntersection<
-      {
-        [K in keyof SelectedFields]: ProcessField<Resource, SelectedFields[K]>
-      }[number]
-    >;
 
     """
   end
@@ -815,12 +791,12 @@ defmodule AshTypescript.Rpc.Codegen do
     type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
       Config extends { page: any; }
         ? {
-            #{results_field}: Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
+            #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
             #{has_more_field}: boolean;
             #{limit_field}: number;
             #{offset_field}: number;
           }
-        : Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
+        : Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
     """
   end
 
@@ -838,7 +814,7 @@ defmodule AshTypescript.Rpc.Codegen do
     type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
       Config extends { page: any; }
         ? {
-            #{results_field}: Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
+            #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
             #{has_more_field}: boolean;
             #{limit_field}: number;
             #{after_field}: string | null;
@@ -846,7 +822,7 @@ defmodule AshTypescript.Rpc.Codegen do
             #{previous_page_field}: string;
             #{next_page_field}: string;
           }
-        : Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
+        : Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
     """
   end
 
@@ -867,14 +843,14 @@ defmodule AshTypescript.Rpc.Codegen do
     type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
       Config extends { page: any; }
         ? ({
-            #{results_field}: Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
+            #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
             #{has_more_field}: boolean;
             #{limit_field}: number;
             #{offset_field}: number;
             #{count_field}?: number | null;
             #{type_field}: "offset";
           } | {
-            #{results_field}: Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
+            #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
             #{has_more_field}: boolean;
             #{limit_field}: number;
             #{after_field}: string | null;
@@ -884,7 +860,7 @@ defmodule AshTypescript.Rpc.Codegen do
             #{count_field}?: number | null;
             #{type_field}: "keyset";
           })
-        : Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
+        : Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
     """
   end
 
@@ -1151,7 +1127,7 @@ defmodule AshTypescript.Rpc.Codegen do
       :read when action.get? ->
         """
         type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]> | null;
+          InferResult<#{resource_name}ResourceSchema, Config["fields"]> | null;
         """
 
       :read ->
@@ -1161,14 +1137,14 @@ defmodule AshTypescript.Rpc.Codegen do
         else
           """
           type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-            Array<InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>>;
+            Array<InferResult<#{resource_name}ResourceSchema, Config["fields"]>>;
           """
         end
 
       action_type when action_type in [:create, :update] ->
         """
         type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-          InferResourceResult<#{resource_name}ResourceSchema, Config["fields"]>;
+          InferResult<#{resource_name}ResourceSchema, Config["fields"]>;
         """
 
       :destroy ->
@@ -1185,12 +1161,12 @@ defmodule AshTypescript.Rpc.Codegen do
             if type == :array_of_resource do
               """
               type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-                Array<InferResourceResult<#{target_resource_name}ResourceSchema, Config["fields"]>>;
+                Array<InferResult<#{target_resource_name}ResourceSchema, Config["fields"]>>;
               """
             else
               """
               type Infer#{rpc_action_name_pascal}Result<Config extends #{rpc_action_name_pascal}Config> =
-                InferResourceResult<#{target_resource_name}ResourceSchema, Config["fields"]>;
+                InferResult<#{target_resource_name}ResourceSchema, Config["fields"]>;
               """
             end
 
@@ -1917,9 +1893,9 @@ defmodule AshTypescript.Rpc.Codegen do
 
         result_type =
           if is_array do
-            "Array<InferResourceResult<#{resource_name}ResourceSchema, #{const_fields}>>"
+            "Array<InferResult<#{resource_name}ResourceSchema, #{const_fields}>>"
           else
-            "InferResourceResult<#{resource_name}ResourceSchema, #{const_fields}>"
+            "InferResult<#{resource_name}ResourceSchema, #{const_fields}>"
           end
 
         """

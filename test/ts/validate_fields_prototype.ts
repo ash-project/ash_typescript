@@ -4,18 +4,6 @@ type TypedSchema = {
   __primitiveFields: string;
 };
 
-type Relationship = {
-  __type: "Relationship";
-  __resource: TypedSchema;
-  __array?: boolean;
-};
-
-type ComplexCalculation = {
-  __type: "ComplexCalculation";
-  __returnType: any;
-  __args?: Record<string, any>;
-};
-
 // Now let's define the example schemas using the new approach
 export type TodoResourceSchema = {
   __type: "Resource";
@@ -232,14 +220,14 @@ type LeafFieldSelection<T extends TypedSchema> = T["__primitiveFields"];
 type ComplexFieldSelection<T extends TypedSchema> = {
   [K in ComplexFieldKeys<T>]?: NonNullable<T[K]> extends {
     __type: "Relationship";
-    __resource: infer R extends TypedSchema;
+    __resource: infer Resource extends TypedSchema;
   }
-    ? UnifiedFieldSelection<R>[]
-    : NonNullable<T[K]> extends {
+    ? UnifiedFieldSelection<Resource>[]
+    : T[K] extends {
           __type: "ComplexCalculation";
           __returnType: infer ReturnType;
         }
-      ? NonNullable<T[K]> extends { __args: infer Args }
+      ? T[K] extends { __args: infer Args }
         ? NonNullable<ReturnType> extends TypedSchema
           ? {
               args: Args;
@@ -270,15 +258,15 @@ type InferFieldValue<
   : Field extends Record<string, any>
     ? {
         [K in keyof Field]: K extends keyof T
-          ? NonNullable<T[K]> extends {
+          ? T[K] extends {
               __type: "Relationship";
-              __resource: infer R extends TypedSchema;
+              __resource: infer Resource extends TypedSchema;
             }
             ? T[K] extends { __array: true }
-              ? Array<InferResult<R, Field[K]>>
-              : undefined extends T[K]
-                ? InferResult<R, Field[K]> | undefined
-                : InferResult<R, Field[K]>
+              ? Array<InferResult<Resource, Field[K]>>
+              : null extends Resource
+                ? InferResult<Resource, Field[K]> | null
+                : InferResult<Resource, Field[K]>
             : T[K] extends {
                   __type: "ComplexCalculation";
                   __returnType: infer ReturnType;
@@ -289,7 +277,7 @@ type InferFieldValue<
                   : InferResult<NonNullable<ReturnType>, Field[K]>
                 : ReturnType
               : NonNullable<T[K]> extends TypedSchema
-                ? undefined extends T[K]
+                ? null extends T[K]
                   ? InferResult<NonNullable<T[K]>, Field[K]> | undefined
                   : InferResult<NonNullable<T[K]>, Field[K]>
                 : never
@@ -306,35 +294,33 @@ type InferResult<
   }[number]
 >;
 
-async function testUnionFieldSelection() {
-  const result = await getTodo({
-    fields: [
-      "id",
-      "title",
-      "description",
-      {
-        user: ["id", "email", "name", { todos: ["id", "userId"] }],
-        metadata: ["tags", "createdAt"],
-        content: [
-          "note",
-          "priorityValue",
-          { text: ["content", "text", "wordCount"] },
-        ],
-        self: { fields: ["id"] },
-        selfWithArgs: { fields: ["id"], args: { req: "omg" } },
-      },
-    ],
-  });
+const result = await getTodo({
+  fields: [
+    "id",
+    "title",
+    "description",
+    {
+      user: ["id", "email", "name", { todos: ["id", "userId"] }],
+      metadata: ["tags", "createdAt"],
+      content: [
+        "note",
+        "priorityValue",
+        { text: ["content", "text", "wordCount"] },
+      ],
+      self: { fields: ["id"] },
+      selfWithArgs: { fields: ["id"], args: { req: "omg" } },
+    },
+  ],
+});
 
-  if (result.success && result.data) {
-    const data = result.data;
-    const id: string = data.id;
-    const title: string = data.title;
+if (result.success && result.data) {
+  const data = result.data;
+  const id: string = data.id;
+  const title: string = data.title;
 
-    const user: { id: string } | undefined = data.user;
-    const content: string | undefined = data.content.note;
-    const text: { content: string } | undefined = data.content?.text;
-    const description: string | null = data.description;
-    const tags: string[] = data.metadata.tags;
-  }
+  const user: { id: string } | undefined = data.user;
+  const content: string | undefined = data.content.note;
+  const text: { content: string } | undefined = data.content?.text;
+  const description: string | null = data.description;
+  const tags: string[] = data.metadata.tags;
 }

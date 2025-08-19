@@ -596,17 +596,17 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       # Check that resource field schemas use camelCase
       assert String.contains?(typescript_output, "name: string")
       assert String.contains?(typescript_output, "email: string")
-      assert String.contains?(typescript_output, "active?: boolean")
-      assert String.contains?(typescript_output, "isSuperAdmin?: boolean")
+      assert String.contains?(typescript_output, "active: boolean | null")
+      assert String.contains?(typescript_output, "isSuperAdmin: boolean | null")
       assert String.contains?(typescript_output, "title: string")
-      assert String.contains?(typescript_output, "completed?: boolean")
+      assert String.contains?(typescript_output, "completed: boolean | null")
 
       # Check that config interfaces use camelCase
       assert String.contains?(typescript_output, "fields: UnifiedFieldSelection")
 
       # Verify old snake_case names are not present in field schemas
       refute String.contains?(typescript_output, "user_name: string")
-      refute String.contains?(typescript_output, "user_email?: string")
+      refute String.contains?(typescript_output, "user_email: string | null")
       refute String.contains?(typescript_output, "created_at: UtcDateTime")
     end
 
@@ -618,14 +618,14 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       # Check that resource field schemas use PascalCase
       assert String.contains?(typescript_output, "Name: string")
       assert String.contains?(typescript_output, "Email: string")
-      assert String.contains?(typescript_output, "Active?: boolean")
-      assert String.contains?(typescript_output, "IsSuperAdmin?: boolean")
+      assert String.contains?(typescript_output, "Active: boolean | null")
+      assert String.contains?(typescript_output, "IsSuperAdmin: boolean | null")
       assert String.contains?(typescript_output, "Title: string")
-      assert String.contains?(typescript_output, "Completed?: boolean")
+      assert String.contains?(typescript_output, "Completed: boolean | null")
 
       # Verify old snake_case names are not present
       refute String.contains?(typescript_output, "user_name: string")
-      refute String.contains?(typescript_output, "is_super_admin?: boolean")
+      refute String.contains?(typescript_output, "is_super_admin: boolean | null")
     end
 
     test "generates snake_case field names with :snake_case formatter" do
@@ -636,13 +636,13 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       # Check that resource field schemas use snake_case
       assert String.contains?(typescript_output, "name: string")
       assert String.contains?(typescript_output, "email: string")
-      assert String.contains?(typescript_output, "active?: boolean")
-      assert String.contains?(typescript_output, "is_super_admin?: boolean")
+      assert String.contains?(typescript_output, "active: boolean | null")
+      assert String.contains?(typescript_output, "is_super_admin: boolean | null")
       assert String.contains?(typescript_output, "title: string")
-      assert String.contains?(typescript_output, "completed?: boolean")
+      assert String.contains?(typescript_output, "completed: boolean | null")
 
       # Verify camelCase names are not present
-      refute String.contains?(typescript_output, "isSuperAdmin?: boolean")
+      refute String.contains?(typescript_output, "isSuperAdmin: boolean | null")
       refute String.contains?(typescript_output, "userName: string")
     end
   end
@@ -656,9 +656,9 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       # Check that resource field schemas use custom formatting
       assert String.contains?(typescript_output, "custom_name: string")
       assert String.contains?(typescript_output, "custom_email: string")
-      assert String.contains?(typescript_output, "custom_active?: boolean")
+      assert String.contains?(typescript_output, "custom_active: boolean | null")
       assert String.contains?(typescript_output, "custom_title: string")
-      assert String.contains?(typescript_output, "custom_completed?: boolean")
+      assert String.contains?(typescript_output, "custom_completed: boolean | null")
 
       # Verify custom formatted names are present and working
       custom_name_count =

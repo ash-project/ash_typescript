@@ -92,12 +92,12 @@ defmodule AshTypescript.CustomTypesTest do
   describe "Resource schema generation with custom types" do
     test "Todo resource includes priority_score with custom type" do
       schema = Codegen.generate_attributes_schema(AshTypescript.Test.Todo)
-      assert schema =~ "priorityScore?: CustomTypes.PriorityScore"
+      assert schema =~ "priorityScore: CustomTypes.PriorityScore | null"
     end
 
     test "Todo resource includes color_palette with complex custom type" do
       schema = Codegen.generate_attributes_schema(AshTypescript.Test.Todo)
-      assert schema =~ "colorPalette?: CustomTypes.ColorPalette"
+      assert schema =~ "colorPalette: CustomTypes.ColorPalette | null"
     end
 
     test "full TypeScript generation includes import statements" do
@@ -128,7 +128,7 @@ defmodule AshTypescript.CustomTypesTest do
       # that the generated code includes what we expect
       result = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
       assert result =~ "import * as CustomTypes from \"./customTypes\";"
-      assert result =~ "priorityScore?: CustomTypes.PriorityScore"
+      assert result =~ "priorityScore: CustomTypes.PriorityScore | null"
     end
   end
 end

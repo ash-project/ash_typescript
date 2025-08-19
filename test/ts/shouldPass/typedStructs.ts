@@ -13,4 +13,5 @@ export const todoWithStatistics = await getTodo({
 
 if (todoWithStatistics.success) {
   const data = todoWithStatistics.data;
+  const category: string = data?.metadata.category;
 }

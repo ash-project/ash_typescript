@@ -347,26 +347,18 @@ Error: %Ash.Error.Invalid{errors: [%Ash.Error.Query.NoSuchAttribute{
 === END Raw Ash Result ===
 ```
 
-**Step 5**: Check field classification in FieldParser:
+**Step 5**: Check field classification in RequestedFieldsProcessor:
 
 ```elixir
-# In lib/ash_typescript/rpc/field_parser.ex
-def classify_field(field_name, resource) when is_atom(field_name) do
-  cond do
-    is_embedded_resource_field?(field_name, resource) ->
-      :embedded_resource
-    is_relationship?(field_name, resource) ->
-      :relationship
-    is_calculation?(field_name, resource) ->
-      :simple_calculation
-    is_aggregate?(field_name, resource) ->          # ← CHECK: Is this missing?
-      :aggregate
-    is_simple_attribute?(field_name, resource) ->
-      :simple_attribute
-    true ->
-      :unknown
-  end
-end
+# Field classification is now in RequestedFieldsProcessor
+mcp__tidewave__project_eval("""
+# Test field classification directly
+field_name = :your_problematic_field
+resource = AshTypescript.Test.Todo
+
+# Check what type it's classified as
+AshTypescript.Rpc.RequestedFieldsProcessor.classify_field(field_name, resource)
+""")
 ```
 
 **Step 6**: Verify field type detection functions exist:

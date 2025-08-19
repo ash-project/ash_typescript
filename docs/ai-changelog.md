@@ -49,6 +49,31 @@ Each entry includes:
 
 ---
 
+## 2025-08-19
+
+### Unified Schema Architecture Implementation
+**Change**: Complete refactoring from multiple separate schemas to unified metadata-driven schema generation
+**Context**: Previous system used separate schemas (FieldsSchema, RelationshipSchema, etc.) which created complex TypeScript inference and maintenance overhead; needed single source of truth with metadata classification
+**Files**: `lib/ash_typescript/codegen.ex`, `lib/ash_typescript/rpc/codegen.ex`, `test/ts/validate_fields_prototype.ts`, `refactor-type-inference.md`
+**Impact**: Single ResourceSchema per resource with `__type` and `__primitiveFields` metadata enables simpler, more predictable type inference; all 8 utility types now match proven prototype template exactly
+**Key Insights**: Metadata-driven architecture eliminates type ambiguity; direct field access on schema types provides better TypeScript performance than nested conditional types
+
+### Calculation Nullability Architecture Fix
+**Change**: Moved nullability from field declaration to `__returnType` within calculation metadata
+**Context**: `allow_nil?: true` calculations were incorrectly generating `field: {...} | null` instead of `field: {__returnType: Type | null}`; TypeScript inference was failing due to field-level nullability conflicting with metadata structure
+**Files**: `lib/ash_typescript/codegen.ex` (`generate_complex_calculation_field_definitions/1`, `get_calculation_return_type_for_metadata/2`)
+**Impact**: Complex calculation field selection now works correctly; TypeScript compilation succeeds with proper constraint matching
+**Key Insights**: Field metadata structure must be consistent - nullability belongs in the type information, not on the field container itself; this maintains clean metadata patterns for TypeScript inference
+
+### Type Inference System Unification
+**Change**: Replaced all custom utility types with exact copies from proven prototype template
+**Context**: Existing `InferResourceResult`, `ProcessField`, and other utility types had subtle bugs and complex conditional logic; prototype template provided proven, working implementations
+**Files**: `lib/ash_typescript/rpc/codegen.ex` (complete utility types section replacement)
+**Impact**: Type inference now uses battle-tested types: `UnionToIntersection`, `HasComplexFields`, `ComplexFieldKeys`, `LeafFieldSelection`, `ComplexFieldSelection`, `UnifiedFieldSelection`, `InferFieldValue`, `InferResult`
+**Key Insights**: When refactoring type systems, copying proven implementations exactly is safer than attempting incremental migration; prototype-driven development ensures working final state
+
+---
+
 ## 2025-07-17
 
 ### RPC Headers Support Implementation

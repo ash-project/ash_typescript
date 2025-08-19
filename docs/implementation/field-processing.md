@@ -97,35 +97,32 @@ const result = await getTodo({
 });
 ```
 
-### Enhanced Field Parser Pattern
+### Current Field Processing Pattern (RequestedFieldsProcessor)
 
-**PATTERN**: Handle nested calculation maps within field lists.
+**CURRENT ARCHITECTURE**: Field processing is handled by RequestedFieldsProcessor with three outputs:
 
 ```elixir
-def parse_field_names_for_load(fields, formatter) when is_list(fields) do
-  fields
-  |> Enum.map(fn field ->
-    case field do
-      field_map when is_map(field_map) ->
-        # Handle nested calculations like %{"self" => %{"args" => ..., "fields" => ...}}
-        case Map.to_list(field_map) do
-          [{field_name, field_spec}] ->
-            field_atom = AshTypescript.FieldFormatter.parse_input_field(field_name, formatter)
-            case field_spec do
-              %{"args" => args, "fields" => nested_fields} ->
-                # Build proper Ash load entry
-                build_calculation_load_entry(field_atom, args, nested_fields, formatter)
-              _ ->
-                field_atom
-            end
-        end
-      field when is_binary(field) ->
-        AshTypescript.FieldFormatter.parse_input_field(field, formatter)
-    end
-  end)
-  |> Enum.filter(fn x -> x != nil end)
-end
+# Current field processing (2025-08-19)
+{:ok, {select, load, template}} = RequestedFieldsProcessor.process(
+  resource,
+  action.name,
+  requested_fields
+)
+
+# select: List of attributes to select from the resource
+# load: List of calculations/relationships to load 
+# template: Extraction template for result processing
 ```
+
+**Example Usage with Tidewave**:
+```elixir
+mcp__tidewave__project_eval("""
+fields = ["id", "title", %{"user" => ["name", "email"]}]
+atomized = AshTypescript.Rpc.RequestedFieldsProcessor.atomize_requested_fields(fields)
+AshTypescript.Rpc.RequestedFieldsProcessor.process(
+  AshTypescript.Test.Todo, :read, atomized
+)
+""")
 
 ## Field Classification Patterns
 
