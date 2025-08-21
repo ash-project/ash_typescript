@@ -15,4 +15,8 @@ import "./shouldPass/complexScenarios";
 import "./shouldPass/typedStructs";
 import "./validate_fields_prototype";
 
+// Import Zod schema validation tests
+import "./zod/shouldPass/basicZodUsage";
+import "./zod/shouldPass/complexSchemaValidation";
+
 console.log("All shouldPass tests should compile successfully!");

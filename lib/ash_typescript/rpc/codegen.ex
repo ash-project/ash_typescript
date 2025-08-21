@@ -55,32 +55,51 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   defp generate_imports() do
-    case Application.get_env(:ash_typescript, :import_into_generated) do
-      nil ->
+    # Generate Zod import if Zod schema generation is enabled
+    zod_import =
+      if AshTypescript.Rpc.generate_zod_schemas?() do
+        zod_path = AshTypescript.Rpc.zod_import_path()
+        "import { z } from \"#{zod_path}\";"
+      else
         ""
+      end
 
-      imports when is_list(imports) ->
-        imports
-        |> Enum.map(fn import_config ->
-          import_name = Map.get(import_config, :import_name)
-          file_path = Map.get(import_config, :file)
+    # Generate configured imports
+    config_imports =
+      case Application.get_env(:ash_typescript, :import_into_generated) do
+        nil ->
+          ""
 
-          if import_name && file_path do
-            "import * as #{import_name} from \"#{file_path}\";"
-          else
-            ""
-          end
-        end)
-        |> Enum.reject(&(&1 == ""))
-        |> Enum.join("\n")
-        |> case do
-          "" -> ""
-          imports_str -> imports_str <> "\n"
-        end
+        imports when is_list(imports) ->
+          imports
+          |> Enum.map(fn import_config ->
+            import_name = Map.get(import_config, :import_name)
+            file_path = Map.get(import_config, :file)
 
-      _ ->
-        ""
-    end
+            if import_name && file_path do
+              "import * as #{import_name} from \"#{file_path}\";"
+            else
+              ""
+            end
+          end)
+          |> Enum.reject(&(&1 == ""))
+          |> Enum.join("\n")
+
+        _ ->
+          ""
+      end
+
+    # Combine all imports
+    all_imports =
+      [zod_import, config_imports]
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.join("\n")
+      |> case do
+        "" -> ""
+        imports_str -> imports_str <> "\n"
+      end
+
+    all_imports
   end
 
   defp generate_full_typescript(
@@ -126,6 +145,8 @@ defmodule AshTypescript.Rpc.Codegen do
     #{generate_ash_type_aliases(rpc_resources, actions)}
 
     #{generate_all_schemas_for_resources(all_resources_for_schemas, all_resources_for_schemas)}
+
+    #{generate_zod_schemas_for_embedded_resources(embedded_resources)}
 
     #{generate_filter_types(all_resources_for_schemas, all_resources_for_schemas)}
 
@@ -1359,6 +1380,14 @@ defmodule AshTypescript.Rpc.Codegen do
     # Generate separate input type
     input_type = generate_input_type(resource, action, rpc_action_name)
 
+    # Generate Zod schema if enabled
+    zod_schema =
+      if AshTypescript.Rpc.generate_zod_schemas?() do
+        generate_zod_schema(resource, action, rpc_action_name)
+      else
+        ""
+      end
+
     # Generate result inference type with direct field generics
     result_type = generate_result_type(resource, action, rpc_action_name)
 
@@ -1381,12 +1410,500 @@ defmodule AshTypescript.Rpc.Codegen do
         """
       end
 
+    # Build the final output with conditional Zod schema
+    output_parts =
+      if zod_schema != "" do
+        [input_type, zod_schema, result_type, functions_section]
+      else
+        [input_type, result_type, functions_section]
+      end
+
+    Enum.join(output_parts, "\n")
+    |> String.trim_trailing("\n")
+    |> then(&(&1 <> "\n"))
+  end
+
+  # ==========================================
+  # Zod Schema Generation Functions
+  # ==========================================
+
+  @doc """
+  Maps Ash types to Zod schema constructors.
+  Mirrors the pattern of get_ts_type/2 but generates Zod validation schemas.
+  """
+  def get_zod_type(type_and_constraints, context \\ nil)
+
+  # Handle aggregate types
+  def get_zod_type(:count, _), do: "z.number().int()"
+  def get_zod_type(:sum, _), do: "z.number()"
+  def get_zod_type(:exists, _), do: "z.boolean()"
+  def get_zod_type(:avg, _), do: "z.number()"
+  def get_zod_type(:min, _), do: "z.any()"
+  def get_zod_type(:max, _), do: "z.any()"
+  def get_zod_type(:first, _), do: "z.any()"
+  def get_zod_type(:last, _), do: "z.any()"
+  def get_zod_type(:list, _), do: "z.array(z.any())"
+  def get_zod_type(:custom, _), do: "z.any()"
+  def get_zod_type(:integer, _), do: "z.number().int()"
+
+  # Handle basic type maps
+  def get_zod_type(%{type: nil}, _), do: "z.null()"
+  def get_zod_type(%{type: :sum}, _), do: "z.number()"
+  def get_zod_type(%{type: :count}, _), do: "z.number().int()"
+  def get_zod_type(%{type: :map}, _), do: "z.record(z.string(), z.any())"
+
+  # Handle Ash.Type.Atom with constraints (enum support)
+  def get_zod_type(%{type: Ash.Type.Atom, constraints: constraints}, _) when constraints != [] do
+    case Keyword.get(constraints, :one_of) do
+      nil ->
+        "z.string()"
+
+      values ->
+        enum_values = values |> Enum.map(&"\"#{to_string(&1)}\"") |> Enum.join(", ")
+        "z.enum([#{enum_values}])"
+    end
+  end
+
+  # Basic Ash types
+  def get_zod_type(%{type: Ash.Type.Atom}, _), do: "z.string()"
+  def get_zod_type(%{type: Ash.Type.String}, _), do: "z.string()"
+  def get_zod_type(%{type: Ash.Type.CiString}, _), do: "z.string()"
+  def get_zod_type(%{type: Ash.Type.Integer}, _), do: "z.number().int()"
+  def get_zod_type(%{type: Ash.Type.Float}, _), do: "z.number()"
+  # Decimal as string for precision
+  def get_zod_type(%{type: Ash.Type.Decimal}, _), do: "z.string()"
+  def get_zod_type(%{type: Ash.Type.Boolean}, _), do: "z.boolean()"
+  def get_zod_type(%{type: Ash.Type.UUID}, _), do: "z.uuid()"
+  def get_zod_type(%{type: Ash.Type.UUIDv7}, _), do: "z.uuid()"
+
+  # Date/Time types - use string validation for JSON compatibility
+  def get_zod_type(%{type: Ash.Type.Date}, _), do: "z.iso.date()"
+  def get_zod_type(%{type: Ash.Type.Time}, _), do: "z.string().time()"
+  def get_zod_type(%{type: Ash.Type.TimeUsec}, _), do: "z.string().time()"
+  def get_zod_type(%{type: Ash.Type.UtcDatetime}, _), do: "z.iso.datetime()"
+  def get_zod_type(%{type: Ash.Type.UtcDatetimeUsec}, _), do: "z.iso.datetime()"
+  def get_zod_type(%{type: Ash.Type.DateTime}, _), do: "z.iso.datetime()"
+  def get_zod_type(%{type: Ash.Type.NaiveDatetime}, _), do: "z.iso.datetime()"
+  def get_zod_type(%{type: Ash.Type.Duration}, _), do: "z.string()"
+  def get_zod_type(%{type: Ash.Type.DurationName}, _), do: "z.string()"
+
+  # Binary and file types
+  def get_zod_type(%{type: Ash.Type.Binary}, _), do: "z.string()"
+  def get_zod_type(%{type: Ash.Type.UrlEncodedBinary}, _), do: "z.string()"
+  # File objects are complex
+  def get_zod_type(%{type: Ash.Type.File}, _), do: "z.any()"
+  def get_zod_type(%{type: Ash.Type.Function}, _), do: "z.function()"
+  def get_zod_type(%{type: Ash.Type.Term}, _), do: "z.any()"
+  def get_zod_type(%{type: Ash.Type.Vector}, _), do: "z.array(z.number())"
+  def get_zod_type(%{type: Ash.Type.Module}, _), do: "z.string()"
+
+  # Map types with field constraints
+  def get_zod_type(%{type: Ash.Type.Map, constraints: constraints}, context)
+      when constraints != [] do
+    case Keyword.get(constraints, :fields) do
+      nil -> "z.record(z.string(), z.any())"
+      fields -> build_zod_object_type(fields, context)
+    end
+  end
+
+  def get_zod_type(%{type: Ash.Type.Map}, _), do: "z.record(z.string(), z.any())"
+
+  # Keyword and Tuple types
+  def get_zod_type(%{type: Ash.Type.Keyword, constraints: constraints}, context)
+      when constraints != [] do
+    case Keyword.get(constraints, :fields) do
+      nil -> "z.record(z.string(), z.any())"
+      fields -> build_zod_object_type(fields, context)
+    end
+  end
+
+  def get_zod_type(%{type: Ash.Type.Keyword}, _), do: "z.record(z.string(), z.any())"
+
+  def get_zod_type(%{type: Ash.Type.Tuple, constraints: constraints}, context) do
+    case Keyword.get(constraints, :fields) do
+      nil -> "z.record(z.string(), z.any())"
+      fields -> build_zod_object_type(fields, context)
+    end
+  end
+
+  # Struct types
+  def get_zod_type(%{type: Ash.Type.Struct, constraints: constraints}, context) do
+    instance_of = Keyword.get(constraints, :instance_of)
+    fields = Keyword.get(constraints, :fields)
+
+    cond do
+      fields != nil ->
+        # If fields are defined, create a typed object schema
+        build_zod_object_type(fields, context)
+
+      instance_of != nil ->
+        # Check if instance_of is an Ash resource
+        if Spark.Dsl.is?(instance_of, Ash.Resource) do
+          # Reference the resource schema (will need to be generated)
+          resource_name = build_resource_type_name(instance_of)
+          suffix = AshTypescript.Rpc.zod_schema_suffix()
+          "#{resource_name}#{suffix}"
+        else
+          # For non-Ash structs, use object validation
+          "z.object({})"
+        end
+
+      true ->
+        # Fallback to generic object
+        "z.record(z.string(), z.any())"
+    end
+  end
+
+  # Union types
+  def get_zod_type(%{type: Ash.Type.Union, constraints: constraints}, context) do
+    case Keyword.get(constraints, :types) do
+      nil -> "z.any()"
+      types -> build_zod_union_type(types, context)
+    end
+  end
+
+  # Array types
+  def get_zod_type(%{type: {:array, inner_type}, constraints: constraints}, context) do
+    inner_constraints = constraints[:items] || []
+    inner_zod_type = get_zod_type(%{type: inner_type, constraints: inner_constraints}, context)
+    "z.array(#{inner_zod_type})"
+  end
+
+  # Third-party library types
+  def get_zod_type(%{type: AshDoubleEntry.ULID}, _), do: "z.string()"
+  # Money object
+  def get_zod_type(%{type: AshMoney.Types.Money}, _), do: "z.object({})"
+
+  # Shorthand atom types
+  def get_zod_type(%{type: :string}, _), do: "z.string()"
+  def get_zod_type(%{type: :integer}, _), do: "z.number().int()"
+  def get_zod_type(%{type: :float}, _), do: "z.number()"
+  def get_zod_type(%{type: :decimal}, _), do: "z.string()"
+  def get_zod_type(%{type: :boolean}, _), do: "z.boolean()"
+  def get_zod_type(%{type: :uuid}, _), do: "z.uuid()"
+  def get_zod_type(%{type: :date}, _), do: "z.iso.date()"
+  def get_zod_type(%{type: :time}, _), do: "z.string().time()"
+  def get_zod_type(%{type: :datetime}, _), do: "z.iso.datetime()"
+  def get_zod_type(%{type: :naive_datetime}, _), do: "z.iso.datetime()"
+  def get_zod_type(%{type: :utc_datetime}, _), do: "z.iso.datetime()"
+  def get_zod_type(%{type: :utc_datetime_usec}, _), do: "z.iso.datetime()"
+  def get_zod_type(%{type: :binary}, _), do: "z.string()"
+
+  # Handle custom types and fallbacks
+  def get_zod_type(%{type: type, constraints: constraints} = attr, context) do
+    cond do
+      # Custom type support
+      is_custom_type?(type) ->
+        # For custom types, fall back to string validation for now
+        # TODO: Add custom type Zod mapping support
+        "z.string()"
+
+      AshTypescript.Codegen.is_embedded_resource?(type) ->
+        # Handle direct embedded resource types
+        resource_name = build_resource_type_name(type)
+        suffix = AshTypescript.Rpc.zod_schema_suffix()
+        "#{resource_name}#{suffix}"
+
+      Ash.Type.NewType.new_type?(type) ->
+        sub_type_constraints = Ash.Type.NewType.constraints(type, constraints)
+        subtype = Ash.Type.NewType.subtype_of(type)
+        get_zod_type(%{attr | type: subtype, constraints: sub_type_constraints}, context)
+
+      Spark.implements_behaviour?(type, Ash.Type.Enum) ->
+        # Handle enum types
+        values = apply(type, :values, [])
+        enum_values = values |> Enum.map(&"\"#{to_string(&1)}\"") |> Enum.join(", ")
+        "z.enum([#{enum_values}])"
+
+      true ->
+        # Ultimate fallback
+        "z.any()"
+    end
+  end
+
+  # Helper function to check if a type is a custom type
+  defp is_custom_type?(type) do
+    Code.ensure_loaded?(type) && function_exported?(type, :typescript_type_name, 0)
+  end
+
+  # Helper function to build Zod object schemas from field definitions
+  defp build_zod_object_type(fields, context) do
+    field_schemas =
+      fields
+      |> Enum.map(fn {field_name, field_config} ->
+        field_type = Keyword.get(field_config, :type, :string)
+        field_constraints = Keyword.get(field_config, :constraints, [])
+        allow_nil = Keyword.get(field_config, :allow_nil?, false)
+
+        zod_type = get_zod_type(%{type: field_type, constraints: field_constraints}, context)
+        zod_type = if allow_nil, do: "#{zod_type}.optional()", else: zod_type
+
+        formatted_field_name = format_output_field(field_name)
+        "#{formatted_field_name}: #{zod_type}"
+      end)
+      |> Enum.join(", ")
+
+    "z.object({ #{field_schemas} })"
+  end
+
+  # Helper function to build Zod union types
+  defp build_zod_union_type(types, context) do
+    # Check if this is a discriminated union
+    has_discriminator =
+      Enum.any?(types, fn {_name, config} ->
+        Keyword.has_key?(config, :tag) && Keyword.has_key?(config, :tag_value)
+      end)
+
+    if has_discriminator do
+      # Build discriminated union
+      # For now, we'll use z.union() as discriminated unions are more complex
+      build_simple_zod_union(types, context)
+    else
+      build_simple_zod_union(types, context)
+    end
+  end
+
+  defp build_simple_zod_union(types, context) do
+    union_schemas =
+      types
+      |> Enum.map(fn {type_name, config} ->
+        formatted_name =
+          AshTypescript.FieldFormatter.format_field(
+            type_name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        type = Keyword.get(config, :type, :string)
+        constraints = Keyword.get(config, :constraints, [])
+        zod_type = get_zod_type(%{type: type, constraints: constraints}, context)
+
+        "z.object({#{formatted_name}: #{zod_type}})"
+      end)
+      |> Enum.join(", ")
+
+    "z.union([#{union_schemas}])"
+  end
+
+  # Generates a Zod schema definition for action input validation.
+  # Mirrors the pattern of generate_input_type/3 but creates Zod schemas instead of TypeScript types.
+  defp generate_zod_schema(resource, action, rpc_action_name) do
+    # Create schema name using configured suffix
+    suffix = AshTypescript.Rpc.zod_schema_suffix()
+    schema_name = format_output_field("#{rpc_action_name}_#{suffix}")
+
+    zod_field_defs =
+      case action.type do
+        :read ->
+          # For read actions, only use arguments
+          arguments = action.arguments
+
+          if arguments != [] do
+            Enum.map(arguments, fn arg ->
+              optional = arg.allow_nil? || arg.default != nil
+
+              formatted_arg_name =
+                AshTypescript.FieldFormatter.format_field(
+                  arg.name,
+                  AshTypescript.Rpc.output_field_formatter()
+                )
+
+              zod_type = get_zod_type(arg)
+              zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
+
+              {formatted_arg_name, zod_type}
+            end)
+          else
+            []
+          end
+
+        :create ->
+          accepts = Ash.Resource.Info.action(resource, action.name).accept || []
+          arguments = action.arguments
+
+          if accepts != [] || arguments != [] do
+            # Generate Zod field definitions for accepted fields
+            accept_field_defs =
+              Enum.map(accepts, fn field_name ->
+                attr = Ash.Resource.Info.attribute(resource, field_name)
+                optional = attr.allow_nil? || attr.default != nil
+
+                formatted_field_name =
+                  AshTypescript.FieldFormatter.format_field(
+                    field_name,
+                    AshTypescript.Rpc.output_field_formatter()
+                  )
+
+                zod_type = get_zod_type(attr)
+                zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
+
+                {formatted_field_name, zod_type}
+              end)
+
+            # Generate Zod field definitions for arguments
+            argument_field_defs =
+              Enum.map(arguments, fn arg ->
+                optional = arg.allow_nil? || arg.default != nil
+
+                formatted_arg_name =
+                  AshTypescript.FieldFormatter.format_field(
+                    arg.name,
+                    AshTypescript.Rpc.output_field_formatter()
+                  )
+
+                zod_type = get_zod_type(arg)
+                zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
+
+                {formatted_arg_name, zod_type}
+              end)
+
+            accept_field_defs ++ argument_field_defs
+          else
+            []
+          end
+
+        action_type when action_type in [:update, :destroy] ->
+          # For update/destroy, generate only input fields, not primary key
+          # Primary key will be handled separately in the config object
+          if action.accept != [] || action.arguments != [] do
+            accept_field_defs =
+              Enum.map(action.accept, fn field_name ->
+                attr = Ash.Resource.Info.attribute(resource, field_name)
+                optional = attr.allow_nil? || attr.default != nil
+
+                formatted_field_name =
+                  AshTypescript.FieldFormatter.format_field(
+                    field_name,
+                    AshTypescript.Rpc.output_field_formatter()
+                  )
+
+                zod_type = get_zod_type(attr)
+                zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
+
+                {formatted_field_name, zod_type}
+              end)
+
+            argument_field_defs =
+              Enum.map(action.arguments, fn arg ->
+                optional = arg.allow_nil? || arg.default != nil
+
+                formatted_arg_name =
+                  AshTypescript.FieldFormatter.format_field(
+                    arg.name,
+                    AshTypescript.Rpc.output_field_formatter()
+                  )
+
+                zod_type = get_zod_type(arg)
+                zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
+
+                {formatted_arg_name, zod_type}
+              end)
+
+            accept_field_defs ++ argument_field_defs
+          else
+            []
+          end
+
+        :action ->
+          arguments = action.arguments
+
+          if arguments != [] do
+            Enum.map(arguments, fn arg ->
+              optional = arg.allow_nil? || arg.default != nil
+
+              formatted_arg_name =
+                AshTypescript.FieldFormatter.format_field(
+                  arg.name,
+                  AshTypescript.Rpc.output_field_formatter()
+                )
+
+              zod_type = get_zod_type(arg)
+              zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
+
+              {formatted_arg_name, zod_type}
+            end)
+          else
+            []
+          end
+      end
+
+    # Generate Zod schema definition
+    if zod_field_defs != [] do
+      field_lines =
+        Enum.map(zod_field_defs, fn {name, zod_type} ->
+          "  #{name}: #{zod_type},"
+        end)
+
+      """
+      export const #{schema_name} = z.object({
+      #{Enum.join(field_lines, "\n")}
+      });
+      """
+    else
+      # If no input fields, generate an empty schema
+      """
+      export const #{schema_name} = z.object({});
+      """
+    end
+  end
+
+  # ==========================================
+  # Zod Schemas for Embedded Resources
+  # ==========================================
+
+  defp generate_zod_schemas_for_embedded_resources(embedded_resources) do
+    if AshTypescript.Rpc.generate_zod_schemas?() and embedded_resources != [] do
+      schemas =
+        embedded_resources
+        |> Enum.map(&generate_zod_schema_for_embedded_resource/1)
+        |> Enum.join("\n\n")
+
+      """
+      // ============================
+      // Zod Schemas for Embedded Resources
+      // ============================
+
+      #{schemas}
+      """
+    else
+      ""
+    end
+  end
+
+  defp generate_zod_schema_for_embedded_resource(resource) do
+    resource_name = build_resource_type_name(resource)
+    suffix = AshTypescript.Rpc.zod_schema_suffix()
+    schema_name = "#{resource_name}#{suffix}"
+
+    # Get all public attributes (same as generate_input_schema)
+    zod_fields =
+      resource
+      |> Ash.Resource.Info.public_attributes()
+      |> Enum.map(fn attr ->
+        formatted_name =
+          AshTypescript.FieldFormatter.format_field(
+            attr.name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        # Get Zod type for this attribute
+        zod_type = get_zod_type(attr)
+
+        # Handle optionality: field is optional if it allows nil OR has a default value
+        zod_type =
+          if attr.allow_nil? || attr.default != nil do
+            "#{zod_type}.optional()"
+          else
+            zod_type
+          end
+
+        "  #{formatted_name}: #{zod_type},"
+      end)
+      |> Enum.join("\n")
+
     """
-    #{input_type}
-
-    #{result_type}
-
-    #{functions_section}
+    export const #{schema_name} = z.object({
+    #{zod_fields}
+    });
     """
   end
 end

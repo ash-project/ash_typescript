@@ -126,6 +126,37 @@ defmodule AshTypescript.Rpc do
   end
 
   @doc """
+  Determines if Zod schema generation is enabled.
+
+  When true, generates Zod schemas alongside TypeScript types for runtime validation.
+  Defaults to false (opt-in feature).
+  """
+  def generate_zod_schemas? do
+    Application.get_env(:ash_typescript, :generate_zod_schemas, false)
+  end
+
+  @doc """
+  Gets the Zod import path for generated TypeScript.
+
+  This determines the import statement used in generated TypeScript files.
+  Defaults to "zod" for standard npm package.
+  Can be customized for different package managers or custom Zod builds.
+  """
+  def zod_import_path do
+    Application.get_env(:ash_typescript, :zod_import_path, "zod")
+  end
+
+  @doc """
+  Gets the suffix used for generated Zod schema constants.
+
+  This determines the naming pattern for Zod schemas.
+  Defaults to "Schema" (e.g., createTodoSchema).
+  """
+  def zod_schema_suffix do
+    Application.get_env(:ash_typescript, :zod_schema_suffix, "ZodSchema")
+  end
+
+  @doc """
   Determines if a resource requires a tenant parameter.
 
   A resource requires a tenant if it has multitenancy configured and global? is false (default).

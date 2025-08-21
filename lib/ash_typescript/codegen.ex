@@ -1332,7 +1332,7 @@ defmodule AshTypescript.Codegen do
 
   # Build union type for input schemas
   def build_union_input_type(types) do
-    member_properties =
+    member_objects =
       types
       |> Enum.map(fn {type_name, type_config} ->
         formatted_name =
@@ -1347,13 +1347,13 @@ defmodule AshTypescript.Codegen do
             constraints: type_config[:constraints] || []
           })
 
-        "#{formatted_name}?: #{ts_type}"
+        "{ #{formatted_name}: #{ts_type} }"
       end)
-      |> Enum.join("; ")
+      |> Enum.join(" | ")
 
-    case member_properties do
+    case member_objects do
       "" -> "any"
-      properties -> "{ #{properties} }"
+      objects -> objects
     end
   end
 

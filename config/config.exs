@@ -17,7 +17,8 @@ if Mix.env() == :test do
         import_name: "CustomTypes",
         file: "./customTypes"
       }
-    ]
+    ],
+    generate_zod_schemas: true
 
   config :logger, :console, level: :info
 end

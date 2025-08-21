@@ -10,4 +10,8 @@ import "./shouldFail/invalidStructure";
 import "./shouldFail/typeMismatches";
 import "./shouldFail/unionValidation";
 
+// Import Zod schema validation failure tests
+import "./zod/shouldFail/invalidZodUsage";
+import "./zod/shouldFail/complexInvalidSchemas";
+
 console.log("This file should NOT compile due to TypeScript errors!");
