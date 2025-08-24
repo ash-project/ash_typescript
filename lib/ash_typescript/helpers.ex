@@ -30,17 +30,25 @@ defmodule AshTypescript.Helpers do
     |> Enum.join()
   end
 
+  def camel_to_snake_case(camel) when is_binary(camel) do
+    camel
+    # 1. lowercase/digit to uppercase: aB, 1B -> a_B, 1_B
+    |> String.replace(~r/([a-z\d])([A-Z])/, "\\1_\\2")
+    # 2. lowercase to digits: a123 -> a_123
+    |> String.replace(~r/([a-z])(\d+)/, "\\1_\\2")
+    # 3. digits to lowercase: 123a -> 123_a
+    |> String.replace(~r/(\d+)([a-z])/, "\\1_\\2")
+    # 4. digits to uppercase: 123A -> 123_A
+    |> String.replace(~r/(\d+)([A-Z])/, "\\1_\\2")
+    # 5. uppercase to digits: A123 -> A_123
+    |> String.replace(~r/([A-Z])(\d+)/, "\\1_\\2")
+    |> String.downcase()
+  end
+
   def camel_to_snake_case(camel) when is_atom(camel) do
     camel
     |> Atom.to_string()
     |> camel_to_snake_case()
-  end
-
-  def camel_to_snake_case(camel) when is_binary(camel) do
-    camel
-    |> String.replace(~r/([A-Z])/, "_\\1")
-    |> String.downcase()
-    |> String.trim_leading("_")
   end
 
   def pascal_to_snake_case(pascal) when is_atom(pascal) do
@@ -51,7 +59,16 @@ defmodule AshTypescript.Helpers do
 
   def pascal_to_snake_case(pascal) when is_binary(pascal) do
     pascal
-    |> String.replace(~r/([A-Z])/, "_\\1")
+    # 1. lowercase to uppercase: a123 -> a_123
+    |> String.replace(~r/([a-z\d])([A-Z])/, "\\1_\\2")
+    # 2. lowercase to digits: a123 -> a_123
+    |> String.replace(~r/([a-z])(\d+)/, "\\1_\\2")
+    # 3. digits to lowercase: 123a -> 123_a
+    |> String.replace(~r/(\d+)([a-z])/, "\\1_\\2")
+    # 4. digits to uppercase: 123A -> 123_A
+    |> String.replace(~r/(\d+)([A-Z])/, "\\1_\\2")
+    # 5. uppercase to digits: A123 -> A_123
+    |> String.replace(~r/([A-Z])(\d+)/, "\\1_\\2")
     |> String.downcase()
     |> String.trim_leading("_")
   end

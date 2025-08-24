@@ -35,6 +35,11 @@ defmodule AshTypescript.Test.User do
       default false
       public? true
     end
+
+    attribute :address_line_1, :string do
+      allow_nil? true
+      public? true
+    end
   end
 
   relationships do
