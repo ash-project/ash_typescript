@@ -386,6 +386,25 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
+  # Helper to determine if an action has input parameters
+  defp action_has_input?(resource, action) do
+    case action.type do
+      :read ->
+        # For read actions, only use arguments
+        action.arguments != []
+
+      :create ->
+        accepts = Ash.Resource.Info.action(resource, action.name).accept || []
+        accepts != [] || action.arguments != []
+
+      action_type when action_type in [:update, :destroy] ->
+        action.accept != [] || action.arguments != []
+
+      :action ->
+        action.arguments != []
+    end
+  end
+
   # Helper to detect if a generic action returns a type that supports field selection
   def action_returns_field_selectable_type?(action) do
     case action.returns do
@@ -592,53 +611,19 @@ defmodule AshTypescript.Rpc.Codegen do
   # New pattern generators for improved type safety
 
   defp generate_input_type(resource, action, rpc_action_name) do
-    input_type_name = "#{snake_to_pascal_case(rpc_action_name)}Input"
+    # Early return if action has no input
+    if not action_has_input?(resource, action) do
+      ""
+    else
+      input_type_name = "#{snake_to_pascal_case(rpc_action_name)}Input"
 
-    input_field_defs =
-      case action.type do
-        :read ->
-          # For read actions, only use arguments (get_by automatically creates arguments)
-          arguments = action.arguments
+      input_field_defs =
+        case action.type do
+          :read ->
+            # For read actions, only use arguments (get_by automatically creates arguments)
+            arguments = action.arguments
 
-          if arguments != [] do
-            Enum.map(arguments, fn arg ->
-              optional = arg.allow_nil? || arg.default != nil
-
-              formatted_arg_name =
-                AshTypescript.FieldFormatter.format_field(
-                  arg.name,
-                  AshTypescript.Rpc.output_field_formatter()
-                )
-
-              {formatted_arg_name, get_ts_type(arg), optional}
-            end)
-          else
-            []
-          end
-
-        :create ->
-          accepts = Ash.Resource.Info.action(resource, action.name).accept || []
-          arguments = action.arguments
-
-          if accepts != [] || arguments != [] do
-            # Generate input field definitions
-            accept_field_defs =
-              Enum.map(accepts, fn field_name ->
-                attr = Ash.Resource.Info.attribute(resource, field_name)
-                optional = attr.allow_nil? || attr.default != nil
-                base_type = AshTypescript.Codegen.get_ts_input_type(attr)
-                field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
-
-                formatted_field_name =
-                  AshTypescript.FieldFormatter.format_field(
-                    field_name,
-                    AshTypescript.Rpc.output_field_formatter()
-                  )
-
-                {formatted_field_name, field_type, optional}
-              end)
-
-            argument_field_defs =
+            if arguments != [] do
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
 
@@ -650,34 +635,93 @@ defmodule AshTypescript.Rpc.Codegen do
 
                 {formatted_arg_name, get_ts_type(arg), optional}
               end)
+            else
+              []
+            end
 
-            accept_field_defs ++ argument_field_defs
-          else
-            []
-          end
+          :create ->
+            accepts = Ash.Resource.Info.action(resource, action.name).accept || []
+            arguments = action.arguments
 
-        action_type when action_type in [:update, :destroy] ->
-          # For update/destroy, generate only input fields, not primary key
-          # Primary key will be handled separately in the config object
-          if action.accept != [] || action.arguments != [] do
-            accept_field_defs =
-              Enum.map(action.accept, fn field_name ->
-                attr = Ash.Resource.Info.attribute(resource, field_name)
-                optional = attr.allow_nil? || attr.default != nil
-                base_type = AshTypescript.Codegen.get_ts_input_type(attr)
-                field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
+            if accepts != [] || arguments != [] do
+              # Generate input field definitions
+              accept_field_defs =
+                Enum.map(accepts, fn field_name ->
+                  attr = Ash.Resource.Info.attribute(resource, field_name)
+                  optional = attr.allow_nil? || attr.default != nil
+                  base_type = AshTypescript.Codegen.get_ts_input_type(attr)
+                  field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
 
-                formatted_field_name =
-                  AshTypescript.FieldFormatter.format_field(
-                    field_name,
-                    AshTypescript.Rpc.output_field_formatter()
-                  )
+                  formatted_field_name =
+                    AshTypescript.FieldFormatter.format_field(
+                      field_name,
+                      AshTypescript.Rpc.output_field_formatter()
+                    )
 
-                {formatted_field_name, field_type, optional}
-              end)
+                  {formatted_field_name, field_type, optional}
+                end)
 
-            argument_field_defs =
-              Enum.map(action.arguments, fn arg ->
+              argument_field_defs =
+                Enum.map(arguments, fn arg ->
+                  optional = arg.allow_nil? || arg.default != nil
+
+                  formatted_arg_name =
+                    AshTypescript.FieldFormatter.format_field(
+                      arg.name,
+                      AshTypescript.Rpc.output_field_formatter()
+                    )
+
+                  {formatted_arg_name, get_ts_type(arg), optional}
+                end)
+
+              accept_field_defs ++ argument_field_defs
+            else
+              []
+            end
+
+          action_type when action_type in [:update, :destroy] ->
+            # For update/destroy, generate only input fields, not primary key
+            # Primary key will be handled separately in the config object
+            if action.accept != [] || action.arguments != [] do
+              accept_field_defs =
+                Enum.map(action.accept, fn field_name ->
+                  attr = Ash.Resource.Info.attribute(resource, field_name)
+                  optional = attr.allow_nil? || attr.default != nil
+                  base_type = AshTypescript.Codegen.get_ts_input_type(attr)
+                  field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
+
+                  formatted_field_name =
+                    AshTypescript.FieldFormatter.format_field(
+                      field_name,
+                      AshTypescript.Rpc.output_field_formatter()
+                    )
+
+                  {formatted_field_name, field_type, optional}
+                end)
+
+              argument_field_defs =
+                Enum.map(action.arguments, fn arg ->
+                  optional = arg.allow_nil? || arg.default != nil
+
+                  formatted_arg_name =
+                    AshTypescript.FieldFormatter.format_field(
+                      arg.name,
+                      AshTypescript.Rpc.output_field_formatter()
+                    )
+
+                  {formatted_arg_name, get_ts_type(arg), optional}
+                end)
+
+              accept_field_defs ++ argument_field_defs
+            else
+              []
+            end
+
+          :action ->
+            arguments = action.arguments
+
+            if arguments != [] do
+              Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
 
                 formatted_arg_name =
@@ -688,34 +732,12 @@ defmodule AshTypescript.Rpc.Codegen do
 
                 {formatted_arg_name, get_ts_type(arg), optional}
               end)
+            else
+              []
+            end
+        end
 
-            accept_field_defs ++ argument_field_defs
-          else
-            []
-          end
-
-        :action ->
-          arguments = action.arguments
-
-          if arguments != [] do
-            Enum.map(arguments, fn arg ->
-              optional = arg.allow_nil? || arg.default != nil
-
-              formatted_arg_name =
-                AshTypescript.FieldFormatter.format_field(
-                  arg.name,
-                  AshTypescript.Rpc.output_field_formatter()
-                )
-
-              {formatted_arg_name, get_ts_type(arg), optional}
-            end)
-          else
-            []
-          end
-      end
-
-    # Generate TypeScript type definition
-    if input_field_defs != [] do
+      # Generate TypeScript type definition
       field_lines =
         Enum.map(input_field_defs, fn {name, type, optional} ->
           "  #{name}#{if optional, do: "?", else: ""}: #{type};"
@@ -725,11 +747,6 @@ defmodule AshTypescript.Rpc.Codegen do
       export type #{input_type_name} = {
       #{Enum.join(field_lines, "\n")}
       };
-      """
-    else
-      # If no input fields, generate an empty input type
-      """
-      export type #{input_type_name} = {};
       """
     end
   end
@@ -1094,8 +1111,13 @@ defmodule AshTypescript.Rpc.Codegen do
         config_fields
       end
 
-    # Add input field
-    config_fields = config_fields ++ ["  #{format_output_field(:input)}: #{input_type_name};"]
+    # Add input field only if the action has input
+    config_fields =
+      if action_has_input?(resource, action) do
+        config_fields ++ ["  #{format_output_field(:input)}: #{input_type_name};"]
+      else
+        config_fields
+      end
 
     # Add fields field (always present for non-destroy actions)
     {config_fields, has_fields, fields_generic} =
@@ -1304,9 +1326,13 @@ defmodule AshTypescript.Rpc.Codegen do
         config_fields
       end
 
-    # Add input field - always present for validation
+    # Add input field only if the action has input
     config_fields =
-      config_fields ++ ["  #{format_output_field(:input)}: #{rpc_action_name_pascal}Input;"]
+      if action_has_input?(resource, action) do
+        config_fields ++ ["  #{format_output_field(:input)}: #{rpc_action_name_pascal}Input;"]
+      else
+        config_fields
+      end
 
     # Add headers field (always optional)
     config_fields = config_fields ++ ["  headers?: Record<string, string>;"]
@@ -1685,62 +1711,22 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   # Generates a Zod schema definition for action input validation.
-  # Mirrors the pattern of generate_input_type/3 but creates Zod schemas instead of TypeScript types.
   defp generate_zod_schema(resource, action, rpc_action_name) do
-    # Create schema name using configured suffix
-    suffix = AshTypescript.Rpc.zod_schema_suffix()
-    schema_name = format_output_field("#{rpc_action_name}_#{suffix}")
+    # Early return if action has no input
+    if not action_has_input?(resource, action) do
+      ""
+    else
+      # Create schema name using configured suffix
+      suffix = AshTypescript.Rpc.zod_schema_suffix()
+      schema_name = format_output_field("#{rpc_action_name}_#{suffix}")
 
-    zod_field_defs =
-      case action.type do
-        :read ->
-          # For read actions, only use arguments
-          arguments = action.arguments
+      zod_field_defs =
+        case action.type do
+          :read ->
+            # For read actions, only use arguments
+            arguments = action.arguments
 
-          if arguments != [] do
-            Enum.map(arguments, fn arg ->
-              optional = arg.allow_nil? || arg.default != nil
-
-              formatted_arg_name =
-                AshTypescript.FieldFormatter.format_field(
-                  arg.name,
-                  AshTypescript.Rpc.output_field_formatter()
-                )
-
-              zod_type = get_zod_type(arg)
-              zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
-
-              {formatted_arg_name, zod_type}
-            end)
-          else
-            []
-          end
-
-        :create ->
-          accepts = Ash.Resource.Info.action(resource, action.name).accept || []
-          arguments = action.arguments
-
-          if accepts != [] || arguments != [] do
-            # Generate Zod field definitions for accepted fields
-            accept_field_defs =
-              Enum.map(accepts, fn field_name ->
-                attr = Ash.Resource.Info.attribute(resource, field_name)
-                optional = attr.allow_nil? || attr.default != nil
-
-                formatted_field_name =
-                  AshTypescript.FieldFormatter.format_field(
-                    field_name,
-                    AshTypescript.Rpc.output_field_formatter()
-                  )
-
-                zod_type = get_zod_type(attr)
-                zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
-
-                {formatted_field_name, zod_type}
-              end)
-
-            # Generate Zod field definitions for arguments
-            argument_field_defs =
+            if arguments != [] do
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
 
@@ -1755,35 +1741,102 @@ defmodule AshTypescript.Rpc.Codegen do
 
                 {formatted_arg_name, zod_type}
               end)
+            else
+              []
+            end
 
-            accept_field_defs ++ argument_field_defs
-          else
-            []
-          end
+          :create ->
+            accepts = Ash.Resource.Info.action(resource, action.name).accept || []
+            arguments = action.arguments
 
-        action_type when action_type in [:update, :destroy] ->
-          # For update/destroy, generate only input fields, not primary key
-          # Primary key will be handled separately in the config object
-          if action.accept != [] || action.arguments != [] do
-            accept_field_defs =
-              Enum.map(action.accept, fn field_name ->
-                attr = Ash.Resource.Info.attribute(resource, field_name)
-                optional = attr.allow_nil? || attr.default != nil
+            if accepts != [] || arguments != [] do
+              # Generate Zod field definitions for accepted fields
+              accept_field_defs =
+                Enum.map(accepts, fn field_name ->
+                  attr = Ash.Resource.Info.attribute(resource, field_name)
+                  optional = attr.allow_nil? || attr.default != nil
 
-                formatted_field_name =
-                  AshTypescript.FieldFormatter.format_field(
-                    field_name,
-                    AshTypescript.Rpc.output_field_formatter()
-                  )
+                  formatted_field_name =
+                    AshTypescript.FieldFormatter.format_field(
+                      field_name,
+                      AshTypescript.Rpc.output_field_formatter()
+                    )
 
-                zod_type = get_zod_type(attr)
-                zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
+                  zod_type = get_zod_type(attr)
+                  zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
 
-                {formatted_field_name, zod_type}
-              end)
+                  {formatted_field_name, zod_type}
+                end)
 
-            argument_field_defs =
-              Enum.map(action.arguments, fn arg ->
+              # Generate Zod field definitions for arguments
+              argument_field_defs =
+                Enum.map(arguments, fn arg ->
+                  optional = arg.allow_nil? || arg.default != nil
+
+                  formatted_arg_name =
+                    AshTypescript.FieldFormatter.format_field(
+                      arg.name,
+                      AshTypescript.Rpc.output_field_formatter()
+                    )
+
+                  zod_type = get_zod_type(arg)
+                  zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
+
+                  {formatted_arg_name, zod_type}
+                end)
+
+              accept_field_defs ++ argument_field_defs
+            else
+              []
+            end
+
+          action_type when action_type in [:update, :destroy] ->
+            # For update/destroy, generate only input fields, not primary key
+            # Primary key will be handled separately in the config object
+            if action.accept != [] || action.arguments != [] do
+              accept_field_defs =
+                Enum.map(action.accept, fn field_name ->
+                  attr = Ash.Resource.Info.attribute(resource, field_name)
+                  optional = attr.allow_nil? || attr.default != nil
+
+                  formatted_field_name =
+                    AshTypescript.FieldFormatter.format_field(
+                      field_name,
+                      AshTypescript.Rpc.output_field_formatter()
+                    )
+
+                  zod_type = get_zod_type(attr)
+                  zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
+
+                  {formatted_field_name, zod_type}
+                end)
+
+              argument_field_defs =
+                Enum.map(action.arguments, fn arg ->
+                  optional = arg.allow_nil? || arg.default != nil
+
+                  formatted_arg_name =
+                    AshTypescript.FieldFormatter.format_field(
+                      arg.name,
+                      AshTypescript.Rpc.output_field_formatter()
+                    )
+
+                  zod_type = get_zod_type(arg)
+                  zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
+
+                  {formatted_arg_name, zod_type}
+                end)
+
+              accept_field_defs ++ argument_field_defs
+            else
+              []
+            end
+
+          :action ->
+            arguments = action.arguments
+
+            if arguments != [] do
+              Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
 
                 formatted_arg_name =
@@ -1797,37 +1850,11 @@ defmodule AshTypescript.Rpc.Codegen do
 
                 {formatted_arg_name, zod_type}
               end)
+            else
+              []
+            end
+        end
 
-            accept_field_defs ++ argument_field_defs
-          else
-            []
-          end
-
-        :action ->
-          arguments = action.arguments
-
-          if arguments != [] do
-            Enum.map(arguments, fn arg ->
-              optional = arg.allow_nil? || arg.default != nil
-
-              formatted_arg_name =
-                AshTypescript.FieldFormatter.format_field(
-                  arg.name,
-                  AshTypescript.Rpc.output_field_formatter()
-                )
-
-              zod_type = get_zod_type(arg)
-              zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
-
-              {formatted_arg_name, zod_type}
-            end)
-          else
-            []
-          end
-      end
-
-    # Generate Zod schema definition
-    if zod_field_defs != [] do
       field_lines =
         Enum.map(zod_field_defs, fn {name, zod_type} ->
           "  #{name}: #{zod_type},"
@@ -1837,11 +1864,6 @@ defmodule AshTypescript.Rpc.Codegen do
       export const #{schema_name} = z.object({
       #{Enum.join(field_lines, "\n")}
       });
-      """
-    else
-      # If no input fields, generate an empty schema
-      """
-      export const #{schema_name} = z.object({});
       """
     end
   end

@@ -164,7 +164,6 @@ if (searchTodosResult.success) {
 }
 
 const getStatisticsTodoResult = await getStatisticsTodo({
-  input: {},
   fields: ["completed", "pending"],
 });
 
