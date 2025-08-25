@@ -495,7 +495,7 @@ defmodule AshTypescript.Rpc.Codegen do
     case RequestedFieldsProcessor.process(resource, action.name, atomized_fields) do
       {:ok, {_select, _load, _template}} ->
         # Format the original fields for both type and constant (preserves args structure)
-        const_fields = format_fields_for_typescript(atomized_fields)
+        const_fields = format_typed_query_fields_for_typescript(atomized_fields)
 
         # Generate the type
         type_name = typed_query.ts_result_type_name
@@ -516,7 +516,7 @@ defmodule AshTypescript.Rpc.Codegen do
         export type #{type_name} = #{result_type};
 
         // Field selection for #{typed_query.name} - use with RPC actions for refetching
-        export const #{const_name} = #{const_fields} as const;
+        export const #{const_name} = #{const_fields};
         """
 
       {:error, error} ->
@@ -524,14 +524,14 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
-  defp format_fields_for_typescript(fields) do
+  defp format_typed_query_fields_for_typescript(fields) do
     "[" <> format_fields_array(fields) <> "]"
   end
 
   defp format_fields_array(fields) do
     fields
     |> Enum.map(&format_field_item/1)
-    |> Enum.join(", ")
+    |> Enum.join("as const, ")
   end
 
   defp format_field_item(field) when is_atom(field) do
