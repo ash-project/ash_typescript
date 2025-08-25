@@ -316,7 +316,7 @@ defmodule AshTypescript.Rpc do
           %{
             type: "validation_error",
             field: to_string(field),
-            message: Enum.join(formatted_messages, "; ")
+            errors: formatted_messages
           }
         end)
 

@@ -758,27 +758,45 @@ defmodule AshTypescript.Rpc.Codegen do
     case action.type do
       :read when action.get? ->
         """
+        export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+
         type Infer#{rpc_action_name_pascal}Result<
-          Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[],
+          Fields extends #{rpc_action_name_pascal}Fields,
         > = InferResult<#{resource_name}ResourceSchema, Fields> | null;
         """
 
       :read ->
         # For read actions, check if pagination is supported
         if action_supports_pagination?(action) do
-          generate_pagination_result_type(resource, action, rpc_action_name_pascal, resource_name)
+          fields_type = """
+          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+          """
+
+          pagination_type =
+            generate_pagination_result_type(
+              resource,
+              action,
+              rpc_action_name_pascal,
+              resource_name
+            )
+
+          fields_type <> "\n" <> pagination_type
         else
           """
+          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+
           type Infer#{rpc_action_name_pascal}Result<
-            Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[],
+            Fields extends #{rpc_action_name_pascal}Fields,
           > = Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
           """
         end
 
       action_type when action_type in [:create, :update] ->
         """
+        export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+
         type Infer#{rpc_action_name_pascal}Result<
-          Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[],
+          Fields extends #{rpc_action_name_pascal}Fields,
         > = InferResult<#{resource_name}ResourceSchema, Fields>;
         """
 
@@ -795,14 +813,18 @@ defmodule AshTypescript.Rpc.Codegen do
 
             if type == :array_of_resource do
               """
+              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{target_resource_name}ResourceSchema>[];
+
               type Infer#{rpc_action_name_pascal}Result<
-                Fields extends UnifiedFieldSelection<#{target_resource_name}ResourceSchema>[],
+                Fields extends #{rpc_action_name_pascal}Fields,
               > = Array<InferResult<#{target_resource_name}ResourceSchema, Fields>>;
               """
             else
               """
+              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{target_resource_name}ResourceSchema>[];
+
               type Infer#{rpc_action_name_pascal}Result<
-                Fields extends UnifiedFieldSelection<#{target_resource_name}ResourceSchema>[],
+                Fields extends #{rpc_action_name_pascal}Fields,
               > = InferResult<#{target_resource_name}ResourceSchema, Fields>;
               """
             end
@@ -813,14 +835,18 @@ defmodule AshTypescript.Rpc.Codegen do
 
             if type == :array_of_typed_map do
               """
+              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
+
               type Infer#{rpc_action_name_pascal}Result<
-                Fields extends UnifiedFieldSelection<#{typed_map_schema}>[],
+                Fields extends #{rpc_action_name_pascal}Fields,
               > = Array<InferResult<#{typed_map_schema}, Fields>>;
               """
             else
               """
+              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
+
               type Infer#{rpc_action_name_pascal}Result<
-                Fields extends UnifiedFieldSelection<#{typed_map_schema}>[],
+                Fields extends #{rpc_action_name_pascal}Fields,
               > = InferResult<#{typed_map_schema}, Fields>;
               """
             end
@@ -869,7 +895,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     """
     type Infer#{rpc_action_name_pascal}Result<
-      Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[],
+      Fields extends #{rpc_action_name_pascal}Fields,
     > = {
       #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
       #{has_more_field}: boolean;
@@ -890,7 +916,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     """
     type Infer#{rpc_action_name_pascal}Result<
-      Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[],
+      Fields extends #{rpc_action_name_pascal}Fields,
     > = {
       #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
       #{has_more_field}: boolean;
@@ -917,7 +943,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     """
     type Infer#{rpc_action_name_pascal}Result<
-      Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[],
+      Fields extends #{rpc_action_name_pascal}Fields,
     > = {
       #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
       #{has_more_field}: boolean;
@@ -1129,22 +1155,17 @@ defmodule AshTypescript.Rpc.Codegen do
               {:ok, type, _value} when type in [:resource, :array_of_resource] ->
                 updated_fields = config_fields ++ ["  #{formatted_fields_field()}: Fields;"]
 
-                {updated_fields, true,
-                 "Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[]"}
+                {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
 
-              {:ok, type, fields} when type in [:typed_map, :array_of_typed_map] ->
-                # For typed maps, use a custom field selection for the map's fields
-                typed_map_field_names =
-                  Enum.map(fields, fn {field_name, _} -> Atom.to_string(field_name) end)
-
+              {:ok, type, _fields} when type in [:typed_map, :array_of_typed_map] ->
+                # For typed maps, use the generated field type alias
                 updated_fields =
                   config_fields ++
                     [
                       "  #{formatted_fields_field()}: Fields;"
                     ]
 
-                {updated_fields, true,
-                 "Fields extends (\"#{Enum.join(typed_map_field_names, "\" | \"")}\")[]"}
+                {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
 
               _ ->
                 # No fields for non-field-selectable generic actions
@@ -1154,8 +1175,7 @@ defmodule AshTypescript.Rpc.Codegen do
           _ ->
             updated_fields = config_fields ++ ["  #{formatted_fields_field()}: Fields;"]
 
-            {updated_fields, true,
-             "Fields extends UnifiedFieldSelection<#{resource_name}ResourceSchema>[]"}
+            {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
         end
       else
         {config_fields, false, nil}
@@ -1492,6 +1512,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
   # Basic Ash types
   def get_zod_type(%{type: Ash.Type.Atom}, _), do: "z.string()"
+  def get_zod_type(%{type: Ash.Type.String, allow_nil?: false}, _), do: "z.string().min(1)"
   def get_zod_type(%{type: Ash.Type.String}, _), do: "z.string()"
   def get_zod_type(%{type: Ash.Type.CiString}, _), do: "z.string()"
   def get_zod_type(%{type: Ash.Type.Integer}, _), do: "z.number().int()"
@@ -1599,21 +1620,6 @@ defmodule AshTypescript.Rpc.Codegen do
   def get_zod_type(%{type: AshDoubleEntry.ULID}, _), do: "z.string()"
   # Money object
   def get_zod_type(%{type: AshMoney.Types.Money}, _), do: "z.object({})"
-
-  # Shorthand atom types
-  def get_zod_type(%{type: :string}, _), do: "z.string()"
-  def get_zod_type(%{type: :integer}, _), do: "z.number().int()"
-  def get_zod_type(%{type: :float}, _), do: "z.number()"
-  def get_zod_type(%{type: :decimal}, _), do: "z.string()"
-  def get_zod_type(%{type: :boolean}, _), do: "z.boolean()"
-  def get_zod_type(%{type: :uuid}, _), do: "z.uuid()"
-  def get_zod_type(%{type: :date}, _), do: "z.iso.date()"
-  def get_zod_type(%{type: :time}, _), do: "z.string().time()"
-  def get_zod_type(%{type: :datetime}, _), do: "z.iso.datetime()"
-  def get_zod_type(%{type: :naive_datetime}, _), do: "z.iso.datetime()"
-  def get_zod_type(%{type: :utc_datetime}, _), do: "z.iso.datetime()"
-  def get_zod_type(%{type: :utc_datetime_usec}, _), do: "z.iso.datetime()"
-  def get_zod_type(%{type: :binary}, _), do: "z.string()"
 
   # Handle custom types and fallbacks
   def get_zod_type(%{type: type, constraints: constraints} = attr, context) do
