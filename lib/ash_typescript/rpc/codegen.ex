@@ -531,7 +531,7 @@ defmodule AshTypescript.Rpc.Codegen do
   defp format_fields_array(fields) do
     fields
     |> Enum.map(&format_field_item/1)
-    |> Enum.join("as const, ")
+    |> Enum.join(" as const, ")
   end
 
   defp format_field_item(field) when is_atom(field) do
