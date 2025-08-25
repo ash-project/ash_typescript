@@ -495,7 +495,8 @@ defmodule AshTypescript.Rpc.Codegen do
     case RequestedFieldsProcessor.process(resource, action.name, atomized_fields) do
       {:ok, {_select, _load, _template}} ->
         # Format the original fields for both type and constant (preserves args structure)
-        const_fields = format_typed_query_fields_for_typescript(atomized_fields)
+
+        type_fields = format_typed_query_fields_type_for_typescript(atomized_fields)
 
         # Generate the type
         type_name = typed_query.ts_result_type_name
@@ -506,10 +507,12 @@ defmodule AshTypescript.Rpc.Codegen do
 
         result_type =
           if is_array do
-            "Array<InferResult<#{resource_name}ResourceSchema, #{const_fields}>>"
+            "Array<InferResult<#{resource_name}ResourceSchema, #{type_fields}>>"
           else
-            "InferResult<#{resource_name}ResourceSchema, #{const_fields}>"
+            "InferResult<#{resource_name}ResourceSchema, #{type_fields}>"
           end
+
+        const_fields = format_typed_query_fields_const_for_typescript(atomized_fields)
 
         """
         // Type for #{typed_query.name}
@@ -524,14 +527,24 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
-  defp format_typed_query_fields_for_typescript(fields) do
-    "[" <> format_fields_array(fields) <> "]"
+  defp format_typed_query_fields_const_for_typescript(fields) do
+    "[" <> format_fields_const_array(fields) <> "]"
   end
 
-  defp format_fields_array(fields) do
+  defp format_typed_query_fields_type_for_typescript(fields) do
+    "[" <> format_fields_type_array(fields) <> "]"
+  end
+
+  defp format_fields_const_array(fields) do
     fields
     |> Enum.map(&format_field_item/1)
     |> Enum.join(" as const, ")
+  end
+
+  defp format_fields_type_array(fields) do
+    fields
+    |> Enum.map(&format_field_item/1)
+    |> Enum.join(", ")
   end
 
   defp format_field_item(field) when is_atom(field) do
@@ -540,7 +553,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
   defp format_field_item({field, nested_fields}) when is_atom(field) and is_list(nested_fields) do
     # Relationship
-    "{ #{format_field_name(field)}: [#{format_fields_array(nested_fields)}] }"
+    "{ #{format_field_name(field)}: [#{format_fields_type_array(nested_fields)}] }"
   end
 
   defp format_field_item({field, {args, nested_fields}})
@@ -548,7 +561,7 @@ defmodule AshTypescript.Rpc.Codegen do
     # Calculation with args - this comes from the extraction template after processing
     args_json = format_args_map(args)
 
-    "{ #{format_field_name(field)}: { #{formatted_args_field()}: #{args_json}, #{formatted_fields_field()}: [#{format_fields_array(nested_fields)}] } }"
+    "{ #{format_field_name(field)}: { #{formatted_args_field()}: #{args_json}, #{formatted_fields_field()}: [#{format_fields_type_array(nested_fields)}] } }"
   end
 
   defp format_field_item({field, nested_fields}) when is_atom(field) and is_map(nested_fields) do
@@ -558,7 +571,7 @@ defmodule AshTypescript.Rpc.Codegen do
         # Complex calculation from template
         args_json = format_args_map(args)
 
-        "{ #{format_field_name(field)}: { #{formatted_args_field()}: #{args_json}, #{formatted_fields_field()}: [#{format_fields_array(fields)}] } }"
+        "{ #{format_field_name(field)}: { #{formatted_args_field()}: #{args_json}, #{formatted_fields_field()}: [#{format_fields_type_array(fields)}] } }"
 
       _ ->
         # Other map structure - treat as generic
