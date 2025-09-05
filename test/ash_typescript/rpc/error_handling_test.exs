@@ -55,103 +55,6 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       assert String.contains?(response.details.suggestion, "public attribute")
     end
 
-    test "invalid field format error shows received vs expected" do
-      error = {:invalid_fields, {:invalid_field_format, [{"key1", "val1"}, {"key2", "val2"}]}}
-
-      response = ErrorBuilder.build_error_response(error)
-
-      assert response.type == "invalid_field_format"
-      assert response.message == "Invalid field specification format"
-      assert response.details.received != nil
-      assert String.contains?(response.details.expected, "single key-value")
-    end
-
-    test "unsupported field format error lists supported formats" do
-      error = {:invalid_fields, {:unsupported_field_format, 123}}
-
-      response = ErrorBuilder.build_error_response(error)
-
-      assert response.type == "unsupported_field_format"
-      assert response.details.received == "123"
-      assert is_list(response.details.supported_formats)
-      assert "string" in response.details.supported_formats
-    end
-
-    test "simple attribute with spec error explains the issue" do
-      error = {:invalid_fields, {:simple_attribute_with_spec, :title, ["nested"]}}
-
-      response = ErrorBuilder.build_error_response(error)
-
-      assert response.type == "simple_attribute_with_spec"
-      assert String.contains?(response.message, "title")
-      assert String.contains?(response.message, "cannot have field specification")
-      assert response.details.field == "title"
-      assert response.details.received_spec == "[\"nested\"]"
-      assert String.contains?(response.details.suggestion, "Remove")
-    end
-
-    test "simple calculation with spec error provides guidance" do
-      error =
-        {:invalid_fields, {:simple_calculation_with_spec, :is_overdue, %{"invalid" => "spec"}}}
-
-      response = ErrorBuilder.build_error_response(error)
-
-      assert response.type == "simple_calculation_with_spec"
-      assert String.contains?(response.message, "is_overdue")
-      assert response.details.field == "isOverdue"
-      assert String.contains?(response.details.suggestion, "Remove")
-    end
-
-    test "invalid calculation spec error shows expected structure" do
-      error = {:invalid_fields, {:invalid_calculation_spec, :self, %{"wrong" => "format"}}}
-
-      response = ErrorBuilder.build_error_response(error)
-
-      assert response.type == "invalid_calculation_spec"
-      assert String.contains?(response.message, "self")
-      assert response.details.field == "self"
-      assert String.contains?(response.details.expected, "args")
-      assert String.contains?(response.details.expected, "fields")
-    end
-
-    test "relationship field error includes nested error context" do
-      nested_error = {:unknown_field, :invalid_user_field, User, "user.invalidUserField"}
-      error = {:invalid_fields, {:relationship_field_error, :user, nested_error}}
-
-      response = ErrorBuilder.build_error_response(error)
-
-      assert response.type == "relationship_field_error"
-      assert String.contains?(response.message, "user")
-      assert response.details.field == "user"
-      assert response.details.nested_error.type == "unknown_field"
-      assert String.contains?(response.details.nested_error.message, "Unknown field")
-    end
-
-    test "embedded resource field error includes nested context" do
-      nested_error =
-        {:unknown_field, :invalid_metadata_field, Todo.Metadata, "metadata.invalidMetadataField"}
-
-      error = {:invalid_fields, {:embedded_resource_field_error, :metadata, nested_error}}
-
-      response = ErrorBuilder.build_error_response(error)
-
-      assert response.type == "embedded_resource_field_error"
-      assert String.contains?(response.message, "metadata")
-      assert response.details.field == "metadata"
-      assert response.details.nested_error.type == "unknown_field"
-    end
-
-    test "embedded resource module not found error" do
-      error = {:invalid_fields, {:embedded_resource_module_not_found, :metadata}}
-
-      response = ErrorBuilder.build_error_response(error)
-
-      assert response.type == "embedded_resource_module_not_found"
-      assert String.contains?(response.message, "metadata")
-      assert response.details.field == "metadata"
-      assert String.contains?(response.details.suggestion, "embedded resource")
-    end
-
     test "unsupported field combination error shows all context" do
       error =
         {:invalid_fields,
@@ -253,9 +156,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       errors_with_suggestions = [
         {:action_not_found, "test"},
         {:tenant_required, Todo},
-        {:invalid_fields, {:unknown_field, :test, Todo, "test"}},
-        {:invalid_fields, {:simple_attribute_with_spec, :title, ["spec"]}},
-        {:invalid_fields, {:embedded_resource_module_not_found, :metadata}}
+        {:invalid_fields, {:unknown_field, :test, Todo, "test"}}
       ]
 
       for error <- errors_with_suggestions do

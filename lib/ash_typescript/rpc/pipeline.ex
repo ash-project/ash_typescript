@@ -325,7 +325,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   defp apply_sort(query, nil), do: query
   defp apply_sort(query, sort), do: Ash.Query.sort_input(query, sort)
 
-  defp apply_pagination(query, nil), do: query
+  defp apply_pagination(query, nil), do: Ash.Query.page(query, nil)
   defp apply_pagination(query, page), do: Ash.Query.page(query, page)
 
   @doc """

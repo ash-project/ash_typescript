@@ -271,6 +271,26 @@ defmodule AshTypescript.Rpc.Codegen do
         [K in keyof SelectedFields]: InferFieldValue<T, SelectedFields[K]>;
       }[number]
     >;
+
+    export type SuccessDataFunc<T extends (...args: any[]) => Promise<any>> = Extract<
+      Awaited<ReturnType<T>>,
+      { success: true }
+    >["data"];
+
+    export type SuccessDataType<T> = Extract<T, { success: true }>["data"];
+
+    /**
+     * Represents an error from an unsuccessful RPC call
+     * @example
+     * const error: AshRpcError = { type: "validation_error", message: "Something went wrong" }
+     */
+    export type AshRpcError = {
+      type: string;
+      message: string;
+      field?: string;
+      fieldPath?: string;
+      details?: Record<string, any>;
+    }
     """
   end
 
@@ -292,9 +312,7 @@ defmodule AshTypescript.Rpc.Codegen do
      * Builds headers object with CSRF token for Phoenix applications
      * Returns headers object with X-CSRF-Token (if available)
      */
-    export function buildCSRFHeaders(): Record<string, string> {
-      const headers: Record<string, string> = {};
-
+    export function buildCSRFHeaders(headers: Record<string, string> = {}): Record<string, string> {
       const csrfToken = getPhoenixCSRFToken();
       if (csrfToken) {
         headers["X-CSRF-Token"] = csrfToken;
