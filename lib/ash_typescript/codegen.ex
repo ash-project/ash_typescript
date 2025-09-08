@@ -11,11 +11,30 @@ defmodule AshTypescript.Codegen do
     |> Enum.uniq()
   end
 
+  @doc """
+  Discovers all TypedStruct modules referenced by the given resources.
+  Similar to find_embedded_resources but for TypedStruct modules.
+  """
+  def find_typed_struct_modules(resources) do
+    resources
+    |> Enum.flat_map(&extract_typed_structs_from_resource/1)
+    |> Enum.uniq()
+  end
+
   defp extract_embedded_from_resource(resource) do
     resource
     |> Ash.Resource.Info.public_attributes()
     |> Enum.filter(&is_embedded_resource_attribute?/1)
     |> Enum.flat_map(&extract_embedded_modules/1)
+    # Remove nils
+    |> Enum.filter(& &1)
+  end
+
+  defp extract_typed_structs_from_resource(resource) do
+    resource
+    |> Ash.Resource.Info.public_attributes()
+    |> Enum.filter(&is_typed_struct_attribute?/1)
+    |> Enum.flat_map(&extract_typed_struct_modules/1)
     # Remove nils
     |> Enum.filter(& &1)
   end
@@ -69,6 +88,76 @@ defmodule AshTypescript.Codegen do
   end
 
   defp is_embedded_resource_attribute?(_), do: false
+
+  defp is_typed_struct_attribute?(%Ash.Resource.Attribute{
+         type: type,
+         constraints: constraints
+       }) do
+    case type do
+      # Handle union types FIRST (before general atom patterns)
+      Ash.Type.Union ->
+        union_types = Keyword.get(constraints, :types, [])
+
+        Enum.any?(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          type && is_typed_struct?(type)
+        end)
+
+      # Handle array of union types FIRST (before general array patterns)
+      {:array, Ash.Type.Union} ->
+        items_constraints = Keyword.get(constraints, :items, [])
+        union_types = Keyword.get(items_constraints, :types, [])
+
+        Enum.any?(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          type && is_typed_struct?(type)
+        end)
+
+      # Handle direct TypedStruct module (what Ash actually stores)
+      module when is_atom(module) ->
+        is_typed_struct?(module)
+
+      # Handle array of direct TypedStruct module
+      {:array, module} when is_atom(module) ->
+        is_typed_struct?(module)
+
+      _ ->
+        false
+    end
+  end
+
+  defp is_typed_struct_attribute?(_), do: false
+
+  defp extract_typed_struct_modules(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
+    case type do
+      # Handle union types FIRST (before general atom patterns)
+      Ash.Type.Union ->
+        union_types = Keyword.get(constraints, :types, [])
+
+        Enum.flat_map(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          if type && is_typed_struct?(type), do: [type], else: []
+        end)
+
+      {:array, Ash.Type.Union} ->
+        items_constraints = Keyword.get(constraints, :items, [])
+        union_types = Keyword.get(items_constraints, :types, [])
+
+        Enum.flat_map(union_types, fn {_type_name, type_config} ->
+          type = Keyword.get(type_config, :type)
+          if type && is_typed_struct?(type), do: [type], else: []
+        end)
+
+      module when is_atom(module) ->
+        if is_typed_struct?(module), do: [module], else: []
+
+      {:array, module} when is_atom(module) ->
+        if is_typed_struct?(module), do: [module], else: []
+
+      _ ->
+        []
+    end
+  end
 
   # New function that returns a list of embedded modules (handles union types)
   defp extract_embedded_modules(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
@@ -329,53 +418,22 @@ defmodule AshTypescript.Codegen do
         ""
       end
 
+    validation_errors_schema =
+      if is_embedded_resource?(resource) do
+        generate_input_validation_errors_schema(resource)
+      else
+        ""
+      end
+
     base_schemas = """
     // #{resource_name} Schema
     #{unified_schema}
     """
 
-    if input_schema != "" do
-      base_schemas <> "\n\n" <> input_schema
-    else
-      base_schemas
-    end
+    [base_schemas, input_schema, validation_errors_schema]
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n\n")
   end
-
-  defp is_typed_struct_attribute?(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
-    case type do
-      # Handle union types FIRST (before general atom patterns)
-      Ash.Type.Union ->
-        union_types = Keyword.get(constraints, :types, [])
-
-        Enum.any?(union_types, fn {_type_name, type_config} ->
-          type = Keyword.get(type_config, :type)
-          type && is_typed_struct?(type)
-        end)
-
-      # Handle array of union types FIRST (before general array patterns)
-      {:array, Ash.Type.Union} ->
-        items_constraints = Keyword.get(constraints, :items, [])
-        union_types = Keyword.get(items_constraints, :types, [])
-
-        Enum.any?(union_types, fn {_type_name, type_config} ->
-          type = Keyword.get(type_config, :type)
-          type && is_typed_struct?(type)
-        end)
-
-      # Handle direct TypedStruct module
-      module when is_atom(module) ->
-        is_typed_struct?(module)
-
-      # Handle array of TypedStruct
-      {:array, module} when is_atom(module) ->
-        is_typed_struct?(module)
-
-      _ ->
-        false
-    end
-  end
-
-  defp is_typed_struct_attribute?(_), do: false
 
   @doc """
   Generates a unified resource schema with metadata fields and direct field access.
@@ -868,11 +926,9 @@ defmodule AshTypescript.Codegen do
         cond do
           is_embedded_resource?(type) ->
             resource_name = build_resource_type_name(type)
-            # For embedded resources in unions, reference the resource schema
             "#{formatted_name}?: #{resource_name}ResourceSchema"
 
           is_typed_struct?(type) ->
-            # Handle TypedStruct in union
             "#{formatted_name}?: any"
 
           true ->
@@ -927,6 +983,142 @@ defmodule AshTypescript.Codegen do
     #{input_fields}
     };
     """
+  end
+
+  @doc """
+  Generates explicit validation error types for input schemas.
+  """
+  def generate_input_validation_errors_schema(resource) do
+    resource_name = build_resource_type_name(resource)
+
+    # Generate error field definitions for all public attributes
+    error_fields =
+      resource
+      |> Ash.Resource.Info.public_attributes()
+      |> Enum.map(fn attr ->
+        formatted_name =
+          AshTypescript.FieldFormatter.format_field(
+            attr.name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        error_type = get_ts_error_type(attr)
+
+        "  #{formatted_name}?: #{error_type};"
+      end)
+      |> Enum.join("\n")
+
+    """
+    export type #{resource_name}ValidationErrors = {
+    #{error_fields}
+    };
+    """
+  end
+
+  @doc """
+  Maps Ash types to their corresponding validation error types.
+  """
+  def get_ts_error_type(%{type: type, constraints: constraints}) do
+    case type do
+      # Arrays
+      {:array, inner_type} ->
+        constraints = Keyword.get(constraints, :items, [])
+        error_type = get_ts_error_type(%{type: inner_type, constraints: constraints})
+        "#{error_type}[]"
+
+      Ash.Type.Union ->
+        union_types = Keyword.get(constraints, :types, [])
+        build_union_error_type(union_types)
+
+      map_like when map_like in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] ->
+        fields = Keyword.get(constraints, :fields, [])
+
+        field_defs =
+          Enum.map(fields, fn {key, type_config} ->
+            type = Keyword.get(type_config, :type)
+            constraints = Keyword.get(type_config, :constraints, [])
+
+            "#{AshTypescript.Helpers.format_output_field(key)}?: #{get_ts_error_type(%{type: type, constraints: constraints})}"
+          end)
+          |> Enum.join("; ")
+
+        "{ #{field_defs} }"
+
+      # Struct types
+      Ash.Type.Struct ->
+        instance_of = Keyword.get(constraints, :instance_of)
+
+        if instance_of && is_embedded_resource?(instance_of) do
+          resource_name = build_resource_type_name(instance_of)
+          "#{resource_name}ValidationErrors"
+        else
+          "Record<string, any>"
+        end
+
+      custom_type ->
+        cond do
+          is_custom_type?(custom_type) ->
+            "#{custom_type.typescript_type_name()}ValidationErrors"
+
+          is_embedded_resource?(custom_type) ->
+            resource_name = build_resource_type_name(custom_type)
+            "#{resource_name}ValidationErrors"
+
+          is_typed_struct?(custom_type) ->
+            resource_name = build_resource_type_name(custom_type)
+            "#{resource_name}ValidationErrors"
+
+          Ash.Type.NewType.new_type?(custom_type) ->
+            # For NewTypes, get the underlying type and recurse
+            subtype = Ash.Type.NewType.subtype_of(custom_type)
+            sub_constraints = Ash.Type.NewType.constraints(custom_type, constraints)
+            get_ts_error_type(%{type: subtype, constraints: sub_constraints})
+
+          Spark.implements_behaviour?(custom_type, Ash.Type.Enum) ->
+            "string[]"
+
+          true ->
+            "string[]"
+        end
+    end
+  end
+
+  def get_ts_error_type(%{type: type}) do
+    get_ts_error_type(%{type: type, constraints: []})
+  end
+
+  @doc """
+  Builds a union error type from a list of union type definitions.
+  Creates an object with optional error fields for each union variant.
+
+  Example:
+  Input union: { text: TextInput } | { note: string }
+  Error type: { text?: TextValidationErrors; note?: string[]; }
+  """
+  def build_union_error_type(union_types) do
+    if Enum.empty?(union_types) do
+      "Record<string, any>"
+    else
+      member_fields =
+        union_types
+        |> Enum.map(fn {type_name, type_config} ->
+          formatted_name =
+            AshTypescript.FieldFormatter.format_field(
+              type_name,
+              AshTypescript.Rpc.output_field_formatter()
+            )
+
+          # Get the error type for this union member
+          type = Keyword.get(type_config, :type)
+          constraints = Keyword.get(type_config, :constraints, [])
+          member_error_type = get_ts_error_type(%{type: type, constraints: constraints})
+
+          "#{formatted_name}?: #{member_error_type}"
+        end)
+        |> Enum.join("; ")
+
+      "{ #{member_fields} }"
+    end
   end
 
   # Input-specific type mapping for embedded resources

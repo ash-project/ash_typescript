@@ -129,11 +129,10 @@ defmodule AshTypescript.Rpc.Codegen do
         end)
       end)
 
-    # Get typed queries
     typed_queries = get_typed_queries(otp_app)
 
-    # Discover embedded resources and include them in schema generation
-    embedded_resources = AshTypescript.Codegen.find_embedded_resources(rpc_resources)
+    embedded_resources = find_embedded_resources(rpc_resources)
+    typed_struct_modules = find_typed_struct_modules(rpc_resources)
     all_resources_for_schemas = rpc_resources ++ embedded_resources
 
     """
@@ -147,6 +146,8 @@ defmodule AshTypescript.Rpc.Codegen do
     #{generate_all_schemas_for_resources(all_resources_for_schemas, all_resources_for_schemas)}
 
     #{generate_zod_schemas_for_embedded_resources(embedded_resources)}
+
+    #{generate_validation_error_schemas_for_typed_structs(typed_struct_modules)}
 
     #{generate_filter_types(all_resources_for_schemas, all_resources_for_schemas)}
 
@@ -176,6 +177,8 @@ defmodule AshTypescript.Rpc.Codegen do
     ) => void
       ? I
       : never;
+
+    type IsUnion<T> = [T] extends [UnionToIntersection<T>] ? false : true;
 
     type HasComplexFields<T extends TypedSchema> = keyof Omit<
       T,
@@ -277,7 +280,11 @@ defmodule AshTypescript.Rpc.Codegen do
       { success: true }
     >["data"];
 
-    export type SuccessDataType<T> = Extract<T, { success: true }>["data"];
+
+    export type ErrorData<T extends (...args: any[]) => Promise<any>> = Extract<
+      Awaited<ReturnType<T>>,
+      { success: false }
+    >["errors"];
 
     /**
      * Represents an error from an unsuccessful RPC call
@@ -291,6 +298,9 @@ defmodule AshTypescript.Rpc.Codegen do
       fieldPath?: string;
       details?: Record<string, any>;
     }
+
+
+
     """
   end
 
@@ -779,6 +789,81 @@ defmodule AshTypescript.Rpc.Codegen do
       #{Enum.join(field_lines, "\n")}
       };
       """
+    end
+  end
+
+  # Generate explicit validation error types for input schemas
+  defp generate_validation_error_type(resource, action, rpc_action_name) do
+    # Early return if action has no input
+    if not action_has_input?(resource, action) do
+      ""
+    else
+      error_type_name = "#{snake_to_pascal_case(rpc_action_name)}ValidationErrors"
+      error_field_defs = generate_rpc_action_error_fields(resource, action)
+
+      field_lines =
+        Enum.map(error_field_defs, fn {name, type} ->
+          "  #{name}?: #{type};"
+        end)
+
+      """
+      export type #{error_type_name} = {
+      #{Enum.join(field_lines, "\n")}
+      };
+      """
+    end
+  end
+
+  defp generate_rpc_action_error_fields(resource, action) do
+    cond do
+      action.type in [:read, :action] ->
+        arguments = action.arguments
+
+        if arguments != [] do
+          Enum.map(arguments, fn arg ->
+            formatted_arg_name =
+              AshTypescript.FieldFormatter.format_field(
+                arg.name,
+                AshTypescript.Rpc.output_field_formatter()
+              )
+
+            error_type = get_ts_error_type(arg)
+            {formatted_arg_name, error_type}
+          end)
+        end
+
+      action.type in [:create, :update, :destroy] ->
+        if action.accept != [] || action.arguments != [] do
+          accept_field_defs =
+            Enum.map(action.accept, fn field_name ->
+              attr = Ash.Resource.Info.attribute(resource, field_name)
+
+              formatted_field_name =
+                AshTypescript.FieldFormatter.format_field(
+                  field_name,
+                  AshTypescript.Rpc.output_field_formatter()
+                )
+
+              error_type = get_ts_error_type(attr)
+              {formatted_field_name, error_type}
+            end)
+
+          argument_field_defs =
+            Enum.map(action.arguments, fn arg ->
+              formatted_arg_name =
+                AshTypescript.FieldFormatter.format_field(
+                  arg.name,
+                  AshTypescript.Rpc.output_field_formatter()
+                )
+
+              error_type = get_ts_error_type(arg)
+              {formatted_arg_name, error_type}
+            end)
+
+          accept_field_defs ++ argument_field_defs
+        else
+          []
+        end
     end
   end
 
@@ -1457,6 +1542,9 @@ defmodule AshTypescript.Rpc.Codegen do
     # Generate separate input type
     input_type = generate_input_type(resource, action, rpc_action_name)
 
+    # Generate validation error type
+    error_type = generate_validation_error_type(resource, action, rpc_action_name)
+
     # Generate Zod schema if enabled
     zod_schema =
       if AshTypescript.Rpc.generate_zod_schemas?() do
@@ -1487,12 +1575,14 @@ defmodule AshTypescript.Rpc.Codegen do
         """
       end
 
-    # Build the final output with conditional Zod schema
+    # Build the final output with conditional Zod schema and error types
+    base_types = [input_type, error_type] |> Enum.reject(&(&1 == ""))
+
     output_parts =
       if zod_schema != "" do
-        [input_type, zod_schema, result_type, functions_section]
+        base_types ++ [zod_schema, result_type, functions_section]
       else
-        [input_type, result_type, functions_section]
+        base_types ++ [result_type, functions_section]
       end
 
     Enum.join(output_parts, "\n")
@@ -1926,6 +2016,54 @@ defmodule AshTypescript.Rpc.Codegen do
     else
       ""
     end
+  end
+
+  defp generate_validation_error_schemas_for_typed_structs(typed_struct_modules) do
+    if typed_struct_modules != [] do
+      schemas =
+        typed_struct_modules
+        |> Enum.map(&generate_validation_error_schema_for_typed_struct/1)
+        |> Enum.join("\n\n")
+
+      """
+      // ============================
+      // Validation Error Schemas for TypedStruct Modules
+      // ============================
+
+      #{schemas}
+      """
+    else
+      ""
+    end
+  end
+
+  defp generate_validation_error_schema_for_typed_struct(typed_struct_module) do
+    resource_name = build_resource_type_name(typed_struct_module)
+
+    # Get fields from TypedStruct module
+    fields = AshTypescript.Codegen.get_typed_struct_fields(typed_struct_module)
+
+    # Generate error field definitions for all TypedStruct fields
+    error_fields =
+      fields
+      |> Enum.map(fn field ->
+        formatted_name =
+          AshTypescript.FieldFormatter.format_field(
+            field.name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        # Generate error type for this field based on field type
+        error_type = get_ts_error_type(%{type: field.type, constraints: field.constraints || []})
+        "  #{formatted_name}?: #{error_type};"
+      end)
+      |> Enum.join("\n")
+
+    """
+    export type #{resource_name}ValidationErrors = {
+    #{error_fields}
+    };
+    """
   end
 
   defp generate_zod_schema_for_embedded_resource(resource) do
