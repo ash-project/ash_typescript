@@ -444,17 +444,6 @@ defmodule AshTypescript.Rpc.Codegen do
           {:error, :no_instance_of_defined}
         end
 
-      # Array of maps (typed maps with field definitions)
-      {:array, Ash.Type.Map} ->
-        items_constraints = Keyword.get(action.constraints || [], :items, [])
-
-        if Keyword.has_key?(items_constraints, :fields) do
-          {:ok, :array_of_typed_map, Keyword.get(items_constraints, :fields)}
-        else
-          {:error, :no_fields_defined}
-        end
-
-      # Single struct (resource)
       Ash.Type.Struct ->
         constraints = action.constraints || []
 
@@ -464,8 +453,16 @@ defmodule AshTypescript.Rpc.Codegen do
           {:error, :no_instance_of_defined}
         end
 
-      # Single map (typed map with field definitions)
-      Ash.Type.Map ->
+      {:array, map_like} when map_like in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Keyword] ->
+        items_constraints = Keyword.get(action.constraints || [], :items, [])
+
+        if Keyword.has_key?(items_constraints, :fields) do
+          {:ok, :array_of_typed_map, Keyword.get(items_constraints, :fields)}
+        else
+          {:error, :no_fields_defined}
+        end
+
+      map_like when map_like in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Keyword] ->
         constraints = action.constraints || []
 
         if Keyword.has_key?(constraints, :fields) do
@@ -1092,7 +1089,6 @@ defmodule AshTypescript.Rpc.Codegen do
 
       cond do
         supports_offset and supports_keyset ->
-          # Generate union type for mixed pagination support
           generate_mixed_pagination_config_fields(
             limit_required,
             supports_countable,
@@ -1100,7 +1096,6 @@ defmodule AshTypescript.Rpc.Codegen do
           )
 
         supports_offset ->
-          # Generate offset-only pagination interface
           generate_offset_pagination_config_fields(
             limit_required,
             supports_countable,
@@ -1108,7 +1103,6 @@ defmodule AshTypescript.Rpc.Codegen do
           )
 
         supports_keyset ->
-          # Generate keyset-only pagination interface
           generate_keyset_pagination_config_fields(limit_required, optional_mark)
       end
     else
@@ -1155,7 +1149,6 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   defp generate_mixed_pagination_config_fields(limit_required, supports_countable, optional_mark) do
-    # Generate union type for mixed pagination support (without type discriminator)
     offset_fields = [
       "      #{formatted_limit_field()}#{limit_required}: number;",
       "      #{formatted_offset_field()}?: number;"
@@ -1219,7 +1212,6 @@ defmodule AshTypescript.Rpc.Codegen do
         []
       end
 
-    # Add primary key field for update/destroy actions
     config_fields =
       if requires_primary_key do
         primary_key_attrs = Ash.Resource.Info.primary_key(resource)
@@ -1251,7 +1243,6 @@ defmodule AshTypescript.Rpc.Codegen do
         config_fields
       end
 
-    # Add input field only if the action has input
     config_fields =
       if action_has_input?(resource, action) do
         config_fields ++ ["  #{format_output_field(:input)}: #{input_type_name};"]
@@ -1259,12 +1250,10 @@ defmodule AshTypescript.Rpc.Codegen do
         config_fields
       end
 
-    # Add fields field (always present for non-destroy actions)
     {config_fields, has_fields, fields_generic} =
       if action.type != :destroy do
         case action.type do
           :action ->
-            # Check if this generic action returns a field-selectable type
             case action_returns_field_selectable_type?(action) do
               {:ok, type, _value} when type in [:resource, :array_of_resource] ->
                 updated_fields = config_fields ++ ["  #{formatted_fields_field()}: Fields;"]
@@ -1272,7 +1261,6 @@ defmodule AshTypescript.Rpc.Codegen do
                 {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
 
               {:ok, type, _fields} when type in [:typed_map, :array_of_typed_map] ->
-                # For typed maps, use the generated field type alias
                 updated_fields =
                   config_fields ++
                     [
@@ -1282,7 +1270,6 @@ defmodule AshTypescript.Rpc.Codegen do
                 {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
 
               _ ->
-                # No fields for non-field-selectable generic actions
                 {config_fields, false, nil}
             end
 

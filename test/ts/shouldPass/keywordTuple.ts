@@ -1,94 +1,142 @@
 // Test file for keyword and tuple type handling in generated TypeScript
-import { listTodos } from "../generated";
+import { listTodos, getKeywordOptionsTodo, getCoordinatesInfoTodo } from "../generated";
 
 async function testKeywordTupleFieldSelection() {
-  console.log("Testing keyword and tuple field selection...");
+  // Test 1: Test the new keyword action with all fields
+  const keywordResult = await getKeywordOptionsTodo({
+    fields: ["priority", "category", "notify", "theme"],
+  });
+  
+  if (keywordResult.success) {
+    const { priority, category, notify, theme } = keywordResult.data;
+    
+    // Type assertions to verify correct types
+    const priorityNum: number = priority;
+    const categoryStr: string = category;
+    const notifyBool: boolean = notify;
+    const themeType: "light" | "dark" | "auto" = theme;
+  }
 
-  try {
-    // Test 1: Try to request keyword field without field selection - should fail
-    try {
-      await listTodos({
-        input: {},
-        fields: ["id", "title", { options: ["category"] }],
-      });
-      console.log(
-        "ERROR: Should have failed without field selection for options",
-      );
-    } catch (error) {
-      console.log("Expected error for options without field selection:", error);
-    }
+  // Test 2: Test the new keyword action with partial fields
+  const keywordPartial = await getKeywordOptionsTodo({
+    fields: ["priority", "notify"],
+  });
+  
+  if (keywordPartial.success) {
+    const { priority, notify } = keywordPartial.data;
+    
+    // Type assertions to verify correct types
+    const priorityNum: number = priority;
+    const notifyBool: boolean = notify;
+  }
 
-    // Test 2: Try to request tuple field without field selection - should fail
-    try {
-      await listTodos({
-        input: {},
-        fields: ["id", "title", { coordinates: ["latitude", "longitude"] }],
-      });
-      console.log(
-        "ERROR: Should have failed without field selection for coordinates",
-      );
-    } catch (error) {
-      console.log(
-        "Expected error for coordinates without field selection:",
-        error,
-      );
-    }
+  // Test 3: Test the new tuple action (currently no field selection support)
+  const tupleResult = await getCoordinatesInfoTodo({});
+  
+  if (tupleResult.success) {
+    const { latitude, longitude, altitude } = tupleResult.data;
+    
+    // Type assertions to verify correct types
+    const latNum: number = latitude;
+    const lngNum: number = longitude;
+    const altNum: number | null = altitude;
+    
+    // Note: Tuple actions don't currently support field selection in the generated TS,
+    // they return the full tuple structure
+  }
 
-    // Test 3: Try with field selection for keyword type
-    try {
-      const todosWithOptions = await listTodos({
-        input: {},
-        fields: [
-          "id",
-          "title",
-          {
-            options: ["priority", "category", "notify"],
-          },
-        ],
-      });
-      console.log("Success with keyword field selection:", todosWithOptions);
-    } catch (error) {
-      console.log("Error with keyword field selection:", error);
-    }
+  // Test 4: Try to request keyword field without field selection - should fail
+  await listTodos({
+    input: {},
+    fields: ["id", "title", { options: ["category"] }],
+  });
 
-    // Test 4: Try with field selection for tuple type
-    try {
-      const todosWithCoordinates = await listTodos({
-        input: {},
-        fields: [
-          "id",
-          "title",
-          {
-            coordinates: ["latitude", "longitude"],
-          },
-        ],
-      });
-      console.log("Success with tuple field selection:", todosWithCoordinates);
-    } catch (error) {
-      console.log("Error with tuple field selection:", error);
-    }
+  // Test 5: Try to request tuple field without field selection - should fail
+  await listTodos({
+    input: {},
+    fields: ["id", "title", { coordinates: ["latitude", "longitude"] }],
+  });
 
-    // Test 5: Try with partial field selection for keyword type
-    try {
-      const todosWithPartialOptions = await listTodos({
-        input: {},
-        fields: [
-          "id",
-          "title",
-          {
-            options: ["priority", "category"], // Only some fields
-          },
-        ],
-      });
-      console.log(
-        "Success with partial keyword field selection:",
-        todosWithPartialOptions,
-      );
-    } catch (error) {
-      console.log("Error with partial keyword field selection:", error);
+  // Test 6: Try with field selection for keyword type
+  const todosWithOptions = await listTodos({
+    input: {},
+    fields: [
+      "id",
+      "title",
+      {
+        options: ["priority", "category", "notify"],
+      },
+    ],
+  });
+  
+  if (todosWithOptions.success) {
+    const todos = todosWithOptions.data.results;
+    
+    // Check the first todo's options if it exists
+    if (todos.length > 0 && todos[0].options) {
+      const { priority, category, notify } = todos[0].options;
+      
+      // Type assertions for the first todo's fields
+      const firstTodoId: string = todos[0].id;
+      const firstTodoTitle: string = todos[0].title;
+      const optionPriority: number = priority;
+      const optionCategory: string | null = category;
+      const optionNotify: boolean | null = notify;
     }
-  } catch (error) {
-    console.error("Unexpected error:", error);
+  }
+
+  // Test 7: Try with field selection for tuple type
+  const todosWithCoordinates = await listTodos({
+    input: {},
+    fields: [
+      "id",
+      "title",
+      {
+        coordinates: ["latitude", "longitude"],
+      },
+    ],
+  });
+  
+  if (todosWithCoordinates.success) {
+    const todos = todosWithCoordinates.data.results;
+    
+    // Check the first todo's coordinates if it exists
+    if (todos.length > 0 && todos[0].coordinates) {
+      const { latitude, longitude } = todos[0].coordinates;
+      
+      // Type assertions for the first todo's fields
+      const firstTodoId: string = todos[0].id;
+      const firstTodoTitle: string = todos[0].title;
+      const coordLatitude: number = latitude;
+      const coordLongitude: number = longitude;
+    }
+  }
+
+  // Test 8: Try with partial field selection for keyword type
+  const todosWithPartialOptions = await listTodos({
+    input: {},
+    fields: [
+      "id",
+      "title",
+      {
+        options: ["priority", "category"], // Only some fields
+      },
+    ],
+  });
+  
+  if (todosWithPartialOptions.success) {
+    const todos = todosWithPartialOptions.data.results;
+    
+    // Check the first todo's partial options if it exists
+    if (todos.length > 0 && todos[0].options) {
+      const { priority, category } = todos[0].options;
+      
+      // Type assertions for the first todo's fields
+      const firstTodoId: string = todos[0].id;
+      const firstTodoTitle: string = todos[0].title;
+      const partialOptionPriority: number = priority;
+      const partialOptionCategory: string | null = category;
+    }
   }
 }
 

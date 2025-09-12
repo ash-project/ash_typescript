@@ -18,6 +18,8 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :search_paginated_todos, :search_paginated
       rpc_action :list_recent_todos, :list_recent
       rpc_action :list_high_priority_todos, :list_high_priority
+      rpc_action :get_keyword_options_todo, :get_keyword_options
+      rpc_action :get_coordinates_info_todo, :get_coordinates_info
       rpc_action :destroy_todo, :destroy
 
       typed_query :list_todos_user_page, :read do

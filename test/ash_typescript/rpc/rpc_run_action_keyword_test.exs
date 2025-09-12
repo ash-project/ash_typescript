@@ -606,6 +606,70 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
     end
   end
 
+  describe "generic action returning keyword type" do
+    setup do
+      conn = TestHelpers.build_rpc_conn()
+      %{conn: conn}
+    end
+
+    test "runs get_keyword_options_todo action and processes field selection", %{conn: conn} do
+      # Test the generic action that returns a keyword type
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_keyword_options_todo",
+          "fields" => ["priority", "category", "notify", "theme"]
+        })
+
+      assert result["success"] == true,
+             "get_keyword_options_todo action failed: #{inspect(result)}"
+
+      options = result["data"]
+      assert is_map(options)
+      assert options["priority"] == 8
+      assert options["category"] == "work"
+      assert options["notify"] == true
+      assert options["theme"] == "dark"
+    end
+
+    test "runs get_keyword_options_todo action with partial field selection", %{conn: conn} do
+      # Test partial field selection on keyword action result
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_keyword_options_todo",
+          "fields" => ["priority", "notify"]
+        })
+
+      assert result["success"] == true
+
+      options = result["data"]
+      assert is_map(options)
+      assert options["priority"] == 8
+      assert options["notify"] == true
+      # Should not include category or theme since not requested
+      refute Map.has_key?(options, "category")
+      refute Map.has_key?(options, "theme")
+    end
+
+    test "runs get_keyword_options_todo action with single field selection", %{conn: conn} do
+      # Test single field selection on keyword action result
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_keyword_options_todo",
+          "fields" => ["theme"]
+        })
+
+      assert result["success"] == true
+
+      options = result["data"]
+      assert is_map(options)
+      assert options["theme"] == "dark"
+      # Should only include theme field
+      refute Map.has_key?(options, "priority")
+      refute Map.has_key?(options, "category")
+      refute Map.has_key?(options, "notify")
+    end
+  end
+
   describe "keyword field edge cases" do
     setup do
       conn = TestHelpers.build_rpc_conn()

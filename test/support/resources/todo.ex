@@ -472,6 +472,70 @@ defmodule AshTypescript.Test.Todo do
       end
     end
 
+    action :get_keyword_options, :keyword do
+      constraints fields: [
+                    priority: [
+                      type: :integer,
+                      allow_nil?: false,
+                      description: "Priority level (1-10)",
+                      constraints: [min: 1, max: 10]
+                    ],
+                    category: [
+                      type: :string,
+                      allow_nil?: false,
+                      description: "Todo category",
+                      constraints: [max_length: 50]
+                    ],
+                    notify: [
+                      type: :boolean,
+                      allow_nil?: false,
+                      description: "Whether to send notifications"
+                    ],
+                    theme: [
+                      type: :atom,
+                      allow_nil?: false,
+                      description: "UI theme preference",
+                      constraints: [one_of: [:light, :dark, :auto]]
+                    ]
+                  ]
+
+      run fn _input, _context ->
+        {:ok,
+         [
+           priority: 8,
+           category: "work",
+           notify: true,
+           theme: :dark
+         ]}
+      end
+    end
+
+    action :get_coordinates_info, :tuple do
+      constraints fields: [
+                    latitude: [
+                      type: :float,
+                      allow_nil?: false,
+                      description: "Latitude coordinate",
+                      constraints: [min: -90.0, max: 90.0]
+                    ],
+                    longitude: [
+                      type: :float,
+                      allow_nil?: false,
+                      description: "Longitude coordinate",
+                      constraints: [min: -180.0, max: 180.0]
+                    ],
+                    altitude: [
+                      type: :integer,
+                      allow_nil?: true,
+                      description: "Altitude in meters"
+                    ]
+                  ]
+
+      run fn _input, _context ->
+        {:ok, {37.7749, -122.4194, 50}}
+      end
+    end
+
     # Additional read action with different pagination configuration for testing
     read :search_paginated do
       argument :query, :string, allow_nil?: false

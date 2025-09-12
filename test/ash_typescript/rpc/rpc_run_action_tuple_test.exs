@@ -137,6 +137,82 @@ defmodule AshTypescript.Rpc.RpcRunActionTupleTest do
     end
   end
 
+  describe "generic action returning tuple type" do
+    setup do
+      conn = TestHelpers.build_rpc_conn()
+      %{conn: conn}
+    end
+
+    test "runs get_coordinates_info_todo action and processes field selection", %{conn: conn} do
+      # Test the generic action that returns a tuple type
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_coordinates_info_todo",
+          "fields" => ["latitude", "longitude", "altitude"]
+        })
+
+      assert result["success"] == true,
+             "get_coordinates_info_todo action failed: #{inspect(result)}"
+
+      coordinates = result["data"]
+      assert is_map(coordinates)
+      assert coordinates["latitude"] == 37.7749
+      assert coordinates["longitude"] == -122.4194
+      assert coordinates["altitude"] == 50
+    end
+
+    test "runs get_coordinates_info_todo action with partial field selection", %{conn: conn} do
+      # Test partial field selection on tuple action result
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_coordinates_info_todo",
+          "fields" => ["latitude", "longitude"]
+        })
+
+      assert result["success"] == true
+
+      coordinates = result["data"]
+      assert is_map(coordinates)
+      assert coordinates["latitude"] == 37.7749
+      assert coordinates["longitude"] == -122.4194
+      # Should not include altitude since not requested
+      refute Map.has_key?(coordinates, "altitude")
+    end
+
+    test "runs get_coordinates_info_todo action with single field selection", %{conn: conn} do
+      # Test single field selection on tuple action result
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_coordinates_info_todo",
+          "fields" => ["altitude"]
+        })
+
+      assert result["success"] == true
+
+      coordinates = result["data"]
+      assert is_map(coordinates)
+      assert coordinates["altitude"] == 50
+      # Should only include altitude field
+      refute Map.has_key?(coordinates, "latitude")
+      refute Map.has_key?(coordinates, "longitude")
+    end
+
+    test "validates get_coordinates_info_todo action returns correct data types", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_coordinates_info_todo",
+          "fields" => ["latitude", "longitude", "altitude"]
+        })
+
+      assert result["success"] == true
+
+      coordinates = result["data"]
+      assert is_float(coordinates["latitude"])
+      assert is_float(coordinates["longitude"])
+      assert is_integer(coordinates["altitude"])
+    end
+  end
+
   describe "tuple field edge cases" do
     setup do
       conn = TestHelpers.build_rpc_conn()
