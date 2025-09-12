@@ -186,7 +186,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           %{statistics: []}
         ])
 
-      assert error == {:requires_field_selection, :relationship, "statistics"}
+      assert error == {:requires_field_selection, :typedstruct, "statistics"}
     end
   end
 

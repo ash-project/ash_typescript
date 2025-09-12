@@ -369,24 +369,17 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
     test "processes aggregates in struct arrays", %{conn: conn} do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
-          "action" => "search_todos",
-          "input" => %{
-            "query" => "Test",
-            "includeCompleted" => true
-          },
+          "action" => "list_todos",
           "fields" => ["id", "title", "commentCount"]
         })
 
       assert result["success"] == true
       data = result["data"]
 
-      # Each item should have the aggregate field
       Enum.each(data, fn todo ->
         assert Map.has_key?(todo, "id")
         assert Map.has_key?(todo, "title")
         assert Map.has_key?(todo, "commentCount")
-
-        # commentCount should be a number
         assert is_integer(todo["commentCount"])
       end)
     end

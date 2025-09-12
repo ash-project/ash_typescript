@@ -25,7 +25,10 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTupleTest do
           _ -> false
         end)
 
-      assert coordinates_template == {"coordinates", [:latitude, :longitude]}
+      assert coordinates_template == {"coordinates", [
+        %{index: 0, field_name: :latitude},
+        %{index: 1, field_name: :longitude}
+      ]}
     end
 
     test "processes nested fields with tuple types" do
@@ -69,7 +72,10 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTupleTest do
           _ -> false
         end)
 
-      assert coordinates_template == {"coordinates", [:latitude, :longitude]}
+      assert coordinates_template == {"coordinates", [
+        %{index: 0, field_name: :latitude},
+        %{index: 1, field_name: :longitude}
+      ]}
       assert user_template == {"user", [:id, :name]}
     end
   end
@@ -83,7 +89,10 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTupleTest do
 
       assert select == ["coordinates"]
       assert load == []
-      assert template == [{"coordinates", [:latitude, :longitude]}]
+      assert template == [{"coordinates", [
+        %{index: 0, field_name: :latitude},
+        %{index: 1, field_name: :longitude}
+      ]}]
     end
   end
 end

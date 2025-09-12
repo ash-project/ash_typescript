@@ -107,7 +107,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   @spec process_result(term(), Request.t()) :: {:ok, term()} | {:error, term()}
   def process_result(ash_result, %Request{} = request) do
     case ash_result do
-      result when is_list(result) or is_map(result) ->
+      result when is_list(result) or is_map(result) or is_tuple(result) ->
         filtered = ResultProcessor.process(result, request.extraction_template)
         {:ok, filtered}
 

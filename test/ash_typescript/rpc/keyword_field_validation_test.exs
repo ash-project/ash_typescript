@@ -121,7 +121,10 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
           _ -> false
         end)
 
-      assert coordinates_template == {"coordinates", [:latitude, :longitude]}
+      assert coordinates_template == {"coordinates", [
+        %{index: 0, field_name: :latitude},
+        %{index: 1, field_name: :longitude}
+      ]}
 
       user_template =
         Enum.find(template, fn
@@ -140,7 +143,7 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
 
       result = RequestedFieldsProcessor.process(Todo, :read, fields)
 
-      assert {:error, {:requires_field_selection, :typed_struct, "coordinates"}} = result
+      assert {:error, {:requires_field_selection, :tuple, "coordinates"}} = result
     end
 
     test "accepts valid tuple field selection" do
@@ -160,7 +163,10 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
           _ -> false
         end)
 
-      assert coordinates_template == {"coordinates", [:latitude, :longitude]}
+      assert coordinates_template == {"coordinates", [
+        %{index: 0, field_name: :latitude},
+        %{index: 1, field_name: :longitude}
+      ]}
     end
   end
 end

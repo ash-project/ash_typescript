@@ -38,17 +38,19 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         |> Map.put(:next_page, next_page_cursor)
         |> Map.put(:type, :keyset)
 
-      # Handle list of results
-      results when is_list(results) ->
-        extract_list_fields(results, extraction_template)
+      [] ->
+        []
 
-      # Handle single result
-      result when is_map(result) ->
+      # Handle keyword list results (must come before general list handling)
+      result when is_list(result) ->
+        if Keyword.keyword?(result) do
+          extract_single_result(result, extraction_template)
+        else
+          extract_list_fields(result, extraction_template)
+        end
+
+      result ->
         extract_single_result(result, extraction_template)
-
-      # Pass through other types
-      other ->
-        other
     end
   end
 
@@ -62,12 +64,12 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  # Extract fields from a single result using the new list-based template format
   defp extract_single_result(data, extraction_template) when is_list(extraction_template) do
-    # Handle tuple data by converting it to a map based on the extraction template
+    is_tuple = is_tuple(data)
+
     normalized_data =
       cond do
-        is_tuple(data) ->
+        is_tuple ->
           convert_tuple_to_map(data, extraction_template)
 
         Keyword.keyword?(data) ->
@@ -77,23 +79,26 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           normalize_data(data)
       end
 
-    # Process the list-based extraction template
+    if is_tuple do
+      normalized_data
+    else
+      Enum.reduce(extraction_template, %{}, fn field_spec, acc ->
+        case field_spec do
+          # Simple field extraction (atom)
+          # # TODO: We should have more graceful handling of tuples than this.
+          field_atom when is_atom(field_atom) or is_tuple(data) ->
+            extract_simple_field(normalized_data, field_atom, acc)
 
-    Enum.reduce(extraction_template, %{}, fn field_spec, acc ->
-      case field_spec do
-        # Simple field extraction (atom)
-        field_atom when is_atom(field_atom) ->
-          extract_simple_field(normalized_data, field_atom, acc)
+          # Nested field extraction (keyword entry: field_name: nested_template)
+          {field_atom, nested_template} when is_atom(field_atom) and is_list(nested_template) ->
+            extract_nested_field(normalized_data, field_atom, nested_template, acc)
 
-        # Nested field extraction (keyword entry: field_name: nested_template)
-        {field_atom, nested_template} when is_atom(field_atom) and is_list(nested_template) ->
-          extract_nested_field(normalized_data, field_atom, nested_template, acc)
-
-        # Unknown field spec, skip
-        _ ->
-          acc
-      end
-    end)
+          # Unknown field spec, skip
+          _ ->
+            acc
+        end
+      end)
+    end
   end
 
   # Fallback: Handle results without templates (return all fields)
@@ -155,29 +160,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   # Convert tuple to map using extraction template field order
   defp convert_tuple_to_map(tuple, extraction_template) do
     tuple_values = Tuple.to_list(tuple)
-    field_names = extract_field_names_from_template(extraction_template)
 
-    # Zip field names with tuple values to create a map
-    field_names
-    |> Enum.zip(tuple_values)
-    |> Enum.into(%{})
-  end
-
-  # Extract field names from extraction template
-  defp extract_field_names_from_template(template) do
-    Enum.flat_map(template, fn field_spec ->
-      case field_spec do
-        field_atom when is_atom(field_atom) ->
-          [field_atom]
-
-        {_field_atom, _nested_template} ->
-          # For nested fields, we don't include them in the flat list
-          # since we're converting the tuple at this level
-          []
-
-        _ ->
-          []
-      end
+    Enum.reduce(extraction_template, %{}, fn %{field_name: field_name, index: index}, acc ->
+      value = Enum.at(tuple_values, index)
+      Map.put(acc, field_name, value)
     end)
   end
 
