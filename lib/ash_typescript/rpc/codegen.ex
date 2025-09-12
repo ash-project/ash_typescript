@@ -27,7 +27,7 @@ defmodule AshTypescript.Rpc.Codegen do
     |> Ash.Info.domains()
     |> Enum.flat_map(fn domain ->
       # Get Rpc configuration from the domain
-      rpc_config = AshTypescript.Rpc.Info.rpc(domain)
+      rpc_config = AshTypescript.Rpc.Info.typescript_rpc(domain)
 
       Enum.flat_map(rpc_config, fn %{resource: resource, rpc_actions: rpc_actions} ->
         Enum.map(rpc_actions, fn rpc_action ->
@@ -43,7 +43,7 @@ defmodule AshTypescript.Rpc.Codegen do
     |> Ash.Info.domains()
     |> Enum.flat_map(fn domain ->
       # Get Rpc configuration from the domain
-      rpc_config = AshTypescript.Rpc.Info.rpc(domain)
+      rpc_config = AshTypescript.Rpc.Info.typescript_rpc(domain)
 
       Enum.flat_map(rpc_config, fn %{resource: resource, typed_queries: typed_queries} ->
         Enum.map(typed_queries, fn typed_query ->
@@ -113,7 +113,7 @@ defmodule AshTypescript.Rpc.Codegen do
       otp_app
       |> Ash.Info.domains()
       |> Enum.flat_map(fn domain ->
-        AshTypescript.Rpc.Info.rpc(domain)
+        AshTypescript.Rpc.Info.typescript_rpc(domain)
         |> Enum.map(fn %{resource: r} -> r end)
       end)
 
@@ -121,7 +121,7 @@ defmodule AshTypescript.Rpc.Codegen do
       otp_app
       |> Ash.Info.domains()
       |> Enum.flat_map(fn domain ->
-        AshTypescript.Rpc.Info.rpc(domain)
+        AshTypescript.Rpc.Info.typescript_rpc(domain)
         |> Enum.flat_map(fn %{resource: resource, rpc_actions: rpc_actions} ->
           Enum.map(rpc_actions, fn %{action: action} ->
             Ash.Resource.Info.action(resource, action)
@@ -177,8 +177,6 @@ defmodule AshTypescript.Rpc.Codegen do
     ) => void
       ? I
       : never;
-
-    type IsUnion<T> = [T] extends [UnionToIntersection<T>] ? false : true;
 
     type HasComplexFields<T extends TypedSchema> = keyof Omit<
       T,

@@ -38,7 +38,7 @@ defmodule AshTypescript.Rpc.Pipeline do
              action.name,
              requested_fields
            ),
-         {:ok, input} <- parse_action_input(normalized_params, action),
+         {:ok, input} <- parse_action_input(normalized_params, action, resource),
          {:ok, pagination} <- parse_pagination(normalized_params) do
       # Format the sort parameter to convert field names
       formatted_sort = format_sort_string(normalized_params[:sort], input_formatter)
@@ -171,7 +171,7 @@ defmodule AshTypescript.Rpc.Pipeline do
 
     otp_app
     |> Ash.Info.domains()
-    |> Enum.flat_map(&AshTypescript.Rpc.Info.rpc/1)
+    |> Enum.flat_map(&AshTypescript.Rpc.Info.typescript_rpc/1)
     |> Enum.find_value(fn %{resource: resource, typed_queries: typed_queries} ->
       Enum.find_value(typed_queries, fn typed_query ->
         if to_string(typed_query.name) == query_string do
@@ -187,7 +187,7 @@ defmodule AshTypescript.Rpc.Pipeline do
 
     otp_app
     |> Ash.Info.domains()
-    |> Enum.flat_map(&AshTypescript.Rpc.Info.rpc/1)
+    |> Enum.flat_map(&AshTypescript.Rpc.Info.typescript_rpc/1)
     |> Enum.find_value(fn %{resource: resource, rpc_actions: rpc_actions} ->
       Enum.find_value(rpc_actions, fn rpc_action ->
         if to_string(rpc_action.name) == action_string do
@@ -197,7 +197,7 @@ defmodule AshTypescript.Rpc.Pipeline do
     end)
   end
 
-  defp parse_action_input(params, action) do
+  defp parse_action_input(params, action, resource) do
     raw_input = Map.get(params, :input, %{})
 
     # Validate that input is a map
@@ -212,11 +212,147 @@ defmodule AshTypescript.Rpc.Pipeline do
 
       formatter = Rpc.input_field_formatter()
       parsed_input = FieldFormatter.parse_input_fields(raw_input_with_pk, formatter)
-      {:ok, parsed_input}
+
+      # Convert keyword/tuple fields from maps to proper Elixir structures
+      converted_input = convert_keyword_tuple_inputs(parsed_input, resource, action)
+
+      {:ok, converted_input}
     else
       {:error, {:invalid_input_format, raw_input}}
     end
   end
+
+  defp convert_keyword_tuple_inputs(input, resource, action) do
+    Enum.reduce(input, %{}, fn {key, value}, acc ->
+      # Find the attribute/argument type for this key
+      type_result = find_input_type(key, resource, action)
+
+      case type_result do
+        {:tuple, constraints} ->
+          # Only convert tuple types - keyword types accept maps natively
+          converted_value = convert_map_to_tuple(value, constraints)
+          Map.put(acc, key, converted_value)
+
+        {:keyword, constraints} ->
+          # Only convert tuple types - keyword types accept maps natively
+          converted_value = convert_map_to_keyword(value, constraints)
+          Map.put(acc, key, converted_value)
+
+        _ ->
+          # For keyword types and others, pass through as-is
+          Map.put(acc, key, value)
+      end
+    end)
+  end
+
+  defp find_input_type(field_name, resource, action) do
+    field_atom =
+      cond do
+        is_atom(field_name) ->
+          field_name
+
+        is_binary(field_name) ->
+          try do
+            String.to_existing_atom(field_name)
+          rescue
+            ArgumentError -> nil
+          end
+
+        true ->
+          nil
+      end
+
+    if field_atom do
+      # Check if it's an attribute
+      attribute = Ash.Resource.Info.attribute(resource, field_atom)
+
+      case attribute do
+        %{type: Ash.Type.Tuple, constraints: constraints} ->
+          {:tuple, constraints}
+
+        %{type: Ash.Type.Keyword, constraints: constraints} ->
+          {:keyword, constraints}
+
+        _ ->
+          # Check if it's an action argument
+          case find_action_argument_type(field_atom, action) do
+            {:tuple, constraints} -> {:tuple, constraints}
+            {:keyword, constraints} -> {:keyword, constraints}
+            _ -> :other
+          end
+      end
+    else
+      :other
+    end
+  end
+
+  defp find_action_argument_type(field_atom, action) do
+    case Enum.find(action.arguments, &(&1.name == field_atom)) do
+      %{type: Ash.Type.Tuple, constraints: constraints} ->
+        {:tuple, constraints}
+
+      %{type: Ash.Type.Keyword, constraints: constraints} ->
+        {:keyword, constraints}
+
+      _ ->
+        :other
+    end
+  end
+
+  defp convert_map_to_tuple(value, constraints) when is_map(value) do
+    # Get field definitions from constraints to determine order
+    field_constraints = Keyword.get(constraints, :fields, [])
+
+    # Extract field names in order from constraints
+    field_order = Enum.map(field_constraints, fn {field_name, _constraints} -> field_name end)
+
+    # Convert map to tuple using the defined field order
+    tuple_values =
+      Enum.map(field_order, fn field_name ->
+        # Try both atom and string keys since the input might have either
+        atom_key = field_name
+        string_key = if is_atom(field_name), do: Atom.to_string(field_name), else: field_name
+
+        Map.get(value, atom_key) || Map.get(value, string_key)
+      end)
+
+    List.to_tuple(tuple_values)
+  end
+
+  defp convert_map_to_tuple(value, _constraints), do: value
+
+  defp convert_map_to_keyword(value, constraints) when is_map(value) do
+    # Get field definitions from constraints
+    field_constraints = Keyword.get(constraints, :fields, [])
+
+    allowed_fields =
+      Enum.map(field_constraints, fn {field_name, _constraints} -> field_name end) |> MapSet.new()
+
+    # Validate keys and convert to atom keys, but keep as map since Ash.Type.Keyword stores as map
+    Enum.reduce(value, %{}, fn {key, val}, acc ->
+      atom_key =
+        cond do
+          is_atom(key) ->
+            key
+
+          is_binary(key) ->
+            String.to_existing_atom(key)
+
+          true ->
+            key
+        end
+
+      # Validate that the key is allowed by the field constraints
+      unless MapSet.member?(allowed_fields, atom_key) do
+        raise ArgumentError,
+              "Invalid keyword field: #{inspect(atom_key)}. Allowed fields: #{inspect(MapSet.to_list(allowed_fields))}"
+      end
+
+      Map.put(acc, atom_key, val)
+    end)
+  end
+
+  defp convert_map_to_keyword(value, _constraints), do: value
 
   defp parse_pagination(params) do
     case params[:page] do
@@ -292,12 +428,12 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp execute_generic_action(%Request{} = request, opts) do
-    result_tuple =
+    action_result =
       request.resource
       |> Ash.ActionInput.for_action(request.action.name, request.input, opts)
       |> Ash.run_action()
 
-    case result_tuple do
+    case action_result do
       {:ok, result} ->
         returns_resource? =
           case AshTypescript.Rpc.Codegen.action_returns_field_selectable_type?(request.action) do
@@ -309,11 +445,14 @@ defmodule AshTypescript.Rpc.Pipeline do
         if returns_resource? and not Enum.empty?(request.load) do
           Ash.load(result, request.load, opts)
         else
-          result_tuple
+          action_result
         end
 
+      :ok ->
+        {:ok, %{}}
+
       _ ->
-        result_tuple
+        action_result
     end
   end
 

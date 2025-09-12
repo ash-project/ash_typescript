@@ -64,10 +64,21 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   # Extract fields from a single result using the new list-based template format
   defp extract_single_result(data, extraction_template) when is_list(extraction_template) do
-    # Convert struct to map but preserve atom keys for processing
-    normalized_data = normalize_data(data)
+    # Handle tuple data by converting it to a map based on the extraction template
+    normalized_data =
+      cond do
+        is_tuple(data) ->
+          convert_tuple_to_map(data, extraction_template)
+
+        Keyword.keyword?(data) ->
+          Map.new(data)
+
+        true ->
+          normalize_data(data)
+      end
 
     # Process the list-based extraction template
+
     Enum.reduce(extraction_template, %{}, fn field_spec, acc ->
       case field_spec do
         # Simple field extraction (atom)
@@ -109,7 +120,9 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   # Extract a nested field with template, handling forbidden, not loaded, and nil cases
   defp extract_nested_field(normalized_data, field_atom, nested_template, acc) do
-    case Map.get(normalized_data, field_atom) do
+    nested_data = Map.get(normalized_data, field_atom)
+
+    case nested_data do
       # Forbidden fields get set to nil - maintain response structure but indicate no permission
       %Ash.ForbiddenField{} ->
         Map.put(acc, field_atom, nil)
@@ -122,7 +135,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       nil ->
         Map.put(acc, field_atom, nil)
 
-      # Extract nested data recursively
       nested_data ->
         nested_result = extract_nested_data(nested_data, nested_template)
         Map.put(acc, field_atom, nested_result)
@@ -135,12 +147,38 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       %_struct{} = struct_data ->
         Map.from_struct(struct_data)
 
-      map when is_map(map) ->
-        map
-
       other ->
         other
     end
+  end
+
+  # Convert tuple to map using extraction template field order
+  defp convert_tuple_to_map(tuple, extraction_template) do
+    tuple_values = Tuple.to_list(tuple)
+    field_names = extract_field_names_from_template(extraction_template)
+
+    # Zip field names with tuple values to create a map
+    field_names
+    |> Enum.zip(tuple_values)
+    |> Enum.into(%{})
+  end
+
+  # Extract field names from extraction template
+  defp extract_field_names_from_template(template) do
+    Enum.flat_map(template, fn field_spec ->
+      case field_spec do
+        field_atom when is_atom(field_atom) ->
+          [field_atom]
+
+        {_field_atom, _nested_template} ->
+          # For nested fields, we don't include them in the flat list
+          # since we're converting the tuple at this level
+          []
+
+        _ ->
+          []
+      end
+    end)
   end
 
   def normalize_value_for_json(nil), do: nil
@@ -184,9 +222,19 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           Map.put(acc, key, normalize_value_for_json(val))
         end)
 
-      # Handle lists recursively
       list when is_list(list) ->
-        Enum.map(list, &normalize_value_for_json/1)
+        if Keyword.keyword?(list) do
+          result =
+            Enum.reduce(list, %{}, fn {key, val}, acc ->
+              string_key = to_string(key)
+              normalized_val = normalize_value_for_json(val)
+              Map.put(acc, string_key, normalized_val)
+            end)
+
+          result
+        else
+          Enum.map(list, &normalize_value_for_json/1)
+        end
 
       # Handle maps recursively (but not structs, handled above)
       map when is_map(map) and not is_struct(map) ->
@@ -215,26 +263,37 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       nil ->
         nil
 
-      # Handle lists of nested data (e.g., has_many relationships, arrays)
+      # Handle keyword lists specially - they should be treated as single data structures, not lists
+      list when is_list(list) and length(list) > 0 ->
+        if Keyword.keyword?(list) do
+          # Convert keyword list to map and extract using the template
+          keyword_map = Enum.into(list, %{})
+          extract_single_result(keyword_map, template)
+        else
+          # Handle normal lists of nested data (e.g., has_many relationships, arrays)
+          Enum.map(list, fn item ->
+            case item do
+              %Ash.ForbiddenField{} ->
+                nil
+
+              %Ash.NotLoaded{} ->
+                nil
+
+              nil ->
+                nil
+
+              %Ash.Union{type: active_type, value: union_value} ->
+                extract_union_fields(active_type, union_value, template)
+
+              valid_item ->
+                extract_single_result(valid_item, template)
+            end
+          end)
+        end
+
+      # Handle empty lists
       list when is_list(list) ->
-        Enum.map(list, fn item ->
-          case item do
-            %Ash.ForbiddenField{} ->
-              nil
-
-            %Ash.NotLoaded{} ->
-              nil
-
-            nil ->
-              nil
-
-            %Ash.Union{type: active_type, value: union_value} ->
-              extract_union_fields(active_type, union_value, template)
-
-            valid_item ->
-              extract_single_result(valid_item, template)
-          end
-        end)
+        []
 
       # Handle union types specially
       %Ash.Union{type: active_type, value: union_value} ->

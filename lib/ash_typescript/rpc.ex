@@ -76,7 +76,7 @@ defmodule AshTypescript.Rpc do
   }
 
   @rpc %Spark.Dsl.Section{
-    name: :rpc,
+    name: :typescript_rpc,
     describe: "Define available RPC-actions for resources in this domain.",
     entities: [
       @resource
@@ -378,7 +378,7 @@ defmodule AshTypescript.Rpc do
     otp_app
     |> Ash.Info.domains()
     |> Enum.reduce_while({:error, {:typed_query_not_found, typed_query_name}}, fn domain, _acc ->
-      rpc_config = AshTypescript.Rpc.Info.rpc(domain)
+      rpc_config = AshTypescript.Rpc.Info.typescript_rpc(domain)
 
       Enum.find_value(rpc_config, fn %{typed_queries: typed_queries} ->
         Enum.find(typed_queries, &(&1.name == typed_query_name))

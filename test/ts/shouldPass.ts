@@ -14,6 +14,7 @@ import "./shouldPass/typedMaps";
 import "./shouldPass/complexScenarios";
 import "./shouldPass/typedStructs";
 import "./shouldPass/validationErrors";
+import "./shouldPass/keywordTuple";
 import "./validate_fields_prototype";
 
 // Import Zod schema validation tests

@@ -84,7 +84,7 @@ defmodule AshTypescript.CodegenTest do
       result = Codegen.get_ts_type(%{type: Ash.Type.Map, constraints: constraints})
 
       assert result ==
-               "{name: string, age: number| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
+               "{name: string, age: number | null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
     end
 
     test "converts keyword type with fields" do
@@ -98,7 +98,7 @@ defmodule AshTypescript.CodegenTest do
       result = Codegen.get_ts_type(%{type: Ash.Type.Keyword, constraints: constraints})
 
       assert result ==
-               "{key1: string, key2: boolean| null, __type: \"TypedMap\", __primitiveFields: \"key1\" | \"key2\"}"
+               "{key1: string, key2: boolean | null, __type: \"TypedMap\", __primitiveFields: \"key1\" | \"key2\"}"
     end
 
     test "converts tuple type with fields" do
@@ -177,7 +177,7 @@ defmodule AshTypescript.CodegenTest do
       result = Codegen.get_ts_type(%{type: Ash.Type.Struct, constraints: constraints})
 
       assert result ==
-               "{name: string, active: boolean| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"active\"}"
+               "{name: string, active: boolean | null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"active\"}"
     end
 
     test "converts struct with instance_of to resource type" do
@@ -255,7 +255,7 @@ defmodule AshTypescript.CodegenTest do
       result = Codegen.build_map_type(fields)
 
       assert result ==
-               "{name: string, age: number| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
+               "{name: string, age: number | null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
     end
 
     test "builds map type with selected fields only" do
@@ -268,7 +268,7 @@ defmodule AshTypescript.CodegenTest do
       result = Codegen.build_map_type(fields, ["name", "age"])
 
       assert result ==
-               "{name: string, age: number| null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
+               "{name: string, age: number | null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
     end
 
     test "handles empty field list" do

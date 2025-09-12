@@ -172,6 +172,50 @@ defmodule AshTypescript.Test.Todo do
       public? true
     end
 
+    attribute :options, :keyword do
+      public? true
+      allow_nil? true
+
+      constraints fields: [
+                    priority: [
+                      type: :integer,
+                      allow_nil?: false,
+                      description: "Priority level (1-10)",
+                      constraints: [min: 1, max: 10]
+                    ],
+                    category: [
+                      type: :string,
+                      allow_nil?: true,
+                      description: "Todo category",
+                      constraints: [max_length: 50]
+                    ],
+                    notify: [
+                      type: :boolean,
+                      allow_nil?: true,
+                      description: "Whether to send notifications"
+                    ]
+                  ]
+    end
+
+    attribute :coordinates, :tuple do
+      public? true
+
+      constraints fields: [
+                    latitude: [
+                      type: :float,
+                      allow_nil?: false,
+                      description: "Latitude coordinate",
+                      constraints: [min: -90.0, max: 90.0]
+                    ],
+                    longitude: [
+                      type: :float,
+                      allow_nil?: false,
+                      description: "Longitude coordinate",
+                      constraints: [min: -180.0, max: 180.0]
+                    ]
+                  ]
+    end
+
     create_timestamp :created_at do
       public? true
     end
@@ -332,7 +376,9 @@ defmodule AshTypescript.Test.Todo do
         :priority_score,
         :color_palette,
         :timestamp_info,
-        :statistics
+        :statistics,
+        :options,
+        :coordinates
       ]
 
       argument :auto_complete, :boolean do
@@ -366,7 +412,9 @@ defmodule AshTypescript.Test.Todo do
         :priority_score,
         :color_palette,
         :timestamp_info,
-        :statistics
+        :statistics,
+        :options,
+        :coordinates
       ]
     end
 

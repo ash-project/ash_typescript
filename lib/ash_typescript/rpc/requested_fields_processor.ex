@@ -106,6 +106,14 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
         # Map type with field constraints - validate requested fields against map structure
         process_map_fields(constraints, requested_fields, path)
 
+      {:ash_type, Ash.Type.Keyword, constraints} ->
+        # Keyword type with field constraints - treat like maps with field selection
+        process_map_fields(constraints, requested_fields, path)
+
+      {:ash_type, Ash.Type.Tuple, constraints} ->
+        # Tuple type with field constraints - treat like maps with field selection
+        process_map_fields(constraints, requested_fields, path)
+
       {:ash_type, {:array, inner_type}, constraints} ->
         # Array type - validate array constraints but field processing depends on inner type
         array_constraints = Keyword.get(constraints, :items, [])
@@ -789,7 +797,14 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
     {field_names, template_items} =
       Enum.reduce(requested_fields, {[], []}, fn field, {names, template} ->
         case field do
-          field_atom when is_atom(field_atom) ->
+          field_atom when is_atom(field_atom) or is_binary(field_atom) ->
+            field_atom =
+              if is_binary(field_atom) do
+                String.to_existing_atom(field_atom)
+              else
+                field_atom
+              end
+
             if Keyword.has_key?(field_specs, field_atom) do
               {names ++ [field_atom], template ++ [field_atom]}
             else
@@ -866,7 +881,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
               member_return_type = union_member_to_return_type(member_config)
 
               case member_return_type do
-                {:ash_type, Ash.Type.Map, constraints} ->
+                {:ash_type, map_like, constraints}
+                when map_like in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] ->
                   # Map type with field constraints requires field selection
                   field_specs = Keyword.get(constraints, :fields, [])
 
@@ -911,7 +927,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
                 {_nested_select, nested_load, nested_template} =
                   process_fields_for_type(member_return_type, member_fields, new_path)
 
-                # For union types, only embedded resources with loadable fields (calculations, 
+                # For union types, only embedded resources with loadable fields (calculations,
                 # aggregates) require explicit load statements. The union field selection itself
                 # ensures the entire union value is returned by Ash.
                 # - Embedded resources: Only load calculations/aggregates
@@ -1224,7 +1240,10 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
         if is_array, do: :embedded_resource_array, else: :embedded_resource
 
       is_typed_struct?(attribute) ->
-        # Typed structs don't have array variants in current implementation
+        :typed_struct
+
+      # Handle keyword and tuple types with field constraints
+      type_module in [Ash.Type.Keyword, Ash.Type.Tuple] ->
         :typed_struct
 
       true ->

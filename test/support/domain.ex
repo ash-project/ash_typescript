@@ -3,10 +3,11 @@ defmodule AshTypescript.Test.Domain do
     otp_app: :ash_typescript,
     extensions: [AshTypescript.Rpc]
 
-  rpc do
+  typescript_rpc do
     resource AshTypescript.Test.Todo do
       rpc_action :list_todos, :read
       rpc_action :get_todo, :get_by_id
+      rpc_action :get_todo_by_id, :get_by_id
       rpc_action :create_todo, :create
       rpc_action :update_todo, :update
       rpc_action :complete_todo, :complete

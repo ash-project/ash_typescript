@@ -306,6 +306,8 @@ defmodule AshTypescript.Codegen do
   defp generate_ash_type_alias(Ash.Type.Integer), do: ""
   defp generate_ash_type_alias(Ash.Type.Float), do: ""
   defp generate_ash_type_alias(Ash.Type.Map), do: ""
+  defp generate_ash_type_alias(Ash.Type.Keyword), do: ""
+  defp generate_ash_type_alias(Ash.Type.Tuple), do: ""
   defp generate_ash_type_alias(Ash.Type.String), do: ""
   defp generate_ash_type_alias(Ash.Type.CiString), do: ""
   defp generate_ash_type_alias(Ash.Type.UUID), do: "type UUID = string;"
@@ -467,6 +469,9 @@ defmodule AshTypescript.Codegen do
     # Add union fields with metadata
     union_field_defs = generate_union_field_definitions(resource)
 
+    # Add keyword/tuple fields with metadata
+    keyword_tuple_field_defs = generate_keyword_tuple_field_definitions(resource)
+
     # Combine all fields
     all_field_lines =
       metadata_fields ++
@@ -474,7 +479,8 @@ defmodule AshTypescript.Codegen do
         relationship_field_defs ++
         embedded_field_defs ++
         complex_calc_field_defs ++
-        union_field_defs
+        union_field_defs ++
+        keyword_tuple_field_defs
 
     """
     export type #{resource_name}ResourceSchema = {
@@ -488,13 +494,14 @@ defmodule AshTypescript.Codegen do
     calculations = Ash.Resource.Info.public_calculations(resource)
     aggregates = Ash.Resource.Info.public_aggregates(resource)
 
-    # Filter to only primitive fields (not embedded, union, or complex calculations)
     primitive_attrs =
       attributes
       |> Enum.reject(fn attr ->
         is_union_attribute?(attr) or
           is_embedded_attribute?(attr) or
-          is_typed_struct_attribute?(attr)
+          is_typed_struct_attribute?(attr) or
+          is_keyword_attribute?(attr) or
+          is_tuple_attribute?(attr)
       end)
       |> Enum.map(& &1.name)
 
@@ -567,7 +574,9 @@ defmodule AshTypescript.Codegen do
       |> Enum.reject(fn attr ->
         is_union_attribute?(attr) or
           is_embedded_attribute?(attr) or
-          is_typed_struct_attribute?(attr)
+          is_typed_struct_attribute?(attr) or
+          is_keyword_attribute?(attr) or
+          is_tuple_attribute?(attr)
       end)
 
     # Simple calculations
@@ -788,6 +797,30 @@ defmodule AshTypescript.Codegen do
     end)
   end
 
+  defp generate_keyword_tuple_field_definitions(resource) do
+    attributes = Ash.Resource.Info.public_attributes(resource)
+
+    attributes
+    |> Enum.filter(fn attr ->
+      is_keyword_attribute?(attr) or is_tuple_attribute?(attr)
+    end)
+    |> Enum.map(fn attr ->
+      formatted_name =
+        AshTypescript.FieldFormatter.format_field(
+          attr.name,
+          AshTypescript.Rpc.output_field_formatter()
+        )
+
+      ts_type = get_ts_type(attr, nil)
+
+      if attr.allow_nil? do
+        "  #{formatted_name}: #{ts_type} | null;"
+      else
+        "  #{formatted_name}: #{ts_type};"
+      end
+    end)
+  end
+
   # Helper functions for the new unified schema generation
   defp is_union_attribute?(%{type: Ash.Type.Union}), do: true
   defp is_union_attribute?(%{type: {:array, Ash.Type.Union}}), do: true
@@ -799,6 +832,14 @@ defmodule AshTypescript.Codegen do
     do: is_embedded_resource?(type)
 
   defp is_embedded_attribute?(_), do: false
+
+  defp is_keyword_attribute?(%{type: Ash.Type.Keyword}), do: true
+  defp is_keyword_attribute?(%{type: {:array, Ash.Type.Keyword}}), do: true
+  defp is_keyword_attribute?(_), do: false
+
+  defp is_tuple_attribute?(%{type: Ash.Type.Tuple}), do: true
+  defp is_tuple_attribute?(%{type: {:array, Ash.Type.Tuple}}), do: true
+  defp is_tuple_attribute?(_), do: false
 
   defp embedded_resource_allowed?(attr, allowed_resources) do
     embedded_resource = get_embedded_resource_from_attr(attr)
@@ -838,7 +879,6 @@ defmodule AshTypescript.Codegen do
           get_ts_type(calc)
       end
 
-    # Add nullability to the return type itself if allow_nil? is true
     if allow_nil? do
       "#{base_type} | null"
     else
@@ -861,20 +901,15 @@ defmodule AshTypescript.Codegen do
 
           # Field is optional if it has a default value (even if that default is nil)
           has_default = Map.has_key?(arg, :default)
-          # Field can be null if allow_nil? is true
-          allows_null = arg.allow_nil?
-
           base_type = get_ts_type(arg)
 
-          # Add | null if the field allows null
           type_str =
-            if allows_null do
+            if arg.allow_nil? do
               "#{base_type} | null"
             else
               base_type
             end
 
-          # Make field optional if it has a default
           if has_default do
             "#{formatted_name}?: #{type_str}"
           else
@@ -1272,7 +1307,12 @@ defmodule AshTypescript.Codegen do
     end
   end
 
-  def get_ts_type(%{type: Ash.Type.Keyword}, _), do: "Record<string, any>"
+  def get_ts_type(%{type: Ash.Type.Keyword, constraints: constraints}, _) do
+    case Keyword.get(constraints, :fields) do
+      nil -> "Record<string, any>"
+      fields -> build_map_type(fields)
+    end
+  end
 
   def get_ts_type(%{type: Ash.Type.Tuple, constraints: constraints}, _) do
     case Keyword.get(constraints, :fields) do
@@ -1393,7 +1433,7 @@ defmodule AshTypescript.Codegen do
           )
 
         allow_nil = Keyword.get(field_config, :allow_nil?, true)
-        optional = if allow_nil, do: "| null", else: ""
+        optional = if allow_nil, do: " | null", else: ""
         "#{formatted_field_name}: #{field_type}#{optional}"
       end)
       |> Enum.join(", ")
@@ -1711,6 +1751,9 @@ defmodule AshTypescript.Codegen do
     fields = Keyword.get(constraints, :fields)
     fields != nil
   end
+
+  defp is_complex_return_type(Ash.Type.Keyword, _constraints), do: true
+  defp is_complex_return_type(Ash.Type.Tuple, _constraints), do: true
 
   defp is_complex_return_type(_, _), do: false
 

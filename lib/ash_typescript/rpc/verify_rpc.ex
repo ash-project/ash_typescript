@@ -34,7 +34,7 @@ defmodule AshTypescript.Rpc.VerifyRpc do
     rpc_domains =
       Mix.Project.config()[:app]
       |> Ash.Info.domains()
-      |> Enum.filter(&AshTypescript.Rpc.Info.rpc/1)
+      |> Enum.filter(&AshTypescript.Rpc.Info.typescript_rpc/1)
 
     case rpc_domains do
       [] ->
@@ -48,7 +48,7 @@ defmodule AshTypescript.Rpc.VerifyRpc do
         else
           all_names =
             Enum.reduce(rpc_domains, %{rpc_actions: [], typed_queries: []}, fn domain, acc ->
-              rpc = AshTypescript.Rpc.Info.rpc(domain)
+              rpc = AshTypescript.Rpc.Info.typescript_rpc(domain)
 
               Enum.reduce(rpc, acc, fn resource, acc ->
                 rpc_action_names = Enum.map(resource.rpc_actions, & &1.name)

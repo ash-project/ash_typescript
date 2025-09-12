@@ -32,13 +32,13 @@ case result do
   %{success: true, data: data} ->
     IO.puts("✅ SUCCESS!")
     IO.inspect(data, label: "Response data")
-    
+
     # Check if field selection worked
     if is_list(data) and length(data) > 0 do
       first_item = hd(data)
       IO.inspect(Map.keys(first_item), label: "Fields in response")
     end
-    
+
   %{success: false, errors: errors} ->
     IO.puts("❌ FAILED!")
     IO.inspect(errors, label: "Errors")
@@ -64,31 +64,31 @@ case Pipeline.parse_request(:ash_typescript, conn, params) do
     IO.inspect(request.select, label: "Select fields")
     IO.inspect(request.load, label: "Load fields")
     IO.inspect(request.extraction_template, label: "Template")
-    
+
     # Step 2: Execute action
     IO.puts("\\nStep 2: Executing Ash action...")
     case Pipeline.execute_ash_action(request) do
       {:ok, ash_result} ->
         IO.puts("✅ Action executed successfully")
         IO.inspect(ash_result, label: "Ash result", limit: 3)
-        
+
         # Step 3: Process result
         IO.puts("\\nStep 3: Processing result...")
         case Pipeline.process_result(ash_result, request) do
           {:ok, processed} ->
             IO.puts("✅ Result processed successfully")
             IO.inspect(processed, label: "Processed result", limit: 3)
-            
+
           {:error, error} ->
             IO.puts("❌ Result processing failed")
             IO.inspect(error, label: "Processing error")
         end
-        
+
       {:error, error} ->
         IO.puts("❌ Action execution failed")
         IO.inspect(error, label: "Execution error")
     end
-    
+
   {:error, error} ->
     IO.puts("❌ Request parsing failed")
     IO.inspect(error, label: "Parsing error")
@@ -112,7 +112,7 @@ IO.puts("Relationships: #{inspect(Ash.Resource.Info.relationships(resource) |> E
 domains = Ash.Info.domains(:ash_typescript)
 IO.puts("\\n🌐 RPC Configuration:")
 Enum.each(domains, fn domain ->
-  rpc_config = AshTypescript.Rpc.Info.rpc(domain)
+  rpc_config = AshTypescript.Rpc.Info.typescript_rpc(domain)
   IO.puts("Domain #{domain}:")
   Enum.each(rpc_config, fn %{resource: res, rpc_actions: actions} ->
     if res == resource do
@@ -141,26 +141,26 @@ end)
 # test/debug_field_selection_test.exs
 defmodule DebugFieldSelectionTest do
   use ExUnit.Case
-  
+
   test "debug field selection processing" do
     # 1. Test field parsing
     fields = ["id", "title", {"metadata": ["category", "priority"]}]
-    
+
     parsed_fields = AshTypescript.Rpc.FieldParser.parse_requested_fields(
-      fields, 
+      fields,
       AshTypescript.Test.Todo,
       AshTypescript.Rpc.output_field_formatter()
     )
-    
+
     IO.inspect(parsed_fields, label: "Parsed fields")
-    
+
     # 2. Test actual RPC call
     conn = build_conn()
     params = %{"fields" => fields}
-    
+
     result = AshTypescript.Rpc.run_action(conn, AshTypescript.Test.Todo, :read, params)
     IO.inspect(result, label: "RPC result")
-    
+
     # 3. Test field extraction
     case result do
       {:ok, data} when is_list(data) and length(data) > 0 ->
@@ -169,10 +169,10 @@ defmodule DebugFieldSelectionTest do
       _ ->
         IO.inspect(result, label: "Unexpected result format")
     end
-    
+
     assert true  # For investigation
   end
-  
+
   defp build_conn do
     Plug.Test.conn(:get, "/")
   end
@@ -217,7 +217,7 @@ def extract_return_value(value, fields, calc_specs) when is_map(value) do
         else
           acc
         end
-      
+
       {relation, nested_fields} when is_list(nested_fields) ->
         # Relationship with nested selection
         if Map.has_key?(value, relation) do
@@ -253,7 +253,7 @@ mix test test/ash_typescript/rpc/rpc_calcs_test.exs -t arguments
    ```elixir
    # Problem: Ash expects atom keys
    %{"prefix" => "value"}  # Wrong
-   
+
    # Solution: Convert in parse_calculations_with_fields/2
    args_atomized = Enum.reduce(args, %{}, fn {k, v}, acc ->
      Map.put(acc, String.to_existing_atom(k), v)
@@ -264,8 +264,8 @@ mix test test/ash_typescript/rpc/rpc_calcs_test.exs -t arguments
    ```elixir
    # Wrong format
    {calc_name, [args: args_map, load: nested]}
-   
-   # Correct format  
+
+   # Correct format
    {calc_name, {args_map, nested_loads}}
    ```
 
@@ -282,7 +282,7 @@ mix test test/ash_typescript/rpc/rpc_calcs_test.exs -t arguments
 **Example Error**:
 ```
 %Ash.Error.Invalid{errors: [%Ash.Error.Query.NoSuchAttribute{
-  resource: AshTypescript.Test.Todo, 
+  resource: AshTypescript.Test.Todo,
   attribute: :has_comments     # This is actually an aggregate, not an attribute
 }]}
 ```
@@ -295,7 +295,7 @@ mix test test/ash_typescript/rpc/rpc_calcs_test.exs -t arguments
 # In lib/ash_typescript/rpc.ex around line 190
 IO.puts("\n=== RPC DEBUG: Load Statements ===")
 IO.puts("ash_load: #{inspect(ash_load)}")
-IO.puts("calculations_load: #{inspect(calculations_load)}")  
+IO.puts("calculations_load: #{inspect(calculations_load)}")
 IO.puts("combined_ash_load: #{inspect(combined_ash_load)}")
 IO.puts("select: #{inspect(select)}")
 IO.puts("=== END Load Statements ===\n")
@@ -334,14 +334,14 @@ mix test test/ash_typescript/rpc/rpc_calcs_test.exs -k "aggregate"
 ```
 === RPC DEBUG: Load Statements ===
 ash_load: []                                              # ← PROBLEM: Empty load
-calculations_load: []                                     # ← PROBLEM: Empty load  
+calculations_load: []                                     # ← PROBLEM: Empty load
 combined_ash_load: []                                     # ← PROBLEM: Empty load
 select: [:id, :title, :has_comments, :average_rating]    # ← PROBLEM: Aggregates in select
 === END Load Statements ===
 
 === RPC DEBUG: Raw Ash Result ===
 Error: %Ash.Error.Invalid{errors: [%Ash.Error.Query.NoSuchAttribute{
-  resource: AshTypescript.Test.Todo, 
+  resource: AshTypescript.Test.Todo,
   attribute: :has_comments             # ← PROBLEM: Field classified as attribute
 }]}
 === END Raw Ash Result ===
@@ -390,7 +390,7 @@ case classify_field(field_atom, resource) do
   :simple_attribute ->
     {:select, field_atom}      # SELECT for attributes
   :simple_calculation ->
-    {:load, field_atom}        # LOAD for calculations  
+    {:load, field_atom}        # LOAD for calculations
   :aggregate ->
     {:load, field_atom}        # LOAD for aggregates ← CRITICAL
   :relationship ->
