@@ -30,7 +30,7 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
 
       result = RequestedFieldsProcessor.process(Todo, :read, fields)
 
-      assert {:ok, {select, load, template}} = result
+      assert {:ok, {select, _load, template}} = result
       assert :id in select
       assert :title in select
       assert "options" in select

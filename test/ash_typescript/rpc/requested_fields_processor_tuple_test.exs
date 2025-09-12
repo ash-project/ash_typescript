@@ -13,7 +13,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTupleTest do
       result = RequestedFieldsProcessor.process(Todo, :read, fields)
 
       assert match?({:ok, _}, result)
-      {:ok, {select, load, template}} = result
+      {:ok, {select, _load, template}} = result
 
       # Check if coordinates field is present in the select fields
       assert "coordinates" in select
@@ -79,12 +79,11 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTupleTest do
       # Test what template gets generated for tuple fields
       fields = [%{"coordinates" => ["latitude", "longitude"]}]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields)
-      assert match?({:ok, _}, result)
-      {:ok, processed} = result
+      {:ok, {select, load, template}} = RequestedFieldsProcessor.process(Todo, :read, fields)
 
-      # Since generate_template/1 doesn't exist, let's examine the processed result structure
-      IO.inspect(processed, label: "Processed structure with tuple field")
+      assert select == ["coordinates"]
+      assert load == []
+      assert template == [{"coordinates", [:latitude, :longitude]}]
     end
   end
 end

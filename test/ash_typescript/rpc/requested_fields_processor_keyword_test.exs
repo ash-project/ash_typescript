@@ -14,7 +14,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorKeywordTest do
 
       # Verify that the options field is included and properly structured
       assert match?({:ok, _}, result)
-      {:ok, {select, load, template}} = result
+      {:ok, {select, _load, template}} = result
 
       # Check if options field is present in the select fields (first element of tuple)
       assert "options" in select
@@ -80,12 +80,11 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorKeywordTest do
       # Test what template gets generated for keyword fields
       fields = [%{"options" => ["priority", "category", "notify"]}]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields)
-      assert match?({:ok, _}, result)
-      {:ok, processed} = result
+      {:ok, {select, load, template}} = RequestedFieldsProcessor.process(Todo, :read, fields)
 
-      # Since generate_template/1 doesn't exist, let's examine the processed result structure
-      IO.inspect(processed, label: "Processed structure with keyword field")
+      assert select == ["options"]
+      assert load == []
+      assert template == [{"options", [:priority, :category, :notify]}]
     end
   end
 end
