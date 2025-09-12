@@ -28,7 +28,6 @@ defmodule AshTypescript.Rpc.Codegen do
     otp_app
     |> Ash.Info.domains()
     |> Enum.flat_map(fn domain ->
-      # Get Rpc configuration from the domain
       rpc_config = AshTypescript.Rpc.Info.typescript_rpc(domain)
 
       Enum.flat_map(rpc_config, fn %{resource: resource, rpc_actions: rpc_actions} ->
@@ -44,7 +43,6 @@ defmodule AshTypescript.Rpc.Codegen do
     otp_app
     |> Ash.Info.domains()
     |> Enum.flat_map(fn domain ->
-      # Get Rpc configuration from the domain
       rpc_config = AshTypescript.Rpc.Info.typescript_rpc(domain)
 
       Enum.flat_map(rpc_config, fn %{resource: resource, typed_queries: typed_queries} ->
@@ -57,7 +55,6 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   defp generate_imports() do
-    # Generate Zod import if Zod schema generation is enabled
     zod_import =
       if AshTypescript.Rpc.generate_zod_schemas?() do
         zod_path = AshTypescript.Rpc.zod_import_path()
@@ -66,7 +63,6 @@ defmodule AshTypescript.Rpc.Codegen do
         ""
       end
 
-    # Generate configured imports
     config_imports =
       case Application.get_env(:ash_typescript, :import_into_generated) do
         nil ->
@@ -91,7 +87,6 @@ defmodule AshTypescript.Rpc.Codegen do
           ""
       end
 
-    # Combine all imports
     all_imports =
       [zod_import, config_imports]
       |> Enum.reject(&(&1 == ""))
@@ -110,7 +105,6 @@ defmodule AshTypescript.Rpc.Codegen do
          endpoint_validate,
          otp_app
        ) do
-    # Extract only the Rpc resources
     rpc_resources =
       otp_app
       |> Ash.Info.domains()
@@ -343,7 +337,6 @@ defmodule AshTypescript.Rpc.Codegen do
          otp_app,
          _resources
        ) do
-    # Generate functions for each Rpc action
     rpc_functions =
       resources_and_actions
       |> Enum.map(fn resource_and_action ->
@@ -362,7 +355,6 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
-  # Pagination detection functions - read actual Ash configuration
   def action_supports_pagination?(action) do
     action.type == :read and not action.get? and has_pagination_config?(action)
   end
@@ -416,11 +408,9 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
-  # Helper to determine if an action has input parameters
   defp action_has_input?(resource, action) do
     case action.type do
       :read ->
-        # For read actions, only use arguments
         action.arguments != []
 
       :create ->
@@ -435,10 +425,8 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
-  # Helper to detect if a generic action returns a type that supports field selection
   def action_returns_field_selectable_type?(action) do
     case action.returns do
-      # Array of structs (resources)
       {:array, Ash.Type.Struct} ->
         items_constraints = Keyword.get(action.constraints || [], :items, [])
 
@@ -483,7 +471,6 @@ defmodule AshTypescript.Rpc.Codegen do
   defp generate_typed_queries_section([], _all_resources), do: ""
 
   defp generate_typed_queries_section(typed_queries, all_resources) do
-    # Group typed queries by resource for better organization
     queries_by_resource =
       Enum.group_by(typed_queries, fn {resource, _action, _query} -> resource end)
 
@@ -516,20 +503,15 @@ defmodule AshTypescript.Rpc.Codegen do
   defp generate_typed_query_type_and_const(resource, action, typed_query, _all_resources) do
     resource_name = build_resource_type_name(resource)
 
-    # Process fields to get the template
     atomized_fields = RequestedFieldsProcessor.atomize_requested_fields(typed_query.fields)
 
     case RequestedFieldsProcessor.process(resource, action.name, atomized_fields) do
       {:ok, {_select, _load, _template}} ->
-        # Format the original fields for both type and constant (preserves args structure)
-
         type_fields = format_typed_query_fields_type_for_typescript(atomized_fields)
 
-        # Generate the type
         type_name = typed_query.ts_result_type_name
         const_name = typed_query.ts_fields_const_name
 
-        # Check if action returns array or single result
         is_array = action.type == :read && !action.get?
 
         result_type =
@@ -579,35 +561,29 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   defp format_field_item({field, nested_fields}) when is_atom(field) and is_list(nested_fields) do
-    # Relationship
     "{ #{format_field_name(field)}: [#{format_fields_type_array(nested_fields)}] }"
   end
 
   defp format_field_item({field, {args, nested_fields}})
        when is_atom(field) and is_map(args) and is_list(nested_fields) do
-    # Calculation with args - this comes from the extraction template after processing
     args_json = format_args_map(args)
 
     "{ #{format_field_name(field)}: { #{formatted_args_field()}: #{args_json}, #{formatted_fields_field()}: [#{format_fields_type_array(nested_fields)}] } }"
   end
 
   defp format_field_item({field, nested_fields}) when is_atom(field) and is_map(nested_fields) do
-    # Handle map structure (this might be a calculation with args and fields)
     case nested_fields do
       %{args: args, fields: fields} ->
-        # Complex calculation from template
         args_json = format_args_map(args)
 
         "{ #{format_field_name(field)}: { #{formatted_args_field()}: #{args_json}, #{formatted_fields_field()}: [#{format_fields_type_array(fields)}] } }"
 
       _ ->
-        # Other map structure - treat as generic
         inspect(nested_fields)
     end
   end
 
   defp format_field_item(%{} = field_map) do
-    # Handle map - convert to JavaScript object syntax
     formatted_pairs =
       field_map
       |> Enum.map(fn {k, v} ->
@@ -621,7 +597,6 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   defp format_field_item(list) when is_list(list) do
-    # Handle list - convert to JavaScript array syntax
     formatted_items =
       list
       |> Enum.map(&format_field_item/1)
@@ -648,10 +623,7 @@ defmodule AshTypescript.Rpc.Codegen do
     "{ #{formatted_args} }"
   end
 
-  # New pattern generators for improved type safety
-
   defp generate_input_type(resource, action, rpc_action_name) do
-    # Early return if action has no input
     if not action_has_input?(resource, action) do
       ""
     else
@@ -660,7 +632,6 @@ defmodule AshTypescript.Rpc.Codegen do
       input_field_defs =
         case action.type do
           :read ->
-            # For read actions, only use arguments (get_by automatically creates arguments)
             arguments = action.arguments
 
             if arguments != [] do
@@ -684,7 +655,6 @@ defmodule AshTypescript.Rpc.Codegen do
             arguments = action.arguments
 
             if accepts != [] || arguments != [] do
-              # Generate input field definitions
               accept_field_defs =
                 Enum.map(accepts, fn field_name ->
                   attr = Ash.Resource.Info.attribute(resource, field_name)
@@ -720,8 +690,6 @@ defmodule AshTypescript.Rpc.Codegen do
             end
 
           action_type when action_type in [:update, :destroy] ->
-            # For update/destroy, generate only input fields, not primary key
-            # Primary key will be handled separately in the config object
             if action.accept != [] || action.arguments != [] do
               accept_field_defs =
                 Enum.map(action.accept, fn field_name ->
@@ -777,7 +745,6 @@ defmodule AshTypescript.Rpc.Codegen do
             end
         end
 
-      # Generate TypeScript type definition
       field_lines =
         Enum.map(input_field_defs, fn {name, type, optional} ->
           "  #{name}#{if optional, do: "?", else: ""}: #{type};"
@@ -807,7 +774,6 @@ defmodule AshTypescript.Rpc.Codegen do
         """
 
       :read ->
-        # For read actions, check if pagination is supported
         if action_supports_pagination?(action) do
           fields_type = """
           export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
@@ -842,14 +808,11 @@ defmodule AshTypescript.Rpc.Codegen do
         """
 
       :destroy ->
-        # No result type needed - function signatures use void directly
         ""
 
       :action ->
-        # Check if generic action returns a field-selectable type
         case action_returns_field_selectable_type?(action) do
           {:ok, type, value} when type in [:resource, :array_of_resource] ->
-            # For resources, use the resource's schema for field selection
             target_resource_name = build_resource_type_name(value)
 
             if type == :array_of_resource do
@@ -871,7 +834,6 @@ defmodule AshTypescript.Rpc.Codegen do
             end
 
           {:ok, type, fields} when type in [:typed_map, :array_of_typed_map] ->
-            # For typed maps, generate a field-selectable schema
             typed_map_schema = build_map_type(fields)
 
             if type == :array_of_typed_map do
@@ -893,7 +855,6 @@ defmodule AshTypescript.Rpc.Codegen do
             end
 
           _ ->
-            # Non-field-selectable types or no return type
             if action.returns do
               return_type = get_ts_type(%{type: action.returns, constraints: action.constraints})
 
@@ -915,15 +876,12 @@ defmodule AshTypescript.Rpc.Codegen do
 
     cond do
       supports_offset and supports_keyset ->
-        # Generate union type for mixed pagination support
         generate_mixed_pagination_result_type(rpc_action_name_pascal, resource_name)
 
       supports_offset ->
-        # Generate offset-only pagination result type
         generate_offset_pagination_result_type(rpc_action_name_pascal, resource_name)
 
       supports_keyset ->
-        # Generate keyset-only pagination result type
         generate_keyset_pagination_result_type(rpc_action_name_pascal, resource_name)
     end
   end
@@ -1212,7 +1170,6 @@ defmodule AshTypescript.Rpc.Codegen do
         {config_fields, false, nil}
       end
 
-    # Add filter field for read actions (except get)
     config_fields =
       if supports_filtering do
         config_fields ++ ["  #{format_output_field(:filter)}?: #{resource_name}FilterInput;"]
@@ -1220,7 +1177,6 @@ defmodule AshTypescript.Rpc.Codegen do
         config_fields
       end
 
-    # Add sort field for read actions (except get)
     config_fields =
       if supports_filtering do
         config_fields ++ ["  #{format_output_field(:sort)}?: string;"]
@@ -1228,7 +1184,6 @@ defmodule AshTypescript.Rpc.Codegen do
         config_fields
       end
 
-    # Add pagination field for read actions with pagination
     config_fields =
       if supports_pagination do
         pagination_fields = generate_pagination_config_fields(action)
@@ -1237,14 +1192,12 @@ defmodule AshTypescript.Rpc.Codegen do
         config_fields
       end
 
-    # Add headers field (always optional)
     config_fields = config_fields ++ ["  headers?: Record<string, string>;"]
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
     success_field = format_output_field(:success)
     errors_field = format_output_field(:errors)
 
-    # Generate result types and function signature
     {result_type_def, return_type_def, generic_param, function_signature} =
       cond do
         action.type == :destroy ->
@@ -1266,7 +1219,6 @@ defmodule AshTypescript.Rpc.Codegen do
           {result_type_def, "#{rpc_action_name_pascal}Result", "", "config: #{config_type_def}"}
 
         has_fields ->
-          # Actions with field selection (CRUD + field-selectable generic actions)
           result_type = """
           | { #{success_field}: true; data: Infer#{rpc_action_name_pascal}Result<Fields> }
           | {
@@ -1287,7 +1239,6 @@ defmodule AshTypescript.Rpc.Codegen do
            "config: #{config_type_def}"}
 
         true ->
-          # Generic actions without field selection
           result_type = """
           | { #{success_field}: true; data: Infer#{rpc_action_name_pascal}Result }
           | {
@@ -1306,7 +1257,6 @@ defmodule AshTypescript.Rpc.Codegen do
           {result_type_def, "#{rpc_action_name_pascal}Result", "", "config: #{config_type_def}"}
       end
 
-    # Generate the complete function
     generic_part = if generic_param != "", do: "<#{generic_param}>", else: ""
 
     """
@@ -1353,14 +1303,11 @@ defmodule AshTypescript.Rpc.Codegen do
 
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
 
-    # Check action characteristics
     requires_tenant = AshTypescript.Rpc.requires_tenant_parameter?(resource)
     requires_primary_key = action.type in [:update, :destroy]
 
-    # Generate config object type definition - only for validation essentials
     config_fields = []
 
-    # Add tenant field if needed
     config_fields =
       if requires_tenant do
         config_fields ++ ["  #{format_output_field(:tenant)}: string;"]
@@ -1368,7 +1315,6 @@ defmodule AshTypescript.Rpc.Codegen do
         config_fields
       end
 
-    # Add primary key field for update/destroy actions
     config_fields =
       if requires_primary_key do
         formatted_primary_key = format_output_field(:primary_key)
@@ -1377,7 +1323,6 @@ defmodule AshTypescript.Rpc.Codegen do
         config_fields
       end
 
-    # Add input field only if the action has input
     config_fields =
       if action_has_input?(resource, action) do
         config_fields ++ ["  #{format_output_field(:input)}: #{rpc_action_name_pascal}Input;"]
@@ -1385,14 +1330,12 @@ defmodule AshTypescript.Rpc.Codegen do
         config_fields
       end
 
-    # Add headers field (always optional)
     config_fields = config_fields ++ ["  headers?: Record<string, string>;"]
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
 
     success_field = format_output_field(:success)
     errors_field = format_output_field(:errors)
-    # Generate validation result type
     validation_result_type = """
     export type Validate#{rpc_action_name_pascal}Result =
       | { #{success_field}: true }
@@ -1408,7 +1351,6 @@ defmodule AshTypescript.Rpc.Codegen do
         };
     """
 
-    # Build the validation payload directly - simple and clean
     """
     #{validation_result_type}
 
@@ -1451,16 +1393,12 @@ defmodule AshTypescript.Rpc.Codegen do
          endpoint_validate,
          _otp_app
        ) do
-    # Convert Rpc action name to formatted function name using output_field_formatter
     rpc_action_name = to_string(rpc_action.name)
 
-    # Generate separate input type
     input_type = generate_input_type(resource, action, rpc_action_name)
 
-    # Generate validation error type
     error_type = ValidationErrorSchemas.generate_validation_error_type(resource, action, rpc_action_name)
 
-    # Generate Zod schema if enabled
     zod_schema =
       if AshTypescript.Rpc.generate_zod_schemas?() do
         ZodSchemaGenerator.generate_zod_schema(resource, action, rpc_action_name)
@@ -1468,14 +1406,11 @@ defmodule AshTypescript.Rpc.Codegen do
         ""
       end
 
-    # Generate result inference type with direct field generics
     result_type = generate_result_type(resource, action, rpc_action_name)
 
-    # Generate RPC function with new pattern
     rpc_function =
       generate_rpc_execution_function(resource, action, rpc_action_name, endpoint_process)
 
-    # Generate validation function for all action types
     validation_function =
       generate_validation_function(resource, action, rpc_action_name, endpoint_validate)
 
@@ -1486,7 +1421,6 @@ defmodule AshTypescript.Rpc.Codegen do
       #{validation_function}
       """
 
-    # Build the final output with conditional Zod schema and error types
     base_types = [input_type, error_type] |> Enum.reject(&(&1 == ""))
 
     output_parts =

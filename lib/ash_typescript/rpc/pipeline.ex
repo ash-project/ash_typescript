@@ -40,7 +40,6 @@ defmodule AshTypescript.Rpc.Pipeline do
            ),
          {:ok, input} <- parse_action_input(normalized_params, action, resource),
          {:ok, pagination} <- parse_pagination(normalized_params) do
-      # Format the sort parameter to convert field names
       formatted_sort = format_sort_string(normalized_params[:sort], input_formatter)
 
       request =
@@ -159,7 +158,6 @@ defmodule AshTypescript.Rpc.Pipeline do
           end
         end
 
-      # Neither typed_query_action nor action provided
       true ->
         {:error, {:missing_required_parameter, :action}}
     end
@@ -200,9 +198,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   defp parse_action_input(params, action, resource) do
     raw_input = Map.get(params, :input, %{})
 
-    # Validate that input is a map
     if is_map(raw_input) do
-      # Add primary key for get actions
       raw_input_with_pk =
         if params[:primary_key] && action.type == :read do
           Map.put(raw_input, "id", params[:primary_key])
@@ -213,7 +209,6 @@ defmodule AshTypescript.Rpc.Pipeline do
       formatter = Rpc.input_field_formatter()
       parsed_input = FieldFormatter.parse_input_fields(raw_input_with_pk, formatter)
 
-      # Convert keyword/tuple fields from maps to proper Elixir structures
       converted_input = convert_keyword_tuple_inputs(parsed_input, resource, action)
 
       {:ok, converted_input}
@@ -224,22 +219,18 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp convert_keyword_tuple_inputs(input, resource, action) do
     Enum.reduce(input, %{}, fn {key, value}, acc ->
-      # Find the attribute/argument type for this key
       type_result = find_input_type(key, resource, action)
 
       case type_result do
         {:tuple, constraints} ->
-          # Only convert tuple types - keyword types accept maps natively
           converted_value = convert_map_to_tuple(value, constraints)
           Map.put(acc, key, converted_value)
 
         {:keyword, constraints} ->
-          # Only convert tuple types - keyword types accept maps natively
           converted_value = convert_map_to_keyword(value, constraints)
           Map.put(acc, key, converted_value)
 
         _ ->
-          # For keyword types and others, pass through as-is
           Map.put(acc, key, value)
       end
     end)
@@ -263,7 +254,6 @@ defmodule AshTypescript.Rpc.Pipeline do
       end
 
     if field_atom do
-      # Check if it's an attribute
       attribute = Ash.Resource.Info.attribute(resource, field_atom)
 
       case attribute do
@@ -274,7 +264,6 @@ defmodule AshTypescript.Rpc.Pipeline do
           {:keyword, constraints}
 
         _ ->
-          # Check if it's an action argument
           case find_action_argument_type(field_atom, action) do
             {:tuple, constraints} -> {:tuple, constraints}
             {:keyword, constraints} -> {:keyword, constraints}
@@ -300,16 +289,11 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp convert_map_to_tuple(value, constraints) when is_map(value) do
-    # Get field definitions from constraints to determine order
     field_constraints = Keyword.get(constraints, :fields, [])
-
-    # Extract field names in order from constraints
     field_order = Enum.map(field_constraints, fn {field_name, _constraints} -> field_name end)
 
-    # Convert map to tuple using the defined field order
     tuple_values =
       Enum.map(field_order, fn field_name ->
-        # Try both atom and string keys since the input might have either
         atom_key = field_name
         string_key = if is_atom(field_name), do: Atom.to_string(field_name), else: field_name
 
@@ -322,13 +306,11 @@ defmodule AshTypescript.Rpc.Pipeline do
   defp convert_map_to_tuple(value, _constraints), do: value
 
   defp convert_map_to_keyword(value, constraints) when is_map(value) do
-    # Get field definitions from constraints
     field_constraints = Keyword.get(constraints, :fields, [])
 
     allowed_fields =
       Enum.map(field_constraints, fn {field_name, _constraints} -> field_name end) |> MapSet.new()
 
-    # Validate keys and convert to atom keys, but keep as map since Ash.Type.Keyword stores as map
     Enum.reduce(value, %{}, fn {key, val}, acc ->
       atom_key =
         cond do
@@ -342,7 +324,6 @@ defmodule AshTypescript.Rpc.Pipeline do
             key
         end
 
-      # Validate that the key is allowed by the field constraints
       unless MapSet.member?(allowed_fields, atom_key) do
         raise ArgumentError,
               "Invalid keyword field: #{inspect(atom_key)}. Allowed fields: #{inspect(MapSet.to_list(allowed_fields))}"
@@ -369,12 +350,8 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  # Action execution helpers
-
   defp execute_read_action(%Request{} = request, opts) do
     if Map.get(request.action, :get?, false) do
-      # For get-style actions, use Ash.read_one with select and load support
-      # Skip filter, sort, and pagination for get actions
       query =
         request.resource
         |> Ash.Query.for_read(request.action.name, request.input, opts)
@@ -383,7 +360,6 @@ defmodule AshTypescript.Rpc.Pipeline do
 
       Ash.read_one(query, not_found_error?: true)
     else
-      # For regular read actions, build query with all modifiers
       query =
         request.resource
         |> Ash.Query.for_read(request.action.name, request.input, opts)
@@ -456,8 +432,6 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  # Query modifiers
-
   defp apply_filter(query, nil), do: query
   defp apply_filter(query, filter), do: Ash.Query.filter_input(query, filter)
 
@@ -500,7 +474,6 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp format_single_sort_field(field_with_modifier, formatter) do
-    # Extract modifier and field name - check longer prefixes first
     case field_with_modifier do
       "++" <> field_name ->
         formatted_field = FieldFormatter.parse_input_field(field_name, formatter)
@@ -519,13 +492,10 @@ defmodule AshTypescript.Rpc.Pipeline do
         "-#{formatted_field}"
 
       field_name ->
-        # No modifier, ascending by default
         formatted_field = FieldFormatter.parse_input_field(field_name, formatter)
         "#{formatted_field}"
     end
   end
-
-  # Output formatting
 
   defp format_field_names(data, formatter) do
     case data do
@@ -549,27 +519,21 @@ defmodule AshTypescript.Rpc.Pipeline do
       list when is_list(list) ->
         Enum.map(list, &format_field_names(&1, formatter))
 
-      # Don't try to format structs like DateTime, UUID, etc.
       other ->
         other
     end
   end
 
-  # Request validation functions
-
   defp validate_required_parameters_for_action_type(params, action, validation_mode?) do
     needs_fields =
       if validation_mode? do
-        # Validation never needs fields - we only validate input parameters
         false
       else
-        # Execution context - determine if fields are needed based on action type
         case action.type do
           type when type in [:read, :create, :update] ->
             true
 
           :action ->
-            # Only require fields for generic actions that return field-selectable types
             match?(
               {:ok, _, _},
               AshTypescript.Rpc.Codegen.action_returns_field_selectable_type?(action)

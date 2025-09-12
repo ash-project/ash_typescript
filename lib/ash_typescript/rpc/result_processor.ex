@@ -10,7 +10,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   @spec process(term(), map()) :: term()
   def process(result, extraction_template) do
     case result do
-      # Handle paginated results
       %Ash.Page.Offset{results: results} = page ->
         processed_results = extract_list_fields(results, extraction_template)
 
@@ -41,7 +40,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       [] ->
         []
 
-      # Handle keyword list results (must come before general list handling)
       result when is_list(result) ->
         if Keyword.keyword?(result) do
           extract_single_result(result, extraction_template)
@@ -54,9 +52,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  # Extract fields from a list of results
   defp extract_list_fields(results, extraction_template) do
-    # If extraction template is empty and results are primitives, return them unchanged
     if extraction_template == [] and Enum.any?(results, &(not is_map(&1))) do
       Enum.map(results, &normalize_value_for_json/1)
     else
@@ -84,16 +80,12 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     else
       Enum.reduce(extraction_template, %{}, fn field_spec, acc ->
         case field_spec do
-          # Simple field extraction (atom)
-          # # TODO: We should have more graceful handling of tuples than this.
           field_atom when is_atom(field_atom) or is_tuple(data) ->
             extract_simple_field(normalized_data, field_atom, acc)
 
-          # Nested field extraction (keyword entry: field_name: nested_template)
           {field_atom, nested_template} when is_atom(field_atom) and is_list(nested_template) ->
             extract_nested_field(normalized_data, field_atom, nested_template, acc)
 
-          # Unknown field spec, skip
           _ ->
             acc
         end

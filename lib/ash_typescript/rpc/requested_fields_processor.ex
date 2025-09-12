@@ -98,49 +98,38 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
         process_resource_fields(resource, requested_fields, path)
 
       {:array, {:resource, resource}} ->
-        # Array of resources - same field processing as single resource
         process_resource_fields(resource, requested_fields, path)
 
       {:ash_type, Ash.Type.Map, constraints} ->
-        # Map type with field constraints - validate requested fields against map structure
         process_map_fields(constraints, requested_fields, path)
 
       {:ash_type, Ash.Type.Keyword, constraints} ->
-        # Keyword type with field constraints - treat like maps with field selection
         process_map_fields(constraints, requested_fields, path)
 
       {:ash_type, Ash.Type.Tuple, constraints} ->
-        # Tuple type with field constraints - treat like maps with field selection
         process_tuple_fields(constraints, requested_fields, path)
 
       {:ash_type, {:array, inner_type}, constraints} ->
-        # Array type - validate array constraints but field processing depends on inner type
         array_constraints = Keyword.get(constraints, :items, [])
         inner_return_type = {:ash_type, inner_type, array_constraints}
         process_fields_for_type(inner_return_type, requested_fields, path)
 
       {:ash_type, Ash.Type.Struct, constraints} ->
-        # Struct type - check if it has instance_of to determine the struct module
         case Keyword.get(constraints, :instance_of) do
           resource_module when is_atom(resource_module) ->
-            # If it's a resource struct, process as resource
             process_resource_fields(resource_module, requested_fields, path)
 
           _ ->
-            # Generic struct - can't validate fields without knowing the struct
             process_generic_fields(requested_fields, path)
         end
 
       :any ->
-        # No type information - can't validate, just pass through
         process_generic_fields(requested_fields, path)
 
       {:ash_type, type, constraints} when is_atom(type) ->
-        # Check if this is a TypedStruct
         fake_attribute = %{type: type, constraints: constraints}
 
         if is_typed_struct?(fake_attribute) do
-          # Process as typed struct
           field_specs = Keyword.get(constraints, :fields, [])
 
           {_field_names, template_items} =
@@ -148,7 +137,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
 
           {[], [], template_items}
         else
-          # Other Ash types (primitives, etc.) - no field selection possible
           if requested_fields != [] do
             throw({:invalid_field_selection, :primitive_type, return_type})
           end
@@ -157,7 +145,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
         end
 
       _ ->
-        # Other Ash types (primitives, etc.) - no field selection possible
         if requested_fields != [] do
           throw({:invalid_field_selection, :primitive_type, return_type})
         end
@@ -182,17 +169,14 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
               {select, load ++ [field_name], template ++ [field_name]}
 
             :tuple ->
-              # This calculation requires arguments but was requested as simple atom
               field_path = build_field_path(path, field_name)
               throw({:requires_field_selection, :tuple, field_path})
 
             :calculation_with_args ->
-              # This calculation requires arguments but was requested as simple atom
               field_path = build_field_path(path, field_name)
               throw({:calculation_requires_args, field_name, field_path})
 
             :calculation_complex ->
-              # Complex calculation requested as simple atom - this is not allowed
               field_path = build_field_path(path, field_name)
 
               throw({:requires_field_selection, :calculation_complex, field_path})
@@ -201,33 +185,27 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
               {select, load ++ [field_name], template ++ [field_name]}
 
             :complex_aggregate ->
-              # Complex aggregate requested as simple atom - this is not allowed
               field_path = build_field_path(path, field_name)
 
               throw({:requires_field_selection, :complex_aggregate, field_path})
 
             :relationship ->
-              # Relationship requested as simple atom - this is not allowed
               field_path = build_field_path(path, field_name)
               throw({:requires_field_selection, :relationship, field_path})
 
             :embedded_resource ->
-              # Embedded resource requested as simple atom - this is not allowed
               field_path = build_field_path(path, field_name)
               throw({:requires_field_selection, :embedded_resource, field_path})
 
             :embedded_resource_array ->
-              # Array of embedded resources requested as simple atom - this is not allowed
               field_path = build_field_path(path, field_name)
               throw({:requires_field_selection, :embedded_resource_array, field_path})
 
             :typed_struct ->
-              # Typed struct requested as simple atom - this is not allowed
               field_path = build_field_path(path, field_name)
               throw({:requires_field_selection, :typed_struct, field_path})
 
             :union_attribute ->
-              # Union attribute requested as simple atom - this is not allowed
               field_path = build_field_path(path, field_name)
               throw({:requires_field_selection, :union_attribute, field_path})
 
@@ -237,7 +215,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
           end
 
         {field_name, nested_fields} ->
-          # Handle tuple format {field_name, field_spec}
           case classify_field(resource, field_name, path) do
             :relationship ->
               process_relationship(
