@@ -1563,15 +1563,11 @@ defmodule AshTypescript.Rpc.Codegen do
       generate_validation_function(resource, action, rpc_action_name, endpoint_validate)
 
     functions_section =
-      if validation_function == "" do
-        rpc_function
-      else
-        """
-        #{rpc_function}
+      """
+      #{rpc_function}
 
-        #{validation_function}
-        """
-      end
+      #{validation_function}
+      """
 
     # Build the final output with conditional Zod schema and error types
     base_types = [input_type, error_type] |> Enum.reject(&(&1 == ""))
