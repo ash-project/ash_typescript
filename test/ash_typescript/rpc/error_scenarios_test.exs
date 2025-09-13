@@ -705,7 +705,12 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       union_embedded_error = List.first(errors)
       assert union_embedded_error["type"] == "unknown_error"
       assert union_embedded_error["message"] == "An unexpected error occurred"
-      assert String.contains?(union_embedded_error["details"]["error"], "invalid_text_content_field")
+
+      assert String.contains?(
+               union_embedded_error["details"]["error"],
+               "invalid_text_content_field"
+             )
+
       assert String.contains?(union_embedded_error["details"]["error"], ":content")
     end
   end
