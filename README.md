@@ -122,7 +122,7 @@ import { listTodos, getTodo, createTodo, updateTodo, destroyTodo } from './ash_r
 const todos = await listTodos({
   fields: ["id", "title", "completed", "priority"],
   filter: { status: "active" },
-  sort: ["priority", "created_at"]
+  sort: "-priority,+createdAt"
 });
 
 // Get single todo with relationships
@@ -357,14 +357,14 @@ Create custom Ash types with TypeScript integration:
 # 1. Create custom type in Elixir
 defmodule MyApp.PriorityScore do
   use Ash.Type
-  
+
   def storage_type(_), do: :integer
   def cast_input(value, _) when is_integer(value) and value >= 1 and value <= 100, do: {:ok, value}
   def cast_input(_, _), do: {:error, "must be integer 1-100"}
   def cast_stored(value, _), do: {:ok, value}
   def dump_to_native(value, _), do: {:ok, value}
   def apply_constraints(value, _), do: {:ok, value}
-  
+
   # AshTypescript integration
   def typescript_type_name, do: "CustomTypes.PriorityScore"
 end
@@ -385,7 +385,7 @@ export type ColorPalette = {
 # 3. Use in your resources
 defmodule MyApp.Todo do
   use Ash.Resource, domain: MyApp.Domain
-  
+
   attributes do
     uuid_primary_key :id
     attribute :title, :string, public?: true
