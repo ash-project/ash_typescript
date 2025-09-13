@@ -10,7 +10,7 @@ defmodule AshTypescript.Rpc.VerifyRpc do
     case verify_unique_rpc_action_and_typed_query_names(dsl) do
       :ok ->
         dsl
-        |> Verifier.get_entities([:rpc])
+        |> Verifier.get_entities([:typescript_rpc])
         |> Enum.reduce_while(:ok, fn %{
                                        resource: resource,
                                        rpc_actions: rpc_actions,
