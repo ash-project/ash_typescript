@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.OrgTodo do
+  @moduledoc """
+  Test resource for organization-level todos with multitenancy support.
+  """
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
     data_layer: Ash.DataLayer.Ets,
@@ -104,15 +107,15 @@ defmodule AshTypescript.Test.OrgTodo do
       end
 
       filter expr(
-               if not is_nil(^arg(:filter_completed)) do
-                 completed == ^arg(:filter_completed)
-               else
+               if is_nil(^arg(:filter_completed)) do
                  true
+               else
+                 completed == ^arg(:filter_completed)
                end and
-                 if not is_nil(^arg(:priority_filter)) do
-                   priority == ^arg(:priority_filter)
-                 else
+                 if is_nil(^arg(:priority_filter)) do
                    true
+                 else
+                   priority == ^arg(:priority_filter)
                  end
              )
     end

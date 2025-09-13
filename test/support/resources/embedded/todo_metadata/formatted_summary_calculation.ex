@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.TodoMetadata.FormattedSummaryCalculation do
+  @moduledoc """
+  Formatted summary calculation for todo metadata.
+  """
   use Ash.Resource.Calculation
 
   @impl true

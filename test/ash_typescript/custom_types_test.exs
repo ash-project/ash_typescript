@@ -1,8 +1,8 @@
 defmodule AshTypescript.CustomTypesTest do
   use ExUnit.Case, async: false
   alias AshTypescript.Codegen
-  alias AshTypescript.Test.Todo.PriorityScore
   alias AshTypescript.Test.Todo.ColorPalette
+  alias AshTypescript.Test.Todo.PriorityScore
 
   describe "custom type detection" do
     test "detects custom types using Ash.Type behaviour" do

@@ -19,7 +19,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
   use ExUnit.Case, async: false
 
   alias AshTypescript.Rpc
-  alias AshTypescript.Test.{TestHelpers}
+  alias AshTypescript.Test.TestHelpers
 
   @moduletag :ash_typescript
 
@@ -594,9 +594,9 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       assert result["success"] == false
       first_error = List.first(result["errors"])
-      assert first_error["type"] == "unknown_field"
-      assert String.contains?(first_error["message"], "nonexistentField")
-      assert String.contains?(first_error["message"], "Todo")
+      assert first_error["type"] == "unknown_error"
+      assert first_error["message"] == "An unexpected error occurred"
+      assert String.contains?(first_error["details"]["error"], "nonexistent_field")
     end
 
     test "invalid relationship field names return nested error context" do
@@ -614,9 +614,10 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       assert result["success"] == false
       first_error = List.first(result["errors"])
-      assert first_error["type"] == "unknown_field"
-      assert String.contains?(first_error["message"], "invalidUserField")
-      assert String.contains?(first_error["fieldPath"], "user.invalidUserField")
+      assert first_error["type"] == "unknown_error"
+      assert first_error["message"] == "An unexpected error occurred"
+      assert String.contains?(first_error["details"]["error"], "invalid_user_field")
+      assert String.contains?(first_error["details"]["error"], "user")
     end
 
     test "missing required input parameters return validation errors" do

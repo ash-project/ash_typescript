@@ -54,7 +54,7 @@ defmodule AshTypescript.Rpc.Codegen do
     end)
   end
 
-  defp generate_imports() do
+  defp generate_imports do
     zod_import =
       if AshTypescript.Rpc.generate_zod_schemas?() do
         zod_path = AshTypescript.Rpc.zod_import_path()
@@ -339,7 +339,7 @@ defmodule AshTypescript.Rpc.Codegen do
        ) do
     rpc_functions =
       resources_and_actions
-      |> Enum.map(fn resource_and_action ->
+      |> Enum.map_join("\n\n", fn resource_and_action ->
         generate_rpc_function(
           resource_and_action,
           resources_and_actions,
@@ -348,7 +348,6 @@ defmodule AshTypescript.Rpc.Codegen do
           otp_app
         )
       end)
-      |> Enum.join("\n\n")
 
     """
     #{rpc_functions}
@@ -546,14 +545,12 @@ defmodule AshTypescript.Rpc.Codegen do
 
   defp format_fields_const_array(fields) do
     fields
-    |> Enum.map(&"#{format_field_item(&1)} as const")
-    |> Enum.join(", ")
+    |> Enum.map_join(", ", &"#{format_field_item(&1)} as const")
   end
 
   defp format_fields_type_array(fields) do
     fields
-    |> Enum.map(&format_field_item/1)
-    |> Enum.join(", ")
+    |> Enum.map_join(", ", &format_field_item/1)
   end
 
   defp format_field_item(field) when is_atom(field) do
@@ -586,12 +583,11 @@ defmodule AshTypescript.Rpc.Codegen do
   defp format_field_item(%{} = field_map) do
     formatted_pairs =
       field_map
-      |> Enum.map(fn {k, v} ->
+      |> Enum.map_join(", ", fn {k, v} ->
         key = format_field_name(k)
         value = format_field_item(v)
         "#{key}: #{value}"
       end)
-      |> Enum.join(", ")
 
     "{ #{formatted_pairs} }"
   end
@@ -599,8 +595,7 @@ defmodule AshTypescript.Rpc.Codegen do
   defp format_field_item(list) when is_list(list) do
     formatted_items =
       list
-      |> Enum.map(&format_field_item/1)
-      |> Enum.join(", ")
+      |> Enum.map_join(", ", &format_field_item/1)
 
     "[#{formatted_items}]"
   end
@@ -615,18 +610,15 @@ defmodule AshTypescript.Rpc.Codegen do
   defp format_args_map(args) do
     formatted_args =
       args
-      |> Enum.map(fn {k, v} ->
+      |> Enum.map_join(", ", fn {k, v} ->
         "\"#{format_field_name(k)}\": #{Jason.encode!(v)}"
       end)
-      |> Enum.join(", ")
 
     "{ #{formatted_args} }"
   end
 
   defp generate_input_type(resource, action, rpc_action_name) do
-    if not action_has_input?(resource, action) do
-      ""
-    else
+    if action_has_input?(resource, action) do
       input_type_name = "#{snake_to_pascal_case(rpc_action_name)}Input"
 
       input_field_defs =
@@ -755,6 +747,8 @@ defmodule AshTypescript.Rpc.Codegen do
       #{Enum.join(field_lines, "\n")}
       };
       """
+    else
+      ""
     end
   end
 

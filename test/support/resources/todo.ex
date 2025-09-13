@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.Todo do
+  @moduledoc """
+  Test resource representing a todo item with relationships and calculations.
+  """
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
     data_layer: Ash.DataLayer.Ets,
@@ -334,15 +337,15 @@ defmodule AshTypescript.Test.Todo do
       end
 
       filter expr(
-               if not is_nil(^arg(:filter_completed)) do
-                 completed == ^arg(:filter_completed)
-               else
+               if is_nil(^arg(:filter_completed)) do
                  true
+               else
+                 completed == ^arg(:filter_completed)
                end and
-                 if not is_nil(^arg(:priority_filter)) do
-                   priority == ^arg(:priority_filter)
-                 else
+                 if is_nil(^arg(:priority_filter)) do
                    true
+                 else
+                   priority == ^arg(:priority_filter)
                  end
              )
 
@@ -542,10 +545,10 @@ defmodule AshTypescript.Test.Todo do
       argument :include_completed, :boolean, default: true
 
       filter expr(
-               if not is_nil(^arg(:query)) do
-                 contains(title, ^arg(:query)) or contains(description, ^arg(:query))
-               else
+               if is_nil(^arg(:query)) do
                  true
+               else
+                 contains(title, ^arg(:query)) or contains(description, ^arg(:query))
                end and
                  if ^arg(:include_completed) do
                    true

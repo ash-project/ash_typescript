@@ -51,22 +51,20 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
       {:error, %{type: :invalid_field, field: "user.invalidField"}}
   """
   def process(resource, action_name, requested_fields) do
-    try do
-      action = Ash.Resource.Info.action(resource, action_name)
+    action = Ash.Resource.Info.action(resource, action_name)
 
-      if is_nil(action) do
-        throw({:action_not_found, action_name})
-      end
-
-      return_type = determine_return_type(resource, action)
-
-      {select, load, template} = process_fields_for_type(return_type, requested_fields, [])
-      formatted_template = format_extraction_template(template)
-
-      {:ok, {select, load, formatted_template}}
-    catch
-      error_tuple -> {:error, error_tuple}
+    if is_nil(action) do
+      throw({:action_not_found, action_name})
     end
+
+    return_type = determine_return_type(resource, action)
+
+    {select, load, template} = process_fields_for_type(return_type, requested_fields, [])
+    formatted_template = format_extraction_template(template)
+
+    {:ok, {select, load, formatted_template}}
+  catch
+    error_tuple -> {:error, error_tuple}
   end
 
   defp determine_return_type(resource, action) do
@@ -984,10 +982,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
     if nested_fields == [] do
       field_path = build_field_path(path, field_name)
 
-      throw(
-        {:requires_field_selection, String.to_existing_atom(String.downcase(error_type)),
-         field_path}
-      )
+      throw({:requires_field_selection, String.downcase(error_type), field_path})
     end
   end
 

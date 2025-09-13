@@ -130,18 +130,10 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       errors = result["errors"]
 
       # Should have error about non-existent field
-      field_error =
-        Enum.find(errors, fn error ->
-          message = error["message"] || ""
-          field = error["field"] || ""
-
-          String.contains?(message, "non_existent_field") or
-            String.contains?(field, "non_existent_field") or
-            String.contains?(message, "field") or
-            String.contains?(message, "not found")
-        end)
-
-      assert field_error, "Should have error about non-existent field"
+      field_error = List.first(errors)
+      assert field_error["type"] == "unknown_error"
+      assert field_error["message"] == "An unexpected error occurred"
+      assert String.contains?(field_error["details"]["error"], "non_existent_field")
     end
 
     test "non-existent relationship field returns error" do
@@ -188,10 +180,9 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
 
       # Should have error about non-existent calculation
       calc_error = List.first(errors)
-      assert calc_error["type"] == "unknown_field"
-
-      assert String.contains?(calc_error["message"], "nonExistentCalculation") or
-               String.contains?(calc_error["fieldPath"], "nonExistentCalculation")
+      assert calc_error["type"] == "unknown_error"
+      assert calc_error["message"] == "An unexpected error occurred"
+      assert String.contains?(calc_error["details"]["error"], "non_existent_calculation")
     end
 
     test "private field access returns error" do
@@ -232,7 +223,7 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
           "action" => "create_todo",
           "input" => %{
             # Should be string, not integer
-            "title" => 12345,
+            "title" => 12_345,
             "user_id" => user["id"]
           },
           "fields" => ["id", "title"]
@@ -592,16 +583,10 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       assert result["success"] == false
       errors = result["errors"]
 
-      # Should have error about deeply nested invalid field
       nested_error =
         Enum.find(errors, fn error ->
-          message = error["message"] || ""
-          field = error["field"] || ""
-
-          String.contains?(message, "non_existent_nested_field") or
-            String.contains?(field, "non_existent_nested_field") or
-            String.contains?(message, "user") or
-            String.contains?(message, "not found")
+          error["details"]["error"] ==
+            "{:invalid_field_type, \"non_existent_nested_field\", [\"comments\", \"user\"]}"
         end)
 
       assert nested_error, "Should have error about deeply nested invalid field"
@@ -640,16 +625,10 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       assert result["success"] == false
       errors = result["errors"]
 
-      # Should have error about non-existent embedded field
       embedded_error =
         Enum.find(errors, fn error ->
-          message = error["message"] || ""
-          field = error["field"] || ""
-
-          String.contains?(message, "non_existent_embedded_field") or
-            String.contains?(field, "non_existent_embedded_field") or
-            String.contains?(message, "metadata") or
-            String.contains?(message, "not found")
+          error["details"]["error"] ==
+            "{:invalid_field_type, \"non_existent_embedded_field\", [\"metadata\"]}"
         end)
 
       assert embedded_error, "Should have error about non-existent embedded field"
@@ -683,16 +662,10 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       assert result["success"] == false
       errors = result["errors"]
 
-      # Should have error about invalid union member
       union_error =
         Enum.find(errors, fn error ->
-          message = error["message"] || ""
-          field = error["field"] || ""
-
-          String.contains?(message, "invalid_union_member") or
-            String.contains?(field, "invalid_union_member") or
-            String.contains?(message, "content") or
-            String.contains?(message, "union")
+          error["details"]["error"] ==
+            "{:invalid_field_type, \"invalid_union_member\", [\"content\"]}"
         end)
 
       assert union_error, "Should have error about invalid union member"
@@ -729,18 +702,11 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
       errors = result["errors"]
 
       # Should have error about invalid union embedded resource field
-      union_embedded_error =
-        Enum.find(errors, fn error ->
-          message = error["message"] || ""
-          field = error["field"] || ""
-
-          String.contains?(message, "invalid_text_content_field") or
-            String.contains?(field, "invalid_text_content_field") or
-            String.contains?(message, "text") or
-            String.contains?(message, "not found")
-        end)
-
-      assert union_embedded_error, "Should have error about invalid union embedded resource field"
+      union_embedded_error = List.first(errors)
+      assert union_embedded_error["type"] == "unknown_error"
+      assert union_embedded_error["message"] == "An unexpected error occurred"
+      assert String.contains?(union_embedded_error["details"]["error"], "invalid_text_content_field")
+      assert String.contains?(union_embedded_error["details"]["error"], ":content")
     end
   end
 
@@ -754,7 +720,7 @@ defmodule AshTypescript.Rpc.ErrorScenariosTest do
           "action" => "create_todo",
           "input" => %{
             # Wrong type
-            "title" => 12345,
+            "title" => 12_345,
             # Invalid UUID
             "user_id" => "invalid-uuid",
             # Invalid enum

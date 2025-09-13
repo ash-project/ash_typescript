@@ -14,8 +14,7 @@ defmodule AshTypescript.FieldFormatter do
 
       iex> AshTypescript.FieldFormatter.format_field(:user_name, :camel_case)
       "userName"
-      
-      
+
       iex> AshTypescript.FieldFormatter.format_field(:user_name, :snake_case)
       "user_name"
   """
@@ -33,17 +32,25 @@ defmodule AshTypescript.FieldFormatter do
 
       iex> AshTypescript.FieldFormatter.parse_input_field("userName", :camel_case)
       :user_name
-      
   """
   def parse_input_field(field_name, formatter)
       when is_binary(field_name) or is_atom(field_name) do
     internal_name = parse_field_name(field_name, formatter)
 
-    # Convert to atom if it's a string
     case internal_name do
-      name when is_binary(name) -> String.to_existing_atom(name)
-      name when is_atom(name) -> name
-      name -> name
+      name when is_binary(name) ->
+        try do
+          String.to_existing_atom(name)
+        rescue
+          ArgumentError ->
+            name
+        end
+
+      name when is_atom(name) ->
+        name
+
+      name ->
+        name
     end
   end
 
@@ -72,7 +79,7 @@ defmodule AshTypescript.FieldFormatter do
 
       iex> AshTypescript.FieldFormatter.parse_input_fields(%{"userName" => "John", "userEmail" => "john@example.com"}, :camel_case)
       %{user_name: "John", user_email: "john@example.com"}
-      
+
       iex> AshTypescript.FieldFormatter.parse_input_fields(%{"attachments" => [%{"mimeType" => "pdf", "attachmentType" => "file"}]}, :camel_case)
       %{attachments: [%{mime_type: "pdf", attachment_type: "file"}]}
   """
@@ -94,15 +101,12 @@ defmodule AshTypescript.FieldFormatter do
   """
   def parse_input_value(value, formatter) do
     case value do
-      # Handle maps - recursively parse field names (JSON objects)
       map when is_map(map) ->
         parse_input_fields(map, formatter)
 
-      # Handle arrays - recursively parse each element (JSON arrays)
       list when is_list(list) ->
         Enum.map(list, fn item -> parse_input_value(item, formatter) end)
 
-      # Handle primitive values - pass through as-is (JSON primitives)
       primitive ->
         primitive
     end
@@ -114,7 +118,6 @@ defmodule AshTypescript.FieldFormatter do
 
     case formatter do
       :camel_case ->
-        # If already camelCase, return as-is, otherwise convert from snake_case
         if is_camel_case?(string_field) do
           string_field
         else
@@ -122,7 +125,6 @@ defmodule AshTypescript.FieldFormatter do
         end
 
       :pascal_case ->
-        # If already PascalCase, return as-is, otherwise convert from snake_case
         if is_pascal_case?(string_field) do
           string_field
         else
@@ -130,7 +132,6 @@ defmodule AshTypescript.FieldFormatter do
         end
 
       :snake_case ->
-        # If already snake_case, return as-is, otherwise convert from camelCase/PascalCase
         if is_snake_case?(string_field) do
           string_field
         else
@@ -148,19 +149,16 @@ defmodule AshTypescript.FieldFormatter do
     end
   end
 
-  # Helper to check if a string is already in camelCase
   defp is_camel_case?(string) do
     # camelCase: starts with lowercase, no underscores, has at least one uppercase
     String.match?(string, ~r/^[a-z][a-zA-Z0-9]*$/) && String.match?(string, ~r/[A-Z]/)
   end
 
-  # Helper to check if a string is already in PascalCase
   defp is_pascal_case?(string) do
     # PascalCase: starts with uppercase, no underscores
     String.match?(string, ~r/^[A-Z][a-zA-Z0-9]*$/)
   end
 
-  # Helper to check if a string is already in snake_case
   defp is_snake_case?(string) do
     # snake_case: lowercase with underscores, no uppercase
     String.match?(string, ~r/^[a-z][a-z0-9_]*$/) && String.contains?(string, "_")

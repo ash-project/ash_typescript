@@ -1,7 +1,7 @@
 defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Test.TestHelpers
   alias AshTypescript.Rpc
+  alias AshTypescript.Test.TestHelpers
   require Ash.Query
 
   describe "simple embedded resource fields" do

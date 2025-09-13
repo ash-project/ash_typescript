@@ -13,9 +13,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   Generates validation error type for an RPC action.
   """
   def generate_validation_error_type(resource, action, rpc_action_name) do
-    if not action_has_input?(resource, action) do
-      ""
-    else
+    if action_has_input?(resource, action) do
       error_type_name = "#{snake_to_pascal_case(rpc_action_name)}ValidationErrors"
       error_field_defs = generate_rpc_action_error_fields(resource, action)
 
@@ -29,6 +27,8 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
       #{Enum.join(field_lines, "\n")}
       };
       """
+    else
+      ""
     end
   end
 
@@ -39,8 +39,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
     if embedded_resources != [] do
       schemas =
         embedded_resources
-        |> Enum.map(&generate_input_validation_errors_schema/1)
-        |> Enum.join("\n\n")
+        |> Enum.map_join("\n\n", &generate_input_validation_errors_schema/1)
 
       """
       // ============================
@@ -61,8 +60,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
     if typed_struct_modules != [] do
       schemas =
         typed_struct_modules
-        |> Enum.map(&generate_validation_error_schema_for_typed_struct/1)
-        |> Enum.join("\n\n")
+        |> Enum.map_join("\n\n", &generate_validation_error_schema_for_typed_struct/1)
 
       """
       // ============================
@@ -85,7 +83,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
     error_fields =
       resource
       |> Ash.Resource.Info.public_attributes()
-      |> Enum.map(fn attr ->
+      |> Enum.map_join("\n", fn attr ->
         formatted_name =
           AshTypescript.FieldFormatter.format_field(
             attr.name,
@@ -96,7 +94,6 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
 
         "  #{formatted_name}?: #{error_type};"
       end)
-      |> Enum.join("\n")
 
     """
     export type #{resource_name}ValidationErrors = {
@@ -123,13 +120,12 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
         fields = Keyword.get(constraints, :fields, [])
 
         field_defs =
-          Enum.map(fields, fn {key, type_config} ->
+          Enum.map_join(fields, "; ", fn {key, type_config} ->
             type = Keyword.get(type_config, :type)
             constraints = Keyword.get(type_config, :constraints, [])
 
             "#{AshTypescript.Helpers.format_output_field(key)}?: #{get_ts_error_type(%{type: type, constraints: constraints})}"
           end)
-          |> Enum.join("; ")
 
         "{ #{field_defs} }"
 
@@ -188,7 +184,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
     else
       member_fields =
         union_types
-        |> Enum.map(fn {type_name, type_config} ->
+        |> Enum.map_join("; ", fn {type_name, type_config} ->
           formatted_name =
             AshTypescript.FieldFormatter.format_field(
               type_name,
@@ -201,7 +197,6 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
 
           "#{formatted_name}?: #{member_error_type}"
         end)
-        |> Enum.join("; ")
 
       "{ #{member_fields} }"
     end
@@ -267,7 +262,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
 
     error_fields =
       fields
-      |> Enum.map(fn field ->
+      |> Enum.map_join("\n", fn field ->
         formatted_name =
           AshTypescript.FieldFormatter.format_field(
             field.name,
@@ -277,7 +272,6 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
         error_type = get_ts_error_type(%{type: field.type, constraints: field.constraints || []})
         "  #{formatted_name}?: #{error_type};"
       end)
-      |> Enum.join("\n")
 
     """
     export type #{resource_name}ValidationErrors = {

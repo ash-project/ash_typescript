@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.TodoContent.ChecklistContent do
+  @moduledoc """
+  Test embedded resource for checklist content (union type member).
+  """
   use Ash.Resource,
     data_layer: :embedded,
     domain: nil,

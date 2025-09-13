@@ -1,7 +1,7 @@
 defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Test.TestHelpers
   alias AshTypescript.Rpc
+  alias AshTypescript.Test.TestHelpers
 
   describe "single level relationships" do
     setup do

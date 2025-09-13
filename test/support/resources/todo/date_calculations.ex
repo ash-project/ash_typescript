@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.Todo.SimpleDateCalculation do
+  @moduledoc """
+  Simple date difference calculation for todos.
+  """
   use Ash.Resource.Calculation
 
   @impl true
@@ -21,6 +24,9 @@ defmodule AshTypescript.Test.Todo.SimpleDateCalculation do
 end
 
 defmodule AshTypescript.Test.IsOverdueCalculation do
+  @moduledoc """
+  Calculation to determine if a todo is overdue.
+  """
   use Ash.Resource.Calculation
 
   @impl true

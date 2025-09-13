@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.SummaryCalculation do
+  @moduledoc """
+  Summary calculation for todos.
+  """
   use Ash.Resource.Calculation
 
   @impl true

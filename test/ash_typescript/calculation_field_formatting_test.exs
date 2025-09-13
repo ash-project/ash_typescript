@@ -155,7 +155,7 @@ defmodule AshTypescript.CalculationFieldFormattingTest do
       # Generate TypeScript
       typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
-      # Test that calculations returning resources (like self calculation) 
+      # Test that calculations returning resources (like self calculation)
       # have their return type fields formatted correctly
       # The 'self' calculation returns a Todo resource, so it should include Todo fields
       # with proper formatting in the calculation schema

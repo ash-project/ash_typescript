@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.User do
+  @moduledoc """
+  Test resource representing a user with relationships to todos and settings.
+  """
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
     data_layer: Ash.DataLayer.Ets,

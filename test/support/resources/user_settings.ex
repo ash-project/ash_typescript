@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.UserSettings do
+  @moduledoc """
+  Test resource for user settings with multitenancy support.
+  """
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
     data_layer: Ash.DataLayer.Ets,

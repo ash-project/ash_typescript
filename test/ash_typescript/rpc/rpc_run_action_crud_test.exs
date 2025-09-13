@@ -1,7 +1,7 @@
 defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Test.TestHelpers
   alias AshTypescript.Rpc
+  alias AshTypescript.Test.TestHelpers
 
   describe "read actions" do
     setup do

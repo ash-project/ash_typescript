@@ -42,7 +42,7 @@ defmodule AshTypescript.UnionFieldFormattingTest do
 
       # Test content union field formatting - priority_value should become PriorityValue
       assert String.contains?(typescript_output, "PriorityValue?: number")
-      # Test note field formatting 
+      # Test note field formatting
       assert String.contains?(typescript_output, "Note?: string")
 
       # Test status_info union field formatting - should become StatusInfo union members
@@ -145,7 +145,7 @@ defmodule AshTypescript.UnionFieldFormattingTest do
       # Configure pascal case formatting to test both functions
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
-      # Generate TypeScript 
+      # Generate TypeScript
       typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test that both output types and input types use correct formatting

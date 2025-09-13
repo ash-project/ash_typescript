@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.NotExposed do
+  @moduledoc """
+  Test resource not exposed to TypeScript generation.
+  """
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
     data_layer: Ash.DataLayer.Ets,

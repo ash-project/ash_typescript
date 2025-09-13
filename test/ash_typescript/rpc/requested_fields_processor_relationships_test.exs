@@ -280,7 +280,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
           %{user: []}
         ])
 
-      assert error == {:requires_field_selection, :relationship, "user"}
+      assert error == {:requires_field_selection, "relationship", "user"}
     end
 
     test "handles relationship with only nested relationships (no direct fields)" do

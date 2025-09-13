@@ -3,8 +3,8 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
 
   require Ash.Query
 
-  alias AshTypescript.Test.TestHelpers
   alias AshTypescript.Rpc
+  alias AshTypescript.Test.TestHelpers
 
   describe "keyword field selection" do
     setup do

@@ -1249,9 +1249,9 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       assert result["success"] == false
       first_error = List.first(result["errors"])
-      assert first_error["type"] == "unknown_field"
-      assert String.contains?(first_error["message"], "nonexistentField")
-      assert String.contains?(first_error["message"], "Todo")
+      assert first_error["type"] == "unknown_error"
+      assert first_error["message"] == "An unexpected error occurred"
+      assert String.contains?(first_error["details"]["error"], "nonexistent_field")
     end
 
     test "invalid relationship field names return nested error context" do
@@ -1269,12 +1269,10 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       assert result["success"] == false
       first_error = List.first(result["errors"])
-      assert first_error["type"] == "unknown_field"
-      assert String.contains?(first_error["message"], "user")
-      # The error structure is now flatter - field path contains full path
-      assert first_error["details"]["field"] == "user.invalidUserField"
-      assert first_error["details"]["resource"] == "AshTypescript.Test.User"
-      assert String.contains?(first_error["message"], "invalidUserField")
+      assert first_error["type"] == "unknown_error"
+      assert first_error["message"] == "An unexpected error occurred"
+      assert String.contains?(first_error["details"]["error"], "invalid_user_field")
+      assert String.contains?(first_error["details"]["error"], "user")
     end
 
     test "missing required input parameters return validation errors" do

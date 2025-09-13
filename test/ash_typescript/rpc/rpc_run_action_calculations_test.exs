@@ -1,7 +1,7 @@
 defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Test.TestHelpers
   alias AshTypescript.Rpc
+  alias AshTypescript.Test.TestHelpers
 
   describe "simple calculations without arguments" do
     setup do
@@ -21,9 +21,9 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       # Create todos with different due dates for testing calculations
       now = DateTime.utc_now()
       # 1 day ago (overdue)
-      past_date = DateTime.add(now, -86400, :second)
+      past_date = DateTime.add(now, -86_400, :second)
       # 1 day from now
-      future_date = DateTime.add(now, 86400, :second)
+      future_date = DateTime.add(now, 86_400, :second)
 
       %{"success" => true, "data" => overdue_todo} =
         Rpc.run_action(:ash_typescript, conn, %{

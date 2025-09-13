@@ -2,14 +2,31 @@ defmodule AshTypescript.Rpc do
   @moduledoc false
 
   defmodule RpcAction do
+    @moduledoc """
+    Struct representing an RPC action configuration.
+
+    Defines the mapping between a named RPC endpoint and an Ash action.
+    """
     defstruct [:name, :action]
   end
 
   defmodule Resource do
+    @moduledoc """
+    Struct representing a resource's RPC configuration.
+
+    Contains the resource module and lists of configured RPC actions
+    and typed queries for that resource.
+    """
     defstruct [:resource, rpc_actions: [], typed_queries: []]
   end
 
   defmodule TypedQuery do
+    @moduledoc """
+    Struct representing a typed query configuration.
+
+    Defines a pre-configured query with specific fields and TypeScript types,
+    allowing for type-safe, reusable query patterns in the generated RPC client.
+    """
     defstruct [:name, :ts_result_type_name, :ts_fields_const_name, :resource, :action, :fields]
   end
 
@@ -87,7 +104,7 @@ defmodule AshTypescript.Rpc do
     sections: [@rpc],
     verifiers: [AshTypescript.Rpc.VerifyRpc]
 
-  alias AshTypescript.Rpc.{Pipeline, ErrorBuilder}
+  alias AshTypescript.Rpc.{ErrorBuilder, Pipeline}
 
   @doc """
   Determines if tenant parameters are required in RPC requests.
@@ -256,43 +273,41 @@ defmodule AshTypescript.Rpc do
 
   defp validate_read_action(resource, action, input, opts) do
     # For read actions, validate by building a query
-    try do
-      query =
-        resource
-        |> Ash.Query.for_read(action.name, input, opts)
+    query =
+      resource
+      |> Ash.Query.for_read(action.name, input, opts)
 
-      # If we can build the query without errors, validation passes
-      case query do
-        %Ash.Query{errors: []} ->
-          %{success: true}
+    # If we can build the query without errors, validation passes
+    case query do
+      %Ash.Query{errors: []} ->
+        %{success: true}
 
-        %Ash.Query{errors: errors} when errors != [] ->
-          formatted_errors =
-            errors
-            |> Enum.map(fn error ->
-              %{
-                type: "validation_error",
-                message: Exception.message(error)
-              }
-            end)
-
-          %{success: false, errors: formatted_errors}
-
-        _ ->
-          %{success: true}
-      end
-    rescue
-      e ->
-        %{
-          success: false,
-          errors: [
+      %Ash.Query{errors: errors} when errors != [] ->
+        formatted_errors =
+          errors
+          |> Enum.map(fn error ->
             %{
               type: "validation_error",
-              message: Exception.message(e)
+              message: Exception.message(error)
             }
-          ]
-        }
+          end)
+
+        %{success: false, errors: formatted_errors}
+
+      _ ->
+        %{success: true}
     end
+  rescue
+    e ->
+      %{
+        success: false,
+        errors: [
+          %{
+            type: "validation_error",
+            message: Exception.message(e)
+          }
+        ]
+      }
   end
 
   defp perform_form_validation(record_or_resource, action_name, input, opts) do
@@ -355,22 +370,24 @@ defmodule AshTypescript.Rpc do
   """
   @spec run_typed_query(atom(), atom(), map(), Plug.Conn.t()) :: {:ok, any()} | {:error, any()}
   def run_typed_query(otp_app, typed_query_name, params \\ %{}, conn) do
-    with {:ok, typed_query} <- find_typed_query(otp_app, typed_query_name) do
-      rpc_params = %{
-        "typed_query_action" => Atom.to_string(typed_query_name),
-        "fields" => typed_query.fields
-      }
+    case find_typed_query(otp_app, typed_query_name) do
+      {:ok, typed_query} ->
+        rpc_params = %{
+          "typed_query_action" => Atom.to_string(typed_query_name),
+          "fields" => typed_query.fields
+        }
 
-      rpc_params =
-        rpc_params
-        |> maybe_add_param("input", params[:input])
-        |> maybe_add_param("page", params[:page])
-        |> maybe_add_param("filter", params[:filter])
-        |> maybe_add_param("sort", params[:sort])
+        rpc_params =
+          rpc_params
+          |> maybe_add_param("input", params[:input])
+          |> maybe_add_param("page", params[:page])
+          |> maybe_add_param("filter", params[:filter])
+          |> maybe_add_param("sort", params[:sort])
 
-      run_action(otp_app, conn, rpc_params)
-    else
-      error -> error
+        run_action(otp_app, conn, rpc_params)
+
+      error ->
+        error
     end
   end
 

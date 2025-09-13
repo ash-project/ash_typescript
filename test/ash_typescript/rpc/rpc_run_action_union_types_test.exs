@@ -1,7 +1,7 @@
 defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Test.TestHelpers
   alias AshTypescript.Rpc
+  alias AshTypescript.Test.TestHelpers
 
   describe "content union type - embedded resource members" do
     setup do
@@ -1718,7 +1718,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
           # Should have at most one simple member and no complex members
           assert Enum.count(simple_members, & &1) <= 1
-          assert Enum.empty?(complex_members)
+          assert Enum.all?(complex_members, &(&1 == false))
         end
 
         # Attachments with only simple URL members

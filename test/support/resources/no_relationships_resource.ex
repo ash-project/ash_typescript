@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.NoRelationshipsResource do
+  @moduledoc """
+  Test resource without any relationships.
+  """
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
     data_layer: Ash.DataLayer.Ets

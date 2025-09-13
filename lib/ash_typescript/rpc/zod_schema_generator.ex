@@ -38,7 +38,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
         "z.string()"
 
       values ->
-        enum_values = values |> Enum.map(&"\"#{to_string(&1)}\"") |> Enum.join(", ")
+        enum_values = values |> Enum.map_join(", ", &"\"#{to_string(&1)}\"")
         "z.enum([#{enum_values}])"
     end
   end
@@ -153,7 +153,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
         get_zod_type(%{attr | type: subtype, constraints: sub_type_constraints}, context)
 
       Spark.implements_behaviour?(type, Ash.Type.Enum) ->
-        enum_values = Enum.map(type.values(), &"\"#{to_string(&1)}\"") |> Enum.join(", ")
+        enum_values = Enum.map_join(type.values(), ", ", &"\"#{to_string(&1)}\"")
         "z.enum([#{enum_values}])"
 
       true ->
@@ -165,9 +165,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   Generates a Zod schema definition for action input validation.
   """
   def generate_zod_schema(resource, action, rpc_action_name) do
-    if not action_has_input?(resource, action) do
-      ""
-    else
+    if action_has_input?(resource, action) do
       suffix = AshTypescript.Rpc.zod_schema_suffix()
       schema_name = format_output_field("#{rpc_action_name}_#{suffix}")
 
@@ -311,6 +309,8 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
       #{Enum.join(field_lines, "\n")}
       });
       """
+    else
+      ""
     end
   end
 
@@ -321,8 +321,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
     if AshTypescript.Rpc.generate_zod_schemas?() and embedded_resources != [] do
       schemas =
         embedded_resources
-        |> Enum.map(&generate_zod_schema_for_embedded_resource/1)
-        |> Enum.join("\n\n")
+        |> Enum.map_join("\n\n", &generate_zod_schema_for_embedded_resource/1)
 
       """
       // ============================
@@ -347,7 +346,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
     zod_fields =
       resource
       |> Ash.Resource.Info.public_attributes()
-      |> Enum.map(fn attr ->
+      |> Enum.map_join("\n", fn attr ->
         formatted_name =
           AshTypescript.FieldFormatter.format_field(
             attr.name,
@@ -365,7 +364,6 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
 
         "  #{formatted_name}: #{zod_type},"
       end)
-      |> Enum.join("\n")
 
     """
     export const #{schema_name} = z.object({
@@ -377,7 +375,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   defp build_zod_object_type(fields, context) do
     field_schemas =
       fields
-      |> Enum.map(fn {field_name, field_config} ->
+      |> Enum.map_join(", ", fn {field_name, field_config} ->
         field_type = Keyword.get(field_config, :type, :string)
         field_constraints = Keyword.get(field_config, :constraints, [])
         allow_nil = Keyword.get(field_config, :allow_nil?, false)
@@ -388,7 +386,6 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
         formatted_field_name = format_output_field(field_name)
         "#{formatted_field_name}: #{zod_type}"
       end)
-      |> Enum.join(", ")
 
     "z.object({ #{field_schemas} })"
   end
@@ -409,7 +406,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   defp build_simple_zod_union(types, context) do
     union_schemas =
       types
-      |> Enum.map(fn {type_name, config} ->
+      |> Enum.map_join(", ", fn {type_name, config} ->
         formatted_name =
           AshTypescript.FieldFormatter.format_field(
             type_name,
@@ -422,7 +419,6 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
 
         "z.object({#{formatted_name}: #{zod_type}})"
       end)
-      |> Enum.join(", ")
 
     "z.union([#{union_schemas}])"
   end

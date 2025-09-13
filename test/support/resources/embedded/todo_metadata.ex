@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.TodoMetadata do
+  @moduledoc """
+  Test embedded resource for todo metadata with calculations and relationships.
+  """
   use Ash.Resource,
     data_layer: :embedded,
     domain: nil,

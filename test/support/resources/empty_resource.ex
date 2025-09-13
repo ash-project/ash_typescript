@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.EmptyResource do
+  @moduledoc """
+  Test resource with minimal configuration.
+  """
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
     data_layer: Ash.DataLayer.Ets,

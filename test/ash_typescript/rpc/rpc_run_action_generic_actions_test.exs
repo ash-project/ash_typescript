@@ -1,7 +1,7 @@
 defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Test.TestHelpers
   alias AshTypescript.Rpc
+  alias AshTypescript.Test.TestHelpers
 
   describe "map return type actions (get_statistics)" do
     setup do

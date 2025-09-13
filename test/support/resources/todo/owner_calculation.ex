@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.Todo.OwnerCalculation do
+  @moduledoc """
+  Calculation for todo owner information.
+  """
   use Ash.Resource.Calculation
 
   @impl true

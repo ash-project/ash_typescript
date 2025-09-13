@@ -1,4 +1,10 @@
 defmodule AshTypescript.Test.Domain do
+  @moduledoc """
+  Test domain for AshTypescript integration testing.
+
+  Defines RPC actions and typed queries for test resources used in
+  the AshTypescript test suite to verify TypeScript generation functionality.
+  """
   use Ash.Domain,
     otp_app: :ash_typescript,
     extensions: [AshTypescript.Rpc]

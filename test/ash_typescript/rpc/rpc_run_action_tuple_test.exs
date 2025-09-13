@@ -1,8 +1,8 @@
 defmodule AshTypescript.Rpc.RpcRunActionTupleTest do
   use ExUnit.Case, async: false
 
-  alias AshTypescript.Test.TestHelpers
   alias AshTypescript.Rpc
+  alias AshTypescript.Test.TestHelpers
 
   describe "tuple field selection" do
     setup do

@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.TodoTimestamp do
+  @moduledoc """
+  Test TypedStruct for todo timestamp data.
+  """
   use Ash.TypedStruct
 
   typed_struct do

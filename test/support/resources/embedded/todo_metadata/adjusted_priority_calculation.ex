@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.TodoMetadata.AdjustedPriorityCalculation do
+  @moduledoc """
+  Adjusted priority calculation for todo metadata.
+  """
   use Ash.Resource.Calculation
 
   @impl true

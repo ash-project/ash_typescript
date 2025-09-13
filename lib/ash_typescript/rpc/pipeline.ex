@@ -7,7 +7,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   4. format_output/2 - Format for client consumption
   """
 
-  alias AshTypescript.Rpc.{Request, ResultProcessor, RequestedFieldsProcessor}
+  alias AshTypescript.Rpc.{Request, RequestedFieldsProcessor, ResultProcessor}
   alias AshTypescript.{FieldFormatter, Rpc}
 
   @doc """
@@ -476,8 +476,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   def format_sort_string(sort_string, formatter) when is_binary(sort_string) do
     sort_string
     |> String.split(",")
-    |> Enum.map(&format_single_sort_field(&1, formatter))
-    |> Enum.join(",")
+    |> Enum.map_join(",", &format_single_sort_field(&1, formatter))
   end
 
   defp format_single_sort_field(field_with_modifier, formatter) do

@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.SelfCalculation do
+  @moduledoc """
+  Self-reference calculation for testing.
+  """
   use Ash.Resource.Calculation
 
   @impl true

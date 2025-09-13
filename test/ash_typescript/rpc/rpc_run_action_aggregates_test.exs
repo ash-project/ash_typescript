@@ -1,7 +1,7 @@
 defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Test.TestHelpers
   alias AshTypescript.Rpc
+  alias AshTypescript.Test.TestHelpers
 
   describe "primitive aggregates (no nested field selection)" do
     setup do

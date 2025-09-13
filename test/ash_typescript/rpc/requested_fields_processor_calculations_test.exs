@@ -334,7 +334,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
         ])
 
       # This should be treated as a regular relationship, which will fail since
-      # :self is a calculation not a relationship  
+      # :self is a calculation not a relationship
       assert error == {:requires_field_selection, :complex_type, "self"}
     end
 

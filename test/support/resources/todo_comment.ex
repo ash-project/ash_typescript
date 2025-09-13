@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.TodoComment do
+  @moduledoc """
+  Test resource representing comments on todo items.
+  """
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
     data_layer: Ash.DataLayer.Ets,

@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.TodoContent.LinkContent do
+  @moduledoc """
+  Test embedded resource for link content (union type member).
+  """
   use Ash.Resource,
     data_layer: :embedded,
     domain: nil

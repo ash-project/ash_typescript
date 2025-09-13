@@ -1,4 +1,7 @@
 defmodule AshTypescript.Filter do
+  @moduledoc """
+  Generates TypeScript filter types for Ash resources.
+  """
   import AshTypescript.Codegen
 
   def generate_filter_types(resources) when is_list(resources) do
@@ -50,8 +53,7 @@ defmodule AshTypescript.Filter do
   defp generate_relationship_filters(resource) do
     resource
     |> Ash.Resource.Info.public_relationships()
-    |> Enum.map(&generate_relationship_filter(&1))
-    |> Enum.join("\n")
+    |> Enum.map_join("\n", &generate_relationship_filter(&1))
   end
 
   defp generate_logical_operators(filter_type_name) do
@@ -72,8 +74,7 @@ defmodule AshTypescript.Filter do
       |> Ash.Resource.Info.public_calculations()
 
     (attrs ++ calcs)
-    |> Enum.map(&generate_attribute_filter(&1))
-    |> Enum.join("\n")
+    |> Enum.map_join("\n", &generate_attribute_filter(&1))
   end
 
   defp generate_attribute_filter(attribute) do
@@ -100,8 +101,7 @@ defmodule AshTypescript.Filter do
     resource
     |> Ash.Resource.Info.public_aggregates()
     |> Enum.filter(&(&1.kind in [:sum, :count]))
-    |> Enum.map(&generate_aggregate_filter(&1, resource))
-    |> Enum.join("\n")
+    |> Enum.map_join("\n", &generate_aggregate_filter(&1, resource))
   end
 
   defp generate_aggregate_filter(%{kind: :count, name: name}, _resource) do
@@ -213,8 +213,7 @@ defmodule AshTypescript.Filter do
       # Only include relationships to allowed resources
       Enum.member?(allowed_resources, rel.destination)
     end)
-    |> Enum.map(&generate_relationship_filter(&1))
-    |> Enum.join("\n")
+    |> Enum.map_join("\n", &generate_relationship_filter(&1))
   end
 
   defp generate_relationship_filter(relationship) do
@@ -240,7 +239,6 @@ defmodule AshTypescript.Filter do
     |> Ash.Info.domains()
     |> Enum.flat_map(&Ash.Domain.Info.resources/1)
     |> Enum.uniq()
-    |> Enum.map(&generate_filter_type/1)
-    |> Enum.join("\n")
+    |> Enum.map_join("\n", &generate_filter_type/1)
   end
 end

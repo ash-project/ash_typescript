@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.PostComment do
+  @moduledoc """
+  Test resource for post comments.
+  """
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
     data_layer: Ash.DataLayer.Ets,

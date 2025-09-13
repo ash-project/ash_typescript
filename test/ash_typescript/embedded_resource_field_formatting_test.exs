@@ -55,7 +55,7 @@ defmodule AshTypescript.EmbeddedResourceFieldFormattingTest do
       assert String.contains?(typescript_output, "WordCount?: number")
       assert String.contains?(typescript_output, "ContentType?: string")
 
-      # Test LinkContent embedded resource field formatting  
+      # Test LinkContent embedded resource field formatting
       assert String.contains?(typescript_output, "PreviewImageUrl?: string")
       assert String.contains?(typescript_output, "IsExternal?: boolean")
       assert String.contains?(typescript_output, "LastCheckedAt?: UtcDateTime")

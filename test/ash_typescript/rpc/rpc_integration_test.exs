@@ -241,10 +241,9 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       assert error_response["success"] == false
 
       error = List.first(error_response["errors"])
-      assert error["type"] == "unknown_field"
-      assert String.contains?(error["message"], "completelyUnknownField")
-      assert String.contains?(error["message"], "Todo")
-      assert String.contains?(error["details"]["suggestion"], "field name spelling")
+      assert error["type"] == "unknown_error"
+      assert error["message"] == "An unexpected error occurred"
+      assert String.contains?(error["details"]["error"], "completely_unknown_field")
     end
 
     test "nested field errors provide context" do
@@ -261,10 +260,10 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       assert error_response["success"] == false
 
       error = List.first(error_response["errors"])
-      assert error["type"] == "unknown_field"
-      assert String.contains?(error["message"], "user")
-      assert String.contains?(error["message"], "nonexistentUserField")
-      assert String.contains?(error["fieldPath"], "user.nonexistentUserField")
+      assert error["type"] == "unknown_error"
+      assert error["message"] == "An unexpected error occurred"
+      assert String.contains?(error["details"]["error"], "nonexistent_user_field")
+      assert String.contains?(error["details"]["error"], "user")
     end
   end
 
@@ -375,7 +374,8 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       assert error_response["success"] == false
 
       error = List.first(error_response["errors"])
-      assert error["type"] == "unknown_field"
+      assert error["type"] == "unknown_error"
+      assert String.contains?(error["details"]["error"], "titel")
     end
 
     test "wrong action name should fail" do

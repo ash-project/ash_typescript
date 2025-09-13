@@ -1,4 +1,7 @@
 defmodule AshTypescript.Codegen do
+  @moduledoc """
+  Main code generation module for TypeScript types and schemas from Ash resources.
+  """
   @doc """
   Discovers embedded resources from a list of regular resources by scanning their attributes.
   Returns a list of unique embedded resource modules.
@@ -342,11 +345,9 @@ defmodule AshTypescript.Codegen do
   def is_typed_struct?(_), do: false
 
   defp is_ash_typed_struct?(module) do
-    try do
-      module.spark_is() == Ash.TypedStruct
-    rescue
-      _ -> false
-    end
+    module.spark_is() == Ash.TypedStruct
+  rescue
+    _ -> false
   end
 
   @doc """
@@ -354,21 +355,18 @@ defmodule AshTypescript.Codegen do
   Returns a list of field definitions.
   """
   def get_typed_struct_fields(module) do
-    try do
-      if is_typed_struct?(module) do
-        Spark.Dsl.Extension.get_entities(module, [:typed_struct])
-      else
-        []
-      end
-    rescue
-      _ -> []
+    if is_typed_struct?(module) do
+      Spark.Dsl.Extension.get_entities(module, [:typed_struct])
+    else
+      []
     end
+  rescue
+    _ -> []
   end
 
   def generate_all_schemas_for_resources(resources, allowed_resources) do
     resources
-    |> Enum.map(&generate_all_schemas_for_resource(&1, allowed_resources))
-    |> Enum.join("\n\n")
+    |> Enum.map_join("\n\n", &generate_all_schemas_for_resource(&1, allowed_resources))
   end
 
   def generate_all_schemas_for_resource(resource, allowed_resources) do
@@ -488,16 +486,18 @@ defmodule AshTypescript.Codegen do
       "never"
     else
       fields
-      |> Enum.map(fn field_name ->
-        formatted =
-          AshTypescript.FieldFormatter.format_field(
-            field_name,
-            AshTypescript.Rpc.output_field_formatter()
-          )
+      |> Enum.map_join(
+        " | ",
+        fn field_name ->
+          formatted =
+            AshTypescript.FieldFormatter.format_field(
+              field_name,
+              AshTypescript.Rpc.output_field_formatter()
+            )
 
-        "\"#{formatted}\""
-      end)
-      |> Enum.join(" | ")
+          "\"#{formatted}\""
+        end
+      )
     end
   end
 
@@ -818,7 +818,7 @@ defmodule AshTypescript.Codegen do
     else
       args =
         arguments
-        |> Enum.map(fn arg ->
+        |> Enum.map_join("; ", fn arg ->
           formatted_name =
             AshTypescript.FieldFormatter.format_field(
               arg.name,
@@ -841,7 +841,6 @@ defmodule AshTypescript.Codegen do
             "#{formatted_name}: #{type_str}"
           end
         end)
-        |> Enum.join("; ")
 
       "{ #{args} }"
     end
@@ -868,7 +867,7 @@ defmodule AshTypescript.Codegen do
 
     member_fields =
       union_types
-      |> Enum.map(fn {name, config} ->
+      |> Enum.map_join("; ", fn {name, config} ->
         formatted_name =
           AshTypescript.FieldFormatter.format_field(
             name,
@@ -891,7 +890,6 @@ defmodule AshTypescript.Codegen do
             "#{formatted_name}?: #{ts_type}"
         end
       end)
-      |> Enum.join("; ")
 
     if member_fields == "" do
       "{ __type: \"Union\"; __primitiveFields: #{primitive_union}; }"
@@ -906,7 +904,7 @@ defmodule AshTypescript.Codegen do
     input_fields =
       resource
       |> Ash.Resource.Info.public_attributes()
-      |> Enum.map(fn attr ->
+      |> Enum.map_join("\n", fn attr ->
         formatted_name =
           AshTypescript.FieldFormatter.format_field(
             attr.name,
@@ -925,7 +923,6 @@ defmodule AshTypescript.Codegen do
           "  #{formatted_name}: #{base_type};"
         end
       end)
-      |> Enum.join("\n")
 
     """
     export type #{resource_name}InputSchema = {
@@ -982,7 +979,7 @@ defmodule AshTypescript.Codegen do
   defp build_map_input_type_inline(fields) do
     field_types =
       fields
-      |> Enum.map(fn {field_name, field_config} ->
+      |> Enum.map_join(", ", fn {field_name, field_config} ->
         field_attr = %{type: field_config[:type], constraints: field_config[:constraints] || []}
         field_type = get_ts_input_type(field_attr)
 
@@ -996,7 +993,6 @@ defmodule AshTypescript.Codegen do
         optional = if allow_nil, do: "| null", else: ""
         "#{formatted_field_name}: #{field_type}#{optional}"
       end)
-      |> Enum.join(", ")
 
     "{#{field_types}}"
   end
@@ -1021,7 +1017,7 @@ defmodule AshTypescript.Codegen do
   def get_ts_type(%{type: Ash.Type.Atom, constraints: constraints}, _) when constraints != [] do
     case Keyword.get(constraints, :one_of) do
       nil -> "string"
-      values -> values |> Enum.map(&"\"#{to_string(&1)}\"") |> Enum.join(" | ")
+      values -> values |> Enum.map_join(" | ", &"\"#{to_string(&1)}\"")
     end
   end
 
@@ -1151,7 +1147,7 @@ defmodule AshTypescript.Codegen do
         case type do
           module when is_atom(module) ->
             try do
-              Enum.map(module.values(), &"\"#{to_string(&1)}\"") |> Enum.join(" | ")
+              Enum.map_join(module.values(), " | ", &"\"#{to_string(&1)}\"")
             rescue
               _ -> "string"
             end
@@ -1175,7 +1171,7 @@ defmodule AshTypescript.Codegen do
 
     field_types =
       selected_fields
-      |> Enum.map(fn {field_name, field_config} ->
+      |> Enum.map_join(", ", fn {field_name, field_config} ->
         field_type =
           get_ts_type(%{type: field_config[:type], constraints: field_config[:constraints] || []})
 
@@ -1189,14 +1185,13 @@ defmodule AshTypescript.Codegen do
         optional = if allow_nil, do: " | null", else: ""
         "#{formatted_field_name}: #{field_type}#{optional}"
       end)
-      |> Enum.join(", ")
 
     primitive_fields_union =
       if Enum.empty?(selected_fields) do
         "never"
       else
         selected_fields
-        |> Enum.map(fn {field_name, _field_config} ->
+        |> Enum.map_join(" | ", fn {field_name, _field_config} ->
           formatted_field_name =
             AshTypescript.FieldFormatter.format_field(
               field_name,
@@ -1205,7 +1200,6 @@ defmodule AshTypescript.Codegen do
 
           "\"#{formatted_field_name}\""
         end)
-        |> Enum.join(" | ")
       end
 
     "{#{field_types}, __type: \"TypedMap\", __primitiveFields: #{primitive_fields_union}}"
@@ -1216,7 +1210,7 @@ defmodule AshTypescript.Codegen do
 
     field_types =
       fields
-      |> Enum.map(fn field ->
+      |> Enum.map_join(", ", fn field ->
         field_name = field.name
         field_type = field.type
         allow_nil = Map.get(field, :allow_nil?, false)
@@ -1234,7 +1228,6 @@ defmodule AshTypescript.Codegen do
         optional = if allow_nil, do: "| null", else: ""
         "#{formatted_field_name}: #{ts_type}#{optional}"
       end)
-      |> Enum.join(", ")
 
     "{#{field_types}}"
   end
@@ -1245,7 +1238,7 @@ defmodule AshTypescript.Codegen do
 
     member_properties =
       types
-      |> Enum.map(fn {type_name, type_config} ->
+      |> Enum.map_join("; ", fn {type_name, type_config} ->
         formatted_name =
           AshTypescript.FieldFormatter.format_field(
             type_name,
@@ -1260,7 +1253,6 @@ defmodule AshTypescript.Codegen do
 
         "#{formatted_name}?: #{ts_type}"
       end)
-      |> Enum.join("; ")
 
     case member_properties do
       "" -> "{ __type: \"Union\"; __primitiveFields: #{primitive_union}; }"
@@ -1304,7 +1296,7 @@ defmodule AshTypescript.Codegen do
   def build_union_input_type(types) do
     member_objects =
       types
-      |> Enum.map(fn {type_name, type_config} ->
+      |> Enum.map_join(" | ", fn {type_name, type_config} ->
         formatted_name =
           AshTypescript.FieldFormatter.format_field(
             type_name,
@@ -1319,7 +1311,6 @@ defmodule AshTypescript.Codegen do
 
         "{ #{formatted_name}: #{ts_type} }"
       end)
-      |> Enum.join(" | ")
 
     case member_objects do
       "" -> "any"
@@ -1332,10 +1323,9 @@ defmodule AshTypescript.Codegen do
   def build_resource_type(resource, nil) do
     field_types =
       Ash.Resource.Info.public_attributes(resource)
-      |> Enum.map(fn attr ->
+      |> Enum.map_join("\n", fn attr ->
         get_resource_field_spec(attr.name, resource)
       end)
-      |> Enum.join("\n")
 
     "{#{field_types}}"
   end
@@ -1343,10 +1333,9 @@ defmodule AshTypescript.Codegen do
   def build_resource_type(resource, select_and_loads) do
     field_types =
       select_and_loads
-      |> Enum.map(fn attr ->
+      |> Enum.map_join("\n", fn attr ->
         get_resource_field_spec(attr, resource)
       end)
-      |> Enum.join("\n")
 
     "{#{field_types}}"
   end

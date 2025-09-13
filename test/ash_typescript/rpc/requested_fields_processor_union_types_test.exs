@@ -657,7 +657,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
           }
         ])
 
-      assert error == {:requires_field_selection, :union, "content"}
+      assert error == {:requires_field_selection, "union", "content"}
     end
 
     test "rejects union attribute requested as simple atom" do

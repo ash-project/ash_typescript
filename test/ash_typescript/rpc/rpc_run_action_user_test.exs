@@ -1,7 +1,7 @@
 defmodule AshTypescript.Rpc.RpcRunActionUserTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Test.TestHelpers
   alias AshTypescript.Rpc
+  alias AshTypescript.Test.TestHelpers
 
   describe "list_users action" do
     setup do

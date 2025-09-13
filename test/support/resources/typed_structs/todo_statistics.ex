@@ -1,4 +1,7 @@
 defmodule AshTypescript.Test.TodoStatistics do
+  @moduledoc """
+  Test TypedStruct for todo statistics and performance metrics.
+  """
   use Ash.TypedStruct
 
   typed_struct do

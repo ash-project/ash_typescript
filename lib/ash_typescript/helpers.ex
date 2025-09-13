@@ -1,4 +1,7 @@
 defmodule AshTypescript.Helpers do
+  @moduledoc """
+  Utility functions for string manipulation and transformations.
+  """
   def snake_to_pascal_case(snake) when is_atom(snake) do
     snake
     |> Atom.to_string()
@@ -9,8 +12,7 @@ defmodule AshTypescript.Helpers do
     snake
     |> String.split("_")
     |> Enum.with_index()
-    |> Enum.map(fn {part, _} -> String.capitalize(part) end)
-    |> Enum.join()
+    |> Enum.map_join(fn {part, _} -> String.capitalize(part) end)
   end
 
   def snake_to_camel_case(snake) when is_atom(snake) do
@@ -23,11 +25,10 @@ defmodule AshTypescript.Helpers do
     snake
     |> String.split("_")
     |> Enum.with_index()
-    |> Enum.map(fn
+    |> Enum.map_join(fn
       {part, 0} -> String.downcase(part)
       {part, _} -> String.capitalize(part)
     end)
-    |> Enum.join()
   end
 
   def camel_to_snake_case(camel) when is_binary(camel) do

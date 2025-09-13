@@ -1,8 +1,8 @@
 defmodule AshTypescript.Rpc.InputFieldFormattingTest do
   use ExUnit.Case
 
-  alias AshTypescript.Rpc.Pipeline
   alias AshTypescript.FieldFormatter
+  alias AshTypescript.Rpc.Pipeline
 
   @moduletag :ash_typescript
 
