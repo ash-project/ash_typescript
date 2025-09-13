@@ -558,10 +558,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
       {:resource, _resource} ->
         # Resource types require fields to be provided and non-empty
         validate_complex_type_fields(fields_provided, fields, field_path, "Calculation")
-
-      _ ->
-        # For other types, allow empty fields (maintains backward compatibility)
-        :ok
     end
 
     new_path = path ++ [calc_name]
@@ -833,9 +829,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
                   # Embedded resource requires field selection
                   field_path = build_field_path(path ++ [field_name], member)
                   throw({:requires_field_selection, :complex_type, field_path})
-
-                _ ->
-                  {load_acc, template_acc ++ [member]}
               end
             else
               field_path = build_field_path(path ++ [field_name], member)
@@ -990,7 +983,11 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
 
     if nested_fields == [] do
       field_path = build_field_path(path, field_name)
-      throw({:requires_field_selection, String.to_atom(String.downcase(error_type)), field_path})
+
+      throw(
+        {:requires_field_selection, String.to_existing_atom(String.downcase(error_type)),
+         field_path}
+      )
     end
   end
 
@@ -1273,7 +1270,12 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
             [field_name]
 
           field_name when is_binary(field_name) ->
-            [String.to_atom(field_name)]
+            try do
+              [String.to_existing_atom(field_name)]
+            rescue
+              _ ->
+                throw({:invalid_field_type, field_name, path})
+            end
 
           %{} = field_map ->
             Map.keys(field_map)

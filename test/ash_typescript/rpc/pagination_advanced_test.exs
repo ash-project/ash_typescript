@@ -223,7 +223,8 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
         })
 
       if result["success"] == false do
-        IO.inspect(result, label: "DEBUG: Pagination test failure")
+        IO.puts("DEBUG: Pagination test failure:")
+        inspect(result)
       end
 
       assert result["success"] == true

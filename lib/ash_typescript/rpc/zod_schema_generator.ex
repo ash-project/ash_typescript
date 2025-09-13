@@ -1,11 +1,11 @@
 defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   @moduledoc """
   Generates Zod validation schemas for Ash resources and actions.
-  
+
   This module handles the generation of Zod schemas for TypeScript validation,
   supporting all Ash types including embedded resources, union types, and custom types.
   """
-  
+
   import AshTypescript.Codegen
   import AshTypescript.Helpers
 
@@ -153,8 +153,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
         get_zod_type(%{attr | type: subtype, constraints: sub_type_constraints}, context)
 
       Spark.implements_behaviour?(type, Ash.Type.Enum) ->
-        values = apply(type, :values, [])
-        enum_values = values |> Enum.map(&"\"#{to_string(&1)}\"") |> Enum.join(", ")
+        enum_values = Enum.map(type.values(), &"\"#{to_string(&1)}\"") |> Enum.join(", ")
         "z.enum([#{enum_values}])"
 
       true ->

@@ -758,7 +758,6 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
-
   defp generate_result_type(resource, action, rpc_action_name) do
     resource_name = build_resource_type_name(resource)
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
@@ -1336,6 +1335,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     success_field = format_output_field(:success)
     errors_field = format_output_field(:errors)
+
     validation_result_type = """
     export type Validate#{rpc_action_name_pascal}Result =
       | { #{success_field}: true }
@@ -1397,7 +1397,8 @@ defmodule AshTypescript.Rpc.Codegen do
 
     input_type = generate_input_type(resource, action, rpc_action_name)
 
-    error_type = ValidationErrorSchemas.generate_validation_error_type(resource, action, rpc_action_name)
+    error_type =
+      ValidationErrorSchemas.generate_validation_error_type(resource, action, rpc_action_name)
 
     zod_schema =
       if AshTypescript.Rpc.generate_zod_schemas?() do

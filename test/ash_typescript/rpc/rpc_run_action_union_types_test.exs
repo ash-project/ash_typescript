@@ -1718,7 +1718,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
           # Should have at most one simple member and no complex members
           assert Enum.count(simple_members, & &1) <= 1
-          assert Enum.count(complex_members, & &1) == 0
+          assert Enum.empty?(complex_members)
         end
 
         # Attachments with only simple URL members

@@ -121,10 +121,12 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
           _ -> false
         end)
 
-      assert coordinates_template == {"coordinates", [
-        %{index: 0, field_name: :latitude},
-        %{index: 1, field_name: :longitude}
-      ]}
+      assert coordinates_template ==
+               {"coordinates",
+                [
+                  %{index: 0, field_name: :latitude},
+                  %{index: 1, field_name: :longitude}
+                ]}
 
       user_template =
         Enum.find(template, fn
@@ -163,10 +165,12 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
           _ -> false
         end)
 
-      assert coordinates_template == {"coordinates", [
-        %{index: 0, field_name: :latitude},
-        %{index: 1, field_name: :longitude}
-      ]}
+      assert coordinates_template ==
+               {"coordinates",
+                [
+                  %{index: 0, field_name: :latitude},
+                  %{index: 1, field_name: :longitude}
+                ]}
     end
   end
 end

@@ -318,7 +318,14 @@ defmodule AshTypescript.Rpc.Pipeline do
             key
 
           is_binary(key) ->
-            String.to_existing_atom(key)
+            try do
+              String.to_existing_atom(key)
+            rescue
+              _ ->
+                reraise ArgumentError,
+                        "Invalid keyword field: #{inspect(key)}. Allowed fields: #{inspect(MapSet.to_list(allowed_fields))}",
+                        __STACKTRACE__
+            end
 
           true ->
             key

@@ -36,7 +36,7 @@ defmodule AshTypescript.Test.Formatters do
   def parse_input_with_prefix(field_name) do
     field_name
     |> String.replace_leading("input_", "")
-    |> String.to_atom()
+    |> String.to_existing_atom()
   end
 
   @doc """

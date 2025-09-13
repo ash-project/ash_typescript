@@ -1136,7 +1136,7 @@ defmodule AshTypescript.Codegen do
   def get_ts_type(%{type: type, constraints: constraints} = attr, _) do
     cond do
       is_custom_type?(type) ->
-        apply(type, :typescript_type_name, [])
+        type.typescript_type_name()
 
       is_embedded_resource?(type) ->
         resource_name = build_resource_type_name(type)
@@ -1151,8 +1151,7 @@ defmodule AshTypescript.Codegen do
         case type do
           module when is_atom(module) ->
             try do
-              values = apply(module, :values, [])
-              values |> Enum.map(&"\"#{to_string(&1)}\"") |> Enum.join(" | ")
+              Enum.map(module.values(), &"\"#{to_string(&1)}\"") |> Enum.join(" | ")
             rescue
               _ -> "string"
             end

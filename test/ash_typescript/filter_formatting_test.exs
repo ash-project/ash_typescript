@@ -142,7 +142,7 @@ defmodule AshTypescript.FilterFormattingTest do
       # Verify various field types are all formatted consistently
       # string field
       assert String.contains?(result, "title?: {")
-      # boolean field  
+      # boolean field
       assert String.contains?(result, "published?: {")
       # integer field
       assert String.contains?(result, "viewCount?: {")

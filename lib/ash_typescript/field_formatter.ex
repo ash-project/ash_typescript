@@ -41,7 +41,7 @@ defmodule AshTypescript.FieldFormatter do
 
     # Convert to atom if it's a string
     case internal_name do
-      name when is_binary(name) -> String.to_atom(name)
+      name when is_binary(name) -> String.to_existing_atom(name)
       name when is_atom(name) -> name
       name -> name
     end

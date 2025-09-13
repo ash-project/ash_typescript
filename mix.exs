@@ -84,7 +84,8 @@ defmodule AshTypescript.MixProject do
          search_data: Spark.Docs.search_data_for(AshTypescript.Rpc)},
         {"documentation/dsls/DSL-AshTypescript.Resource.md",
          search_data: Spark.Docs.search_data_for(AshTypescript.Resource)},
-        "CHANGELOG.md"
+        "CHANGELOG.md",
+        "LICENSE"
       ],
       groups_for_extras: [
         Tutorials: ~r'documentation/tutorials',
@@ -116,10 +117,10 @@ defmodule AshTypescript.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, path: "../ash", override: true},
+      {:ash, "~> 3.5"},
       {:ash_phoenix, "~> 2.0"},
       {:git_ops, "~> 2.0", only: [:dev], runtime: false},
-      {:spark, "~> 2.0", override: true},
+      {:spark, "~> 2.0"},
       {:sourceror, "~> 1.7", only: [:dev, :test]},
       {:faker, "~> 0.18", only: :test},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
@@ -131,6 +132,7 @@ defmodule AshTypescript.MixProject do
       {:mix_audit, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:usage_rules, "~> 0.1", only: [:dev]},
       {:tidewave, "~> 0.2", only: [:dev, :test]},
+      {:ex_check, "~> 0.12", only: [:dev, :test]},
       {:bandit, "~> 1.0", only: [:dev, :test]}
     ]
   end

@@ -1,14 +1,14 @@
 defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   @moduledoc """
   Generates validation error schemas for TypeScript RPC clients.
-  
+
   This module handles the generation of TypeScript validation error types
   for RPC actions, embedded resources, and typed structs.
   """
-  
+
   import AshTypescript.Helpers
   import AshTypescript.Codegen, only: [build_resource_type_name: 1]
-  
+
   @doc """
   Generates validation error type for an RPC action.
   """
