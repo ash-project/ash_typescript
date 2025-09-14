@@ -106,6 +106,11 @@ defmodule AshTypescript.Rpc do
 
   alias AshTypescript.Rpc.{ErrorBuilder, Pipeline}
 
+  def codegen(args) do
+    Mix.Task.reenable("ash_typescript.codegen")
+    Mix.Task.run("ash_typescript.codegen", args)
+  end
+
   @doc """
   Determines if tenant parameters are required in RPC requests.
 
