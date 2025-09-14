@@ -130,7 +130,7 @@ cd test/ts && npm run testZodValidation
 **5.1 Granular Control**
 ```elixir
 # In domain configuration
-rpc do
+typescript_rpc do
   resource MyApp.Todo do
     rpc_action :create_todo, :create do
       generate_zod_schema? true  # Override global setting

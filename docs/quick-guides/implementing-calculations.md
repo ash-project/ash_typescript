@@ -71,7 +71,7 @@ end
 defmodule MyApp.Domain do
   use Ash.Domain, extensions: [AshTypescript.Rpc]
 
-  rpc do
+  typescript_rpc do
     resource MyApp.Todo do
       rpc_action :get_todo, :read
       rpc_action :list_todos, :read

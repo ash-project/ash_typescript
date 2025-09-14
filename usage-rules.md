@@ -19,7 +19,7 @@ defmodule MyApp.Domain do
   use Ash.Domain,
     extensions: [AshTypescript.Rpc]
 
-  rpc do
+  typescript_rpc do
     resource MyApp.Todo do
       rpc_action :list_todos, :read
       rpc_action :get_todo, :get
@@ -363,7 +363,7 @@ defmodule MyApp.Domain do
   use Ash.Domain,
     extensions: [AshTypescript.Rpc]  # Required!
   
-  rpc do
+  typescript_rpc do
     resource MyApp.Todo do
       rpc_action :list_todos, :read
     end
@@ -375,14 +375,14 @@ end
 
 ❌ **Wrong - Assuming all actions are exposed:**
 ```elixir
-rpc do
+typescript_rpc do
   resource MyApp.Todo  # Missing action declarations!
 end
 ```
 
 ✅ **Correct - Explicit action declarations:**
 ```elixir
-rpc do
+typescript_rpc do
   resource MyApp.Todo do
     rpc_action :list_todos, :read
     rpc_action :create_todo, :create
@@ -578,7 +578,7 @@ defmodule MyApp.Domain do
   use Ash.Domain,
     extensions: [AshTypescript.Rpc]
 
-  rpc do
+  typescript_rpc do
     resource MyApp.Todo do
       # Regular RPC actions
       rpc_action :list_todos, :read

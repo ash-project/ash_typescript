@@ -30,7 +30,7 @@ end
 defmodule MyApp.Domain do
   use Ash.Domain, extensions: [AshTypescript.Rpc]
 
-  rpc do
+  typescript_rpc do
     resource MyApp.Todo do
       rpc_action :list_todos, :read
       rpc_action :create_todo, :create
@@ -317,7 +317,7 @@ config :ash_typescript,
 defmodule MyApp.Domain do
   use Ash.Domain, extensions: [AshTypescript.Rpc]
 
-  rpc do
+  typescript_rpc do
     resource MyApp.Todo do
       # Standard CRUD actions
       rpc_action :list_todos, :read

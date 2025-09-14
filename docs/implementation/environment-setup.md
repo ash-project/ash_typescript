@@ -89,7 +89,7 @@ mix docs                          # Generate documentation
 defmodule MyApp.Domain do
   use Ash.Domain, extensions: [AshTypescript.Rpc]
   
-  rpc do
+  typescript_rpc do
     resource MyApp.Todo do
       rpc_action :list_todos, :read
       rpc_action :create_todo, :create
