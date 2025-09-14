@@ -125,7 +125,7 @@ mix credo --strict                   # Linting
 | **Embedded Resources** | [implementation/embedded-resources.md](docs/implementation/embedded-resources.md) |
 | **Union Types** | [implementation/union-systems-core.md](docs/implementation/union-systems-core.md) |
 | **Field Processing** | [implementation/field-processing.md](docs/implementation/field-processing.md) |
-| **Troubleshooting** | [troubleshooting/](docs/troubleshooting/) directory |
+| **Troubleshooting** | [troubleshooting.md](docs/troubleshooting.md) |
 | **Quick Commands** | [ai-quick-reference.md](docs/ai-quick-reference.md) |
 
 **Always start with [docs/ai-index.md](docs/ai-index.md) for task-specific documentation guidance.**

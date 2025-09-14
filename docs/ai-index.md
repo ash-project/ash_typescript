@@ -21,29 +21,24 @@ This index helps AI assistants quickly find the most relevant documentation for 
 | Task | Primary Documentation | Supporting Files |
 |------|----------------------|------------------|
 | **Type Generation/Inference** | [implementation/type-system.md](implementation/type-system.md) | [test/ash_typescript/](../test/ash_typescript/) |
-| **Custom Types** | [implementation/custom-types.md](implementation/custom-types.md) | [quick-guides/adding-new-types.md](quick-guides/adding-new-types.md), [test/ash_typescript/custom_types_test.exs](../test/ash_typescript/custom_types_test.exs) |
+| **Custom Types** | [implementation/custom-types.md](implementation/custom-types.md) | [guides.md](guides.md), [test/ash_typescript/custom_types_test.exs](../test/ash_typescript/custom_types_test.exs) |
 | **RPC Features** | [implementation/rpc-pipeline.md](implementation/rpc-pipeline.md), [implementation/environment-setup.md](implementation/environment-setup.md), [implementation/development-workflows.md](implementation/development-workflows.md) | [test/ash_typescript/rpc/](../test/ash_typescript/rpc/), [ai-quick-reference.md](ai-quick-reference.md) |
 | **Field Selection** | [implementation/field-processing.md](implementation/field-processing.md) | [ai-quick-reference.md](ai-quick-reference.md) |
 | **Embedded Resources** | [implementation/embedded-resources.md](implementation/embedded-resources.md) | [test/support/resources/embedded/](../test/support/resources/embedded/) |
 | **Union Types** | [implementation/union-systems-core.md](implementation/union-systems-core.md), [implementation/union-systems-advanced.md](implementation/union-systems-advanced.md) | [test/ash_typescript/rpc/rpc_union_*_test.exs](../test/ash_typescript/rpc/) |
 | **Multitenancy** | [implementation/development-workflows.md](implementation/development-workflows.md) | [test/ash_typescript/rpc/rpc_multitenancy_*_test.exs](../test/ash_typescript/rpc/) |
 | **Environment Setup** | [implementation/environment-setup.md](implementation/environment-setup.md) | [CLAUDE.md](../CLAUDE.md) |
-| **Test Organization** | [quick-guides/test-organization.md](quick-guides/test-organization.md) | [test/ts/shouldPass/](../test/ts/shouldPass/), [test/ts/shouldFail/](../test/ts/shouldFail/) |
+| **Test Organization** | [testing.md](testing.md) | [test/ts/shouldPass/](../test/ts/shouldPass/), [test/ts/shouldFail/](../test/ts/shouldFail/) |
 
 ### Documentation Maintenance (Infrequent)
 | Task | Primary Documentation | When Needed |
 |------|----------------------|-------------|
-| **Major Documentation Restructuring** | [maintenance/ai-documentation-update-guide.md](maintenance/ai-documentation-update-guide.md) | Rare - only for major refactoring |
-| **README Updates** | [maintenance/ai-readme-update-guide.md](maintenance/ai-readme-update-guide.md) | Infrequent - for public-facing changes |
-| **Usage Rules Updates** | [maintenance/ai-usage-rules-update-guide.md](maintenance/ai-usage-rules-update-guide.md) | Infrequent - for workflow changes |
+| **Documentation Updates** | [ai-maintenance.md](ai-maintenance.md) | Rare - only for significant changes |
 
 ### Troubleshooting
 | Issue Type | Primary Documentation | Emergency Reference |
 |------------|----------------------|-------------------|
-| **Environment Issues** | [troubleshooting/environment-issues.md](troubleshooting/environment-issues.md) | [implementation/environment-setup.md](implementation/environment-setup.md), [CLAUDE.md](../CLAUDE.md) (Critical Rules) |
-| **Type Generation Issues** | [troubleshooting/type-generation-issues.md](troubleshooting/type-generation-issues.md) | [implementation/type-system.md](implementation/type-system.md), [ai-quick-reference.md](ai-quick-reference.md) |
-| **Field Parser Issues** | [troubleshooting/environment-issues.md](troubleshooting/environment-issues.md) | [implementation/field-processing.md](implementation/field-processing.md) |
-| **Runtime Issues** | [troubleshooting/runtime-processing-issues.md](troubleshooting/runtime-processing-issues.md) | [ai-validation-safety.md](ai-validation-safety.md) |
+| **All Issues** | [troubleshooting.md](troubleshooting.md) | [CLAUDE.md](../CLAUDE.md) (Environment rules), [ai-validation-safety.md](ai-validation-safety.md) (Testing procedures) |
 
 ### Deep Dives and Insights
 | Topic | Primary Documentation | When to Read |
@@ -68,10 +63,10 @@ This index helps AI assistants quickly find the most relevant documentation for 
 - **[implementation/union-systems-core.md](implementation/union-systems-core.md)** - Union type handling
 - **[implementation/custom-types.md](implementation/custom-types.md)** - Custom type implementation
 
-### Quick Guides & Troubleshooting
-- **[quick-guides/](quick-guides/)** - Task-specific guides
-- **[troubleshooting/](troubleshooting/)** - Issue-specific debugging
-- **[reference/](reference/)** - Quick lookup information
+### Compact Guides
+- **[guides.md](guides.md)** - Task-specific implementation patterns
+- **[troubleshooting.md](troubleshooting.md)** - Issue diagnosis and resolution
+- **[testing.md](testing.md)** - TypeScript test organization
 
 ## Recommended Reading Patterns
 
@@ -86,22 +81,21 @@ This index helps AI assistants quickly find the most relevant documentation for 
 
 ### For Troubleshooting
 1. **[CLAUDE.md](../CLAUDE.md)** - Environment rules and Tidewave debugging
-2. **[troubleshooting/quick-reference.md](troubleshooting/quick-reference.md)** - Rapid triage
-3. **Issue-specific guides** in [troubleshooting/](troubleshooting/) directory
-4. **[ai-validation-safety.md](ai-validation-safety.md)** - Validation procedures
+2. **[troubleshooting.md](troubleshooting.md)** - Rapid diagnosis and solutions
+3. **[ai-validation-safety.md](ai-validation-safety.md)** - Validation procedures
 
 ### For Understanding Context
 1. **[ai-changelog.md](ai-changelog.md)** - Why current patterns exist and architectural decisions
 2. **[implementation/](implementation/) guides** - Deep dives into specific areas
 
-## Optimized Structure (2025-08-19)
+## Optimized Structure (2025-09-14)
 
-**Ultra-streamlined for AI efficiency:**
-- **6,229 lines of legacy documentation removed**  
-- **CLAUDE.md optimized** from 600+ → 160 lines
-- **Focus on actionable guidance** over theoretical information
-- **Current technical references only** - all outdated content eliminated
-- **Tidewave MCP integration** for runtime debugging instead of static examples
+**Documentation refactoring completed:**
+- **Consolidated from 41 files (14,201 lines) to 12 files (~6,000 lines)**
+- **Eliminated redundancy** - merged overlapping troubleshooting and guide content
+- **Streamlined structure** - removed excessive subdirectories
+- **Preserved essential information** while maximizing AI efficiency
+- **Maintained Tidewave MCP integration** for runtime debugging
 
 ---
 **Last Updated**: 2025-08-19  

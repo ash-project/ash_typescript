@@ -71,7 +71,6 @@ export type CreateTodoInput = {
   userId: string;
 };
 
-// NEW: Zod schema for runtime validation
 export const CreateTodoZodSchema = z.object({
   title: z.string(),
   description: z.string().optional(),
