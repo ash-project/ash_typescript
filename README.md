@@ -44,13 +44,48 @@ defmodule MyApp.Domain do
 end
 ```
 
-### 3. Generate TypeScript types
+### 3. Set up Phoenix RPC controller
+
+```elixir
+defmodule MyAppWeb.RpcController do
+  use MyAppWeb, :controller
+
+  def run(conn, params) do
+    # Actor (and tenant if needed) must be set on the conn before calling run/2 or validate/2
+    # If your pipeline does not set these, you must add something like the following code:
+    # conn = Ash.PlugHelpers.set_actor(conn, conn.assigns[:current_user])
+    # conn = Ash.PlugHelpers.set_tenant(conn, conn.assigns[:tenant])
+    result = AshTypescript.Rpc.run_action(:my_app, conn, params)
+    json(conn, result)
+  end
+
+  def validate(conn, params) do
+    result = AshTypescript.Rpc.validate_action(:my_app, conn, params)
+    json(conn, result)
+  end
+end
+```
+
+### 4. Add RPC routes
+
+Add these routes to your `router.ex` to map the RPC endpoints:
+
+```elixir
+scope "/rpc", MyAppWeb do
+  pipe_through :api  # or :browser if using session-based auth
+
+  post "/run", RpcController, :run
+  post "/validate", RpcController, :validate
+end
+```
+
+### 5. Generate TypeScript types
 
 ```bash
 mix ash_typescript.codegen --output "assets/js/ash_rpc.ts"
 ```
 
-### 4. Use in your frontend
+### 6. Use in your frontend
 
 ```typescript
 import { listTodos, createTodo } from './ash_rpc';
@@ -78,7 +113,11 @@ const newTodo = await createTodo({
 - **🏢 Multitenancy ready** - Automatic tenant parameter handling
 - **📦 Advanced type support** - Enums, unions, embedded resources, and calculations
 - **🔧 Highly configurable** - Custom endpoints, formatting, and output options
-- **🧪 Runtime validation** - Zod schemas for runtime type checking (coming soon)
+- **🧪 Runtime validation** - Zod schemas for runtime type checking and form validation
+- **🔍 Auto-generated filters** - Type-safe filtering with comprehensive operator support
+- **📋 Form validation** - Client-side validation functions for all actions
+- **🎯 Typed queries** - Pre-configured queries for SSR and optimized data fetching
+- **🎨 Flexible field formatting** - Separate input/output formatters (camelCase, snake_case, etc.)
 
 ## 📚 Table of Contents
 
@@ -149,9 +188,11 @@ const newTodo = await createTodo({
 const todoWithDetails = await getTodo({
   fields: [
     "id", "title", "description",
-    { user: ["name", "email", "avatar_url"] },
-    { comments: ["id", "text", { author: ["name"] }] },
-    { tags: ["name", "color"] }
+    {
+      user: ["name", "email", "avatar_url"],
+      comments: ["id", "text", { author: ["name"] }],
+      tags: ["name", "color"]
+    }
   ],
   id: "todo-123"
 });
@@ -204,6 +245,41 @@ const todos = await listTodos({
     "X-Custom-Header": "value"
   }
 });
+```
+
+### Advanced Filtering and Pagination
+
+```typescript
+import { listTodos } from './ash_rpc';
+
+// Complex filtering with pagination
+const result = await listTodos({
+  fields: ["id", "title", "priority", "dueDate", { user: ["name"] }],
+  filter: {
+    and: [
+      { status: { eq: "ongoing" } },
+      { priority: { in: ["high", "urgent"] } },
+      {
+        or: [
+          { dueDate: { lessThan: "2024-12-31" } },
+          { user: { name: { eq: "John Doe" } } }
+        ]
+      }
+    ]
+  },
+  sort: "-priority,+dueDate",
+  page: {
+    limit: 20,
+    offset: 0,
+    count: true
+  }
+});
+
+if (result.success) {
+  console.log(`Found ${result.data.count} todos`);
+  console.log(`Showing ${result.data.results.length} results`);
+  console.log(`Has more: ${result.data.hasMore}`);
+}
 ```
 
 ## 🔧 Advanced Features
@@ -292,6 +368,211 @@ const users = await listUsers({
 });
 ```
 
+## 🚀 Advanced Features
+
+### Zod Runtime Validation
+
+AshTypescript generates Zod schemas for all your actions, enabling runtime type checking and form validation.
+
+#### Enable Zod Generation
+
+```elixir
+# config/config.exs
+config :ash_typescript,
+  generate_zod_schemas: true,
+  zod_import_path: "zod",  # or "@hookform/resolvers/zod" etc.
+  zod_schema_suffix: "ZodSchema"
+```
+
+#### Generated Zod Schemas
+
+For each action, AshTypescript generates validation schemas:
+
+#### Zod Schema Examples
+
+```typescript
+// Generated schema for creating a todo
+export const createTodoZodSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  dueDate: z.date().optional(),
+  tags: z.array(z.string()).optional()
+});
+```
+
+### Form Validation Functions
+
+AshTypescript generates dedicated validation functions for client-side form validation:
+
+```typescript
+import { validateCreateTodo } from './ash_rpc';
+
+// Validate form input before submission
+const validationResult = await validateCreateTodo({
+  input: {
+    title: "New Todo",
+    priority: "high"
+  }
+});
+
+if (!validationResult.success) {
+  // Handle validation errors
+  validationResult.errors.forEach(error => {
+    console.log(`Field ${error.fieldPath}: ${error.message}`);
+  });
+}
+```
+
+### Type-Safe Filtering
+
+AshTypescript automatically generates comprehensive filter types for all resources:
+
+```typescript
+import { listTodos } from './ash_rpc';
+
+// Complex filtering with full type safety
+const todos = await listTodos({
+  fields: ["id", "title", "status", "priority"],
+  filter: {
+    and: [
+      { status: { eq: "ongoing" } },
+      { priority: { in: ["high", "urgent"] } },
+      {
+        or: [
+          { dueDate: { lessThan: "2024-12-31" } },
+          { isOverdue: { eq: true } }
+        ]
+      }
+    ]
+  },
+  sort: "-priority,+dueDate"
+});
+```
+
+#### Available Filter Operators
+
+- **Equality**: `eq`, `notEq`, `in`
+- **Comparison**: `greaterThan`, `greaterThanOrEqual`, `lessThan`, `lessThanOrEqual`
+- **Logic**: `and`, `or`, `not`
+- **Relationships**: Nested filtering on related resources
+
+### Typed Queries for SSR
+
+Define reusable, type-safe queries for server-side rendering and optimized data fetching:
+
+#### Define Typed Queries
+
+```elixir
+defmodule MyApp.Domain do
+  use Ash.Domain, extensions: [AshTypescript.Rpc]
+
+  typescript_rpc do
+    resource MyApp.Todo do
+      # Regular RPC actions
+      rpc_action :list_todos, :read
+
+      # Typed query with predefined fields
+      typed_query :dashboard_todos, :read do
+        ts_result_type_name "DashboardTodosResult"
+        ts_fields_const_name "dashboardTodosFields"
+
+        fields [
+          :id, :title, :priority, :isOverdue,
+          %{
+            user: [:name, :email],
+            comments: [:id, :content]
+          }
+        ]
+      end
+    end
+  end
+end
+```
+
+#### Generated TypeScript Types
+
+```typescript
+// Generated type for the typed query result
+export type DashboardTodosResult = Array<InferResult<TodoResourceSchema,
+  ["id", "title", "priority", "isOverdue",
+   {
+     user: ["name", "email"],
+     comments: ["id", "content"]
+   }]
+>>;
+
+// Reusable field constant for client-side refetching
+export const dashboardTodosFields = [
+  "id", "title", "priority", "isOverdue",
+  {
+    user: ["name", "email"],
+    comments: ["id", "content"]
+  }
+] as const;
+```
+
+#### Server-Side Usage
+
+```elixir
+# In your Phoenix controller
+defmodule MyAppWeb.DashboardController do
+  use MyAppWeb, :controller
+
+  def index(conn, _params) do
+    result = AshTypescript.Rpc.run_typed_query(:my_app, :dashboard_todos, %{}, conn)
+
+    case result do
+      %{"success" => true, "data" => todos} ->
+        render(conn, "index.html", todos: todos)
+      %{"success" => false, "errors" => errors} ->
+        conn
+        |> put_status(:bad_request)
+        |> render("error.html", errors: errors)
+    end
+  end
+end
+```
+
+#### Client-Side Refetching
+
+```typescript
+// Use the same field selection for client-side updates
+const refreshedTodos = await listTodos({
+  fields: dashboardTodosFields,
+  filter: { isOverdue: { eq: true } }
+});
+```
+
+### Flexible Field Formatting
+
+Configure separate formatters for input parsing and output generation:
+
+```elixir
+# config/config.exs
+config :ash_typescript,
+  # How client field names are converted to internal Elixir fields (default is :camel_case)
+  input_field_formatter: :camel_case,
+  # How internal Elixir fields are formatted for client consumption (default is :camel_case)
+  output_field_formatter: :camel_case
+```
+
+#### Available Formatters
+
+- `:camel_case` - `user_name` → `userName`
+- `:pascal_case` - `user_name` → `UserName`
+- `:snake_case` - `user_name` → `user_name`
+- Custom formatter: `{MyModule, :format_field}` or `{MyModule, :format_field, [extra_args]}`
+
+#### Different Input/Output Formatting
+
+```elixir
+# Use different formatting for input vs output
+config :ash_typescript,
+  input_field_formatter: :snake_case,    # Client sends snake_case
+  output_field_formatter: :camel_case    # Client receives camelCase
+```
+
 ## ⚙️ Configuration
 
 ### Application Configuration
@@ -299,10 +580,26 @@ const users = await listUsers({
 ```elixir
 # config/config.exs
 config :ash_typescript,
+  # File generation
   output_file: "assets/js/ash_rpc.ts",
+
+  # RPC endpoints
   run_endpoint: "/rpc/run",
   validate_endpoint: "/rpc/validate",
+
+  # Field formatting
+  input_field_formatter: :camel_case,
+  output_field_formatter: :camel_case,
+
+  # Multitenancy
   require_tenant_parameters: false,
+
+  # Zod schema generation
+  generate_zod_schemas: true,
+  zod_import_path: "zod",
+  zod_schema_suffix: "ZodSchema",
+
+  # Custom type imports
   import_into_generated: [
     %{
       import_name: "CustomTypes",
@@ -329,6 +626,20 @@ defmodule MyApp.Domain do
       # Custom actions
       rpc_action :complete_todo, :complete
       rpc_action :archive_todo, :archive
+
+      # Typed queries for SSR and optimized data fetching
+      typed_query :dashboard_todos, :read do
+        ts_result_type_name "DashboardTodosResult"
+        ts_fields_const_name "dashboardTodosFields"
+
+        fields [
+          :id, :title, :priority, :status,
+          %{
+            user: [:name, :email],
+            comments: [:id, :content]
+          },
+        ]
+      end
     end
 
     resource MyApp.User do
@@ -412,7 +723,7 @@ interface TodoFieldsSchema {
 
 ### `mix ash_typescript.codegen`
 
-Generate TypeScript types and RPC clients.
+Generate TypeScript types, RPC clients, Zod schemas, and validation functions.
 
 **Options:**
 - `--output` - Output file path (default: `assets/js/ash_rpc.ts`)
@@ -420,6 +731,15 @@ Generate TypeScript types and RPC clients.
 - `--validate_endpoint` - RPC validate endpoint (default: `/rpc/validate`)
 - `--check` - Check if generated code is up to date (useful for CI)
 - `--dry_run` - Print generated code without writing to file
+
+**Generated Content:**
+- TypeScript interfaces for all resources
+- RPC client functions for each action
+- Filter input types for type-safe querying
+- Zod validation schemas (if enabled)
+- Form validation functions
+- Typed query constants and types
+- Custom type imports
 
 **Examples:**
 
@@ -437,6 +757,9 @@ mix ash_typescript.codegen \
 
 # Check if generated code is up to date (CI usage)
 mix ash_typescript.codegen --check
+
+# Preview generated code without writing to file
+mix ash_typescript.codegen --dry_run
 ```
 
 ## 📖 API Reference
@@ -445,12 +768,16 @@ mix ash_typescript.codegen --check
 
 AshTypescript generates:
 
-1. **TypeScript interfaces** for all resources
+1. **TypeScript interfaces** for all resources with metadata for field selection
 2. **RPC client functions** for each exposed action
-3. **Field selection types** for type-safe field specification
-4. **Custom type imports** for external TypeScript definitions
-5. **Enum types** for Ash enum types
-6. **Utility functions** for headers and validation
+3. **Validation functions** for client-side form validation
+4. **Filter input types** for type-safe querying with comprehensive operators
+5. **Zod schemas** for runtime validation (when enabled)
+6. **Typed query constants** and result types for SSR
+7. **Field selection types** for type-safe field specification
+8. **Custom type imports** for external TypeScript definitions
+9. **Enum types** for Ash enum types
+10. **Utility functions** for headers and CSRF protection
 
 ### Generated Functions
 
@@ -458,19 +785,36 @@ For each `rpc_action` in your domain, AshTypescript generates:
 
 ```typescript
 // For rpc_action :list_todos, :read
-function listTodos(params: {
-  fields: TodoFields;
-  filter?: TodoFilter;
-  sort?: TodoSort;
+function listTodos<Fields extends ListTodosFields>(params: {
+  fields: Fields;
+  filter?: TodoFilterInput;
+  sort?: string;
+  page?: PaginationOptions;
   headers?: Record<string, string>;
-}): Promise<Todo[]>;
+}): Promise<ListTodosResult<Fields>>;
+
+// Validation function for list_todos
+function validateListTodos(params: {
+  input: ListTodosInput;
+  headers?: Record<string, string>;
+}): Promise<ValidateListTodosResult>;
 
 // For rpc_action :create_todo, :create
-function createTodo(params: {
-  fields: TodoFields;
-  input: TodoInput;
+function createTodo<Fields extends CreateTodosFields>(params: {
+  fields: Fields;
+  input: CreateTodoInput;
   headers?: Record<string, string>;
-}): Promise<Todo>;
+}): Promise<CreateTodoResult<Fields>>;
+
+// Validation function for create_todo
+function validateCreateTodo(params: {
+  input: CreateTodoInput;
+  headers?: Record<string, string>;
+}): Promise<ValidateCreateTodoResult>;
+
+// Zod schemas (when enabled)
+export const createTodoZodSchema: z.ZodObject<...>;
+export const listTodosZodSchema: z.ZodObject<...>;
 ```
 
 ### Utility Functions
