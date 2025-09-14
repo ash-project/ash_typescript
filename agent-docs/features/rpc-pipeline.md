@@ -94,10 +94,67 @@ defstruct [
 
 ## Field Processing Integration
 
-The pipeline integrates with `RequestedFieldsProcessor` to handle complex field selection:
+Field processing is handled by `RequestedFieldsProcessor` in Stage 1 (parse_request):
 
-1. **Atomize requested fields** - Convert client field names to atoms
-2. **Process fields by type** - Different handling for resources, maps, arrays, etc.
+```elixir
+{:ok, {select, load, template}} = RequestedFieldsProcessor.process(
+  resource, action.name, requested_fields
+)
+# select: Attributes to select
+# load: Calculations/relationships to load
+# template: Extraction template for result processing
+```
+
+### Field Classification
+
+**Critical**: Order matters for dual-nature fields (embedded resources are both attributes AND loadable).
+
+```elixir
+def classify_field(resource, field_name, _path) do
+  cond do
+    attribute = Ash.Resource.Info.public_attribute(resource, field_name) ->  # FIRST
+      # Further classify the attribute type (simple, embedded resource, etc.)
+      classify_ash_type(attribute.type, attribute, false)
+
+    Ash.Resource.Info.public_relationship(resource, field_name) ->  # SECOND
+      :relationship
+
+    calculation = Ash.Resource.Info.public_calculation(resource, field_name) ->  # THIRD
+      # Further classify calculation type (simple, complex, with args)
+      classify_calculation_type(calculation)
+
+    true -> :unknown
+  end
+end
+```
+
+### Unified Field Format
+
+**Breaking change (2025-07-15)**: Complete removal of separate `calculations` parameter. All field selection uses unified format:
+
+```elixir
+# All calculations, relationships, and fields specified in single array
+fields: ["id", "title", {"relationship": ["field"]}, {"calculation": {"args": {...}}}]
+```
+
+### Dual-Nature Processing
+
+Embedded resources need both select and load operations:
+
+```elixir
+case embedded_load_items do
+  [] -> {:select, field_atom}  # Only attributes
+  load_items -> {:both, field_atom, {field_atom, load_items}}  # Both attributes and calculations
+end
+```
+
+### Key Processing Steps
+
+1. **Atomization**: Convert string field names to atoms
+2. **Classification**: Determine field type (attribute, relationship, calculation, etc.)
+3. **Validation**: Verify fields exist and are accessible
+4. **Template Building**: Create extraction template for result processing
+5. **Load/Select Separation**: Generate proper Ash query parameters
 3. **Build select/load statements** - Separate attributes from loadable fields
 4. **Create extraction template** - For efficient result filtering
 
@@ -175,6 +232,45 @@ Configure tenant parameter handling:
 config :ash_typescript,
   require_tenant_parameters: false  # Get from connection instead
 ```
+
+## Performance Patterns
+
+- **Pre-computation**: Build extraction templates during parsing, not during result processing
+- **Context passing**: Use context structs to avoid parameter threading
+- **Field validation**: Validate early to fail fast
+
+## Common Issues
+
+### Field Processing Issues
+- **Unknown field errors**: Field not found in resource or not accessible
+- **Dual-nature conflicts**: Embedded resources incorrectly classified as simple attributes
+- **Template mismatches**: Extraction template doesn't match actual query results
+
+### Pipeline Issues
+- **Stage failures**: Check error messages for specific stage that failed
+- **Performance issues**: Profile specific stages, not entire system
+- **Configuration issues**: Verify field formatters and tenant settings
+
+## Debugging
+
+Use Tidewave for step-by-step field processing debugging:
+
+```elixir
+mcp__tidewave__project_eval("""
+fields = ["id", {"user" => ["name"]}]
+AshTypescript.Rpc.RequestedFieldsProcessor.process(
+  AshTypescript.Test.Todo, :read, fields
+)
+""")
+```
+
+## Key Files
+
+- `lib/ash_typescript/rpc/pipeline.ex` - Four-stage orchestration
+- `lib/ash_typescript/rpc/requested_fields_processor.ex` - Field validation and templates
+- `lib/ash_typescript/rpc/result_processor.ex` - Template-based result extraction
+- `lib/ash_typescript/rpc/request.ex` - Request data structure
+- `lib/ash_typescript/rpc/error_builder.ex` - Comprehensive error handling
 
 ## Testing
 
