@@ -15,6 +15,8 @@ import "./shouldPass/complexScenarios";
 import "./shouldPass/typedStructs";
 import "./shouldPass/validationErrors";
 import "./shouldPass/keywordTuple";
+import "./shouldPass/customFetch";
+import "./shouldPass/fetchOptionsAdvanced";
 import "./validate_fields_prototype";
 
 // Import Zod schema validation tests

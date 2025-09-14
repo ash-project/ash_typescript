@@ -1185,7 +1185,13 @@ defmodule AshTypescript.Rpc.Codegen do
         config_fields
       end
 
-    config_fields = config_fields ++ ["  headers?: Record<string, string>;"]
+    config_fields =
+      config_fields ++
+        [
+          "  headers?: Record<string, string>;",
+          "  fetchOptions?: RequestInit;",
+          "  customFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;"
+        ]
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
     success_field = format_output_field(:success)
@@ -1268,11 +1274,15 @@ defmodule AshTypescript.Rpc.Codegen do
         ...config.headers,
       };
 
-      const response = await fetch("#{endpoint_process}", {
+      const fetchFunction = config.customFetch || fetch;
+      const fetchOptions: RequestInit = {
+        ...config.fetchOptions,
         method: "POST",
         headers,
         body: JSON.stringify(payload),
-      });
+      };
+
+      const response = await fetchFunction("#{endpoint_process}", fetchOptions);
 
       if (!response.ok) {
         return {
@@ -1323,7 +1333,13 @@ defmodule AshTypescript.Rpc.Codegen do
         config_fields
       end
 
-    config_fields = config_fields ++ ["  headers?: Record<string, string>;"]
+    config_fields =
+      config_fields ++
+        [
+          "  headers?: Record<string, string>;",
+          "  fetchOptions?: RequestInit;",
+          "  customFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;"
+        ]
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
 
@@ -1361,11 +1377,15 @@ defmodule AshTypescript.Rpc.Codegen do
         ...config.headers,
       };
 
-      const response = await fetch("#{endpoint_validate}", {
+      const fetchFunction = config.customFetch || fetch;
+      const fetchOptions: RequestInit = {
+        ...config.fetchOptions,
         method: "POST",
         headers,
         body: JSON.stringify(payload),
-      });
+      };
+
+      const response = await fetchFunction("#{endpoint_validate}", fetchOptions);
 
       if (!response.ok) {
         return {

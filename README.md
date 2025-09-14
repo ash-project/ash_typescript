@@ -118,6 +118,7 @@ const newTodo = await createTodo({
 - **📋 Form validation** - Client-side validation functions for all actions
 - **🎯 Typed queries** - Pre-configured queries for SSR and optimized data fetching
 - **🎨 Flexible field formatting** - Separate input/output formatters (camelCase, snake_case, etc.)
+- **🔌 Custom HTTP clients** - Support for custom fetch functions and request options (axios, interceptors, etc.)
 
 ## 📚 Table of Contents
 
@@ -244,6 +245,131 @@ const todos = await listTodos({
     "Authorization": "Bearer your-token-here",
     "X-Custom-Header": "value"
   }
+});
+```
+
+### Custom Fetch Functions and Request Options
+
+AshTypescript allows you to customize the HTTP client used for requests by providing custom fetch functions and additional fetch options.
+
+#### Using fetchOptions for Request Customization
+
+All generated RPC functions accept an optional `fetchOptions` parameter that allows you to customize the underlying fetch request:
+
+```typescript
+import { createTodo, listTodos } from './ash_rpc';
+
+// Add request timeout and custom cache settings
+const todo = await createTodo({
+  fields: ["id", "title"],
+  input: { title: "New Todo" },
+  fetchOptions: {
+    signal: AbortSignal.timeout(5000), // 5 second timeout
+    cache: 'no-cache',
+    credentials: 'include'
+  }
+});
+
+// Use with abort controller for cancellable requests
+const controller = new AbortController();
+
+const todos = await listTodos({
+  fields: ["id", "title"],
+  fetchOptions: {
+    signal: controller.signal
+  }
+});
+
+// Cancel the request if needed
+controller.abort();
+```
+
+#### Custom Fetch Functions
+
+You can replace the native fetch function entirely by providing a `customFetch` parameter. This is useful for:
+- Adding global authentication
+- Using alternative HTTP clients like axios
+- Adding request/response interceptors
+- Custom error handling
+
+```typescript
+// Custom fetch with user preferences and tracking
+const enhancedFetch = async (url: RequestInfo | URL, init?: RequestInit) => {
+  // Get user preferences from localStorage (safe, non-sensitive data)
+  const userLanguage = localStorage.getItem('userLanguage') || 'en';
+  const userTimezone = localStorage.getItem('userTimezone') || 'UTC';
+  const apiVersion = localStorage.getItem('preferredApiVersion') || 'v1';
+
+  // Generate correlation ID for request tracking
+  const correlationId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  const customHeaders = {
+    'Accept-Language': userLanguage,
+    'X-User-Timezone': userTimezone,
+    'X-API-Version': apiVersion,
+    'X-Correlation-ID': correlationId,
+  };
+
+  return fetch(url, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      ...customHeaders
+    }
+  });
+};
+
+// Use custom fetch function
+const todos = await listTodos({
+  fields: ["id", "title"],
+  customFetch: enhancedFetch
+});
+```
+
+#### Using Axios with AshTypescript
+
+While AshTypescript uses the fetch API by default, you can create an adapter to use axios or other HTTP clients:
+
+```typescript
+import axios from 'axios';
+
+// Create axios adapter that matches fetch API
+const axiosAdapter = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  try {
+    const url = typeof input === 'string' ? input : input.toString();
+
+    const axiosResponse = await axios({
+      url,
+      method: init?.method || 'GET',
+      headers: init?.headers,
+      data: init?.body,
+      timeout: 10000,
+      // Add other axios-specific options
+      validateStatus: () => true // Don't throw on HTTP errors
+    });
+
+    // Convert axios response to fetch Response
+    return new Response(JSON.stringify(axiosResponse.data), {
+      status: axiosResponse.status,
+      statusText: axiosResponse.statusText,
+      headers: new Headers(axiosResponse.headers as any)
+    });
+  } catch (error) {
+    if (error.response) {
+      // HTTP error status
+      return new Response(JSON.stringify(error.response.data), {
+        status: error.response.status,
+        statusText: error.response.statusText
+      });
+    }
+    throw error; // Network error
+  }
+};
+
+// Use axios for all requests
+const todos = await listTodos({
+  fields: ["id", "title"],
+  customFetch: axiosAdapter
 });
 ```
 
@@ -791,12 +917,16 @@ function listTodos<Fields extends ListTodosFields>(params: {
   sort?: string;
   page?: PaginationOptions;
   headers?: Record<string, string>;
+  fetchOptions?: RequestInit;
+  customFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 }): Promise<ListTodosResult<Fields>>;
 
 // Validation function for list_todos
 function validateListTodos(params: {
   input: ListTodosInput;
   headers?: Record<string, string>;
+  fetchOptions?: RequestInit;
+  customFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 }): Promise<ValidateListTodosResult>;
 
 // For rpc_action :create_todo, :create
@@ -804,12 +934,16 @@ function createTodo<Fields extends CreateTodosFields>(params: {
   fields: Fields;
   input: CreateTodoInput;
   headers?: Record<string, string>;
+  fetchOptions?: RequestInit;
+  customFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 }): Promise<CreateTodoResult<Fields>>;
 
 // Validation function for create_todo
 function validateCreateTodo(params: {
   input: CreateTodoInput;
   headers?: Record<string, string>;
+  fetchOptions?: RequestInit;
+  customFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 }): Promise<ValidateCreateTodoResult>;
 
 // Zod schemas (when enabled)

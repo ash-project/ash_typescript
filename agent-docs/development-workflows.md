@@ -77,6 +77,8 @@ Both positive (shouldPass) and negative (shouldFail) patterns
 - **Field formatters**: Custom formatting in result processor
 - **Calculation handlers**: Extend complex calculation support
 - **Error handlers**: Custom error formatting
+- **Custom fetch functions**: Client-side HTTP customization via `customFetch` parameter
+- **Request options**: Client-side request customization via `fetchOptions` parameter
 
 ## Key Success Factors
 

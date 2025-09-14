@@ -9,6 +9,7 @@ import "./shouldFail/invalidCalcArgs";
 import "./shouldFail/invalidStructure";
 import "./shouldFail/typeMismatches";
 import "./shouldFail/unionValidation";
+import "./shouldFail/customFetchErrors";
 
 // Import Zod schema validation failure tests
 import "./zod/shouldFail/invalidZodUsage";

@@ -25,6 +25,8 @@
 | **CSRF Headers** | `buildCSRFHeaders()` | Phoenix CSRF protection |
 | **Multitenancy** | `tenant: "org-123"` | Required for multitenant resources |
 | **Input Args** | `input: { argName: value }` | Action arguments go here |
+| **Custom Fetch** | `customFetch: myFetchFn` | Replace native fetch (axios adapter, auth) |
+| **Fetch Options** | `fetchOptions: { timeout: 5000 }` | RequestInit options (timeout, cache, etc.) |
 
 ## Critical Patterns
 
@@ -61,10 +63,34 @@ const content = await getTodo({
 });
 
 // Complex calculation with args
-const enhanced = await getTodo({
+const complexCalc = await getTodo({
   fields: ["id", {
     self: { args: { prefix: "my_" }, fields: ["id", "title"] }
   }]
+});
+
+// Custom fetch with user preferences and options
+const enhancedFetch = async (url, init) => {
+  const userLanguage = localStorage.getItem('userLanguage') || 'en';
+  const correlationId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  return fetch(url, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Accept-Language': userLanguage,
+      'X-Correlation-ID': correlationId
+    }
+  });
+};
+
+const todos = await listTodos({
+  fields: ["id", "title"],
+  customFetch: enhancedFetch,
+  fetchOptions: {
+    signal: AbortSignal.timeout(5000),
+    credentials: 'include'
+  }
 });
 ```
 
@@ -274,6 +300,47 @@ const todos = await listTodos({
     ...buildCSRFHeaders(),
     "Authorization": "Bearer your-jwt-token"
   }
+});
+
+// Custom fetch for global preferences
+const prefsFetch = async (url, init) => {
+  const userLanguage = localStorage.getItem('userLanguage') || 'en';
+  const timezone = localStorage.getItem('userTimezone') || 'UTC';
+
+  return fetch(url, {
+    ...init,
+    headers: {
+      ...init?.headers,
+      'Accept-Language': userLanguage,
+      'X-User-Timezone': timezone
+    }
+  });
+};
+
+const todos = await listTodos({
+  fields: ["id", "title"],
+  customFetch: prefsFetch,
+  fetchOptions: { timeout: 10000 }
+});
+
+// Axios adapter example
+const axiosAdapter = async (url, init) => {
+  const response = await axios({
+    url: typeof url === 'string' ? url : url.toString(),
+    method: init?.method || 'GET',
+    headers: init?.headers,
+    data: init?.body,
+    timeout: 10000
+  });
+  return new Response(JSON.stringify(response.data), {
+    status: response.status,
+    headers: new Headers(response.headers)
+  });
+};
+
+const todos = await listTodos({
+  fields: ["id", "title"],
+  customFetch: axiosAdapter
 });
 ```
 
