@@ -25,6 +25,7 @@
 | **CSRF Headers** | `buildCSRFHeaders()` | Phoenix CSRF protection |
 | **Multitenancy** | `tenant: "org-123"` | Required for multitenant resources |
 | **Input Args** | `input: { argName: value }` | Action arguments go here |
+| **Update/Destroy** | `primaryKey: "id-123"` | Primary key separate from input for update/destroy |
 | **Custom Fetch** | `customFetch: myFetchFn` | Replace native fetch (axios adapter, auth) |
 | **Fetch Options** | `fetchOptions: { timeout: 5000 }` | RequestInit options (timeout, cache, etc.) |
 
@@ -52,6 +53,21 @@ const todo = await getTodo({
 const newTodo = await createTodo({
   input: { title: "New Task", userId: "123" },
   fields: ["id", "title", "createdAt"],
+  headers: buildCSRFHeaders()
+});
+
+// Update requires primaryKey separate from input
+const updatedTodo = await updateTodo({
+  primaryKey: "todo-123",  // Primary key as separate parameter
+  input: { title: "Updated Task", priority: "high" },
+  fields: ["id", "title", "priority", "updatedAt"],
+  headers: buildCSRFHeaders()
+});
+
+// Destroy requires primaryKey separate from input
+const deletedTodo = await destroyTodo({
+  primaryKey: "todo-123",  // Primary key as separate parameter
+  fields: [],
   headers: buildCSRFHeaders()
 });
 

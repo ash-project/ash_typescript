@@ -186,6 +186,22 @@ const newTodo = await createTodo({
     dueDate: "2024-01-01"
   }
 });
+
+// Update existing todo (primary key separate from input)
+const updatedTodo = await updateTodo({
+  fields: ["id", "title", "priority", "updatedAt"],
+  primaryKey: "todo-123",  // Primary key as separate parameter
+  input: {
+    title: "Updated: Learn AshTypescript",
+    priority: "urgent"
+  }
+});
+
+// Delete todo (primary key separate from input)
+const deletedTodo = await destroyTodo({
+  fields: [],
+  primaryKey: "todo-123"    // Primary key as separate parameter
+});
 ```
 
 ### Advanced Field Selection
