@@ -179,11 +179,11 @@ const todo = await getTodo({
 
 // Create new todo
 const newTodo = await createTodo({
-  fields: ["id", "title", "created_at"],
+  fields: ["id", "title", "createdAt"],
   input: {
     title: "Learn AshTypescript",
     priority: "high",
-    due_date: "2024-01-01"
+    dueDate: "2024-01-01"
   }
 });
 ```
@@ -196,7 +196,7 @@ const todoWithDetails = await getTodo({
   fields: [
     "id", "title", "description",
     {
-      user: ["name", "email", "avatar_url"],
+      user: ["name", "email", "avatarUrl"],
       comments: ["id", "text", { author: ["name"] }],
       tags: ["name", "color"]
     }
@@ -209,7 +209,7 @@ const todoWithCalc = await getTodo({
   fields: [
     "id", "title",
     {
-      "priority_score": {
+      "priorityScore": {
         "args": { "multiplier": 2 },
         "fields": ["score", "rank"]
       }
@@ -432,7 +432,7 @@ end
 const todo = await getTodo({
   fields: [
     "id", "title",
-    { metadata: ["priority", "tags", "custom_fields"] }
+    { metadata: ["priority", "tags", "customFields"] }
   ],
   id: "todo-123"
 });
@@ -457,7 +457,7 @@ end
 const todo = await getTodo({
   fields: [
     "id", "title",
-    { content: ["text", { checklist: ["items", "completed_count"] }] }
+    { content: ["text", { checklist: ["items", "completedCount"] }] }
   ],
   id: "todo-123"
 });
@@ -496,7 +496,7 @@ end
 ```typescript
 // TypeScript usage
 const users = await listUsers({
-  fields: ["id", "first_name", "last_name", "full_name"]
+  fields: ["id", "firstName", "lastName", "fullName"]
 });
 ```
 
