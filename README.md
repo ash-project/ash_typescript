@@ -81,6 +81,12 @@ end
 
 ### 5. Generate TypeScript types
 
+**Recommended approach** (runs codegen for all Ash extensions in your project):
+```bash
+mix ash.codegen --dev"
+```
+
+**Alternative approach** (runs codegen only for AshTypescript):
 ```bash
 mix ash_typescript.codegen --output "assets/js/ash_rpc.ts"
 ```
@@ -847,9 +853,27 @@ interface TodoFieldsSchema {
 
 ## 🛠️ Mix Tasks
 
-### `mix ash_typescript.codegen`
+### Code Generation Commands
 
-Generate TypeScript types, RPC clients, Zod schemas, and validation functions.
+#### `mix ash.codegen` (Recommended)
+
+**Preferred approach** for generating TypeScript types along with other Ash extensions in your project.
+
+```bash
+# Generate types for all Ash extensions including AshTypescript
+mix ash.codegen --dev
+
+# With custom output location
+mix ash.codegen --dev --output "assets/js/ash_rpc.ts"
+```
+
+**When to use**: When you have multiple Ash extensions (AshPostgres, etc.) and want to run codegen for all of them together. This is the recommended approach for most projects.
+
+#### `mix ash_typescript.codegen` (Specific)
+
+Generate TypeScript types, RPC clients, Zod schemas, and validation functions **only for AshTypescript**.
+
+**When to use**: When you want to run codegen specifically for AshTypescript only in your project.
 
 **Options:**
 - `--output` - Output file path (default: `assets/js/ash_rpc.ts`)
@@ -870,7 +894,7 @@ Generate TypeScript types, RPC clients, Zod schemas, and validation functions.
 **Examples:**
 
 ```bash
-# Basic generation
+# Basic generation (AshTypescript only)
 mix ash_typescript.codegen
 
 # Custom output location
