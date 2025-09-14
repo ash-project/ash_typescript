@@ -360,15 +360,15 @@ defmodule AshTypescript.Rpc do
       # In a Phoenix controller
       def index(conn, _params) do
         case AshTypescript.Rpc.run_typed_query(:my_app, :list_todos_user_page, %{}, conn) do
-          {:ok, todos} ->
+          %{"success" => true, "data" => todos} ->
             render(conn, "index.html", initial_todos: todos)
-          {:error, reason} ->
+          %{"success" => false, "error" => reason} ->
             # Handle error appropriately
             send_resp(conn, 500, "Error loading data")
         end
       end
   """
-  @spec run_typed_query(atom(), atom(), map(), Plug.Conn.t()) :: {:ok, any()} | {:error, any()}
+  @spec run_typed_query(atom(), atom(), map(), Plug.Conn.t()) :: map()
   def run_typed_query(otp_app, typed_query_name, params \\ %{}, conn) do
     case find_typed_query(otp_app, typed_query_name) do
       {:ok, typed_query} ->
