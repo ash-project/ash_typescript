@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## v0.1.2 (2025-09-15)
+
+
+
+
+### Improvements:
+
+* Use correct casing in dsl docs filenames. by Torkild Kjevik
+
 ## v0.1.1 (2025-09-15)
 
 
