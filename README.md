@@ -237,15 +237,27 @@ const todoWithCalc = await getTodo({
 
 ### Error Handling
 
+All generated RPC functions return a `{success: true/false}` structure instead of throwing exceptions:
+
 ```typescript
-try {
-  const todo = await createTodo({
-    fields: ["id", "title"],
-    input: { title: "New Todo" }
-  });
-} catch (error) {
+const result = await createTodo({
+  fields: ["id", "title"],
+  input: { title: "New Todo" }
+});
+
+if (result.success) {
+  // Access the created todo
+  console.log("Created todo:", result.data);
+  const todoId: string = result.data.id;
+  const todoTitle: string = result.data.title;
+} else {
   // Handle validation errors, network errors, etc.
-  console.error('Failed to create todo:', error);
+  result.errors.forEach(error => {
+    console.error(`Error: ${error.message}`);
+    if (error.fieldPath) {
+      console.error(`Field: ${error.fieldPath}`);
+    }
+  });
 }
 ```
 
