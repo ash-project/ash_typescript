@@ -19,7 +19,7 @@ Add to your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:ash_typescript, "~> 0.1.0"}
+    {:ash_typescript, "~> 0.1.1"}
   ]
 end
 ```
