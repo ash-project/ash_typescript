@@ -158,7 +158,8 @@ defmodule AshTypescript.MixProject do
       ],
       credo: "credo --strict",
       "spark.formatter": "spark.formatter --extensions AshTypescript.Rpc,AshTypescript.Resource",
-      "spark.cheat_sheets": "spark.cheat_sheets --extensions AshTypescript.Rpc"
+      "spark.cheat_sheets":
+        "spark.cheat_sheets --extensions AshTypescript.Rpc,AshTypescript.Resource"
     ]
   end
 end
