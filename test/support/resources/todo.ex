@@ -219,6 +219,15 @@ defmodule AshTypescript.Test.Todo do
                   ]
     end
 
+    attribute :hierarchy, AshPostgres.Ltree do
+      public? true
+    end
+
+    attribute :strict_hierarchy, AshPostgres.Ltree do
+      public? true
+      constraints escape?: true
+    end
+
     create_timestamp :created_at do
       public? true
     end
@@ -381,7 +390,9 @@ defmodule AshTypescript.Test.Todo do
         :timestamp_info,
         :statistics,
         :options,
-        :coordinates
+        :coordinates,
+        :hierarchy,
+        :strict_hierarchy
       ]
 
       argument :auto_complete, :boolean do
@@ -417,7 +428,9 @@ defmodule AshTypescript.Test.Todo do
         :timestamp_info,
         :statistics,
         :options,
-        :coordinates
+        :coordinates,
+        :hierarchy,
+        :strict_hierarchy
       ]
     end
 

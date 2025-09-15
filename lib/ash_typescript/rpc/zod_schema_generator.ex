@@ -135,6 +135,20 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   end
 
   def get_zod_type(%{type: AshDoubleEntry.ULID}, _), do: "z.string()"
+
+  def get_zod_type(%{type: AshPostgres.Ltree, constraints: constraints}, _) do
+    escape = Keyword.get(constraints, :escape?, false)
+
+    if escape do
+      "z.array(z.string())"
+    else
+      "z.union([z.string(), z.array(z.string())])"
+    end
+  end
+
+  def get_zod_type(%{type: AshPostgres.Ltree}, _),
+    do: "z.union([z.string(), z.array(z.string())])"
+
   def get_zod_type(%{type: AshMoney.Types.Money}, _), do: "z.object({})"
 
   def get_zod_type(%{type: type, constraints: constraints} = attr, context) do

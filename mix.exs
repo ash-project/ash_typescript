@@ -119,6 +119,7 @@ defmodule AshTypescript.MixProject do
     [
       {:ash, "~> 3.5"},
       {:ash_phoenix, "~> 2.0"},
+      {:ash_postgres, "~> 2.0", only: [:dev, :test]},
       {:git_ops, "~> 2.0", only: [:dev], runtime: false},
       {:spark, "~> 2.0"},
       {:sourceror, "~> 1.7", only: [:dev, :test]},

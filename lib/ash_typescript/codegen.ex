@@ -288,27 +288,37 @@ defmodule AshTypescript.Codegen do
   defp generate_ash_type_alias(Ash.Type.Tuple), do: ""
   defp generate_ash_type_alias(Ash.Type.String), do: ""
   defp generate_ash_type_alias(Ash.Type.CiString), do: ""
-  defp generate_ash_type_alias(Ash.Type.UUID), do: "type UUID = string;"
-  defp generate_ash_type_alias(Ash.Type.UUIDv7), do: "type UUIDv7 = string;"
-  defp generate_ash_type_alias(Ash.Type.Decimal), do: "type Decimal = string;"
-  defp generate_ash_type_alias(Ash.Type.Date), do: "type AshDate = string;"
-  defp generate_ash_type_alias(Ash.Type.Time), do: "type Time = string;"
-  defp generate_ash_type_alias(Ash.Type.TimeUsec), do: "type TimeUsec = string;"
-  defp generate_ash_type_alias(Ash.Type.UtcDatetime), do: "type UtcDateTime = string;"
-  defp generate_ash_type_alias(Ash.Type.UtcDatetimeUsec), do: "type UtcDateTimeUsec = string;"
-  defp generate_ash_type_alias(Ash.Type.DateTime), do: "type DateTime = string;"
-  defp generate_ash_type_alias(Ash.Type.NaiveDatetime), do: "type NaiveDateTime = string;"
-  defp generate_ash_type_alias(Ash.Type.Duration), do: "type Duration = string;"
-  defp generate_ash_type_alias(Ash.Type.DurationName), do: "type DurationName = string;"
-  defp generate_ash_type_alias(Ash.Type.Binary), do: "type Binary = string;"
-  defp generate_ash_type_alias(Ash.Type.UrlEncodedBinary), do: "type UrlEncodedBinary = string;"
-  defp generate_ash_type_alias(Ash.Type.File), do: "type File = any;"
-  defp generate_ash_type_alias(Ash.Type.Function), do: "type Function = any;"
-  defp generate_ash_type_alias(Ash.Type.Module), do: "type ModuleName = string;"
-  defp generate_ash_type_alias(AshDoubleEntry.ULID), do: "type ULID = string;"
+  defp generate_ash_type_alias(Ash.Type.UUID), do: "export type UUID = string;"
+  defp generate_ash_type_alias(Ash.Type.UUIDv7), do: "export type UUIDv7 = string;"
+  defp generate_ash_type_alias(Ash.Type.Decimal), do: "export type Decimal = string;"
+  defp generate_ash_type_alias(Ash.Type.Date), do: "export type AshDate = string;"
+  defp generate_ash_type_alias(Ash.Type.Time), do: "export type Time = string;"
+  defp generate_ash_type_alias(Ash.Type.TimeUsec), do: "export type TimeUsec = string;"
+  defp generate_ash_type_alias(Ash.Type.UtcDatetime), do: "export type UtcDateTime = string;"
+
+  defp generate_ash_type_alias(Ash.Type.UtcDatetimeUsec),
+    do: "export type UtcDateTimeUsec = string;"
+
+  defp generate_ash_type_alias(Ash.Type.DateTime), do: "export type DateTime = string;"
+  defp generate_ash_type_alias(Ash.Type.NaiveDatetime), do: "export type NaiveDateTime = string;"
+  defp generate_ash_type_alias(Ash.Type.Duration), do: "export type Duration = string;"
+  defp generate_ash_type_alias(Ash.Type.DurationName), do: "export type DurationName = string;"
+  defp generate_ash_type_alias(Ash.Type.Binary), do: "export type Binary = string;"
+
+  defp generate_ash_type_alias(Ash.Type.UrlEncodedBinary),
+    do: "export type UrlEncodedBinary = string;"
+
+  defp generate_ash_type_alias(Ash.Type.File), do: "export type File = any;"
+  defp generate_ash_type_alias(Ash.Type.Function), do: "export type Function = any;"
+  defp generate_ash_type_alias(Ash.Type.Module), do: "export type ModuleName = string;"
+  defp generate_ash_type_alias(AshDoubleEntry.ULID), do: "export type ULID = string;"
+
+  defp generate_ash_type_alias(AshPostgres.Ltree),
+    do:
+      "export type AshPostgresLtreeFlexible = string | string[];\nexport type AshPostgresLtreeArray = string[];"
 
   defp generate_ash_type_alias(AshMoney.Types.Money),
-    do: "type Money = { amount: string; currency: string };"
+    do: "export type Money = { amount: string; currency: string };"
 
   defp generate_ash_type_alias(type) do
     cond do
@@ -1113,6 +1123,18 @@ defmodule AshTypescript.Codegen do
   end
 
   def get_ts_type(%{type: AshDoubleEntry.ULID}, _), do: "ULID"
+
+  def get_ts_type(%{type: AshPostgres.Ltree, constraints: constraints}, _) do
+    escape = Keyword.get(constraints, :escape?, false)
+
+    if escape do
+      "AshPostgresLtreeArray"
+    else
+      "AshPostgresLtreeFlexible"
+    end
+  end
+
+  def get_ts_type(%{type: AshPostgres.Ltree}, _), do: "AshPostgresLtreeFlexible"
   def get_ts_type(%{type: AshMoney.Types.Money}, _), do: "Money"
 
   def get_ts_type(%{type: :string}, _), do: "string"
