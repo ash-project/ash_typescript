@@ -192,7 +192,7 @@ def handle_event("fetch_todos", params, socket) do
   case AshTypescript.Rpc.run_action(:my_app, socket, params) do
     {:ok, result} ->
       {:noreply, assign(socket, todos: result.data)}
-    
+
     {:error, error} ->
       {:noreply, put_flash(socket, :error, error.message)}
   end
@@ -263,6 +263,7 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 )
 """)
 ```
+
 
 ## Key Files
 

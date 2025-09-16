@@ -10,6 +10,8 @@ import "./shouldFail/invalidStructure";
 import "./shouldFail/typeMismatches";
 import "./shouldFail/unionValidation";
 import "./shouldFail/customFetchErrors";
+import "./shouldFail/invalidChannelUsage";
+import "./shouldFail/operations";
 
 // Import Zod schema validation failure tests
 import "./zod/shouldFail/invalidZodUsage";

@@ -11,6 +11,8 @@ if Mix.env() == :test do
     ash_domains: [
       AshTypescript.Test.Domain
     ],
+    generate_phx_channel_rpc_actions: true,
+    generate_validation_functions: true,
     output_file: "./test/ts/generated.ts",
     import_into_generated: [
       %{

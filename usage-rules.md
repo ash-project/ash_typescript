@@ -28,6 +28,9 @@
 | **Update/Destroy** | `primaryKey: "id-123"` | Primary key separate from input for update/destroy |
 | **Custom Fetch** | `customFetch: myFetchFn` | Replace native fetch (axios adapter, auth) |
 | **Fetch Options** | `fetchOptions: { timeout: 5000 }` | RequestInit options (timeout, cache, etc.) |
+| **Channel Function** | `actionNameChannel({ channel, resultHandler, ... })` | Phoenix channel-based RPC calls |
+| **Validation Config** | `generate_validation_functions: true` | Enable validation function generation |
+| **Channel Config** | `generate_phx_channel_rpc_actions: true` | Enable channel function generation |
 
 ## Critical Patterns
 
@@ -108,18 +111,91 @@ const todos = await listTodos({
     credentials: 'include'
   }
 });
+
+// Validation patterns (when generate_validation_functions: true)
+const validationResult = await validateCreateTodo({
+  input: { title: "Validate Me" }
+});
+
+if (!validationResult.success) {
+  validationResult.errors.forEach(error => {
+    console.log(`${error.fieldPath}: ${error.message}`);
+  });
+}
+
+// Channel validation (when both generate_validation_functions and generate_phx_channel_rpc_actions: true)
+validateCreateTodoChannel({
+  channel: channel,
+  input: { title: "Channel Validate" },
+  resultHandler: (result) => {
+    if (result.success) {
+      console.log("Validation passed");
+    } else {
+      console.error("Validation failed:", result.errors);
+    }
+  }
+});
+
+// Phoenix Channel patterns (when generate_phx_channel_rpc_actions: true)
+import { Socket, Channel } from "phoenix";
+
+// Setup Phoenix channel
+const socket = new Socket("/socket", { params: { token: "auth-token" } });
+socket.connect();
+const channel = socket.channel("rpc:lobby", {});
+await channel.join();
+
+// Channel-based RPC calls - same features as HTTP, different interface
+createTodoChannel({
+  channel: channel,
+  input: { title: "Channel Todo" },
+  fields: ["id", "title", "createdAt"],
+  resultHandler: (result) => {
+    if (result.success) {
+      console.log("Created:", result.data);
+    } else {
+      console.error("Failed:", result.errors);
+    }
+  },
+  errorHandler: (error) => console.error("Channel error:", error),
+  timeoutHandler: () => console.error("Timeout")
+});
+
+// All HTTP features work with channels
+listTodosChannel({
+  channel: channel,
+  fields: ["id", "title", { user: ["name"] }],
+  filter: { completed: { eq: false } },
+  page: { limit: 10 },
+  sort: "-createdAt",
+  resultHandler: (result) => {
+    // Same typed result structure as HTTP
+  }
+});
 ```
 
 ## Action Type Decision Tree
 
 ```
 User wants to...
-├─ Get multiple records? → Use READ action (listTodos)
-├─ Get single record? → Use GET action (getTodo)
-├─ Create new record? → Use CREATE action (createTodo)
-├─ Update existing record? → Use UPDATE action (updateTodo)
-├─ Delete record? → Use DESTROY action (destroyTodo)
-└─ Custom logic? → Use custom ACTION (customActionTodo)
+├─ Get multiple records? → Use READ action
+│   ├─ Over HTTP? → listTodos()
+│   └─ Over Channel? → listTodosChannel()
+├─ Get single record? → Use GET action
+│   ├─ Over HTTP? → getTodo()
+│   └─ Over Channel? → getTodoChannel()
+├─ Create new record? → Use CREATE action
+│   ├─ Over HTTP? → createTodo()
+│   └─ Over Channel? → createTodoChannel()
+├─ Update existing record? → Use UPDATE action
+│   ├─ Over HTTP? → updateTodo()
+│   └─ Over Channel? → updateTodoChannel()
+├─ Delete record? → Use DESTROY action
+│   ├─ Over HTTP? → destroyTodo()
+│   └─ Over Channel? → destroyTodoChannel()
+└─ Custom logic? → Use custom ACTION
+    ├─ Over HTTP? → customActionTodo()
+    └─ Over Channel? → customActionTodoChannel()
 ```
 
 ## Error Pattern Recognition
@@ -133,6 +209,9 @@ User wants to...
 | "403 Forbidden" | CSRF issue | Use `buildCSRFHeaders()` |
 | "Union field selection requires" | Union syntax error | Use `{ unionField: ["member1", { member2: [...] }] }` |
 | "Filter requires operator" | Filter syntax error | Use `{field: {eq: value}}` not `{field: value}` |
+| "Cannot find module 'phoenix'" | Missing Phoenix dependency | `npm install phoenix @types/phoenix` |
+| "functionNameChannel is not defined" | Channel generation disabled | Set `generate_phx_channel_rpc_actions: true` |
+| "validateFunctionName is not defined" | Validation generation disabled | Set `generate_validation_functions: true` |
 
 ## Basic Setup
 

@@ -4,7 +4,7 @@
 
 **AshTypescript** generates TypeScript types and RPC clients from Ash resources, providing end-to-end type safety between Elixir backends and TypeScript frontends.
 
-**Key Features**: Type generation, RPC client generation, nested calculations, multitenancy, embedded resources, union types
+**Key Features**: Type generation, RPC client generation, Phoenix channel RPC actions, nested calculations, multitenancy, embedded resources, union types
 
 ## 🚨 Critical Development Rules
 
@@ -29,7 +29,7 @@ For any complex task (3+ steps):
 ### Type Generation Workflow
 ```bash
 mix test.codegen                      # Generate TypeScript types
-cd test/ts && npm run compileGenerated # Validate compilation  
+cd test/ts && npm run compileGenerated # Validate compilation
 mix test                              # Run Elixir tests
 ```
 
@@ -37,7 +37,7 @@ mix test                              # Run Elixir tests
 ```elixir
 defmodule MyApp.Domain do
   use Ash.Domain, extensions: [AshTypescript.Rpc]
-  
+
   typescript_rpc do
     resource MyApp.Todo do
       rpc_action :list_todos, :read
@@ -50,9 +50,38 @@ end
 ```typescript
 import { listTodos, buildCSRFHeaders } from './ash_rpc';
 
-const todos = await listTodos({ 
+const todos = await listTodos({
   fields: ["id", "title", {"user" => ["name"]}],
   headers: buildCSRFHeaders()
+});
+```
+
+### Phoenix Channel-based RPC Actions
+
+**Generated Channel Functions**: AshTypescript generates channel functions with `Channel` suffix:
+```typescript
+import { Channel } from "phoenix";
+import { listTodos, listTodosChannel } from './ash_rpc';
+
+// HTTP-based (always available)
+const httpResult = await listTodos({
+  fields: ["id", "title"],
+  headers: buildCSRFHeaders()
+});
+
+// Channel-based (when enabled)
+listTodosChannel({
+  channel: myChannel,
+  fields: ["id", "title"],
+  resultHandler: (result) => {
+    if (result.success) {
+      console.log("Todos:", result.data);
+    } else {
+      console.error("Error:", result.errors);
+    }
+  },
+  errorHandler: (error) => console.error("Channel error:", error),
+  timeoutHandler: () => console.error("Timeout")
 });
 ```
 
@@ -74,20 +103,6 @@ fields = ["id", {"user" => ["name"]}]
 AshTypescript.Rpc.RequestedFieldsProcessor.process(
   AshTypescript.Test.Todo, :read, fields
 )
-""")
-
-# Test type generation
-mcp__tidewave__project_eval("""
-AshTypescript.Codegen.create_typescript_interfaces(
-  AshTypescript.Test.Domain
-)
-""")
-
-# Verify test environment setup
-mcp__tidewave__project_eval("""
-domains = Ash.Info.domains(:ash_typescript)
-IO.puts("Domains: #{inspect(domains)}")
-IO.puts("Test resource loaded: #{Code.ensure_loaded?(AshTypescript.Test.Todo)}")
 """)
 ```
 

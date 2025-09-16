@@ -179,6 +179,37 @@ defmodule AshTypescript.Rpc do
   end
 
   @doc """
+  Determines if Phoenix channel-based RPC actions should be generated.
+
+  This controls whether channel functions are generated alongside fetch-based functions.
+  Defaults to false.
+  """
+  def generate_phx_channel_rpc_actions? do
+    Application.get_env(:ash_typescript, :generate_phx_channel_rpc_actions, false)
+  end
+
+  @doc """
+  Determines whether to generate validation functions alongside RPC functions.
+
+  This controls whether validation functions are generated alongside fetch-based functions.
+  Defaults to false.
+  """
+  def generate_validation_functions? do
+    Application.get_env(:ash_typescript, :generate_validation_functions, true)
+  end
+
+  @doc """
+  Gets the Phoenix import path for generated TypeScript.
+
+  This determines the import statement used for Phoenix channels in generated TypeScript files.
+  Defaults to "phoenix" for standard npm package.
+  Can be customized for different package managers or custom Phoenix builds.
+  """
+  def phoenix_import_path do
+    Application.get_env(:ash_typescript, :phoenix_import_path, "phoenix")
+  end
+
+  @doc """
   Determines if a resource requires a tenant parameter.
 
   A resource requires a tenant if it has multitenancy configured and global? is false (default).

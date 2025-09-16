@@ -69,7 +69,8 @@ Test individual modules in isolation
 Test complete pipeline with real data
 
 ### TypeScript Tests
-Both positive (shouldPass) and negative (shouldFail) patterns
+Both positive (shouldPass) and negative (shouldFail) patterns.
+Ensure we test both http/fetch and channel functions.
 
 ## Extension Points
 

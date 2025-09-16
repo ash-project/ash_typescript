@@ -116,6 +116,7 @@ const newTodo = await createTodo({
 - **🛡️ End-to-end type safety** - Catch integration errors at compile time, not runtime
 - **⚡ Smart field selection** - Request only needed fields with full type inference
 - **🎯 RPC client generation** - Type-safe function calls for all action types
+- **📡 Phoenix Channel support** - Generate channel-based RPC functions for real-time applications
 - **🏢 Multitenancy ready** - Automatic tenant parameter handling
 - **📦 Advanced type support** - Enums, unions, embedded resources, and calculations
 - **🔧 Highly configurable** - Custom endpoints, formatting, and output options
@@ -407,6 +408,145 @@ const todos = await listTodos({
 });
 ```
 
+### Phoenix Channel-based RPC Actions
+
+AshTypescript can generate Phoenix channel-based RPC functions alongside the standard HTTP-based functions. This is useful for real-time applications that need to communicate over WebSocket connections.
+
+#### Configuration
+
+Enable channel function generation in your configuration:
+
+```elixir
+# config/config.exs
+config :ash_typescript,
+  generate_phx_channel_rpc_actions: true,
+  phoenix_import_path: "phoenix"  # customize if needed
+```
+
+#### Generated Channel Functions
+
+When enabled, AshTypescript generates channel functions with the suffix `Channel` for each RPC action:
+
+```typescript
+import { Channel } from "phoenix";
+import { createTodo, createTodoChannel } from './ash_rpc';
+
+// Standard HTTP-based function (always available)
+const httpResult = await createTodo({
+  fields: ["id", "title"],
+  input: { title: "New Todo" }
+});
+
+// Channel-based function (generated when enabled)
+createTodoChannel({
+  channel: myChannel,
+  fields: ["id", "title"],
+  input: { title: "New Todo" },
+  resultHandler: (result) => {
+    if (result.success) {
+      console.log("Todo created:", result.data);
+    } else {
+      console.error("Creation failed:", result.errors);
+    }
+  },
+  errorHandler: (error) => {
+    console.error("Channel error:", error);
+  },
+  timeoutHandler: () => {
+    console.error("Request timed out");
+  }
+});
+```
+
+#### Setting up Phoenix Channels
+
+First, establish a Phoenix channel connection:
+
+```typescript
+import { Socket } from "phoenix";
+
+const socket = new Socket("/socket", {
+  params: { token: "your-auth-token" }
+});
+
+socket.connect();
+
+const channel = socket.channel("rpc:lobby", {});
+channel.join()
+  .receive("ok", () => console.log("Connected to channel"))
+  .receive("error", resp => console.error("Unable to join", resp));
+```
+
+#### Channel Function Features
+
+Channel functions support all the same features as HTTP functions:
+
+```typescript
+// Pagination with channels
+listTodosChannel({
+  channel: myChannel,
+  fields: ["id", "title", { user: ["name"] }],
+  filter: { status: "active" },
+  page: { limit: 10, offset: 0 },
+  resultHandler: (result) => {
+    if (result.success) {
+      console.log("Todos:", result.data.results);
+      console.log("Has more:", result.data.hasMore);
+    }
+  }
+});
+
+// Complex field selection
+getTodoChannel({
+  channel: myChannel,
+  primaryKey: "todo-123",
+  fields: [
+    "id", "title", "description",
+    {
+      user: ["name", "email"],
+      comments: ["text", { author: ["name"] }]
+    }
+  ],
+  resultHandler: (result) => {
+    // Fully type-safe result handling
+  }
+});
+```
+
+#### Error Handling
+
+Channel functions provide the same error structure as HTTP functions:
+
+```typescript
+createTodoChannel({
+  channel: myChannel,
+  fields: ["id", "title"],
+  input: { title: "New Todo" },
+  resultHandler: (result) => {
+    if (result.success) {
+      // result.data is fully typed based on selected fields
+      console.log("Created:", result.data.title);
+    } else {
+      // Handle validation errors, network errors, etc.
+      result.errors.forEach(error => {
+        console.error(`Error: ${error.message}`);
+        if (error.fieldPath) {
+          console.error(`Field: ${error.fieldPath}`);
+        }
+      });
+    }
+  },
+  errorHandler: (error) => {
+    // Handle channel-level errors
+    console.error("Channel communication error:", error);
+  },
+  timeoutHandler: () => {
+    // Handle timeouts
+    console.error("Request timed out");
+  }
+});
+```
+
 ### Advanced Filtering and Pagination
 
 ```typescript
@@ -563,7 +703,7 @@ export const createTodoZodSchema = z.object({
 
 ### Form Validation Functions
 
-AshTypescript generates dedicated validation functions for client-side form validation:
+AshTypescript generates dedicated validation functions for client-side form validation when `generate_validation_functions` is enabled:
 
 ```typescript
 import { validateCreateTodo } from './ash_rpc';
@@ -582,6 +722,35 @@ if (!validationResult.success) {
     console.log(`Field ${error.fieldPath}: ${error.message}`);
   });
 }
+```
+
+#### Channel-Based Validation
+
+When both `generate_validation_functions` and `generate_phx_channel_rpc_actions` are enabled, AshTypescript also generates channel-based validation functions:
+
+```typescript
+import { validateCreateTodoChannel } from './ash_rpc';
+import { Channel } from "phoenix";
+
+// Validate over Phoenix channels
+validateCreateTodoChannel({
+  channel: myChannel,
+  input: {
+    title: "New Todo",
+    priority: "high"
+  },
+  resultHandler: (result) => {
+    if (result.success) {
+      console.log("Validation passed");
+    } else {
+      result.errors.forEach(error => {
+        console.log(`Field ${error.fieldPath}: ${error.message}`);
+      });
+    }
+  },
+  errorHandler: (error) => console.error("Channel error:", error),
+  timeoutHandler: () => console.error("Validation timeout")
+});
 ```
 
 ### Type-Safe Filtering
@@ -758,6 +927,13 @@ config :ash_typescript,
   generate_zod_schemas: true,
   zod_import_path: "zod",
   zod_schema_suffix: "ZodSchema",
+
+  # Validation functions
+  generate_validation_functions: true,
+
+  # Phoenix channel-based RPC actions
+  generate_phx_channel_rpc_actions: false,
+  phoenix_import_path: "phoenix",
 
   # Custom type imports
   import_into_generated: [

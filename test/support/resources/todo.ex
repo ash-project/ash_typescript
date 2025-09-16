@@ -367,7 +367,7 @@ defmodule AshTypescript.Test.Todo do
     end
 
     read :get_by_id do
-      get_by [:id]
+      get_by :id
     end
 
     create :create do

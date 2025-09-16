@@ -170,4 +170,76 @@ const getStatisticsTodoResult = await getStatisticsTodo({
 if (getStatisticsTodoResult.success) {
   const completed: number = getStatisticsTodoResult.data.completed;
 }
+
+// Test 9: Get single todo with basic fields
+export const getTodoBasic = await getTodo({
+  input: {},
+  fields: ["id", "title", "description", "completed", "status", "priority"],
+});
+
+// Type validation for getTodo result
+if (getTodoBasic.success) {
+  const todoId: string = getTodoBasic.data!.id;
+  const todoTitle: string = getTodoBasic.data!.title;
+  const todoDescription: string | null | undefined = getTodoBasic.data!.description;
+  const todoCompleted: boolean | null | undefined = getTodoBasic.data!.completed;
+  const todoStatus: string | null | undefined = getTodoBasic.data!.status;
+  const todoPriority: string | null | undefined = getTodoBasic.data!.priority;
+}
+
+// Test 10: Get todo with relationships
+export const getTodoWithRelations = await getTodo({
+  input: {},
+  fields: [
+    "id",
+    "title",
+    {
+      user: ["id", "name", "email"],
+      comments: ["id", "content", "authorName"],
+    },
+  ],
+});
+
+// Type validation for getTodo with relationships
+if (getTodoWithRelations.success) {
+  const todoId: string = getTodoWithRelations.data!.id;
+  const todoTitle: string = getTodoWithRelations.data!.title;
+  const userName: string = getTodoWithRelations.data!.user.name;
+  const userEmail: string = getTodoWithRelations.data!.user.email;
+
+  for (const comment of getTodoWithRelations.data!.comments) {
+    const commentId: string = comment.id;
+    const commentContent: string = comment.content;
+    const commentAuthor: string = comment.authorName;
+  }
+}
+
+// Test 11: Get todo with self calculation
+export const getTodoWithSelf = await getTodo({
+  input: {},
+  fields: [
+    "id",
+    "title",
+    {
+      self: {
+        args: { prefix: "get_" },
+        fields: ["id", "title", "description", "completed"]
+      }
+    }
+  ],
+});
+
+// Type validation for getTodo with self calculation
+if (getTodoWithSelf.success) {
+  const todoId: string = getTodoWithSelf.data!.id;
+  const todoTitle: string = getTodoWithSelf.data!.title;
+
+  if (getTodoWithSelf.data!.self) {
+    const selfId: string = getTodoWithSelf.data!.self.id;
+    const selfTitle: string = getTodoWithSelf.data!.self.title;
+    const selfDescription: string | null | undefined = getTodoWithSelf.data!.self.description;
+    const selfCompleted: boolean | null | undefined = getTodoWithSelf.data!.self.completed;
+  }
+}
+
 console.log("Operations tests should compile successfully!");

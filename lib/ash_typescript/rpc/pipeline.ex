@@ -16,12 +16,24 @@ defmodule AshTypescript.Rpc.Pipeline do
   Converts raw request parameters into a structured Request with validated fields.
   Fails fast on any invalid input - no permissive modes.
   """
-  @spec parse_request(atom(), Plug.Conn.t(), map(), keyword()) ::
+  @spec parse_request(atom(), Plug.Conn.t() | Phoenix.Socket.t(), map(), keyword()) ::
           {:ok, Request.t()} | {:error, term()}
-  def parse_request(otp_app, conn, params, opts \\ []) do
+  def parse_request(otp_app, conn_or_socket, params, opts \\ []) do
     validation_mode? = Keyword.get(opts, :validation_mode?, false)
     input_formatter = Rpc.input_field_formatter()
     normalized_params = FieldFormatter.parse_input_fields(params, input_formatter)
+
+    {actor, tenant, context} =
+      case conn_or_socket do
+        %Plug.Conn{} ->
+          {Ash.PlugHelpers.get_actor(conn_or_socket),
+           normalized_params[:tenant] || Ash.PlugHelpers.get_tenant(conn_or_socket),
+           Ash.PlugHelpers.get_context(conn_or_socket) || %{}}
+
+        %Phoenix.Socket{} ->
+          {conn_or_socket.assigns[:actor], conn_or_socket.assigns[:tenant],
+           conn_or_socket.assigns[:context] || %{}}
+      end
 
     with {:ok, {resource, action}} <- discover_action(otp_app, normalized_params),
          :ok <-
@@ -46,9 +58,9 @@ defmodule AshTypescript.Rpc.Pipeline do
         Request.new(%{
           resource: resource,
           action: action,
-          tenant: normalized_params[:tenant] || Ash.PlugHelpers.get_tenant(conn),
-          actor: Ash.PlugHelpers.get_actor(conn),
-          context: Ash.PlugHelpers.get_context(conn) || %{},
+          tenant: tenant,
+          actor: actor,
+          context: context,
           select: select,
           load: load,
           extraction_template: template,

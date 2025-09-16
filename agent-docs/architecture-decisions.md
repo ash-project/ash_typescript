@@ -2,6 +2,15 @@
 
 Key architectural decisions and their reasoning for AI assistant context.
 
+## 2025-09-16: Phoenix Channel RPC Actions
+
+**Change**: Added Phoenix channel-based RPC action generation alongside HTTP-based functions
+**Why**: Enable real-time applications to use the same type-safe RPC system over WebSocket connections
+**Impact**: Optional feature that generates channel functions with identical pipeline integration and type safety
+**Configuration**: `generate_phx_channel_rpc_actions: true` enables generation of functions with `Channel` suffix
+**Key Files**: `lib/ash_typescript/rpc.ex` (config functions), `lib/ash_typescript/rpc/codegen.ex` (generation logic)
+**Design Decision**: Additive approach - channel functions generated alongside, not instead of, HTTP functions for maximum flexibility
+
 ## 2025-08-19: Unified Schema Architecture
 
 **Change**: Complete refactoring from multiple separate schemas to unified metadata-driven schema generation

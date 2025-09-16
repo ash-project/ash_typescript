@@ -63,6 +63,14 @@ defmodule AshTypescript.Rpc.Codegen do
         ""
       end
 
+    phoenix_import =
+      if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
+        phoenix_path = AshTypescript.Rpc.phoenix_import_path()
+        "import { Channel } from \"#{phoenix_path}\";"
+      else
+        ""
+      end
+
     config_imports =
       case Application.get_env(:ash_typescript, :import_into_generated) do
         nil ->
@@ -88,7 +96,7 @@ defmodule AshTypescript.Rpc.Codegen do
       end
 
     all_imports =
-      [zod_import, config_imports]
+      [zod_import, phoenix_import, config_imports]
       |> Enum.reject(&(&1 == ""))
       |> Enum.join("\n")
       |> case do
@@ -1400,6 +1408,351 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
+  defp generate_channel_validation_function(resource, action, rpc_action_name) do
+    function_name =
+      AshTypescript.FieldFormatter.format_field(
+        "validate_#{rpc_action_name}_channel",
+        AshTypescript.Rpc.output_field_formatter()
+      )
+
+    rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
+
+    requires_tenant = AshTypescript.Rpc.requires_tenant_parameter?(resource)
+    requires_primary_key = action.type in [:update, :destroy]
+
+    config_fields = ["  channel: Channel;"]
+
+    config_fields =
+      if requires_tenant do
+        config_fields ++ ["  #{format_output_field(:tenant)}: string;"]
+      else
+        config_fields
+      end
+
+    config_fields =
+      if requires_primary_key do
+        formatted_primary_key = format_output_field(:primary_key)
+        config_fields ++ ["  #{formatted_primary_key}: string;"]
+      else
+        config_fields
+      end
+
+    config_fields =
+      if action_has_input?(resource, action) do
+        config_fields ++ ["  #{format_output_field(:input)}: #{rpc_action_name_pascal}Input;"]
+      else
+        config_fields
+      end
+
+    result_handler_type = "(result: Validate#{rpc_action_name_pascal}Result) => void"
+    error_handler_type = "any"
+    timeout_handler_type = "() => void"
+
+    config_fields =
+      config_fields ++
+        [
+          "  resultHandler: #{result_handler_type};",
+          "  errorHandler?: (error: #{error_handler_type}) => void;",
+          "  timeoutHandler?: #{timeout_handler_type};"
+        ]
+
+    config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
+
+    # Build the payload object
+    payload_fields = ["action: \"#{rpc_action_name}\""]
+
+    payload_fields =
+      if requires_tenant do
+        payload_fields ++
+          ["#{format_output_field(:tenant)}: config.#{format_output_field(:tenant)}"]
+      else
+        payload_fields
+      end
+
+    payload_fields =
+      if requires_primary_key do
+        payload_fields ++
+          ["#{format_output_field(:primary_key)}: config.#{format_output_field(:primary_key)}"]
+      else
+        payload_fields
+      end
+
+    payload_fields =
+      if action_has_input?(resource, action) do
+        payload_fields ++
+          ["#{format_output_field(:input)}: config.#{format_output_field(:input)}"]
+      else
+        payload_fields
+      end
+
+    payload_def = "{\n    #{Enum.join(payload_fields, ",\n    ")}\n  }"
+
+    """
+    export function #{function_name}(config: #{config_type_def}) {
+      config.channel
+        .push("validate", #{payload_def})
+        .receive("ok", config.resultHandler)
+        .receive(
+          "error",
+          config.errorHandler
+            ? config.errorHandler
+            : (error: any) => {
+                console.error(
+                  "An error occurred while validating action #{rpc_action_name}:",
+                  error,
+                );
+              },
+        )
+        .receive(
+          "timeout",
+          config.timeoutHandler
+            ? config.timeoutHandler
+            : () => {
+                console.error("Timeout occurred while validating action #{rpc_action_name}");
+              },
+        );
+    }
+    """
+  end
+
+  defp generate_channel_execution_function(resource, action, rpc_action_name) do
+    function_name =
+      AshTypescript.FieldFormatter.format_field(
+        "#{rpc_action_name}_channel",
+        AshTypescript.Rpc.output_field_formatter()
+      )
+
+    rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
+    input_type_name = "#{rpc_action_name_pascal}Input"
+    resource_name = build_resource_type_name(resource)
+
+    requires_tenant = AshTypescript.Rpc.requires_tenant_parameter?(resource)
+    requires_primary_key = action.type in [:update, :destroy]
+
+    supports_pagination =
+      action.type == :read and not action.get? and action_supports_pagination?(action)
+
+    supports_filtering = action.type == :read and not action.get?
+
+    config_fields = ["  channel: Channel;"]
+
+    config_fields =
+      if requires_tenant do
+        config_fields ++ ["  #{format_output_field(:tenant)}: string;"]
+      else
+        config_fields
+      end
+
+    config_fields =
+      if requires_primary_key do
+        primary_key_attrs = Ash.Resource.Info.primary_key(resource)
+
+        if Enum.count(primary_key_attrs) == 1 do
+          attr_name = Enum.at(primary_key_attrs, 0)
+          attr = Ash.Resource.Info.attribute(resource, attr_name)
+          formatted_primary_key = format_output_field(:primary_key)
+          config_fields ++ ["  #{formatted_primary_key}: #{get_ts_type(attr)};"]
+        else
+          formatted_primary_key = format_output_field(:primary_key)
+
+          primary_key_def =
+            [
+              "  #{formatted_primary_key}: {"
+            ] ++
+              Enum.map(primary_key_attrs, fn attr_name ->
+                attr = Ash.Resource.Info.attribute(resource, attr_name)
+                formatted_attr_name = format_output_field(attr.name)
+                "    #{formatted_attr_name}: #{get_ts_type(attr)};"
+              end) ++
+              [
+                "  };"
+              ]
+
+          config_fields ++ primary_key_def
+        end
+      else
+        config_fields
+      end
+
+    config_fields =
+      if action_has_input?(resource, action) do
+        config_fields ++ ["  #{format_output_field(:input)}: #{input_type_name};"]
+      else
+        config_fields
+      end
+
+    {config_fields, has_fields, fields_generic} =
+      if action.type != :destroy do
+        case action.type do
+          :action ->
+            case action_returns_field_selectable_type?(action) do
+              {:ok, type, _value} when type in [:resource, :array_of_resource] ->
+                updated_fields = config_fields ++ ["  #{formatted_fields_field()}: Fields;"]
+
+                {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
+
+              {:ok, type, _fields} when type in [:typed_map, :array_of_typed_map] ->
+                updated_fields =
+                  config_fields ++
+                    [
+                      "  #{formatted_fields_field()}: Fields;"
+                    ]
+
+                {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
+
+              _ ->
+                {config_fields, false, nil}
+            end
+
+          _ ->
+            updated_fields = config_fields ++ ["  #{formatted_fields_field()}: Fields;"]
+
+            {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
+        end
+      else
+        {config_fields, false, nil}
+      end
+
+    config_fields =
+      if supports_filtering do
+        config_fields ++ ["  #{format_output_field(:filter)}?: #{resource_name}FilterInput;"]
+      else
+        config_fields
+      end
+
+    config_fields =
+      if supports_filtering do
+        config_fields ++ ["  #{format_output_field(:sort)}?: string;"]
+      else
+        config_fields
+      end
+
+    config_fields =
+      if supports_pagination do
+        pagination_fields = generate_pagination_config_fields(action)
+        config_fields ++ pagination_fields
+      else
+        config_fields
+      end
+
+    {result_handler_type, error_handler_type, timeout_handler_type, generic_part} =
+      cond do
+        action.type == :destroy ->
+          result_type = "{ #{format_output_field(:success)}: true; data: {} }"
+          error_type = "any"
+          timeout_type = "() => void"
+          {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}", ""}
+
+        has_fields ->
+          result_type = "#{rpc_action_name_pascal}Result<Fields>"
+          error_type = "any"
+          timeout_type = "() => void"
+
+          {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}",
+           "<#{fields_generic}>"}
+
+        true ->
+          result_type = "#{rpc_action_name_pascal}Result"
+          error_type = "any"
+          timeout_type = "() => void"
+          {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}", ""}
+      end
+
+    config_fields =
+      config_fields ++
+        [
+          "  resultHandler: #{result_handler_type};",
+          "  errorHandler?: (error: #{error_handler_type}) => void;",
+          "  timeoutHandler?: #{timeout_handler_type};"
+        ]
+
+    config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
+
+    # Build the payload object
+    payload_fields = ["action: \"#{rpc_action_name}\""]
+
+    payload_fields =
+      if requires_tenant do
+        payload_fields ++
+          ["#{format_output_field(:tenant)}: config.#{format_output_field(:tenant)}"]
+      else
+        payload_fields
+      end
+
+    payload_fields =
+      if requires_primary_key do
+        payload_fields ++
+          ["#{format_output_field(:primary_key)}: config.#{format_output_field(:primary_key)}"]
+      else
+        payload_fields
+      end
+
+    payload_fields =
+      if action_has_input?(resource, action) do
+        payload_fields ++
+          ["#{format_output_field(:input)}: config.#{format_output_field(:input)}"]
+      else
+        payload_fields
+      end
+
+    payload_fields =
+      if has_fields do
+        payload_fields ++ ["#{formatted_fields_field()}: config.#{formatted_fields_field()}"]
+      else
+        payload_fields
+      end
+
+    payload_fields =
+      if supports_filtering do
+        payload_fields ++
+          [
+            "...(config.#{format_output_field(:filter)} && { #{format_output_field(:filter)}: config.#{format_output_field(:filter)} })",
+            "...(config.#{format_output_field(:sort)} && { #{format_output_field(:sort)}: config.#{format_output_field(:sort)} })"
+          ]
+      else
+        payload_fields
+      end
+
+    payload_fields =
+      if supports_pagination do
+        payload_fields ++
+          [
+            "...(config.#{formatted_page_field()} && { #{formatted_page_field()}: config.#{formatted_page_field()} })"
+          ]
+      else
+        payload_fields
+      end
+
+    payload_def = "{\n    #{Enum.join(payload_fields, ",\n    ")}\n  }"
+
+    """
+    export function #{function_name}#{generic_part}(config: #{config_type_def}) {
+      config.channel
+        .push("run", #{payload_def})
+        .receive("ok", config.resultHandler)
+        .receive(
+          "error",
+          config.errorHandler
+            ? config.errorHandler
+            : (error: any) => {
+                console.error(
+                  "An error occurred while running action #{rpc_action_name}:",
+                  error,
+                );
+              },
+        )
+        .receive(
+          "timeout",
+          config.timeoutHandler
+            ? config.timeoutHandler
+            : () => {
+                console.error("Timeout occurred while running action #{rpc_action_name}");
+              },
+        );
+    }
+    """
+  end
+
   defp generate_rpc_function(
          {resource, action, rpc_action},
          _resources_and_actions,
@@ -1429,12 +1782,45 @@ defmodule AshTypescript.Rpc.Codegen do
     validation_function =
       generate_validation_function(resource, action, rpc_action_name, endpoint_validate)
 
-    functions_section =
-      """
-      #{rpc_function}
+    channel_function =
+      if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
+        generate_channel_execution_function(resource, action, rpc_action_name)
+      else
+        ""
+      end
 
-      #{validation_function}
-      """
+    channel_validation_function =
+      if AshTypescript.Rpc.generate_validation_functions?() and
+           AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
+        generate_channel_validation_function(resource, action, rpc_action_name)
+      else
+        ""
+      end
+
+    function_parts = [rpc_function]
+
+    function_parts =
+      if validation_function != "" do
+        function_parts ++ [validation_function]
+      else
+        function_parts
+      end
+
+    function_parts =
+      if channel_validation_function != "" do
+        function_parts ++ [channel_validation_function]
+      else
+        function_parts
+      end
+
+    function_parts =
+      if channel_function != "" do
+        function_parts ++ [channel_function]
+      else
+        function_parts
+      end
+
+    functions_section = Enum.join(function_parts, "\n\n")
 
     base_types = [input_type, error_type] |> Enum.reject(&(&1 == ""))
 
