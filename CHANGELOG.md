@@ -5,6 +5,25 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## v0.2.0 (2025-09-17)
+
+
+
+
+### Features:
+
+* Add Phoenix Channel support & generation of channel functions. by Torkild Kjevik
+
+### Bug Fixes:
+
+* Only send relevant data to the backend. by Torkild Kjevik
+
+### Improvements:
+
+* prefix socket assigns with `ash_` by Torkild Kjevik
+
+* Add timeout parameter to channel rpc actions. by Torkild Kjevik
+
 ## v0.1.2 (2025-09-15)
 
 
