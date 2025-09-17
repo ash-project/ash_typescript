@@ -31,8 +31,8 @@ defmodule AshTypescript.Rpc.Pipeline do
            Ash.PlugHelpers.get_context(conn_or_socket) || %{}}
 
         %Phoenix.Socket{} ->
-          {conn_or_socket.assigns[:actor], conn_or_socket.assigns[:tenant],
-           conn_or_socket.assigns[:context] || %{}}
+          {conn_or_socket.assigns[:ash_actor], conn_or_socket.assigns[:ash_tenant],
+           conn_or_socket.assigns[:ash_context] || %{}}
       end
 
     with {:ok, {resource, action}} <- discover_action(otp_app, normalized_params),
