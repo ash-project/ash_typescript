@@ -84,31 +84,38 @@ if Code.ensure_loaded?(Igniter) do
       run_route_exists =
         routes_output
         |> String.split("\n")
-        |> Enum.any?(&String.contains?(&1, "#{run_endpoint}") && String.contains?(&1, "AshTypescriptRpcController") && String.contains?(&1, ":run"))
+        |> Enum.any?(
+          &(String.contains?(&1, "#{run_endpoint}") &&
+              String.contains?(&1, "AshTypescriptRpcController") && String.contains?(&1, ":run"))
+        )
 
       validate_route_exists =
         routes_output
         |> String.split("\n")
-        |> Enum.any?(&String.contains?(&1, "#{validate_endpoint}") && String.contains?(&1, "AshTypescriptRpcController") && String.contains?(&1, ":validate"))
+        |> Enum.any?(
+          &(String.contains?(&1, "#{validate_endpoint}") &&
+              String.contains?(&1, "AshTypescriptRpcController") &&
+              String.contains?(&1, ":validate"))
+        )
 
       # Build routes to add based on what's missing
       routes_to_add = []
 
       routes_to_add =
-        if not run_route_exists do
-          ["  post \"#{run_endpoint}\", AshTypescriptRpcController, :run" | routes_to_add]
-        else
+        if run_route_exists do
           routes_to_add
+        else
+          ["  post \"#{run_endpoint}\", AshTypescriptRpcController, :run" | routes_to_add]
         end
 
       routes_to_add =
-        if not validate_route_exists do
+        if validate_route_exists do
+          routes_to_add
+        else
           [
             "  post \"#{validate_endpoint}\", AshTypescriptRpcController, :validate"
             | routes_to_add
           ]
-        else
-          routes_to_add
         end
 
       # Only add routes if any are missing

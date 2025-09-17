@@ -35,7 +35,8 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
       Keyword.get(opts, :run_endpoint) || Application.get_env(:ash_typescript, :run_endpoint)
 
     validate_endpoint =
-      Keyword.get(opts, :validate_endpoint) || Application.get_env(:ash_typescript, :validate_endpoint)
+      Keyword.get(opts, :validate_endpoint) ||
+        Application.get_env(:ash_typescript, :validate_endpoint)
 
     codegen_opts = [
       run_endpoint: run_endpoint,
