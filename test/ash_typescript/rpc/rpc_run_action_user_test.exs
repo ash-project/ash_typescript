@@ -46,7 +46,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUserTest do
     test "processes address_line_1 field correctly with pascal_case formatter", %{conn: conn} do
       # Temporarily set the output formatter to pascal_case
       original_formatter =
-        Application.get_env(:ash_typescript, :output_field_formatter, :camel_case)
+        Application.get_env(:ash_typescript, :output_field_formatter)
 
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
@@ -79,7 +79,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUserTest do
     test "processes address_line_1 field correctly with snake_case formatter", %{conn: conn} do
       # Temporarily set the output formatter to snake_case
       original_formatter =
-        Application.get_env(:ash_typescript, :output_field_formatter, :camel_case)
+        Application.get_env(:ash_typescript, :output_field_formatter)
 
       Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
 

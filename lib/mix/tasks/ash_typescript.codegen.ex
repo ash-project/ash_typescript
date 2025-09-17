@@ -29,16 +29,13 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
     otp_app = Mix.Project.config()[:app]
 
     output_file =
-      Keyword.get(opts, :output) || Application.get_env(:ash_typescript, :output_file) ||
-        "assets/js/ash_rpc.ts"
+      Keyword.get(opts, :output) || Application.get_env(:ash_typescript, :output_file)
 
     run_endpoint =
-      Keyword.get(opts, :run_endpoint) || Application.get_env(:ash_typescript, :run_endpoint) ||
-        "/rpc/run"
+      Keyword.get(opts, :run_endpoint) || Application.get_env(:ash_typescript, :run_endpoint)
 
     validate_endpoint =
-      Keyword.get(opts, :run_endpoint) || Application.get_env(:ash_typescript, :run_endpoint) ||
-        "/rpc/validate"
+      Keyword.get(opts, :validate_endpoint) || Application.get_env(:ash_typescript, :validate_endpoint)
 
     codegen_opts = [
       run_endpoint: run_endpoint,
