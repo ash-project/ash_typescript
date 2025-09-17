@@ -119,7 +119,7 @@ defmodule AshTypescript.Rpc do
   If false, tenant will be extracted from the connection using Ash.PlugHelpers.get_tenant/1.
   """
   def require_tenant_parameters? do
-    Application.get_env(:ash_typescript, :require_tenant_parameters, false)
+    Application.get_env(:ash_typescript, :require_tenant_parameters)
   end
 
   @doc """
@@ -131,7 +131,7 @@ defmodule AshTypescript.Rpc do
   - Custom: {Module, :function} or {Module, :function, [extra_args]}
   """
   def input_field_formatter do
-    Application.get_env(:ash_typescript, :input_field_formatter, :camel_case)
+    Application.get_env(:ash_typescript, :input_field_formatter)
   end
 
   @doc """
@@ -144,7 +144,7 @@ defmodule AshTypescript.Rpc do
   - Custom: {Module, :function} or {Module, :function, [extra_args]}
   """
   def output_field_formatter do
-    Application.get_env(:ash_typescript, :output_field_formatter, :camel_case)
+    Application.get_env(:ash_typescript, :output_field_formatter)
   end
 
   @doc """
@@ -154,7 +154,7 @@ defmodule AshTypescript.Rpc do
   Defaults to false (opt-in feature).
   """
   def generate_zod_schemas? do
-    Application.get_env(:ash_typescript, :generate_zod_schemas, false)
+    Application.get_env(:ash_typescript, :generate_zod_schemas)
   end
 
   @doc """
@@ -165,7 +165,7 @@ defmodule AshTypescript.Rpc do
   Can be customized for different package managers or custom Zod builds.
   """
   def zod_import_path do
-    Application.get_env(:ash_typescript, :zod_import_path, "zod")
+    Application.get_env(:ash_typescript, :zod_import_path)
   end
 
   @doc """
@@ -175,7 +175,7 @@ defmodule AshTypescript.Rpc do
   Defaults to "Schema" (e.g., createTodoSchema).
   """
   def zod_schema_suffix do
-    Application.get_env(:ash_typescript, :zod_schema_suffix, "ZodSchema")
+    Application.get_env(:ash_typescript, :zod_schema_suffix)
   end
 
   @doc """
@@ -185,7 +185,7 @@ defmodule AshTypescript.Rpc do
   Defaults to false.
   """
   def generate_phx_channel_rpc_actions? do
-    Application.get_env(:ash_typescript, :generate_phx_channel_rpc_actions, false)
+    Application.get_env(:ash_typescript, :generate_phx_channel_rpc_actions)
   end
 
   @doc """
@@ -195,7 +195,7 @@ defmodule AshTypescript.Rpc do
   Defaults to false.
   """
   def generate_validation_functions? do
-    Application.get_env(:ash_typescript, :generate_validation_functions, true)
+    Application.get_env(:ash_typescript, :generate_validation_functions)
   end
 
   @doc """
@@ -206,7 +206,7 @@ defmodule AshTypescript.Rpc do
   Can be customized for different package managers or custom Phoenix builds.
   """
   def phoenix_import_path do
-    Application.get_env(:ash_typescript, :phoenix_import_path, "phoenix")
+    Application.get_env(:ash_typescript, :phoenix_import_path)
   end
 
   @doc """
