@@ -19,6 +19,7 @@ import "./shouldPass/customFetch";
 import "./shouldPass/fetchOptionsAdvanced";
 import "./shouldPass/channelOperations";
 import "./shouldPass/channelValidations";
+import "./shouldPass/channelTimeoutTest";
 
 // Import Zod schema validation tests
 import "./zod/shouldPass/basicZodUsage";

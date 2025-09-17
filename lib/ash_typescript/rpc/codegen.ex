@@ -1515,7 +1515,8 @@ defmodule AshTypescript.Rpc.Codegen do
         [
           "  resultHandler: #{result_handler_type};",
           "  errorHandler?: (error: #{error_handler_type}) => void;",
-          "  timeoutHandler?: #{timeout_handler_type};"
+          "  timeoutHandler?: #{timeout_handler_type};",
+          "  timeout?: number;"
         ]
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
@@ -1532,7 +1533,7 @@ defmodule AshTypescript.Rpc.Codegen do
     """
     export function #{function_name}(config: #{config_type_def}) {
       config.channel
-        .push("validate", #{payload_def})
+        .push("validate", #{payload_def}, config.timeout)
         .receive("ok", config.resultHandler)
         .receive(
           "error",
@@ -1655,7 +1656,8 @@ defmodule AshTypescript.Rpc.Codegen do
         [
           "  resultHandler: #{result_handler_type};",
           "  errorHandler?: (error: #{error_handler_type}) => void;",
-          "  timeoutHandler?: #{timeout_handler_type};"
+          "  timeoutHandler?: #{timeout_handler_type};",
+          "  timeout?: number;"
         ]
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
@@ -1669,7 +1671,7 @@ defmodule AshTypescript.Rpc.Codegen do
     """
     export function #{function_name}#{generic_part}(config: #{config_type_def}) {
       config.channel
-        .push("run", #{payload_def})
+        .push("run", #{payload_def}, config.timeout)
         .receive("ok", config.resultHandler)
         .receive(
           "error",
