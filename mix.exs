@@ -126,7 +126,7 @@ defmodule AshTypescript.MixProject do
       {:faker, "~> 0.18", only: :test},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:dialyxir, ">= 0.0.0", only: [:dev, :test], runtime: false},
-      {:igniter, "~> 0.5", only: [:dev, :test]},
+      {:igniter, "~> 0.6", only: [:dev, :test]},
       {:ex_doc, "~> 0.37", only: [:dev, :test], runtime: false},
       {:makeup_syntect, "~> 0.1", only: [:dev, :test], runtime: false},
       {:sobelow, ">= 0.0.0", only: [:dev, :test], runtime: false},
