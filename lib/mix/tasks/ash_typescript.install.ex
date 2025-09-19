@@ -11,7 +11,10 @@ if Code.ensure_loaded?(Igniter) do
     @impl Igniter.Mix.Task
     def info(_argv, _source) do
       %Igniter.Mix.Task.Info{
-        group: :ash
+        group: :ash,
+        installs: [{:phoenix_vite, "~> 0.3"}],
+        schema: [react: :boolean],
+        defaults: [react: false]
       }
     end
 
@@ -74,29 +77,27 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp add_rpc_routes(igniter, web_module) do
-      # Get route paths from application config with fallback defaults
       run_endpoint = Application.get_env(:ash_typescript, :run_endpoint)
       validate_endpoint = Application.get_env(:ash_typescript, :validate_endpoint)
 
-      # Check if routes already exist using mix phx.routes
-      {routes_output, _exit_code} = System.cmd("mix", ["phx.routes"], stderr_to_stdout: true)
+      # Get router and check for existing routes using Igniter
+      {igniter, router_module} = Igniter.Libs.Phoenix.select_router(igniter)
 
-      run_route_exists =
-        routes_output
-        |> String.split("\n")
-        |> Enum.any?(
-          &(String.contains?(&1, "#{run_endpoint}") &&
-              String.contains?(&1, "AshTypescriptRpcController") && String.contains?(&1, ":run"))
-        )
+      {run_route_exists, validate_route_exists} =
+        if router_module do
+          # Get the router file from the igniter's rewrite
+          router_path = Igniter.Project.Module.proper_location(igniter, router_module)
 
-      validate_route_exists =
-        routes_output
-        |> String.split("\n")
-        |> Enum.any?(
-          &(String.contains?(&1, "#{validate_endpoint}") &&
-              String.contains?(&1, "AshTypescriptRpcController") &&
-              String.contains?(&1, ":validate"))
-        )
+          igniter = Igniter.include_existing_file(igniter, router_path)
+          router_file = Map.get(igniter.rewrite.sources, router_path)
+          router_content = router_file.content
+          run_exists = String.contains?(router_content, "AshTypescriptRpcController, :run")
+
+          validate_exists =
+            String.contains?(router_content, "AshTypescriptRpcController, :validate")
+
+          {run_exists, validate_exists}
+        end
 
       # Build routes to add based on what's missing
       routes_to_add = []
