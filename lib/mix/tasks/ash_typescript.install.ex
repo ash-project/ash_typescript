@@ -32,18 +32,22 @@ if Code.ensure_loaded?(Igniter) do
         |> create_rpc_controller(app_name, web_module)
         |> add_rpc_routes(web_module)
 
-      if react_enabled do
-        igniter
-        |> create_package_json()
-        |> create_react_index()
-        |> update_tsconfig()
-        |> update_esbuild_config(app_name)
-        |> create_or_update_page_controller(web_module)
-        |> create_index_template(web_module)
-        |> add_page_index_route(web_module)
-      else
-        igniter
-      end
+      igniter =
+        if react_enabled do
+          igniter
+          |> create_package_json()
+          |> create_react_index()
+          |> update_tsconfig()
+          |> update_esbuild_config(app_name)
+          |> create_or_update_page_controller(web_module)
+          |> create_index_template(web_module)
+          |> add_page_index_route(web_module)
+        else
+          igniter
+        end
+
+      igniter
+      |> add_next_steps_notice(react_enabled)
     end
 
     defp create_rpc_controller(igniter, app_name, web_module) do
@@ -461,9 +465,7 @@ if Code.ensure_loaded?(Igniter) do
         needs_jsx = not String.contains?(content, ~s("jsx":))
         needs_interop = not String.contains?(content, ~s("esModuleInterop":))
 
-
         if needs_jsx or needs_interop do
-
           updated_content = content
 
           updated_content =
@@ -670,6 +672,39 @@ if Code.ensure_loaded?(Igniter) do
         {:def, _, [{^name, _, args}, _]} when length(args) == arity -> true
         _ -> false
       end
+    end
+
+    defp add_next_steps_notice(igniter, react_enabled) do
+      base_notice = """
+      🎉 AshTypescript has been successfully installed!
+
+      Next Steps:
+      1. Configure your domain with the AshTypescript.Rpc extension
+      2. Add typescript_rpc configurations for your resources
+      3. Generate TypeScript types with: mix ash_typescript.codegen
+      4. Start using type-safe RPC functions in your frontend!
+
+      📚 Documentation: https://hexdocs.pm/ash_typescript
+      """
+
+      react_notice = """
+      🎉 AshTypescript with React has been successfully installed!
+
+      Your Phoenix + React + TypeScript setup is ready!
+
+      Next Steps:
+      1. Install frontend dependencies: cd assets && npm install
+      2. Configure your domain with the AshTypescript.Rpc extension
+      3. Add typescript_rpc configurations for your resources
+      4. Start your Phoenix server: mix phx.server
+      5. Check out http://localhost:4000/ash-typescript for how to get started!
+
+      📚 Documentation: https://hexdocs.pm/ash_typescript
+      """
+
+      notice = if react_enabled, do: react_notice, else: base_notice
+
+      Igniter.add_notice(igniter, notice)
     end
   end
 else
