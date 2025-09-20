@@ -29,14 +29,14 @@ Add AshTypescript to your project and run the automated installer:
 mix igniter.install ash_typescript
 
 # For a full-stack Phoenix + React setup, use the --framework flag:
-mix igniter.install ash_typescript --framework=react
+mix igniter.install ash_typescript --framework react
 ```
 
 The installer automatically:
 - ✅ Adds AshTypescript to your dependencies
 - ✅ Configures AshTypescript settings in `config.exs`
 - ✅ Creates RPC controller and routes
-- ✅ With `--framework=react`: Sets up React + TypeScript environment, and a getting started guide
+- ✅ With `--framework react`: Sets up React + TypeScript environment, and a getting started guide
 
 **Option B: Manual Installation**
 
@@ -140,9 +140,9 @@ const newTodo = await createTodo({
 
 **🎉 That's it!** Your TypeScript frontend now has compile-time type safety for your Elixir backend.
 
-### React Setup (with `--framework=react`)
+### React Setup (with `--framework react`)
 
-When you use `mix igniter.install ash_typescript --framework=react`, the installer creates a full Phoenix + React + TypeScript setup:
+When you use `mix igniter.install ash_typescript --framework react`, the installer creates a full Phoenix + React + TypeScript setup:
 
 - **📦 Package.json** with React 19 & TypeScript
 - **⚛️ React components** with a beautiful welcome page and documentation
@@ -1190,7 +1190,7 @@ interface TodoFieldsSchema {
 mix igniter.install ash_typescript
 
 # Full-stack React + TypeScript setup
-mix igniter.install ash_typescript --framework=react
+mix igniter.install ash_typescript --framework react
 ```
 
 **What it does:**
@@ -1198,8 +1198,8 @@ mix igniter.install ash_typescript --framework=react
 - Configures AshTypescript settings in `config/config.exs`
 - Creates RPC controller (`lib/*_web/controllers/ash_typescript_rpc_controller.ex`)
 - Adds RPC routes to your Phoenix router
-- **With `--framework=react`**: Sets up complete React + TypeScript environment
-- **With `--framework=react`**: Creates welcome page with getting started guide
+- **With `--framework react`**: Sets up complete React + TypeScript environment
+- **With `--framework react`**: Creates welcome page with getting started guide
 
 **When to use**: For new projects or when adding AshTypescript to existing projects. This is the recommended approach.
 
