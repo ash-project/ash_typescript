@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## v0.3.3 (2025-09-20)
+
+
+
+
+### Improvements:
+
+* run npm install automatically on installation by Zach Daniel
+
 ## v0.3.2 (2025-09-20)
 
 
