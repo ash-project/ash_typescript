@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## v0.3.1 (2025-09-20)
+
+
+
+
+### Improvements:
+
+* add igniter install notices. by Torkild Kjevik
+
 ## v0.3.0 (2025-09-20)
 
 
