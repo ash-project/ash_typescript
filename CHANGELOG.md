@@ -5,6 +5,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## v0.3.2 (2025-09-20)
+
+
+
+
+### Bug Fixes:
+
+* change installer config: --react -> --framework react by Torkild Kjevik
+
 ## v0.3.1 (2025-09-20)
 
 
