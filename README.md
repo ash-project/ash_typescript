@@ -159,7 +159,15 @@ The welcome page includes:
 
 Visit `http://localhost:4000/ash-typescript` after running your Phoenix server to see the interactive guide!
 
-## 🚀 Features
+### 🚀 Example Repo
+
+Check out this **[example repo](https://github.com/ChristianAlexander/ash_typescript_demo)** by Christian Alexander, which showcases:
+
+- Complete Phoenix + React + TypeScript integration
+- TanStack Query for data fetching
+- TanStack Table for data display
+
+## ✨ Features
 
 - **🔥 Zero-config TypeScript generation** - Automatically generates types from Ash resources
 - **🛡️ End-to-end type safety** - Catch integration errors at compile time, not runtime
@@ -1386,6 +1394,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🆘 Support
 
 - **Documentation**: [hexdocs.pm/ash_typescript](https://hexdocs.pm/ash_typescript)
+- **Demo App**: [AshTypescript Demo](https://github.com/ChristianAlexander/ash_typescript_demo) - Real-world example with TanStack Query & Table
 - **Issues**: [GitHub Issues](https://github.com/ash-project/ash_typescript/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/ash-project/ash_typescript/discussions)
 - **Ash Community**: [Ash Framework Discord](https://discord.gg/ash-framework)
