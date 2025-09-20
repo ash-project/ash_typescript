@@ -13,8 +13,8 @@ if Code.ensure_loaded?(Igniter) do
       %Igniter.Mix.Task.Info{
         group: :ash,
         installs: [],
-        schema: [react: :boolean],
-        defaults: [react: false]
+        schema: [framework: :string],
+        defaults: [framework: nil]
       }
     end
 
@@ -22,7 +22,12 @@ if Code.ensure_loaded?(Igniter) do
     def igniter(igniter) do
       app_name = Igniter.Project.Application.app_name(igniter)
       web_module = Igniter.Libs.Phoenix.web_module(igniter)
-      react_enabled = Keyword.get(igniter.args.options, :react, false)
+      framework = Keyword.get(igniter.args.options, :framework, nil)
+
+      # Validate framework parameter
+      igniter = validate_framework(igniter, framework)
+
+      react_enabled = framework == "react"
 
       igniter =
         igniter
@@ -47,7 +52,23 @@ if Code.ensure_loaded?(Igniter) do
         end
 
       igniter
-      |> add_next_steps_notice(react_enabled)
+      |> add_next_steps_notice(framework)
+    end
+
+    defp validate_framework(igniter, framework) do
+      case framework do
+        nil ->
+          igniter
+
+        "react" ->
+          igniter
+
+        invalid_framework ->
+          Igniter.add_issue(
+            igniter,
+            "Invalid framework '#{invalid_framework}'. Currently supported frameworks: react"
+          )
+      end
     end
 
     defp create_rpc_controller(igniter, app_name, web_module) do
@@ -674,7 +695,7 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
-    defp add_next_steps_notice(igniter, react_enabled) do
+    defp add_next_steps_notice(igniter, framework) do
       base_notice = """
       🎉 AshTypescript has been successfully installed!
 
@@ -702,7 +723,7 @@ if Code.ensure_loaded?(Igniter) do
       📚 Documentation: https://hexdocs.pm/ash_typescript
       """
 
-      notice = if react_enabled, do: react_notice, else: base_notice
+      notice = if framework == "react", do: react_notice, else: base_notice
 
       Igniter.add_notice(igniter, notice)
     end
