@@ -5,6 +5,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## v0.3.0 (2025-09-20)
+
+
+
+
+### Features:
+
+* add igniter installer by Torkild Kjevik
+
+### Improvements:
+
+* add rpc routes & basic react setup in installer by Torkild Kjevik
+
+* use String.contains? for checking if rpc routes already exist by Torkild Kjevik
+
+* Set default config in config.exs by Torkild Kjevik
+
 ## v0.2.0 (2025-09-17)
 
 
