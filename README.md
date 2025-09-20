@@ -18,7 +18,27 @@ Generate type-safe TypeScript clients directly from your Elixir Ash resources, e
 
 **Get up and running in under 5 minutes:**
 
-### 1. Installation
+### 1. Installation & Setup
+
+**Option A: Automatic Setup with Igniter (Recommended)**
+
+Add AshTypescript to your project and run the automated installer:
+
+```bash
+# Add ash_typescript to your mix.exs and install
+mix igniter.install ash_typescript
+
+# For a full-stack Phoenix + React setup, use the --react flag:
+mix igniter.install ash_typescript --react
+```
+
+The installer automatically:
+- ✅ Adds AshTypescript to your dependencies
+- ✅ Configures AshTypescript settings in `config.exs`
+- ✅ Creates RPC controller and routes
+- ✅ With `--react`: Sets up React + TypeScript environment, and a getting started guide
+
+**Option B: Manual Installation**
 
 Add to your `mix.exs`:
 
@@ -31,6 +51,8 @@ end
 ```
 
 ### 2. Configure your domain
+
+**Note:** If you used the automatic installer (`mix igniter.install ash_typescript`), you can skip to step 5. The following steps are only needed for manual installation.
 
 ```elixir
 defmodule MyApp.Domain do
@@ -87,6 +109,8 @@ end
 
 ### 5. Generate TypeScript types
 
+**After using the installer or completing manual setup:**
+
 **Recommended approach** (runs codegen for all Ash extensions in your project):
 ```bash
 mix ash.codegen --dev"
@@ -115,6 +139,25 @@ const newTodo = await createTodo({
 ```
 
 **🎉 That's it!** Your TypeScript frontend now has compile-time type safety for your Elixir backend.
+
+### React Setup (with `--react` flag)
+
+When you use `mix igniter.install ash_typescript --react`, the installer creates a full Phoenix + React + TypeScript setup:
+
+- **📦 Package.json** with React 19 & TypeScript
+- **⚛️ React components** with a beautiful welcome page and documentation
+- **🎨 Tailwind CSS** integration with modern styling
+- **🔧 Build configuration** with esbuild and TypeScript compilation
+- **📄 Templates** with proper script loading and syntax highlighting
+- **🌐 Getting started guide** accessible at `/ash-typescript` in your Phoenix app
+
+The welcome page includes:
+- Step-by-step setup instructions
+- Code examples with syntax highlighting
+- Links to documentation and demo projects
+- Type-safe RPC function examples
+
+Visit `http://localhost:4000/ash-typescript` after running your Phoenix server to see the interactive guide!
 
 ## 🚀 Features
 
@@ -1127,6 +1170,30 @@ interface TodoFieldsSchema {
 ```
 
 ## 🛠️ Mix Tasks
+
+### Installation Commands
+
+#### `mix igniter.install ash_typescript` (Recommended)
+
+**Automated installer** that sets up everything you need to get started with AshTypescript.
+
+```bash
+# Basic installation (RPC setup only)
+mix igniter.install ash_typescript
+
+# Full-stack React + TypeScript setup
+mix igniter.install ash_typescript --react
+```
+
+**What it does:**
+- Adds AshTypescript to your dependencies and runs `mix deps.get`
+- Configures AshTypescript settings in `config/config.exs`
+- Creates RPC controller (`lib/*_web/controllers/ash_typescript_rpc_controller.ex`)
+- Adds RPC routes to your Phoenix router
+- **With `--react`**: Sets up complete React + TypeScript environment
+- **With `--react`**: Creates welcome page with getting started guide
+
+**When to use**: For new projects or when adding AshTypescript to existing projects. This is the recommended approach.
 
 ### Code Generation Commands
 
