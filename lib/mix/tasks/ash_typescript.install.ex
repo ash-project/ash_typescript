@@ -714,16 +714,22 @@ if Code.ensure_loaded?(Igniter) do
       Your Phoenix + React + TypeScript setup is ready!
 
       Next Steps:
-      1. Install frontend dependencies: cd assets && npm install
-      2. Configure your domain with the AshTypescript.Rpc extension
-      3. Add typescript_rpc configurations for your resources
-      4. Start your Phoenix server: mix phx.server
-      5. Check out http://localhost:4000/ash-typescript for how to get started!
+      1. Configure your domain with the AshTypescript.Rpc extension
+      2. Add typescript_rpc configurations for your resources
+      3. Start your Phoenix server: mix phx.server
+      4. Check out http://localhost:4000/ash-typescript for how to get started!
 
       📚 Documentation: https://hexdocs.pm/ash_typescript
       """
 
       notice = if framework == "react", do: react_notice, else: base_notice
+
+      igniter =
+        if framework == "react" do
+          Igniter.add_task(igniter, "ash_typescript.npm_install")
+        else
+          igniter
+        end
 
       Igniter.add_notice(igniter, notice)
     end
