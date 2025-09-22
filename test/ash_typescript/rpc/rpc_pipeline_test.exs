@@ -135,7 +135,13 @@ defmodule AshTypescript.Rpc.PipelineTest do
       # Create extraction template for id and title only (list format used by implementation)
       extraction_template = [:id, :title]
 
-      request = %AshTypescript.Rpc.Request{extraction_template: extraction_template}
+      # Need to provide an action for unconstrained_map_action? check
+      action = Ash.Resource.Info.action(Todo, :read)
+      request = %AshTypescript.Rpc.Request{
+        extraction_template: extraction_template,
+        action: action,
+        resource: Todo
+      }
 
       assert {:ok, filtered_result} = Pipeline.process_result(ash_result, request)
 

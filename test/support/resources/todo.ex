@@ -228,6 +228,11 @@ defmodule AshTypescript.Test.Todo do
       constraints escape?: true
     end
 
+    # Untyped map attribute for testing untyped map support
+    attribute :custom_data, :map do
+      public? true
+    end
+
     create_timestamp :created_at do
       public? true
     end
@@ -392,7 +397,8 @@ defmodule AshTypescript.Test.Todo do
         :options,
         :coordinates,
         :hierarchy,
-        :strict_hierarchy
+        :strict_hierarchy,
+        :custom_data
       ]
 
       argument :auto_complete, :boolean do
@@ -430,7 +436,8 @@ defmodule AshTypescript.Test.Todo do
         :options,
         :coordinates,
         :hierarchy,
-        :strict_hierarchy
+        :strict_hierarchy,
+        :custom_data
       ]
     end
 
@@ -446,6 +453,32 @@ defmodule AshTypescript.Test.Todo do
       end
 
       change set_attribute(:priority, arg(:priority))
+    end
+
+    update :update_with_untyped_data do
+      require_atomic? false
+      accept [:custom_data]
+
+      argument :additional_data, :map do
+        allow_nil? false
+      end
+
+      argument :metadata_update, :map do
+        allow_nil? true
+      end
+
+      change fn changeset, _context ->
+        # Merge the argument data with the custom_data attribute
+        additional_data = Ash.Changeset.get_argument(changeset, :additional_data)
+        metadata_update = Ash.Changeset.get_argument(changeset, :metadata_update)
+
+        current_custom_data = Ash.Changeset.get_data(changeset, :custom_data) || %{}
+
+        merged_data = Map.merge(current_custom_data, additional_data)
+        merged_data = if metadata_update, do: Map.put(merged_data, :metadata_update, metadata_update), else: merged_data
+
+        Ash.Changeset.change_attribute(changeset, :custom_data, merged_data)
+      end
     end
 
     action :bulk_complete, {:array, :uuid} do
@@ -549,6 +582,26 @@ defmodule AshTypescript.Test.Todo do
 
       run fn _input, _context ->
         {:ok, {37.7749, -122.4194, 50}}
+      end
+    end
+
+    action :get_custom_data, :map do
+      run fn _input, _context ->
+        {:ok,
+         %{
+           user_id: "123e4567-e89b-12d3-a456-426614174000",
+           status: "active",
+           metadata: %{
+             version: "1.0",
+             tags: ["important", "urgent"],
+             settings: %{
+               notifications: true,
+               theme: "dark"
+             }
+           },
+           count: 42,
+           timestamp: 1640995200
+         }}
       end
     end
 

@@ -20,6 +20,7 @@ import "./shouldPass/fetchOptionsAdvanced";
 import "./shouldPass/channelOperations";
 import "./shouldPass/channelValidations";
 import "./shouldPass/channelTimeoutTest";
+import "./shouldPass/untypedMaps";
 
 // Import Zod schema validation tests
 import "./zod/shouldPass/basicZodUsage";

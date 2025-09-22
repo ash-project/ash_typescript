@@ -18,6 +18,7 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :update_todo, :update
       rpc_action :complete_todo, :complete
       rpc_action :set_priority_todo, :set_priority
+      rpc_action :update_todo_with_untyped_data, :update_with_untyped_data
       rpc_action :bulk_complete_todo, :bulk_complete
       rpc_action :get_statistics_todo, :get_statistics
       rpc_action :search_todos, :search
@@ -26,6 +27,7 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :list_high_priority_todos, :list_high_priority
       rpc_action :get_keyword_options_todo, :get_keyword_options
       rpc_action :get_coordinates_info_todo, :get_coordinates_info
+      rpc_action :get_custom_data_todo, :get_custom_data
       rpc_action :destroy_todo, :destroy
 
       typed_query :list_todos_user_page, :read do

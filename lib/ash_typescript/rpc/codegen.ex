@@ -433,6 +433,15 @@ defmodule AshTypescript.Rpc.Codegen do
   end
 
   def action_returns_field_selectable_type?(action) do
+    # Only check returns for generic actions
+    if action.type != :action do
+      {:error, :not_generic_action}
+    else
+      check_action_returns(action)
+    end
+  end
+
+  defp check_action_returns(action) do
     case action.returns do
       {:array, Ash.Type.Struct} ->
         items_constraints = Keyword.get(action.constraints || [], :items, [])
@@ -467,7 +476,7 @@ defmodule AshTypescript.Rpc.Codegen do
         if Keyword.has_key?(constraints, :fields) do
           {:ok, :typed_map, Keyword.get(constraints, :fields)}
         else
-          {:error, :no_fields_defined}
+          {:ok, :unconstrained_map, nil}
         end
 
       _ ->
@@ -854,6 +863,12 @@ defmodule AshTypescript.Rpc.Codegen do
               > = InferResult<#{typed_map_schema}, Fields>;
               """
             end
+
+          {:ok, :unconstrained_map, _} ->
+            # Unconstrained maps return Record<string, any> without field selection
+            """
+            type Infer#{rpc_action_name_pascal}Result = Record<string, any>;
+            """
 
           _ ->
             if action.returns do
@@ -1248,6 +1263,10 @@ defmodule AshTypescript.Rpc.Codegen do
 
                 {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
 
+              {:ok, :unconstrained_map, _} ->
+                # Unconstrained maps don't support field selection
+                {config_fields, false, nil}
+
               _ ->
                 {config_fields, false, nil}
             end
@@ -1592,6 +1611,10 @@ defmodule AshTypescript.Rpc.Codegen do
                     ]
 
                 {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
+
+              {:ok, :unconstrained_map, _} ->
+                # Unconstrained maps don't support field selection
+                {config_fields, false, nil}
 
               _ ->
                 {config_fields, false, nil}

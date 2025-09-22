@@ -114,16 +114,22 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   Applies field selection to the Ash result using the pre-computed template.
   Performance-optimized single-pass filtering.
+  For unconstrained maps, returns the normalized result directly.
   """
   @spec process_result(term(), Request.t()) :: {:ok, term()} | {:error, term()}
   def process_result(ash_result, %Request{} = request) do
     case ash_result do
-      result when is_list(result) or is_map(result) or is_tuple(result) ->
-        filtered = ResultProcessor.process(result, request.extraction_template)
-        {:ok, filtered}
-
       {:error, error} ->
         {:error, error}
+
+      result when is_list(result) or is_map(result) or is_tuple(result) ->
+        # Check if this is an unconstrained map action that should bypass field processing
+        if unconstrained_map_action?(request.action) do
+          {:ok, ResultProcessor.normalize_value_for_json(result)}
+        else
+          filtered = ResultProcessor.process(result, request.extraction_template)
+          {:ok, filtered}
+        end
 
       primitive_value ->
         {:ok, ResultProcessor.normalize_value_for_json(primitive_value)}
@@ -542,6 +548,13 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
+  defp unconstrained_map_action?(action) do
+    case AshTypescript.Rpc.Codegen.action_returns_field_selectable_type?(action) do
+      {:ok, :unconstrained_map, _} -> true
+      _ -> false
+    end
+  end
+
   defp validate_required_parameters_for_action_type(params, action, validation_mode?) do
     needs_fields =
       if validation_mode? do
@@ -552,10 +565,11 @@ defmodule AshTypescript.Rpc.Pipeline do
             true
 
           :action ->
-            match?(
-              {:ok, _, _},
-              AshTypescript.Rpc.Codegen.action_returns_field_selectable_type?(action)
-            )
+            case AshTypescript.Rpc.Codegen.action_returns_field_selectable_type?(action) do
+              {:ok, :unconstrained_map, _} -> false
+              {:ok, _, _} -> true
+              _ -> false
+            end
 
           _ ->
             false

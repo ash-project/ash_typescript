@@ -310,14 +310,20 @@ defmodule AshTypescript.Test.TestHelpers do
   end
 
   defp create_todo_via_rpc(conn, opts) do
+    # Build base input
+    input = %{
+      "title" => opts[:title],
+      "autoComplete" => opts[:completed],
+      "userId" => opts[:user_id]
+    }
+
+    # Add any additional input fields (like custom_data)
+    input = if opts[:custom_data], do: Map.put(input, "customData", opts[:custom_data]), else: input
+
     todo_params = %{
       "action" => "create_todo",
       "fields" => opts[:fields],
-      "input" => %{
-        "title" => opts[:title],
-        "autoComplete" => opts[:completed],
-        "userId" => opts[:user_id]
-      }
+      "input" => input
     }
 
     result = Rpc.run_action(:ash_typescript, conn, todo_params)

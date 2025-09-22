@@ -422,6 +422,84 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
     end
   end
 
+  describe "get_custom_data action (unconstrained map)" do
+    setup do
+      conn = TestHelpers.build_rpc_conn()
+      %{conn: conn}
+    end
+
+    test "returns hardcoded map data without field constraints", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_custom_data_todo",
+          "fields" => []
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+
+      # Verify we get the exact hardcoded map
+      assert is_map(data)
+      assert data["userId"] == "123e4567-e89b-12d3-a456-426614174000"
+      assert data["status"] == "active"
+      assert data["count"] == 42
+      assert data["timestamp"] == 1640995200
+
+      # Verify nested metadata structure
+      assert is_map(data["metadata"])
+      metadata = data["metadata"]
+      assert metadata["version"] == "1.0"
+      assert metadata["tags"] == ["important", "urgent"]
+
+      # Verify deeply nested settings
+      assert is_map(metadata["settings"])
+      settings = metadata["settings"]
+      assert settings["notifications"] == true
+      assert settings["theme"] == "dark"
+    end
+
+    test "returns full map data when no fields specified", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_custom_data_todo"
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+
+      # Since it's an unconstrained map, it should return the full data
+      assert is_map(data)
+      assert data["userId"] == "123e4567-e89b-12d3-a456-426614174000"
+      assert data["status"] == "active"
+      assert data["count"] == 42
+      assert data["timestamp"] == 1640995200
+      assert is_map(data["metadata"])
+    end
+
+    test "works with empty fields array (legacy compatibility)", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_custom_data_todo",
+          "fields" => []
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+
+      # Should return the same full map as when no fields are specified
+      assert is_map(data)
+      assert data["userId"] == "123e4567-e89b-12d3-a456-426614174000"
+      assert data["status"] == "active"
+      assert data["count"] == 42
+      assert data["timestamp"] == 1640995200
+      # All metadata fields should be present
+      metadata = data["metadata"]
+      assert metadata["version"] == "1.0"
+      assert metadata["tags"] == ["important", "urgent"]
+      assert is_map(metadata["settings"])
+    end
+  end
+
   describe "complex return type validation" do
     setup do
       conn = TestHelpers.build_rpc_conn()
