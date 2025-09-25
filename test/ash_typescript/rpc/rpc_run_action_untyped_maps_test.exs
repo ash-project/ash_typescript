@@ -1,6 +1,5 @@
 defmodule AshTypescript.Rpc.RpcRunActionUntypedMapsTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Test.Todo
   alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
@@ -33,7 +32,6 @@ defmodule AshTypescript.Rpc.RpcRunActionUntypedMapsTest do
       conn: conn,
       todo: todo
     } do
-      todo_get = Ash.get!(Todo, todo["id"])
       # Test that the action accepts various types of untyped map data
       additional_data = %{
         "new_key" => "new_value",
@@ -78,15 +76,15 @@ defmodule AshTypescript.Rpc.RpcRunActionUntypedMapsTest do
       assert custom_data["nested"]["innerKey"] == "inner_value"
 
       # New data should be added
-      assert custom_data["newKey"] == "new_value"
+      assert custom_data["new_key"] == "new_value"
       assert custom_data["number"] == 123
       assert custom_data["boolean"] == true
       assert custom_data["list"] == [1, 2, 3]
-      assert custom_data["nestedObject"]["level2"]["level3"] == "deep_value"
+      assert custom_data["nested_object"]["level2"]["level3"] == "deep_value"
 
       # Metadata update should be added
       assert custom_data["metadataUpdate"]["version"] == "2.0"
-      assert custom_data["metadataUpdate"]["updatedBy"] == "test_user"
+      assert custom_data["metadataUpdate"]["updated_by"] == "test_user"
       assert is_integer(custom_data["metadataUpdate"]["timestamp"])
     end
 

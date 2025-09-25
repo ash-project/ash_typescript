@@ -1067,6 +1067,10 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
               "text" => "Complex content",
               "formatting" => "markdown"
             },
+            "customData" => %{
+              "customField1" => "value1",
+              "custom_field2" => "value2"
+            },
             "attachments" => [
               %{
                 "attachment_type" => "file",
@@ -1091,7 +1095,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             "id",
             "title",
             "completed",
-            %{"user" => ["id", "name"]},
+            %{"user" => ["id", "name", %{"todos" => ["customData"]}]},
             %{
               "content" => [
                 "note",

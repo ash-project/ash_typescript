@@ -475,7 +475,11 @@ defmodule AshTypescript.Test.Todo do
         current_custom_data = Ash.Changeset.get_data(changeset, :custom_data) || %{}
 
         merged_data = Map.merge(current_custom_data, additional_data)
-        merged_data = if metadata_update, do: Map.put(merged_data, :metadata_update, metadata_update), else: merged_data
+
+        merged_data =
+          if metadata_update,
+            do: Map.put(merged_data, "metadataUpdate", metadata_update),
+            else: merged_data
 
         Ash.Changeset.change_attribute(changeset, :custom_data, merged_data)
       end
@@ -600,7 +604,7 @@ defmodule AshTypescript.Test.Todo do
              }
            },
            count: 42,
-           timestamp: 1640995200
+           timestamp: 1_640_995_200
          }}
       end
     end

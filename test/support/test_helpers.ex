@@ -318,7 +318,8 @@ defmodule AshTypescript.Test.TestHelpers do
     }
 
     # Add any additional input fields (like custom_data)
-    input = if opts[:custom_data], do: Map.put(input, "customData", opts[:custom_data]), else: input
+    input =
+      if opts[:custom_data], do: Map.put(input, "customData", opts[:custom_data]), else: input
 
     todo_params = %{
       "action" => "create_todo",

@@ -443,7 +443,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
       assert data["userId"] == "123e4567-e89b-12d3-a456-426614174000"
       assert data["status"] == "active"
       assert data["count"] == 42
-      assert data["timestamp"] == 1640995200
+      assert data["timestamp"] == 1_640_995_200
 
       # Verify nested metadata structure
       assert is_map(data["metadata"])
@@ -472,7 +472,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
       assert data["userId"] == "123e4567-e89b-12d3-a456-426614174000"
       assert data["status"] == "active"
       assert data["count"] == 42
-      assert data["timestamp"] == 1640995200
+      assert data["timestamp"] == 1_640_995_200
       assert is_map(data["metadata"])
     end
 
@@ -491,7 +491,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
       assert data["userId"] == "123e4567-e89b-12d3-a456-426614174000"
       assert data["status"] == "active"
       assert data["count"] == 42
-      assert data["timestamp"] == 1640995200
+      assert data["timestamp"] == 1_640_995_200
       # All metadata fields should be present
       metadata = data["metadata"]
       assert metadata["version"] == "1.0"

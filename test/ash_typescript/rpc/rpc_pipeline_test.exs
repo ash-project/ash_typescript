@@ -137,6 +137,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       # Need to provide an action for unconstrained_map_action? check
       action = Ash.Resource.Info.action(Todo, :read)
+
       request = %AshTypescript.Rpc.Request{
         extraction_template: extraction_template,
         action: action,

@@ -7,7 +7,14 @@ defmodule AshTypescript.Rpc.Pipeline do
   4. format_output/2 - Format for client consumption
   """
 
-  alias AshTypescript.Rpc.{Request, RequestedFieldsProcessor, ResultProcessor}
+  alias AshTypescript.Rpc.{
+    InputFormatter,
+    OutputFormatter,
+    Request,
+    RequestedFieldsProcessor,
+    ResultProcessor
+  }
+
   alias AshTypescript.{FieldFormatter, Rpc}
 
   @doc """
@@ -21,7 +28,11 @@ defmodule AshTypescript.Rpc.Pipeline do
   def parse_request(otp_app, conn_or_socket, params, opts \\ []) do
     validation_mode? = Keyword.get(opts, :validation_mode?, false)
     input_formatter = Rpc.input_field_formatter()
-    normalized_params = FieldFormatter.parse_input_fields(params, input_formatter)
+
+    # Parse top-level parameters but preserve input data for type-aware processing
+    {input_data, other_params} = Map.pop(params, "input", %{})
+    normalized_other_params = FieldFormatter.parse_input_fields(other_params, input_formatter)
+    normalized_params = Map.put(normalized_other_params, :input, input_data)
 
     {actor, tenant, context} =
       case conn_or_socket do
@@ -146,6 +157,16 @@ defmodule AshTypescript.Rpc.Pipeline do
     format_field_names(filtered_result, formatter)
   end
 
+  @doc """
+  Stage 4: Format output for client consumption with type awareness.
+
+  Applies type-aware output field formatting and final response structure.
+  """
+  def format_output(filtered_result, %Request{} = request) do
+    formatter = Rpc.output_field_formatter()
+    format_output_data(filtered_result, formatter, request)
+  end
+
   defp discover_action(otp_app, params) do
     cond do
       typed_query_name = params[:typed_query_action] ->
@@ -225,7 +246,9 @@ defmodule AshTypescript.Rpc.Pipeline do
         end
 
       formatter = Rpc.input_field_formatter()
-      parsed_input = FieldFormatter.parse_input_fields(raw_input_with_pk, formatter)
+
+      parsed_input =
+        InputFormatter.format(raw_input_with_pk, resource, action.name, formatter)
 
       converted_input = convert_keyword_tuple_inputs(parsed_input, resource, action)
 
@@ -546,6 +569,36 @@ defmodule AshTypescript.Rpc.Pipeline do
       other ->
         other
     end
+  end
+
+  defp format_output_data(%{success: true, data: result_data}, formatter, request) do
+    # Format the data field using type awareness
+    formatted_data =
+      OutputFormatter.format(
+        result_data,
+        request.resource,
+        request.action.name,
+        formatter
+      )
+
+    # Format the top-level response structure
+    %{
+      FieldFormatter.format_field("success", formatter) => true,
+      FieldFormatter.format_field("data", formatter) => formatted_data
+    }
+  end
+
+  defp format_output_data(%{success: false, errors: errors}, formatter, _request) do
+    %{
+      FieldFormatter.format_field("success", formatter) => false,
+      FieldFormatter.format_field("errors", formatter) => errors
+    }
+  end
+
+  defp format_output_data(%{success: true}, formatter, _request) do
+    %{
+      FieldFormatter.format_field("success", formatter) => true
+    }
   end
 
   defp unconstrained_map_action?(action) do

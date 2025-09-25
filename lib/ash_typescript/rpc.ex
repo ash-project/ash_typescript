@@ -256,12 +256,12 @@ defmodule AshTypescript.Rpc do
     with {:ok, parsed_request} <- Pipeline.parse_request(otp_app, conn, params),
          {:ok, ash_result} <- Pipeline.execute_ash_action(parsed_request),
          {:ok, processed_result} <- Pipeline.process_result(ash_result, parsed_request) do
-      %{success: true, data: processed_result}
+      Pipeline.format_output(%{success: true, data: processed_result}, parsed_request)
     else
       {:error, reason} ->
         %{success: false, errors: [ErrorBuilder.build_error_response(reason)]}
+        |> Pipeline.format_output()
     end
-    |> Pipeline.format_output()
   end
 
   @doc """
@@ -274,11 +274,12 @@ defmodule AshTypescript.Rpc do
     case Pipeline.parse_request(otp_app, conn, params, validation_mode?: true) do
       {:ok, parsed_request} ->
         validate_form_input(parsed_request)
+        |> Pipeline.format_output(parsed_request)
 
       {:error, reason} ->
         %{success: false, errors: [ErrorBuilder.build_error_response(reason)]}
+        |> Pipeline.format_output()
     end
-    |> Pipeline.format_output()
   end
 
   defp validate_form_input(%{action: action, resource: resource, input: input} = request) do

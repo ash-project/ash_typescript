@@ -127,7 +127,7 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 ```bash
 mix test.codegen                      # Generate TypeScript (main command)
 mix test.codegen --dry-run           # Preview output
-mix test                             # Run all tests
+mix test                             # Run all tests (do NOT prefix with MIX_ENV=test)
 mix test test/ash_typescript/rpc/    # Test RPC functionality
 ```
 
@@ -208,7 +208,7 @@ mix test.codegen                     # Generate types
 cd test/ts && npm run compileGenerated # Validate compilation
 npm run compileShouldPass            # Test valid patterns
 npm run compileShouldFail            # Test invalid patterns (must fail)
-mix test                             # Run Elixir tests
+mix test                             # Run Elixir tests (do NOT prefix with MIX_ENV=test)
 ```
 
 ## Safety Checklist
