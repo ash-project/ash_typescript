@@ -17,16 +17,6 @@ defmodule AshTypescript.Test.Todo.ColorPalette do
     {:ok, value}
   end
 
-  def cast_input(value, _) when is_map(value) do
-    with {:ok, primary} <- Map.fetch(value, :primary),
-         {:ok, secondary} <- Map.fetch(value, :secondary),
-         {:ok, accent} <- Map.fetch(value, :accent) do
-      {:ok, %{primary: primary, secondary: secondary, accent: accent}}
-    else
-      _ -> {:error, "must be a map with primary, secondary, and accent colors"}
-    end
-  end
-
   def cast_input(_, _), do: {:error, "must be a map with primary, secondary, and accent colors"}
 
   @impl true
