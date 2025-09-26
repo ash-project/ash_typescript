@@ -34,20 +34,20 @@ defmodule AshTypescript.Rpc.OutputFormatter do
   except for untyped map keys which are preserved exactly.
   """
   def format(data, resource, action_name, formatter) do
-    format_data(data, resource, action_name, [], formatter)
+    format_data(data, resource, action_name, formatter)
   end
 
   # Core formatting logic
 
-  defp format_data(data, resource, action_name, path, formatter) do
+  defp format_data(data, resource, action_name, formatter) do
     case data do
       map when is_map(map) and not is_struct(map) ->
-        format_map(map, resource, action_name, path, formatter)
+        format_map(map, resource, action_name, formatter)
 
       list when is_list(list) ->
         # For lists, format each item with same context
         Enum.map(list, fn item ->
-          format_data(item, resource, action_name, path, formatter)
+          format_data(item, resource, action_name, formatter)
         end)
 
       other ->
@@ -56,21 +56,21 @@ defmodule AshTypescript.Rpc.OutputFormatter do
     end
   end
 
-  defp format_map(%{type: maybe_offset_type} = map, resource, action_name, path, formatter)
+  defp format_map(%{type: maybe_offset_type} = map, resource, action_name, formatter)
        when maybe_offset_type in [:offset, :keyset] do
     Enum.into(map, %{}, fn {internal_key, value} ->
-      {type, constraints} = get_output_field_type(resource, action_name, path, internal_key)
+      {type, constraints} = get_output_field_type(resource, internal_key)
 
       formatted_value =
         case internal_key do
           :results when is_list(value) ->
             # Format each item as an instance of the current resource
             Enum.map(value, fn item ->
-              format_data(item, resource, action_name, [], formatter)
+              format_data(item, resource, action_name, formatter)
             end)
 
           _ ->
-            format_value(value, type, constraints, resource, [], formatter)
+            format_value(value, type, constraints, resource, formatter)
         end
 
       # Convert internal key to client format for output
@@ -79,20 +79,18 @@ defmodule AshTypescript.Rpc.OutputFormatter do
     end)
   end
 
-  defp format_map(map, resource, action_name, path, formatter) do
+  defp format_map(map, resource, _action_name, formatter) do
     Enum.into(map, %{}, fn {internal_key, value} ->
       # Get Ash type information for this field (full resource scope)
-      {type, constraints} = get_output_field_type(resource, action_name, path, internal_key)
-
-      field_path = path ++ [internal_key]
-      formatted_value = format_value(value, type, constraints, resource, field_path, formatter)
+      {type, constraints} = get_output_field_type(resource, internal_key)
+      formatted_value = format_value(value, type, constraints, resource, formatter)
       output_key = FieldFormatter.format_field(internal_key, formatter)
 
       {output_key, formatted_value}
     end)
   end
 
-  defp format_value(data, type, constraints, resource, path, formatter) do
+  defp format_value(data, type, constraints, resource, formatter) do
     case type do
       # Untyped Map - preserve keys exactly
       Ash.Type.Map ->
@@ -101,20 +99,20 @@ defmodule AshTypescript.Rpc.OutputFormatter do
           data
         else
           # Typed Map - recurse with field constraints
-          format_typed_map(data, constraints, resource, path, formatter)
+          format_fields_with_specs(data, constraints, :fields, resource, formatter)
         end
 
       # Union - identify member and format accordingly
       Ash.Type.Union ->
-        format_union(data, constraints, resource, path, formatter)
+        format_union(data, constraints, resource, formatter)
 
       # Tuple - format as map with field keys
       Ash.Type.Tuple ->
-        format_tuple(data, constraints, resource, path, formatter)
+        format_fields_with_specs(data, constraints, :fields, resource, formatter)
 
       # Keyword - format as map with string keys
       Ash.Type.Keyword ->
-        format_keyword(data, constraints, resource, path, formatter)
+        format_fields_with_specs(data, constraints, :fields, resource, formatter)
 
       # Array - format each element
       {:array, inner_type} ->
@@ -122,7 +120,7 @@ defmodule AshTypescript.Rpc.OutputFormatter do
           inner_constraints = Keyword.get(constraints, :items, [])
 
           Enum.map(data, fn item ->
-            format_value(item, inner_type, inner_constraints, resource, path, formatter)
+            format_value(item, inner_type, inner_constraints, resource, formatter)
           end)
         else
           data
@@ -134,7 +132,7 @@ defmodule AshTypescript.Rpc.OutputFormatter do
 
         if instance_of && Ash.Resource.Info.resource?(instance_of) && is_map(data) &&
              not is_struct(data) do
-          format_data(data, instance_of, :read, [], formatter)
+          format_data(data, instance_of, :read, formatter)
         else
           data
         end
@@ -142,10 +140,10 @@ defmodule AshTypescript.Rpc.OutputFormatter do
       # Embedded Resource - recurse using the embedded resource
       module when is_atom(module) ->
         if Ash.Resource.Info.resource?(module) do
-          format_data(data, module, :read, [], formatter)
+          format_data(data, module, :read, formatter)
         else
           # Check if it's a custom type that needs map key conversion for output
-          if is_custom_type_with_map_output?(module) && is_map(data) && not is_struct(data) do
+          if is_custom_type_with_map_storage?(module) && is_map(data) && not is_struct(data) do
             # Convert atom keys to string keys for custom types in output
             stringify_map_keys(data, formatter)
           else
@@ -160,134 +158,25 @@ defmodule AshTypescript.Rpc.OutputFormatter do
     end
   end
 
-  defp format_typed_map(data, constraints, resource, path, formatter) do
-    # For typed maps, process each field according to its constraints
-    field_specs = Keyword.get(constraints, :fields, [])
-
-    if is_map(data) do
-      Enum.into(data, %{}, fn {internal_key, value} ->
-        field_spec = find_field_spec(field_specs, internal_key)
-
-        formatted_value =
-          case field_spec do
-            nil ->
-              value
-
-            {_name, spec} ->
-              field_type = Keyword.get(spec, :type)
-              field_constraints = Keyword.get(spec, :constraints, [])
-              field_path = path ++ [internal_key]
-              format_value(value, field_type, field_constraints, resource, field_path, formatter)
-          end
-
-        # Convert to client format for output
-        output_key = FieldFormatter.format_field(internal_key, formatter)
-        {output_key, formatted_value}
-      end)
-    else
-      data
-    end
-  end
-
-  defp format_tuple(data, constraints, resource, path, formatter) do
-    # For tuples, format the map structure with field names converted to client format
-    field_specs = Keyword.get(constraints, :fields, [])
-
-    if is_map(data) do
-      Enum.into(data, %{}, fn {internal_key, value} ->
-        field_spec = find_field_spec(field_specs, internal_key)
-
-        formatted_value =
-          case field_spec do
-            nil ->
-              # Unknown field, preserve as-is
-              value
-
-            {_name, spec} ->
-              field_type = Keyword.get(spec, :type)
-              field_constraints = Keyword.get(spec, :constraints, [])
-              field_path = path ++ [internal_key]
-              format_value(value, field_type, field_constraints, resource, field_path, formatter)
-          end
-
-        output_key = FieldFormatter.format_field(internal_key, formatter)
-        {output_key, formatted_value}
-      end)
-    else
-      data
-    end
-  end
-
-  defp format_keyword(data, constraints, resource, path, formatter) do
-    # For keywords, format the map structure with field names converted to client format
-    field_specs = Keyword.get(constraints, :fields, [])
-
-    if is_map(data) do
-      Enum.into(data, %{}, fn {internal_key, value} ->
-        field_spec = find_field_spec(field_specs, internal_key)
-
-        formatted_value =
-          case field_spec do
-            nil ->
-              # Unknown field, preserve as-is
-              value
-
-            {_name, spec} ->
-              field_type = Keyword.get(spec, :type)
-              field_constraints = Keyword.get(spec, :constraints, [])
-              field_path = path ++ [internal_key]
-              format_value(value, field_type, field_constraints, resource, field_path, formatter)
-          end
-
-        output_key = FieldFormatter.format_field(internal_key, formatter)
-        {output_key, formatted_value}
-      end)
-    else
-      data
-    end
-  end
-
-  defp format_union(nil, _constraints, _resource, _path, _formatter) do
+  defp format_union(nil, _constraints, _resource, _formatter) do
     nil
   end
 
-  defp format_union(data, constraints, resource, path, formatter) do
-    # Union formatting - identify the member type and format accordingly
+  defp format_union(data, constraints, resource, formatter) do
     union_types = Keyword.get(constraints, :types, [])
+    storage_type = Keyword.get(constraints, :storage)
 
-    map_keys = Map.keys(data)
-
-    union_member =
-      Enum.find(union_types, fn {member_name, _member_spec} ->
-        Enum.any?(map_keys, fn key -> key == member_name end)
-      end)
-
-    case union_member do
+    case find_union_member(data, union_types) do
       {member_name, member_spec} ->
-        member_constraints = Keyword.get(member_spec, :constraints)
-        member_type = Keyword.get(member_spec, :type)
-
         member_data =
-          case Keyword.get(constraints, :storage) do
-            :type_and_value ->
-              data[member_name]
-
-            :map_with_tag ->
-              tag = Keyword.get(member_spec, :tag)
-              tag_value = Map.get(data[member_name], tag)
-
-              data[member_name]
-              |> Map.delete(tag)
-              |> Map.put(FieldFormatter.format_field(tag, formatter), tag_value)
-          end
+          extract_union_member_data(data, member_name, member_spec, storage_type, formatter)
 
         formatted_member_value =
           format_value(
             member_data,
-            member_type,
-            member_constraints,
+            Keyword.get(member_spec, :type),
+            Keyword.get(member_spec, :constraints),
             resource,
-            path,
             formatter
           )
 
@@ -299,15 +188,7 @@ defmodule AshTypescript.Rpc.OutputFormatter do
     end
   end
 
-  # Output-specific type information retrieval
-  # Handles full resource schema: attributes, relationships, calculations, aggregates
-
-  defp get_output_field_type(resource, _action_name, [] = _path, field_key) do
-    # Top-level field - check full resource schema
-    get_top_level_output_type(resource, field_key)
-  end
-
-  defp get_top_level_output_type(resource, field_key) do
+  defp get_output_field_type(resource, field_key) do
     with nil <- Ash.Resource.Info.public_attribute(resource, field_key),
          nil <- Ash.Resource.Info.public_calculation(resource, field_key),
          nil <- Ash.Resource.Info.public_aggregate(resource, field_key) do
@@ -320,10 +201,73 @@ defmodule AshTypescript.Rpc.OutputFormatter do
     end
   end
 
+  # Union helper functions
+
+  defp find_union_member(data, union_types) do
+    map_keys = MapSet.new(Map.keys(data))
+
+    Enum.find(union_types, fn {member_name, _member_spec} ->
+      MapSet.member?(map_keys, member_name)
+    end)
+  end
+
+  defp extract_union_member_data(data, member_name, member_spec, storage_type, formatter) do
+    case storage_type do
+      :type_and_value ->
+        data[member_name]
+
+      :map_with_tag ->
+        tag_field = Keyword.get(member_spec, :tag)
+        member_data = data[member_name]
+
+        if tag_field && Map.has_key?(member_data, tag_field) do
+          tag_value = Map.get(member_data, tag_field)
+          formatted_tag_field = FieldFormatter.format_field(tag_field, formatter)
+
+          member_data
+          |> Map.delete(tag_field)
+          |> Map.put(formatted_tag_field, tag_value)
+        else
+          member_data
+        end
+
+      _ ->
+        data[member_name]
+    end
+  end
+
   # Utility functions
 
   defp untyped_map?(constraints) do
     constraints == [] or not Keyword.has_key?(constraints, :fields)
+  end
+
+  defp format_fields_with_specs(data, constraints, field_key, resource, formatter) do
+    if is_map(data) do
+      field_specs = Keyword.get(constraints, field_key, [])
+
+      Enum.into(data, %{}, fn {internal_key, value} ->
+        field_spec = find_field_spec(field_specs, internal_key)
+
+        formatted_value =
+          case field_spec do
+            nil ->
+              # Unknown field, preserve as-is
+              value
+
+            {_name, spec} ->
+              field_type = Keyword.get(spec, :type)
+              field_constraints = Keyword.get(spec, :constraints, [])
+              format_value(value, field_type, field_constraints, resource, formatter)
+          end
+
+        # Convert internal key to client format for output
+        output_key = FieldFormatter.format_field(internal_key, formatter)
+        {output_key, formatted_value}
+      end)
+    else
+      data
+    end
   end
 
   defp find_field_spec(field_specs, field_key) do
@@ -332,11 +276,11 @@ defmodule AshTypescript.Rpc.OutputFormatter do
 
   # Helper functions for custom type handling
 
-  defp is_custom_type_with_map_output?(module) do
-    # Check if this is a custom Ash type that stores maps
-    function_exported?(module, :storage_type, 1) &&
-      function_exported?(module, :cast_input, 2) &&
-      module.storage_type(nil) == :map
+  defp is_custom_type_with_map_storage?(module) do
+    # Check if this is a custom (non-builtin) Ash type with map storage
+    Ash.Type.ash_type?(module) and
+      Ash.Type.storage_type(module) == :map and
+      not Ash.Type.builtin?(module)
   rescue
     _ -> false
   end
