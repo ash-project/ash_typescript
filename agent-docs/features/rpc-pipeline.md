@@ -224,6 +224,8 @@ config :ash_typescript,
   output_field_formatter: :camel_case  # To client
 ```
 
+**Note**: Unconstrained map inputs and outputs bypass these formatters entirely.
+
 ### Multitenancy
 
 Configure tenant parameter handling:
@@ -231,6 +233,75 @@ Configure tenant parameter handling:
 ```elixir
 config :ash_typescript,
   require_tenant_parameters: false  # Get from connection instead
+```
+
+## Unconstrained Map Processing
+
+**Critical**: Actions with unconstrained map inputs or outputs have special pipeline behavior that bypasses standard field processing.
+
+### Pipeline Stage Behavior
+
+#### Stage 1: Parse Request (Unconstrained Maps)
+- **Input maps**: Skip input field formatting - pass field names as-is
+- **Field validation**: Skip standard field validation for unconstrained inputs
+- **Template building**: No extraction template created for unconstrained outputs
+
+#### Stage 2: Execute Ash Action (Unconstrained Maps)
+- **Input processing**: Unconstrained map inputs passed directly to action without formatting
+- **Query building**: No select/load statements applied for unconstrained outputs
+
+#### Stage 3: Process Result (Unconstrained Maps)
+- **Result extraction**: Skip field selection processing for unconstrained outputs
+- **Template application**: No extraction template applied - entire result passed through
+
+#### Stage 4: Format Output (Unconstrained Maps)
+- **Field formatting**: Skip output field formatter for unconstrained maps
+- **Structure preservation**: Return original field names and structure as-is
+
+### Identification of Unconstrained Maps
+
+```elixir
+# Input: Check if action argument is unconstrained map
+def unconstrained_map_input?(action, arg_name) do
+  case Ash.Resource.Info.action_input(action, arg_name) do
+    %{type: :map, constraints: constraints} when constraints == [] or constraints == nil -> true
+    _ -> false
+  end
+end
+
+# Output: Check if action returns unconstrained map
+def unconstrained_map_output?(action) do
+  case action.returns do
+    :map -> true
+    _ -> false
+  end
+end
+```
+
+### Performance Implications
+- **Faster processing**: Skips field validation and extraction phases
+- **Lower memory usage**: No template building or field transformation
+- **Direct passthrough**: Minimal data manipulation
+
+### Testing Pipeline with Unconstrained Maps
+
+```elixir
+# Test unconstrained input processing
+mcp__tidewave__project_eval("""
+params = %{
+  "resource" => "DataProcessor",
+  "action" => "process_raw_data",
+  "input" => %{
+    "raw_data" => %{
+      "user_name" => "john",  # No camelCase conversion
+      "created_at" => "2024-01-01",
+      "nested_data" => %{"field_one" => "value"}
+    }
+  }
+}
+
+AshTypescript.Rpc.Pipeline.parse_request(:my_app, %{}, params)
+""")
 ```
 
 ## Performance Patterns

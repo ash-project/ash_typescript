@@ -1024,6 +1024,48 @@ config :ash_typescript,
   output_field_formatter: :camel_case    # Client receives camelCase
 ```
 
+#### Unconstrained Map Handling
+
+Actions that accept or return unconstrained maps (maps without specific field constraints) bypass standard field name formatting:
+
+**Input Maps**: When an action input is an unconstrained map, field names are passed through as-is without applying the `input_field_formatter`. This allows maximum flexibility for dynamic data structures.
+
+**Output Maps**: When an action returns an unconstrained map, field names are returned as-is without applying the `output_field_formatter`. The entire map is returned without field selection processing.
+
+```elixir
+# Action that accepts/returns unconstrained map
+defmodule MyApp.DataProcessor do
+  use Ash.Resource, domain: MyApp.Domain
+
+  actions do
+    action :process_raw_data, :map do
+      argument :raw_data, :map  # Unconstrained map input
+      # Returns unconstrained map
+    end
+  end
+end
+```
+
+```typescript
+// Generated TypeScript - no field formatting applied
+const result = await processRawData({
+  input: {
+    // Field names sent exactly as specified (no camelCase conversion)
+    user_name: "john",
+    created_at: "2024-01-01",
+    nested_data: { field_one: "value" }
+  }
+  // Note: no fields parameter - entire result map returned
+});
+
+// Result contains original field names as stored in the backend
+if (result.success) {
+  // Field names received exactly as returned by Elixir (no camelCase conversion)
+  console.log(result.data.user_name);  // Access with original snake_case
+  console.log(result.data.created_at);
+}
+```
+
 ## ⚙️ Configuration
 
 ### Application Configuration

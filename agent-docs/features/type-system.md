@@ -148,3 +148,56 @@ Custom types integrate at multiple levels:
 - **Type not detected**: Ensure `typescript_type_name/0` callback implemented
 - **Import not working**: Check application configuration for import definitions
 - **TypeScript compilation fails**: Verify external type definitions exist and are accessible
+
+## Unconstrained Map Handling
+
+**Critical**: Actions that accept or return unconstrained maps (`:map` type without specific constraints) bypass standard type processing and field formatting systems.
+
+### Input Map Behavior
+When an action input is an unconstrained map:
+- **No type constraints applied**: Any arbitrary map structure is accepted
+- **No field name formatting**: Input field names are passed through as-is without applying `input_field_formatter`
+- **No validation**: Standard input validation is bypassed
+
+```elixir
+# Action with unconstrained map input
+action :process_data, :map do
+  argument :raw_data, :map  # Unconstrained map - no field formatting
+end
+```
+
+### Output Map Behavior
+When an action returns an unconstrained map:
+- **No fields parameter**: The `fields` parameter is removed from generated function signature
+- **No field selection**: Entire map is returned without field selection processing
+- **No field name formatting**: Output field names are returned as-is without applying `output_field_formatter`
+
+```typescript
+// Generated function for unconstrained map output
+function processData(params: {
+  input: { rawData: Record<string, any> }  // Any map structure allowed
+  // Note: no fields parameter
+}): Promise<ProcessDataResult>;
+
+// Result contains original field names from Elixir
+type ProcessDataResult = {
+  success: true;
+  data: Record<string, any>;  // Entire map returned as-is
+} | {
+  success: false;
+  errors: ErrorInfo[];
+};
+```
+
+### Type Generation Implications
+- **Schema Generation**: Unconstrained maps generate `Record<string, any>` TypeScript type
+- **Field Classification**: Skipped during field processing
+- **Template Building**: No extraction template created for unconstrained outputs
+- **Performance**: Minimal overhead as field processing is bypassed
+
+### Testing Considerations
+When testing actions with unconstrained maps:
+1. **Input Testing**: Test with various arbitrary map structures
+2. **Output Testing**: Verify entire map is returned without field selection
+3. **Field Name Preservation**: Ensure snake_case/camelCase formatting is preserved
+4. **Type Compilation**: Verify TypeScript compiles with `any` types

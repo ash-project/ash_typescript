@@ -133,6 +133,96 @@ diff -u test/ts/generated_before.ts test/ts/generated.ts
 
 **Use regex for structure validation, not String.contains?**
 
+## Testing Unconstrained Maps
+
+When testing actions with unconstrained map inputs or outputs, follow these specific patterns:
+
+### Valid Patterns (shouldPass/)
+```typescript
+// Test unconstrained map input - any structure allowed
+const result = await processRawData({
+  input: {
+    rawData: {
+      user_name: "john",        // snake_case preserved
+      created_at: "2024-01-01", // No camelCase conversion
+      nested_data: { arbitrary: "structure" },
+      arrays: [1, 2, 3],
+      booleans: true
+    } as Record<string, any>
+  }
+  // Note: no fields parameter for unconstrained outputs
+});
+
+// Verify result structure - result.data is Record<string, any>
+if (result.success) {
+  // Field names should be preserved as-is from Elixir
+  const userData = result.data.user_name;  // snake_case access
+  const createdAt = result.data.created_at;
+}
+```
+
+### Testing Guidelines for Unconstrained Maps
+
+1. **Input Validation**: Test with various arbitrary map structures
+   - Nested objects with mixed field name conventions
+   - Arrays, primitives, and complex structures
+   - Snake_case and camelCase field names
+
+2. **Output Validation**: Verify entire map is returned
+   - No field selection processing applied
+   - Original field names preserved from Elixir
+   - Complete data structure returned
+
+3. **Type Safety**: Ensure TypeScript compilation
+   - `Record<string, any>` types used for unconstrained maps
+   - No type errors for arbitrary structures
+   - Proper function signature (no fields parameter for outputs)
+
+4. **Field Name Preservation**: Critical test case
+   - Input: snake_case field names passed through unchanged
+   - Output: Elixir field names returned without camelCase conversion
+
+### Elixir Test Patterns
+
+```elixir
+# Test unconstrained input processing
+test "unconstrained map input bypasses field formatting" do
+  params = %{
+    "resource" => "DataProcessor",
+    "action" => "process_raw_data",
+    "input" => %{
+      "raw_data" => %{
+        "user_name" => "john",      # snake_case preserved
+        "created_at" => "2024-01-01",
+        "nested_data" => %{"custom_field" => "value"}
+      }
+    }
+  }
+
+  {:ok, request} = Pipeline.parse_request(:my_app, %{}, params)
+
+  # Verify field names are not formatted
+  assert request.input.raw_data["user_name"] == "john"
+  assert request.input.raw_data["created_at"] == "2024-01-01"
+end
+
+# Test unconstrained output processing
+test "unconstrained map output bypasses field selection" do
+  # Action that returns unconstrained map
+  params = %{
+    "resource" => "DataProcessor",
+    "action" => "get_raw_data"
+    # Note: no fields parameter
+  }
+
+  result = AshTypescript.Rpc.run_action(:my_app, %{}, params)
+
+  # Verify entire result is returned with original field names
+  assert result["success"] == true
+  assert Map.has_key?(result["data"], "user_name")  # snake_case preserved
+end
+```
+
 ## Final Validation Checklist
 
 - [ ] `mix test` - All Elixir tests pass

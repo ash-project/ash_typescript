@@ -630,6 +630,33 @@ config :ash_typescript, generate_zod_schemas: true
 
 Generates validation schemas for inputs and filters.
 
+### Unconstrained Map Handling
+Actions that accept or return unconstrained maps (maps without specific constraints) bypass standard field formatting:
+
+**Input Maps**: When an action input is an unconstrained map, the entire map is passed through as-is to the action.
+
+**Output Maps**: When an action returns an unconstrained map, the `fields` parameter is removed from the generated function signature and the entire map is returned without field selection processing.
+
+```typescript
+// Action with unconstrained map input
+const result = await processData({
+  input: {
+    // Any arbitrary map structure allowed
+    customKey: "value",
+    nestedData: { foo: "bar" },
+    arrayData: [1, 2, 3]
+  }
+  // Note: fields parameter may be omitted for unconstrained outputs
+});
+
+// Action with unconstrained map output - entire map returned
+const rawData = await getRawData({
+  // No fields parameter - entire map returned
+});
+```
+
+This allows maximum flexibility for actions that work with dynamic or unstructured data while maintaining type safety for structured resources.
+
 ## Troubleshooting
 
 | Error | Cause | Solution |
