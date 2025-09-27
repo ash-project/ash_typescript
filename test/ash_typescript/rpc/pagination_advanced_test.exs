@@ -302,7 +302,8 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
           "page" => %{
             "limit" => 5,
             "offset" => 0
-          }
+          },
+          "sort" => "title"
         })
 
       assert result["success"] == true
