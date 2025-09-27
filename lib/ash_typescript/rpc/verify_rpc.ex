@@ -17,11 +17,20 @@ defmodule AshTypescript.Rpc.VerifyRpc do
                                        typed_queries: typed_queries
                                      },
                                      acc ->
-          with :ok <- verify_rpc_actions(resource, rpc_actions),
+          with true <- AshTypescript.Resource.Info.typescript_resource?(resource),
+               :ok <- verify_rpc_actions(resource, rpc_actions),
                :ok <- verify_typed_queries(resource, typed_queries) do
             {:cont, acc}
           else
-            error -> {:halt, error}
+            false ->
+              resource = resource |> to_string() |> String.trim("Elixir.")
+
+              {:halt,
+               {:error,
+                "#{resource} has rpc actions or typed queries, but is not using the AshTypescript.Resource extension"}}
+
+            error ->
+              {:halt, error}
           end
         end)
 
