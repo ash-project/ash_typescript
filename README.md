@@ -167,6 +167,105 @@ Check out this **[example repo](https://github.com/ChristianAlexander/ash_typesc
 - TanStack Query for data fetching
 - TanStack Table for data display
 
+## 🚨 Breaking Changes
+
+### Resource Extension Requirement (Security Enhancement)
+
+**Important**: All resources that should be accessible through the TypeScript RPC layer must now explicitly use the `AshTypescript.Resource` extension.
+
+#### What Changed
+
+The TypeScript RPC layer now requires the `AshTypescript.Resource` extension for:
+
+1. **Resources with RPC actions** - Resources that have `rpc_action` definitions in your domain
+2. **Resources accessed through relationships** - Resources accessed via relationship field selection in RPC calls
+
+This prevents accidental exposure of internal resources through the TypeScript RPC interface.
+
+#### Why This Change
+
+This security enhancement ensures that only resources that should be accessible through the TypeScript RPC layer are available, requiring explicit opt-in for resource exposure and preventing unintended data access.
+
+#### Migration Required
+
+**Before**: Resources were accessible without explicit configuration
+```elixir
+# This resource was previously accessible via RPC
+defmodule MyApp.Todo do
+  use Ash.Resource, domain: MyApp.Domain
+  # No AshTypescript.Resource extension required
+end
+
+defmodule MyApp.User do
+  use Ash.Resource, domain: MyApp.Domain
+  # No extension, but accessible via Todo's user relationship
+end
+```
+
+**After**: Resources must explicitly opt-in to RPC access
+```elixir
+# Now required: Add extension for resources with RPC actions
+defmodule MyApp.Todo do
+  use Ash.Resource,
+    domain: MyApp.Domain,
+    extensions: [AshTypescript.Resource]  # ← Required for RPC actions
+
+  typescript do
+    type_name "Todo"
+  end
+end
+
+# Now required: Add extension for resources accessed via relationships
+defmodule MyApp.User do
+  use Ash.Resource,
+    domain: MyApp.Domain,
+    extensions: [AshTypescript.Resource]  # ← Required for relationship access
+
+  typescript do
+    type_name "User"
+  end
+end
+```
+
+#### Error Symptoms
+
+You may see errors like:
+```
+Unknown field 'relationshipName' for resource MyApp.SomeResource
+```
+
+#### Migration Steps
+
+For each resource that should be accessible via RPC:
+
+1. **Add the extension**:
+   ```elixir
+   use Ash.Resource,
+     domain: MyApp.Domain,
+     extensions: [AshTypescript.Resource]  # Add this line
+   ```
+
+2. **Configure the TypeScript type**:
+   ```elixir
+   typescript do
+     type_name "YourResourceName"  # Choose appropriate name
+   end
+   ```
+
+3. **Regenerate types**:
+   ```bash
+   mix ash.codegen --dev
+   ```
+
+#### Resources That Need the Extension
+
+- ✅ **Resources with RPC actions** in your domain configuration
+- ✅ **Resources accessed through relationships** in RPC field selection
+- ❌ **Internal resources** not meant for frontend access
+- ❌ **System resources** (audit logs, internal settings, etc.)
+
+This change makes your API more secure by requiring explicit opt-in for all RPC resource access.
+
 ## ✨ Features
 
 - **🔥 Zero-config TypeScript generation** - Automatically generates types from Ash resources
