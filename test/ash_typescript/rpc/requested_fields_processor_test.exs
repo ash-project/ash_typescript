@@ -377,4 +377,38 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
              ]
     end
   end
+
+  describe "relationship access restrictions" do
+    test "rejects relationships to resources without AshTypescript.Resource extension" do
+      # Try to access :not_exposed_items relationship which points to AshTypescript.Test.NotExposed
+      # that doesn't have the AshTypescript.Resource extension
+      {:error, error} =
+        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
+          :id,
+          :title,
+          %{
+            not_exposed_items: [:id, :name]
+          }
+        ])
+
+      assert error ==
+               {:unknown_field, :not_exposed_items, AshTypescript.Test.Todo, "notExposedItems"}
+    end
+
+    test "allows relationships to resources with AshTypescript.Resource extension" do
+      # Verify that normal relationships to resources with the extension still work
+      {:ok, {select, load, extraction_template}} =
+        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
+          :id,
+          :title,
+          %{
+            comments: [:id, :content]
+          }
+        ])
+
+      assert select == [:id, :title]
+      assert load == [{:comments, [:id, :content]}]
+      assert extraction_template == [:id, :title, {:comments, [:id, :content]}]
+    end
+  end
 end

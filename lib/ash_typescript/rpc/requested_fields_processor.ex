@@ -650,7 +650,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
     relationship = Ash.Resource.Info.relationship(resource, rel_name)
     dest_resource = relationship && relationship.destination
 
-    if dest_resource do
+    if dest_resource && AshTypescript.Resource.Info.typescript_resource?(dest_resource) do
       process_nested_resource_fields(
         dest_resource,
         rel_name,

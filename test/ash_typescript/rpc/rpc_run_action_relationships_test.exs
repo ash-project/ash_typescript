@@ -837,4 +837,79 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       end)
     end
   end
+
+  describe "relationship access restrictions" do
+    setup do
+      conn = TestHelpers.build_rpc_conn()
+
+      # Create a user for testing
+      %{"success" => true, "data" => user} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_user",
+          "input" => %{
+            "name" => "Security Test User",
+            "email" => "security@example.com"
+          },
+          "fields" => ["id", "name", "email"]
+        })
+
+      # Create a todo
+      %{"success" => true, "data" => todo} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_todo",
+          "input" => %{
+            "title" => "Security Test Todo",
+            "description" => "A todo for security testing",
+            "userId" => user["id"],
+            "autoComplete" => false
+          },
+          "fields" => ["id", "title"]
+        })
+
+      {:ok, conn: conn, user: user, todo: todo}
+    end
+
+    test "rejects RPC action with fields accessing restricted relationships", %{
+      conn: conn,
+      todo: todo
+    } do
+      # Try to access :not_exposed_items relationship through RPC
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_todo",
+          "input" => %{"id" => todo["id"]},
+          "fields" => [
+            "id",
+            "title",
+            %{"notExposedItems" => ["id", "name"]}
+          ]
+        })
+
+      assert result["success"] == false
+      error = List.first(result["errors"])
+      assert error["type"] == "unknown_field"
+      assert error["details"]["field"] == "notExposedItems"
+    end
+
+    test "allows RPC action with fields accessing allowed relationships", %{
+      conn: conn,
+      todo: todo
+    } do
+      # Verify that normal relationships still work
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_todo",
+          "input" => %{"id" => todo["id"]},
+          "fields" => [
+            "id",
+            "title",
+            %{"user" => ["id", "name"]}
+          ]
+        })
+
+      assert result["success"] == true
+      assert Map.has_key?(result["data"], "user")
+      assert result["data"]["user"]["name"] == "Security Test User"
+    end
+  end
 end
