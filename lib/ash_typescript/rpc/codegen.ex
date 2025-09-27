@@ -184,6 +184,30 @@ defmodule AshTypescript.Rpc.Codegen do
       ? I
       : never;
 
+    // Helper type to infer union field values, avoiding duplication between array and non-array unions
+    type InferUnionFieldValue<
+      UnionSchema extends { __type: "Union"; __primitiveFields: any },
+      FieldSelection extends any[],
+    > = UnionToIntersection<
+      {
+        [FieldIndex in keyof FieldSelection]: FieldSelection[FieldIndex] extends UnionSchema["__primitiveFields"]
+          ? FieldSelection[FieldIndex] extends keyof UnionSchema
+            ? { [P in FieldSelection[FieldIndex]]: UnionSchema[FieldSelection[FieldIndex]] }
+            : never
+          : FieldSelection[FieldIndex] extends Record<string, any>
+            ? {
+                [UnionKey in keyof FieldSelection[FieldIndex]]: UnionKey extends keyof UnionSchema
+                  ? UnionSchema[UnionKey] extends { __type: "TypedMap"; __primitiveFields: any }
+                    ? UnionSchema[UnionKey]
+                    : UnionSchema[UnionKey] extends TypedSchema
+                      ? InferResult<UnionSchema[UnionKey], FieldSelection[FieldIndex][UnionKey]>
+                      : never
+                  : never;
+              }
+            : never;
+      }[number]
+    >;
+
     type HasComplexFields<T extends TypedSchema> = keyof Omit<
       T,
       "__primitiveFields" | "__type" | T["__primitiveFields"]
@@ -220,9 +244,25 @@ defmodule AshTypescript.Rpc.Codegen do
             : NonNullable<ReturnType> extends TypedSchema
               ? { #{formatted_fields_field()}: UnifiedFieldSelection<NonNullable<ReturnType>>[] }
               : never
-          : NonNullable<T[K]> extends TypedSchema
-            ? UnifiedFieldSelection<NonNullable<T[K]>>[]
-            : never;
+          : T[K] extends { __type: "Union"; __primitiveFields: infer PrimitiveFields }
+            ? T[K] extends { __array: true }
+              ? (PrimitiveFields | {
+                  [UnionKey in keyof Omit<T[K], "__type" | "__primitiveFields" | "__array">]?: T[K][UnionKey] extends { __type: "TypedMap"; __primitiveFields: any }
+                    ? T[K][UnionKey]["__primitiveFields"][]
+                    : T[K][UnionKey] extends TypedSchema
+                      ? UnifiedFieldSelection<T[K][UnionKey]>[]
+                      : never;
+                })[]
+              : (PrimitiveFields | {
+                  [UnionKey in keyof Omit<T[K], "__type" | "__primitiveFields">]?: T[K][UnionKey] extends { __type: "TypedMap"; __primitiveFields: any }
+                    ? T[K][UnionKey]["__primitiveFields"][]
+                    : T[K][UnionKey] extends TypedSchema
+                      ? UnifiedFieldSelection<T[K][UnionKey]>[]
+                      : never;
+                })[]
+              : NonNullable<T[K]> extends TypedSchema
+                ? UnifiedFieldSelection<NonNullable<T[K]>>[]
+                : never;
     };
 
     // Main type: Use explicit base case detection to prevent infinite recursion
@@ -261,11 +301,27 @@ defmodule AshTypescript.Rpc.Codegen do
                     ? InferResult<NonNullable<ReturnType>, Field[K]["fields"]> | null
                     : InferResult<NonNullable<ReturnType>, Field[K]["fields"]>
                   : ReturnType
-                : NonNullable<T[K]> extends TypedSchema
-                  ? null extends T[K]
-                    ? InferResult<NonNullable<T[K]>, Field[K]> | null
-                    : InferResult<NonNullable<T[K]>, Field[K]>
-                  : never
+                : T[K] extends { __type: "Union"; __primitiveFields: infer PrimitiveFields }
+                  ? T[K] extends { __array: true }
+                    ? {
+                        [CurrentK in K]: T[CurrentK] extends { __type: "Union"; __primitiveFields: any }
+                          ? Field[CurrentK] extends any[]
+                            ? Array<InferUnionFieldValue<T[CurrentK], Field[CurrentK]>> | null
+                            : never
+                          : never
+                      }
+                    : {
+                        [CurrentK in K]: T[CurrentK] extends { __type: "Union"; __primitiveFields: any }
+                          ? Field[CurrentK] extends any[]
+                            ? InferUnionFieldValue<T[CurrentK], Field[CurrentK]> | null
+                            : never
+                          : never
+                      }
+                    : NonNullable<T[K]> extends TypedSchema
+                      ? null extends T[K]
+                        ? InferResult<NonNullable<T[K]>, Field[K]> | null
+                        : InferResult<NonNullable<T[K]>, Field[K]>
+                      : never
               : never;
           }
         : never;

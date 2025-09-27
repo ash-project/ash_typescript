@@ -1,11 +1,7 @@
 // Union Types Tests - shouldPass
 // Tests for union field selection and validation using current field syntax
 
-import {
-  getTodo,
-  createTodo,
-  updateTodo,
-} from "../generated";
+import { getTodo, createTodo, updateTodo } from "../generated";
 
 // Test 1: Basic union field selection - primitive members only
 export const todoWithPrimitiveUnion = await getTodo({
@@ -26,13 +22,20 @@ if (todoWithPrimitiveUnion.success && todoWithPrimitiveUnion.data) {
 
   if (todoWithPrimitiveUnion.data.content) {
     // Test note field (string primitive)
-    if ("note" in todoWithPrimitiveUnion.data.content && todoWithPrimitiveUnion.data.content.note) {
+    if (
+      "note" in todoWithPrimitiveUnion.data.content &&
+      todoWithPrimitiveUnion.data.content.note
+    ) {
       const noteValue: string = todoWithPrimitiveUnion.data.content.note;
     }
 
     // Test priorityValue field (number primitive)
-    if ("priorityValue" in todoWithPrimitiveUnion.data.content && todoWithPrimitiveUnion.data.content.priorityValue) {
-      const priorityValue: number = todoWithPrimitiveUnion.data.content.priorityValue;
+    if (
+      "priorityValue" in todoWithPrimitiveUnion.data.content &&
+      todoWithPrimitiveUnion.data.content.priorityValue
+    ) {
+      const priorityValue: number =
+        todoWithPrimitiveUnion.data.content.priorityValue;
     }
   }
 }
@@ -60,11 +63,16 @@ if (todoWithComplexUnion.success && todoWithComplexUnion.data) {
 
   if (todoWithComplexUnion.data.content) {
     // Test text content (complex embedded resource)
-    if ("text" in todoWithComplexUnion.data.content && todoWithComplexUnion.data.content.text) {
+    if (
+      "text" in todoWithComplexUnion.data.content &&
+      todoWithComplexUnion.data.content.text
+    ) {
       const textId: string = todoWithComplexUnion.data.content.text.id;
       const textContent: string = todoWithComplexUnion.data.content.text.text;
-      const wordCount: number | null | undefined = todoWithComplexUnion.data.content.text.wordCount;
-      const formatting: string | null | undefined = todoWithComplexUnion.data.content.text.formatting;
+      const wordCount: number | null | undefined =
+        todoWithComplexUnion.data.content.text.wordCount;
+      const formatting: string | null | undefined =
+        todoWithComplexUnion.data.content.text.formatting;
     }
   }
 }
@@ -94,20 +102,31 @@ if (todoWithMixedUnion.success && todoWithMixedUnion.data) {
 
   if (todoWithMixedUnion.data.content) {
     // Test primitive note field
-    if ("note" in todoWithMixedUnion.data.content && todoWithMixedUnion.data.content.note) {
+    if (
+      "note" in todoWithMixedUnion.data.content &&
+      todoWithMixedUnion.data.content.note
+    ) {
       const noteValue: string = todoWithMixedUnion.data.content.note;
     }
 
     // Test complex text field with selected fields only
-    if ("text" in todoWithMixedUnion.data.content && todoWithMixedUnion.data.content.text) {
+    if (
+      "text" in todoWithMixedUnion.data.content &&
+      todoWithMixedUnion.data.content.text
+    ) {
       const textContent: string = todoWithMixedUnion.data.content.text.text;
-      const wordCount: number | null | undefined = todoWithMixedUnion.data.content.text.wordCount;
+      const wordCount: number | null | undefined =
+        todoWithMixedUnion.data.content.text.wordCount;
       // formatting field should NOT be available since it wasn't selected
     }
 
     // Test primitive priorityValue field
-    if ("priorityValue" in todoWithMixedUnion.data.content && todoWithMixedUnion.data.content.priorityValue) {
-      const priorityValue: number = todoWithMixedUnion.data.content.priorityValue;
+    if (
+      "priorityValue" in todoWithMixedUnion.data.content &&
+      todoWithMixedUnion.data.content.priorityValue
+    ) {
+      const priorityValue: number =
+        todoWithMixedUnion.data.content.priorityValue;
     }
   }
 }
@@ -145,10 +164,15 @@ if (createTodoWithTextContent.success && createTodoWithTextContent.data) {
   const createdTitle: string = createTodoWithTextContent.data.title;
 
   if (createTodoWithTextContent.data.content) {
-    if ("text" in createTodoWithTextContent.data.content && createTodoWithTextContent.data.content.text) {
+    if (
+      "text" in createTodoWithTextContent.data.content &&
+      createTodoWithTextContent.data.content.text
+    ) {
       const textId: string = createTodoWithTextContent.data.content.text.id;
-      const textContent: string = createTodoWithTextContent.data.content.text.text;
-      const wordCount: number | null | undefined = createTodoWithTextContent.data.content.text.wordCount;
+      const textContent: string =
+        createTodoWithTextContent.data.content.text.text;
+      const wordCount: number | null | undefined =
+        createTodoWithTextContent.data.content.text.wordCount;
       // formatting should NOT be available since it wasn't selected
     }
   }
@@ -192,15 +216,23 @@ export const createTodoWithChecklistContent = await createTodo({
 });
 
 // Validate created todo with checklist content
-if (createTodoWithChecklistContent.success && createTodoWithChecklistContent.data) {
+if (
+  createTodoWithChecklistContent.success &&
+  createTodoWithChecklistContent.data
+) {
   const createdId: string = createTodoWithChecklistContent.data.id;
   const createdTitle: string = createTodoWithChecklistContent.data.title;
 
   if (createTodoWithChecklistContent.data.content) {
-    if ("checklist" in createTodoWithChecklistContent.data.content && createTodoWithChecklistContent.data.content.checklist) {
-      const checklistTitle: string = createTodoWithChecklistContent.data.content.checklist.title;
+    if (
+      "checklist" in createTodoWithChecklistContent.data.content &&
+      createTodoWithChecklistContent.data.content.checklist
+    ) {
+      const checklistTitle: string =
+        createTodoWithChecklistContent.data.content.checklist.title;
       const items = createTodoWithChecklistContent.data.content.checklist.items;
-      const completedCount: number | null | undefined = createTodoWithChecklistContent.data.content.checklist.completedCount;
+      const completedCount: number | null | undefined =
+        createTodoWithChecklistContent.data.content.checklist.completedCount;
 
       if (items && items.length > 0) {
         const firstItem = items[0];
@@ -231,13 +263,20 @@ export const createTodoWithPrimitiveContent = await createTodo({
 });
 
 // Validate created todo with primitive content
-if (createTodoWithPrimitiveContent.success && createTodoWithPrimitiveContent.data) {
+if (
+  createTodoWithPrimitiveContent.success &&
+  createTodoWithPrimitiveContent.data
+) {
   const createdId: string = createTodoWithPrimitiveContent.data.id;
   const createdTitle: string = createTodoWithPrimitiveContent.data.title;
 
   if (createTodoWithPrimitiveContent.data.content) {
-    if ("note" in createTodoWithPrimitiveContent.data.content && createTodoWithPrimitiveContent.data.content.note) {
-      const noteContent: string = createTodoWithPrimitiveContent.data.content.note;
+    if (
+      "note" in createTodoWithPrimitiveContent.data.content &&
+      createTodoWithPrimitiveContent.data.content.note
+    ) {
+      const noteContent: string =
+        createTodoWithPrimitiveContent.data.content.note;
     }
   }
 }
@@ -264,19 +303,32 @@ if (todoWithAttachments.success && todoWithAttachments.data) {
   const todoId: string = todoWithAttachments.data.id;
   const todoTitle: string = todoWithAttachments.data.title;
 
-  if (todoWithAttachments.data.attachments && Array.isArray(todoWithAttachments.data.attachments)) {
+  if (
+    todoWithAttachments.data.attachments &&
+    Array.isArray(todoWithAttachments.data.attachments)
+  ) {
     const attachments = todoWithAttachments.data.attachments;
-    
+
     for (const attachment of attachments) {
       // Test file attachment (complex union member)
-      if (attachment && typeof attachment === 'object' && "file" in attachment && attachment.file) {
+      if (
+        attachment &&
+        typeof attachment === "object" &&
+        "file" in attachment &&
+        attachment.file
+      ) {
         const filename: string = attachment.file.filename;
         const size: number | null | undefined = attachment.file.size;
         const mimeType: string | null | undefined = attachment.file.mimeType;
       }
-      
+
       // Test URL attachment (primitive union member)
-      if (attachment && typeof attachment === 'object' && "url" in attachment && attachment.url) {
+      if (
+        attachment &&
+        typeof attachment === "object" &&
+        "url" in attachment &&
+        attachment.url
+      ) {
         const urlValue: string = attachment.url;
       }
     }
@@ -323,24 +375,40 @@ if (todoWithUnionCalculation.success && todoWithUnionCalculation.data) {
 
   // Top-level union content
   if (todoWithUnionCalculation.data.content) {
-    if ("text" in todoWithUnionCalculation.data.content && todoWithUnionCalculation.data.content.text) {
-      const textContent: string = todoWithUnionCalculation.data.content.text.text;
-      const wordCount: number | null | undefined = todoWithUnionCalculation.data.content.text.wordCount;
+    if (
+      "text" in todoWithUnionCalculation.data.content &&
+      todoWithUnionCalculation.data.content.text
+    ) {
+      const textContent: string =
+        todoWithUnionCalculation.data.content.text.text;
+      const wordCount: number | null | undefined =
+        todoWithUnionCalculation.data.content.text.wordCount;
     }
-    
-    if ("note" in todoWithUnionCalculation.data.content && todoWithUnionCalculation.data.content.note) {
+
+    if (
+      "note" in todoWithUnionCalculation.data.content &&
+      todoWithUnionCalculation.data.content.note
+    ) {
       const noteContent: string = todoWithUnionCalculation.data.content.note;
     }
   }
 
   // Calculation-level union content
   if (todoWithUnionCalculation.data.self?.content) {
-    if ("text" in todoWithUnionCalculation.data.self.content && todoWithUnionCalculation.data.self.content.text) {
-      const calcTextContent: string = todoWithUnionCalculation.data.self.content.text.text;
+    if (
+      "text" in todoWithUnionCalculation.data.self.content &&
+      todoWithUnionCalculation.data.self.content.text
+    ) {
+      const calcTextContent: string =
+        todoWithUnionCalculation.data.self.content.text.text;
     }
-    
-    if ("priorityValue" in todoWithUnionCalculation.data.self.content && todoWithUnionCalculation.data.self.content.priorityValue) {
-      const calcPriorityValue: number = todoWithUnionCalculation.data.self.content.priorityValue;
+
+    if (
+      "priorityValue" in todoWithUnionCalculation.data.self.content &&
+      todoWithUnionCalculation.data.self.content.priorityValue
+    ) {
+      const calcPriorityValue: number =
+        todoWithUnionCalculation.data.self.content.priorityValue;
     }
   }
 }
@@ -369,11 +437,17 @@ if (updatedUnionTodo.success && updatedUnionTodo.data) {
   const updatedTitle: string = updatedUnionTodo.data.title;
 
   if (updatedUnionTodo.data.content) {
-    if ("priorityValue" in updatedUnionTodo.data.content && updatedUnionTodo.data.content.priorityValue !== undefined) {
+    if (
+      "priorityValue" in updatedUnionTodo.data.content &&
+      updatedUnionTodo.data.content.priorityValue !== undefined
+    ) {
       const priorityValue: number = updatedUnionTodo.data.content.priorityValue;
     }
-    
-    if ("note" in updatedUnionTodo.data.content && updatedUnionTodo.data.content.note !== undefined) {
+
+    if (
+      "note" in updatedUnionTodo.data.content &&
+      updatedUnionTodo.data.content.note !== undefined
+    ) {
       const noteContent: string = updatedUnionTodo.data.content.note;
     }
   }
@@ -408,22 +482,39 @@ if (todoWithNullableUnion.success && todoWithNullableUnion.data) {
   const todoTitle: string = todoWithNullableUnion.data.title;
 
   // Content might be null - should handle gracefully
-  if (todoWithNullableUnion.data.content === null || todoWithNullableUnion.data.content === undefined) {
+  if (
+    todoWithNullableUnion.data.content === null ||
+    todoWithNullableUnion.data.content === undefined
+  ) {
     // This should be valid - union types are nullable
   } else {
-    if ("text" in todoWithNullableUnion.data.content && todoWithNullableUnion.data.content.text) {
+    if (
+      "text" in todoWithNullableUnion.data.content &&
+      todoWithNullableUnion.data.content.text
+    ) {
       const textContent: string = todoWithNullableUnion.data.content.text.text;
     }
   }
 
   // Attachments might be null or empty array
-  if (todoWithNullableUnion.data.attachments === null || todoWithNullableUnion.data.attachments === undefined) {
+  if (
+    todoWithNullableUnion.data.attachments === null ||
+    todoWithNullableUnion.data.attachments === undefined
+  ) {
     // This should be valid - array union types are nullable
-  } else if (Array.isArray(todoWithNullableUnion.data.attachments) && todoWithNullableUnion.data.attachments.length === 0) {
+  } else if (
+    Array.isArray(todoWithNullableUnion.data.attachments) &&
+    todoWithNullableUnion.data.attachments.length === 0
+  ) {
     // Empty array should be valid
   } else if (Array.isArray(todoWithNullableUnion.data.attachments)) {
     for (const attachment of todoWithNullableUnion.data.attachments) {
-      if (attachment && typeof attachment === 'object' && "file" in attachment && attachment.file) {
+      if (
+        attachment &&
+        typeof attachment === "object" &&
+        "file" in attachment &&
+        attachment.file
+      ) {
         const filename: string = attachment.file.filename;
       }
     }

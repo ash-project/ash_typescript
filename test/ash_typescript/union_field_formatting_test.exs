@@ -60,7 +60,12 @@ defmodule AshTypescript.UnionFieldFormattingTest do
       # Verify union field names themselves are formatted correctly in schemas
       # The union schema should use PascalCase field names
       assert String.contains?(typescript_output, "Content: { __type: \"Union\"")
-      assert String.contains?(typescript_output, "Attachments: Array<{ __type: \"Union\"")
+
+      assert String.contains?(
+               typescript_output,
+               "Attachments: { __array: true;  __type: \"Union\""
+             )
+
       assert String.contains?(typescript_output, "StatusInfo: { __type: \"Union\"")
 
       # Test that we're NOT using hardcoded camelCase for union field names
@@ -96,12 +101,22 @@ defmodule AshTypescript.UnionFieldFormattingTest do
       # Verify union field names themselves are formatted correctly in schemas
       # The union schema should use camelCase field names
       assert String.contains?(typescript_output, "content: { __type: \"Union\"")
-      assert String.contains?(typescript_output, "attachments: Array<{ __type: \"Union\"")
+
+      assert String.contains?(
+               typescript_output,
+               "attachments: { __array: true;  __type: \"Union\""
+             )
+
       assert String.contains?(typescript_output, "statusInfo: { __type: \"Union\"")
 
       # Test that we're NOT using PascalCase for union field names
       refute String.contains?(typescript_output, "Content: { __type: \"Union\"")
-      refute String.contains?(typescript_output, "Attachments: Array<{ __type: \"Union\"")
+
+      refute String.contains?(
+               typescript_output,
+               "Attachments: { __array: true;  __type: \"Union\""
+             )
+
       refute String.contains?(typescript_output, "StatusInfo: { __type: \"Union\"")
     end
 
@@ -133,7 +148,12 @@ defmodule AshTypescript.UnionFieldFormattingTest do
       # Verify union field names themselves are formatted correctly in schemas
       # The union schema should use snake_case field names
       assert String.contains?(typescript_output, "content: { __type: \"Union\"")
-      assert String.contains?(typescript_output, "attachments: Array<{ __type: \"Union\"")
+
+      assert String.contains?(
+               typescript_output,
+               "attachments: { __array: true;  __type: \"Union\""
+             )
+
       assert String.contains?(typescript_output, "status_info: { __type: \"Union\"")
 
       # Test that we're NOT using camelCase or PascalCase for union field names

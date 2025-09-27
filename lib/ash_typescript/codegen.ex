@@ -726,11 +726,14 @@ defmodule AshTypescript.Codegen do
 
       union_metadata = generate_union_metadata(attr)
 
-      # Check if this is an array union and wrap accordingly
+      # Check if this is an array union and add __array: true
       final_type =
         case attr.type do
           {:array, Ash.Type.Union} ->
-            "Array<#{union_metadata}>"
+            # Extract the content of the union metadata and add __array: true
+            # Remove outer braces
+            union_content = String.slice(union_metadata, 1..-2//1)
+            "{ __array: true; #{union_content} }"
 
           _ ->
             union_metadata
