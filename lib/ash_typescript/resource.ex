@@ -18,5 +18,6 @@ defmodule AshTypescript.Resource do
   }
 
   use Spark.Dsl.Extension,
-    sections: [@typescript]
+    sections: [@typescript],
+    verifiers: [AshTypescript.Resource.VerifyUniqueTypeNames]
 end
