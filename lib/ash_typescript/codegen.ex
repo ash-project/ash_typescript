@@ -726,10 +726,19 @@ defmodule AshTypescript.Codegen do
 
       union_metadata = generate_union_metadata(attr)
 
+      # Check if this is an array union and wrap accordingly
+      final_type =
+        case attr.type do
+          {:array, Ash.Type.Union} ->
+            "Array<#{union_metadata}>"
+          _ ->
+            union_metadata
+        end
+
       if attr.allow_nil? do
-        "  #{formatted_name}: #{union_metadata} | null;"
+        "  #{formatted_name}: #{final_type} | null;"
       else
-        "  #{formatted_name}: #{union_metadata};"
+        "  #{formatted_name}: #{final_type};"
       end
     end)
   end
@@ -970,6 +979,15 @@ defmodule AshTypescript.Codegen do
 
           true ->
             get_ts_type(attr)
+        end
+
+      {:array, Ash.Type.Union} ->
+        constraints = Map.get(attr, :constraints, [])
+        items_constraints = Keyword.get(constraints, :items, [])
+
+        case Keyword.get(items_constraints, :types) do
+          nil -> "Array<any>"
+          types -> "Array<#{build_union_input_type(types)}>"
         end
 
       {:array, embedded_type} when is_atom(embedded_type) ->
