@@ -731,6 +731,7 @@ defmodule AshTypescript.Codegen do
         case attr.type do
           {:array, Ash.Type.Union} ->
             "Array<#{union_metadata}>"
+
           _ ->
             union_metadata
         end
