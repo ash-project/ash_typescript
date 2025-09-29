@@ -5,6 +5,35 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.4.0](https://github.com/ash-project/ash_typescript/compare/v0.3.3...v0.4.0) (2025-09-29)
+
+
+
+
+### Features:
+
+* Properly handle map without constraints, both as input and output. by [@Torkan](https://github.com/Torkan)
+
+### Bug Fixes:
+
+* Add verifier that checks that resources with rpc actions use by [@Torkan](https://github.com/Torkan)
+
+* reject loading of relationships for resources without AshTypescript.Resource extension. by [@Torkan](https://github.com/Torkan)
+
+* use __array: true for union types on resource schema by [@Torkan](https://github.com/Torkan)
+
+* generate correct types for array union attributes. by [@Torkan](https://github.com/Torkan)
+
+* For generic actions that return an untyped map, remove fields-arg by [@Torkan](https://github.com/Torkan)
+
+### Improvements:
+
+* add unique type_name verifier for AshTypescript.Resource by [@Torkan](https://github.com/Torkan)
+
+* remove redundant path-tracking & cleanup of code in formatters. by [@Torkan](https://github.com/Torkan)
+
+* remove redundant cast_input in color_palette.ex by [@Torkan](https://github.com/Torkan)
+
 ## v0.3.3 (2025-09-20)
 
 

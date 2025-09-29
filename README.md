@@ -45,7 +45,7 @@ Add to your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:ash_typescript, "~> 0.3.3"}
+    {:ash_typescript, "~> 0.4.0"}
   ]
 end
 ```
