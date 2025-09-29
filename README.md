@@ -20,8 +20,6 @@ Generate type-safe TypeScript clients directly from your Elixir Ash resources, e
 
 ### 1. Installation & Setup
 
-**Option A: Automatic Setup with Igniter (Recommended)**
-
 Add AshTypescript to your project and run the automated installer:
 
 ```bash
@@ -38,21 +36,25 @@ The installer automatically:
 - ✅ Creates RPC controller and routes
 - ✅ With `--framework react`: Sets up React + TypeScript environment, and a getting started guide
 
-**Option B: Manual Installation**
+### 2. Add AshTypescript.Resource extension to your resources
 
-Add to your `mix.exs`:
+All resources that should be accessible through the TypeScript RPC layer must explicitly use the `AshTypescript.Resource` extension:
 
 ```elixir
-def deps do
-  [
-    {:ash_typescript, "~> 0.4.0"}
-  ]
+defmodule MyApp.Todo do
+  use Ash.Resource,
+    domain: MyApp.Domain,
+    extensions: [AshTypescript.Resource]
+
+  typescript do
+    type_name "Todo"
+  end
+
+  # ... your attributes, relationships, and actions
 end
 ```
 
-### 2. Configure your domain
-
-**Note:** If you used the automatic installer (`mix igniter.install ash_typescript`), you can skip to step 5. The following steps are only needed for manual installation.
+### 3. Configure your domain
 
 ```elixir
 defmodule MyApp.Domain do
@@ -72,7 +74,7 @@ defmodule MyApp.Domain do
 end
 ```
 
-### 3. Set up Phoenix RPC controller
+### 4. Set up Phoenix RPC controller
 
 ```elixir
 defmodule MyAppWeb.RpcController do
@@ -94,7 +96,7 @@ defmodule MyAppWeb.RpcController do
 end
 ```
 
-### 4. Add RPC routes
+### 5. Add RPC routes
 
 Add these routes to your `router.ex` to map the RPC endpoints:
 
@@ -107,7 +109,7 @@ scope "/rpc", MyAppWeb do
 end
 ```
 
-### 5. Generate TypeScript types
+### 6. Generate TypeScript types
 
 **After using the installer or completing manual setup:**
 
@@ -121,7 +123,7 @@ mix ash.codegen --dev"
 mix ash_typescript.codegen --output "assets/js/ash_rpc.ts"
 ```
 
-### 6. Use in your frontend
+### 7. Use in your frontend
 
 ```typescript
 import { listTodos, createTodo } from './ash_rpc';
@@ -262,7 +264,6 @@ For each resource that should be accessible via RPC:
 - ✅ **Resources with RPC actions** in your domain configuration
 - ✅ **Resources accessed through relationships** in RPC field selection
 - ❌ **Internal resources** not meant for frontend access
-- ❌ **System resources** (audit logs, internal settings, etc.)
 
 This change makes your API more secure by requiring explicit opt-in for all RPC resource access.
 
