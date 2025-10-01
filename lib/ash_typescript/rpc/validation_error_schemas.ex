@@ -84,9 +84,11 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
       resource
       |> Ash.Resource.Info.public_attributes()
       |> Enum.map_join("\n", fn attr ->
+        mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr.name)
+
         formatted_name =
           AshTypescript.FieldFormatter.format_field(
-            attr.name,
+            mapped_name,
             AshTypescript.Rpc.output_field_formatter()
           )
 
@@ -209,9 +211,15 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
 
         if arguments != [] do
           Enum.map(arguments, fn arg ->
+            mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
+              resource,
+              action.name,
+              arg.name
+            )
+
             formatted_arg_name =
               AshTypescript.FieldFormatter.format_field(
-                arg.name,
+                mapped_name,
                 AshTypescript.Rpc.output_field_formatter()
               )
 
@@ -226,9 +234,11 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
             Enum.map(action.accept, fn field_name ->
               attr = Ash.Resource.Info.attribute(resource, field_name)
 
+              mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
+
               formatted_field_name =
                 AshTypescript.FieldFormatter.format_field(
-                  field_name,
+                  mapped_name,
                   AshTypescript.Rpc.output_field_formatter()
                 )
 
@@ -238,9 +248,15 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
 
           argument_field_defs =
             Enum.map(action.arguments, fn arg ->
+              mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
+                resource,
+                action.name,
+                arg.name
+              )
+
               formatted_arg_name =
                 AshTypescript.FieldFormatter.format_field(
-                  arg.name,
+                  mapped_name,
                   AshTypescript.Rpc.output_field_formatter()
                 )
 

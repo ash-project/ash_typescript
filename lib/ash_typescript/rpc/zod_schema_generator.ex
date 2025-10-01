@@ -192,9 +192,15 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
 
+                mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
+                  resource,
+                  action.name,
+                  arg.name
+                )
+
                 formatted_arg_name =
                   AshTypescript.FieldFormatter.format_field(
-                    arg.name,
+                    mapped_name,
                     AshTypescript.Rpc.output_field_formatter()
                   )
 
@@ -233,9 +239,15 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
                 Enum.map(arguments, fn arg ->
                   optional = arg.allow_nil? || arg.default != nil
 
+                  mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
+                    resource,
+                    action.name,
+                    arg.name
+                  )
+
                   formatted_arg_name =
                     AshTypescript.FieldFormatter.format_field(
-                      arg.name,
+                      mapped_name,
                       AshTypescript.Rpc.output_field_formatter()
                     )
 
@@ -273,9 +285,15 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
                 Enum.map(action.arguments, fn arg ->
                   optional = arg.allow_nil? || arg.default != nil
 
+                  mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
+                    resource,
+                    action.name,
+                    arg.name
+                  )
+
                   formatted_arg_name =
                     AshTypescript.FieldFormatter.format_field(
-                      arg.name,
+                      mapped_name,
                       AshTypescript.Rpc.output_field_formatter()
                     )
 
@@ -297,9 +315,15 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
 
+                mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
+                  resource,
+                  action.name,
+                  arg.name
+                )
+
                 formatted_arg_name =
                   AshTypescript.FieldFormatter.format_field(
-                    arg.name,
+                    mapped_name,
                     AshTypescript.Rpc.output_field_formatter()
                   )
 

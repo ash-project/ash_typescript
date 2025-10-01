@@ -9,6 +9,7 @@ defmodule AshTypescript.Test.TodoStatistics do
     field(:edit_count, :integer, default: 0)
     field(:completion_time_seconds, :integer)
     field(:difficulty_rating, :float)
+    field(:all_completed?, :boolean)
 
     # Composite type field - map with constrained fields for performance metrics
     field(:performance_metrics, :map,

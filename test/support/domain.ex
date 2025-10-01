@@ -55,11 +55,15 @@ defmodule AshTypescript.Test.Domain do
 
     resource AshTypescript.Test.User do
       rpc_action :list_users, :read
+      rpc_action :read_with_invalid_arg, :read_with_invalid_arg
+      rpc_action :get_by_id, :get_by_id
       rpc_action :create_user, :create
       rpc_action :update_user, :update
       rpc_action :destroy_user, :destroy
 
-      typed_query :list_with_invalid_arg, :read_with_invalid_arg do
+      typed_query :list_users_with_invalid_arg, :read_with_invalid_arg do
+        ts_fields_const_name "ListUsersWithInvalidArg"
+        ts_result_type_name "ListUsersWithInvalidArgResult"
         fields [:id, :email]
       end
     end

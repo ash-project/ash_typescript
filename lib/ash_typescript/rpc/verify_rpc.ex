@@ -252,7 +252,14 @@ defmodule AshTypescript.Rpc.VerifyRpc do
 
               accept_list ->
                 accept_list
-                |> Enum.filter(&invalid_name?(&1))
+                |> Enum.filter(fn attr_name ->
+                  # Check if the mapped name is still invalid
+                  mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(
+                    resource,
+                    attr_name
+                  )
+                  invalid_name?(mapped_name)
+                end)
                 |> Enum.map(fn attr_name ->
                   {rpc_action.name, rpc_action.action, :accepted_attribute, attr_name,
                    make_name_better(attr_name)}

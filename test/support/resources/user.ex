@@ -68,12 +68,16 @@ defmodule AshTypescript.Test.User do
       argument :is_active?, :boolean
     end
 
+    read :get_by_id do
+      get_by :id
+    end
+
     create :create do
-      accept [:email, :name, :is_super_admin]
+      accept [:email, :name, :is_super_admin, :address_line_1]
     end
 
     update :update do
-      accept [:name, :is_super_admin]
+      accept [:name, :is_super_admin, :address_line_1]
     end
 
     destroy :destroy do

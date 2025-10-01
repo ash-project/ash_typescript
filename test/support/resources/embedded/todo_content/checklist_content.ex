@@ -8,7 +8,8 @@ defmodule AshTypescript.Test.TodoContent.ChecklistContent do
     extensions: [AshTypescript.Resource]
 
   typescript do
-    type_name("TodoContentChecklist")
+    type_name "TodoContentChecklist"
+    field_names is_active?: :is_active
   end
 
   attributes do
@@ -28,6 +29,8 @@ defmodule AshTypescript.Test.TodoContent.ChecklistContent do
           ]
         ]
       ]
+
+    attribute :is_active?, :boolean, public?: true, default: true
 
     attribute :allow_reordering, :boolean, public?: true, default: true
     attribute :content_type, :string, public?: true, default: "checklist"
@@ -51,6 +54,10 @@ defmodule AshTypescript.Test.TodoContent.ChecklistContent do
 
   actions do
     defaults [:read, :update, :destroy]
+
+    read :read_with_arg do
+      argument :is_active?, :boolean
+    end
 
     create :create do
       primary? true

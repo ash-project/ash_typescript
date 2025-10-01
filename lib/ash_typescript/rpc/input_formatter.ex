@@ -59,10 +59,46 @@ defmodule AshTypescript.Rpc.InputFormatter do
   defp format_map(map, resource, action_name, formatter) do
     Enum.into(map, %{}, fn {key, value} ->
       internal_key = FieldFormatter.parse_input_field(key, formatter)
-      {type, constraints} = get_input_field_type(resource, action_name, internal_key)
+
+      # Apply reverse mapping to get the original field/argument name
+      original_key = get_original_field_or_argument_name(resource, action_name, internal_key)
+
+      {type, constraints} = get_input_field_type(resource, action_name, original_key)
       formatted_value = format_value(value, type, constraints, resource, formatter)
-      {internal_key, formatted_value}
+      {original_key, formatted_value}
     end)
+  end
+
+  defp get_original_field_or_argument_name(resource, action_name, mapped_key) do
+    # First check if it's an argument
+    action = Ash.Resource.Info.action(resource, action_name)
+
+    if action do
+      # Check if this is an argument that has a mapping
+      original_arg_name = AshTypescript.Resource.Info.get_original_argument_name(
+        resource,
+        action_name,
+        mapped_key
+      )
+
+      # If we found a different name in arguments, use that
+      if original_arg_name != mapped_key &&
+         Enum.any?(action.arguments, &(&1.name == original_arg_name)) do
+        original_arg_name
+      else
+        # Otherwise check if it's an accepted field with a mapping
+        accept_list = Map.get(action, :accept, [])
+        if accept_list != [] && mapped_key in accept_list do
+          AshTypescript.Resource.Info.get_original_field_name(resource, mapped_key)
+        else
+          # Not in accept list, check if it's still a field that needs mapping
+          AshTypescript.Resource.Info.get_original_field_name(resource, mapped_key)
+        end
+      end
+    else
+      # No action found, default to field mapping
+      AshTypescript.Resource.Info.get_original_field_name(resource, mapped_key)
+    end
   end
 
   defp format_value(data, type, constraints, resource, formatter) do
@@ -190,7 +226,11 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
       Enum.into(data, %{}, fn {key, value} ->
         internal_key = FieldFormatter.parse_input_field(key, formatter)
-        field_spec = find_field_spec(field_specs, internal_key)
+
+        # For nested structures, we still need to check if there's a field mapping
+        original_key = AshTypescript.Resource.Info.get_original_field_name(resource, internal_key)
+
+        field_spec = find_field_spec(field_specs, original_key) || find_field_spec(field_specs, internal_key)
 
         formatted_value =
           case field_spec do
@@ -204,8 +244,8 @@ defmodule AshTypescript.Rpc.InputFormatter do
               format_value(value, field_type, field_constraints, resource, formatter)
           end
 
-        # Return internal key for input processing
-        {internal_key, formatted_value}
+        # Return original key for input processing
+        {original_key, formatted_value}
       end)
     else
       data
@@ -254,7 +294,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
   end
 
   defp format_tagged_union_map(map, tag_field, formatter) do
-    # Find and convert client tag field to internal format
+    # Find and convert client tag field to internal format, then to original format
     Enum.find_value(map, fn {client_key, tag_value} ->
       internal_key = FieldFormatter.parse_input_field(client_key, formatter)
 

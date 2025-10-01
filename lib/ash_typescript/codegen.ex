@@ -532,9 +532,11 @@ defmodule AshTypescript.Codegen do
 
     attr_defs =
       Enum.map(primitive_attrs, fn attr ->
+        mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr.name)
+
         formatted_name =
           AshTypescript.FieldFormatter.format_field(
-            attr.name,
+            mapped_name,
             AshTypescript.Rpc.output_field_formatter()
           )
 
@@ -549,9 +551,11 @@ defmodule AshTypescript.Codegen do
 
     calc_defs =
       Enum.map(simple_calcs, fn calc ->
+        mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, calc.name)
+
         formatted_name =
           AshTypescript.FieldFormatter.format_field(
-            calc.name,
+            mapped_name,
             AshTypescript.Rpc.output_field_formatter()
           )
 
@@ -566,9 +570,11 @@ defmodule AshTypescript.Codegen do
 
     agg_defs =
       Enum.map(aggregates, fn agg ->
+        mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, agg.name)
+
         formatted_name =
           AshTypescript.FieldFormatter.format_field(
-            agg.name,
+            mapped_name,
             AshTypescript.Rpc.output_field_formatter()
           )
 
@@ -606,9 +612,11 @@ defmodule AshTypescript.Codegen do
       Enum.member?(allowed_resources, rel.destination)
     end)
     |> Enum.map(fn rel ->
+      mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, rel.name)
+
       formatted_name =
         AshTypescript.FieldFormatter.format_field(
-          rel.name,
+          mapped_name,
           AshTypescript.Rpc.output_field_formatter()
         )
 
@@ -650,9 +658,11 @@ defmodule AshTypescript.Codegen do
         embedded_resource_allowed?(attr, allowed_resources)
     end)
     |> Enum.map(fn attr ->
+      mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr.name)
+
       formatted_name =
         AshTypescript.FieldFormatter.format_field(
-          attr.name,
+          mapped_name,
           AshTypescript.Rpc.output_field_formatter()
         )
 
@@ -691,9 +701,11 @@ defmodule AshTypescript.Codegen do
     calculations
     |> Enum.reject(&is_simple_calculation/1)
     |> Enum.map(fn calc ->
+      mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, calc.name)
+
       formatted_name =
         AshTypescript.FieldFormatter.format_field(
-          calc.name,
+          mapped_name,
           AshTypescript.Rpc.output_field_formatter()
         )
 
@@ -718,9 +730,11 @@ defmodule AshTypescript.Codegen do
     attributes
     |> Enum.filter(&is_union_attribute?/1)
     |> Enum.map(fn attr ->
+      mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr.name)
+
       formatted_name =
         AshTypescript.FieldFormatter.format_field(
-          attr.name,
+          mapped_name,
           AshTypescript.Rpc.output_field_formatter()
         )
 
@@ -755,9 +769,11 @@ defmodule AshTypescript.Codegen do
       is_keyword_attribute?(attr) or is_tuple_attribute?(attr)
     end)
     |> Enum.map(fn attr ->
+      mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr.name)
+
       formatted_name =
         AshTypescript.FieldFormatter.format_field(
-          attr.name,
+          mapped_name,
           AshTypescript.Rpc.output_field_formatter()
         )
 
