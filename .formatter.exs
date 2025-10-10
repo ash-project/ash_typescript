@@ -1,5 +1,7 @@
 # Used by "mix format"
 spark_locals_without_parens = [
+  argument_names: 1,
+  field_names: 1,
   fields: 1,
   resource: 1,
   resource: 2,
