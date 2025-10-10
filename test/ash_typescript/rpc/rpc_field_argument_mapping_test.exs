@@ -29,27 +29,31 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
       # So the TypeScript client will send "isActive" but Elixir expects "is_active?"
 
       # Test with mapped argument name (from TypeScript client perspective)
-      result = Rpc.run_action(:ash_typescript, conn, %{
-        "action" => "read_with_invalid_arg",
-        "resource" => "User",
-        "input" => %{
-          "isActive" => true  # TypeScript mapped name
-        },
-        "fields" => ["id", "name", "email"]
-      })
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "read_with_invalid_arg",
+          "resource" => "User",
+          "input" => %{
+            # TypeScript mapped name
+            "isActive" => true
+          },
+          "fields" => ["id", "name", "email"]
+        })
 
       assert %{"success" => true, "data" => _users} = result
     end
 
     test "validation with mapped argument names", %{conn: conn} do
       # Test validation endpoint also works with mapped names
-      result = Rpc.validate_action(:ash_typescript, conn, %{
-        "action" => "read_with_invalid_arg",
-        "resource" => "User",
-        "input" => %{
-          "isActive" => true  # TypeScript mapped name
-        }
-      })
+      result =
+        Rpc.validate_action(:ash_typescript, conn, %{
+          "action" => "read_with_invalid_arg",
+          "resource" => "User",
+          "input" => %{
+            # TypeScript mapped name
+            "isActive" => true
+          }
+        })
 
       assert %{"success" => true} = result
     end
@@ -60,16 +64,19 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
       # The User resource has field_names mapping: address_line_1: :address_line1
       # So the TypeScript client will send "addressLine1" but Elixir expects "address_line_1"
 
-      result = Rpc.run_action(:ash_typescript, conn, %{
-        "action" => "create_user",
-        "resource" => "User",
-        "input" => %{
-          "name" => "John Doe",
-          "email" => "john@example.com",
-          "addressLine1" => "123 Main St"  # TypeScript mapped name
-        },
-        "fields" => ["id", "name", "email", "addressLine1"]  # Output field mapping
-      })
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_user",
+          "resource" => "User",
+          "input" => %{
+            "name" => "John Doe",
+            "email" => "john@example.com",
+            # TypeScript mapped name
+            "addressLine1" => "123 Main St"
+          },
+          # Output field mapping
+          "fields" => ["id", "name", "email", "addressLine1"]
+        })
 
       assert %{"success" => true, "data" => user} = result
       assert user["name"] == "John Doe"
@@ -81,25 +88,28 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
 
     test "update action with mapped field names", %{conn: conn} do
       # First create a user
-      user = User
-      |> Ash.Changeset.for_create(:create, %{
-        name: "Jane Doe",
-        email: "jane@example.com",
-        address_line_1: "456 Oak Ave"
-      })
-      |> Ash.create!(tenant: "test_tenant")
+      user =
+        User
+        |> Ash.Changeset.for_create(:create, %{
+          name: "Jane Doe",
+          email: "jane@example.com",
+          address_line_1: "456 Oak Ave"
+        })
+        |> Ash.create!(tenant: "test_tenant")
 
       # Now update using mapped field names
-      result = Rpc.run_action(:ash_typescript, conn, %{
-        "action" => "update_user",
-        "resource" => "User",
-        "primary_key" => user.id,
-        "input" => %{
-          "name" => "Jane Smith",
-          "addressLine1" => "789 Pine St"  # TypeScript mapped name
-        },
-        "fields" => ["id", "name", "email", "addressLine1"]
-      })
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "update_user",
+          "resource" => "User",
+          "primary_key" => user.id,
+          "input" => %{
+            "name" => "Jane Smith",
+            # TypeScript mapped name
+            "addressLine1" => "789 Pine St"
+          },
+          "fields" => ["id", "name", "email", "addressLine1"]
+        })
 
       assert %{"success" => true, "data" => updated_user} = result
       assert updated_user["name"] == "Jane Smith"
@@ -111,20 +121,23 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
   describe "output field mapping" do
     test "read action output uses mapped field names", %{conn: conn} do
       # Create a user with the original field name
-      _user = User
-      |> Ash.Changeset.for_create(:create, %{
-        name: "Alice Johnson",
-        email: "alice@example.com",
-        address_line_1: "321 Elm St"
-      })
-      |> Ash.create!(tenant: "test_tenant")
+      _user =
+        User
+        |> Ash.Changeset.for_create(:create, %{
+          name: "Alice Johnson",
+          email: "alice@example.com",
+          address_line_1: "321 Elm St"
+        })
+        |> Ash.create!(tenant: "test_tenant")
 
       # Read the user and verify output uses mapped names
-      result = Rpc.run_action(:ash_typescript, conn, %{
-        "action" => "list_users",
-        "resource" => "User",
-        "fields" => ["id", "name", "email", "addressLine1"]  # Request mapped field name
-      })
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_users",
+          "resource" => "User",
+          # Request mapped field name
+          "fields" => ["id", "name", "email", "addressLine1"]
+        })
 
       assert %{"success" => true, "data" => [found_user]} = result
       assert found_user["name"] == "Alice Johnson"
@@ -136,21 +149,23 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
 
     test "get action output uses mapped field names", %{conn: conn} do
       # Create a user
-      user = User
-      |> Ash.Changeset.for_create(:create, %{
-        name: "Bob Wilson",
-        email: "bob@example.com",
-        address_line_1: "654 Maple Dr"
-      })
-      |> Ash.create!(tenant: "test_tenant")
+      user =
+        User
+        |> Ash.Changeset.for_create(:create, %{
+          name: "Bob Wilson",
+          email: "bob@example.com",
+          address_line_1: "654 Maple Dr"
+        })
+        |> Ash.create!(tenant: "test_tenant")
 
       # Get the specific user
-      result = Rpc.run_action(:ash_typescript, conn, %{
-        "action" => "get_by_id",
-        "resource" => "User",
-        "input" => %{"id" => user.id},
-        "fields" => ["id", "name", "email", "addressLine1"]
-      })
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_by_id",
+          "resource" => "User",
+          "input" => %{"id" => user.id},
+          "fields" => ["id", "name", "email", "addressLine1"]
+        })
 
       assert %{"success" => true, "data" => found_user} = result
       assert found_user["name"] == "Bob Wilson"
@@ -164,23 +179,27 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
       # Test an action that uses both mapped field names and argument names
 
       # First create a user with a mapped field
-      _user = User
-      |> Ash.Changeset.for_create(:create, %{
-        name: "Charlie Brown",
-        email: "charlie@example.com",
-        address_line_1: "987 Birch Lane"
-      })
-      |> Ash.create!(tenant: "test_tenant")
+      _user =
+        User
+        |> Ash.Changeset.for_create(:create, %{
+          name: "Charlie Brown",
+          email: "charlie@example.com",
+          address_line_1: "987 Birch Lane"
+        })
+        |> Ash.create!(tenant: "test_tenant")
 
       # Use read_with_invalid_arg (which has mapped argument) and request mapped field names
-      result = Rpc.run_action(:ash_typescript, conn, %{
-        "action" => "read_with_invalid_arg",
-        "resource" => "User",
-        "input" => %{
-          "isActive" => true  # Mapped argument name
-        },
-        "fields" => ["id", "name", "email", "addressLine1"]  # Mapped field name in output
-      })
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "read_with_invalid_arg",
+          "resource" => "User",
+          "input" => %{
+            # Mapped argument name
+            "isActive" => true
+          },
+          # Mapped field name in output
+          "fields" => ["id", "name", "email", "addressLine1"]
+        })
 
       assert %{"success" => true, "data" => users} = result
 
@@ -195,16 +214,17 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
   describe "error cases" do
     test "unmapped field names still work", %{conn: conn} do
       # Test that normal field names without mapping still work
-      result = Rpc.run_action(:ash_typescript, conn, %{
-        "action" => "create_user",
-        "resource" => "User",
-        "input" => %{
-          "name" => "David Clark",
-          "email" => "david@example.com"
-          # Not using addressLine1, so no mapping involved
-        },
-        "fields" => ["id", "name", "email"]
-      })
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_user",
+          "resource" => "User",
+          "input" => %{
+            "name" => "David Clark",
+            "email" => "david@example.com"
+            # Not using addressLine1, so no mapping involved
+          },
+          "fields" => ["id", "name", "email"]
+        })
 
       assert %{"success" => true, "data" => user} = result
       assert user["name"] == "David Clark"
@@ -213,15 +233,16 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
 
     test "validation errors use mapped field names", %{conn: conn} do
       # Test that validation errors also respect field mapping
-      result = Rpc.run_action(:ash_typescript, conn, %{
-        "action" => "create_user",
-        "resource" => "User",
-        "input" => %{
-          # Missing required fields to trigger validation error
-          "addressLine1" => "999 Test St"
-        },
-        "fields" => ["id", "name", "email", "addressLine1"]
-      })
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_user",
+          "resource" => "User",
+          "input" => %{
+            # Missing required fields to trigger validation error
+            "addressLine1" => "999 Test St"
+          },
+          "fields" => ["id", "name", "email", "addressLine1"]
+        })
 
       assert %{"success" => false, "errors" => errors} = result
       assert is_list(errors)

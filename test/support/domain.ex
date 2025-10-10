@@ -101,5 +101,6 @@ defmodule AshTypescript.Test.Domain do
     resource AshTypescript.Test.PostComment
     resource AshTypescript.Test.NoRelationshipsResource
     resource AshTypescript.Test.EmptyResource
+    resource AshTypescript.Test.MapFieldResource
   end
 end
