@@ -27,7 +27,8 @@ defmodule AshTypescript.MixProject do
       preferred_cli_env: [
         "test.codegen": :test,
         tidewave: :test
-      ]
+      ],
+      consolidate_protocols: Mix.env() != :test
     ]
   end
 
@@ -117,7 +118,7 @@ defmodule AshTypescript.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, "~> 3.5"},
+      {:ash, "~> 3.6"},
       {:ash_phoenix, "~> 2.0"},
       {:ash_postgres, "~> 2.0", only: [:dev, :test]},
       {:git_ops, "~> 2.0", only: [:dev], runtime: false},
