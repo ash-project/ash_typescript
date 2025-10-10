@@ -98,6 +98,8 @@ Test type inference at multiple levels:
 
 ## Custom Types Integration
 
+**See also**: [Field and Argument Name Mapping](./field-argument-name-mapping.md) for mapping invalid field names in custom types using the `typescript_field_names/0` callback.
+
 ### Custom Type Detection
 
 AshTypescript detects custom types via callback implementation:
@@ -148,6 +150,7 @@ Custom types integrate at multiple levels:
 - **Type not detected**: Ensure `typescript_type_name/0` callback implemented
 - **Import not working**: Check application configuration for import definitions
 - **TypeScript compilation fails**: Verify external type definitions exist and are accessible
+- **Invalid field names in map constraints**: See [Field and Argument Name Mapping](./field-argument-name-mapping.md) for using `typescript_field_names/0` callback
 
 ## Unconstrained Map Handling
 

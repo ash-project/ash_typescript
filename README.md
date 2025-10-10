@@ -283,6 +283,7 @@ This change makes your API more secure by requiring explicit opt-in for all RPC 
 - **🎯 Typed queries** - Pre-configured queries for SSR and optimized data fetching
 - **🎨 Flexible field formatting** - Separate input/output formatters (camelCase, snake_case, etc.)
 - **🔌 Custom HTTP clients** - Support for custom fetch functions and request options (axios, interceptors, etc.)
+- **🏷️ Field/argument name mapping** - Map invalid TypeScript identifiers to valid names (e.g., `field_1` → `field1`, `is_active?` → `isActive`)
 
 ## 📚 Table of Contents
 
@@ -332,7 +333,7 @@ const todos = await listTodos({
 // Get single todo with relationships
 const todo = await getTodo({
   fields: ["id", "title", { user: ["name", "email"] }],
-  id: "todo-123"
+  input: { id: "todo-123" }
 });
 
 // Create new todo
@@ -375,7 +376,7 @@ const todoWithDetails = await getTodo({
       tags: ["name", "color"]
     }
   ],
-  id: "todo-123"
+  input: { id: "todo-123" }
 });
 
 // Calculations with arguments
@@ -389,7 +390,7 @@ const todoWithCalc = await getTodo({
       }
     }
   ],
-  id: "todo-123"
+  input: { id: "todo-123" }
 });
 ```
 
@@ -721,7 +722,7 @@ listTodosChannel({
 // Complex field selection
 getTodoChannel({
   channel: ashTypeScriptRpcChannel,
-  primaryKey: "todo-123",
+  input: { id: "todo-123" },
   fields: [
     "id", "title", "description",
     {
@@ -824,7 +825,7 @@ const todo = await getTodo({
     "id", "title",
     { metadata: ["priority", "tags", "customFields"] }
   ],
-  id: "todo-123"
+  input: { id: "todo-123" }
 });
 ```
 
@@ -849,7 +850,7 @@ const todo = await getTodo({
     "id", "title",
     { content: ["text", { checklist: ["items", "completedCount"] }] }
   ],
-  id: "todo-123"
+  input: { id: "todo-123" }
 });
 ```
 
@@ -1260,6 +1261,184 @@ Customize how field names are formatted in generated TypeScript:
 # created_at → createdAt
 ```
 
+### Field and Argument Name Mapping
+
+TypeScript has stricter identifier rules than Elixir. AshTypescript provides built-in verification and mapping for invalid field and argument names.
+
+#### Invalid Name Patterns
+
+AshTypescript detects and requires mapping for these patterns:
+- **Underscores before digits**: `field_1`, `address_line_2`, `item__3`
+- **Question marks**: `is_active?`, `enabled?`
+
+#### Resource Field Mapping
+
+Map invalid field names using the `field_names` option in your resource's `typescript` block:
+
+```elixir
+defmodule MyApp.User do
+  use Ash.Resource,
+    domain: MyApp.Domain,
+    extensions: [AshTypescript.Resource]
+
+  typescript do
+    type_name "User"
+    # Map invalid field names to valid TypeScript identifiers
+    field_names [
+      address_line_1: :address_line1,
+      address_line_2: :address_line2,
+      is_active?: :is_active
+    ]
+  end
+
+  attributes do
+    attribute :name, :string, public?: true
+    attribute :address_line_1, :string, public?: true
+    attribute :address_line_2, :string, public?: true
+    attribute :is_active?, :boolean, public?: true
+  end
+end
+```
+
+**Generated TypeScript:**
+```typescript
+// Input (create/update)
+const user = await createUser({
+  input: {
+    name: "John",
+    addressLine1: "123 Main St",    // Mapped from address_line_1
+    addressLine2: "Apt 4B",         // Mapped from address_line_2
+    isActive: true                   // Mapped from is_active?
+  },
+  fields: ["id", "name", "addressLine1", "addressLine2", "isActive"]
+});
+
+// Output - same mapped names
+if (result.success) {
+  console.log(result.data.addressLine1);  // "123 Main St"
+  console.log(result.data.isActive);      // true
+}
+```
+
+#### Action Argument Mapping
+
+Map invalid action argument names using the `argument_names` option:
+
+```elixir
+typescript do
+  type_name "Todo"
+  argument_names [
+    search: [query_string_1: :query_string1],
+    filter_todos: [is_completed?: :is_completed]
+  ]
+end
+
+actions do
+  read :search do
+    argument :query_string_1, :string
+  end
+
+  read :filter_todos do
+    argument :is_completed?, :boolean
+  end
+end
+```
+
+**Generated TypeScript:**
+```typescript
+// Arguments use mapped names
+const results = await searchTodos({
+  input: { queryString1: "urgent tasks" },  // Mapped from query_string_1
+  fields: ["id", "title"]
+});
+
+const filtered = await filterTodos({
+  input: { isCompleted: false },  // Mapped from is_completed?
+  fields: ["id", "title"]
+});
+```
+
+#### Map Type Field Mapping
+
+For invalid field names in map/keyword/tuple type constraints, create a custom `Ash.Type.NewType` with the `typescript_field_names/0` callback:
+
+```elixir
+# Define custom type with field mapping
+defmodule MyApp.CustomMetadata do
+  use Ash.Type.NewType,
+    subtype_of: :map,
+    constraints: [
+      fields: [
+        field_1: [type: :string],
+        is_active?: [type: :boolean],
+        line_2: [type: :string]
+      ]
+    ]
+
+  @impl true
+  def typescript_field_names do
+    [
+      field_1: :field1,
+      is_active?: :isActive,
+      line_2: :line2
+    ]
+  end
+end
+
+# Use custom type in resource
+defmodule MyApp.Resource do
+  use Ash.Resource,
+    domain: MyApp.Domain,
+    extensions: [AshTypescript.Resource]
+
+  typescript do
+    type_name "Resource"
+  end
+
+  attributes do
+    attribute :metadata, MyApp.CustomMetadata, public?: true
+  end
+end
+```
+
+**Generated TypeScript:**
+```typescript
+type Resource = {
+  metadata: {
+    field1: string;      // Mapped from field_1
+    isActive: boolean;   // Mapped from is_active?
+    line2: string;       // Mapped from line_2
+  }
+}
+```
+
+#### Verification and Error Messages
+
+AshTypescript includes three verifiers that check for invalid names at compile time:
+
+**Resource field verification error:**
+```
+Invalid field names found that contain question marks, or numbers preceded by underscores.
+
+Invalid field names in resource MyApp.User:
+  - attribute address_line_1 → address_line1
+  - attribute is_active? → is_active
+
+You can use field_names in the typescript section to provide valid alternatives.
+```
+
+**Map constraint verification error:**
+```
+Invalid field names found in map/keyword/tuple type constraints.
+
+Invalid constraint field names in attribute :metadata on resource MyApp.Resource:
+    - field_1 → field1
+    - is_active? → is_active
+
+To fix this, create a custom Ash.Type.NewType using map/keyword/tuple as a subtype,
+and define the `typescript_field_names/0` callback to map invalid field names to valid ones.
+```
+
 ### Custom Types
 
 Create custom Ash types with TypeScript integration:
@@ -1496,6 +1675,11 @@ function buildCSRFHeaders(): Record<string, string>;
 **Type inference issues:**
 - Ensure all attributes are marked as `public? true`
 - Check that relationships are properly defined
+
+**Invalid field name errors:**
+- Error: `"Invalid field names found"` - Add `field_names` or `argument_names` to the `typescript` block in your resource
+- Error: `"Invalid field names in map/keyword/tuple"` - Create a custom `Ash.Type.NewType` with `typescript_field_names/0` callback
+- Common patterns that need mapping: `field_1`, `address_line_2` (underscore before digit), `is_active?` (question mark)
 
 ### Debug Commands
 

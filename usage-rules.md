@@ -31,6 +31,8 @@
 | **Channel Function** | `actionNameChannel({ channel, resultHandler, ... })` | Phoenix channel-based RPC calls |
 | **Validation Config** | `generate_validation_functions: true` | Enable validation function generation |
 | **Channel Config** | `generate_phx_channel_rpc_actions: true` | Enable channel function generation |
+| **Field Name Mapping** | `field_names [field_1: :field1]` | Map invalid field names to valid TypeScript identifiers |
+| **Argument Mapping** | `argument_names [action: [arg_1: :arg1]]` | Map invalid argument names per action |
 
 ## Critical Patterns
 
@@ -212,6 +214,8 @@ User wants to...
 | "Cannot find module 'phoenix'" | Missing Phoenix dependency | `npm install phoenix @types/phoenix` |
 | "functionNameChannel is not defined" | Channel generation disabled | Set `generate_phx_channel_rpc_actions: true` |
 | "validateFunctionName is not defined" | Validation generation disabled | Set `generate_validation_functions: true` |
+| "Invalid field names found" | Field/arg name has `_1` or `?` | Add `field_names` or `argument_names` to resource |
+| "Invalid field names in map/keyword/tuple" | Map constraint has invalid fields | Create custom `Ash.Type.NewType` with `typescript_field_names/0` |
 
 ## Basic Setup
 
@@ -571,6 +575,134 @@ const orgTodos = await listOrgTodos({
 });
 ```
 
+### 7. Field Name Mapping for Invalid Names
+
+❌ **Wrong - Using invalid field names directly:**
+```elixir
+# Resource with invalid TypeScript field names
+defmodule MyApp.User do
+  use Ash.Resource, extensions: [AshTypescript.Resource]
+
+  typescript do
+    type_name "User"
+  end
+
+  attributes do
+    # Invalid: underscore before digit
+    attribute :address_line_1, :string, public?: true
+    # Invalid: question mark
+    attribute :is_active?, :boolean, public?: true
+  end
+
+  actions do
+    read :search do
+      # Invalid argument name
+      argument :filter_value_1, :string
+    end
+  end
+end
+# Error: "Invalid field names found"
+```
+
+✅ **Correct - Map invalid names to valid TypeScript identifiers:**
+```elixir
+defmodule MyApp.User do
+  use Ash.Resource, extensions: [AshTypescript.Resource]
+
+  typescript do
+    type_name "User"
+    # Map invalid field names to valid ones
+    field_names [
+      address_line_1: :address_line1,
+      is_active?: :is_active
+    ]
+    # Map invalid argument names per action
+    argument_names [
+      search: [filter_value_1: :filter_value1]
+    ]
+  end
+
+  attributes do
+    attribute :address_line_1, :string, public?: true
+    attribute :is_active?, :boolean, public?: true
+  end
+
+  actions do
+    read :search do
+      argument :filter_value_1, :string
+    end
+  end
+end
+```
+
+**TypeScript usage with mapped names:**
+```typescript
+// Create with mapped field names
+const user = await createUser({
+  input: {
+    addressLine1: "123 Main St",  // Mapped from address_line_1
+    isActive: true                 // Mapped from is_active?
+  },
+  fields: ["id", "addressLine1", "isActive"]
+});
+
+// Search with mapped argument names
+const results = await searchUsers({
+  input: { filterValue1: "test" },  // Mapped from filter_value_1
+  fields: ["id", "addressLine1"]
+});
+```
+
+### 8. Map Type Field Name Mapping
+
+❌ **Wrong - Invalid field names in map constraints:**
+```elixir
+# This will fail verification!
+attribute :metadata, :map do
+  public? true
+  constraints fields: [
+    field_1: [type: :string],        # Invalid
+    is_active?: [type: :boolean]     # Invalid
+  ]
+end
+```
+
+✅ **Correct - Create custom type with typescript_field_names callback:**
+```elixir
+# Define custom type with mapping
+defmodule MyApp.CustomMetadata do
+  use Ash.Type.NewType,
+    subtype_of: :map,
+    constraints: [
+      fields: [
+        field_1: [type: :string],
+        is_active?: [type: :boolean]
+      ]
+    ]
+
+  @impl true
+  def typescript_field_names do
+    [
+      field_1: :field1,
+      is_active?: :isActive
+    ]
+  end
+end
+
+# Use custom type in resource
+attribute :metadata, MyApp.CustomMetadata, public?: true
+```
+
+**Generated TypeScript:**
+```typescript
+type User = {
+  metadata: {
+    field1: string;      // Mapped from field_1
+    isActive: boolean;   // Mapped from is_active?
+  }
+}
+```
+
 ## Advanced Features (Brief Overview)
 
 ### Typed Queries for SSR
@@ -663,6 +795,8 @@ This allows maximum flexibility for actions that work with dynamic or unstructur
 |-------|-------|----------|
 | "No domains found" | Wrong environment | Use `MIX_ENV=test mix ash_typescript.codegen` |
 | "Action not found" | Missing RPC declaration | Add `rpc_action` to domain |
+| "Invalid field names found" | Field/arg with `_1` or `?` | Add `field_names` or `argument_names` to `typescript` block |
+| "Invalid field names in map/keyword/tuple" | Map constraint fields invalid | Create `Ash.Type.NewType` with `typescript_field_names/0` callback |
 | TypeScript compilation fails | Types out of sync | Run `mix ash_typescript.codegen` |
 | "fields is required" | Missing fields param | Add `fields: [...]` |
 | "403 Forbidden" | CSRF issue | Use `buildCSRFHeaders()` |

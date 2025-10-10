@@ -4,7 +4,7 @@
 
 **AshTypescript** generates TypeScript types and RPC clients from Ash resources, providing end-to-end type safety between Elixir backends and TypeScript frontends.
 
-**Key Features**: Type generation, RPC client generation, Phoenix channel RPC actions, nested calculations, multitenancy, embedded resources, union types
+**Key Features**: Type generation, RPC client generation, Phoenix channel RPC actions, nested calculations, multitenancy, embedded resources, union types, field/argument name mapping
 
 ## 🚨 Critical Development Rules
 
@@ -161,6 +161,7 @@ mix credo --strict                   # Linting
 | Working On | See Documentation | Test Files |
 |------------|-------------------|------------|
 | **Type generation or custom types** | [features/type-system.md](agent-docs/features/type-system.md) | `test/ash_typescript/typescript_codegen_test.exs` |
+| **Field/argument name mapping** | [features/field-argument-name-mapping.md](agent-docs/features/field-argument-name-mapping.md) | `test/ash_typescript/rpc/rpc_field_argument_mapping_test.exs` |
 | **RPC pipeline or field processing** | [features/rpc-pipeline.md](agent-docs/features/rpc-pipeline.md) | `test/ash_typescript/rpc/rpc_*_test.exs` |
 | **Zod validation schemas** | [features/zod-schemas.md](agent-docs/features/zod-schemas.md) | `test/ash_typescript/rpc/rpc_codegen_test.exs` |
 | **Embedded resources** | [features/embedded-resources.md](agent-docs/features/embedded-resources.md) | `test/support/resources/embedded/` |
@@ -198,6 +199,8 @@ mix credo --strict                   # Linting
 |-------|-------|----------|
 | "No domains found" | Using dev environment | Use `mix test.codegen` |
 | "Module not loaded" | Test resources not compiled | Ensure MIX_ENV=test |
+| "Invalid field names found" | Field/arg with `_1` or `?` | Use `field_names` or `argument_names` DSL options |
+| "Invalid field names in map/keyword/tuple" | Map constraint fields invalid | Create `Ash.Type.NewType` with `typescript_field_names/0` callback |
 | TypeScript `unknown` types | Schema key mismatch | Check `__type` metadata generation |
 | Field selection fails | Invalid field format | Use unified field format only |
 
