@@ -1099,7 +1099,7 @@ defmodule AshTypescript.Codegen do
       when constraints != [] do
     case Keyword.get(constraints, :fields) do
       nil -> "Record<string, any>"
-      fields -> build_map_type(fields, select)
+      fields -> build_map_type(fields, select, nil)
     end
   end
 
@@ -1109,21 +1109,21 @@ defmodule AshTypescript.Codegen do
       when constraints != [] do
     case Keyword.get(constraints, :fields) do
       nil -> "Record<string, any>"
-      fields -> build_map_type(fields)
+      fields -> build_map_type(fields, nil, nil)
     end
   end
 
   def get_ts_type(%{type: Ash.Type.Keyword, constraints: constraints}, _) do
     case Keyword.get(constraints, :fields) do
       nil -> "Record<string, any>"
-      fields -> build_map_type(fields)
+      fields -> build_map_type(fields, nil, nil)
     end
   end
 
   def get_ts_type(%{type: Ash.Type.Tuple, constraints: constraints}, _) do
     case Keyword.get(constraints, :fields) do
       nil -> "Record<string, any>"
-      fields -> build_map_type(fields)
+      fields -> build_map_type(fields, nil, nil)
     end
   end
 
@@ -1201,7 +1201,27 @@ defmodule AshTypescript.Codegen do
       Ash.Type.NewType.new_type?(type) ->
         sub_type_constraints = Ash.Type.NewType.constraints(type, constraints)
         subtype = Ash.Type.NewType.subtype_of(type)
-        get_ts_type(%{attr | type: subtype, constraints: sub_type_constraints})
+
+        # Check if this NewType has typescript_field_names callback
+        field_name_mappings =
+          if function_exported?(type, :typescript_field_names, 0) do
+            type.typescript_field_names()
+          else
+            nil
+          end
+
+        # If it's a map/keyword/tuple type with field mappings, handle specially
+        if field_name_mappings && subtype in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] do
+          case Keyword.get(sub_type_constraints, :fields) do
+            nil ->
+              get_ts_type(%{attr | type: subtype, constraints: sub_type_constraints})
+
+            fields ->
+              build_map_type(fields, nil, field_name_mappings)
+          end
+        else
+          get_ts_type(%{attr | type: subtype, constraints: sub_type_constraints})
+        end
 
       Spark.implements_behaviour?(type, Ash.Type.Enum) ->
         case type do
@@ -1221,7 +1241,7 @@ defmodule AshTypescript.Codegen do
     end
   end
 
-  def build_map_type(fields, select \\ nil) do
+  def build_map_type(fields, select \\ nil, field_name_mappings \\ nil) do
     selected_fields =
       if select do
         Enum.filter(fields, fn {field_name, _} -> to_string(field_name) in select end)
@@ -1236,10 +1256,12 @@ defmodule AshTypescript.Codegen do
           get_ts_type(%{type: field_config[:type], constraints: field_config[:constraints] || []})
 
         formatted_field_name =
-          AshTypescript.FieldFormatter.format_field(
-            field_name,
-            AshTypescript.Rpc.output_field_formatter()
-          )
+          if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
+            Keyword.get(field_name_mappings, field_name) |> to_string()
+          else
+            field_name
+          end
+          |> AshTypescript.FieldFormatter.format_field(AshTypescript.Rpc.output_field_formatter())
 
         allow_nil = Keyword.get(field_config, :allow_nil?, true)
         optional = if allow_nil, do: " | null", else: ""
@@ -1253,8 +1275,12 @@ defmodule AshTypescript.Codegen do
         selected_fields
         |> Enum.map_join(" | ", fn {field_name, _field_config} ->
           formatted_field_name =
-            AshTypescript.FieldFormatter.format_field(
-              field_name,
+            if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
+              Keyword.get(field_name_mappings, field_name) |> to_string()
+            else
+              field_name
+            end
+            |> AshTypescript.FieldFormatter.format_field(
               AshTypescript.Rpc.output_field_formatter()
             )
 

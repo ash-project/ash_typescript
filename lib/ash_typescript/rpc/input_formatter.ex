@@ -70,33 +70,18 @@ defmodule AshTypescript.Rpc.InputFormatter do
   end
 
   defp get_original_field_or_argument_name(resource, action_name, mapped_key) do
-    # First check if it's an argument
     action = Ash.Resource.Info.action(resource, action_name)
 
-    if action do
-      # Check if this is an argument that has a mapping
-      original_arg_name = AshTypescript.Resource.Info.get_original_argument_name(
+    original_arg_name =
+      AshTypescript.Resource.Info.get_original_argument_name(
         resource,
         action_name,
         mapped_key
       )
 
-      # If we found a different name in arguments, use that
-      if original_arg_name != mapped_key &&
-         Enum.any?(action.arguments, &(&1.name == original_arg_name)) do
-        original_arg_name
-      else
-        # Otherwise check if it's an accepted field with a mapping
-        accept_list = Map.get(action, :accept, [])
-        if accept_list != [] && mapped_key in accept_list do
-          AshTypescript.Resource.Info.get_original_field_name(resource, mapped_key)
-        else
-          # Not in accept list, check if it's still a field that needs mapping
-          AshTypescript.Resource.Info.get_original_field_name(resource, mapped_key)
-        end
-      end
+    if Enum.any?(action.arguments, &(&1.name == original_arg_name)) do
+      original_arg_name
     else
-      # No action found, default to field mapping
       AshTypescript.Resource.Info.get_original_field_name(resource, mapped_key)
     end
   end
@@ -226,16 +211,12 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
       Enum.into(data, %{}, fn {key, value} ->
         internal_key = FieldFormatter.parse_input_field(key, formatter)
-
-        # For nested structures, we still need to check if there's a field mapping
         original_key = AshTypescript.Resource.Info.get_original_field_name(resource, internal_key)
-
-        field_spec = find_field_spec(field_specs, original_key) || find_field_spec(field_specs, internal_key)
+        field_spec = find_field_spec(field_specs, original_key)
 
         formatted_value =
           case field_spec do
             nil ->
-              # Unknown field, preserve as-is
               value
 
             {_name, spec} ->
@@ -259,12 +240,10 @@ defmodule AshTypescript.Rpc.InputFormatter do
   defp identify_union_member(data, union_types, formatter) do
     case data do
       map when is_map(map) ->
-        # Try tagged union first, then key-based
         identify_tagged_union_member(map, union_types, formatter) ||
           identify_key_based_union_member(map, union_types)
 
       primitive ->
-        # Match primitive values by Ash type
         primitive_type = get_primitive_ash_type(primitive)
 
         Enum.find(union_types, fn {_member_name, member_spec} ->

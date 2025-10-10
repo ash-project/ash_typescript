@@ -102,22 +102,25 @@ defmodule AshTypescript.Rpc.Pipeline do
       context: request.context
     ]
 
-    case request.action.type do
-      :read ->
-        execute_read_action(request, opts)
+    result =
+      case request.action.type do
+        :read ->
+          execute_read_action(request, opts)
 
-      :create ->
-        execute_create_action(request, opts)
+        :create ->
+          execute_create_action(request, opts)
 
-      :update ->
-        execute_update_action(request, opts)
+        :update ->
+          execute_update_action(request, opts)
 
-      :destroy ->
-        execute_destroy_action(request, opts)
+        :destroy ->
+          execute_destroy_action(request, opts)
 
-      :action ->
-        execute_generic_action(request, opts)
-    end
+        :action ->
+          execute_generic_action(request, opts)
+      end
+
+    result
   end
 
   @doc """

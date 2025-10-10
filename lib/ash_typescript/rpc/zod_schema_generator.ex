@@ -76,7 +76,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
       when constraints != [] do
     case Keyword.get(constraints, :fields) do
       nil -> "z.record(z.string(), z.any())"
-      fields -> build_zod_object_type(fields, context)
+      fields -> build_zod_object_type(fields, context, nil)
     end
   end
 
@@ -86,7 +86,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
       when constraints != [] do
     case Keyword.get(constraints, :fields) do
       nil -> "z.record(z.string(), z.any())"
-      fields -> build_zod_object_type(fields, context)
+      fields -> build_zod_object_type(fields, context, nil)
     end
   end
 
@@ -95,7 +95,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   def get_zod_type(%{type: Ash.Type.Tuple, constraints: constraints}, context) do
     case Keyword.get(constraints, :fields) do
       nil -> "z.record(z.string(), z.any())"
-      fields -> build_zod_object_type(fields, context)
+      fields -> build_zod_object_type(fields, context, nil)
     end
   end
 
@@ -105,7 +105,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
 
     cond do
       fields != nil ->
-        build_zod_object_type(fields, context)
+        build_zod_object_type(fields, context, nil)
 
       instance_of != nil ->
         if Spark.Dsl.is?(instance_of, Ash.Resource) do
@@ -164,7 +164,27 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
       Ash.Type.NewType.new_type?(type) ->
         sub_type_constraints = Ash.Type.NewType.constraints(type, constraints)
         subtype = Ash.Type.NewType.subtype_of(type)
-        get_zod_type(%{attr | type: subtype, constraints: sub_type_constraints}, context)
+
+        # Check if this NewType has typescript_field_names callback
+        field_name_mappings =
+          if function_exported?(type, :typescript_field_names, 0) do
+            type.typescript_field_names()
+          else
+            nil
+          end
+
+        # If it's a map/keyword/tuple type with field mappings, handle specially
+        if field_name_mappings && subtype in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] do
+          case Keyword.get(sub_type_constraints, :fields) do
+            nil ->
+              get_zod_type(%{attr | type: subtype, constraints: sub_type_constraints}, context)
+
+            fields ->
+              build_zod_object_type(fields, context, field_name_mappings)
+          end
+        else
+          get_zod_type(%{attr | type: subtype, constraints: sub_type_constraints}, context)
+        end
 
       Spark.implements_behaviour?(type, Ash.Type.Enum) ->
         enum_values = Enum.map_join(type.values(), ", ", &"\"#{to_string(&1)}\"")
@@ -192,11 +212,12 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
 
-                mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
-                  resource,
-                  action.name,
-                  arg.name
-                )
+                mapped_name =
+                  AshTypescript.Resource.Info.get_mapped_argument_name(
+                    resource,
+                    action.name,
+                    arg.name
+                  )
 
                 formatted_arg_name =
                   AshTypescript.FieldFormatter.format_field(
@@ -239,11 +260,12 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
                 Enum.map(arguments, fn arg ->
                   optional = arg.allow_nil? || arg.default != nil
 
-                  mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
-                    resource,
-                    action.name,
-                    arg.name
-                  )
+                  mapped_name =
+                    AshTypescript.Resource.Info.get_mapped_argument_name(
+                      resource,
+                      action.name,
+                      arg.name
+                    )
 
                   formatted_arg_name =
                     AshTypescript.FieldFormatter.format_field(
@@ -285,11 +307,12 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
                 Enum.map(action.arguments, fn arg ->
                   optional = arg.allow_nil? || arg.default != nil
 
-                  mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
-                    resource,
-                    action.name,
-                    arg.name
-                  )
+                  mapped_name =
+                    AshTypescript.Resource.Info.get_mapped_argument_name(
+                      resource,
+                      action.name,
+                      arg.name
+                    )
 
                   formatted_arg_name =
                     AshTypescript.FieldFormatter.format_field(
@@ -315,11 +338,12 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
 
-                mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
-                  resource,
-                  action.name,
-                  arg.name
-                )
+                mapped_name =
+                  AshTypescript.Resource.Info.get_mapped_argument_name(
+                    resource,
+                    action.name,
+                    arg.name
+                  )
 
                 formatted_arg_name =
                   AshTypescript.FieldFormatter.format_field(
@@ -410,7 +434,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
     """
   end
 
-  defp build_zod_object_type(fields, context) do
+  defp build_zod_object_type(fields, context, field_name_mappings) do
     field_schemas =
       fields
       |> Enum.map_join(", ", fn {field_name, field_config} ->
@@ -421,7 +445,14 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
         zod_type = get_zod_type(%{type: field_type, constraints: field_constraints}, context)
         zod_type = if allow_nil, do: "#{zod_type}.optional()", else: zod_type
 
-        formatted_field_name = format_output_field(field_name)
+        # Use mapped field name if available, otherwise use formatter
+        formatted_field_name =
+          if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
+            Keyword.get(field_name_mappings, field_name) |> to_string()
+          else
+            format_output_field(field_name)
+          end
+
         "#{formatted_field_name}: #{zod_type}"
       end)
 

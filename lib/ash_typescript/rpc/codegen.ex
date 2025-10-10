@@ -301,7 +301,7 @@ defmodule AshTypescript.Rpc.Codegen do
                     ? InferResult<NonNullable<ReturnType>, Field[K]["fields"]> | null
                     : InferResult<NonNullable<ReturnType>, Field[K]["fields"]>
                   : ReturnType
-                : T[K] extends { __type: "Union"; __primitiveFields: infer PrimitiveFields }
+                : T[K] extends { __type: "Union"; __primitiveFields: any }
                   ? T[K] extends { __array: true }
                     ? {
                         [CurrentK in K]: T[CurrentK] extends { __type: "Union"; __primitiveFields: any }
@@ -703,11 +703,12 @@ defmodule AshTypescript.Rpc.Codegen do
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
 
-                mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
-                  resource,
-                  action.name,
-                  arg.name
-                )
+                mapped_name =
+                  AshTypescript.Resource.Info.get_mapped_argument_name(
+                    resource,
+                    action.name,
+                    arg.name
+                  )
 
                 formatted_arg_name =
                   AshTypescript.FieldFormatter.format_field(
@@ -733,7 +734,8 @@ defmodule AshTypescript.Rpc.Codegen do
                   base_type = AshTypescript.Codegen.get_ts_input_type(attr)
                   field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
 
-                  mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
+                  mapped_name =
+                    AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
 
                   formatted_field_name =
                     AshTypescript.FieldFormatter.format_field(
@@ -748,11 +750,12 @@ defmodule AshTypescript.Rpc.Codegen do
                 Enum.map(arguments, fn arg ->
                   optional = arg.allow_nil? || arg.default != nil
 
-                  mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
-                    resource,
-                    action.name,
-                    arg.name
-                  )
+                  mapped_name =
+                    AshTypescript.Resource.Info.get_mapped_argument_name(
+                      resource,
+                      action.name,
+                      arg.name
+                    )
 
                   formatted_arg_name =
                     AshTypescript.FieldFormatter.format_field(
@@ -777,7 +780,8 @@ defmodule AshTypescript.Rpc.Codegen do
                   base_type = AshTypescript.Codegen.get_ts_input_type(attr)
                   field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
 
-                  mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
+                  mapped_name =
+                    AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
 
                   formatted_field_name =
                     AshTypescript.FieldFormatter.format_field(
@@ -792,11 +796,12 @@ defmodule AshTypescript.Rpc.Codegen do
                 Enum.map(action.arguments, fn arg ->
                   optional = arg.allow_nil? || arg.default != nil
 
-                  mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
-                    resource,
-                    action.name,
-                    arg.name
-                  )
+                  mapped_name =
+                    AshTypescript.Resource.Info.get_mapped_argument_name(
+                      resource,
+                      action.name,
+                      arg.name
+                    )
 
                   formatted_arg_name =
                     AshTypescript.FieldFormatter.format_field(
@@ -819,11 +824,12 @@ defmodule AshTypescript.Rpc.Codegen do
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
 
-                mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
-                  resource,
-                  action.name,
-                  arg.name
-                )
+                mapped_name =
+                  AshTypescript.Resource.Info.get_mapped_argument_name(
+                    resource,
+                    action.name,
+                    arg.name
+                  )
 
                 formatted_arg_name =
                   AshTypescript.FieldFormatter.format_field(

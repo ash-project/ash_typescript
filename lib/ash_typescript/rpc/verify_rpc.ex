@@ -228,17 +228,14 @@ defmodule AshTypescript.Rpc.VerifyRpc do
           argument_errors =
             action.arguments
             |> Enum.filter(fn arg ->
-              if AshTypescript.Resource.Info.typescript_resource?(resource) do
-                # Check if the mapped name is still invalid
-                mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
+              mapped_name =
+                AshTypescript.Resource.Info.get_mapped_argument_name(
                   resource,
                   rpc_action.action,
                   arg.name
                 )
-                invalid_name?(mapped_name)
-              else
-                invalid_name?(arg.name)
-              end
+
+              invalid_name?(mapped_name)
             end)
             |> Enum.map(fn arg ->
               {rpc_action.name, rpc_action.action, :argument, arg.name,
@@ -254,10 +251,12 @@ defmodule AshTypescript.Rpc.VerifyRpc do
                 accept_list
                 |> Enum.filter(fn attr_name ->
                   # Check if the mapped name is still invalid
-                  mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(
-                    resource,
-                    attr_name
-                  )
+                  mapped_name =
+                    AshTypescript.Resource.Info.get_mapped_field_name(
+                      resource,
+                      attr_name
+                    )
+
                   invalid_name?(mapped_name)
                 end)
                 |> Enum.map(fn attr_name ->
@@ -283,11 +282,13 @@ defmodule AshTypescript.Rpc.VerifyRpc do
           |> Enum.filter(fn arg ->
             if AshTypescript.Resource.Info.typescript_resource?(resource) do
               # Check if the mapped name is still invalid
-              mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
-                resource,
-                typed_query.action,
-                arg.name
-              )
+              mapped_name =
+                AshTypescript.Resource.Info.get_mapped_argument_name(
+                  resource,
+                  typed_query.action,
+                  arg.name
+                )
+
               invalid_name?(mapped_name)
             else
               invalid_name?(arg.name)
