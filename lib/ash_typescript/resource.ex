@@ -33,7 +33,8 @@ defmodule AshTypescript.Resource do
     sections: [@typescript],
     verifiers: [
       AshTypescript.Resource.VerifyUniqueTypeNames,
+      AshTypescript.Resource.VerifyFieldNames,
       AshTypescript.Resource.VerifyMappedFieldNames,
-      AshTypescript.Resource.VerifyFieldNames
+      AshTypescript.Resource.VerifyMapFieldNames
     ]
 end
