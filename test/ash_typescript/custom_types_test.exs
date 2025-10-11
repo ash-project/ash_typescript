@@ -110,7 +110,7 @@ defmodule AshTypescript.CustomTypesTest do
 
     test "full TypeScript generation includes import statements" do
       # This will test the full generation pipeline
-      result = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, result} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
       assert result =~ "import * as CustomTypes from \"./customTypes\";"
     end
   end
@@ -134,7 +134,7 @@ defmodule AshTypescript.CustomTypesTest do
       # We already verified this compiles with `npm run compileGenerated`
       # Since we're testing the core implementation, we'll just verify
       # that the generated code includes what we expect
-      result = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, result} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
       assert result =~ "import * as CustomTypes from \"./customTypes\";"
       assert result =~ "priorityScore: CustomTypes.PriorityScore | null"
     end

@@ -38,7 +38,7 @@ defmodule AshTypescript.EmbeddedResourceFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript with pascal case formatting
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test TodoMetadata embedded resource field formatting
       assert String.contains?(typescript_output, "PriorityScore?: number")
@@ -79,7 +79,7 @@ defmodule AshTypescript.EmbeddedResourceFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
 
       # Generate TypeScript with snake case formatting
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test TodoMetadata embedded resource field formatting - should stay snake_case
       assert String.contains?(typescript_output, "priority_score?: number")
@@ -117,7 +117,7 @@ defmodule AshTypescript.EmbeddedResourceFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test TodoMetadata calculation field formatting
       assert String.contains?(typescript_output, "DisplayCategory")
@@ -149,7 +149,7 @@ defmodule AshTypescript.EmbeddedResourceFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Look for input type definitions with embedded resources
       # Input types should also use the configured formatter
@@ -175,7 +175,7 @@ defmodule AshTypescript.EmbeddedResourceFieldFormattingTest do
       # Configure snake_case formatter to catch hardcoding (opposite of default camelCase)
       Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
 
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # If hardcoded camelCase formatting is used, these would incorrectly appear as camelCase
       # instead of respecting the snake_case formatter configuration

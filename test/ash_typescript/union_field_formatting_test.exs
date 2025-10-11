@@ -38,7 +38,7 @@ defmodule AshTypescript.UnionFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript with pascal case formatting
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test content union field formatting - priority_value should become PriorityValue
       assert String.contains?(typescript_output, "PriorityValue?: number")
@@ -79,7 +79,7 @@ defmodule AshTypescript.UnionFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
 
       # Generate TypeScript with camel case formatting
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test content union field formatting - priority_value should become priorityValue
       assert String.contains?(typescript_output, "priorityValue?: number")
@@ -125,7 +125,7 @@ defmodule AshTypescript.UnionFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
 
       # Generate TypeScript with snake case formatting
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test content union field formatting - priority_value should stay priority_value
       assert String.contains?(typescript_output, "priority_value?: number")
@@ -166,7 +166,7 @@ defmodule AshTypescript.UnionFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test that both output types and input types use correct formatting
       # Content union should appear in both regular types and input types with PascalCase
@@ -197,7 +197,7 @@ defmodule AshTypescript.UnionFieldFormattingTest do
       # Configure an unusual formatter to catch hardcoding
       Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
 
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # If hardcoded camelCase formatting is used, these would incorrectly appear as camelCase
       # instead of respecting the snake_case formatter configuration

@@ -38,7 +38,7 @@ defmodule AshTypescript.RelationshipFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript with pascal case formatting
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test User relationship field formatting
       assert String.contains?(typescript_output, "IsSuperAdmin?: boolean")
@@ -71,7 +71,7 @@ defmodule AshTypescript.RelationshipFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
 
       # Generate TypeScript with snake case formatting
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test User relationship field formatting - should stay snake_case
       assert String.contains?(typescript_output, "is_super_admin?: boolean")
@@ -102,7 +102,7 @@ defmodule AshTypescript.RelationshipFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test relationship calculations that return resources (self calculation)
       # These should appear in relationship field selection schemas
@@ -122,7 +122,7 @@ defmodule AshTypescript.RelationshipFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Look for relationship field selection schemas that would be used in nested queries
       # These should also use the configured formatter for field names
@@ -142,7 +142,7 @@ defmodule AshTypescript.RelationshipFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Look for filter type definitions with relationship fields
       # Filter types should also use the configured formatter
@@ -168,7 +168,7 @@ defmodule AshTypescript.RelationshipFieldFormattingTest do
       # Configure snake_case formatter to catch hardcoding (opposite of default camelCase)
       Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
 
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # If hardcoded camelCase formatting is used, these would incorrectly appear as camelCase
       # instead of respecting the snake_case formatter configuration

@@ -44,31 +44,37 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
     ]
 
     # Generate TypeScript types and write to file
-    typescript_content = generate_typescript_types(otp_app, codegen_opts)
+    case generate_typescript_types(otp_app, codegen_opts) do
+      {:ok, typescript_content} ->
+        current_content =
+          if File.exists?(output_file) do
+            File.read!(output_file)
+          else
+            ""
+          end
 
-    current_content =
-      if File.exists?(output_file) do
-        File.read!(output_file)
-      else
-        ""
-      end
+        cond do
+          opts[:check] ->
+            if typescript_content != current_content do
+              raise Ash.Error.Framework.PendingCodegen,
+                diff: %{
+                  output_file => typescript_content
+                }
+            end
 
-    cond do
-      opts[:check] ->
-        if typescript_content != current_content do
-          raise Ash.Error.Framework.PendingCodegen,
-            diff: %{
-              output_file => typescript_content
-            }
+          opts[:dry_run] ->
+            if typescript_content != current_content do
+              "##{output_file}:\n\n#{typescript_content}"
+            end
+
+          true ->
+            File.write!(output_file, typescript_content)
         end
 
-      opts[:dry_run] ->
-        if typescript_content != current_content do
-          "##{output_file}:\n\n#{typescript_content}"
-        end
-
-      true ->
-        File.write!(output_file, typescript_content)
+      {:error, error_message} ->
+        IO.puts(:stderr, "\nTypeScript generation failed due to verifier errors:\n")
+        IO.puts(:stderr, error_message)
+        System.halt(1)
     end
   end
 end

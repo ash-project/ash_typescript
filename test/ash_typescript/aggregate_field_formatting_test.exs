@@ -38,7 +38,7 @@ defmodule AshTypescript.AggregateFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript with pascal case formatting
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test Todo aggregate field formatting (only public aggregates)
       assert String.contains?(typescript_output, "CommentCount: number")
@@ -57,7 +57,7 @@ defmodule AshTypescript.AggregateFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
 
       # Generate TypeScript with snake case formatting
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test Todo aggregate field formatting - should stay snake_case (only public aggregates)
       assert String.contains?(typescript_output, "comment_count: number")
@@ -78,7 +78,7 @@ defmodule AshTypescript.AggregateFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Look for filter type definitions with aggregate fields
       # Filter types should also use the configured formatter for aggregate field names
@@ -101,7 +101,7 @@ defmodule AshTypescript.AggregateFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Look for input type definitions that might include aggregate fields
       # Input types should also use the configured formatter
@@ -126,7 +126,7 @@ defmodule AshTypescript.AggregateFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Look for RPC function definitions that would include aggregate field selection
       # RPC functions should also use the configured formatter for aggregate field names
@@ -145,7 +145,7 @@ defmodule AshTypescript.AggregateFieldFormattingTest do
       # Configure snake_case formatter to catch hardcoding (opposite of default camelCase)
       Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
 
-      typescript_output = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # If hardcoded camelCase formatting is used, these would incorrectly appear as camelCase
       # instead of respecting the snake_case formatter configuration

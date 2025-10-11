@@ -22,15 +22,16 @@ defmodule AshTypescript.Rpc.Codegen do
 
     case AshTypescript.VerifierChecker.check_all_verifiers(resources ++ domains) do
       :ok ->
-        generate_full_typescript(
-          resources_and_actions,
-          endpoint_process,
-          endpoint_validate,
-          otp_app
-        )
+        {:ok,
+         generate_full_typescript(
+           resources_and_actions,
+           endpoint_process,
+           endpoint_validate,
+           otp_app
+         )}
 
       {:error, error_message} ->
-        generate_error_output(error_message)
+        {:error, error_message}
     end
   end
 
@@ -68,21 +69,6 @@ defmodule AshTypescript.Rpc.Codegen do
     resources_and_actions
     |> Enum.map(fn {resource, _action, _rpc_action} -> resource end)
     |> Enum.uniq()
-  end
-
-  defp generate_error_output(error_message) do
-    error_lines =
-      error_message
-      |> String.split("\n")
-      |> Enum.map_join("\n", &"// #{&1}")
-
-    """
-    // TypeScript generation skipped due to verifier errors:
-    //
-    #{error_lines}
-    //
-    // Please fix the errors above and regenerate.
-    """
   end
 
   defp generate_imports do
