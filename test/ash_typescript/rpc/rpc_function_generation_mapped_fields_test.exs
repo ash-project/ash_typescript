@@ -234,11 +234,16 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
     test "all Task action input types use mapped field/argument names", %{generated: generated} do
       # Test CreateTaskInput
       assert generated =~ "export type CreateTaskInput"
-      create_input = Regex.run(~r/export type CreateTaskInput = \{[^}]+\}/s, generated) |> List.first()
+
+      create_input =
+        Regex.run(~r/export type CreateTaskInput = \{[^}]+\}/s, generated) |> List.first()
+
       refute create_input =~ "archived?"
 
       # Test UpdateTaskInput
-      update_input = Regex.run(~r/export type UpdateTaskInput = \{[^}]+\}/s, generated) |> List.first()
+      update_input =
+        Regex.run(~r/export type UpdateTaskInput = \{[^}]+\}/s, generated) |> List.first()
+
       assert update_input =~ "isArchived?: boolean;"
       refute update_input =~ "archived?"
 
@@ -296,7 +301,8 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
     test "validation functions match validation result types", %{generated: generated} do
       # validateMarkCompletedTask function
-      assert generated =~ ~r/function validateMarkCompletedTask.*Promise<ValidateMarkCompletedTaskResult>/s
+      assert generated =~
+               ~r/function validateMarkCompletedTask.*Promise<ValidateMarkCompletedTaskResult>/s
 
       # ValidateMarkCompletedTaskResult type should be defined
       assert generated =~ "export type ValidateMarkCompletedTaskResult"
