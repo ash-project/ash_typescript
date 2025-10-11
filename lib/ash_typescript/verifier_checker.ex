@@ -22,10 +22,13 @@ defmodule AshTypescript.VerifierChecker do
   end
 
   defp check_module_verifiers(module) do
-    extensions = module.__info__(:attributes)[:extensions] || []
+    extensions = Spark.extensions(module)
     dsl_config = module.spark_dsl_config()
 
+    ash_typescript_extensions = [AshTypescript.Resource, AshTypescript.Rpc]
+
     extensions
+    |> Enum.filter(&(&1 in ash_typescript_extensions))
     |> Enum.flat_map(fn extension ->
       if function_exported?(extension, :verifiers, 0) do
         extension.verifiers()
