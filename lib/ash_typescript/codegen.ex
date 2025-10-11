@@ -408,7 +408,7 @@ defmodule AshTypescript.Codegen do
     resource_name = build_resource_type_name(resource)
 
     primitive_fields = get_primitive_fields(resource)
-    primitive_fields_union = generate_primitive_fields_union(primitive_fields)
+    primitive_fields_union = generate_primitive_fields_union(primitive_fields, resource)
 
     metadata_fields = [
       "  __type: \"Resource\";",
@@ -491,7 +491,7 @@ defmodule AshTypescript.Codegen do
     |> Enum.map(fn {name, _config} -> name end)
   end
 
-  defp generate_primitive_fields_union(fields) do
+  defp generate_primitive_fields_union(fields, resource \\ nil) do
     if Enum.empty?(fields) do
       "never"
     else
@@ -499,9 +499,17 @@ defmodule AshTypescript.Codegen do
       |> Enum.map_join(
         " | ",
         fn field_name ->
+          # Apply field name mapping if resource is provided
+          mapped_name =
+            if resource do
+              AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
+            else
+              field_name
+            end
+
           formatted =
             AshTypescript.FieldFormatter.format_field(
-              field_name,
+              mapped_name,
               AshTypescript.Rpc.output_field_formatter()
             )
 
@@ -944,9 +952,12 @@ defmodule AshTypescript.Codegen do
       resource
       |> Ash.Resource.Info.public_attributes()
       |> Enum.map_join("\n", fn attr ->
+        # Apply field name mapping before formatting
+        mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr.name)
+
         formatted_name =
           AshTypescript.FieldFormatter.format_field(
-            attr.name,
+            mapped_name,
             AshTypescript.Rpc.output_field_formatter()
           )
 

@@ -4,6 +4,10 @@ defmodule AshTypescript.Test.TodoStatistics do
   """
   use Ash.TypedStruct
 
+  def typescript_field_names do
+    [all_completed?: :all_completed]
+  end
+
   typed_struct do
     field(:view_count, :integer, default: 0)
     field(:edit_count, :integer, default: 0)

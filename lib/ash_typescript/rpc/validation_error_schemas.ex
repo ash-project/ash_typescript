@@ -279,12 +279,28 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
 
     fields = AshTypescript.Codegen.get_typed_struct_fields(typed_struct_module)
 
+    # Get field name mappings if defined
+    field_name_mappings =
+      if function_exported?(typed_struct_module, :typescript_field_names, 0) do
+        typed_struct_module.typescript_field_names()
+      else
+        []
+      end
+
     error_fields =
       fields
       |> Enum.map_join("\n", fn field ->
+        # Apply field name mapping if defined
+        mapped_name =
+          if Keyword.has_key?(field_name_mappings, field.name) do
+            Keyword.get(field_name_mappings, field.name)
+          else
+            field.name
+          end
+
         formatted_name =
           AshTypescript.FieldFormatter.format_field(
-            field.name,
+            mapped_name,
             AshTypescript.Rpc.output_field_formatter()
           )
 

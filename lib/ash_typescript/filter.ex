@@ -74,19 +74,22 @@ defmodule AshTypescript.Filter do
       |> Ash.Resource.Info.public_calculations()
 
     (attrs ++ calcs)
-    |> Enum.map_join("\n", &generate_attribute_filter(&1))
+    |> Enum.map_join("\n", &generate_attribute_filter(&1, resource))
   end
 
-  defp generate_attribute_filter(attribute) do
+  defp generate_attribute_filter(attribute, resource) do
     base_type = get_ts_type(attribute)
 
     # Generate specific filter operations based on the attribute type
     operations = get_applicable_operations(attribute.type, base_type)
 
+    # Apply field name mapping before formatting
+    mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attribute.name)
+
     # Format field name using output formatter
     formatted_name =
       AshTypescript.FieldFormatter.format_field(
-        attribute.name,
+        mapped_name,
         AshTypescript.Rpc.output_field_formatter()
       )
 
@@ -104,13 +107,19 @@ defmodule AshTypescript.Filter do
     |> Enum.map_join("\n", &generate_aggregate_filter(&1, resource))
   end
 
-  defp generate_aggregate_filter(%{kind: :count, name: name}, _resource) do
+  defp generate_aggregate_filter(%{kind: :count, name: name}, resource) do
     base_type = get_ts_type(%{type: :integer}, nil)
     operations = get_applicable_operations(:integer, base_type)
 
+    # Apply field name mapping before formatting
+    mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, name)
+
     # Format field name using output formatter
     formatted_name =
-      AshTypescript.FieldFormatter.format_field(name, AshTypescript.Rpc.output_field_formatter())
+      AshTypescript.FieldFormatter.format_field(
+        mapped_name,
+        AshTypescript.Rpc.output_field_formatter()
+      )
 
     """
       #{formatted_name}?: {
@@ -126,7 +135,7 @@ defmodule AshTypescript.Filter do
       end)
 
     attribute = Ash.Resource.Info.attribute(related_resource, aggregate.field)
-    generate_attribute_filter(%{attribute | name: aggregate.name})
+    generate_attribute_filter(%{attribute | name: aggregate.name}, resource)
   end
 
   defp get_applicable_operations(type, base_type) do
