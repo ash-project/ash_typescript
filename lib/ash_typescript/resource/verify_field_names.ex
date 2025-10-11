@@ -82,10 +82,7 @@ defmodule AshTypescript.Resource.VerifyFieldNames do
   end
 
   defp format_name_validation_errors(errors) do
-    message_parts =
-      errors
-      |> Enum.map(&format_error_part/1)
-      |> Enum.join("\n\n")
+    message_parts = Enum.map_join(errors, "\n\n", &format_error_part/1)
 
     {:error,
      Spark.Error.DslError.exception(
@@ -103,11 +100,9 @@ defmodule AshTypescript.Resource.VerifyFieldNames do
 
   defp format_error_part({:invalid_resource_fields, resource, fields}) do
     suggestions =
-      fields
-      |> Enum.map(fn {type, current, suggested} ->
+      Enum.map_join(fields, "\n", fn {type, current, suggested} ->
         "  - #{type} #{current} → #{suggested}"
       end)
-      |> Enum.join("\n")
 
     "Invalid field names in resource #{resource}:\n#{suggestions}"
   end

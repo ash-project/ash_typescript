@@ -312,10 +312,7 @@ defmodule AshTypescript.Rpc.VerifyRpc do
   end
 
   defp format_name_validation_errors(errors) do
-    message_parts =
-      errors
-      |> Enum.map(&format_error_part/1)
-      |> Enum.join("\n\n")
+    message_parts = Enum.map_join(errors, "\n\n", &format_error_part/1)
 
     {:error,
      Spark.Error.DslError.exception(
@@ -332,33 +329,27 @@ defmodule AshTypescript.Rpc.VerifyRpc do
 
   defp format_error_part({:invalid_rpc_action_names, actions}) do
     suggestions =
-      actions
-      |> Enum.map(fn {current, suggested} ->
+      Enum.map_join(actions, "\n", fn {current, suggested} ->
         "  - #{current} → #{suggested}"
       end)
-      |> Enum.join("\n")
 
     "Invalid RPC action names:\n#{suggestions}"
   end
 
   defp format_error_part({:invalid_typed_query_names, queries}) do
     suggestions =
-      queries
-      |> Enum.map(fn {current, suggested} ->
+      Enum.map_join(queries, "\n", fn {current, suggested} ->
         "  - #{current} → #{suggested}"
       end)
-      |> Enum.join("\n")
 
     "Invalid typed query names:\n#{suggestions}"
   end
 
   defp format_error_part({:invalid_action_arguments, arguments}) do
     suggestions =
-      arguments
-      |> Enum.map(fn {rpc_name, action_name, type, current, suggested} ->
+      Enum.map_join(arguments, "\n", fn {rpc_name, action_name, type, current, suggested} ->
         "  - #{rpc_name} (action #{action_name}) #{type} #{current} → #{suggested}"
       end)
-      |> Enum.join("\n")
 
     "Invalid action argument names:\n#{suggestions}"
   end

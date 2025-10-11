@@ -39,24 +39,22 @@ defmodule AshTypescript.VerifierChecker do
   end
 
   defp check_single_verifier(module, verifier, dsl_config) do
-    try do
-      case verifier.verify(dsl_config) do
-        :ok ->
-          []
+    case verifier.verify(dsl_config) do
+      :ok ->
+        []
 
-        {:warn, warnings} ->
-          warnings_list = List.wrap(warnings)
+      {:warn, warnings} ->
+        warnings_list = List.wrap(warnings)
 
-          Enum.map(warnings_list, fn warning ->
-            {module, verifier, warning}
-          end)
+        Enum.map(warnings_list, fn warning ->
+          {module, verifier, warning}
+        end)
 
-        {:error, error} ->
-          [{module, verifier, error}]
-      end
-    rescue
-      e -> [{module, verifier, e}]
+      {:error, error} ->
+        [{module, verifier, error}]
     end
+  rescue
+    e -> [{module, verifier, e}]
   end
 
   defp format_verifier_errors(errors) do

@@ -142,8 +142,7 @@ defmodule AshTypescript.Resource.VerifyMapFieldNames do
       |> Enum.group_by(fn {resource, parent_context, _field_name, _suggested} ->
         {resource, parent_context}
       end)
-      |> Enum.map(&format_error_group/1)
-      |> Enum.join("\n\n")
+      |> Enum.map_join("\n\n", &format_error_group/1)
 
     {:error,
      Spark.Error.DslError.exception(
@@ -184,11 +183,9 @@ defmodule AshTypescript.Resource.VerifyMapFieldNames do
     {parent_type, parent_name} = parent_context
 
     field_suggestions =
-      errors
-      |> Enum.map(fn {_resource, _parent_context, field_name, suggested} ->
+      Enum.map_join(errors, "\n", fn {_resource, _parent_context, field_name, suggested} ->
         "    - #{field_name} → #{suggested}"
       end)
-      |> Enum.join("\n")
 
     "Invalid constraint field names in #{parent_type} #{inspect(parent_name)} on resource #{inspect(resource)}:\n#{field_suggestions}"
   end

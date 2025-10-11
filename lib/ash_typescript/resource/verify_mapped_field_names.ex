@@ -108,10 +108,7 @@ defmodule AshTypescript.Resource.VerifyMappedFieldNames do
   end
 
   defp format_validation_errors(errors) do
-    message_parts =
-      errors
-      |> Enum.map(&format_error_part/1)
-      |> Enum.join("\n")
+    message_parts = Enum.map_join(errors, "\n", &format_error_part/1)
 
     {:error,
      Spark.Error.DslError.exception(
