@@ -10,6 +10,7 @@ defmodule AshTypescript.Test.User do
 
   typescript do
     type_name "User"
+    mapped_field_names(address_line_1: :address_line1)
   end
 
   ets do

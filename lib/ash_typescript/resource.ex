@@ -13,11 +13,20 @@ defmodule AshTypescript.Resource do
         type: :string,
         doc: "The name of the TypeScript type for the resource",
         required: true
+      ],
+      mapped_field_names: [
+        type: :keyword_list,
+        doc:
+          "A keyword list mapping invalid field names to valid alternatives (e.g., [address_line_1: :address_line1])",
+        default: []
       ]
     ]
   }
 
   use Spark.Dsl.Extension,
     sections: [@typescript],
-    verifiers: [AshTypescript.Resource.VerifyUniqueTypeNames]
+    verifiers: [
+      AshTypescript.Resource.VerifyUniqueTypeNames,
+      AshTypescript.Resource.VerifyMappedFieldNames
+    ]
 end

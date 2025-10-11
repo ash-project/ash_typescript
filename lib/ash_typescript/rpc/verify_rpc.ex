@@ -1,6 +1,7 @@
 defmodule AshTypescript.Rpc.VerifyRpc do
   @moduledoc """
-  Checks that all RPC actions and typed queries reference existing resource actions.
+  Checks that all RPC actions and typed queries reference existing resource actions,
+  and validates that names don't contain invalid patterns.
   """
   use Spark.Dsl.Verifier
   alias Spark.Dsl.Verifier
@@ -19,7 +20,8 @@ defmodule AshTypescript.Rpc.VerifyRpc do
                                      acc ->
           with true <- AshTypescript.Resource.Info.typescript_resource?(resource),
                :ok <- verify_rpc_actions(resource, rpc_actions),
-               :ok <- verify_typed_queries(resource, typed_queries) do
+               :ok <- verify_typed_queries(resource, typed_queries),
+               :ok <- verify_names(resource, rpc_actions, typed_queries) do
             {:cont, acc}
           else
             false ->
@@ -150,5 +152,223 @@ defmodule AshTypescript.Rpc.VerifyRpc do
           )}}
       end
     end)
+  end
+
+  # Name validation functions
+
+  @doc false
+  def invalid_name?(name) do
+    Regex.match?(~r/_+\d|\?/, to_string(name))
+  end
+
+  @doc false
+  def make_name_better(name) do
+    name
+    |> to_string()
+    |> String.replace(~r/_+\d/, fn v ->
+      String.trim_leading(v, "_")
+    end)
+    |> String.replace("?", "")
+  end
+
+  defp field_has_mapping?(resource, field_name) do
+    try do
+      mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
+      mapped_name != field_name
+    rescue
+      _ -> false
+    end
+  end
+
+  defp verify_names(resource, rpc_actions, typed_queries) do
+    errors = []
+
+    # Validate RPC action names
+    errors = validate_rpc_action_names(rpc_actions, errors)
+
+    # Validate typed query names
+    errors = validate_typed_query_names(typed_queries, errors)
+
+    # Validate public fields on the resource
+    errors = validate_resource_field_names(resource, errors)
+
+    # Validate action arguments for each RPC action
+    errors = validate_action_argument_names(resource, rpc_actions, errors)
+
+    case errors do
+      [] -> :ok
+      _ -> format_name_validation_errors(errors)
+    end
+  end
+
+  defp validate_rpc_action_names(rpc_actions, errors) do
+    invalid_actions =
+      rpc_actions
+      |> Enum.filter(&invalid_name?(&1.name))
+      |> Enum.map(fn action ->
+        {action.name, make_name_better(action.name)}
+      end)
+
+    case invalid_actions do
+      [] -> errors
+      _ -> [{:invalid_rpc_action_names, invalid_actions} | errors]
+    end
+  end
+
+  defp validate_typed_query_names(typed_queries, errors) do
+    invalid_queries =
+      typed_queries
+      |> Enum.filter(&invalid_name?(&1.name))
+      |> Enum.map(fn query ->
+        {query.name, make_name_better(query.name)}
+      end)
+
+    case invalid_queries do
+      [] -> errors
+      _ -> [{:invalid_typed_query_names, invalid_queries} | errors]
+    end
+  end
+
+  defp validate_resource_field_names(resource, errors) do
+    invalid_fields = []
+
+    # Check public attributes
+    invalid_fields =
+      invalid_fields ++
+        (Ash.Resource.Info.public_attributes(resource)
+         |> Enum.filter(&(invalid_name?(&1.name) and not field_has_mapping?(resource, &1.name)))
+         |> Enum.map(fn attr -> {:attribute, attr.name, make_name_better(attr.name)} end))
+
+    # Check public relationships
+    invalid_fields =
+      invalid_fields ++
+        (Ash.Resource.Info.public_relationships(resource)
+         |> Enum.filter(&(invalid_name?(&1.name) and not field_has_mapping?(resource, &1.name)))
+         |> Enum.map(fn rel -> {:relationship, rel.name, make_name_better(rel.name)} end))
+
+    # Check public calculations
+    invalid_fields =
+      invalid_fields ++
+        (Ash.Resource.Info.public_calculations(resource)
+         |> Enum.filter(&(invalid_name?(&1.name) and not field_has_mapping?(resource, &1.name)))
+         |> Enum.map(fn calc -> {:calculation, calc.name, make_name_better(calc.name)} end))
+
+    # Check public aggregates
+    invalid_fields =
+      invalid_fields ++
+        (Ash.Resource.Info.public_aggregates(resource)
+         |> Enum.filter(&(invalid_name?(&1.name) and not field_has_mapping?(resource, &1.name)))
+         |> Enum.map(fn agg -> {:aggregate, agg.name, make_name_better(agg.name)} end))
+
+    case invalid_fields do
+      [] -> errors
+      _ -> [{:invalid_resource_fields, resource, invalid_fields} | errors]
+    end
+  end
+
+  defp validate_action_argument_names(resource, rpc_actions, errors) do
+    invalid_arguments =
+      rpc_actions
+      |> Enum.flat_map(fn rpc_action ->
+        action = Ash.Resource.Info.action(resource, rpc_action.action)
+
+        if action do
+          # Check action arguments
+          argument_errors =
+            action.arguments
+            |> Enum.filter(&invalid_name?(&1.name))
+            |> Enum.map(fn arg ->
+              {rpc_action.name, rpc_action.action, :argument, arg.name,
+               make_name_better(arg.name)}
+            end)
+
+          # Check accepted attributes (for CRUD actions that have accept)
+          accept_errors =
+            case Map.get(action, :accept) do
+              nil ->
+                []
+
+              accept_list ->
+                accept_list
+                |> Enum.filter(&invalid_name?(&1))
+                |> Enum.map(fn attr_name ->
+                  {rpc_action.name, rpc_action.action, :accepted_attribute, attr_name,
+                   make_name_better(attr_name)}
+                end)
+            end
+
+          argument_errors ++ accept_errors
+        else
+          []
+        end
+      end)
+
+    case invalid_arguments do
+      [] -> errors
+      _ -> [{:invalid_action_arguments, invalid_arguments} | errors]
+    end
+  end
+
+  defp format_name_validation_errors(errors) do
+    message_parts =
+      errors
+      |> Enum.map(&format_error_part/1)
+      |> Enum.join("\n\n")
+
+    {:error,
+     Spark.Error.DslError.exception(
+       message: """
+       Invalid names found that contain question marks, or numbers preceded by underscores.
+       These patterns are not allowed in TypeScript generation.
+
+       #{message_parts}
+
+       Names should use standard camelCase or snake_case patterns without numbered suffixes.
+       """
+     )}
+  end
+
+  defp format_error_part({:invalid_rpc_action_names, actions}) do
+    suggestions =
+      actions
+      |> Enum.map(fn {current, suggested} ->
+        "  - #{current} → #{suggested}"
+      end)
+      |> Enum.join("\n")
+
+    "Invalid RPC action names:\n#{suggestions}"
+  end
+
+  defp format_error_part({:invalid_typed_query_names, queries}) do
+    suggestions =
+      queries
+      |> Enum.map(fn {current, suggested} ->
+        "  - #{current} → #{suggested}"
+      end)
+      |> Enum.join("\n")
+
+    "Invalid typed query names:\n#{suggestions}"
+  end
+
+  defp format_error_part({:invalid_resource_fields, resource, fields}) do
+    suggestions =
+      fields
+      |> Enum.map(fn {type, current, suggested} ->
+        "  - #{type} #{current} → #{suggested}"
+      end)
+      |> Enum.join("\n")
+
+    "Invalid field names in resource #{resource}:\n#{suggestions}"
+  end
+
+  defp format_error_part({:invalid_action_arguments, arguments}) do
+    suggestions =
+      arguments
+      |> Enum.map(fn {rpc_name, action_name, type, current, suggested} ->
+        "  - RPC action #{rpc_name} (action #{action_name}) #{type} #{current} → #{suggested}"
+      end)
+      |> Enum.join("\n")
+
+    "Invalid action argument names:\n#{suggestions}"
   end
 end
