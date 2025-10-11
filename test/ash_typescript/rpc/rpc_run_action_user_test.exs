@@ -87,18 +87,19 @@ defmodule AshTypescript.Rpc.RpcRunActionUserTest do
         result =
           Rpc.run_action(:ash_typescript, conn, %{
             "action" => "list_users",
-            "fields" => ["id", "name", "email", "address_line_1"]
+            "fields" => ["id", "name", "email", "address_line1"]
           })
 
         assert result["success"] == true
         assert is_list(result["data"])
 
         # Verify each user has the requested fields with snake_case formatting
+        # Note: address_line_1 is mapped to address_line1 (mapping takes precedence over formatter)
         Enum.each(result["data"], fn user ->
           assert Map.has_key?(user, "id")
           assert Map.has_key?(user, "name")
           assert Map.has_key?(user, "email")
-          assert Map.has_key?(user, "address_line_1")
+          assert Map.has_key?(user, "address_line1")
           # Should not have other fields like "active" or "is_super_admin"
           refute Map.has_key?(user, "active")
           refute Map.has_key?(user, "is_super_admin")

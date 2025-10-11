@@ -88,6 +88,12 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :search_org_todos, :search
       rpc_action :destroy_org_todo, :destroy
     end
+
+    resource AshTypescript.Test.Task do
+      rpc_action :list_tasks, :read
+      rpc_action :create_task, :create
+      rpc_action :mark_completed_task, :mark_completed
+    end
   end
 
   resources do
@@ -96,6 +102,7 @@ defmodule AshTypescript.Test.Domain do
     resource AshTypescript.Test.User
     resource AshTypescript.Test.UserSettings
     resource AshTypescript.Test.OrgTodo
+    resource AshTypescript.Test.Task
     resource AshTypescript.Test.NotExposed
     resource AshTypescript.Test.Post
     resource AshTypescript.Test.PostComment
