@@ -43,6 +43,16 @@ defmodule AshTypescript.Test.Task do
       public? true
     end
 
+    attribute :metadata, AshTypescript.Test.TaskMetadata do
+      allow_nil? true
+      public? true
+    end
+
+    attribute :stats, AshTypescript.Test.TaskStats do
+      allow_nil? true
+      public? true
+    end
+
     timestamps()
   end
 
@@ -51,6 +61,11 @@ defmodule AshTypescript.Test.Task do
 
     create :create do
       accept [:title]
+      primary? true
+    end
+
+    update :update do
+      accept [:title, :archived?, :stats]
       primary? true
     end
 
@@ -65,6 +80,11 @@ defmodule AshTypescript.Test.Task do
         completed_value = Ash.Changeset.get_argument(changeset, :completed?)
         Ash.Changeset.change_attribute(changeset, :completed, completed_value)
       end
+    end
+
+    destroy :destroy do
+      accept [:archived?]
+      primary? true
     end
   end
 end

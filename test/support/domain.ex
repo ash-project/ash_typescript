@@ -92,7 +92,9 @@ defmodule AshTypescript.Test.Domain do
     resource AshTypescript.Test.Task do
       rpc_action :list_tasks, :read
       rpc_action :create_task, :create
+      rpc_action :update_task, :update
       rpc_action :mark_completed_task, :mark_completed
+      rpc_action :destroy_task, :destroy
     end
   end
 
