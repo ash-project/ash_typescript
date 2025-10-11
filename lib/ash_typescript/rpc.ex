@@ -7,7 +7,7 @@ defmodule AshTypescript.Rpc do
 
     Defines the mapping between a named RPC endpoint and an Ash action.
     """
-    defstruct [:name, :action]
+    defstruct [:name, :action, __spark_metadata__: nil]
   end
 
   defmodule Resource do
@@ -17,7 +17,7 @@ defmodule AshTypescript.Rpc do
     Contains the resource module and lists of configured RPC actions
     and typed queries for that resource.
     """
-    defstruct [:resource, rpc_actions: [], typed_queries: []]
+    defstruct [:resource, rpc_actions: [], typed_queries: [], __spark_metadata__: nil]
   end
 
   defmodule TypedQuery do
@@ -27,7 +27,15 @@ defmodule AshTypescript.Rpc do
     Defines a pre-configured query with specific fields and TypeScript types,
     allowing for type-safe, reusable query patterns in the generated RPC client.
     """
-    defstruct [:name, :ts_result_type_name, :ts_fields_const_name, :resource, :action, :fields]
+    defstruct [
+      :name,
+      :ts_result_type_name,
+      :ts_fields_const_name,
+      :resource,
+      :action,
+      :fields,
+      __spark_metadata__: nil
+    ]
   end
 
   @typed_query %Spark.Dsl.Entity{
