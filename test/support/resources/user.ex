@@ -10,7 +10,8 @@ defmodule AshTypescript.Test.User do
 
   typescript do
     type_name "User"
-    mapped_field_names(address_line_1: :address_line1)
+    field_names address_line_1: :address_line1
+    argument_names read_with_invalid_arg: [is_active?: :is_active]
   end
 
   ets do
@@ -62,6 +63,10 @@ defmodule AshTypescript.Test.User do
 
   actions do
     defaults [:read]
+
+    read :read_with_invalid_arg do
+      argument :is_active?, :boolean
+    end
 
     create :create do
       accept [:email, :name, :is_super_admin]

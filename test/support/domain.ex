@@ -58,6 +58,10 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :create_user, :create
       rpc_action :update_user, :update
       rpc_action :destroy_user, :destroy
+
+      typed_query :list_with_invalid_arg, :read_with_invalid_arg do
+        fields [:id, :email]
+      end
     end
 
     resource AshTypescript.Test.UserSettings do

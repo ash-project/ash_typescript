@@ -14,10 +14,16 @@ defmodule AshTypescript.Resource do
         doc: "The name of the TypeScript type for the resource",
         required: true
       ],
-      mapped_field_names: [
+      field_names: [
         type: :keyword_list,
         doc:
           "A keyword list mapping invalid field names to valid alternatives (e.g., [address_line_1: :address_line1])",
+        default: []
+      ],
+      argument_names: [
+        type: :keyword_list,
+        doc:
+          "A keyword list mapping invalid argument names to valid alternatives per action (e.g., [read_with_invalid_arg: [is_active?: :is_active]])",
         default: []
       ]
     ]
@@ -27,6 +33,7 @@ defmodule AshTypescript.Resource do
     sections: [@typescript],
     verifiers: [
       AshTypescript.Resource.VerifyUniqueTypeNames,
-      AshTypescript.Resource.VerifyMappedFieldNames
+      AshTypescript.Resource.VerifyMappedFieldNames,
+      AshTypescript.Resource.VerifyFieldNames
     ]
 end

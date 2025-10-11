@@ -1,11 +1,11 @@
 defmodule AshTypescript.Resource.VerifyMappedFieldNames do
   @moduledoc """
-  Verifies that mapped_field_names configuration is valid.
+  Verifies that field_names configuration is valid.
 
   Ensures that:
-  1. All keys in mapped_field_names reference existing fields on the resource
-  2. All keys in mapped_field_names are invalid names (contain _+\\d or ?)
-  3. All values in mapped_field_names are valid replacement names
+  1. All keys in field_names reference existing fields on the resource
+  2. All keys in field_names are invalid names (contain _+\\d or ?)
+  3. All values in field_names are valid replacement names
   """
   use Spark.Dsl.Verifier
   alias Spark.Dsl.Verifier
@@ -17,13 +17,14 @@ defmodule AshTypescript.Resource.VerifyMappedFieldNames do
     case get_mapped_field_names(dsl) do
       [] ->
         :ok
+
       mapped_fields ->
         validate_mapped_fields(resource, mapped_fields)
     end
   end
 
   defp get_mapped_field_names(dsl) do
-    case Verifier.get_option(dsl, [:typescript], :mapped_field_names) do
+    case Verifier.get_option(dsl, [:typescript], :field_names) do
       nil -> []
       mapped_fields -> mapped_fields
     end
@@ -51,9 +52,9 @@ defmodule AshTypescript.Resource.VerifyMappedFieldNames do
   defp validate_field_exists(errors, resource, field_name) do
     field_exists =
       field_exists_in_attributes?(resource, field_name) ||
-      field_exists_in_relationships?(resource, field_name) ||
-      field_exists_in_calculations?(resource, field_name) ||
-      field_exists_in_aggregates?(resource, field_name)
+        field_exists_in_relationships?(resource, field_name) ||
+        field_exists_in_calculations?(resource, field_name) ||
+        field_exists_in_aggregates?(resource, field_name)
 
     if field_exists do
       errors
@@ -64,25 +65,25 @@ defmodule AshTypescript.Resource.VerifyMappedFieldNames do
 
   defp field_exists_in_attributes?(resource, field_name) do
     resource
-    |> Ash.Resource.Info.attributes()
+    |> Ash.Resource.Info.public_attributes()
     |> Enum.any?(&(&1.name == field_name))
   end
 
   defp field_exists_in_relationships?(resource, field_name) do
     resource
-    |> Ash.Resource.Info.relationships()
+    |> Ash.Resource.Info.public_relationships()
     |> Enum.any?(&(&1.name == field_name))
   end
 
   defp field_exists_in_calculations?(resource, field_name) do
     resource
-    |> Ash.Resource.Info.calculations()
+    |> Ash.Resource.Info.public_calculations()
     |> Enum.any?(&(&1.name == field_name))
   end
 
   defp field_exists_in_aggregates?(resource, field_name) do
     resource
-    |> Ash.Resource.Info.aggregates()
+    |> Ash.Resource.Info.public_aggregates()
     |> Enum.any?(&(&1.name == field_name))
   end
 

@@ -171,15 +171,6 @@ defmodule AshTypescript.Rpc.VerifyRpc do
     |> String.replace("?", "")
   end
 
-  defp field_has_mapping?(resource, field_name) do
-    try do
-      mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
-      mapped_name != field_name
-    rescue
-      _ -> false
-    end
-  end
-
   defp verify_names(resource, rpc_actions, typed_queries) do
     errors = []
 
@@ -189,11 +180,8 @@ defmodule AshTypescript.Rpc.VerifyRpc do
     # Validate typed query names
     errors = validate_typed_query_names(typed_queries, errors)
 
-    # Validate public fields on the resource
-    errors = validate_resource_field_names(resource, errors)
-
-    # Validate action arguments for each RPC action
-    errors = validate_action_argument_names(resource, rpc_actions, errors)
+    # Validate action arguments for RPC actions and typed queries
+    errors = validate_action_argument_names(resource, rpc_actions, typed_queries, errors)
 
     case errors do
       [] -> :ok
@@ -229,60 +217,34 @@ defmodule AshTypescript.Rpc.VerifyRpc do
     end
   end
 
-  defp validate_resource_field_names(resource, errors) do
-    invalid_fields = []
-
-    # Check public attributes
-    invalid_fields =
-      invalid_fields ++
-        (Ash.Resource.Info.public_attributes(resource)
-         |> Enum.filter(&(invalid_name?(&1.name) and not field_has_mapping?(resource, &1.name)))
-         |> Enum.map(fn attr -> {:attribute, attr.name, make_name_better(attr.name)} end))
-
-    # Check public relationships
-    invalid_fields =
-      invalid_fields ++
-        (Ash.Resource.Info.public_relationships(resource)
-         |> Enum.filter(&(invalid_name?(&1.name) and not field_has_mapping?(resource, &1.name)))
-         |> Enum.map(fn rel -> {:relationship, rel.name, make_name_better(rel.name)} end))
-
-    # Check public calculations
-    invalid_fields =
-      invalid_fields ++
-        (Ash.Resource.Info.public_calculations(resource)
-         |> Enum.filter(&(invalid_name?(&1.name) and not field_has_mapping?(resource, &1.name)))
-         |> Enum.map(fn calc -> {:calculation, calc.name, make_name_better(calc.name)} end))
-
-    # Check public aggregates
-    invalid_fields =
-      invalid_fields ++
-        (Ash.Resource.Info.public_aggregates(resource)
-         |> Enum.filter(&(invalid_name?(&1.name) and not field_has_mapping?(resource, &1.name)))
-         |> Enum.map(fn agg -> {:aggregate, agg.name, make_name_better(agg.name)} end))
-
-    case invalid_fields do
-      [] -> errors
-      _ -> [{:invalid_resource_fields, resource, invalid_fields} | errors]
-    end
-  end
-
-  defp validate_action_argument_names(resource, rpc_actions, errors) do
-    invalid_arguments =
+  defp validate_action_argument_names(resource, rpc_actions, typed_queries, errors) do
+    # Validate RPC action arguments
+    rpc_action_arguments =
       rpc_actions
       |> Enum.flat_map(fn rpc_action ->
         action = Ash.Resource.Info.action(resource, rpc_action.action)
 
         if action do
-          # Check action arguments
           argument_errors =
             action.arguments
-            |> Enum.filter(&invalid_name?(&1.name))
+            |> Enum.filter(fn arg ->
+              if AshTypescript.Resource.Info.typescript_resource?(resource) do
+                # Check if the mapped name is still invalid
+                mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
+                  resource,
+                  rpc_action.action,
+                  arg.name
+                )
+                invalid_name?(mapped_name)
+              else
+                invalid_name?(arg.name)
+              end
+            end)
             |> Enum.map(fn arg ->
               {rpc_action.name, rpc_action.action, :argument, arg.name,
                make_name_better(arg.name)}
             end)
 
-          # Check accepted attributes (for CRUD actions that have accept)
           accept_errors =
             case Map.get(action, :accept) do
               nil ->
@@ -302,6 +264,38 @@ defmodule AshTypescript.Rpc.VerifyRpc do
           []
         end
       end)
+
+    # Validate typed query arguments
+    typed_query_arguments =
+      typed_queries
+      |> Enum.flat_map(fn typed_query ->
+        action = Ash.Resource.Info.action(resource, typed_query.action)
+
+        if action do
+          action.arguments
+          |> Enum.filter(fn arg ->
+            if AshTypescript.Resource.Info.typescript_resource?(resource) do
+              # Check if the mapped name is still invalid
+              mapped_name = AshTypescript.Resource.Info.get_mapped_argument_name(
+                resource,
+                typed_query.action,
+                arg.name
+              )
+              invalid_name?(mapped_name)
+            else
+              invalid_name?(arg.name)
+            end
+          end)
+          |> Enum.map(fn arg ->
+            {typed_query.name, typed_query.action, :argument, arg.name,
+             make_name_better(arg.name)}
+          end)
+        else
+          []
+        end
+      end)
+
+    invalid_arguments = rpc_action_arguments ++ typed_query_arguments
 
     case invalid_arguments do
       [] -> errors
@@ -350,22 +344,11 @@ defmodule AshTypescript.Rpc.VerifyRpc do
     "Invalid typed query names:\n#{suggestions}"
   end
 
-  defp format_error_part({:invalid_resource_fields, resource, fields}) do
-    suggestions =
-      fields
-      |> Enum.map(fn {type, current, suggested} ->
-        "  - #{type} #{current} → #{suggested}"
-      end)
-      |> Enum.join("\n")
-
-    "Invalid field names in resource #{resource}:\n#{suggestions}"
-  end
-
   defp format_error_part({:invalid_action_arguments, arguments}) do
     suggestions =
       arguments
       |> Enum.map(fn {rpc_name, action_name, type, current, suggested} ->
-        "  - RPC action #{rpc_name} (action #{action_name}) #{type} #{current} → #{suggested}"
+        "  - #{rpc_name} (action #{action_name}) #{type} #{current} → #{suggested}"
       end)
       |> Enum.join("\n")
 
