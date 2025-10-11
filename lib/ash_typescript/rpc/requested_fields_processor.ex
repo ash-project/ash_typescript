@@ -159,6 +159,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
 
       case field do
         field_name when is_atom(field_name) ->
+          field_name = AshTypescript.Resource.Info.get_original_field_name(resource, field_name)
+
           case classify_field(resource, field_name, path) do
             :attribute ->
               {select ++ [field_name], load, template ++ [field_name]}
@@ -213,6 +215,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
           end
 
         {field_name, nested_fields} ->
+          field_name = AshTypescript.Resource.Info.get_original_field_name(resource, field_name)
+
           case classify_field(resource, field_name, path) do
             :relationship ->
               process_relationship(
@@ -304,6 +308,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
           {new_select, new_load, new_template} =
             Enum.reduce(field_map, {select, load, template}, fn {field_name, nested_fields},
                                                                 {s, l, t} ->
+              field_name =
+                AshTypescript.Resource.Info.get_original_field_name(resource, field_name)
+
               case classify_field(resource, field_name, path) do
                 :relationship ->
                   process_relationship(resource, field_name, nested_fields, path, s, l, t)
@@ -312,30 +319,18 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
                   process_embedded_resource(resource, field_name, nested_fields, path, s, l, t)
 
                 :embedded_resource_array ->
-                  # Handle array of embedded resources with nested field selection
-                  process_embedded_resource(
-                    resource,
-                    field_name,
-                    nested_fields,
-                    path,
-                    s,
-                    l,
-                    t
-                  )
+                  process_embedded_resource(resource, field_name, nested_fields, path, s, l, t)
 
                 :tuple ->
                   process_tuple_type(resource, field_name, nested_fields, path, s, l, t)
 
                 :typed_struct ->
-                  # Handle typed struct with nested field selection
                   process_typed_struct(resource, field_name, nested_fields, path, s, l, t)
 
                 :union_attribute ->
-                  # Handle union attribute with nested field selection
                   process_union_attribute(resource, field_name, nested_fields, path, s, l, t)
 
                 :calculation_with_args ->
-                  # Validate that it has the right structure for calculation with args
                   if is_calculation_with_args(nested_fields) do
                     process_calculation_with_args(
                       resource,
@@ -432,8 +427,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
     validate_non_empty_fields(nested_fields, field_name, path, "Type")
 
     attribute = Ash.Resource.Info.attribute(resource, field_name)
-    # field_specs = Keyword.get(attribute.constraints, :fields, [])
-
     new_path = path ++ [field_name]
 
     {[], [], template_items} =
@@ -1097,6 +1090,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
   end
 
   defp classify_field(resource, field_name, _path) do
+    field_name = AshTypescript.Resource.Info.get_original_field_name(resource, field_name)
+
     cond do
       attribute = Ash.Resource.Info.public_attribute(resource, field_name) ->
         case attribute.type do

@@ -7,11 +7,11 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   @doc """
   Main entry point for processing Ash results.
   """
-  @spec process(term(), map()) :: term()
-  def process(result, extraction_template) do
+  @spec process(term(), map(), module() | nil) :: term()
+  def process(result, extraction_template, resource \\ nil) do
     case result do
       %Ash.Page.Offset{results: results} = page ->
-        processed_results = extract_list_fields(results, extraction_template)
+        processed_results = extract_list_fields(results, extraction_template, resource)
 
         page
         |> Map.take([:limit, :offset, :count])
@@ -20,7 +20,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         |> Map.put(:type, :offset)
 
       %Ash.Page.Keyset{results: results} = page ->
-        processed_results = extract_list_fields(results, extraction_template)
+        processed_results = extract_list_fields(results, extraction_template, resource)
 
         {previous_page_cursor, next_page_cursor} =
           if Enum.empty?(results) do
@@ -42,25 +42,26 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
       result when is_list(result) ->
         if Keyword.keyword?(result) do
-          extract_single_result(result, extraction_template)
+          extract_single_result(result, extraction_template, resource)
         else
-          extract_list_fields(result, extraction_template)
+          extract_list_fields(result, extraction_template, resource)
         end
 
       result ->
-        extract_single_result(result, extraction_template)
+        extract_single_result(result, extraction_template, resource)
     end
   end
 
-  defp extract_list_fields(results, extraction_template) do
+  defp extract_list_fields(results, extraction_template, resource) do
     if extraction_template == [] and Enum.any?(results, &(not is_map(&1))) do
       Enum.map(results, &normalize_value_for_json/1)
     else
-      Enum.map(results, &extract_single_result(&1, extraction_template))
+      Enum.map(results, &extract_single_result(&1, extraction_template, resource))
     end
   end
 
-  defp extract_single_result(data, extraction_template) when is_list(extraction_template) do
+  defp extract_single_result(data, extraction_template, resource)
+       when is_list(extraction_template) do
     is_tuple = is_tuple(data)
 
     normalized_data =
@@ -81,10 +82,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       Enum.reduce(extraction_template, %{}, fn field_spec, acc ->
         case field_spec do
           field_atom when is_atom(field_atom) or is_tuple(data) ->
-            extract_simple_field(normalized_data, field_atom, acc)
+            extract_simple_field(normalized_data, field_atom, acc, resource)
 
           {field_atom, nested_template} when is_atom(field_atom) and is_list(nested_template) ->
-            extract_nested_field(normalized_data, field_atom, nested_template, acc)
+            extract_nested_field(normalized_data, field_atom, nested_template, acc, resource)
 
           _ ->
             acc
@@ -94,16 +95,24 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   end
 
   # Fallback: Handle results without templates (return all fields)
-  defp extract_single_result(data, _template) do
+  defp extract_single_result(data, _template, _resource) do
     normalize_data(data)
   end
 
   # Extract a simple field, handling forbidden, not loaded, and nil cases
-  defp extract_simple_field(normalized_data, field_atom, acc) do
+  defp extract_simple_field(normalized_data, field_atom, acc, resource) do
+    # Map the Elixir field name to the TypeScript field name for output
+    output_field_name =
+      if resource do
+        AshTypescript.Resource.Info.get_mapped_field_name(resource, field_atom)
+      else
+        field_atom
+      end
+
     case Map.get(normalized_data, field_atom) do
       # Forbidden fields get set to nil - maintain response structure but indicate no permission
       %Ash.ForbiddenField{} ->
-        Map.put(acc, field_atom, nil)
+        Map.put(acc, output_field_name, nil)
 
       # Skip not loaded fields - not requested in the original query
       %Ash.NotLoaded{} ->
@@ -111,18 +120,29 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
       # Extract the value and normalize it
       value ->
-        Map.put(acc, field_atom, normalize_value_for_json(value))
+        Map.put(acc, output_field_name, normalize_value_for_json(value))
     end
   end
 
   # Extract a nested field with template, handling forbidden, not loaded, and nil cases
-  defp extract_nested_field(normalized_data, field_atom, nested_template, acc) do
+  defp extract_nested_field(normalized_data, field_atom, nested_template, acc, resource) do
+    # Map the Elixir field name to the TypeScript field name for output
+    output_field_name =
+      if resource do
+        AshTypescript.Resource.Info.get_mapped_field_name(resource, field_atom)
+      else
+        field_atom
+      end
+
     nested_data = Map.get(normalized_data, field_atom)
+
+    # Determine the resource for nested data (for relationships and embedded resources)
+    nested_resource = get_nested_resource(resource, field_atom)
 
     case nested_data do
       # Forbidden fields get set to nil - maintain response structure but indicate no permission
       %Ash.ForbiddenField{} ->
-        Map.put(acc, field_atom, nil)
+        Map.put(acc, output_field_name, nil)
 
       # Skip not loaded fields - not requested in the original query
       %Ash.NotLoaded{} ->
@@ -130,11 +150,11 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
       # Handle nil values - field might be nil even when we expect nested data
       nil ->
-        Map.put(acc, field_atom, nil)
+        Map.put(acc, output_field_name, nil)
 
       nested_data ->
-        nested_result = extract_nested_data(nested_data, nested_template)
-        Map.put(acc, field_atom, nested_result)
+        nested_result = extract_nested_data(nested_data, nested_template, nested_resource)
+        Map.put(acc, output_field_name, nested_result)
     end
   end
 
@@ -227,7 +247,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   end
 
   # Extract nested data recursively with proper permission handling
-  defp extract_nested_data(data, template) do
+  defp extract_nested_data(data, template, resource) do
     case data do
       # Forbidden nested data gets set to nil
       %Ash.ForbiddenField{} ->
@@ -246,7 +266,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         if Keyword.keyword?(list) do
           # Convert keyword list to map and extract using the template
           keyword_map = Enum.into(list, %{})
-          extract_single_result(keyword_map, template)
+          extract_single_result(keyword_map, template, resource)
         else
           # Handle normal lists of nested data (e.g., has_many relationships, arrays)
           Enum.map(list, fn item ->
@@ -261,10 +281,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
                 nil
 
               %Ash.Union{type: active_type, value: union_value} ->
-                extract_union_fields(active_type, union_value, template)
+                extract_union_fields(active_type, union_value, template, resource)
 
               valid_item ->
-                extract_single_result(valid_item, template)
+                extract_single_result(valid_item, template, resource)
             end
           end)
         end
@@ -275,16 +295,16 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
       # Handle union types specially
       %Ash.Union{type: active_type, value: union_value} ->
-        extract_union_fields(active_type, union_value, template)
+        extract_union_fields(active_type, union_value, template, resource)
 
       # Handle single nested item
       single_item ->
-        extract_single_result(single_item, template)
+        extract_single_result(single_item, template, resource)
     end
   end
 
   # Extract fields from union types based on the active union member
-  defp extract_union_fields(active_type, union_value, template) do
+  defp extract_union_fields(active_type, union_value, template, resource) do
     Enum.reduce(template, %{}, fn member_spec, acc ->
       case member_spec do
         # Simple member (atom) - just the member name
@@ -301,7 +321,12 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         {member_atom, member_template} when is_atom(member_atom) ->
           if member_atom == active_type do
             # This is the active member, extract its fields
-            extracted_fields = extract_single_result(union_value, member_template)
+            # For union members, we might need to determine the nested resource
+            member_resource = get_union_member_resource(resource, member_atom)
+
+            extracted_fields =
+              extract_single_result(union_value, member_template, member_resource)
+
             Map.put(acc, member_atom, extracted_fields)
           else
             # This is not the active member, don't include it in the result
@@ -313,5 +338,90 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           acc
       end
     end)
+  end
+
+  # Get the resource type for a nested field (relationship or embedded resource)
+  defp get_nested_resource(nil, _field_name), do: nil
+
+  defp get_nested_resource(resource, field_name) do
+    cond do
+      # Check if it's a relationship
+      relationship = Ash.Resource.Info.relationship(resource, field_name) ->
+        relationship.destination
+
+      # Check if it's an embedded resource attribute
+      attribute = Ash.Resource.Info.attribute(resource, field_name) ->
+        case attribute.type do
+          {:array, embedded_resource} when is_atom(embedded_resource) ->
+            if Ash.Resource.Info.resource?(embedded_resource) &&
+                 Ash.Resource.Info.embedded?(embedded_resource) do
+              embedded_resource
+            else
+              nil
+            end
+
+          embedded_resource when is_atom(embedded_resource) ->
+            if Ash.Resource.Info.resource?(embedded_resource) &&
+                 Ash.Resource.Info.embedded?(embedded_resource) do
+              embedded_resource
+            else
+              nil
+            end
+
+          _ ->
+            nil
+        end
+
+      true ->
+        nil
+    end
+  end
+
+  # Get the resource type for a union member (if it's an embedded resource)
+  defp get_union_member_resource(nil, _member_name), do: nil
+
+  defp get_union_member_resource(resource, member_name) do
+    # Try to find the union attribute that contains this member
+    attribute =
+      Enum.find(Ash.Resource.Info.attributes(resource), fn attr ->
+        case attr.type do
+          Ash.Type.Union ->
+            union_types = Keyword.get(attr.constraints, :types, [])
+            Keyword.has_key?(union_types, member_name)
+
+          {:array, Ash.Type.Union} ->
+            items_constraints = Keyword.get(attr.constraints, :items, [])
+            union_types = Keyword.get(items_constraints, :types, [])
+            Keyword.has_key?(union_types, member_name)
+
+          _ ->
+            false
+        end
+      end)
+
+    if attribute do
+      union_types =
+        case attribute.type do
+          Ash.Type.Union ->
+            Keyword.get(attribute.constraints, :types, [])
+
+          {:array, Ash.Type.Union} ->
+            items_constraints = Keyword.get(attribute.constraints, :items, [])
+            Keyword.get(items_constraints, :types, [])
+        end
+
+      member_config = Keyword.get(union_types, member_name)
+      member_type = Keyword.get(member_config, :type)
+
+      # Check if the member type is an embedded resource
+      if is_atom(member_type) && Ash.Resource.Info.resource?(member_type) &&
+           Ash.Resource.Info.embedded?(member_type) do
+        member_type
+      else
+        nil
+      end
+    else
+      nil
+    end
   end
 end

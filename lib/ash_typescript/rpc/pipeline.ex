@@ -141,7 +141,9 @@ defmodule AshTypescript.Rpc.Pipeline do
         if unconstrained_map_action?(request.action) do
           {:ok, ResultProcessor.normalize_value_for_json(result)}
         else
-          filtered = ResultProcessor.process(result, request.extraction_template)
+          filtered =
+            ResultProcessor.process(result, request.extraction_template, request.resource)
+
           {:ok, filtered}
         end
 
