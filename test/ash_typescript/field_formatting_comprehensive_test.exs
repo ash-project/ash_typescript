@@ -591,7 +591,8 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
     test "generates camelCase field names with :camel_case formatter" do
       Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
 
-      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} =
+        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Check that resource field schemas use camelCase
       assert String.contains?(typescript_output, "name: string")
@@ -613,7 +614,8 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
     test "generates PascalCase field names with :pascal_case formatter" do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
-      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} =
+        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Check that resource field schemas use PascalCase
       assert String.contains?(typescript_output, "Name: string")
@@ -631,7 +633,8 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
     test "generates snake_case field names with :snake_case formatter" do
       Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
 
-      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} =
+        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Check that resource field schemas use snake_case
       assert String.contains?(typescript_output, "name: string")
@@ -651,7 +654,8 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
     test "generates field names with custom formatters" do
       Application.put_env(:ash_typescript, :output_field_formatter, {Formatters, :custom_format})
 
-      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} =
+        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Check that resource field schemas use custom formatting
       assert String.contains?(typescript_output, "custom_name: string")
@@ -682,7 +686,8 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         {Formatters, :custom_format_with_suffix, ["gen"]}
       )
 
-      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} =
+        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Check that resource field schemas use custom formatting with suffix
       assert String.contains?(typescript_output, "name_gen: string")

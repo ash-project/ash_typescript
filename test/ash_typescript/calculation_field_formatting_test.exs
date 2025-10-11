@@ -38,7 +38,8 @@ defmodule AshTypescript.CalculationFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript with pascal case formatting
-      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} =
+        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test Todo calculation field formatting
       assert String.contains?(typescript_output, "IsOverdue")
@@ -82,7 +83,8 @@ defmodule AshTypescript.CalculationFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
 
       # Generate TypeScript with snake case formatting
-      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} =
+        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test Todo calculation field formatting - should stay snake_case
       assert String.contains?(typescript_output, "is_overdue")
@@ -125,7 +127,8 @@ defmodule AshTypescript.CalculationFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript
-      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} =
+        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test calculation arguments that have multi-word names
       # AdjustedPriority calculation has: urgency_multiplier, deadline_factor, user_bias
@@ -153,7 +156,8 @@ defmodule AshTypescript.CalculationFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript
-      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} =
+        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Test that calculations returning resources (like self calculation)
       # have their return type fields formatted correctly
@@ -173,7 +177,8 @@ defmodule AshTypescript.CalculationFieldFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       # Generate TypeScript
-      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} =
+        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Look for RPC function definitions with calculation fields
       # RPC functions should also use the configured formatter for calculation field names
@@ -192,7 +197,8 @@ defmodule AshTypescript.CalculationFieldFormattingTest do
       # Configure snake_case formatter to catch hardcoding (opposite of default camelCase)
       Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
 
-      {:ok, typescript_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript_output} =
+        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # If hardcoded camelCase formatting is used, these would incorrectly appear as camelCase
       # instead of respecting the snake_case formatter configuration
