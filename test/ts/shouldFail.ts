@@ -16,5 +16,6 @@ import "./shouldFail/operations";
 // Import Zod schema validation failure tests
 import "./zod/shouldFail/invalidZodUsage";
 import "./zod/shouldFail/complexInvalidSchemas";
+import "./zod/shouldFail/wrongPaginationTypes";
 
 console.log("This file should NOT compile due to TypeScript errors!");
