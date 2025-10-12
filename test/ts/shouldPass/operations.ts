@@ -44,7 +44,7 @@ export const listWithNestedSelf = await listTodos({
 
 // Type validation for list results with nested calculations
 if (listWithNestedSelf.success) {
-  for (const todo of listWithNestedSelf.data.results) {
+  for (const todo of listWithNestedSelf.data) {
     // Each todo should have the basic fields
     const todoId: string = todo.id;
     const todoTitle: string = todo.title;
@@ -124,7 +124,7 @@ export const listWithInputParams = await listTodos({
 
 // Type validation for list with input parameters
 if (listWithInputParams.success) {
-  for (const todo of listWithInputParams.data.results) {
+  for (const todo of listWithInputParams.data) {
     const todoId: string = todo.id;
     const todoTitle: string = todo.title;
     const todoCompleted: boolean | null | undefined = todo.completed;

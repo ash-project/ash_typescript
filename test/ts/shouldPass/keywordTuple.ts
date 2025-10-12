@@ -70,7 +70,7 @@ async function testKeywordTupleFieldSelection() {
   });
   
   if (todosWithOptions.success) {
-    const todos = todosWithOptions.data.results;
+    const todos = todosWithOptions.data;
     
     // Check the first todo's options if it exists
     if (todos.length > 0 && todos[0].options) {
@@ -98,7 +98,7 @@ async function testKeywordTupleFieldSelection() {
   });
   
   if (todosWithCoordinates.success) {
-    const todos = todosWithCoordinates.data.results;
+    const todos = todosWithCoordinates.data;
     
     // Check the first todo's coordinates if it exists
     if (todos.length > 0 && todos[0].coordinates) {
@@ -125,7 +125,7 @@ async function testKeywordTupleFieldSelection() {
   });
   
   if (todosWithPartialOptions.success) {
-    const todos = todosWithPartialOptions.data.results;
+    const todos = todosWithPartialOptions.data;
     
     // Check the first todo's partial options if it exists
     if (todos.length > 0 && todos[0].options) {

@@ -184,7 +184,7 @@ export const getTodoWithErrorHandling = await getTodo({
 
 // Type validation tests
 if (listTodosWithCustomFetch.success) {
-  const todos = listTodosWithCustomFetch.data.results;
+  const todos = listTodosWithCustomFetch.data;
   todos.forEach(todo => {
     const id: string = todo.id;
     const title: string = todo.title;

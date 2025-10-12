@@ -41,7 +41,7 @@ listTodosChannel({
   fields: ["id", "title", "status", { user: ["id", "name", "email"] }],
   resultHandler: (result) => {
     if (result.success) {
-      for (const todo of result.data.results) {
+      for (const todo of result.data) {
         const todoId: string = todo.id;
         const todoTitle: string = todo.title;
         const todoStatus:
