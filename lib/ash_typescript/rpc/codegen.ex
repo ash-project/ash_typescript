@@ -352,6 +352,49 @@ defmodule AshTypescript.Rpc.Codegen do
       }[number]
     >;
 
+    // Pagination conditional types
+    // Checks if a page configuration object has any pagination parameters
+    type HasPaginationParams<Page> =
+      Page extends { offset: any } ? true :
+      Page extends { after: any } ? true :
+      Page extends { before: any } ? true :
+      false;
+
+    // Infer which pagination type is being used from the page config
+    type InferPaginationType<Page> =
+      Page extends { offset: any } ? "offset" :
+      Page extends { after: any } | { before: any } ? "keyset" :
+      never;
+
+    // Returns either non-paginated (array) or paginated result based on page params
+    // For single pagination type support (offset-only or keyset-only)
+    type ConditionalPaginatedResult<
+      Page,
+      RecordType,
+      PaginatedType
+    > = Page extends undefined
+      ? RecordType
+      : HasPaginationParams<Page> extends true
+        ? PaginatedType
+        : RecordType;
+
+    // For actions supporting both offset and keyset pagination
+    // Infers the specific pagination type based on which params were passed
+    type ConditionalPaginatedResultMixed<
+      Page,
+      RecordType,
+      OffsetType,
+      KeysetType
+    > = Page extends undefined
+      ? RecordType
+      : HasPaginationParams<Page> extends true
+        ? InferPaginationType<Page> extends "offset"
+          ? OffsetType
+          : InferPaginationType<Page> extends "keyset"
+            ? KeysetType
+            : OffsetType | KeysetType  // Fallback to union if can't determine
+        : RecordType;
+
     export type SuccessDataFunc<T extends (...args: any[]) => Promise<any>> = Extract<
       Awaited<ReturnType<T>>,
       { success: true }
@@ -897,12 +940,23 @@ defmodule AshTypescript.Rpc.Codegen do
           """
 
           pagination_type =
-            generate_pagination_result_type(
-              resource,
-              action,
-              rpc_action_name_pascal,
-              resource_name
-            )
+            if action_requires_pagination?(action) do
+              # Required pagination - always returns paginated structure
+              generate_pagination_result_type(
+                resource,
+                action,
+                rpc_action_name_pascal,
+                resource_name
+              )
+            else
+              # Optional pagination - conditional based on page parameter
+              generate_conditional_pagination_result_type(
+                resource,
+                action,
+                rpc_action_name_pascal,
+                resource_name
+              )
+            end
 
           fields_type <> "\n" <> pagination_type
         else
@@ -1087,6 +1141,103 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
+  defp generate_conditional_pagination_result_type(
+         _resource,
+         action,
+         rpc_action_name_pascal,
+         resource_name
+       ) do
+    supports_offset = action_supports_offset_pagination?(action)
+    supports_keyset = action_supports_keyset_pagination?(action)
+
+    # Generate the array type (non-paginated)
+    array_type = "Array<InferResult<#{resource_name}ResourceSchema, Fields>>"
+
+    cond do
+      supports_offset and supports_keyset ->
+        # Mixed pagination - use the new type that infers based on params
+        offset_type = generate_offset_pagination_type_inline(resource_name)
+        keyset_type = generate_keyset_pagination_type_inline(resource_name)
+
+        """
+        type Infer#{rpc_action_name_pascal}Result<
+          Fields extends #{rpc_action_name_pascal}Fields,
+          Page extends #{rpc_action_name_pascal}Config["page"] = undefined
+        > = ConditionalPaginatedResultMixed<Page, #{array_type}, #{offset_type}, #{keyset_type}>;
+        """
+
+      supports_offset ->
+        # Offset only
+        offset_type = generate_offset_pagination_type_inline(resource_name)
+
+        """
+        type Infer#{rpc_action_name_pascal}Result<
+          Fields extends #{rpc_action_name_pascal}Fields,
+          Page extends #{rpc_action_name_pascal}Config["page"] = undefined
+        > = ConditionalPaginatedResult<Page, #{array_type}, #{offset_type}>;
+        """
+
+      supports_keyset ->
+        # Keyset only
+        keyset_type = generate_keyset_pagination_type_inline(resource_name)
+
+        """
+        type Infer#{rpc_action_name_pascal}Result<
+          Fields extends #{rpc_action_name_pascal}Fields,
+          Page extends #{rpc_action_name_pascal}Config["page"] = undefined
+        > = ConditionalPaginatedResult<Page, #{array_type}, #{keyset_type}>;
+        """
+    end
+  end
+
+  defp generate_offset_pagination_type_inline(resource_name) do
+    results_field = formatted_results_field()
+    has_more_field = formatted_has_more_field()
+    limit_field = formatted_limit_field()
+    offset_field = formatted_offset_field()
+    count_field = format_output_field(:count)
+    type_field = format_output_field(:type)
+
+    """
+    {
+      #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+      #{has_more_field}: boolean;
+      #{limit_field}: number;
+      #{offset_field}: number;
+      #{count_field}?: number | null;
+      #{type_field}: "offset";
+    }
+    """
+    |> String.trim()
+  end
+
+  defp generate_keyset_pagination_type_inline(resource_name) do
+    results_field = formatted_results_field()
+    has_more_field = formatted_has_more_field()
+    limit_field = formatted_limit_field()
+    after_field = formatted_after_field()
+    before_field = formatted_before_field()
+    previous_page_field = formatted_previous_page_field()
+    next_page_field = formatted_next_page_field()
+    count_field = format_output_field(:count)
+    type_field = format_output_field(:type)
+
+    """
+    {
+      #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+      #{has_more_field}: boolean;
+      #{limit_field}: number;
+      #{after_field}: string | null;
+      #{before_field}: string | null;
+      #{previous_page_field}: string;
+      #{next_page_field}: string;
+      #{count_field}?: number | null;
+      #{type_field}: "keyset";
+    }
+    """
+    |> String.trim()
+  end
+
   defp generate_pagination_config_fields(action) do
     supports_offset = action_supports_offset_pagination?(action)
     supports_keyset = action_supports_keyset_pagination?(action)
@@ -1124,7 +1275,9 @@ defmodule AshTypescript.Rpc.Codegen do
   defp generate_offset_pagination_config_fields(limit_required, supports_countable, optional_mark) do
     fields = [
       "    #{formatted_limit_field()}#{limit_required}: number;",
-      "    #{formatted_offset_field()}?: number;"
+      "    #{formatted_offset_field()}?: number;",
+      "    #{formatted_after_field()}?: never;",
+      "    #{formatted_before_field()}?: never;"
     ]
 
     fields =
@@ -1147,7 +1300,9 @@ defmodule AshTypescript.Rpc.Codegen do
     fields = [
       "    #{formatted_limit_field()}#{limit_required}: number;",
       "    #{formatted_after_field()}?: string;",
-      "    #{formatted_before_field()}?: string;"
+      "    #{formatted_before_field()}?: string;",
+      "    #{formatted_offset_field()}?: never;",
+      "    #{format_output_field(:count)}?: never;"
     ]
 
     [
@@ -1417,7 +1572,29 @@ defmodule AshTypescript.Rpc.Codegen do
           "  customFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;"
         ]
 
-    config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
+    # Check if this is a read action with optional pagination
+    is_optional_pagination =
+      action.type == :read and not action.get? and action_supports_pagination?(action) and
+        not action_requires_pagination?(action) and has_fields
+
+    # Generate config type (named for optional pagination, inline otherwise)
+    {config_type_export, config_type_ref} =
+      if is_optional_pagination do
+        config_type_name = "#{rpc_action_name_pascal}Config"
+        # For named config type, replace generic Fields with concrete type name
+        config_fields_concrete =
+          Enum.map(config_fields, fn field_def ->
+            String.replace(field_def, ": Fields;", ": #{rpc_action_name_pascal}Fields;")
+          end)
+
+        config_body = "{\n#{Enum.join(config_fields_concrete, "\n")}\n}"
+        config_export = "export type #{config_type_name} = #{config_body};\n\n"
+        {config_export, config_type_name}
+      else
+        config_body = "{\n#{Enum.join(config_fields, "\n")}\n}"
+        {"", config_body}
+      end
+
     success_field = format_output_field(:success)
     errors_field = format_output_field(:errors)
 
@@ -1439,11 +1616,37 @@ defmodule AshTypescript.Rpc.Codegen do
 
           result_type_def = "export type #{rpc_action_name_pascal}Result = #{result_type};"
 
-          {result_type_def, "#{rpc_action_name_pascal}Result", "", "config: #{config_type_def}"}
+          {result_type_def, "#{rpc_action_name_pascal}Result", "", "config: #{config_type_ref}"}
 
         has_fields ->
+          # For optional pagination, update result type to include Page generic
+          {result_type_generics, return_type_generics, function_generics, function_sig,
+           function_return_generics} =
+            if is_optional_pagination do
+              # Optional pagination: Result type uses Page, function uses Config for inference
+              page_param = "Page extends #{rpc_action_name_pascal}Config[\"page\"] = undefined"
+              result_type_generics_str = "#{fields_generic}, #{page_param}"
+              # Result type data field uses Page generic
+              result_data_generics_str = "<Fields, Page>"
+              # Function return type passes Config["page"] for Page parameter
+              function_return_generics_str = "<Fields, Config[\"page\"]>"
+
+              # Function generics: use Config to allow inference
+              config_generic = "Config extends #{rpc_action_name_pascal}Config"
+              function_generics_str = "#{fields_generic}, #{config_generic}"
+              function_sig_str = "config: Config & { #{formatted_fields_field()}: Fields }"
+
+              {result_type_generics_str, result_data_generics_str, function_generics_str,
+               function_sig_str, function_return_generics_str}
+            else
+              # Regular (no optional pagination): just Fields generic
+              # Return 5 values to match optional pagination branch
+              {fields_generic, "<Fields>", fields_generic, "config: #{config_type_ref}",
+               "<Fields>"}
+            end
+
           result_type = """
-          | { #{success_field}: true; data: Infer#{rpc_action_name_pascal}Result<Fields> }
+          | { #{success_field}: true; data: Infer#{rpc_action_name_pascal}Result#{return_type_generics} }
           | {
               #{success_field}: false;
               #{errors_field}: Array<{
@@ -1456,10 +1659,10 @@ defmodule AshTypescript.Rpc.Codegen do
           """
 
           result_type_def =
-            "export type #{rpc_action_name_pascal}Result<#{fields_generic}> = #{result_type};"
+            "export type #{rpc_action_name_pascal}Result<#{result_type_generics}> = #{result_type};"
 
-          {result_type_def, "#{rpc_action_name_pascal}Result<Fields>", "#{fields_generic}",
-           "config: #{config_type_def}"}
+          {result_type_def, "#{rpc_action_name_pascal}Result#{function_return_generics}",
+           function_generics, function_sig}
 
         true ->
           result_type = """
@@ -1477,7 +1680,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
           result_type_def = "export type #{rpc_action_name_pascal}Result = #{result_type};"
 
-          {result_type_def, "#{rpc_action_name_pascal}Result", "", "config: #{config_type_def}"}
+          {result_type_def, "#{rpc_action_name_pascal}Result", "", "config: #{config_type_ref}"}
       end
 
     generic_part = if generic_param != "", do: "<#{generic_param}>", else: ""
@@ -1489,7 +1692,7 @@ defmodule AshTypescript.Rpc.Codegen do
     payload_def = "{\n    #{Enum.join(payload_fields, ",\n    ")}\n  }"
 
     """
-    #{result_type_def}
+    #{config_type_export}#{result_type_def}
 
     export async function #{function_name}#{generic_part}(
       #{function_signature}
