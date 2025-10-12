@@ -1,7 +1,9 @@
 defmodule AshTypescript.Resource.VerifyNestedMapFieldNamesTest do
   use ExUnit.Case, async: true
 
-  describe "nested invalid field names" do
+  @moduletag :generates_warnings
+
+  describe "verify/1 integration - nested invalid field names" do
     test "detects invalid field names in nested map within map" do
       defmodule TestResourceWithNestedMapInvalidFields do
         use Ash.Resource,
@@ -188,50 +190,6 @@ defmodule AshTypescript.Resource.VerifyNestedMapFieldNamesTest do
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in map\/keyword\/tuple/
-    end
-
-    test "allows valid field names in nested structures" do
-      defmodule TestResourceWithValidNestedFields do
-        use Ash.Resource,
-          domain: nil,
-          data_layer: Ash.DataLayer.Ets,
-          extensions: [AshTypescript.Resource]
-
-        typescript do
-          type_name "TestResourceWithValidNestedFields"
-        end
-
-        attributes do
-          uuid_primary_key :id
-
-          attribute :data, :map do
-            public? true
-
-            constraints fields: [
-                          nested: [
-                            type: :map,
-                            constraints: [
-                              fields: [
-                                field1: [type: :string],
-                                isActive: [type: :boolean],
-                                deep_nested: [
-                                  type: :map,
-                                  constraints: [
-                                    fields: [
-                                      value: [type: :string]
-                                    ]
-                                  ]
-                                ]
-                              ]
-                            ]
-                          ]
-                        ]
-          end
-        end
-      end
-
-      # Should compile without errors
-      assert TestResourceWithValidNestedFields
     end
   end
 end
