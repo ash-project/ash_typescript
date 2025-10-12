@@ -197,7 +197,9 @@ export const listWithInputAndPage = await listTodos({
 if (listWithInputAndPage.success) {
   const hasMore: boolean = listWithInputAndPage.data.hasMore;
   const results: Array<any> = listWithInputAndPage.data.results;
-  const count: number = listWithInputAndPage.data.count;
+  const count: number = listWithInputAndPage.data.count
+    ? listWithInputAndPage.data.count
+    : 0;
 }
 
 console.log("Conditional pagination tests should compile successfully!");
