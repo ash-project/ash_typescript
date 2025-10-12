@@ -13,17 +13,13 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
   - Field mapping: `archived?` -> `is_archived`
   - Argument mapping: `completed?` -> `is_completed` (in mark_completed action)
 
-  The tests work by reading the generated TypeScript file which is created during
-  the test setup phase.
+  The tests work by generating the TypeScript code directly in the test setup.
   """
   use ExUnit.Case, async: true
 
-  @generated_file_path "./test/ts/generated.ts"
-
   setup_all do
-    # The generated TypeScript file is created by mix test.codegen
-    # which runs before tests
-    generated_content = File.read!(@generated_file_path)
+    # Generate the TypeScript code programmatically
+    {:ok, generated_content} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
     {:ok, generated: generated_content}
   end
 
