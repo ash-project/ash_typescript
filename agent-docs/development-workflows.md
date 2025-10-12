@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+
+SPDX-License-Identifier: MIT
+-->
+
 # Development Workflows
 
 Essential development workflows and patterns for AshTypescript development.

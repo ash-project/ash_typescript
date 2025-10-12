@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Invalid Channel Usage Tests - shouldFail
 // Tests for invalid channel function usage that should fail TypeScript compilation
 

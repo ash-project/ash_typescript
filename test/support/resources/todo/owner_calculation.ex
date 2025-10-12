@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Test.Todo.OwnerCalculation do
   @moduledoc """
   Calculation for todo owner information.

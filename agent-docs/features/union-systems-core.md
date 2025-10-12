@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+
+SPDX-License-Identifier: MIT
+-->
+
 # Union Systems - Core Implementation
 
 Core union field selection and storage mode architecture for AshTypescript development.

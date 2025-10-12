@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Test.SelfCalculation do
   @moduledoc """
   Self-reference calculation for testing.

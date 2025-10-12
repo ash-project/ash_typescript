@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.VerifierChecker do
   @moduledoc """
   Checks if any verifiers have failed for resources and domains.

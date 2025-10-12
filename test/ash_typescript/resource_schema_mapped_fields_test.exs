@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.ResourceSchemaMappedFieldsTest do
   @moduledoc """
   Tests for resource schema generation with field name mapping.

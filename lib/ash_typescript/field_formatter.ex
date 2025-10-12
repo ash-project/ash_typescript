@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.FieldFormatter do
   @moduledoc """
   Handles field name formatting for input parameters, output fields, and TypeScript generation.

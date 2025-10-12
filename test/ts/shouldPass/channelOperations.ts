@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Channel Operations Tests - shouldPass
 // Tests for channel-based CRUD operations
 

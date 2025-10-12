@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Rpc.InputFormatter do
   @moduledoc """
   Formats input data from client format to internal format.

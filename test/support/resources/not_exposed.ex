@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Test.NotExposed do
   @moduledoc """
   Test resource not exposed to TypeScript generation.

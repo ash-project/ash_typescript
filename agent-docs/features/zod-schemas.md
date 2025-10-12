@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+
+SPDX-License-Identifier: MIT
+-->
+
 # Zod Schema Generation Implementation
 
 Implementation of Zod validation schema generation for AshTypescript runtime validation.

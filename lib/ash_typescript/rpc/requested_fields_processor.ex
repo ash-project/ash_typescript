@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
   @moduledoc """
   Processes requested fields for Ash resources, determining which fields should be selected

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Test file for keyword and tuple type handling in generated TypeScript
 import { listTodos, getKeywordOptionsTodo, getCoordinatesInfoTodo } from "../generated";
 

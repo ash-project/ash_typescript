@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Precise Pagination Type Tests - shouldPass
 // Tests that pagination result types are inferred correctly based on what params are used
 

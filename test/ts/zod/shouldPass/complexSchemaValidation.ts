@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Complex Schema Validation Tests - shouldPass
 // Tests for advanced schema features like embedded resources, unions, and calculations
 

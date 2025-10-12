@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Test.TestEndpoint do
   @moduledoc """
   Minimal Phoenix endpoint for Tidewave MCP testing.

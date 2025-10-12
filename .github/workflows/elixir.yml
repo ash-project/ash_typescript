@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 name: CI
 on:
   push:
@@ -10,5 +14,7 @@ on:
 jobs:
   ash-ci:
     uses: ash-project/ash/.github/workflows/ash-ci.yml@main
+    with:
+      reuse: true
     secrets:
       HEX_API_KEY: ${{ secrets.HEX_API_KEY }}

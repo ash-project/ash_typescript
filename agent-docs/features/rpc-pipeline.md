@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+
+SPDX-License-Identifier: MIT
+-->
+
 # RPC Pipeline Architecture
 
 ## Overview

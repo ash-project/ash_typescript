@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Rpc.Codegen do
   @moduledoc """
   Generates TypeScript code for interacting with Ash resources via Rpc.

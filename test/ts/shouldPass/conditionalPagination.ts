@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Conditional Pagination Tests - shouldPass
 // Tests for optional pagination behavior where types match runtime behavior
 

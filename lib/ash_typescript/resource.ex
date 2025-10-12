@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Resource do
   @moduledoc """
   Spark DSL extension for configuring TypeScript generation on Ash resources.

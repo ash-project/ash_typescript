@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Test.TodoContent.ChecklistContent do
   @moduledoc """
   Test embedded resource for checklist content (union type member).

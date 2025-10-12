@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 import { getTodo } from "../generated";
 
 export const todoWithStatistics = await getTodo({

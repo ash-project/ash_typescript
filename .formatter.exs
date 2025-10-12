@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 # Used by "mix format"
 spark_locals_without_parens = [
   argument_names: 1,

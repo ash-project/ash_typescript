@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Complex Scenarios Tests - shouldPass
 // Tests that combine multiple features and complex usage patterns
 

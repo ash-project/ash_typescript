@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+
+SPDX-License-Identifier: MIT
+-->
+
 # Embedded Resources Architecture
 
 Implementation of embedded resources with relationship-like integration for AshTypescript development.

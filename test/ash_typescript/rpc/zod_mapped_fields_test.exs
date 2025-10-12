@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
   @moduledoc """
   Tests for Zod schema generation with field and argument name mapping.

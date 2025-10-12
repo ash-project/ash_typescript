@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.MixProject do
   use Mix.Project
 
@@ -63,12 +67,20 @@ defmodule AshTypescript.MixProject do
 
   defp package do
     [
-      name: :ash_typescript,
+      maintainers: [
+        "Torkild Kjevik <torkild.kjevik@boitano.no>"
+      ],
       licenses: ["MIT"],
       files: ~w(lib .formatter.exs mix.exs README*
         CHANGELOG* documentation usage-rules.md),
       links: %{
-        GitHub: "https://github.com/ash-project/ash_typescript"
+        "GitHub" => "https://github.com/ash-project/ash_typescript",
+        "Changelog" => "https://github.com/ash-project/ash_typescript/blob/main/CHANGELOG.md",
+        "Discord" => "https://discord.gg/HTHRaaVPUc",
+        "Website" => "https://ash-hq.org",
+        "Forum" => "https://elixirforum.com/c/elixir-framework-forums/ash-framework-forum",
+        "REUSE Compliance" =>
+          "https://api.reuse.software/info/github.com/ash-project/ash_typescript"
       }
     ]
   end
@@ -85,8 +97,7 @@ defmodule AshTypescript.MixProject do
          search_data: Spark.Docs.search_data_for(AshTypescript.Rpc)},
         {"documentation/dsls/DSL-AshTypescript.Resource.md",
          search_data: Spark.Docs.search_data_for(AshTypescript.Resource)},
-        "CHANGELOG.md",
-        "LICENSE"
+        "CHANGELOG.md"
       ],
       groups_for_extras: [
         Tutorials: ~r'documentation/tutorials',

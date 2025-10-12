@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Rpc.ResultProcessor do
   @moduledoc """
   Extracts the requested fields from the returned result from an RPC action and

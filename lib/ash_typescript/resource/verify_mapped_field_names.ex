@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Resource.VerifyMappedFieldNames do
   @moduledoc """
   Verifies that field_names configuration is valid.

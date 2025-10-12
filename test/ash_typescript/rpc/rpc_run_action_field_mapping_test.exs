@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
   @moduledoc """
   Comprehensive tests for field and argument name mapping in the Task resource.

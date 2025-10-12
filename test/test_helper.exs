@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 ExUnit.configure(exclude: [:generates_warnings])
 ExUnit.start()
 

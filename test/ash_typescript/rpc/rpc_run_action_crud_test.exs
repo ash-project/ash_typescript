@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
   use ExUnit.Case, async: false
   alias AshTypescript.Rpc

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Codegen do
   @moduledoc """
   Main code generation module for TypeScript types and schemas from Ash resources.

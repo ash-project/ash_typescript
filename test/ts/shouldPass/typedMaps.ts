@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Typed Maps Tests - shouldPass
 // Tests for typed map field selection and validation using current field syntax
 

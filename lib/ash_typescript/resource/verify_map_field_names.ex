@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Resource.VerifyMapFieldNames do
   @moduledoc """
   Verifies that field names in map, keyword, and tuple type constraints are valid for TypeScript.

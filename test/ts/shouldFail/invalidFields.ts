@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Invalid Fields Tests - shouldFail
 // Tests for invalid field names and relationship fields
 

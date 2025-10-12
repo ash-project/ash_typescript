@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
   @moduledoc """
   Comprehensive integration tests for the refactored AshTypescript.Rpc module.

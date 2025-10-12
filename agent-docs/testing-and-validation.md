@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+
+SPDX-License-Identifier: MIT
+-->
+
 # TypeScript Testing and Validation
 
 Comprehensive guide for testing organization and validation procedures for maintaining system stability.

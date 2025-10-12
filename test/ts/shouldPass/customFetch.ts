@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Custom Fetch Tests - shouldPass
 // Tests for customFetch and fetchOptions parameters
 

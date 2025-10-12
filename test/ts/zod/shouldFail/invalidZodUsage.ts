@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Invalid Zod Schema Usage Tests - shouldFail
 // Tests for invalid schema usage patterns that should fail TypeScript compilation
 

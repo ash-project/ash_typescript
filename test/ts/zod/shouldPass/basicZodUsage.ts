@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Basic Zod Schema Usage Tests - shouldPass
 // Tests for valid schema validation patterns with generated schemas
 

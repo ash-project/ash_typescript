@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Complex Invalid Schema Tests - shouldFail
 // Tests for complex invalid schema usage patterns that should fail TypeScript compilation
 

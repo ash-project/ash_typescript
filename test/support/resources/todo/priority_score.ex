@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Test.Todo.PriorityScore do
   @moduledoc """
   A custom type that represents a priority score from 1-100.
