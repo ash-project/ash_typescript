@@ -19,7 +19,9 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
   setup_all do
     # Generate the TypeScript code programmatically
-    {:ok, generated_content} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+    {:ok, generated_content} =
+      AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
     {:ok, generated: generated_content}
   end
 
