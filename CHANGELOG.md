@@ -11,6 +11,35 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.5.0](https://github.com/ash-project/ash_typescript/compare/v0.4.0...v0.5.0) (2025-10-13)
+
+
+
+
+### Features:
+
+* add action metadata support with field name mapping by [@Torkan](https://github.com/Torkan)
+
+* add precise pagination type constraints to prevent misuse by [@Torkan](https://github.com/Torkan)
+
+* add VerifierChecker utility for Spark verifier validation by [@Torkan](https://github.com/Torkan)
+
+* support typescript_field_names callback in codegen by [@Torkan](https://github.com/Torkan)
+
+* add map field name validation for custom types by [@Torkan](https://github.com/Torkan)
+
+* add field_names & argument_names for mapping invalid typescript names to valid ones by [@Torkan](https://github.com/Torkan)
+
+### Bug Fixes:
+
+* apply field name mappings to Zod schemas for all field types by [@Torkan](https://github.com/Torkan)
+
+* apply field name mappings in RPC request/result processing by [@Torkan](https://github.com/Torkan)
+
+* apply field name mappings in TypeScript codegen by [@Torkan](https://github.com/Torkan)
+
+* use mapped field names & argument names in codegen by [@Torkan](https://github.com/Torkan)
+
 ## [v0.4.0](https://github.com/ash-project/ash_typescript/compare/v0.3.3...v0.4.0) (2025-09-29)
 
 
