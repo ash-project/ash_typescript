@@ -7,7 +7,7 @@ defmodule AshTypescript.Rpc do
 
     Defines the mapping between a named RPC endpoint and an Ash action.
     """
-    defstruct [:name, :action, __spark_metadata__: nil]
+    defstruct [:name, :action, :show_metadata, :metadata_field_names, __spark_metadata__: nil]
   end
 
   defmodule Resource do
@@ -78,6 +78,30 @@ defmodule AshTypescript.Rpc do
       action: [
         type: :atom,
         doc: "The resource action to expose"
+      ],
+      show_metadata: [
+        type: {:or, [nil, :boolean, {:list, :atom}]},
+        doc: """
+        Which metadata fields to expose for this action:
+        - `nil` (default) - Expose all metadata fields from the action
+        - `false` or `[]` - Disable metadata entirely (no types, parameters, or extraction)
+        - List of atoms - Expose only the listed metadata fields
+        """,
+        default: nil
+      ],
+      metadata_field_names: [
+        type: {:list, {:tuple, [:atom, :atom]}},
+        doc: """
+        Map metadata field names to valid TypeScript identifiers.
+        Similar to field_names, but for metadata fields only.
+
+        Example: `metadata_field_names [field_1: :field1, is_valid?: :isValid]`
+
+        Requirements:
+        - Keys must be metadata field names that would otherwise be invalid or conflict
+        - Values must be valid TypeScript identifiers
+        """,
+        default: []
       ]
     ],
     args: [:name, :action]
@@ -110,7 +134,10 @@ defmodule AshTypescript.Rpc do
 
   use Spark.Dsl.Extension,
     sections: [@rpc],
-    verifiers: [AshTypescript.Rpc.VerifyRpc]
+    verifiers: [
+      AshTypescript.Rpc.VerifyRpc,
+      AshTypescript.Rpc.Verifiers.VerifyMetadataFieldNames
+    ]
 
   alias AshTypescript.Rpc.{ErrorBuilder, Pipeline}
 

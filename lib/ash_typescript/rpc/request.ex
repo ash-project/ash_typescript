@@ -9,6 +9,7 @@ defmodule AshTypescript.Rpc.Request do
   @type t :: %__MODULE__{
           resource: module(),
           action: map(),
+          rpc_action: map(),
           tenant: term(),
           actor: term(),
           context: map(),
@@ -19,12 +20,14 @@ defmodule AshTypescript.Rpc.Request do
           primary_key: term(),
           filter: map() | nil,
           sort: list() | nil,
-          pagination: map() | nil
+          pagination: map() | nil,
+          show_metadata: list(atom())
         }
 
   defstruct [
     :resource,
     :action,
+    :rpc_action,
     :tenant,
     :actor,
     :context,
@@ -35,7 +38,8 @@ defmodule AshTypescript.Rpc.Request do
     :primary_key,
     :filter,
     :sort,
-    :pagination
+    :pagination,
+    show_metadata: []
   ]
 
   @doc """

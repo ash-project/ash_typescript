@@ -64,9 +64,11 @@ if (listWithOffset.success) {
   const todoTitle: string = firstTodo.title;
   const todoDescription: string | null | undefined = firstTodo.description;
 
-  // Should NOT be directly an array
-  // @ts-expect-error - data should be paginated structure, not array
-  const directAccess = listWithOffset.data[0];
+  const directAccess: {
+    id: string;
+    title: string;
+    description: string | null | undefined;
+  } = listWithOffset.data.results[0];
 }
 
 // Test 4: List with keyset pagination (after) - should return paginated structure

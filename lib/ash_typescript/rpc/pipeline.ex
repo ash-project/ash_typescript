@@ -29,7 +29,6 @@ defmodule AshTypescript.Rpc.Pipeline do
     validation_mode? = Keyword.get(opts, :validation_mode?, false)
     input_formatter = Rpc.input_field_formatter()
 
-    # Parse top-level parameters but preserve input data for type-aware processing
     {input_data, other_params} = Map.pop(params, "input", %{})
     normalized_other_params = FieldFormatter.parse_input_fields(other_params, input_formatter)
     normalized_params = Map.put(normalized_other_params, :input, input_data)
@@ -46,7 +45,7 @@ defmodule AshTypescript.Rpc.Pipeline do
            conn_or_socket.assigns[:ash_context] || %{}}
       end
 
-    with {:ok, {resource, action}} <- discover_action(otp_app, normalized_params),
+    with {:ok, {resource, action, rpc_action}} <- discover_action(otp_app, normalized_params),
          :ok <-
            validate_required_parameters_for_action_type(
              normalized_params,
@@ -65,10 +64,69 @@ defmodule AshTypescript.Rpc.Pipeline do
          {:ok, pagination} <- parse_pagination(normalized_params) do
       formatted_sort = format_sort_string(normalized_params[:sort], input_formatter)
 
+      exposed_metadata_fields =
+        AshTypescript.Rpc.Codegen.get_exposed_metadata_fields(rpc_action, action)
+
+      metadata_enabled? = not Enum.empty?(exposed_metadata_fields)
+
+      metadata_fields_param =
+        normalized_params[:metadata_fields] || normalized_params["metadata_fields"]
+
+      show_metadata =
+        if metadata_enabled? do
+          case metadata_fields_param do
+            fields when is_list(fields) and length(fields) > 0 ->
+              requested_fields =
+                Enum.map(fields, fn
+                  field when is_binary(field) ->
+                    internal_name = FieldFormatter.parse_input_field(field, input_formatter)
+
+                    case internal_name do
+                      atom when is_atom(atom) ->
+                        atom
+
+                      string when is_binary(string) ->
+                        try do
+                          String.to_existing_atom(string)
+                        rescue
+                          ArgumentError -> nil
+                        end
+
+                      _ ->
+                        nil
+                    end
+
+                  field when is_atom(field) ->
+                    field
+
+                  _ ->
+                    nil
+                end)
+                |> Enum.reject(&is_nil/1)
+                |> Enum.map(fn field ->
+                  AshTypescript.Rpc.Info.get_original_metadata_field_name(rpc_action, field)
+                end)
+
+              Enum.filter(requested_fields, fn field ->
+                field in exposed_metadata_fields
+              end)
+
+            _ ->
+              if action.type in [:create, :update, :destroy] do
+                exposed_metadata_fields
+              else
+                []
+              end
+          end
+        else
+          []
+        end
+
       request =
         Request.new(%{
           resource: resource,
           action: action,
+          rpc_action: rpc_action,
           tenant: tenant,
           actor: actor,
           context: context,
@@ -79,7 +137,8 @@ defmodule AshTypescript.Rpc.Pipeline do
           primary_key: normalized_params[:primary_key],
           filter: normalized_params[:filter],
           sort: formatted_sort,
-          pagination: pagination
+          pagination: pagination,
+          show_metadata: show_metadata
         })
 
       {:ok, request}
@@ -129,6 +188,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   Applies field selection to the Ash result using the pre-computed template.
   Performance-optimized single-pass filtering.
   For unconstrained maps, returns the normalized result directly.
+  Handles metadata extraction for both read and mutation actions.
   """
   @spec process_result(term(), Request.t()) :: {:ok, term()} | {:error, term()}
   def process_result(ash_result, %Request{} = request) do
@@ -137,14 +197,15 @@ defmodule AshTypescript.Rpc.Pipeline do
         {:error, error}
 
       result when is_list(result) or is_map(result) or is_tuple(result) ->
-        # Check if this is an unconstrained map action that should bypass field processing
         if unconstrained_map_action?(request.action) do
           {:ok, ResultProcessor.normalize_value_for_json(result)}
         else
           filtered =
             ResultProcessor.process(result, request.extraction_template, request.resource)
 
-          {:ok, filtered}
+          filtered_with_metadata = add_metadata(filtered, result, request)
+
+          {:ok, filtered_with_metadata}
         end
 
       primitive_value ->
@@ -184,7 +245,7 @@ defmodule AshTypescript.Rpc.Pipeline do
 
             {resource, typed_query} ->
               action = Ash.Resource.Info.action(resource, typed_query.action)
-              {:ok, {resource, action}}
+              {:ok, {resource, action, typed_query}}
           end
         end
 
@@ -198,7 +259,7 @@ defmodule AshTypescript.Rpc.Pipeline do
 
             {resource, rpc_action} ->
               action = Ash.Resource.Info.action(resource, rpc_action.action)
-              {:ok, {resource, action}}
+              {:ok, {resource, action, rpc_action}}
           end
         end
 
@@ -446,12 +507,23 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp execute_destroy_action(%Request{} = request, opts) do
     with {:ok, record} <- Ash.get(request.resource, request.primary_key, opts) do
-      record
-      |> Ash.Changeset.for_destroy(request.action.name, request.input, opts ++ [error?: true])
-      |> Ash.destroy()
-      |> case do
-        :ok -> {:ok, %{}}
-        error -> error
+      changeset =
+        Ash.Changeset.for_destroy(
+          record,
+          request.action.name,
+          request.input,
+          opts ++ [error?: true]
+        )
+
+      case Ash.destroy(changeset, return_destroyed?: true) do
+        :ok ->
+          {:ok, %{}}
+
+        {:ok, destroyed_record} ->
+          {:ok, destroyed_record}
+
+        error ->
+          error
       end
     end
   end
@@ -576,21 +648,41 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp format_output_data(%{success: true, data: result_data}, formatter, request) do
-    # Format the data field using type awareness
+  defp format_output_data(%{success: true, data: result_data} = result, formatter, request) do
+    {actual_data, metadata} =
+      if is_map(result_data) and Map.has_key?(result_data, :data) and
+           Map.has_key?(result_data, :metadata) do
+        {result_data.data, result_data.metadata}
+      else
+        {result_data, Map.get(result, :metadata)}
+      end
+
     formatted_data =
       OutputFormatter.format(
-        result_data,
+        actual_data,
         request.resource,
         request.action.name,
         formatter
       )
 
-    # Format the top-level response structure
-    %{
+    base_response = %{
       FieldFormatter.format_field("success", formatter) => true,
       FieldFormatter.format_field("data", formatter) => formatted_data
     }
+
+    case metadata do
+      nil ->
+        base_response
+
+      meta when is_map(meta) ->
+        formatted_metadata = format_field_names(meta, formatter)
+
+        Map.put(
+          base_response,
+          FieldFormatter.format_field("metadata", formatter),
+          formatted_metadata
+        )
+    end
   end
 
   defp format_output_data(%{success: false, errors: errors}, formatter, _request) do
@@ -653,5 +745,94 @@ defmodule AshTypescript.Rpc.Pipeline do
     else
       :ok
     end
+  end
+
+  defp add_metadata(filtered_result, original_result, %Request{} = request) do
+    if Enum.empty?(request.show_metadata) do
+      filtered_result
+    else
+      case request.action.type do
+        :read ->
+          add_read_metadata(
+            filtered_result,
+            original_result,
+            request.show_metadata,
+            request.rpc_action
+          )
+
+        action_type when action_type in [:create, :update, :destroy] ->
+          add_mutation_metadata(
+            filtered_result,
+            original_result,
+            request.show_metadata,
+            request.rpc_action
+          )
+
+        _ ->
+          filtered_result
+      end
+    end
+  end
+
+  # Add metadata to read results (merge into records)
+  defp add_read_metadata(filtered_result, original_result, show_metadata, rpc_action)
+       when is_list(filtered_result) do
+    if is_list(original_result) do
+      Enum.zip(filtered_result, original_result)
+      |> Enum.map(fn {filtered_record, original_record} ->
+        do_add_read_metadata(filtered_record, original_record, show_metadata, rpc_action)
+      end)
+    else
+      filtered_result
+    end
+  end
+
+  defp add_read_metadata(filtered_result, original_result, show_metadata, rpc_action)
+       when is_map(filtered_result) do
+    if Map.has_key?(filtered_result, :results) do
+      updated_results =
+        Enum.zip(filtered_result[:results] || [], original_result.results)
+        |> Enum.map(fn {filtered_record, original_record} ->
+          do_add_read_metadata(filtered_record, original_record, show_metadata, rpc_action)
+        end)
+
+      Map.put(filtered_result, :results, updated_results)
+    else
+      do_add_read_metadata(filtered_result, original_result, show_metadata, rpc_action)
+    end
+  end
+
+  defp add_read_metadata(filtered_result, _original_result, _show_metadata, _rpc_action) do
+    filtered_result
+  end
+
+  defp do_add_read_metadata(filtered_record, original_record, show_metadata, rpc_action)
+       when is_map(filtered_record) do
+    metadata_map = Map.get(original_record, :__metadata__, %{})
+
+    Enum.reduce(show_metadata, filtered_record, fn metadata_field, acc ->
+      mapped_field_name =
+        AshTypescript.Rpc.Info.get_mapped_metadata_field_name(rpc_action, metadata_field)
+
+      Map.put(acc, mapped_field_name, Map.get(metadata_map, metadata_field))
+    end)
+  end
+
+  defp do_add_read_metadata(filtered_record, _original_record, _show_metadata, _rpc_action) do
+    filtered_record
+  end
+
+  defp add_mutation_metadata(filtered_result, original_result, show_metadata, rpc_action) do
+    metadata_map = Map.get(original_result, :__metadata__, %{})
+
+    extracted_metadata =
+      Enum.reduce(show_metadata, %{}, fn metadata_field, acc ->
+        mapped_field_name =
+          AshTypescript.Rpc.Info.get_mapped_metadata_field_name(rpc_action, metadata_field)
+
+        Map.put(acc, mapped_field_name, Map.get(metadata_map, metadata_field))
+      end)
+
+    %{data: filtered_result, metadata: extracted_metadata}
   end
 end

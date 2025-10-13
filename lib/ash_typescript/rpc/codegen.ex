@@ -919,67 +919,127 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
-  defp generate_result_type(resource, action, rpc_action_name) do
+  defp generate_result_type(resource, action, rpc_action, rpc_action_name) do
     resource_name = build_resource_type_name(resource)
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
 
     case action.type do
       :read when action.get? ->
-        """
-        export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+        metadata_type = generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal)
+        has_metadata = metadata_enabled?(get_exposed_metadata_fields(rpc_action, action))
 
-        type Infer#{rpc_action_name_pascal}Result<
-          Fields extends #{rpc_action_name_pascal}Fields,
-        > = InferResult<#{resource_name}ResourceSchema, Fields> | null;
-        """
+        if has_metadata do
+          """
+          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+          #{metadata_type}
+          type Infer#{rpc_action_name_pascal}Result<
+            Fields extends #{rpc_action_name_pascal}Fields,
+            MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
+          > = (InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>) | null;
+          """
+        else
+          """
+          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+          type Infer#{rpc_action_name_pascal}Result<
+            Fields extends #{rpc_action_name_pascal}Fields,
+          > = InferResult<#{resource_name}ResourceSchema, Fields> | null;
+          """
+        end
 
       :read ->
         if action_supports_pagination?(action) do
+          metadata_type =
+            generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal)
+
+          has_metadata = metadata_enabled?(get_exposed_metadata_fields(rpc_action, action))
+
           fields_type = """
           export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+          #{metadata_type}
           """
 
           pagination_type =
             if action_requires_pagination?(action) do
-              # Required pagination - always returns paginated structure
               generate_pagination_result_type(
                 resource,
                 action,
                 rpc_action_name_pascal,
-                resource_name
+                resource_name,
+                has_metadata
               )
             else
-              # Optional pagination - conditional based on page parameter
               generate_conditional_pagination_result_type(
                 resource,
                 action,
                 rpc_action_name_pascal,
-                resource_name
+                resource_name,
+                has_metadata
               )
             end
 
           fields_type <> "\n" <> pagination_type
         else
-          """
-          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+          metadata_type =
+            generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal)
 
-          type Infer#{rpc_action_name_pascal}Result<
-            Fields extends #{rpc_action_name_pascal}Fields,
-          > = Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
-          """
+          has_metadata = metadata_enabled?(get_exposed_metadata_fields(rpc_action, action))
+
+          if has_metadata do
+            """
+            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+            #{metadata_type}
+            type Infer#{rpc_action_name_pascal}Result<
+              Fields extends #{rpc_action_name_pascal}Fields,
+              MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
+            > = Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
+            """
+          else
+            """
+            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+            type Infer#{rpc_action_name_pascal}Result<
+              Fields extends #{rpc_action_name_pascal}Fields,
+            > = Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+            """
+          end
         end
 
       action_type when action_type in [:create, :update] ->
-        """
-        export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+        metadata_type = generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal)
+        has_metadata = metadata_enabled?(get_exposed_metadata_fields(rpc_action, action))
 
-        type Infer#{rpc_action_name_pascal}Result<
-          Fields extends #{rpc_action_name_pascal}Fields,
-        > = InferResult<#{resource_name}ResourceSchema, Fields>;
-        """
+        if has_metadata do
+          """
+          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+          #{metadata_type}
+          type Infer#{rpc_action_name_pascal}Result<
+            Fields extends #{rpc_action_name_pascal}Fields,
+            MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
+          > = InferResult<#{resource_name}ResourceSchema, Fields>;
+          """
+        else
+          """
+          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+          #{metadata_type}
+          type Infer#{rpc_action_name_pascal}Result<
+            Fields extends #{rpc_action_name_pascal}Fields,
+          > = InferResult<#{resource_name}ResourceSchema, Fields>;
+          """
+        end
 
       :destroy ->
-        ""
+        metadata_type = generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal)
+        has_metadata = metadata_enabled?(get_exposed_metadata_fields(rpc_action, action))
+
+        if has_metadata do
+          """
+          #{metadata_type}
+          type Infer#{rpc_action_name_pascal}Result<
+            MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
+          > = {};
+          """
+        else
+          metadata_type
+        end
 
       :action ->
         case action_returns_field_selectable_type?(action) do
@@ -1047,41 +1107,128 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
-  defp generate_pagination_result_type(_resource, action, rpc_action_name_pascal, resource_name) do
+  def get_exposed_metadata_fields(rpc_action, ash_action) do
+    show_metadata = Map.get(rpc_action, :show_metadata, nil)
+
+    case show_metadata do
+      nil -> Enum.map(Map.get(ash_action, :metadata, []), & &1.name)
+      false -> []
+      [] -> []
+      field_list when is_list(field_list) -> field_list
+    end
+  end
+
+  defp metadata_enabled?(exposed_fields) do
+    not Enum.empty?(exposed_fields)
+  end
+
+  defp generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal) do
+    exposed_fields = get_exposed_metadata_fields(rpc_action, action)
+
+    if not metadata_enabled?(exposed_fields) do
+      ""
+    else
+      all_metadata_fields = Map.get(action, :metadata, [])
+
+      metadata_fields_to_include =
+        Enum.filter(all_metadata_fields, fn metadata_field ->
+          metadata_field.name in exposed_fields
+        end)
+
+      metadata_field_defs =
+        Enum.map(metadata_fields_to_include, fn metadata_field ->
+          ts_type =
+            get_ts_type(%{
+              type: metadata_field.type,
+              constraints: metadata_field.constraints || []
+            })
+
+          optional = Map.get(metadata_field, :allow_nil?, true)
+
+          mapped_name =
+            AshTypescript.Rpc.Info.get_mapped_metadata_field_name(rpc_action, metadata_field.name)
+
+          formatted_name =
+            AshTypescript.FieldFormatter.format_field(
+              mapped_name,
+              AshTypescript.Rpc.output_field_formatter()
+            )
+
+          "  #{formatted_name}#{if optional, do: "?", else: ""}: #{ts_type};"
+        end)
+
+      """
+
+      export type #{rpc_action_name_pascal}Metadata = {
+      #{Enum.join(metadata_field_defs, "\n")}
+      };
+      """
+    end
+  end
+
+  defp generate_pagination_result_type(
+         _resource,
+         action,
+         rpc_action_name_pascal,
+         resource_name,
+         has_metadata
+       ) do
     supports_offset = action_supports_offset_pagination?(action)
     supports_keyset = action_supports_keyset_pagination?(action)
 
     cond do
       supports_offset and supports_keyset ->
-        generate_mixed_pagination_result_type(rpc_action_name_pascal, resource_name)
+        generate_mixed_pagination_result_type(rpc_action_name_pascal, resource_name, has_metadata)
 
       supports_offset ->
-        generate_offset_pagination_result_type(rpc_action_name_pascal, resource_name)
+        generate_offset_pagination_result_type(
+          rpc_action_name_pascal,
+          resource_name,
+          has_metadata
+        )
 
       supports_keyset ->
-        generate_keyset_pagination_result_type(rpc_action_name_pascal, resource_name)
+        generate_keyset_pagination_result_type(
+          rpc_action_name_pascal,
+          resource_name,
+          has_metadata
+        )
     end
   end
 
-  defp generate_offset_pagination_result_type(rpc_action_name_pascal, resource_name) do
+  defp generate_offset_pagination_result_type(rpc_action_name_pascal, resource_name, has_metadata) do
     results_field = formatted_results_field()
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()
     offset_field = formatted_offset_field()
 
-    """
-    type Infer#{rpc_action_name_pascal}Result<
-      Fields extends #{rpc_action_name_pascal}Fields,
-    > = {
-      #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
-      #{has_more_field}: boolean;
-      #{limit_field}: number;
-      #{offset_field}: number;
-    };
-    """
+    if has_metadata do
+      """
+      type Infer#{rpc_action_name_pascal}Result<
+        Fields extends #{rpc_action_name_pascal}Fields,
+        MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
+      > = {
+        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
+        #{has_more_field}: boolean;
+        #{limit_field}: number;
+        #{offset_field}: number;
+      };
+      """
+    else
+      """
+      type Infer#{rpc_action_name_pascal}Result<
+        Fields extends #{rpc_action_name_pascal}Fields,
+      > = {
+        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+        #{has_more_field}: boolean;
+        #{limit_field}: number;
+        #{offset_field}: number;
+      };
+      """
+    end
   end
 
-  defp generate_keyset_pagination_result_type(rpc_action_name_pascal, resource_name) do
+  defp generate_keyset_pagination_result_type(rpc_action_name_pascal, resource_name, has_metadata) do
     results_field = formatted_results_field()
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()
@@ -1090,22 +1237,39 @@ defmodule AshTypescript.Rpc.Codegen do
     previous_page_field = formatted_previous_page_field()
     next_page_field = formatted_next_page_field()
 
-    """
-    type Infer#{rpc_action_name_pascal}Result<
-      Fields extends #{rpc_action_name_pascal}Fields,
-    > = {
-      #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
-      #{has_more_field}: boolean;
-      #{limit_field}: number;
-      #{after_field}: string | null;
-      #{before_field}: string | null;
-      #{previous_page_field}: string;
-      #{next_page_field}: string;
-    };
-    """
+    if has_metadata do
+      """
+      type Infer#{rpc_action_name_pascal}Result<
+        Fields extends #{rpc_action_name_pascal}Fields,
+        MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
+      > = {
+        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
+        #{has_more_field}: boolean;
+        #{limit_field}: number;
+        #{after_field}: string | null;
+        #{before_field}: string | null;
+        #{previous_page_field}: string;
+        #{next_page_field}: string;
+      };
+      """
+    else
+      """
+      type Infer#{rpc_action_name_pascal}Result<
+        Fields extends #{rpc_action_name_pascal}Fields,
+      > = {
+        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+        #{has_more_field}: boolean;
+        #{limit_field}: number;
+        #{after_field}: string | null;
+        #{before_field}: string | null;
+        #{previous_page_field}: string;
+        #{next_page_field}: string;
+      };
+      """
+    end
   end
 
-  defp generate_mixed_pagination_result_type(rpc_action_name_pascal, resource_name) do
+  defp generate_mixed_pagination_result_type(rpc_action_name_pascal, resource_name, has_metadata) do
     results_field = formatted_results_field()
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()
@@ -1117,80 +1281,186 @@ defmodule AshTypescript.Rpc.Codegen do
     next_page_field = formatted_next_page_field()
     type_field = format_output_field(:type)
 
-    """
-    type Infer#{rpc_action_name_pascal}Result<
-      Fields extends #{rpc_action_name_pascal}Fields,
-    > = {
-      #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
-      #{has_more_field}: boolean;
-      #{limit_field}: number;
-      #{offset_field}: number;
-      #{count_field}?: number | null;
-      #{type_field}: "offset";
-    } | {
-      #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
-      #{has_more_field}: boolean;
-      #{limit_field}: number;
-      #{after_field}: string | null;
-      #{before_field}: string | null;
-      #{previous_page_field}: string;
-      #{next_page_field}: string;
-      #{count_field}?: number | null;
-      #{type_field}: "keyset";
-    };
-    """
+    if has_metadata do
+      """
+      type Infer#{rpc_action_name_pascal}Result<
+        Fields extends #{rpc_action_name_pascal}Fields,
+        MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
+      > = {
+        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
+        #{has_more_field}: boolean;
+        #{limit_field}: number;
+        #{offset_field}: number;
+        #{count_field}?: number | null;
+        #{type_field}: "offset";
+      } | {
+        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
+        #{has_more_field}: boolean;
+        #{limit_field}: number;
+        #{after_field}: string | null;
+        #{before_field}: string | null;
+        #{previous_page_field}: string;
+        #{next_page_field}: string;
+        #{count_field}?: number | null;
+        #{type_field}: "keyset";
+      };
+      """
+    else
+      """
+      type Infer#{rpc_action_name_pascal}Result<
+        Fields extends #{rpc_action_name_pascal}Fields,
+      > = {
+        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+        #{has_more_field}: boolean;
+        #{limit_field}: number;
+        #{offset_field}: number;
+        #{count_field}?: number | null;
+        #{type_field}: "offset";
+      } | {
+        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+        #{has_more_field}: boolean;
+        #{limit_field}: number;
+        #{after_field}: string | null;
+        #{before_field}: string | null;
+        #{previous_page_field}: string;
+        #{next_page_field}: string;
+        #{count_field}?: number | null;
+        #{type_field}: "keyset";
+      };
+      """
+    end
   end
 
   defp generate_conditional_pagination_result_type(
          _resource,
          action,
          rpc_action_name_pascal,
-         resource_name
+         resource_name,
+         has_metadata
        ) do
     supports_offset = action_supports_offset_pagination?(action)
     supports_keyset = action_supports_keyset_pagination?(action)
 
-    # Generate the array type (non-paginated)
-    array_type = "Array<InferResult<#{resource_name}ResourceSchema, Fields>>"
+    if has_metadata do
+      array_type =
+        "Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>"
 
-    cond do
-      supports_offset and supports_keyset ->
-        # Mixed pagination - use the new type that infers based on params
-        offset_type = generate_offset_pagination_type_inline(resource_name)
-        keyset_type = generate_keyset_pagination_type_inline(resource_name)
+      cond do
+        supports_offset and supports_keyset ->
+          offset_type =
+            generate_offset_pagination_type_inline(
+              resource_name,
+              rpc_action_name_pascal,
+              has_metadata
+            )
 
-        """
-        type Infer#{rpc_action_name_pascal}Result<
-          Fields extends #{rpc_action_name_pascal}Fields,
-          Page extends #{rpc_action_name_pascal}Config["page"] = undefined
-        > = ConditionalPaginatedResultMixed<Page, #{array_type}, #{offset_type}, #{keyset_type}>;
-        """
+          keyset_type =
+            generate_keyset_pagination_type_inline(
+              resource_name,
+              rpc_action_name_pascal,
+              has_metadata
+            )
 
-      supports_offset ->
-        # Offset only
-        offset_type = generate_offset_pagination_type_inline(resource_name)
+          """
+          type Infer#{rpc_action_name_pascal}Result<
+            Fields extends #{rpc_action_name_pascal}Fields,
+            MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = [],
+            Page extends #{rpc_action_name_pascal}Config["page"] = undefined
+          > = ConditionalPaginatedResultMixed<Page, #{array_type}, #{offset_type}, #{keyset_type}>;
+          """
 
-        """
-        type Infer#{rpc_action_name_pascal}Result<
-          Fields extends #{rpc_action_name_pascal}Fields,
-          Page extends #{rpc_action_name_pascal}Config["page"] = undefined
-        > = ConditionalPaginatedResult<Page, #{array_type}, #{offset_type}>;
-        """
+        supports_offset ->
+          offset_type =
+            generate_offset_pagination_type_inline(
+              resource_name,
+              rpc_action_name_pascal,
+              has_metadata
+            )
 
-      supports_keyset ->
-        # Keyset only
-        keyset_type = generate_keyset_pagination_type_inline(resource_name)
+          """
+          type Infer#{rpc_action_name_pascal}Result<
+            Fields extends #{rpc_action_name_pascal}Fields,
+            MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = [],
+            Page extends #{rpc_action_name_pascal}Config["page"] = undefined
+          > = ConditionalPaginatedResult<Page, #{array_type}, #{offset_type}>;
+          """
 
-        """
-        type Infer#{rpc_action_name_pascal}Result<
-          Fields extends #{rpc_action_name_pascal}Fields,
-          Page extends #{rpc_action_name_pascal}Config["page"] = undefined
-        > = ConditionalPaginatedResult<Page, #{array_type}, #{keyset_type}>;
-        """
+        supports_keyset ->
+          keyset_type =
+            generate_keyset_pagination_type_inline(
+              resource_name,
+              rpc_action_name_pascal,
+              has_metadata
+            )
+
+          """
+          type Infer#{rpc_action_name_pascal}Result<
+            Fields extends #{rpc_action_name_pascal}Fields,
+            MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = [],
+            Page extends #{rpc_action_name_pascal}Config["page"] = undefined
+          > = ConditionalPaginatedResult<Page, #{array_type}, #{keyset_type}>;
+          """
+      end
+    else
+      array_type = "Array<InferResult<#{resource_name}ResourceSchema, Fields>>"
+
+      cond do
+        supports_offset and supports_keyset ->
+          offset_type =
+            generate_offset_pagination_type_inline(
+              resource_name,
+              rpc_action_name_pascal,
+              has_metadata
+            )
+
+          keyset_type =
+            generate_keyset_pagination_type_inline(
+              resource_name,
+              rpc_action_name_pascal,
+              has_metadata
+            )
+
+          """
+          type Infer#{rpc_action_name_pascal}Result<
+            Fields extends #{rpc_action_name_pascal}Fields,
+            Page extends #{rpc_action_name_pascal}Config["page"] = undefined
+          > = ConditionalPaginatedResultMixed<Page, #{array_type}, #{offset_type}, #{keyset_type}>;
+          """
+
+        supports_offset ->
+          offset_type =
+            generate_offset_pagination_type_inline(
+              resource_name,
+              rpc_action_name_pascal,
+              has_metadata
+            )
+
+          """
+          type Infer#{rpc_action_name_pascal}Result<
+            Fields extends #{rpc_action_name_pascal}Fields,
+            Page extends #{rpc_action_name_pascal}Config["page"] = undefined
+          > = ConditionalPaginatedResult<Page, #{array_type}, #{offset_type}>;
+          """
+
+        supports_keyset ->
+          keyset_type =
+            generate_keyset_pagination_type_inline(
+              resource_name,
+              rpc_action_name_pascal,
+              has_metadata
+            )
+
+          """
+          type Infer#{rpc_action_name_pascal}Result<
+            Fields extends #{rpc_action_name_pascal}Fields,
+            Page extends #{rpc_action_name_pascal}Config["page"] = undefined
+          > = ConditionalPaginatedResult<Page, #{array_type}, #{keyset_type}>;
+          """
+      end
     end
   end
 
-  defp generate_offset_pagination_type_inline(resource_name) do
+  defp generate_offset_pagination_type_inline(resource_name, rpc_action_name_pascal, has_metadata) do
     results_field = formatted_results_field()
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()
@@ -1198,9 +1468,16 @@ defmodule AshTypescript.Rpc.Codegen do
     count_field = format_output_field(:count)
     type_field = format_output_field(:type)
 
+    result_array_type =
+      if has_metadata do
+        "Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>"
+      else
+        "Array<InferResult<#{resource_name}ResourceSchema, Fields>>"
+      end
+
     """
     {
-      #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+      #{results_field}: #{result_array_type};
       #{has_more_field}: boolean;
       #{limit_field}: number;
       #{offset_field}: number;
@@ -1211,7 +1488,7 @@ defmodule AshTypescript.Rpc.Codegen do
     |> String.trim()
   end
 
-  defp generate_keyset_pagination_type_inline(resource_name) do
+  defp generate_keyset_pagination_type_inline(resource_name, rpc_action_name_pascal, has_metadata) do
     results_field = formatted_results_field()
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()
@@ -1222,9 +1499,16 @@ defmodule AshTypescript.Rpc.Codegen do
     count_field = format_output_field(:count)
     type_field = format_output_field(:type)
 
+    result_array_type =
+      if has_metadata do
+        "Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>"
+      else
+        "Array<InferResult<#{resource_name}ResourceSchema, Fields>>"
+      end
+
     """
     {
-      #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+      #{results_field}: #{result_array_type};
       #{has_more_field}: boolean;
       #{limit_field}: number;
       #{after_field}: string | null;
@@ -1314,7 +1598,6 @@ defmodule AshTypescript.Rpc.Codegen do
       ]
   end
 
-  # Helper function to extract common action context
   defp get_action_context(resource, action) do
     %{
       requires_tenant: AshTypescript.Rpc.requires_tenant_parameter?(resource),
@@ -1326,7 +1609,6 @@ defmodule AshTypescript.Rpc.Codegen do
     }
   end
 
-  # Helper function to build primary key config field(s)
   defp build_primary_key_config_field(resource, opts) do
     primary_key_attrs = Ash.Resource.Info.primary_key(resource)
     simple_type = Keyword.get(opts, :simple_type, false)
@@ -1360,7 +1642,6 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
-  # Helper function to build common config fields (tenant, primary key, input)
   defp build_common_config_fields(resource, _action, context, opts) do
     rpc_action_name_pascal = snake_to_pascal_case(opts[:rpc_action_name] || "action")
     simple_primary_key = Keyword.get(opts, :simple_primary_key, false)
@@ -1391,10 +1672,10 @@ defmodule AshTypescript.Rpc.Codegen do
     config_fields
   end
 
-  # Helper function to build payload fields for both fetch and channel functions
   defp build_payload_fields(_resource, _action, rpc_action_name, context, opts) do
     include_fields = Keyword.get(opts, :include_fields, false)
     include_filtering_pagination = Keyword.get(opts, :include_filtering_pagination, true)
+    include_metadata_fields = Keyword.get(opts, :include_metadata_fields, false)
 
     payload_fields = ["action: \"#{rpc_action_name}\""]
 
@@ -1425,6 +1706,18 @@ defmodule AshTypescript.Rpc.Codegen do
     payload_fields =
       if include_fields do
         payload_fields ++ ["#{formatted_fields_field()}: config.#{formatted_fields_field()}"]
+      else
+        payload_fields
+      end
+
+    payload_fields =
+      if include_metadata_fields do
+        metadata_fields_key = format_output_field(:metadata_fields)
+
+        payload_fields ++
+          [
+            "...(config.#{metadata_fields_key} && { #{metadata_fields_key}: config.#{metadata_fields_key} })"
+          ]
       else
         payload_fields
       end
@@ -1491,7 +1784,13 @@ defmodule AshTypescript.Rpc.Codegen do
       ]
   end
 
-  defp generate_rpc_execution_function(resource, action, rpc_action_name, endpoint_process) do
+  defp generate_rpc_execution_function(
+         resource,
+         action,
+         rpc_action,
+         rpc_action_name,
+         endpoint_process
+       ) do
     function_name =
       AshTypescript.FieldFormatter.format_field(
         rpc_action_name,
@@ -1502,7 +1801,8 @@ defmodule AshTypescript.Rpc.Codegen do
     resource_name = build_resource_type_name(resource)
     context = get_action_context(resource, action)
 
-    # Build base config fields using helper
+    has_metadata = metadata_enabled?(get_exposed_metadata_fields(rpc_action, action))
+
     config_fields =
       build_common_config_fields(resource, action, context, rpc_action_name: rpc_action_name)
 
@@ -1572,19 +1872,29 @@ defmodule AshTypescript.Rpc.Codegen do
           "  customFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;"
         ]
 
-    # Check if this is a read action with optional pagination
+    config_fields =
+      if has_metadata do
+        metadata_fields_key = format_output_field(:metadata_fields)
+        config_fields ++ ["  #{metadata_fields_key}?: MetadataFields;"]
+      else
+        config_fields
+      end
+
     is_optional_pagination =
       action.type == :read and not action.get? and action_supports_pagination?(action) and
         not action_requires_pagination?(action) and has_fields
 
-    # Generate config type (named for optional pagination, inline otherwise)
     {config_type_export, config_type_ref} =
       if is_optional_pagination do
         config_type_name = "#{rpc_action_name_pascal}Config"
-        # For named config type, replace generic Fields with concrete type name
+
         config_fields_concrete =
           Enum.map(config_fields, fn field_def ->
             String.replace(field_def, ": Fields;", ": #{rpc_action_name_pascal}Fields;")
+            |> String.replace(
+              ": MetadataFields;",
+              ": ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata>;"
+            )
           end)
 
         config_body = "{\n#{Enum.join(config_fields_concrete, "\n")}\n}"
@@ -1601,52 +1911,122 @@ defmodule AshTypescript.Rpc.Codegen do
     {result_type_def, return_type_def, generic_param, function_signature} =
       cond do
         action.type == :destroy ->
-          result_type = """
-          | { #{success_field}: true; data: {} }
-          | {
-              #{success_field}: false;
-              #{errors_field}: Array<{
-                #{formatted_error_type_field()}: string;
-                #{formatted_error_message_field()}: string;
-                #{formatted_error_field_path_field()}?: string;
-                #{formatted_error_details_field()}: Record<string, string>;
-              }>;
-            }
-          """
+          if has_metadata do
+            result_type = """
+            | { #{success_field}: true; data: {}; #{format_output_field(:metadata)}: Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>; }
+            | {
+                #{success_field}: false;
+                #{errors_field}: Array<{
+                  #{formatted_error_type_field()}: string;
+                  #{formatted_error_message_field()}: string;
+                  #{formatted_error_field_path_field()}?: string;
+                  #{formatted_error_details_field()}: Record<string, string>;
+                }>;
+              }
+            """
 
-          result_type_def = "export type #{rpc_action_name_pascal}Result = #{result_type};"
+            result_type_def =
+              "export type #{rpc_action_name_pascal}Result<MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []> = #{result_type};"
 
-          {result_type_def, "#{rpc_action_name_pascal}Result", "", "config: #{config_type_ref}"}
+            {result_type_def, "#{rpc_action_name_pascal}Result<MetadataFields>",
+             "MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []",
+             "config: #{config_type_ref}"}
+          else
+            result_type = """
+            | { #{success_field}: true; data: {}; }
+            | {
+                #{success_field}: false;
+                #{errors_field}: Array<{
+                  #{formatted_error_type_field()}: string;
+                  #{formatted_error_message_field()}: string;
+                  #{formatted_error_field_path_field()}?: string;
+                  #{formatted_error_details_field()}: Record<string, string>;
+                }>;
+              }
+            """
+
+            result_type_def = "export type #{rpc_action_name_pascal}Result = #{result_type};"
+
+            {result_type_def, "#{rpc_action_name_pascal}Result", "", "config: #{config_type_ref}"}
+          end
 
         has_fields ->
+          is_mutation = action.type in [:create, :update]
+
+          mutation_metadata_field =
+            if is_mutation and has_metadata,
+              do:
+                " #{format_output_field(:metadata)}: Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>;",
+              else: ""
+
           # For optional pagination, update result type to include Page generic
           {result_type_generics, return_type_generics, function_generics, function_sig,
            function_return_generics} =
-            if is_optional_pagination do
-              # Optional pagination: Result type uses Page, function uses Config for inference
-              page_param = "Page extends #{rpc_action_name_pascal}Config[\"page\"] = undefined"
-              result_type_generics_str = "#{fields_generic}, #{page_param}"
-              # Result type data field uses Page generic
-              result_data_generics_str = "<Fields, Page>"
-              # Function return type passes Config["page"] for Page parameter
-              function_return_generics_str = "<Fields, Config[\"page\"]>"
+            cond do
+              is_optional_pagination and has_metadata and action.type == :read ->
+                page_param = "Page extends #{rpc_action_name_pascal}Config[\"page\"] = undefined"
 
-              # Function generics: use Config to allow inference
-              config_generic = "Config extends #{rpc_action_name_pascal}Config"
-              function_generics_str = "#{fields_generic}, #{config_generic}"
-              function_sig_str = "config: Config & { #{formatted_fields_field()}: Fields }"
+                metadata_param =
+                  "MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []"
 
-              {result_type_generics_str, result_data_generics_str, function_generics_str,
-               function_sig_str, function_return_generics_str}
-            else
-              # Regular (no optional pagination): just Fields generic
-              # Return 5 values to match optional pagination branch
-              {fields_generic, "<Fields>", fields_generic, "config: #{config_type_ref}",
-               "<Fields>"}
+                result_type_generics_str = "#{fields_generic}, #{metadata_param}, #{page_param}"
+                result_data_generics_str = "<Fields, MetadataFields, Page>"
+                metadata_fields_key = format_output_field(:metadata_fields)
+
+                function_return_generics_str =
+                  "<Fields, Config[\"#{metadata_fields_key}\"] extends ReadonlyArray<any> ? Config[\"#{metadata_fields_key}\"] : [], Config[\"page\"]>"
+
+                config_generic = "Config extends #{rpc_action_name_pascal}Config"
+                function_generics_str = "#{fields_generic}, #{config_generic}"
+                function_sig_str = "config: Config & { #{formatted_fields_field()}: Fields }"
+
+                {result_type_generics_str, result_data_generics_str, function_generics_str,
+                 function_sig_str, function_return_generics_str}
+
+              is_optional_pagination ->
+                page_param = "Page extends #{rpc_action_name_pascal}Config[\"page\"] = undefined"
+                result_type_generics_str = "#{fields_generic}, #{page_param}"
+                result_data_generics_str = "<Fields, Page>"
+                function_return_generics_str = "<Fields, Config[\"page\"]>"
+
+                config_generic = "Config extends #{rpc_action_name_pascal}Config"
+                function_generics_str = "#{fields_generic}, #{config_generic}"
+                function_sig_str = "config: Config & { #{formatted_fields_field()}: Fields }"
+
+                {result_type_generics_str, result_data_generics_str, function_generics_str,
+                 function_sig_str, function_return_generics_str}
+
+              action.type == :read and has_metadata ->
+                metadata_param =
+                  "MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []"
+
+                result_type_generics_str = "#{fields_generic}, #{metadata_param}"
+                result_data_generics_str = "<Fields, MetadataFields>"
+                function_generics_str = "#{fields_generic}, #{metadata_param}"
+                function_return_generics_str = "<Fields, MetadataFields>"
+
+                {result_type_generics_str, result_data_generics_str, function_generics_str,
+                 "config: #{config_type_ref}", function_return_generics_str}
+
+              is_mutation and has_metadata ->
+                metadata_param =
+                  "MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []"
+
+                result_type_generics_str = "#{fields_generic}, #{metadata_param}"
+                result_data_generics_str = "<Fields>"
+                function_generics_str = "#{fields_generic}, #{metadata_param}"
+                function_return_generics_str = "<Fields, MetadataFields>"
+
+                {result_type_generics_str, result_data_generics_str, function_generics_str,
+                 "config: #{config_type_ref}", function_return_generics_str}
+
+              true ->
+                {fields_generic, "<Fields>", fields_generic, "config: #{config_type_ref}",
+                 "<Fields>"}
             end
 
           result_type = """
-          | { #{success_field}: true; data: Infer#{rpc_action_name_pascal}Result#{return_type_generics} }
+          | { #{success_field}: true; data: Infer#{rpc_action_name_pascal}Result#{return_type_generics};#{mutation_metadata_field} }
           | {
               #{success_field}: false;
               #{errors_field}: Array<{
@@ -1665,29 +2045,56 @@ defmodule AshTypescript.Rpc.Codegen do
            function_generics, function_sig}
 
         true ->
-          result_type = """
-          | { #{success_field}: true; data: Infer#{rpc_action_name_pascal}Result }
-          | {
-              #{success_field}: false;
-              #{errors_field}: Array<{
-                #{formatted_error_type_field()}: string;
-                #{formatted_error_message_field()}: string;
-                #{formatted_error_field_path_field()}?: string;
-                #{formatted_error_details_field()}: Record<string, string>;
-              }>;
-            }
-          """
+          if has_metadata do
+            action_metadata_field =
+              " #{format_output_field(:metadata)}: Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>;"
 
-          result_type_def = "export type #{rpc_action_name_pascal}Result = #{result_type};"
+            result_type = """
+            | { #{success_field}: true; data: Infer#{rpc_action_name_pascal}Result;#{action_metadata_field} }
+            | {
+                #{success_field}: false;
+                #{errors_field}: Array<{
+                  #{formatted_error_type_field()}: string;
+                  #{formatted_error_message_field()}: string;
+                  #{formatted_error_field_path_field()}?: string;
+                  #{formatted_error_details_field()}: Record<string, string>;
+                }>;
+              }
+            """
 
-          {result_type_def, "#{rpc_action_name_pascal}Result", "", "config: #{config_type_ref}"}
+            result_type_def =
+              "export type #{rpc_action_name_pascal}Result<MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []> = #{result_type};"
+
+            {result_type_def, "#{rpc_action_name_pascal}Result<MetadataFields>",
+             "MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []",
+             "config: #{config_type_ref}"}
+          else
+            result_type = """
+            | { #{success_field}: true; data: Infer#{rpc_action_name_pascal}Result; }
+            | {
+                #{success_field}: false;
+                #{errors_field}: Array<{
+                  #{formatted_error_type_field()}: string;
+                  #{formatted_error_message_field()}: string;
+                  #{formatted_error_field_path_field()}?: string;
+                  #{formatted_error_details_field()}: Record<string, string>;
+                }>;
+              }
+            """
+
+            result_type_def = "export type #{rpc_action_name_pascal}Result = #{result_type};"
+
+            {result_type_def, "#{rpc_action_name_pascal}Result", "", "config: #{config_type_ref}"}
+          end
       end
 
     generic_part = if generic_param != "", do: "<#{generic_param}>", else: ""
 
-    # Build the payload using helper
     payload_fields =
-      build_payload_fields(resource, action, rpc_action_name, context, include_fields: has_fields)
+      build_payload_fields(resource, action, rpc_action_name, context,
+        include_fields: has_fields,
+        include_metadata_fields: has_metadata
+      )
 
     payload_def = "{\n    #{Enum.join(payload_fields, ",\n    ")}\n  }"
 
@@ -1887,7 +2294,7 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
-  defp generate_channel_execution_function(resource, action, rpc_action_name) do
+  defp generate_channel_execution_function(resource, action, rpc_action, rpc_action_name) do
     function_name =
       AshTypescript.FieldFormatter.format_field(
         "#{rpc_action_name}_channel",
@@ -1961,27 +2368,76 @@ defmodule AshTypescript.Rpc.Codegen do
         config_fields
       end
 
+    # Add metadataFields to config if metadata is enabled (same as RPC execution function)
+    # Check if metadata is enabled based on show_metadata configuration
+    has_metadata = metadata_enabled?(get_exposed_metadata_fields(rpc_action, action))
+
+    config_fields =
+      if has_metadata do
+        metadata_fields_key = format_output_field(:metadata_fields)
+        config_fields ++ ["  #{metadata_fields_key}?: MetadataFields;"]
+      else
+        config_fields
+      end
+
     {result_handler_type, error_handler_type, timeout_handler_type, generic_part} =
       cond do
         action.type == :destroy ->
-          result_type = "{ #{format_output_field(:success)}: true; data: {} }"
-          error_type = "any"
-          timeout_type = "() => void"
-          {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}", ""}
+          if has_metadata do
+            result_type = "#{rpc_action_name_pascal}Result<MetadataFields>"
+            error_type = "any"
+            timeout_type = "() => void"
+
+            metadata_param =
+              "MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []"
+
+            {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}",
+             "<#{metadata_param}>"}
+          else
+            result_type = "#{rpc_action_name_pascal}Result"
+            error_type = "any"
+            timeout_type = "() => void"
+            {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}", ""}
+          end
 
         has_fields ->
-          result_type = "#{rpc_action_name_pascal}Result<Fields>"
-          error_type = "any"
-          timeout_type = "() => void"
+          # For actions with metadata, add MetadataFields generic
+          if has_metadata do
+            metadata_param =
+              "MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []"
 
-          {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}",
-           "<#{fields_generic}>"}
+            result_type = "#{rpc_action_name_pascal}Result<Fields, MetadataFields>"
+            error_type = "any"
+            timeout_type = "() => void"
+
+            {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}",
+             "<#{fields_generic}, #{metadata_param}>"}
+          else
+            result_type = "#{rpc_action_name_pascal}Result<Fields>"
+            error_type = "any"
+            timeout_type = "() => void"
+
+            {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}",
+             "<#{fields_generic}>"}
+          end
 
         true ->
-          result_type = "#{rpc_action_name_pascal}Result"
-          error_type = "any"
-          timeout_type = "() => void"
-          {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}", ""}
+          if has_metadata do
+            result_type = "#{rpc_action_name_pascal}Result<MetadataFields>"
+            error_type = "any"
+            timeout_type = "() => void"
+
+            metadata_param =
+              "MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []"
+
+            {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}",
+             "<#{metadata_param}>"}
+          else
+            result_type = "#{rpc_action_name_pascal}Result"
+            error_type = "any"
+            timeout_type = "() => void"
+            {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}", ""}
+          end
       end
 
     config_fields =
@@ -1995,9 +2451,15 @@ defmodule AshTypescript.Rpc.Codegen do
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
 
-    # Build the payload using helper
+    # Check if metadata is enabled based on show_metadata configuration (must match config type definition)
+    has_metadata_for_payload = metadata_enabled?(get_exposed_metadata_fields(rpc_action, action))
+
+    # Build the payload using helper - include metadata_fields only when metadata is exposed
     payload_fields =
-      build_payload_fields(resource, action, rpc_action_name, context, include_fields: has_fields)
+      build_payload_fields(resource, action, rpc_action_name, context,
+        include_fields: has_fields,
+        include_metadata_fields: has_metadata_for_payload
+      )
 
     payload_def = "{\n    #{Enum.join(payload_fields, ",\n    ")}\n  }"
 
@@ -2050,17 +2512,23 @@ defmodule AshTypescript.Rpc.Codegen do
         ""
       end
 
-    result_type = generate_result_type(resource, action, rpc_action_name)
+    result_type = generate_result_type(resource, action, rpc_action, rpc_action_name)
 
     rpc_function =
-      generate_rpc_execution_function(resource, action, rpc_action_name, endpoint_process)
+      generate_rpc_execution_function(
+        resource,
+        action,
+        rpc_action,
+        rpc_action_name,
+        endpoint_process
+      )
 
     validation_function =
       generate_validation_function(resource, action, rpc_action_name, endpoint_validate)
 
     channel_function =
       if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
-        generate_channel_execution_function(resource, action, rpc_action_name)
+        generate_channel_execution_function(resource, action, rpc_action, rpc_action_name)
       else
         ""
       end

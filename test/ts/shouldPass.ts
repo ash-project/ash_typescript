@@ -23,6 +23,7 @@ import "./shouldPass/channelTimeoutTest";
 import "./shouldPass/untypedMaps";
 import "./shouldPass/conditionalPagination";
 import "./shouldPass/precisePaginationTypes";
+import "./shouldPass/metadata";
 
 // Import Zod schema validation tests
 import "./zod/shouldPass/basicZodUsage";

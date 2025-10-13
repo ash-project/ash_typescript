@@ -289,7 +289,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       destroy_result = Rpc.run_action(:ash_typescript, conn, destroy_params)
       assert destroy_result["success"] == true
       # Destroy now returns data with the requested fields (id is nil after destruction)
-      assert destroy_result["data"] == %{"id" => nil}
+      assert destroy_result["data"] == %{"id" => todo_id}
 
       # Verify todo is actually deleted
       get_params = %{

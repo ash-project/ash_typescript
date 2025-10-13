@@ -33,6 +33,10 @@
 | **Channel Config** | `generate_phx_channel_rpc_actions: true` | Enable channel function generation |
 | **Field Name Mapping** | `field_names [field_1: :field1]` | Map invalid field names to valid TypeScript identifiers |
 | **Argument Mapping** | `argument_names [action: [arg_1: :arg1]]` | Map invalid argument names per action |
+| **Metadata Config** | `show_metadata: [:field1, :field2]` | Control which metadata fields are exposed via RPC |
+| **Metadata Mapping** | `metadata_field_names: [field_1: :field1]` | Map invalid metadata field names to valid TypeScript identifiers |
+| **Metadata Selection (Read)** | `metadataFields: ["field1", "field2"]` | Select metadata fields for read actions (merged into records) |
+| **Metadata Access (Mutations)** | `result.metadata.field1` | Access metadata from create/update/destroy (separate field) |
 
 ## Critical Patterns
 
@@ -75,6 +79,34 @@ const deletedTodo = await destroyTodo({
   fields: [],
   headers: buildCSRFHeaders()
 });
+
+// Read action with metadata - fields merged into records
+const tasksWithMetadata = await readTasksWithMetadata({
+  fields: ["id", "title"],
+  metadataFields: ["processingTimeMs", "cacheStatus"]
+});
+
+if (tasksWithMetadata.success) {
+  tasksWithMetadata.data.forEach(task => {
+    console.log(task.id);                  // Regular field
+    console.log(task.title);               // Regular field
+    console.log(task.processingTimeMs);    // Metadata field (merged in)
+    console.log(task.cacheStatus);         // Metadata field (merged in)
+  });
+}
+
+// Create action with metadata - separate metadata field
+const createdTask = await createTask({
+  fields: ["id", "title"],
+  input: { title: "New Task" }
+});
+
+if (createdTask.success) {
+  console.log(createdTask.data.id);           // Regular field
+  console.log(createdTask.data.title);        // Regular field
+  console.log(createdTask.metadata.createdAt); // Metadata field (separate)
+  console.log(createdTask.metadata.operationId); // Metadata field (separate)
+}
 
 // Union field selection
 const content = await getTodo({
@@ -216,6 +248,8 @@ User wants to...
 | "validateFunctionName is not defined" | Validation generation disabled | Set `generate_validation_functions: true` |
 | "Invalid field names found" | Field/arg name has `_1` or `?` | Add `field_names` or `argument_names` to resource |
 | "Invalid field names in map/keyword/tuple" | Map constraint has invalid fields | Create custom `Ash.Type.NewType` with `typescript_field_names/0` |
+| "Invalid metadata field name" | Metadata field has `_1` or `?` | Add `metadata_field_names` to `rpc_action` |
+| "Metadata field conflicts with resource field" | Metadata field shadows resource field | Rename metadata field or use different name |
 
 ## Basic Setup
 
@@ -315,6 +349,22 @@ const todoWithSelf = await getTodo({
     }
   ]
 });
+
+// Metadata with field selection (read actions - merged into records)
+const todosWithMetadata = await listTodosWithMetadata({
+  fields: ["id", "title", "completed"],
+  metadataFields: ["processingTimeMs", "cacheStatus", "apiVersion"]
+});
+
+// Access metadata merged into records
+if (todosWithMetadata.success) {
+  todosWithMetadata.data.forEach(todo => {
+    console.log(todo.id);                // Regular field
+    console.log(todo.title);             // Regular field
+    console.log(todo.processingTimeMs);  // Metadata field (merged)
+    console.log(todo.cacheStatus);       // Metadata field (merged)
+  });
+}
 ```
 
 ### Filtering and Sorting
@@ -453,6 +503,8 @@ const todos = await listTodos({
 | Calculation (simple) | `["calcName"]` | `["isOverdue", "commentCount"]` |
 | Calculation (args) | `{ calc: {args: {...}, fields: [...]} }` | `{ self: {args: {prefix: "x"}, fields: ["id"]} }` |
 | Union (selective) | `{ union: ["member1", { member2: [...] }] }` | `{ content: ["note", { text: ["text"] }] }` |
+| Metadata (read) | `metadataFields: ["field1"]` | `metadataFields: ["processingTime", "cacheStatus"]` |
+| Metadata (mutation) | Access via `result.metadata` | `result.metadata.operationId` |
 
 ## Common Gotchas
 
@@ -653,7 +705,78 @@ const results = await searchUsers({
 });
 ```
 
-### 8. Map Type Field Name Mapping
+### 8. Metadata Field Selection and Configuration
+
+❌ **Wrong - Expecting automatic metadata exposure:**
+```elixir
+# Action with metadata
+actions do
+  read :read_with_metadata do
+    metadata :field_1, :string
+    metadata :is_cached?, :boolean
+  end
+end
+
+# Missing show_metadata configuration
+typescript_rpc do
+  resource MyApp.Task do
+    rpc_action :read_data, :read_with_metadata
+    # Metadata not configured - will expose all fields with invalid names!
+  end
+end
+```
+
+✅ **Correct - Control metadata exposure and map invalid names:**
+```elixir
+typescript_rpc do
+  resource MyApp.Task do
+    rpc_action :read_data, :read_with_metadata,
+      show_metadata: [:field_1, :is_cached?],
+      metadata_field_names: [
+        field_1: :field1,
+        is_cached?: :isCached
+      ]
+  end
+end
+```
+
+**Read action usage (metadata merged into records):**
+```typescript
+const tasks = await readData({
+  fields: ["id", "title"],
+  metadataFields: ["field1", "isCached"]  // Mapped names
+});
+
+if (tasks.success) {
+  tasks.data.forEach(task => {
+    console.log(task.id);        // Regular field
+    console.log(task.title);     // Regular field
+    console.log(task.field1);    // Metadata field (merged)
+    console.log(task.isCached);  // Metadata field (merged)
+  });
+}
+```
+
+**Create/Update/Destroy action usage (separate metadata field):**
+```typescript
+const result = await createTask({
+  fields: ["id", "title"],
+  input: { title: "New Task" }
+});
+
+if (result.success) {
+  console.log(result.data.id);           // Regular field
+  console.log(result.metadata.field1);   // Metadata field (separate)
+  console.log(result.metadata.isCached); // Metadata field (separate)
+}
+```
+
+**show_metadata configuration options:**
+- `show_metadata: nil` - Expose all metadata fields (default)
+- `show_metadata: false` or `[]` - Disable metadata entirely
+- `show_metadata: [:field1, :field2]` - Expose only specific fields
+
+### 9. Map Type Field Name Mapping
 
 ❌ **Wrong - Invalid field names in map constraints:**
 ```elixir
@@ -700,6 +823,156 @@ type User = {
     field1: string;      // Mapped from field_1
     isActive: boolean;   // Mapped from is_active?
   }
+}
+```
+
+## Action Metadata Support
+
+### Configuration
+Configure which metadata fields are exposed via RPC:
+
+```elixir
+defmodule MyApp.Domain do
+  use Ash.Domain, extensions: [AshTypescript.Rpc]
+
+  typescript_rpc do
+    resource MyApp.Task do
+      # Expose all metadata fields (default)
+      rpc_action :read_all_metadata, :read_with_metadata, show_metadata: nil
+
+      # Disable metadata entirely
+      rpc_action :read_no_metadata, :read_with_metadata, show_metadata: false
+
+      # Expose specific fields only
+      rpc_action :read_selected, :read_with_metadata,
+        show_metadata: [:processing_time, :cache_status]
+
+      # With field name mapping for invalid names
+      rpc_action :read_mapped, :read_with_metadata,
+        show_metadata: [:field_1, :is_cached?],
+        metadata_field_names: [
+          field_1: :field1,
+          is_cached?: :isCached
+        ]
+    end
+  end
+end
+```
+
+### Read Actions - Metadata Merged Into Records
+
+For read actions, metadata fields are merged directly into each record:
+
+```typescript
+const tasks = await readTasksWithMetadata({
+  fields: ["id", "title"],
+  metadataFields: ["processingTimeMs", "cacheStatus"]
+});
+
+if (tasks.success) {
+  tasks.data.forEach(task => {
+    // Regular fields
+    const id: string = task.id;
+    const title: string = task.title;
+
+    // Metadata fields merged in
+    const processingTime: number = task.processingTimeMs;
+    const cacheStatus: string = task.cacheStatus;
+  });
+}
+
+// Omit metadataFields to not include any metadata
+const tasksNoMeta = await readTasksWithMetadata({
+  fields: ["id", "title"]
+  // No metadata included
+});
+```
+
+### Mutation Actions - Separate Metadata Field
+
+For create, update, and destroy actions, metadata is returned as a separate `metadata` field:
+
+```typescript
+// Create action
+const created = await createTask({
+  fields: ["id", "title"],
+  input: { title: "New Task" }
+});
+
+if (created.success) {
+  // Access data
+  console.log(created.data.id);
+  console.log(created.data.title);
+
+  // Access metadata separately
+  console.log(created.metadata.operationId);
+  console.log(created.metadata.createdAt);
+}
+
+// Update action
+const updated = await updateTask({
+  primaryKey: "task-123",
+  fields: ["id", "title"],
+  input: { title: "Updated" }
+});
+
+if (updated.success) {
+  console.log(updated.data.title);
+  console.log(updated.metadata.updatedAt);
+}
+
+// Destroy action
+const destroyed = await destroyTask({
+  primaryKey: "task-123"
+});
+
+if (destroyed.success) {
+  console.log(destroyed.data);  // Empty object {}
+  console.log(destroyed.metadata.deletedAt);
+}
+```
+
+### Metadata Field Name Mapping
+
+Map invalid metadata field names to valid TypeScript identifiers:
+
+```elixir
+# Invalid metadata field names in action
+actions do
+  read :read_with_metadata do
+    metadata :field_1, :string        # Invalid: underscore before digit
+    metadata :is_cached?, :boolean    # Invalid: question mark
+    metadata :metric_2, :integer      # Invalid: underscore before digit
+  end
+end
+
+# Map to valid names in RPC configuration
+typescript_rpc do
+  resource MyApp.Task do
+    rpc_action :read_data, :read_with_metadata,
+      show_metadata: [:field_1, :is_cached?, :metric_2],
+      metadata_field_names: [
+        field_1: :field1,
+        is_cached?: :isCached,
+        metric_2: :metric2
+      ]
+  end
+end
+```
+
+**TypeScript usage with mapped names:**
+```typescript
+const tasks = await readData({
+  fields: ["id", "title"],
+  metadataFields: ["field1", "isCached", "metric2"]
+});
+
+if (tasks.success) {
+  tasks.data.forEach(task => {
+    console.log(task.field1);    // Mapped from field_1
+    console.log(task.isCached);  // Mapped from is_cached?
+    console.log(task.metric2);   // Mapped from metric_2
+  });
 }
 ```
 
@@ -797,6 +1070,8 @@ This allows maximum flexibility for actions that work with dynamic or unstructur
 | "Action not found" | Missing RPC declaration | Add `rpc_action` to domain |
 | "Invalid field names found" | Field/arg with `_1` or `?` | Add `field_names` or `argument_names` to `typescript` block |
 | "Invalid field names in map/keyword/tuple" | Map constraint fields invalid | Create `Ash.Type.NewType` with `typescript_field_names/0` callback |
+| "Invalid metadata field name" | Metadata field has `_1` or `?` | Add `metadata_field_names` to `rpc_action` configuration |
+| "Metadata field conflicts" | Metadata shadows resource field | Rename metadata field or use `metadata_field_names` mapping |
 | TypeScript compilation fails | Types out of sync | Run `mix ash_typescript.codegen` |
 | "fields is required" | Missing fields param | Add `fields: [...]` |
 | "403 Forbidden" | CSRF issue | Use `buildCSRFHeaders()` |

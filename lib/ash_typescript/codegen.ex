@@ -408,14 +408,16 @@ defmodule AshTypescript.Codegen do
     resource_name = build_resource_type_name(resource)
 
     primitive_fields = get_primitive_fields(resource)
+
     primitive_fields_union = generate_primitive_fields_union(primitive_fields, resource)
 
-    metadata_fields = [
+    metadata_schema_fields = [
       "  __type: \"Resource\";",
       "  __primitiveFields: #{primitive_fields_union};"
     ]
 
     primitive_field_defs = generate_primitive_field_definitions(resource)
+
     relationship_field_defs = generate_relationship_field_definitions(resource, allowed_resources)
     embedded_field_defs = generate_embedded_field_definitions(resource, allowed_resources)
     complex_calc_field_defs = generate_complex_calculation_field_definitions(resource)
@@ -423,7 +425,7 @@ defmodule AshTypescript.Codegen do
     keyword_tuple_field_defs = generate_keyword_tuple_field_definitions(resource)
 
     all_field_lines =
-      metadata_fields ++
+      metadata_schema_fields ++
         primitive_field_defs ++
         relationship_field_defs ++
         embedded_field_defs ++
@@ -1143,16 +1145,41 @@ defmodule AshTypescript.Codegen do
     fields = Keyword.get(constraints, :fields)
 
     cond do
-      fields != nil ->
-        build_map_type(fields)
+      instance_of != nil and is_typed_struct?(instance_of) ->
+        field_name_mappings =
+          if function_exported?(instance_of, :typescript_field_names, 0) do
+            instance_of.typescript_field_names()
+          else
+            nil
+          end
+
+        map_fields =
+          if fields != nil do
+            fields
+          else
+            typed_struct_fields = get_typed_struct_fields(instance_of)
+
+            Enum.map(typed_struct_fields, fn field ->
+              {field.name,
+               [
+                 type: field.type,
+                 constraints: Map.get(field, :constraints, []),
+                 allow_nil?: Map.get(field, :allow_nil?, true)
+               ]}
+            end)
+          end
+
+        build_map_type(map_fields, nil, field_name_mappings)
+
+      instance_of != nil and Spark.Dsl.is?(instance_of, Ash.Resource) ->
+        resource_name = build_resource_type_name(instance_of)
+        "#{resource_name}ResourceSchema"
 
       instance_of != nil ->
-        if Spark.Dsl.is?(instance_of, Ash.Resource) do
-          resource_name = build_resource_type_name(instance_of)
-          "#{resource_name}ResourceSchema"
-        else
-          build_resource_type(instance_of, select_and_loads)
-        end
+        build_resource_type(instance_of, select_and_loads)
+
+      fields != nil ->
+        build_map_type(fields)
 
       true ->
         "Record<string, any>"
@@ -1305,6 +1332,13 @@ defmodule AshTypescript.Codegen do
   def build_typed_struct_input_type(typed_struct_module) do
     fields = get_typed_struct_fields(typed_struct_module)
 
+    field_name_mappings =
+      if function_exported?(typed_struct_module, :typescript_field_names, 0) do
+        typed_struct_module.typescript_field_names()
+      else
+        nil
+      end
+
     field_types =
       fields
       |> Enum.map_join(", ", fn field ->
@@ -1316,9 +1350,16 @@ defmodule AshTypescript.Codegen do
         field_attr = %{type: field_type, constraints: constraints}
         ts_type = get_ts_input_type(field_attr)
 
+        mapped_field_name =
+          if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
+            Keyword.get(field_name_mappings, field_name)
+          else
+            field_name
+          end
+
         formatted_field_name =
           AshTypescript.FieldFormatter.format_field(
-            field_name,
+            mapped_field_name,
             AshTypescript.Rpc.output_field_formatter()
           )
 
