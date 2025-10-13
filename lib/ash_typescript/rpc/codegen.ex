@@ -1125,9 +1125,7 @@ defmodule AshTypescript.Rpc.Codegen do
   defp generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal) do
     exposed_fields = get_exposed_metadata_fields(rpc_action, action)
 
-    if not metadata_enabled?(exposed_fields) do
-      ""
-    else
+    if metadata_enabled?(exposed_fields) do
       all_metadata_fields = Map.get(action, :metadata, [])
 
       metadata_fields_to_include =
@@ -1163,6 +1161,8 @@ defmodule AshTypescript.Rpc.Codegen do
       #{Enum.join(metadata_field_defs, "\n")}
       };
       """
+    else
+      ""
     end
   end
 
