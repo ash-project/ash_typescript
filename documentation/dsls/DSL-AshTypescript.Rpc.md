@@ -46,6 +46,15 @@ rpc_action name, action
 ```
 
 
+Define an RPC action that exposes a resource action to TypeScript clients.
+
+Metadata fields: Action metadata can be exposed via `show_metadata` option.
+Set to `nil` (default) to expose all metadata fields, `false` or `[]` to disable,
+or provide a list of atoms to expose specific fields.
+
+Metadata field naming: Use `metadata_field_names` to map invalid metadata field names
+(e.g., `field_1`, `is_valid?`) to valid TypeScript identifiers.
+Example: `metadata_field_names [field_1: :field1, is_valid?: :isValid]`
 
 
 
@@ -58,7 +67,12 @@ rpc_action name, action
 |------|------|---------|------|
 | [`name`](#typescript_rpc-resource-rpc_action-name){: #typescript_rpc-resource-rpc_action-name } | `atom` |  | The name of the RPC-action |
 | [`action`](#typescript_rpc-resource-rpc_action-action){: #typescript_rpc-resource-rpc_action-action } | `atom` |  | The resource action to expose |
+### Options
 
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`show_metadata`](#typescript_rpc-resource-rpc_action-show_metadata){: #typescript_rpc-resource-rpc_action-show_metadata } | `nil \| boolean \| list(atom)` |  | Which metadata fields to expose (nil=all, false/[]=none, list=specific fields) |
+| [`metadata_field_names`](#typescript_rpc-resource-rpc_action-metadata_field_names){: #typescript_rpc-resource-rpc_action-metadata_field_names } | `list({atom, atom})` | `[]` | Map metadata field names to valid TypeScript identifiers |
 
 
 

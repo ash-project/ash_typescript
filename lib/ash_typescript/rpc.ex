@@ -70,6 +70,17 @@ defmodule AshTypescript.Rpc do
   @rpc_action %Spark.Dsl.Entity{
     name: :rpc_action,
     target: RpcAction,
+    describe: """
+    Define an RPC action that exposes a resource action to TypeScript clients.
+
+    Metadata fields: Action metadata can be exposed via `show_metadata` option.
+    Set to `nil` (default) to expose all metadata fields, `false` or `[]` to disable,
+    or provide a list of atoms to expose specific fields.
+
+    Metadata field naming: Use `metadata_field_names` to map invalid metadata field names
+    (e.g., `field_1`, `is_valid?`) to valid TypeScript identifiers.
+    Example: `metadata_field_names [field_1: :field1, is_valid?: :isValid]`
+    """,
     schema: [
       name: [
         type: :atom,
@@ -81,26 +92,12 @@ defmodule AshTypescript.Rpc do
       ],
       show_metadata: [
         type: {:or, [nil, :boolean, {:list, :atom}]},
-        doc: """
-        Which metadata fields to expose for this action:
-        - `nil` (default) - Expose all metadata fields from the action
-        - `false` or `[]` - Disable metadata entirely (no types, parameters, or extraction)
-        - List of atoms - Expose only the listed metadata fields
-        """,
+        doc: "Which metadata fields to expose (nil=all, false/[]=none, list=specific fields)",
         default: nil
       ],
       metadata_field_names: [
         type: {:list, {:tuple, [:atom, :atom]}},
-        doc: """
-        Map metadata field names to valid TypeScript identifiers.
-        Similar to field_names, but for metadata fields only.
-
-        Example: `metadata_field_names [field_1: :field1, is_valid?: :isValid]`
-
-        Requirements:
-        - Keys must be metadata field names that would otherwise be invalid or conflict
-        - Values must be valid TypeScript identifiers
-        """,
+        doc: "Map metadata field names to valid TypeScript identifiers",
         default: []
       ]
     ],
