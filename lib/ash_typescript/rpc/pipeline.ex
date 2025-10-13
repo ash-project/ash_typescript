@@ -204,8 +204,15 @@ defmodule AshTypescript.Rpc.Pipeline do
         if unconstrained_map_action?(request.action) do
           {:ok, ResultProcessor.normalize_value_for_json(result)}
         else
+          resource_for_mapping =
+            if request.action.type == :action and returns_typed_struct?(request.action) do
+              nil
+            else
+              request.resource
+            end
+
           filtered =
-            ResultProcessor.process(result, request.extraction_template, request.resource)
+            ResultProcessor.process(result, request.extraction_template, resource_for_mapping)
 
           filtered_with_metadata = add_metadata(filtered, result, request)
 
@@ -214,6 +221,19 @@ defmodule AshTypescript.Rpc.Pipeline do
 
       primitive_value ->
         {:ok, ResultProcessor.normalize_value_for_json(primitive_value)}
+    end
+  end
+
+  defp returns_typed_struct?(action) do
+    case action.returns do
+      {:array, module} when is_atom(module) ->
+        AshTypescript.Codegen.is_typed_struct?(module)
+
+      module when is_atom(module) ->
+        AshTypescript.Codegen.is_typed_struct?(module)
+
+      _ ->
+        false
     end
   end
 

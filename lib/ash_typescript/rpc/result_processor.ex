@@ -68,6 +68,14 @@ defmodule AshTypescript.Rpc.ResultProcessor do
        when is_list(extraction_template) do
     is_tuple = is_tuple(data)
 
+    typed_struct_module =
+      if is_map(data) and not is_tuple(data) and Map.has_key?(data, :__struct__) do
+        module = data.__struct__
+        if AshTypescript.Codegen.is_typed_struct?(module), do: module, else: nil
+      else
+        nil
+      end
+
     normalized_data =
       cond do
         is_tuple ->
@@ -80,16 +88,24 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           normalize_data(data)
       end
 
+    effective_resource = resource || typed_struct_module
+
     if is_tuple do
       normalized_data
     else
       Enum.reduce(extraction_template, %{}, fn field_spec, acc ->
         case field_spec do
           field_atom when is_atom(field_atom) or is_tuple(data) ->
-            extract_simple_field(normalized_data, field_atom, acc, resource)
+            extract_simple_field(normalized_data, field_atom, acc, effective_resource)
 
           {field_atom, nested_template} when is_atom(field_atom) and is_list(nested_template) ->
-            extract_nested_field(normalized_data, field_atom, nested_template, acc, resource)
+            extract_nested_field(
+              normalized_data,
+              field_atom,
+              nested_template,
+              acc,
+              effective_resource
+            )
 
           _ ->
             acc
@@ -103,12 +119,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     normalize_data(data)
   end
 
-  # Extract a simple field, handling forbidden, not loaded, and nil cases
   defp extract_simple_field(normalized_data, field_atom, acc, resource) do
-    # Map the Elixir field name to the TypeScript field name for output
     output_field_name =
       if resource do
-        AshTypescript.Resource.Info.get_mapped_field_name(resource, field_atom)
+        get_mapped_field_name(resource, field_atom)
       else
         field_atom
       end
@@ -128,12 +142,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  # Extract a nested field with template, handling forbidden, not loaded, and nil cases
   defp extract_nested_field(normalized_data, field_atom, nested_template, acc, resource) do
-    # Map the Elixir field name to the TypeScript field name for output
     output_field_name =
       if resource do
-        AshTypescript.Resource.Info.get_mapped_field_name(resource, field_atom)
+        get_mapped_field_name(resource, field_atom)
       else
         field_atom
       end
@@ -428,4 +440,20 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       nil
     end
   end
+
+  defp get_mapped_field_name(module, field_atom) when is_atom(module) do
+    cond do
+      Ash.Resource.Info.resource?(module) ->
+        AshTypescript.Resource.Info.get_mapped_field_name(module, field_atom)
+
+      Code.ensure_loaded?(module) and function_exported?(module, :typescript_field_names, 0) ->
+        mappings = module.typescript_field_names()
+        Keyword.get(mappings, field_atom, field_atom)
+
+      true ->
+        field_atom
+    end
+  end
+
+  defp get_mapped_field_name(_module, field_atom), do: field_atom
 end

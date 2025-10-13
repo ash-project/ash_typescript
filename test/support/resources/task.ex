@@ -191,5 +191,43 @@ defmodule AshTypescript.Test.Task do
         end
       end
     end
+
+    action :get_task_stats, AshTypescript.Test.TaskStats do
+      argument :task_id, :uuid, allow_nil?: false
+
+      run fn input, _context ->
+        # Simulate returning task statistics
+        stats = %AshTypescript.Test.TaskStats{
+          total_count: 10,
+          completed?: true,
+          is_urgent?: false,
+          average_duration: 45.5
+        }
+
+        {:ok, stats}
+      end
+    end
+
+    action :list_task_stats, {:array, AshTypescript.Test.TaskStats} do
+      run fn _input, _context ->
+        # Simulate returning multiple task statistics
+        stats_list = [
+          %AshTypescript.Test.TaskStats{
+            total_count: 10,
+            completed?: true,
+            is_urgent?: false,
+            average_duration: 45.5
+          },
+          %AshTypescript.Test.TaskStats{
+            total_count: 5,
+            completed?: false,
+            is_urgent?: true,
+            average_duration: 30.0
+          }
+        ]
+
+        {:ok, stats_list}
+      end
+    end
   end
 end

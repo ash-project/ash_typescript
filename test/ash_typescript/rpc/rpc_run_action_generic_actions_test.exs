@@ -583,4 +583,234 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
       end)
     end
   end
+
+  describe "typed struct return type actions (get_task_stats)" do
+    setup do
+      conn = TestHelpers.build_rpc_conn()
+      %{conn: conn}
+    end
+
+    test "processes valid typed struct fields correctly", %{conn: conn} do
+      task_id = Ash.UUID.generate()
+
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_task_stats",
+          "input" => %{"taskId" => task_id},
+          "fields" => ["totalCount", "completed", "isUrgent"]
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+
+      assert is_map(data)
+      assert Map.has_key?(data, "totalCount")
+      assert Map.has_key?(data, "completed")
+      assert Map.has_key?(data, "isUrgent")
+      refute Map.has_key?(data, "averageDuration")
+
+      assert data["totalCount"] == 10
+      assert data["completed"] == true
+      assert data["isUrgent"] == false
+    end
+
+    test "processes all valid typed struct fields", %{conn: conn} do
+      task_id = Ash.UUID.generate()
+
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_task_stats",
+          "input" => %{"taskId" => task_id},
+          "fields" => ["totalCount", "completed", "isUrgent", "averageDuration"]
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+
+      assert Map.has_key?(data, "totalCount")
+      assert Map.has_key?(data, "completed")
+      assert Map.has_key?(data, "isUrgent")
+      assert Map.has_key?(data, "averageDuration")
+
+      assert data["totalCount"] == 10
+      assert data["completed"] == true
+      assert data["isUrgent"] == false
+      assert data["averageDuration"] == 45.5
+    end
+
+    test "rejects invalid fields for typed struct return types", %{conn: conn} do
+      task_id = Ash.UUID.generate()
+
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_task_stats",
+          "input" => %{"taskId" => task_id},
+          "fields" => ["invalidField"]
+        })
+
+      assert result["success"] == false
+      assert result["errors"]
+
+      error_message = inspect(result["errors"])
+
+      assert error_message =~ "invalidField" or error_message =~ "unknown" or
+               error_message =~ "field"
+    end
+
+    test "requires fields for typed struct return types", %{conn: conn} do
+      task_id = Ash.UUID.generate()
+
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_task_stats",
+          "input" => %{"taskId" => task_id},
+          "fields" => []
+        })
+
+      assert result["success"] == false
+      error_message = inspect(result["errors"])
+
+      assert error_message =~ "requires_field_selection" or error_message =~ "field" or
+               error_message =~ "empty"
+
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_task_stats",
+          "input" => %{"taskId" => task_id},
+          "fields" => ["totalCount", "completed"]
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+      assert Map.has_key?(data, "totalCount")
+      assert Map.has_key?(data, "completed")
+      assert map_size(data) == 2
+    end
+  end
+
+  describe "array of typed struct return type actions (list_task_stats)" do
+    setup do
+      conn = TestHelpers.build_rpc_conn()
+      %{conn: conn}
+    end
+
+    test "processes valid typed struct fields correctly for arrays", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_task_stats",
+          "fields" => ["totalCount", "completed", "isUrgent"]
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+
+      assert is_list(data)
+      assert length(data) == 2
+
+      Enum.each(data, fn item ->
+        assert is_map(item)
+        assert Map.has_key?(item, "totalCount")
+        assert Map.has_key?(item, "completed")
+        assert Map.has_key?(item, "isUrgent")
+        refute Map.has_key?(item, "averageDuration")
+
+        assert is_integer(item["totalCount"])
+        assert is_boolean(item["completed"])
+        assert is_boolean(item["isUrgent"])
+      end)
+
+      [first, second] = data
+      assert first["totalCount"] == 10
+      assert first["completed"] == true
+      assert first["isUrgent"] == false
+
+      assert second["totalCount"] == 5
+      assert second["completed"] == false
+      assert second["isUrgent"] == true
+    end
+
+    test "processes all valid typed struct fields for arrays", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_task_stats",
+          "fields" => ["totalCount", "completed", "isUrgent", "averageDuration"]
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+
+      assert is_list(data)
+      assert length(data) == 2
+
+      Enum.each(data, fn item ->
+        assert Map.has_key?(item, "totalCount")
+        assert Map.has_key?(item, "completed")
+        assert Map.has_key?(item, "isUrgent")
+        assert Map.has_key?(item, "averageDuration")
+
+        assert is_integer(item["totalCount"])
+        assert is_boolean(item["completed"])
+        assert is_boolean(item["isUrgent"])
+        assert is_float(item["averageDuration"])
+      end)
+
+      [first, second] = data
+      assert first["totalCount"] == 10
+      assert first["completed"] == true
+      assert first["isUrgent"] == false
+      assert first["averageDuration"] == 45.5
+
+      assert second["totalCount"] == 5
+      assert second["completed"] == false
+      assert second["isUrgent"] == true
+      assert second["averageDuration"] == 30.0
+    end
+
+    test "rejects invalid fields for array of typed struct return types", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_task_stats",
+          "fields" => ["invalidField"]
+        })
+
+      assert result["success"] == false
+      assert result["errors"]
+
+      error_message = inspect(result["errors"])
+
+      assert error_message =~ "invalidField" or error_message =~ "unknown" or
+               error_message =~ "field"
+    end
+
+    test "requires fields for array of typed struct return types", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_task_stats",
+          "fields" => []
+        })
+
+      assert result["success"] == false
+      error_message = inspect(result["errors"])
+
+      assert error_message =~ "requires_field_selection" or error_message =~ "field" or
+               error_message =~ "empty"
+
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_task_stats",
+          "fields" => ["totalCount", "completed"]
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+
+      assert is_list(data)
+
+      Enum.each(data, fn item ->
+        assert Map.has_key?(item, "totalCount")
+        assert Map.has_key?(item, "completed")
+        assert map_size(item) == 2
+      end)
+    end
+  end
 end

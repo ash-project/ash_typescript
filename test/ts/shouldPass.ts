@@ -28,6 +28,7 @@ import "./shouldPass/untypedMaps";
 import "./shouldPass/conditionalPagination";
 import "./shouldPass/precisePaginationTypes";
 import "./shouldPass/metadata";
+import "./shouldPass/genericActionTypedStruct";
 
 // Import Zod schema validation tests
 import "./zod/shouldPass/basicZodUsage";

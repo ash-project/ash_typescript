@@ -132,10 +132,22 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
         fake_attribute = %{type: type, constraints: constraints}
 
         if is_typed_struct?(fake_attribute) do
+          if requested_fields == [] do
+            throw({:requires_field_selection, :typed_struct, nil})
+          end
+
           field_specs = Keyword.get(constraints, :fields, [])
+          instance_of = Keyword.get(constraints, :instance_of)
+
+          field_name_mappings =
+            if instance_of && function_exported?(instance_of, :typescript_field_names, 0) do
+              instance_of.typescript_field_names()
+            else
+              []
+            end
 
           {_field_names, template_items} =
-            process_typed_struct_fields(requested_fields, field_specs, path)
+            process_typed_struct_fields(requested_fields, field_specs, path, field_name_mappings)
 
           {[], [], template_items}
         else
@@ -702,19 +714,32 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
 
     attribute = Ash.Resource.Info.attribute(resource, field_name)
     field_specs = Keyword.get(attribute.constraints, :fields, [])
+    instance_of = Keyword.get(attribute.constraints, :instance_of)
+
+    field_name_mappings =
+      if instance_of && function_exported?(instance_of, :typescript_field_names, 0) do
+        instance_of.typescript_field_names()
+      else
+        []
+      end
 
     new_path = path ++ [field_name]
 
     {_field_names, template_items} =
-      process_typed_struct_fields(nested_fields, field_specs, new_path)
+      process_typed_struct_fields(nested_fields, field_specs, new_path, field_name_mappings)
 
     new_select = select ++ [field_name]
 
     {new_select, load, template ++ [{field_name, template_items}]}
   end
 
-  defp process_typed_struct_fields(requested_fields, field_specs, path) do
+  defp process_typed_struct_fields(requested_fields, field_specs, path, field_name_mappings) do
     check_for_duplicate_fields(requested_fields, path)
+
+    reverse_mappings =
+      Enum.into(field_name_mappings, %{}, fn {elixir_name, ts_name} ->
+        {ts_name, elixir_name}
+      end)
 
     {field_names, template_items} =
       Enum.reduce(requested_fields, {[], []}, fn field, {names, template} ->
@@ -727,32 +752,31 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
                 field_atom
               end
 
-            if Keyword.has_key?(field_specs, field_atom) do
-              {names ++ [field_atom], template ++ [field_atom]}
+            elixir_field_name = Map.get(reverse_mappings, field_atom, field_atom)
+
+            if Keyword.has_key?(field_specs, elixir_field_name) do
+              {names ++ [elixir_field_name], template ++ [elixir_field_name]}
             else
               field_path = build_field_path(path, field_atom)
               throw({:unknown_field, field_atom, "typed_struct", field_path})
             end
 
           %{} = field_map ->
-            # Handle nested field selection for maps with field constraints
             {new_names, new_template} =
               Enum.reduce(field_map, {names, template}, fn {field_name, nested_fields}, {n, t} ->
-                if Keyword.has_key?(field_specs, field_name) do
-                  field_spec = Keyword.get(field_specs, field_name)
+                elixir_field_name = Map.get(reverse_mappings, field_name, field_name)
+
+                if Keyword.has_key?(field_specs, elixir_field_name) do
+                  field_spec = Keyword.get(field_specs, elixir_field_name)
                   field_type = Keyword.get(field_spec, :type)
                   field_constraints = Keyword.get(field_spec, :constraints, [])
-
-                  # Determine the return type for this field
                   field_return_type = {:ash_type, field_type, field_constraints}
-                  new_path = path ++ [field_name]
+                  new_path = path ++ [elixir_field_name]
 
-                  # Process the nested fields based on the field's type
                   {_nested_select, _nested_load, nested_template} =
                     process_fields_for_type(field_return_type, nested_fields, new_path)
 
-                  # For typed struct fields, we only need the template
-                  {n ++ [field_name], t ++ [{field_name, nested_template}]}
+                  {n ++ [elixir_field_name], t ++ [{elixir_field_name, nested_template}]}
                 else
                   field_path = build_field_path(path, field_name)
                   throw({:unknown_field, field_name, "typed_struct", field_path})

@@ -590,6 +590,16 @@ defmodule AshTypescript.Rpc.Codegen do
           {:error, :no_fields_defined}
         end
 
+      {:array, module} when is_atom(module) ->
+        if AshTypescript.Codegen.is_typed_struct?(module) do
+          constraints = action.constraints || []
+          items_constraints = Keyword.get(constraints, :items, [])
+          fields = Keyword.get(items_constraints, :fields, [])
+          {:ok, :array_of_typed_struct, {module, fields}}
+        else
+          {:error, :not_field_selectable_type}
+        end
+
       map_like when map_like in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Keyword] ->
         constraints = action.constraints || []
 
@@ -597,6 +607,15 @@ defmodule AshTypescript.Rpc.Codegen do
           {:ok, :typed_map, Keyword.get(constraints, :fields)}
         else
           {:ok, :unconstrained_map, nil}
+        end
+
+      module when is_atom(module) ->
+        if AshTypescript.Codegen.is_typed_struct?(module) do
+          constraints = action.constraints || []
+          fields = Keyword.get(constraints, :fields, [])
+          {:ok, :typed_struct, {module, fields}}
+        else
+          {:error, :not_field_selectable_type}
         end
 
       _ ->
@@ -1068,8 +1087,8 @@ defmodule AshTypescript.Rpc.Codegen do
               """
             end
 
-          {:ok, type, fields} when type in [:typed_map, :array_of_typed_map] ->
-            typed_map_schema = build_map_type(fields)
+          {:ok, type, value} when type in [:typed_map, :array_of_typed_map] ->
+            typed_map_schema = build_map_type(value)
 
             if type == :array_of_typed_map do
               """
@@ -1089,8 +1108,43 @@ defmodule AshTypescript.Rpc.Codegen do
               """
             end
 
+          {:ok, :typed_struct, {module, fields}} ->
+            field_name_mappings =
+              if function_exported?(module, :typescript_field_names, 0) do
+                module.typescript_field_names()
+              else
+                nil
+              end
+
+            typed_map_schema = build_map_type(fields, nil, field_name_mappings)
+
+            """
+            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
+
+            type Infer#{rpc_action_name_pascal}Result<
+              Fields extends #{rpc_action_name_pascal}Fields,
+            > = InferResult<#{typed_map_schema}, Fields>;
+            """
+
+          {:ok, :array_of_typed_struct, {module, fields}} ->
+            field_name_mappings =
+              if function_exported?(module, :typescript_field_names, 0) do
+                module.typescript_field_names()
+              else
+                nil
+              end
+
+            typed_map_schema = build_map_type(fields, nil, field_name_mappings)
+
+            """
+            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
+
+            type Infer#{rpc_action_name_pascal}Result<
+              Fields extends #{rpc_action_name_pascal}Fields,
+            > = Array<InferResult<#{typed_map_schema}, Fields>>;
+            """
+
           {:ok, :unconstrained_map, _} ->
-            # Unconstrained maps return Record<string, any> without field selection
             """
             type Infer#{rpc_action_name_pascal}Result = Record<string, any>;
             """
@@ -1820,7 +1874,13 @@ defmodule AshTypescript.Rpc.Codegen do
 
                 {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
 
-              {:ok, type, _fields} when type in [:typed_map, :array_of_typed_map] ->
+              {:ok, type, _fields}
+              when type in [
+                     :typed_map,
+                     :array_of_typed_map,
+                     :typed_struct,
+                     :array_of_typed_struct
+                   ] ->
                 updated_fields =
                   config_fields ++
                     [
@@ -2324,7 +2384,13 @@ defmodule AshTypescript.Rpc.Codegen do
 
                 {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
 
-              {:ok, type, _fields} when type in [:typed_map, :array_of_typed_map] ->
+              {:ok, type, _fields}
+              when type in [
+                     :typed_map,
+                     :array_of_typed_map,
+                     :typed_struct,
+                     :array_of_typed_struct
+                   ] ->
                 updated_fields =
                   config_fields ++
                     [

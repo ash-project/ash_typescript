@@ -100,6 +100,8 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :update_task, :update
       rpc_action :mark_completed_task, :mark_completed
       rpc_action :destroy_task, :destroy
+      rpc_action :get_task_stats, :get_task_stats
+      rpc_action :list_task_stats, :list_task_stats
 
       # Read action with metadata field name mapping
       rpc_action :read_tasks_with_mapped_metadata, :read_with_invalid_metadata_names,
