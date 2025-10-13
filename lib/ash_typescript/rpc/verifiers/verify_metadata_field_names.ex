@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Rpc.Verifiers.VerifyMetadataFieldNames do
   @moduledoc """
   Verifies that metadata field names in RPC actions are valid TypeScript identifiers

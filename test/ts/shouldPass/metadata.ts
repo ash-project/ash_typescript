@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Metadata Tests - shouldPass
 // Tests for metadata field selection and type inference with actions that have metadata
 
