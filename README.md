@@ -300,7 +300,16 @@ This change makes your API more secure by requiring explicit opt-in for all RPC 
 - [Quick Start](#quick-start)
 - [Core Concepts](#core-concepts)
 - [Usage Examples](#usage-examples)
-- [Advanced Features](#advanced-features)
+- [Embedded Resources](#embedded-resources)
+- [Union Types](#union-types)
+- [Multitenancy Support](#multitenancy-support)
+- [Calculations and Aggregates](#calculations-and-aggregates)
+- [Action Metadata Support](#action-metadata-support)
+- [Zod Runtime Validation](#zod-runtime-validation)
+- [Form Validation Functions](#form-validation-functions)
+- [Type-Safe Filtering](#type-safe-filtering)
+- [Typed Queries for SSR](#typed-queries-for-ssr)
+- [Flexible Field Formatting](#flexible-field-formatting)
 - [Configuration](#configuration)
 - [Mix Tasks](#mix-tasks)
 - [API Reference](#api-reference)
@@ -814,9 +823,7 @@ if (result.success) {
 }
 ```
 
-## 🔧 Advanced Features
-
-### Embedded Resources
+## 📦 Embedded Resources
 
 Full support for embedded resources with type safety:
 
@@ -838,7 +845,7 @@ const todo = await getTodo({
 });
 ```
 
-### Union Types
+## 🔀 Union Types
 
 Support for Ash union types with selective field access:
 
@@ -863,7 +870,7 @@ const todo = await getTodo({
 });
 ```
 
-### Multitenancy Support
+## 🏢 Multitenancy Support
 
 Automatic tenant parameter handling for multitenant resources:
 
@@ -880,7 +887,7 @@ const todos = await listTodos({
 });
 ```
 
-### Calculations and Aggregates
+## 🧮 Calculations and Aggregates
 
 Full support for Ash calculations with type inference:
 
@@ -900,9 +907,7 @@ const users = await listUsers({
 });
 ```
 
-## 🚀 Advanced Features
-
-### Action Metadata Support
+## 📊 Action Metadata Support
 
 AshTypescript provides full support for [Ash action metadata](https://hexdocs.pm/ash/dsl-ash-resource.html#actions-read-metadata).
 
@@ -1153,7 +1158,7 @@ Suggested mapping: is_cached? → isCached
 Use the metadata_field_names option to provide valid TypeScript identifiers.
 ```
 
-### Zod Runtime Validation
+## 🧪 Zod Runtime Validation
 
 AshTypescript generates Zod schemas for all your actions, enabling runtime type checking and form validation.
 
@@ -1184,7 +1189,7 @@ export const createTodoZodSchema = z.object({
 });
 ```
 
-### Form Validation Functions
+## 📋 Form Validation Functions
 
 AshTypescript generates dedicated validation functions for client-side form validation when `generate_validation_functions` is enabled:
 
@@ -1236,7 +1241,7 @@ validateCreateTodoChannel({
 });
 ```
 
-### Type-Safe Filtering
+## 🔍 Type-Safe Filtering
 
 AshTypescript automatically generates comprehensive filter types for all resources:
 
@@ -1269,7 +1274,7 @@ const todos = await listTodos({
 - **Logic**: `and`, `or`, `not`
 - **Relationships**: Nested filtering on related resources
 
-### Typed Queries for SSR
+## 🎯 Typed Queries for SSR
 
 Define reusable, type-safe queries for server-side rendering and optimized data fetching:
 
@@ -1356,7 +1361,7 @@ const refreshedTodos = await listTodos({
 });
 ```
 
-### Flexible Field Formatting
+## 🎨 Flexible Field Formatting
 
 Configure separate formatters for input parsing and output generation:
 
