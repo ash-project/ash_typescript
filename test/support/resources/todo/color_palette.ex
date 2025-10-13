@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Test.Todo.ColorPalette do
   @moduledoc """
   A custom type that represents a color palette stored as a map.

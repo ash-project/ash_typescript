@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Test.TodoContent.TextContent do
   @moduledoc """
   Test embedded resource for text content (union type member).

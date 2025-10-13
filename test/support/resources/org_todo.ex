@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Test.OrgTodo do
   @moduledoc """
   Test resource for organization-level todos with multitenancy support.

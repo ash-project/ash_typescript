@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Test.TestHelpers do
   @moduledoc """
   Common test helpers and utilities for AshTypescript test suite.

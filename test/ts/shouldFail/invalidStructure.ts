@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Invalid Structure Tests - shouldFail
 // Tests for invalid nesting, missing required properties, and wrong structures
 

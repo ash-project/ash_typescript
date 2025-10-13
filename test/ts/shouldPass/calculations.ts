@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Calculations Tests - shouldPass
 // Tests for self calculations, nested calculations, and args variations
 

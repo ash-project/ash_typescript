@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Advanced fetchOptions Tests - shouldPass
 // Real-world usage patterns for fetchOptions and customFetch
 

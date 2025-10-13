@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Operations Tests - shouldFail
 // Tests for invalid operation usage that should fail TypeScript compilation
 

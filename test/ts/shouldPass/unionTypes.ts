@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Union Types Tests - shouldPass
 // Tests for union field selection and validation using current field syntax
 

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Operations Tests - shouldPass
 // Tests for basic CRUD operations (create, list, get, update)
 

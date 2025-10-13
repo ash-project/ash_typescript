@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   @moduledoc """
   Generates Zod validation schemas for Ash resources and actions.

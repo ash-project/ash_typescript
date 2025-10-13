@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+
+SPDX-License-Identifier: MIT
+-->
+
 # Field and Argument Name Mapping
 
 Complete guide to mapping invalid Elixir field and argument names to valid TypeScript identifiers using `field_names`, `argument_names`, and `typescript_field_names` callback.

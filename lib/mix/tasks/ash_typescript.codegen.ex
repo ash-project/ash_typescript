@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule Mix.Tasks.AshTypescript.Codegen do
   @moduledoc """
   Generates TypeScript types for Ash Rpc-calls.

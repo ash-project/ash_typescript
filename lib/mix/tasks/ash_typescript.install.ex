@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 if Code.ensure_loaded?(Igniter) do
   defmodule Mix.Tasks.AshTypescript.Install do
     @shortdoc "Installs AshTypescript into a project. Should be called with `mix igniter.install ash_typescript`"

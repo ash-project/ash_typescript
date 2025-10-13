@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   @moduledoc """
   Generates validation error schemas for TypeScript RPC clients.

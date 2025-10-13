@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Test.CustomMetadata do
   @moduledoc """
   A custom map type with typescript_field_names callback for testing.

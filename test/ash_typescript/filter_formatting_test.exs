@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.FilterFormattingTest do
   # async: false because we're modifying application config
   use ExUnit.Case, async: false

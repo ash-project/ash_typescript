@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.CalculationFieldFormattingTest do
   @moduledoc """
   Regression tests to ensure calculation field formatting uses configured field formatters

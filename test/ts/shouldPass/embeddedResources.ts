@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Embedded Resources Tests - shouldPass
 // Tests for embedded resource field selection and input types
 

@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+
+SPDX-License-Identifier: MIT
+-->
+
 # AshTypescript Architecture Changelog
 
 Key architectural decisions and their reasoning for AI assistant context.

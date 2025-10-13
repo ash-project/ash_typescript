@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.FilterMappedFieldsTest do
   @moduledoc """
   Tests for filter type generation with field name mapping.

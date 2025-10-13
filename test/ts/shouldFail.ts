@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // TypeScript test file for validating INCORRECT usage patterns
 // This file should FAIL to compile and demonstrates invalid usage that should be caught by TypeScript
 //

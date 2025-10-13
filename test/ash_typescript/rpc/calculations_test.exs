@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Rpc.CalculationsTest do
   @moduledoc """
   Tests for calculations through the refactored AshTypescript.Rpc module.

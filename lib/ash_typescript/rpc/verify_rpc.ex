@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Rpc.VerifyRpc do
   @moduledoc """
   Checks that all RPC actions and typed queries reference existing resource actions,

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Channel Timeout Test - shouldPass
 // Tests that timeout parameter works correctly with channel functions
 

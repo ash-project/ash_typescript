@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+
+SPDX-License-Identifier: MIT
+-->
+
 # Type System and Type Inference
 
 Core type inference system architecture and schema-based classification for AshTypescript development.

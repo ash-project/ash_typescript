@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Type Mismatches Tests - shouldFail
 // Tests for type assignment errors and invalid field access
 

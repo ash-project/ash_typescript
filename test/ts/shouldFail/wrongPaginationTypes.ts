@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+//
+// SPDX-License-Identifier: MIT
+
 // Wrong Pagination Types - shouldFail
 // Tests that using wrong pagination parameters produces type errors
 

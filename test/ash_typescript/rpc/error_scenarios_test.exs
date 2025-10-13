@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Rpc.ErrorScenariosTest do
   @moduledoc """
   Tests for comprehensive error handling through the refactored AshTypescript.Rpc module.

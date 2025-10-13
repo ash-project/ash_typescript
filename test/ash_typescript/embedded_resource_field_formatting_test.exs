@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.EmbeddedResourceFieldFormattingTest do
   @moduledoc """
   Regression tests to ensure embedded resource field formatting uses configured field formatters
