@@ -1253,9 +1253,10 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       assert result["success"] == false
       first_error = List.first(result["errors"])
-      assert first_error["type"] == "unknown_error"
-      assert first_error["message"] == "An unexpected error occurred"
-      assert String.contains?(first_error["details"]["error"], "nonexistent_field")
+      assert first_error["type"] == "unknown_field"
+
+      assert first_error["message"] ==
+               "Unknown field 'nonexistentField' for resource AshTypescript.Test.Todo"
     end
 
     test "invalid relationship field names return nested error context" do
