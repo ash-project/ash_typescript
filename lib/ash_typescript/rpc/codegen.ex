@@ -26,6 +26,8 @@ defmodule AshTypescript.Rpc.Codegen do
 
     case AshTypescript.VerifierChecker.check_all_verifiers(resources ++ domains) do
       :ok ->
+        warn_missing_rpc_resources(otp_app, resources)
+
         {:ok,
          generate_full_typescript(
            resources_and_actions,
@@ -73,6 +75,61 @@ defmodule AshTypescript.Rpc.Codegen do
     resources_and_actions
     |> Enum.map(fn {resource, _action, _rpc_action} -> resource end)
     |> Enum.uniq()
+  end
+
+  defp warn_missing_rpc_resources(otp_app, rpc_resources) do
+    all_resources_with_extension =
+      otp_app
+      |> Ash.Info.domains()
+      |> Enum.flat_map(fn domain ->
+        Ash.Domain.Info.resources(domain)
+      end)
+      |> Enum.uniq()
+      |> Enum.filter(fn resource ->
+        extensions = Spark.extensions(resource)
+        AshTypescript.Resource in extensions
+      end)
+
+    non_embedded_resources_with_extension =
+      all_resources_with_extension
+      |> Enum.reject(&AshTypescript.Codegen.is_embedded_resource?/1)
+
+    missing_resources =
+      non_embedded_resources_with_extension
+      |> Enum.reject(&(&1 in rpc_resources))
+
+    if missing_resources != [] do
+      IO.puts(:stderr, "\n⚠️  Warning: Found resources with AshTypescript.Resource extension")
+      IO.puts(:stderr, "   but not listed in any domain's typescript_rpc block:\n")
+
+      missing_resources
+      |> Enum.each(fn resource ->
+        IO.puts(:stderr, "   • #{inspect(resource)}")
+      end)
+
+      IO.puts(:stderr, "\n   These resources will not have TypeScript types generated.")
+      IO.puts(:stderr, "   To fix this, add them to a domain's typescript_rpc block:\n")
+
+      example_domain =
+        otp_app
+        |> Ash.Info.domains()
+        |> List.first()
+
+      if example_domain do
+        domain_name = inspect(example_domain)
+        example_resource = missing_resources |> List.first() |> inspect()
+
+        IO.puts(:stderr, "   defmodule #{domain_name} do")
+        IO.puts(:stderr, "     use Ash.Domain, extensions: [AshTypescript.Rpc]")
+        IO.puts(:stderr, "")
+        IO.puts(:stderr, "     typescript_rpc do")
+        IO.puts(:stderr, "       resource #{example_resource} do")
+        IO.puts(:stderr, "         rpc_action :action_name, :read  # or :create, :update, etc.")
+        IO.puts(:stderr, "       end")
+        IO.puts(:stderr, "     end")
+        IO.puts(:stderr, "   end\n")
+      end
+    end
   end
 
   defp generate_imports do
