@@ -44,6 +44,7 @@ SPDX-License-Identifier: MIT
 | **Metadata Mapping** | `metadata_field_names: [field_1: :field1]` | Map invalid metadata field names to valid TypeScript identifiers |
 | **Metadata Selection (Read)** | `metadataFields: ["field1", "field2"]` | Select metadata fields for read actions (merged into records) |
 | **Metadata Access (Mutations)** | `result.metadata.field1` | Access metadata from create/update/destroy (separate field) |
+| **Type Mapping Overrides** | `type_mapping_overrides: [{Module, "TSType"}]` | Map dependency types to TypeScript types when you can't modify them |
 
 ## Critical Patterns
 
@@ -1030,8 +1031,16 @@ Configure custom TypeScript imports:
 config :ash_typescript,
   import_into_generated: [
     %{import_name: "CustomTypes", file: "./customTypes"}
+  ],
+
+  # Map dependency types to TypeScript (for types you can't modify)
+  type_mapping_overrides: [
+    {AshUUID.UUID, "string"},
+    {AshMoney.Types.Money, "CustomTypes.MoneyType"}
   ]
 ```
+
+Use `type_mapping_overrides` for third-party Ash types where you can't add `typescript_type_name/0` callback. For your own types, use the callback instead.
 
 ### Zod Schema Generation
 Enable runtime validation:

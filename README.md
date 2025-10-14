@@ -1472,6 +1472,12 @@ config :ash_typescript,
       import_name: "CustomTypes",
       file: "./customTypes"
     }
+  ],
+
+  # Type mapping overrides for dependency types
+  type_mapping_overrides: [
+    {AshUUID.UUID, "string"},
+    {SomeComplex.Custom.Type, "CustomTypes.MyCustomType"}
   ]
 ```
 
@@ -1763,6 +1769,92 @@ interface TodoFieldsSchema {
   priorityScore?: CustomTypes.PriorityScore | null;
 }
 ```
+
+### Type Mapping Overrides
+
+When using custom Ash types from dependencies (where you can't add the `typescript_type_name/0` callback), use the `type_mapping_overrides` configuration to map them to TypeScript types.
+
+#### Configuration
+
+```elixir
+# config/config.exs
+config :ash_typescript,
+  type_mapping_overrides: [
+    {AshUUID.UUID, "string"},
+    {SomeComplex.Custom.Type, "CustomTypes.MyCustomType"}
+  ]
+```
+
+#### Example: Mapping Dependency Types
+
+```elixir
+# Suppose you're using a third-party library with a custom type
+defmodule MyApp.Product do
+  use Ash.Resource,
+    domain: MyApp.Domain,
+    extensions: [AshTypescript.Resource]
+
+  typescript do
+    type_name "Product"
+  end
+
+  attributes do
+    uuid_primary_key :id
+    attribute :name, :string, public?: true
+
+    # Type from a dependency - can't modify it to add typescript_type_name
+    attribute :uuid, AshUUID.UUID, public?: true
+    attribute :some_value, SomeComplex.Custom.Type, public?: true
+  end
+end
+```
+
+```elixir
+# Configure the type mappings
+config :ash_typescript,
+  type_mapping_overrides: [
+    # Map to built-in TypeScript type
+    {AshUUID.UUID, "string"},
+
+    # Map to custom type (requires defining the type in customTypes.ts)
+    {SomeComplex.Custom.Type, "CustomTypes.MyCustomType"}
+  ],
+
+  # Import your custom types
+  import_into_generated: [
+    %{
+      import_name: "CustomTypes",
+      file: "./customTypes"
+    }
+  ]
+```
+
+```typescript
+// customTypes.ts - Define the MyCustomType type
+export type MyCustomType = {
+  someField: string;
+  anotherField: number;
+};
+```
+
+**Generated TypeScript:**
+
+```typescript
+import * as CustomTypes from "./customTypes";
+
+interface ProductResourceSchema {
+  id: string;
+  name: string;
+  uuid: string;                        // Mapped to built-in string type
+  someValue: CustomTypes.MyCustomType; // Mapped to custom type
+}
+```
+
+#### When to Use Type Mapping Overrides
+
+- ✅ **Third-party Ash types** from dependencies you don't control
+- ✅ **Library types** like `AshUUID.UUID`, etc.
+- ❌ **Your own types** - prefer using `typescript_type_name/0` callback instead
 
 ## 🛠️ Mix Tasks
 

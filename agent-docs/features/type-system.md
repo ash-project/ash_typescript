@@ -138,6 +138,20 @@ config :my_app,
   ]
 ```
 
+### Type Mapping Overrides
+
+For **dependency types** you can't modify (e.g., `AshUUID.UUID`, `AshMoney.Types.Money`), use `type_mapping_overrides` instead of the callback:
+
+```elixir
+config :ash_typescript,
+  type_mapping_overrides: [
+    {AshUUID.UUID, "string"},
+    {AshMoney.Types.Money, "CustomTypes.MoneyType"}
+  ]
+```
+
+**Decision rule**: Can you edit the type module? Use `typescript_type_name/0` callback. Can't edit it? Use `type_mapping_overrides`.
+
 ### Integration Points
 
 Custom types integrate at multiple levels:
