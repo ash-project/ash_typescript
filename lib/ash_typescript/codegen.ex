@@ -326,6 +326,9 @@ defmodule AshTypescript.Codegen do
 
   defp generate_ash_type_alias(type) do
     cond do
+      get_type_mapping_override(type) != nil ->
+        ""
+
       is_custom_type?(type) ->
         ""
 
@@ -1233,6 +1236,9 @@ defmodule AshTypescript.Codegen do
 
   def get_ts_type(%{type: type, constraints: constraints} = attr, _) do
     cond do
+      type_override = get_type_mapping_override(type) ->
+        type_override
+
       is_custom_type?(type) ->
         type.typescript_type_name()
 
@@ -1282,6 +1288,17 @@ defmodule AshTypescript.Codegen do
         raise "unsupported type #{inspect(type)}"
     end
   end
+
+  defp get_type_mapping_override(type) when is_atom(type) do
+    type_mapping_overrides = AshTypescript.type_mapping_overrides()
+
+    case List.keyfind(type_mapping_overrides, type, 0) do
+      {^type, ts_type} -> ts_type
+      nil -> nil
+    end
+  end
+
+  defp get_type_mapping_override(_type), do: nil
 
   def build_map_type(fields, select \\ nil, field_name_mappings \\ nil) do
     selected_fields =

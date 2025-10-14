@@ -57,6 +57,11 @@ defmodule AshTypescript.Test.Task do
       public? true
     end
 
+    attribute :custom_id, AshTypescript.Test.CustomIdentifier do
+      allow_nil? true
+      public? true
+    end
+
     timestamps()
   end
 

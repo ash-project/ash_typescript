@@ -44,6 +44,9 @@ if Mix.env() == :test do
         import_name: "CustomTypes",
         file: "./customTypes"
       }
+    ],
+    type_mapping_overrides: [
+      {AshTypescript.Test.CustomIdentifier, "string"}
     ]
 
   config :logger, :console, level: :info
