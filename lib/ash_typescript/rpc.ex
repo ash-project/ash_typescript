@@ -137,7 +137,8 @@ defmodule AshTypescript.Rpc do
     sections: [@rpc],
     verifiers: [
       AshTypescript.Rpc.VerifyRpc,
-      AshTypescript.Rpc.Verifiers.VerifyMetadataFieldNames
+      AshTypescript.Rpc.Verifiers.VerifyMetadataFieldNames,
+      AshTypescript.Rpc.Verifiers.VerifyTypedQueryFields
     ]
 
   alias AshTypescript.Rpc.{ErrorBuilder, Pipeline}
