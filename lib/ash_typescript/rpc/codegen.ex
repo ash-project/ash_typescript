@@ -19,23 +19,23 @@ defmodule AshTypescript.Rpc.Codegen do
 
   Accepts either:
   - A string: Returns the string as a quoted literal for direct embedding
-  - A tuple {:imported_ts_func, "FunctionName"}: Returns a function call expression
+  - A tuple {:runtime_expr, "expression"}: Returns the expression as-is for runtime evaluation
 
   ## Examples
 
       iex> format_endpoint_for_typescript("/rpc/run")
       "\"/rpc/run\""
 
-      iex> format_endpoint_for_typescript({:imported_ts_func, "CustomTypes.getRunEndpoint"})
+      iex> format_endpoint_for_typescript({:runtime_expr, "CustomTypes.getRunEndpoint()"})
       "CustomTypes.getRunEndpoint()"
   """
   def format_endpoint_for_typescript(endpoint) when is_binary(endpoint) do
     "\"#{endpoint}\""
   end
 
-  def format_endpoint_for_typescript({:imported_ts_func, function_name})
-      when is_binary(function_name) do
-    "#{function_name}()"
+  def format_endpoint_for_typescript({:runtime_expr, expression})
+      when is_binary(expression) do
+    expression
   end
 
   @doc """

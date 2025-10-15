@@ -1448,8 +1448,8 @@ config :ash_typescript,
   validate_endpoint: "/rpc/validate",
 
   # Dynamic endpoints (for separate frontend projects)
-  # run_endpoint: {:imported_ts_func, "CustomTypes.getRunEndpoint"},
-  # validate_endpoint: {:imported_ts_func, "CustomTypes.getValidateEndpoint"},
+  # run_endpoint: {:runtime_expr, "CustomTypes.getRunEndpoint()"},
+  # validate_endpoint: {:runtime_expr, "process.env.RPC_VALIDATE_ENDPOINT"},
 
   # Custom error response handling
   # rpc_error_response_handler: "MyAppConfig.handleRpcResponseError",
@@ -1542,7 +1542,7 @@ Customize how field names are formatted in generated TypeScript:
 
 ### Dynamic RPC Endpoints
 
-For separate frontend projects or different deployment environments, AshTypescript supports dynamic endpoint configuration through imported TypeScript functions.
+For separate frontend projects or different deployment environments, AshTypescript supports dynamic endpoint configuration through runtime TypeScript expressions.
 
 #### Why Use Dynamic Endpoints?
 
@@ -1551,29 +1551,74 @@ When building a separate frontend project (not embedded in your Phoenix app), yo
 - **Staging**: `https://staging-api.myapp.com/rpc/run`
 - **Production**: `https://api.myapp.com/rpc/run`
 
-Instead of hardcoding the endpoint in your Elixir config, you can reference a TypeScript function that returns the appropriate endpoint based on your frontend's environment.
+Instead of hardcoding the endpoint in your Elixir config, you can use runtime expressions that will be evaluated at runtime in your TypeScript code.
 
-#### Configuration
+#### Configuration Options
 
-Configure endpoints to use imported TypeScript functions instead of string literals:
+You can use various runtime expressions depending on your needs:
 
 ```elixir
 # config/config.exs
 config :ash_typescript,
-  # Use function references instead of string literals
-  run_endpoint: {:imported_ts_func, "MyAppConfig.getRunEndpoint"},
-  validate_endpoint: {:imported_ts_func, "MyAppConfig.getValidateEndpoint"},
+  # Option 1: Use environment variables directly (Node.js)
+  run_endpoint: {:runtime_expr, "process.env.RPC_RUN_ENDPOINT || '/rpc/run'"},
+  validate_endpoint: {:runtime_expr, "process.env.RPC_VALIDATE_ENDPOINT || '/rpc/validate'"},
 
-  # Import the module containing your endpoint functions
-  import_into_generated: [
-    %{
-      import_name: "MyAppConfig",
-      file: "./myAppConfig"
-    }
-  ]
+  # Option 2: Use Vite environment variables
+  # run_endpoint: {:runtime_expr, "import.meta.env.VITE_RPC_RUN_ENDPOINT || '/rpc/run'"},
+  # validate_endpoint: {:runtime_expr, "import.meta.env.VITE_RPC_VALIDATE_ENDPOINT || '/rpc/validate'"},
+
+  # Option 3: Use custom functions from imported modules
+  # run_endpoint: {:runtime_expr, "MyAppConfig.getRunEndpoint()"},
+  # validate_endpoint: {:runtime_expr, "MyAppConfig.getValidateEndpoint()"},
+
+  # Option 4: Use complex expressions with conditionals
+  # run_endpoint: {:runtime_expr, "window.location.hostname === 'localhost' ? 'http://localhost:4000/rpc/run' : '/rpc/run'"},
+
+  # Import modules if needed for custom functions (Option 3)
+  # import_into_generated: [
+  #   %{
+  #     import_name: "MyAppConfig",
+  #     file: "./myAppConfig"
+  #   }
+  # ]
 ```
 
-#### TypeScript Implementation
+#### Usage Examples
+
+**Option 1: Environment Variables (Node.js/Next.js)**
+
+```bash
+# .env.local
+RPC_RUN_ENDPOINT=http://localhost:4000/rpc/run
+RPC_VALIDATE_ENDPOINT=http://localhost:4000/rpc/validate
+
+# .env.production
+RPC_RUN_ENDPOINT=https://api.myapp.com/rpc/run
+RPC_VALIDATE_ENDPOINT=https://api.myapp.com/rpc/validate
+```
+
+Generated TypeScript will use the environment variables directly:
+```typescript
+const response = await fetchFunction(process.env.RPC_RUN_ENDPOINT || '/rpc/run', fetchOptions);
+```
+
+**Option 2: Vite Environment Variables**
+
+```bash
+# .env.development
+VITE_RPC_RUN_ENDPOINT=http://localhost:4000/rpc/run
+
+# .env.production
+VITE_RPC_RUN_ENDPOINT=https://api.myapp.com/rpc/run
+```
+
+Generated TypeScript:
+```typescript
+const response = await fetchFunction(import.meta.env.VITE_RPC_RUN_ENDPOINT || '/rpc/run', fetchOptions);
+```
+
+**Option 3: Custom Functions**
 
 Create a TypeScript file with functions that return the appropriate endpoints:
 
@@ -1596,33 +1641,55 @@ export function getValidateEndpoint(): string {
 // Production: VITE_API_URL=https://api.myapp.com
 ```
 
+**Option 4: Complex Conditional Expressions**
+
+For browser-based applications that need different endpoints based on hostname:
+
+```elixir
+config :ash_typescript,
+  run_endpoint: {:runtime_expr, """
+  (window.location.hostname === 'localhost'
+    ? 'http://localhost:4000/rpc/run'
+    : `https://${window.location.hostname}/rpc/run`)
+  """}
+```
+
+This allows dynamic endpoint resolution based on the current page's hostname.
+
 #### Generated Code
 
-The generated RPC functions will call your endpoint functions instead of using hardcoded strings:
+The generated RPC functions will use your runtime expressions directly in the code:
 
 ```typescript
-// Generated in ash_rpc.ts
-import * as CustomTypes from "./customTypes";
+// Example 1: With environment variables
+// config: run_endpoint: {:runtime_expr, "process.env.RPC_RUN_ENDPOINT || '/rpc/run'"}
 
 export async function createTodo<Fields extends CreateTodoFields>(
   config: CreateTodoConfig<Fields>
 ): Promise<CreateTodoResult<Fields>> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...config.headers,
-  };
+  // Runtime expression is embedded directly
+  const response = await fetchFunction(
+    process.env.RPC_RUN_ENDPOINT || '/rpc/run',
+    fetchOptions
+  );
+  // ... rest of implementation
+}
+```
 
-  const fetchFunction = config.customFetch || fetch;
-  const fetchOptions: RequestInit = {
-    ...config.fetchOptions,
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload),
-  };
+```typescript
+// Example 2: With custom function
+// config: run_endpoint: {:runtime_expr, "MyAppConfig.getRunEndpoint()"}
 
-  // Calls your function instead of using a hardcoded string
-  const response = await fetchFunction(CustomTypes.MyAppConfig(), fetchOptions);
+import * as MyAppConfig from "./myAppConfig";
 
+export async function createTodo<Fields extends CreateTodoFields>(
+  config: CreateTodoConfig<Fields>
+): Promise<CreateTodoResult<Fields>> {
+  // Custom function is called at runtime
+  const response = await fetchFunction(
+    MyAppConfig.getRunEndpoint(),
+    fetchOptions
+  );
   // ... rest of implementation
 }
 ```
