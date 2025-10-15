@@ -189,7 +189,7 @@ defmodule AshTypescript.MixProject do
       "test.compile_should_pass": "cmd cd test/ts && npm run compileShouldPass",
       "test.compile_should_fail": "cmd cd test/ts && npm run compileShouldFail",
       tidewave:
-        "run --no-halt -e 'Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4002) end)'",
+        "run --no-halt -e 'Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4012) end)'",
       sobelow: "sobelow --skip",
       docs: [
         "spark.cheat_sheets",
