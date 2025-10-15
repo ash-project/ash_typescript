@@ -2318,7 +2318,13 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
-  defp generate_validation_function(resource, action, rpc_action_name, endpoint_validate, error_response_func) do
+  defp generate_validation_function(
+         resource,
+         action,
+         rpc_action_name,
+         endpoint_validate,
+         error_response_func
+       ) do
     function_name =
       AshTypescript.FieldFormatter.format_field(
         "validate_#{rpc_action_name}",
@@ -2713,7 +2719,13 @@ defmodule AshTypescript.Rpc.Codegen do
       )
 
     validation_function =
-      generate_validation_function(resource, action, rpc_action_name, endpoint_validate, error_response_func)
+      generate_validation_function(
+        resource,
+        action,
+        rpc_action_name,
+        endpoint_validate,
+        error_response_func
+      )
 
     channel_function =
       if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
