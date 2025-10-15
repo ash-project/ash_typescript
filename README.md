@@ -1447,6 +1447,10 @@ config :ash_typescript,
   run_endpoint: "/rpc/run",
   validate_endpoint: "/rpc/validate",
 
+  # Dynamic endpoints (for separate frontend projects)
+  # run_endpoint: {:imported_ts_func, "CustomTypes.getRunEndpoint"},
+  # validate_endpoint: {:imported_ts_func, "CustomTypes.getValidateEndpoint"},
+
   # Field formatting
   input_field_formatter: :camel_case,
   output_field_formatter: :camel_case,
@@ -1531,6 +1535,93 @@ Customize how field names are formatted in generated TypeScript:
 # Default: snake_case → camelCase
 # user_name → userName
 # created_at → createdAt
+```
+
+### Dynamic RPC Endpoints
+
+For separate frontend projects or different deployment environments, AshTypescript supports dynamic endpoint configuration through imported TypeScript functions.
+
+#### Why Use Dynamic Endpoints?
+
+When building a separate frontend project (not embedded in your Phoenix app), you may need different backend endpoint URLs for:
+- **Development**: `http://localhost:4000/rpc/run`
+- **Staging**: `https://staging-api.myapp.com/rpc/run`
+- **Production**: `https://api.myapp.com/rpc/run`
+
+Instead of hardcoding the endpoint in your Elixir config, you can reference a TypeScript function that returns the appropriate endpoint based on your frontend's environment.
+
+#### Configuration
+
+Configure endpoints to use imported TypeScript functions instead of string literals:
+
+```elixir
+# config/config.exs
+config :ash_typescript,
+  # Use function references instead of string literals
+  run_endpoint: {:imported_ts_func, "MyAppConfig.getRunEndpoint"},
+  validate_endpoint: {:imported_ts_func, "MyAppConfig.getValidateEndpoint"},
+
+  # Import the module containing your endpoint functions
+  import_into_generated: [
+    %{
+      import_name: "MyAppConfig",
+      file: "./myAppConfig"
+    }
+  ]
+```
+
+#### TypeScript Implementation
+
+Create a TypeScript file with functions that return the appropriate endpoints:
+
+```typescript
+// myAppConfig.ts
+export function getRunEndpoint(): string {
+  // Use environment variables from your frontend build system
+  const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
+  return `${baseUrl}/rpc/run`;
+}
+
+export function getValidateEndpoint(): string {
+  const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:4000";
+  return `${baseUrl}/rpc/validate`;
+}
+
+// For different environments:
+// Development: VITE_API_URL=http://localhost:4000
+// Staging: VITE_API_URL=https://staging-api.myapp.com
+// Production: VITE_API_URL=https://api.myapp.com
+```
+
+#### Generated Code
+
+The generated RPC functions will call your endpoint functions instead of using hardcoded strings:
+
+```typescript
+// Generated in ash_rpc.ts
+import * as CustomTypes from "./customTypes";
+
+export async function createTodo<Fields extends CreateTodoFields>(
+  config: CreateTodoConfig<Fields>
+): Promise<CreateTodoResult<Fields>> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...config.headers,
+  };
+
+  const fetchFunction = config.customFetch || fetch;
+  const fetchOptions: RequestInit = {
+    ...config.fetchOptions,
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  };
+
+  // Calls your function instead of using a hardcoded string
+  const response = await fetchFunction(CustomTypes.MyAppConfig(), fetchOptions);
+
+  // ... rest of implementation
+}
 ```
 
 ### Field and Argument Name Mapping
