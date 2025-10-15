@@ -38,6 +38,36 @@ defmodule AshTypescript.Rpc.Codegen do
     "#{function_name}()"
   end
 
+  @doc """
+  Generates error handling code for non-OK responses.
+
+  Accepts either:
+  - `nil`: Uses default error handling that returns a structured error object
+  - A string: Calls the specified function with the response object
+
+  ## Examples
+
+      iex> format_error_handler(nil, "success", "errors")
+      "return {\\n  success: false,\\n  errors: [{ type: \\"network\\", message: response.statusText, details: {} }],\\n};"
+
+      iex> format_error_handler("MyAppConfig.handleRpcResponseError", "success", "errors")
+      "return MyAppConfig.handleRpcResponseError(response)"
+  """
+  def format_error_handler(nil, success_field, errors_field) do
+    """
+    return {
+          #{success_field}: false,
+          #{errors_field}: [{ #{formatted_error_type_field()}: "network", #{formatted_error_message_field()}: response.statusText, #{formatted_error_details_field()}: {} }],
+        };
+    """
+    |> String.trim()
+  end
+
+  def format_error_handler(error_func, _success_field, _errors_field)
+      when is_binary(error_func) do
+    "return #{error_func}(response)"
+  end
+
   def generate_typescript_types(otp_app, opts \\ []) do
     endpoint_process =
       Keyword.get(opts, :run_endpoint, "/rpc/run")
@@ -46,6 +76,8 @@ defmodule AshTypescript.Rpc.Codegen do
     endpoint_validate =
       Keyword.get(opts, :validate_endpoint, "/rpc/validate")
       |> format_endpoint_for_typescript()
+
+    error_response_func = Keyword.get(opts, :error_response_func)
 
     resources_and_actions = get_rpc_resources_and_actions(otp_app)
 
@@ -62,6 +94,7 @@ defmodule AshTypescript.Rpc.Codegen do
            resources_and_actions,
            endpoint_process,
            endpoint_validate,
+           error_response_func,
            otp_app
          )}
 
@@ -218,6 +251,7 @@ defmodule AshTypescript.Rpc.Codegen do
          rpc_resources_and_actions,
          endpoint_process,
          endpoint_validate,
+         error_response_func,
          otp_app
        ) do
     rpc_resources =
@@ -270,7 +304,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     #{generate_typed_queries_section(typed_queries, all_resources_for_schemas)}
 
-    #{generate_rpc_functions(rpc_resources_and_actions, endpoint_process, endpoint_validate, otp_app, all_resources_for_schemas)}
+    #{generate_rpc_functions(rpc_resources_and_actions, endpoint_process, endpoint_validate, error_response_func, otp_app, all_resources_for_schemas)}
     """
   end
 
@@ -548,6 +582,7 @@ defmodule AshTypescript.Rpc.Codegen do
          resources_and_actions,
          endpoint_process,
          endpoint_validate,
+         error_response_func,
          otp_app,
          _resources
        ) do
@@ -559,6 +594,7 @@ defmodule AshTypescript.Rpc.Codegen do
           resources_and_actions,
           endpoint_process,
           endpoint_validate,
+          error_response_func,
           otp_app
         )
       end)
@@ -1933,7 +1969,8 @@ defmodule AshTypescript.Rpc.Codegen do
          action,
          rpc_action,
          rpc_action_name,
-         endpoint_process
+         endpoint_process,
+         error_response_func
        ) do
     function_name =
       AshTypescript.FieldFormatter.format_field(
@@ -2272,10 +2309,7 @@ defmodule AshTypescript.Rpc.Codegen do
       const response = await fetchFunction(#{endpoint_process}, fetchOptions);
 
       if (!response.ok) {
-        return {
-          #{success_field}: false,
-          #{errors_field}: [{ #{formatted_error_type_field()}: "network", #{formatted_error_message_field()}: response.statusText, #{formatted_error_details_field()}: {} }],
-        };
+        #{format_error_handler(error_response_func, success_field, errors_field)}
       }
 
       const result = await response.json();
@@ -2284,7 +2318,7 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
-  defp generate_validation_function(resource, action, rpc_action_name, endpoint_validate) do
+  defp generate_validation_function(resource, action, rpc_action_name, endpoint_validate, error_response_func) do
     function_name =
       AshTypescript.FieldFormatter.format_field(
         "validate_#{rpc_action_name}",
@@ -2362,10 +2396,7 @@ defmodule AshTypescript.Rpc.Codegen do
       const response = await fetchFunction(#{endpoint_validate}, fetchOptions);
 
       if (!response.ok) {
-        return {
-          #{success_field}: false,
-          #{errors_field}: [{ #{formatted_error_type_field()}: "network", #{formatted_error_message_field()}: response.statusText }],
-        };
+        #{format_error_handler(error_response_func, success_field, errors_field)}
       }
 
       const result = await response.json();
@@ -2652,6 +2683,7 @@ defmodule AshTypescript.Rpc.Codegen do
          _resources_and_actions,
          endpoint_process,
          endpoint_validate,
+         error_response_func,
          _otp_app
        ) do
     rpc_action_name = to_string(rpc_action.name)
@@ -2676,11 +2708,12 @@ defmodule AshTypescript.Rpc.Codegen do
         action,
         rpc_action,
         rpc_action_name,
-        endpoint_process
+        endpoint_process,
+        error_response_func
       )
 
     validation_function =
-      generate_validation_function(resource, action, rpc_action_name, endpoint_validate)
+      generate_validation_function(resource, action, rpc_action_name, endpoint_validate, error_response_func)
 
     channel_function =
       if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do

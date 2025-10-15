@@ -42,9 +42,12 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
       Keyword.get(opts, :validate_endpoint) ||
         Application.get_env(:ash_typescript, :validate_endpoint)
 
+    rpc_error_response_handler = Application.get_env(:ash_typescript, :rpc_error_response_handler)
+
     codegen_opts = [
       run_endpoint: run_endpoint,
-      validate_endpoint: validate_endpoint
+      validate_endpoint: validate_endpoint,
+      error_response_func: rpc_error_response_handler
     ]
 
     # Generate TypeScript types and write to file

@@ -40,6 +40,8 @@ if Mix.env() == :test do
     generate_validation_functions: true,
     generate_zod_schemas: true,
     output_file: "./test/ts/generated.ts",
+    # Uncomment to test custom error handler:
+    # rpc_error_response_handler: "CustomTypes.handleRpcResponseError",
     import_into_generated: [
       %{
         import_name: "CustomTypes",

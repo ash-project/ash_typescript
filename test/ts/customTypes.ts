@@ -17,3 +17,17 @@ export type ColorPaletteValidationErrors = {
 export type PriorityScore = number;
 
 export type PriorityScoreValidationErrors = string[];
+
+// Custom error handler for RPC responses
+export function handleRpcResponseError(response: Response) {
+  return {
+    success: false as const,
+    errors: [
+      {
+        type: "network" as const,
+        message: `HTTP ${response.status}: ${response.statusText}`,
+        details: {}
+      }
+    ]
+  };
+}

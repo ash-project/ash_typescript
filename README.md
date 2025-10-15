@@ -1451,6 +1451,9 @@ config :ash_typescript,
   # run_endpoint: {:imported_ts_func, "CustomTypes.getRunEndpoint"},
   # validate_endpoint: {:imported_ts_func, "CustomTypes.getValidateEndpoint"},
 
+  # Custom error response handling
+  # rpc_error_response_handler: "MyAppConfig.handleRpcResponseError",
+
   # Field formatting
   input_field_formatter: :camel_case,
   output_field_formatter: :camel_case,
@@ -1621,6 +1624,111 @@ export async function createTodo<Fields extends CreateTodoFields>(
   const response = await fetchFunction(CustomTypes.MyAppConfig(), fetchOptions);
 
   // ... rest of implementation
+}
+```
+
+### Custom Error Response Handling
+
+For applications that need custom error handling when HTTP requests fail (e.g., enhanced logging, user notifications, retry logic), AshTypescript supports custom error response functions.
+
+#### Why Use Custom Error Handlers?
+
+The default error handling returns a simple network error when a response is not OK:
+
+```typescript
+// Default behavior
+if (!response.ok) {
+  return {
+    success: false,
+    errors: [{ type: "network", message: response.statusText, details: {} }]
+  };
+}
+```
+
+Custom error handlers allow you to:
+- **Log errors** to external services (Sentry, Datadog, etc.)
+- **Parse server error responses** for more detailed error information
+- **Add retry logic** or circuit breaker patterns
+- **Display user-friendly error messages** based on HTTP status codes
+- **Track metrics** around API failures
+
+#### Configuration
+
+Configure a custom error handler function that will be called when responses are not OK:
+
+```elixir
+# config/config.exs
+config :ash_typescript,
+  # Reference a TypeScript function to handle non-OK responses
+  rpc_error_response_handler: "MyAppConfig.handleRpcResponseError",
+
+  # Import the module containing your error handler
+  import_into_generated: [
+    %{
+      import_name: "MyAppConfig",
+      file: "./myAppConfig"
+    }
+  ]
+```
+
+#### TypeScript Implementation
+
+Create a TypeScript file with your custom error handler function:
+
+```typescript
+// myAppConfig.ts
+
+// Custom error handler with enhanced error details
+export function handleRpcResponseError(response: Response) {
+  // Log error to monitoring service
+  console.error(`RPC Error: ${response.status} ${response.statusText}`, {
+    url: response.url,
+    status: response.status,
+    statusText: response.statusText,
+    timestamp: new Date().toISOString()
+  });
+
+  // You could also send to external error tracking:
+  // Sentry.captureMessage(`RPC Error: ${response.status}`);
+
+  // Return enhanced error details
+  return {
+    success: false as const,
+    errors: [
+      {
+        type: "network" as const,
+        message: `HTTP ${response.status}: ${response.statusText}`,
+        details: {
+          url: response.url,
+          status: String(response.status)
+        }
+      }
+    ]
+  };
+}
+```
+
+#### Generated Code
+
+The generated RPC functions will call your custom error handler instead of the default error handling:
+
+```typescript
+// Generated in ash_rpc.ts
+import * as MyAppConfig from "./myAppConfig";
+
+export async function createTodo<Fields extends CreateTodoFields>(
+  config: CreateTodoConfig<Fields>
+): Promise<CreateTodoResult<Fields>> {
+  // ... request setup code ...
+
+  const response = await fetchFunction(getRunEndpoint(), fetchOptions);
+
+  if (!response.ok) {
+    return MyAppConfig.handleRpcResponseError(response)  // Calls your custom handler
+  }
+
+  const result = await response.json();
+  return result as CreateTodoResult<Fields>;
 }
 ```
 
