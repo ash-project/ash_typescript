@@ -14,9 +14,38 @@ defmodule AshTypescript.Rpc.Codegen do
   alias AshTypescript.Rpc.ValidationErrorSchemas
   alias AshTypescript.Rpc.ZodSchemaGenerator
 
+  @doc """
+  Formats an endpoint configuration for TypeScript code generation.
+
+  Accepts either:
+  - A string: Returns the string as a quoted literal for direct embedding
+  - A tuple {:imported_ts_func, "FunctionName"}: Returns a function call expression
+
+  ## Examples
+
+      iex> format_endpoint_for_typescript("/rpc/run")
+      "\"/rpc/run\""
+
+      iex> format_endpoint_for_typescript({:imported_ts_func, "CustomTypes.getRunEndpoint"})
+      "CustomTypes.getRunEndpoint()"
+  """
+  def format_endpoint_for_typescript(endpoint) when is_binary(endpoint) do
+    "\"#{endpoint}\""
+  end
+
+  def format_endpoint_for_typescript({:imported_ts_func, function_name})
+      when is_binary(function_name) do
+    "#{function_name}()"
+  end
+
   def generate_typescript_types(otp_app, opts \\ []) do
-    endpoint_process = Keyword.get(opts, :run_endpoint, "/rpc/run")
-    endpoint_validate = Keyword.get(opts, :validate_endpoint, "/rpc/validate")
+    endpoint_process =
+      Keyword.get(opts, :run_endpoint, "/rpc/run")
+      |> format_endpoint_for_typescript()
+
+    endpoint_validate =
+      Keyword.get(opts, :validate_endpoint, "/rpc/validate")
+      |> format_endpoint_for_typescript()
 
     resources_and_actions = get_rpc_resources_and_actions(otp_app)
 
@@ -2240,7 +2269,7 @@ defmodule AshTypescript.Rpc.Codegen do
         body: JSON.stringify(payload),
       };
 
-      const response = await fetchFunction("#{endpoint_process}", fetchOptions);
+      const response = await fetchFunction(#{endpoint_process}, fetchOptions);
 
       if (!response.ok) {
         return {
@@ -2330,7 +2359,7 @@ defmodule AshTypescript.Rpc.Codegen do
         body: JSON.stringify(payload),
       };
 
-      const response = await fetchFunction("#{endpoint_validate}", fetchOptions);
+      const response = await fetchFunction(#{endpoint_validate}, fetchOptions);
 
       if (!response.ok) {
         return {
