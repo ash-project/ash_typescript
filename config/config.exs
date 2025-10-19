@@ -25,6 +25,10 @@ config :ash_typescript,
   phoenix_import_path: "phoenix",
   type_mapping_overrides: []
 
+# Type generation
+# untyped_map_type: "Record<string, any>"  # Default
+# untyped_map_type: "Record<string, unknown>"  # Stricter type safety
+
 if Mix.env() == :test do
   config :ash,
     validate_domain_resource_inclusion?: false,

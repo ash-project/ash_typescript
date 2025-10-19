@@ -25,4 +25,30 @@ defmodule AshTypescript do
   def type_mapping_overrides do
     Application.get_env(:ash_typescript, :type_mapping_overrides, [])
   end
+
+  @doc """
+  Gets the TypeScript type to use for untyped maps from application configuration.
+
+  This controls the TypeScript type generated for Ash.Type.Map, Ash.Type.Keyword,
+  Ash.Type.Tuple, and unconstrained Ash.Type.Struct types that don't have field
+  definitions. The default is `"Record<string, any>"`, but users can configure it
+  to use stricter types like `"Record<string, unknown>"` for better type safety.
+
+  ## Configuration
+
+      # Default - allows any value type
+      config :ash_typescript, untyped_map_type: "Record<string, any>"
+
+      # Stricter - requires type checking before use
+      config :ash_typescript, untyped_map_type: "Record<string, unknown>"
+
+      # Custom - use your own type definition
+      config :ash_typescript, untyped_map_type: "MyCustomMapType"
+
+  ## Returns
+  A string representing the TypeScript type to use, defaulting to `"Record<string, any>"`.
+  """
+  def untyped_map_type do
+    Application.get_env(:ash_typescript, :untyped_map_type, "Record<string, any>")
+  end
 end

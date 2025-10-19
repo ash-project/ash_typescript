@@ -1485,7 +1485,11 @@ config :ash_typescript,
   type_mapping_overrides: [
     {AshUUID.UUID, "string"},
     {SomeComplex.Custom.Type, "CustomTypes.MyCustomType"}
-  ]
+  ],
+
+  # TypeScript type for untyped maps
+  # untyped_map_type: "Record<string, any>"      # Default - allows any value type
+  # untyped_map_type: "Record<string, unknown>"  # Stricter - requires type checking
 ```
 
 ### Domain Configuration
@@ -2121,6 +2125,115 @@ interface ProductResourceSchema {
 - ✅ **Third-party Ash types** from dependencies you don't control
 - ✅ **Library types** like `AshUUID.UUID`, etc.
 - ❌ **Your own types** - prefer using `typescript_type_name/0` callback instead
+
+### Configurable Untyped Map Type
+
+By default, AshTypescript generates `Record<string, any>` for map-like types without field constraints. You can configure this to use stricter types like `Record<string, unknown>` for better type safety.
+
+#### Configuration
+
+```elixir
+# config/config.exs
+config :ash_typescript,
+  # Default - allows any value type (more permissive)
+  untyped_map_type: "Record<string, any>"
+
+  # Stricter - requires type checking before use (recommended for new projects)
+  # untyped_map_type: "Record<string, unknown>"
+
+  # Custom - use your own type definition
+  # untyped_map_type: "MyCustomMapType"
+```
+
+#### What Gets Affected
+
+This configuration applies to all map-like types without field constraints:
+
+- `Ash.Type.Map` without `fields` constraint
+- `Ash.Type.Keyword` without `fields` constraint
+- `Ash.Type.Tuple` without `fields` constraint
+- `Ash.Type.Struct` without `instance_of` or `fields` constraint
+
+**Maps with field constraints are NOT affected** and will still generate typed objects.
+
+#### Type Safety Comparison
+
+**With `Record<string, any>` (default):**
+
+```typescript
+// More permissive - values can be used directly
+const todo = await getTodo({ fields: ["id", "customData"] });
+if (todo.success && todo.data.customData) {
+  const value = todo.data.customData.someField;  // OK - no error
+  console.log(value.toUpperCase());              // Runtime error if not a string!
+}
+```
+
+**With `Record<string, unknown>` (stricter):**
+
+```typescript
+// Stricter - requires type checking before use
+const todo = await getTodo({ fields: ["id", "customData"] });
+if (todo.success && todo.data.customData) {
+  const value = todo.data.customData.someField;     // Type: unknown
+  console.log(value.toUpperCase());                 // ❌ TypeScript error!
+
+  // Must check type first
+  if (typeof value === 'string') {
+    console.log(value.toUpperCase());               // ✅ OK
+  }
+}
+```
+
+#### Example Resources
+
+```elixir
+defmodule MyApp.Todo do
+  use Ash.Resource,
+    domain: MyApp.Domain,
+    extensions: [AshTypescript.Resource]
+
+  attributes do
+    # Untyped map - uses configured untyped_map_type
+    attribute :custom_data, :map, public?: true
+
+    # Typed map - always generates typed object (not affected by config)
+    attribute :metadata, :map, public?: true, constraints: [
+      fields: [
+        priority: [type: :string],
+        tags: [type: {:array, :string}]
+      ]
+    ]
+  end
+end
+```
+
+**Generated TypeScript:**
+
+```typescript
+// With untyped_map_type: "Record<string, unknown>"
+type TodoResourceSchema = {
+  customData: Record<string, unknown> | null;  // Uses configured type
+  metadata: {                                  // Typed object (not affected)
+    priority: string;
+    tags: Array<string>;
+  } | null;
+}
+```
+
+#### When to Use Each Option
+
+**Use `Record<string, any>` when:**
+- You need maximum flexibility
+- You're working with truly dynamic data structures
+- You trust your backend data and want faster development
+- Backward compatibility with existing code is important
+
+**Use `Record<string, unknown>` when:**
+- You want maximum type safety
+- You're starting a new project
+- You want to catch potential runtime errors at compile time
+- You prefer explicit type checking over implicit assumptions
 
 ## 🛠️ Mix Tasks
 

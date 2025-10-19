@@ -996,7 +996,7 @@ defmodule AshTypescript.Codegen do
         constraints = Map.get(attr, :constraints, [])
 
         case Keyword.get(constraints, :fields) do
-          nil -> "Record<string, any>"
+          nil -> AshTypescript.untyped_map_type()
           fields -> build_map_input_type_inline(fields)
         end
 
@@ -1080,7 +1080,7 @@ defmodule AshTypescript.Codegen do
   def get_ts_type(%{type: nil}, _), do: "null"
   def get_ts_type(%{type: :sum}, _), do: "number"
   def get_ts_type(%{type: :count}, _), do: "number"
-  def get_ts_type(%{type: :map}, _), do: "Record<string, any>"
+  def get_ts_type(%{type: :map}, _), do: AshTypescript.untyped_map_type()
 
   def get_ts_type(%{type: Ash.Type.Atom, constraints: constraints}, _) when constraints != [] do
     case Keyword.get(constraints, :one_of) do
@@ -1118,31 +1118,31 @@ defmodule AshTypescript.Codegen do
   def get_ts_type(%{type: Ash.Type.Map, constraints: constraints}, select)
       when constraints != [] do
     case Keyword.get(constraints, :fields) do
-      nil -> "Record<string, any>"
+      nil -> AshTypescript.untyped_map_type()
       fields -> build_map_type(fields, select, nil)
     end
   end
 
-  def get_ts_type(%{type: Ash.Type.Map}, _), do: "Record<string, any>"
+  def get_ts_type(%{type: Ash.Type.Map}, _), do: AshTypescript.untyped_map_type()
 
   def get_ts_type(%{type: Ash.Type.Keyword, constraints: constraints}, _)
       when constraints != [] do
     case Keyword.get(constraints, :fields) do
-      nil -> "Record<string, any>"
+      nil -> AshTypescript.untyped_map_type()
       fields -> build_map_type(fields, nil, nil)
     end
   end
 
   def get_ts_type(%{type: Ash.Type.Keyword, constraints: constraints}, _) do
     case Keyword.get(constraints, :fields) do
-      nil -> "Record<string, any>"
+      nil -> AshTypescript.untyped_map_type()
       fields -> build_map_type(fields, nil, nil)
     end
   end
 
   def get_ts_type(%{type: Ash.Type.Tuple, constraints: constraints}, _) do
     case Keyword.get(constraints, :fields) do
-      nil -> "Record<string, any>"
+      nil -> AshTypescript.untyped_map_type()
       fields -> build_map_type(fields, nil, nil)
     end
   end
@@ -1189,7 +1189,7 @@ defmodule AshTypescript.Codegen do
         build_map_type(fields)
 
       true ->
-        "Record<string, any>"
+        AshTypescript.untyped_map_type()
     end
   end
 

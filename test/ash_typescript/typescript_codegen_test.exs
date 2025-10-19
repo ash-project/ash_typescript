@@ -486,4 +486,132 @@ defmodule AshTypescript.CodegenTest do
              )
     end
   end
+
+  describe "untyped_map_type configuration" do
+    test "uses default Record<string, any> when not configured" do
+      # Default behavior
+      result = Codegen.get_ts_type(%{type: Ash.Type.Map, constraints: []})
+      assert result == "Record<string, any>"
+
+      result = Codegen.get_ts_type(%{type: :map})
+      assert result == "Record<string, any>"
+
+      result = Codegen.get_ts_type(%{type: Ash.Type.Keyword, constraints: []})
+      assert result == "Record<string, any>"
+
+      result = Codegen.get_ts_type(%{type: Ash.Type.Tuple, constraints: []})
+      assert result == "Record<string, any>"
+
+      result = Codegen.get_ts_type(%{type: Ash.Type.Struct, constraints: []})
+      assert result == "Record<string, any>"
+    end
+
+    test "uses configured type when untyped_map_type is set" do
+      # Save original config
+      original_config = Application.get_env(:ash_typescript, :untyped_map_type)
+
+      try do
+        # Set custom config
+        Application.put_env(:ash_typescript, :untyped_map_type, "Record<string, unknown>")
+
+        # Test that all untyped map types use the configured value
+        result = Codegen.get_ts_type(%{type: Ash.Type.Map, constraints: []})
+        assert result == "Record<string, unknown>"
+
+        result = Codegen.get_ts_type(%{type: :map})
+        assert result == "Record<string, unknown>"
+
+        result = Codegen.get_ts_type(%{type: Ash.Type.Keyword, constraints: []})
+        assert result == "Record<string, unknown>"
+
+        result = Codegen.get_ts_type(%{type: Ash.Type.Tuple, constraints: []})
+        assert result == "Record<string, unknown>"
+
+        result = Codegen.get_ts_type(%{type: Ash.Type.Struct, constraints: []})
+        assert result == "Record<string, unknown>"
+      after
+        # Restore original config
+        if original_config do
+          Application.put_env(:ash_typescript, :untyped_map_type, original_config)
+        else
+          Application.delete_env(:ash_typescript, :untyped_map_type)
+        end
+      end
+    end
+
+    test "uses custom type when untyped_map_type is set to custom value" do
+      # Save original config
+      original_config = Application.get_env(:ash_typescript, :untyped_map_type)
+
+      try do
+        # Set custom type
+        Application.put_env(:ash_typescript, :untyped_map_type, "MyCustomMapType")
+
+        result = Codegen.get_ts_type(%{type: Ash.Type.Map, constraints: []})
+        assert result == "MyCustomMapType"
+
+        result = Codegen.get_ts_type(%{type: Ash.Type.Keyword, constraints: []})
+        assert result == "MyCustomMapType"
+      after
+        # Restore original config
+        if original_config do
+          Application.put_env(:ash_typescript, :untyped_map_type, original_config)
+        else
+          Application.delete_env(:ash_typescript, :untyped_map_type)
+        end
+      end
+    end
+
+    test "constrained maps still use typed objects regardless of config" do
+      # Save original config
+      original_config = Application.get_env(:ash_typescript, :untyped_map_type)
+
+      try do
+        # Set custom config
+        Application.put_env(:ash_typescript, :untyped_map_type, "Record<string, unknown>")
+
+        # Constrained maps should still generate typed objects
+        constraints = [
+          fields: [
+            name: [type: :string, allow_nil?: false],
+            age: [type: :integer, allow_nil?: true]
+          ]
+        ]
+
+        result = Codegen.get_ts_type(%{type: Ash.Type.Map, constraints: constraints})
+
+        # Should still generate a typed object, not use the untyped_map_type
+        assert result ==
+                 "{name: string, age: number | null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
+      after
+        # Restore original config
+        if original_config do
+          Application.put_env(:ash_typescript, :untyped_map_type, original_config)
+        else
+          Application.delete_env(:ash_typescript, :untyped_map_type)
+        end
+      end
+    end
+
+    test "get_ts_input_type uses configured untyped_map_type" do
+      # Save original config
+      original_config = Application.get_env(:ash_typescript, :untyped_map_type)
+
+      try do
+        # Set custom config
+        Application.put_env(:ash_typescript, :untyped_map_type, "Record<string, unknown>")
+
+        # Test input type generation
+        result = Codegen.get_ts_input_type(%{type: Ash.Type.Map, constraints: []})
+        assert result == "Record<string, unknown>"
+      after
+        # Restore original config
+        if original_config do
+          Application.put_env(:ash_typescript, :untyped_map_type, original_config)
+        else
+          Application.delete_env(:ash_typescript, :untyped_map_type)
+        end
+      end
+    end
+  end
 end
