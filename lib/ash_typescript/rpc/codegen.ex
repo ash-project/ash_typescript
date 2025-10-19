@@ -492,6 +492,8 @@ defmodule AshTypescript.Rpc.Codegen do
 
     // Returns either non-paginated (array) or paginated result based on page params
     // For single pagination type support (offset-only or keyset-only)
+    // @ts-ignore
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     type ConditionalPaginatedResult<
       Page,
       RecordType,
