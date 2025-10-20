@@ -283,6 +283,7 @@ This change makes your API more secure by requiring explicit opt-in for all RPC 
 - **⚡ Smart field selection** - Request only needed fields with full type inference
 - **🎯 RPC client generation** - Type-safe function calls for all action types
 - **📡 Phoenix Channel support** - Generate channel-based RPC functions for real-time applications
+- **🪝 Lifecycle hooks** - Inject custom logic before/after requests (auth, logging, telemetry, error tracking)
 - **🏢 Multitenancy ready** - Automatic tenant parameter handling
 - **📦 Advanced type support** - Enums, unions, embedded resources, and calculations
 - **📊 Action metadata support** - Attach and retrieve additional context with action results
@@ -301,6 +302,7 @@ This change makes your API more secure by requiring explicit opt-in for all RPC 
 - [Quick Start](#quick-start)
 - [Core Concepts](#core-concepts)
 - [Usage Examples](#usage-examples)
+- [Lifecycle Hooks](#lifecycle-hooks)
 - [Embedded Resources](#embedded-resources)
 - [Union Types](#union-types)
 - [Multitenancy Support](#multitenancy-support)
@@ -787,6 +789,731 @@ createTodoChannel({
     console.error("Request timed out");
   }
 });
+```
+
+### Lifecycle Hooks
+
+AshTypescript provides lifecycle hooks that let you inject custom logic before and after HTTP requests. These hooks enable cross-cutting concerns like authentication, logging, telemetry, performance tracking, and error monitoring.
+
+#### Why Use Lifecycle Hooks?
+
+Lifecycle hooks provide a centralized way to:
+- **Add authentication tokens** - Inject auth headers for all requests
+- **Log requests and responses** - Track API calls for debugging
+- **Measure performance** - Time API calls and track latency
+- **Send telemetry** - Report metrics to monitoring services
+- **Handle errors globally** - Track errors in Sentry, Datadog, etc.
+- **Add default headers** - Set default headers for all requests
+- **Transform requests** - Modify config before sending
+
+#### Configuration
+
+Configure lifecycle hooks in your application config:
+
+```elixir
+# config/config.exs
+config :ash_typescript,
+  # Hook functions for RPC actions
+  rpc_action_before_request_hook: "RpcHooks.beforeRequest",
+  rpc_action_after_request_hook: "RpcHooks.afterRequest",
+
+  # Hook functions for validation actions
+  rpc_validation_before_request_hook: "RpcHooks.beforeValidationRequest",
+  rpc_validation_after_request_hook: "RpcHooks.afterValidationRequest",
+
+  # TypeScript types for hook context (optional)
+  rpc_action_hook_context_type: "RpcHooks.ActionHookContext",
+  rpc_validation_hook_context_type: "RpcHooks.ValidationHookContext",
+
+  # Import the module containing your hook functions
+  import_into_generated: [
+    %{
+      import_name: "RpcHooks",
+      file: "./rpcHooks"
+    }
+  ]
+```
+
+**Configuration Options:**
+
+| Config | Purpose | Default |
+|--------|---------|---------|
+| `rpc_action_before_request_hook` | Function called before RPC action requests | `nil` (disabled) |
+| `rpc_action_after_request_hook` | Function called after RPC action requests | `nil` (disabled) |
+| `rpc_validation_before_request_hook` | Function called before validation requests | `nil` (disabled) |
+| `rpc_validation_after_request_hook` | Function called after validation requests | `nil` (disabled) |
+| `rpc_action_hook_context_type` | TypeScript type for action hook context | `"Record<string, any>"` |
+| `rpc_validation_hook_context_type` | TypeScript type for validation hook context | `"Record<string, any>"` |
+
+#### Hook Types: Actions vs Validations
+
+AshTypescript provides **separate hooks for actions and validations** because they serve different purposes:
+
+- **Action Hooks** - Execute when calling RPC actions (create, read, update, delete, custom actions)
+- **Validation Hooks** - Execute when calling validation functions (client-side form validation)
+
+This separation allows you to:
+- Use different logging levels (validations are typically more frequent)
+- Track different metrics (validation performance vs action performance)
+
+**Action hooks are for actual API calls, validation hooks are for form validation.**
+
+#### Hook Function Signatures
+
+Both `beforeRequest` and `afterRequest` hooks receive the full config object and can access the optional `hookCtx` from it:
+
+```typescript
+// Config interface showing all available fields
+interface ActionConfig {
+  // Request data
+  fields?: any;                    // Field selection
+  input?: Record<string, any>;     // Input data (for mutations)
+  primaryKey?: any;                // Primary key (for get/update/destroy)
+  filter?: Record<string, any>;    // Filter options (for reads)
+  sort?: string;                   // Sort options
+  page?: {                         // Pagination options
+    limit?: number;
+    offset?: number;
+    count?: boolean;
+  };
+
+  // Metadata
+  metadataFields?: string[];       // Metadata field selection
+
+  // HTTP customization
+  headers?: Record<string, string>;           // Custom headers
+  fetchOptions?: RequestInit;                 // Fetch options (signal, cache, etc.)
+  customFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+  // Multitenancy
+  tenant?: string;                 // Tenant parameter
+
+  // Hook context
+  hookCtx?: any;                   // Custom hook context
+
+  // Internal fields (available but typically not modified)
+  action?: string;                 // Action name
+  domain?: string;                 // Domain name
+}
+
+// Validation config (for validation hooks)
+interface ValidationConfig {
+  // Request data
+  input?: Record<string, any>;     // Input data
+
+  // HTTP customization
+  headers?: Record<string, string>;           // Custom headers
+  fetchOptions?: RequestInit;                 // Fetch options (signal, cache, etc.)
+  customFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+  // Hook context
+  hookCtx?: any;                   // Custom hook context (typically ValidationHookContext)
+
+  // Internal fields
+  action?: string;                 // Action name
+  domain?: string;                 // Domain name
+}
+
+// Before request hook signature
+function beforeRequest(config: ActionConfig): ActionConfig {
+  // Access optional hook context
+  const ctx = config.hookCtx;
+
+  // Return modified config (or original config)
+  return { ...config, /* modifications */ };
+}
+
+// After request hook signature
+function afterRequest(
+  response: Response,
+  result: any | null,  // null when response.ok is false
+  config: ActionConfig
+): void {
+  // Access optional hook context
+  const ctx = config.hookCtx;
+
+  // Perform side effects (logging, telemetry, etc.)
+  // No return value
+}
+```
+
+**Key Points:**
+- Hooks receive the entire `config` object as a parameter
+- Hook context is accessed via `config.hookCtx` (optional)
+- `beforeRequest` returns a modified config object
+- `afterRequest` returns nothing (void) - it's for side effects only
+- Hooks run unconditionally when configured (not gated by `hookCtx` presence)
+
+#### beforeRequest Hook
+
+The `beforeRequest` hook runs **before the HTTP request** and can modify the request configuration. Common use cases:
+
+##### Adding Authentication Tokens
+
+```typescript
+// rpcHooks.ts
+export interface ActionHookContext {
+  enableAuth?: boolean;
+  authToken?: string;
+}
+
+export function beforeRequest<T extends ActionConfig>(config: T): T {
+  const ctx = config.hookCtx;
+
+  // Add auth token if context requests it
+  if (ctx?.enableAuth && ctx.authToken) {
+    return {
+      ...config,
+      headers: {
+        ...config.headers,
+        'Authorization': `Bearer ${ctx.authToken}`
+      }
+    } as T;
+  }
+
+  return config;
+}
+```
+
+```typescript
+// Usage: Pass auth token via hook context
+const todos = await listTodos({
+  fields: ["id", "title"],
+  hookCtx: {
+    enableAuth: true,
+    authToken: getUserAuthToken()
+  }
+});
+```
+
+##### Setting Default Headers
+
+```typescript
+export function beforeRequest<T extends ActionConfig>(config: T): T {
+  // Add default headers for ALL requests (unconditional)
+  return {
+    ...config,
+    headers: {
+      'X-Client-Version': '1.0.0',
+      'X-Request-ID': generateRequestId(),
+      ...config.headers  // Original headers take precedence
+    }
+  } as T;
+}
+```
+
+##### Request Timing Setup
+
+```typescript
+export interface ActionHookContext {
+  startTime?: number;
+}
+
+export function beforeRequest<T extends ActionConfig>(config: T): T {
+  const ctx = config.hookCtx;
+
+  // Store request start time in context for afterRequest hook
+  if (ctx) {
+    ctx.startTime = Date.now();
+  }
+
+  return config;
+}
+```
+
+##### Logging Outgoing Requests
+
+```typescript
+export function beforeRequest<T extends ActionConfig>(config: T): T {
+  const ctx = config.hookCtx;
+
+  console.log('Outgoing RPC request:', {
+    action: config.action,
+    domain: config.domain,
+    hasInput: !!config.input,
+    timestamp: new Date().toISOString(),
+    correlationId: ctx?.correlationId
+  });
+
+  return config;
+}
+```
+
+#### afterRequest Hook
+
+The `afterRequest` hook runs **after the HTTP request completes** (both success and error) and is used for side effects. It receives three parameters:
+
+1. `response: Response` - The raw HTTP response object
+2. `result: any | null` - Parsed JSON result (null when `response.ok` is false)
+3. `config: ActionConfig` - The config used for the request
+
+##### Important: Null Result Handling
+
+The `afterRequest` hook receives `null` as the result parameter when the response is not OK:
+
+```typescript
+export function afterRequest<T extends ActionConfig>(
+  response: Response,
+  result: any | null,
+  config: T
+): void {
+  if (result === null) {
+    // Response failed (response.ok === false)
+    console.error('Request failed:', {
+      status: response.status,
+      statusText: response.statusText,
+      url: response.url
+    });
+  } else {
+    // Response succeeded (response.ok === true)
+    console.log('Request succeeded:', {
+      hasData: !!result.data,
+      success: result.success
+    });
+  }
+}
+```
+
+##### Logging All Responses
+
+```typescript
+export function afterRequest<T extends ActionConfig>(
+  response: Response,
+  result: any | null,
+  config: T
+): void {
+  const ctx = config.hookCtx;
+
+  console.log('RPC response received:', {
+    action: config.action,
+    domain: config.domain,
+    status: response.status,
+    ok: response.ok,
+    hasResult: result !== null,
+    correlationId: ctx?.correlationId,
+    timestamp: new Date().toISOString()
+  });
+}
+```
+
+##### Performance Timing
+
+```typescript
+export interface ActionHookContext {
+  startTime?: number;
+  trackPerformance?: boolean;
+}
+
+export function afterRequest<T extends ActionConfig>(
+  response: Response,
+  result: any | null,
+  config: T
+): void {
+  const ctx = config.hookCtx;
+
+  if (ctx?.trackPerformance && ctx.startTime) {
+    const duration = Date.now() - ctx.startTime;
+
+    console.log('Performance metrics:', {
+      action: config.action,
+      duration: `${duration}ms`,
+      status: response.status,
+      success: result !== null && result.success
+    });
+
+    // Send to analytics service
+    trackMetric('rpc.duration', duration, {
+      action: config.action,
+      status: response.status
+    });
+  }
+}
+```
+
+##### Telemetry Tracking
+
+```typescript
+export function afterRequest<T extends ActionConfig>(
+  response: Response,
+  result: any | null,
+  config: T
+): void {
+  // Send telemetry to monitoring service
+  sendTelemetry({
+    event: 'rpc.request.completed',
+    action: config.action,
+    domain: config.domain,
+    status: response.status,
+    success: response.ok && result?.success,
+    timestamp: Date.now()
+  });
+}
+```
+
+##### Error Monitoring
+
+```typescript
+export function afterRequest<T extends ActionConfig>(
+  response: Response,
+  result: any | null,
+  config: T
+): void {
+  // Track errors in error monitoring service
+  if (result === null || !result.success) {
+    Sentry.captureMessage('RPC request failed', {
+      level: 'error',
+      extra: {
+        action: config.action,
+        status: response.status,
+        errors: result?.errors,
+        url: response.url
+      }
+    });
+  }
+}
+```
+
+#### Config Precedence Rules
+
+When using `beforeRequest` hooks, the **original config always takes precedence** over the modified config:
+
+```typescript
+export function beforeRequest<T extends ActionConfig>(config: T): T {
+  return {
+    ...config,
+    headers: {
+      'X-Default-Header': 'value',
+      ...config.headers  // ← Original headers override defaults
+    },
+    customFetch: config.customFetch || myDefaultFetch  // ← Original takes precedence
+  } as T;
+}
+```
+
+**Precedence order:**
+1. Original `config` values (highest priority)
+2. Modified config from `beforeRequest` hook
+3. Default fetch implementation (lowest priority)
+
+This ensures that per-request customizations always override hook defaults.
+
+#### Exception Handling
+
+Hooks **do not catch exceptions** - any errors thrown by hooks will propagate to the caller:
+
+```typescript
+export function beforeRequest<T extends ActionConfig>(config: T): T {
+  if (!isValidConfig(config)) {
+    // This exception propagates to the caller
+    throw new Error('Invalid RPC configuration');
+  }
+  return config;
+}
+```
+
+**Use Cases for Exception Propagation:**
+
+1. **React Error Boundaries** - Let React catch and display errors
+2. **Global Error Handlers** - Centralized error handling in your app
+3. **Fail-Fast Validation** - Stop execution on critical errors
+
+```typescript
+// React component with error boundary
+function MyComponent() {
+  const handleSubmit = async () => {
+    try {
+      const result = await createTodo({
+        fields: ["id", "title"],
+        input: { title: "New Todo" },
+        hookCtx: { requireAuth: true }
+      });
+      // Handle success
+    } catch (error) {
+      // Hook threw an exception
+      console.error('RPC call failed:', error);
+    }
+  };
+}
+```
+
+#### Composing Multiple Concerns
+
+Since hooks don't support arrays, compose multiple concerns in a single hook function:
+
+```typescript
+// rpcHooks.ts - Composing auth + logging + timing
+export interface ActionHookContext {
+  enableAuth?: boolean;
+  authToken?: string;
+  trackPerformance?: boolean;
+  startTime?: number;
+  correlationId?: string;
+}
+
+export function beforeRequest<T extends ActionConfig>(config: T): T {
+  const ctx = config.hookCtx;
+
+  // Concern 1: Add correlation ID for request tracking
+  const correlationId = ctx?.correlationId || generateCorrelationId();
+
+  // Concern 2: Log outgoing request
+  console.log('Outgoing RPC request:', {
+    action: config.action,
+    correlationId,
+    timestamp: new Date().toISOString()
+  });
+
+  // Concern 3: Setup performance timing
+  if (ctx?.trackPerformance && ctx) {
+    ctx.startTime = Date.now();
+  }
+
+  // Concern 4: Add authentication
+  const headers: Record<string, string> = {
+    'X-Correlation-ID': correlationId,
+    ...config.headers
+  };
+
+  if (ctx?.enableAuth && ctx.authToken) {
+    headers['Authorization'] = `Bearer ${ctx.authToken}`;
+  }
+
+  return {
+    ...config,
+    headers,
+    hookCtx: { ...ctx, correlationId }
+  } as T;
+}
+
+export function afterRequest<T extends ActionConfig>(
+  response: Response,
+  result: any | null,
+  config: T
+): void {
+  const ctx = config.hookCtx;
+
+  // Concern 1: Performance tracking
+  if (ctx?.trackPerformance && ctx.startTime) {
+    const duration = Date.now() - ctx.startTime;
+    trackMetric('rpc.duration', duration, {
+      action: config.action,
+      status: response.status
+    });
+  }
+
+  // Concern 2: Response logging
+  console.log('RPC response received:', {
+    action: config.action,
+    status: response.status,
+    correlationId: ctx?.correlationId,
+    duration: ctx?.startTime ? Date.now() - ctx.startTime : undefined
+  });
+
+  // Concern 3: Error monitoring
+  if (result === null || !result.success) {
+    Sentry.captureMessage('RPC request failed', {
+      level: 'error',
+      extra: {
+        action: config.action,
+        status: response.status,
+        correlationId: ctx?.correlationId
+      }
+    });
+  }
+
+  // Concern 4: Telemetry
+  sendTelemetry({
+    event: 'rpc.request.completed',
+    action: config.action,
+    success: response.ok && result?.success,
+    correlationId: ctx?.correlationId
+  });
+}
+
+function generateCorrelationId(): string {
+  return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+```
+
+**Usage with composed hooks:**
+
+```typescript
+const todos = await listTodos({
+  fields: ["id", "title"],
+  hookCtx: {
+    enableAuth: true,
+    authToken: getAuthToken(),
+    trackPerformance: true,
+    correlationId: 'user-action-123'
+  }
+});
+```
+
+#### Complete Working Example
+
+Here's a complete example showing all hook features:
+
+```typescript
+// rpcHooks.ts
+export interface ActionHookContext {
+  enableAuth?: boolean;
+  authToken?: string;
+  trackPerformance?: boolean;
+  startTime?: number;
+  userId?: string;
+}
+
+export interface ValidationHookContext {
+  formId?: string;
+}
+
+// Action hooks
+export function beforeRequest<T extends ActionConfig>(config: T): T {
+  const ctx = config.hookCtx;
+
+  // Always add client version
+  const headers: Record<string, string> = {
+    'X-Client-Version': '1.0.0',
+    ...config.headers
+  };
+
+  // Conditionally add auth
+  if (ctx?.enableAuth && ctx.authToken) {
+    headers['Authorization'] = `Bearer ${ctx.authToken}`;
+  }
+
+  // Setup timing
+  if (ctx?.trackPerformance && ctx) {
+    ctx.startTime = Date.now();
+  }
+
+  console.log(`[RPC] ${config.action} started`);
+
+  return { ...config, headers } as T;
+}
+
+export function afterRequest<T extends ActionConfig>(
+  response: Response,
+  result: any | null,
+  config: T
+): void {
+  const ctx = config.hookCtx;
+
+  // Track timing
+  const duration = ctx?.startTime ? Date.now() - ctx.startTime : 0;
+
+  // Log result
+  if (result === null) {
+    console.error(`[RPC] ${config.action} failed:`, {
+      status: response.status,
+      duration: `${duration}ms`
+    });
+  } else {
+    console.log(`[RPC] ${config.action} completed:`, {
+      success: result.success,
+      duration: `${duration}ms`
+    });
+  }
+}
+
+// Validation hooks
+export function beforeValidationRequest<T extends ValidationConfig>(config: T): T {
+  const ctx = config.hookCtx;
+  console.log(`[Validation] ${config.action} started`, { formId: ctx?.formId });
+  return config;
+}
+
+export function afterValidationRequest<T extends ValidationConfig>(
+  response: Response,
+  result: any | null,
+  config: T
+): void {
+  const ctx = config.hookCtx;
+  console.log(`[Validation] ${config.action} completed`, {
+    formId: ctx?.formId,
+    hasErrors: result && !result.success
+  });
+}
+```
+
+```typescript
+// Usage in your application
+import { createTodo, validateCreateTodo } from './ash_rpc';
+
+// Action with hooks
+const result = await createTodo({
+  fields: ["id", "title", "createdAt"],
+  input: { title: "Learn AshTypescript Hooks" },
+  hookCtx: {
+    enableAuth: true,
+    authToken: localStorage.getItem('authToken'),
+    trackPerformance: true,
+    userId: getCurrentUserId()
+  }
+});
+
+// Validation with hooks
+const validationResult = await validateCreateTodo({
+  input: { title: "Test Todo" },
+  hookCtx: {
+    formId: 'create-todo-form'
+  }
+});
+```
+
+#### Troubleshooting
+
+**Config precedence not working:**
+```typescript
+// ❌ Wrong: Original config gets overridden
+return {
+  headers: { ...config.headers, 'X-Custom': 'value' },
+  ...config
+};
+
+// ✅ Correct: Original config takes precedence
+return {
+  ...config,
+  headers: { 'X-Custom': 'value', ...config.headers }
+};
+```
+
+**Performance timing not working:**
+```typescript
+// ❌ Wrong: Context is read-only, modifications lost
+export function beforeRequest<T extends ActionConfig>(config: T): T {
+  const ctx = config.hookCtx;
+  ctx.startTime = Date.now();  // Lost!
+  return config;
+}
+
+// ✅ Correct: Return modified context
+export function beforeRequest<T extends ActionConfig>(config: T): T {
+  const ctx = config.hookCtx || {};
+  return {
+    ...config,
+    hookCtx: { ...ctx, startTime: Date.now() }
+  } as T;
+}
+```
+
+**Hook not executing:**
+- Verify hook functions are exported from the configured module
+- Check that `import_into_generated` includes the hooks module
+- Regenerate types with `mix ash.codegen --dev`
+- Ensure hook function names match the configuration exactly
+
+**TypeScript errors with hook context:**
+```typescript
+// ❌ Wrong: Type assertion on config
+const ctx = config.hookCtx as ActionHookContext;
+ctx.trackPerformance;  // Error if hookCtx is undefined
+
+// ✅ Correct: Optional chaining or type guard
+const ctx = config.hookCtx as ActionHookContext | undefined;
+if (ctx?.trackPerformance) {
+  // Safe to use
+}
 ```
 
 ### Advanced Filtering and Pagination
