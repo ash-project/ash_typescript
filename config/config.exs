@@ -44,12 +44,32 @@ if Mix.env() == :test do
     generate_validation_functions: true,
     generate_zod_schemas: true,
     output_file: "./test/ts/generated.ts",
-    # Uncomment to test custom error handler:
-    # rpc_error_response_handler: "CustomTypes.handleRpcResponseError",
+    # Lifecycle hooks configuration
+    rpc_action_before_request_hook: "RpcHooks.beforeActionRequest",
+    rpc_action_after_request_hook: "RpcHooks.afterActionRequest",
+    rpc_validation_before_request_hook: "RpcHooks.beforeValidationRequest",
+    rpc_validation_after_request_hook: "RpcHooks.afterValidationRequest",
+    rpc_action_hook_context_type: "RpcHooks.ActionHookContext",
+    rpc_validation_hook_context_type: "RpcHooks.ValidationHookContext",
+    # Channel lifecycle hooks configuration
+    rpc_action_before_channel_push_hook: "ChannelHooks.beforeChannelPush",
+    rpc_action_after_channel_response_hook: "ChannelHooks.afterChannelResponse",
+    rpc_validation_before_channel_push_hook: "ChannelHooks.beforeValidationChannelPush",
+    rpc_validation_after_channel_response_hook: "ChannelHooks.afterValidationChannelResponse",
+    rpc_action_channel_hook_context_type: "ChannelHooks.ActionChannelHookContext",
+    rpc_validation_channel_hook_context_type: "ChannelHooks.ValidationChannelHookContext",
     import_into_generated: [
       %{
         import_name: "CustomTypes",
         file: "./customTypes"
+      },
+      %{
+        import_name: "RpcHooks",
+        file: "./rpcHooks"
+      },
+      %{
+        import_name: "ChannelHooks",
+        file: "./channelHooks"
       }
     ],
     type_mapping_overrides: [
