@@ -72,7 +72,7 @@ defmodule AshTypescript.MixProject do
       ],
       licenses: ["MIT"],
       files: ~w(lib .formatter.exs mix.exs README*
-        CHANGELOG* documentation usage-rules.md),
+        CHANGELOG* documentation usage-rules.md LICENSE),
       links: %{
         "GitHub" => "https://github.com/ash-project/ash_typescript",
         "Changelog" => "https://github.com/ash-project/ash_typescript/blob/main/CHANGELOG.md",
@@ -92,17 +92,48 @@ defmodule AshTypescript.MixProject do
       logo: "logos/small-logo.png",
       extra_section: "GUIDES",
       extras: [
+        # Home
         {"README.md", title: "Home"},
+
+        # Tutorials
+        "documentation/tutorials/getting-started.md",
+        "documentation/tutorials/react-setup.md",
+
+        # How-To Guides
+        "documentation/how_to/basic-crud.md",
+        "documentation/how_to/field-selection.md",
+        "documentation/how_to/error-handling.md",
+        "documentation/how_to/custom-fetch.md",
+
+        # Topics
+        "documentation/topics/lifecycle-hooks.md",
+        "documentation/topics/phoenix-channels.md",
+        "documentation/topics/embedded-resources.md",
+        "documentation/topics/union-types.md",
+        "documentation/topics/multitenancy.md",
+        "documentation/topics/action-metadata.md",
+        "documentation/topics/form-validation.md",
+        "documentation/topics/zod-schemas.md",
+
+        # Reference
+        "documentation/reference/configuration.md",
+        "documentation/reference/mix-tasks.md",
+        "documentation/reference/troubleshooting.md",
+
+        # DSLs
         {"documentation/dsls/DSL-AshTypescript.Rpc.md",
          search_data: Spark.Docs.search_data_for(AshTypescript.Rpc)},
         {"documentation/dsls/DSL-AshTypescript.Resource.md",
          search_data: Spark.Docs.search_data_for(AshTypescript.Resource)},
+
+        # About
         "CHANGELOG.md"
       ],
       groups_for_extras: [
         Tutorials: ~r'documentation/tutorials',
-        "How To": ~r'documentation/how_to',
+        "How-To Guides": ~r'documentation/how_to',
         Topics: ~r'documentation/topics',
+        Reference: ~r'documentation/reference',
         DSLs: ~r'documentation/dsls',
         "About AshTypescript": [
           "CHANGELOG.md"
