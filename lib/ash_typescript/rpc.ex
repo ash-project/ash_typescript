@@ -236,6 +236,46 @@ defmodule AshTypescript.Rpc do
   end
 
   @doc """
+  Checks if RPC action hooks are enabled (either beforeRequest or afterRequest).
+
+  Returns true if either beforeRequest or afterRequest hook is configured for RPC actions.
+  """
+  def rpc_action_hooks_enabled? do
+    AshTypescript.rpc_action_before_request_hook() != nil ||
+      AshTypescript.rpc_action_after_request_hook() != nil
+  end
+
+  @doc """
+  Checks if RPC validation hooks are enabled (either beforeRequest or afterRequest).
+
+  Returns true if either beforeRequest or afterRequest hook is configured for validations.
+  """
+  def rpc_validation_hooks_enabled? do
+    AshTypescript.rpc_validation_before_request_hook() != nil ||
+      AshTypescript.rpc_validation_after_request_hook() != nil
+  end
+
+  @doc """
+  Checks if RPC action channel hooks are enabled (either beforeChannelPush or afterChannelResponse).
+
+  Returns true if either beforeChannelPush or afterChannelResponse hook is configured for RPC actions.
+  """
+  def rpc_action_channel_hooks_enabled? do
+    AshTypescript.rpc_action_before_channel_push_hook() != nil ||
+      AshTypescript.rpc_action_after_channel_response_hook() != nil
+  end
+
+  @doc """
+  Checks if RPC validation channel hooks are enabled (either beforeChannelPush or afterChannelResponse).
+
+  Returns true if either beforeChannelPush or afterChannelResponse hook is configured for validations.
+  """
+  def rpc_validation_channel_hooks_enabled? do
+    AshTypescript.rpc_validation_before_channel_push_hook() != nil ||
+      AshTypescript.rpc_validation_after_channel_response_hook() != nil
+  end
+
+  @doc """
   Gets the Phoenix import path for generated TypeScript.
 
   This determines the import statement used for Phoenix channels in generated TypeScript files.
