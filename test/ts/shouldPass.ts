@@ -24,11 +24,14 @@ import "./shouldPass/fetchOptionsAdvanced";
 import "./shouldPass/channelOperations";
 import "./shouldPass/channelValidations";
 import "./shouldPass/channelTimeoutTest";
+import "./shouldPass/channelLifecycleHooks";
 import "./shouldPass/untypedMaps";
 import "./shouldPass/conditionalPagination";
 import "./shouldPass/precisePaginationTypes";
 import "./shouldPass/metadata";
 import "./shouldPass/genericActionTypedStruct";
+import "./shouldPass/rpcLifecycleHooks";
+import "./rpcHooks";
 
 // Import Zod schema validation tests
 import "./zod/shouldPass/basicZodUsage";
