@@ -42,12 +42,25 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
       Keyword.get(opts, :validate_endpoint) ||
         Application.get_env(:ash_typescript, :validate_endpoint)
 
-    rpc_error_response_handler = Application.get_env(:ash_typescript, :rpc_error_response_handler)
-
     codegen_opts = [
       run_endpoint: run_endpoint,
       validate_endpoint: validate_endpoint,
-      error_response_func: rpc_error_response_handler
+      rpc_action_before_request_hook: AshTypescript.rpc_action_before_request_hook(),
+      rpc_action_after_request_hook: AshTypescript.rpc_action_after_request_hook(),
+      rpc_validation_before_request_hook: AshTypescript.rpc_validation_before_request_hook(),
+      rpc_validation_after_request_hook: AshTypescript.rpc_validation_after_request_hook(),
+      rpc_action_hook_context_type: AshTypescript.rpc_action_hook_context_type(),
+      rpc_validation_hook_context_type: AshTypescript.rpc_validation_hook_context_type(),
+      rpc_action_before_channel_push_hook: AshTypescript.rpc_action_before_channel_push_hook(),
+      rpc_action_after_channel_response_hook:
+        AshTypescript.rpc_action_after_channel_response_hook(),
+      rpc_validation_before_channel_push_hook:
+        AshTypescript.rpc_validation_before_channel_push_hook(),
+      rpc_validation_after_channel_response_hook:
+        AshTypescript.rpc_validation_after_channel_response_hook(),
+      rpc_action_channel_hook_context_type: AshTypescript.rpc_action_channel_hook_context_type(),
+      rpc_validation_channel_hook_context_type:
+        AshTypescript.rpc_validation_channel_hook_context_type()
     ]
 
     # Generate TypeScript types and write to file
