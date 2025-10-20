@@ -15,9 +15,14 @@
     ## ...or adjusted (e.g. use one-line formatter for more compact credo output)
     # {:credo, "mix credo --format oneline"},
 
+    {:compiler, "mix compile --warnings-as-errors"},
     {:check_formatter, command: "mix spark.formatter --check"},
-    {:doctor, false},
-    {:reuse, command: ["pipx", "run", "reuse", "lint", "-q"]}
+    {:reuse, command: ["pipx", "run", "reuse", "lint", "-q"]},
+    {:credo, "mix credo --strict"},
+    {:sobelow, "mix sobelow --config"},
+    {:compile_generated, "mix cmd --cd test/ts npm run compileGenerated"},
+    {:compile_should_pass, "mix cmd --cd test/ts npm run compileShouldPass"},
+    {:compile_should_fail, "mix cmd --cd test/ts npm run compileShouldFail"},
 
     ## custom new tools may be added (mix tasks or arbitrary commands)
     # {:my_mix_task, command: "mix release", env: %{"MIX_ENV" => "prod"}},
