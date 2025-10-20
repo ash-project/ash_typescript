@@ -209,13 +209,13 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
   describe "channel-based RPC function generation with mapped names" do
     test "channel function has correct type signature with mapped input", %{generated: generated} do
-      # updateTaskChannel function should be defined
-      assert generated =~ "export function updateTaskChannel"
+      # updateTaskChannel function should be defined (async function)
+      assert generated =~ "export async function updateTaskChannel"
 
       # Function config should use mapped input type
       channel_function_section =
         generated
-        |> String.split("export function updateTaskChannel")
+        |> String.split("export async function updateTaskChannel")
         |> Enum.at(1)
         |> String.split("): void")
         |> Enum.at(0)
@@ -226,7 +226,7 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
     test "channel function sends correct payload structure", %{generated: generated} do
       # The function should use MarkCompletedTaskInput type
-      assert generated =~ "export function markCompletedTaskChannel"
+      assert generated =~ "export async function markCompletedTaskChannel"
       assert generated =~ ~r/markCompletedTaskChannel.*input: MarkCompletedTaskInput/s
       refute generated =~ ~r/markCompletedTaskChannel.*completed\?/s
     end
