@@ -1516,6 +1516,683 @@ if (ctx?.trackPerformance) {
 }
 ```
 
+### Channel Lifecycle Hooks
+
+AshTypescript provides lifecycle hooks for Phoenix Channel-based RPC actions, mirroring the HTTP hooks functionality but adapted for real-time channel communication. These hooks enable the same cross-cutting concerns (authentication, logging, telemetry, performance tracking) but for WebSocket-based communication instead of HTTP requests.
+
+#### Why Use Channel Lifecycle Hooks?
+
+Channel lifecycle hooks provide a centralized way to:
+- **Log channel messages** - Track channel communication for debugging
+- **Measure performance** - Time channel operations and track latency
+- **Send telemetry** - Report metrics to monitoring services
+- **Handle errors globally** - Track channel errors in Sentry, Datadog, etc.
+- **Add default configuration** - Set default timeouts or other options
+- **Transform messages** - Modify config before pushing to channel
+
+#### Key Differences from HTTP Hooks
+
+Channel hooks differ from HTTP hooks because they work with Phoenix Channel's message-based communication:
+
+| Aspect | HTTP Hooks | Channel Hooks |
+|--------|-----------|---------------|
+| **Communication** | Request/Response (HTTP) | Message-based (WebSocket) |
+| **API Style** | Promise-based | Callback-based |
+| **Response Types** | Success or Error | ok, error, or timeout |
+| **Hook Names** | `beforeRequest`, `afterRequest` | `beforeChannelPush`, `afterChannelResponse` |
+
+#### Configuration
+
+Configure channel lifecycle hooks in your application config:
+
+```elixir
+# config/config.exs
+config :ash_typescript,
+  # Channel-based hooks for RPC actions
+  rpc_action_before_channel_push_hook: "ChannelHooks.beforeChannelPush",
+  rpc_action_after_channel_response_hook: "ChannelHooks.afterChannelResponse",
+
+  # Channel-based hooks for validation actions
+  rpc_validation_before_channel_push_hook: "ChannelHooks.beforeValidationChannelPush",
+  rpc_validation_after_channel_response_hook: "ChannelHooks.afterValidationChannelResponse",
+
+  # TypeScript types for channel hook context (optional)
+  rpc_action_channel_hook_context_type: "ChannelHooks.ActionChannelHookContext",
+  rpc_validation_channel_hook_context_type: "ChannelHooks.ValidationChannelHookContext",
+
+  # Import the module containing your channel hook functions
+  import_into_generated: [
+    %{
+      import_name: "ChannelHooks",
+      file: "./channelHooks"
+    }
+  ]
+```
+
+**Configuration Options:**
+
+| Config | Purpose | Default |
+|--------|---------|---------|
+| `rpc_action_before_channel_push_hook` | Function called before channel push for RPC actions | `nil` (disabled) |
+| `rpc_action_after_channel_response_hook` | Function called after channel response for RPC actions | `nil` (disabled) |
+| `rpc_validation_before_channel_push_hook` | Function called before channel push for validations | `nil` (disabled) |
+| `rpc_validation_after_channel_response_hook` | Function called after channel response for validations | `nil` (disabled) |
+| `rpc_action_channel_hook_context_type` | TypeScript type for action channel hook context | `"Record<string, any>"` |
+| `rpc_validation_channel_hook_context_type` | TypeScript type for validation channel hook context | `"Record<string, any>"` |
+
+#### Hook Function Signatures
+
+Channel hooks receive the full config object and can access the optional `hookCtx` from it:
+
+```typescript
+// Channel config interface showing all available fields
+interface ChannelActionConfig {
+  // Channel connection
+  channel: Channel;                    // Phoenix channel instance
+
+  // Request data
+  fields?: any;                        // Field selection
+  input?: Record<string, any>;         // Input data (for mutations)
+  primaryKey?: any;                    // Primary key (for get/update/destroy)
+  filter?: Record<string, any>;        // Filter options (for reads)
+  sort?: string;                       // Sort options
+  page?: {                             // Pagination options
+    limit?: number;
+    offset?: number;
+    count?: boolean;
+  };
+
+  // Metadata
+  metadataFields?: string[];           // Metadata field selection
+
+  // Channel options
+  timeout?: number;                    // Message timeout (milliseconds)
+
+  // Handlers
+  resultHandler: (result: any) => void;      // Called on "ok" response
+  errorHandler?: (error: any) => void;       // Called on "error" response
+  timeoutHandler?: () => void;               // Called on "timeout" response
+
+  // Multitenancy
+  tenant?: string;                     // Tenant parameter
+
+  // Hook context
+  hookCtx?: any;                       // Custom hook context
+
+  // Internal fields (available but typically not modified)
+  action?: string;                     // Action name
+  domain?: string;                     // Domain name
+}
+
+// Before channel push hook signature
+function beforeChannelPush(
+  actionName: string,
+  config: ChannelActionConfig
+): ChannelActionConfig | Promise<ChannelActionConfig> {
+  // Access optional hook context
+  const ctx = config.hookCtx;
+
+  // Return modified config (or original config)
+  return { ...config, /* modifications */ };
+}
+
+// After channel response hook signature
+function afterChannelResponse(
+  actionName: string,
+  responseType: "ok" | "error" | "timeout",
+  data: any,  // result (for ok), error (for error), or null (for timeout)
+  config: ChannelActionConfig
+): void | Promise<void> {
+  // Access optional hook context
+  const ctx = config.hookCtx;
+
+  // Perform side effects (logging, telemetry, etc.)
+  // No return value
+}
+```
+
+**Key Points:**
+- Channel hooks support async operations (Promise-based)
+- `beforeChannelPush` receives action name and config, returns modified config
+- `afterChannelResponse` receives action name, response type, data, and config
+- Response type distinguishes between three channel outcomes: "ok", "error", "timeout"
+- Original config takes precedence over modified config
+
+#### beforeChannelPush Hook
+
+The `beforeChannelPush` hook runs **before the channel.push()** call and can modify the channel message configuration. Common use cases:
+
+##### Setting Default Timeout
+
+```typescript
+// channelHooks.ts
+export interface ActionChannelHookContext {
+  useDefaultTimeout?: boolean;
+  customTimeout?: number;
+}
+
+export async function beforeChannelPush<T extends ChannelActionConfig>(
+  actionName: string,
+  config: T
+): Promise<T> {
+  const ctx = config.hookCtx;
+
+  // Set default timeout if not specified
+  if (ctx?.useDefaultTimeout && !config.timeout) {
+    return {
+      ...config,
+      timeout: ctx.customTimeout || 10000  // 10 second default
+    } as T;
+  }
+
+  return config;
+}
+```
+
+```typescript
+// Usage: Pass timeout preferences via hook context
+listTodosChannel({
+  channel: myChannel,
+  fields: ["id", "title"],
+  hookCtx: {
+    useDefaultTimeout: true,
+    customTimeout: 15000
+  },
+  resultHandler: (result) => console.log(result)
+});
+```
+
+##### Logging Channel Messages
+
+```typescript
+export interface ActionChannelHookContext {
+  correlationId?: string;
+  trackPerformance?: boolean;
+  startTime?: number;
+}
+
+export async function beforeChannelPush<T extends ChannelActionConfig>(
+  actionName: string,
+  config: T
+): Promise<T> {
+  const ctx = config.hookCtx;
+
+  // Setup timing
+  if (ctx?.trackPerformance && ctx) {
+    ctx.startTime = Date.now();
+  }
+
+  console.log(`[Channel] Pushing to channel:`, {
+    action: actionName,
+    correlationId: ctx?.correlationId,
+    timestamp: new Date().toISOString()
+  });
+
+  return config;
+}
+```
+
+#### afterChannelResponse Hook
+
+The `afterChannelResponse` hook runs **after the channel response is received** (ok, error, or timeout) and is used for side effects. It receives four parameters:
+
+1. `actionName: string` - The name of the action being executed
+2. `responseType: "ok" | "error" | "timeout"` - The type of channel response
+3. `data: any` - Response data (result for "ok", error for "error", null for "timeout")
+4. `config: ChannelActionConfig` - The config used for the request
+
+##### Logging All Channel Responses
+
+```typescript
+export async function afterChannelResponse<T extends ChannelActionConfig>(
+  actionName: string,
+  responseType: "ok" | "error" | "timeout",
+  data: any,
+  config: T
+): Promise<void> {
+  const ctx = config.hookCtx;
+
+  console.log(`[Channel] Response received:`, {
+    action: actionName,
+    responseType,
+    hasData: data !== null,
+    correlationId: ctx?.correlationId,
+    timestamp: new Date().toISOString()
+  });
+
+  // Log specific details based on response type
+  if (responseType === "error") {
+    console.error(`[Channel] Error in ${actionName}:`, data);
+  } else if (responseType === "timeout") {
+    console.warn(`[Channel] Timeout in ${actionName}`);
+  }
+}
+```
+
+##### Performance Timing
+
+```typescript
+export interface ActionChannelHookContext {
+  startTime?: number;
+  trackPerformance?: boolean;
+  correlationId?: string;
+}
+
+export async function afterChannelResponse<T extends ChannelActionConfig>(
+  actionName: string,
+  responseType: "ok" | "error" | "timeout",
+  data: any,
+  config: T
+): Promise<void> {
+  const ctx = config.hookCtx;
+
+  if (ctx?.trackPerformance && ctx.startTime) {
+    const duration = Date.now() - ctx.startTime;
+
+    console.log(`[Channel] Performance metrics:`, {
+      action: actionName,
+      duration: `${duration}ms`,
+      responseType,
+      success: responseType === "ok" && data?.success,
+      correlationId: ctx?.correlationId
+    });
+
+    // Send to analytics service
+    trackMetric('channel.rpc.duration', duration, {
+      action: actionName,
+      responseType,
+      success: responseType === "ok"
+    });
+  }
+}
+```
+
+##### Telemetry Tracking
+
+```typescript
+export async function afterChannelResponse<T extends ChannelActionConfig>(
+  actionName: string,
+  responseType: "ok" | "error" | "timeout",
+  data: any,
+  config: T
+): Promise<void> {
+  // Send telemetry to monitoring service
+  sendTelemetry({
+    event: 'channel.rpc.completed',
+    action: actionName,
+    domain: config.domain,
+    responseType,
+    success: responseType === "ok" && data?.success,
+    timestamp: Date.now()
+  });
+
+  // Track specific response types
+  if (responseType === "timeout") {
+    sendTelemetry({
+      event: 'channel.rpc.timeout',
+      action: actionName,
+      timestamp: Date.now()
+    });
+  }
+}
+```
+
+##### Error Monitoring
+
+```typescript
+export async function afterChannelResponse<T extends ChannelActionConfig>(
+  actionName: string,
+  responseType: "ok" | "error" | "timeout",
+  data: any,
+  config: T
+): Promise<void> {
+  // Track errors in error monitoring service
+  if (responseType === "error" || responseType === "timeout") {
+    Sentry.captureMessage('Channel RPC failed', {
+      level: 'error',
+      extra: {
+        action: actionName,
+        responseType,
+        data: responseType === "error" ? data : null,
+        domain: config.domain
+      }
+    });
+  } else if (data && !data.success) {
+    // Track validation errors from successful channel responses
+    Sentry.captureMessage('Channel RPC validation error', {
+      level: 'warning',
+      extra: {
+        action: actionName,
+        errors: data.errors
+      }
+    });
+  }
+}
+```
+
+#### Config Precedence Rules
+
+When using `beforeChannelPush` hooks, the **original config always takes precedence** over the modified config:
+
+```typescript
+export async function beforeChannelPush<T extends ChannelActionConfig>(
+  actionName: string,
+  config: T
+): Promise<T> {
+  return {
+    ...config,
+    timeout: config.timeout ?? 10000  // ← Original timeout takes precedence
+  } as T;
+}
+```
+
+**Precedence order:**
+1. Original `config` values (highest priority)
+2. Modified config from `beforeChannelPush` hook
+3. No default timeout (lowest priority)
+
+This ensures that per-request customizations always override hook defaults.
+
+#### Composing Multiple Concerns
+
+```typescript
+// channelHooks.ts - Composing auth + logging + timing
+export interface ActionChannelHookContext {
+  enableAuth?: boolean;
+  authToken?: string;
+  trackPerformance?: boolean;
+  startTime?: number;
+  correlationId?: string;
+}
+
+export async function beforeChannelPush<T extends ChannelActionConfig>(
+  actionName: string,
+  config: T
+): Promise<T> {
+  const ctx = config.hookCtx;
+
+  // Concern 1: Generate correlation ID for request tracking
+  const correlationId = ctx?.correlationId || generateCorrelationId();
+
+  // Concern 2: Log outgoing channel message
+  console.log(`[Channel] Pushing message:`, {
+    action: actionName,
+    correlationId,
+    timestamp: new Date().toISOString()
+  });
+
+  // Concern 3: Setup performance timing
+  if (ctx?.trackPerformance && ctx) {
+    ctx.startTime = Date.now();
+  }
+
+  // Concern 4: Set default timeout if not specified
+  const timeout = config.timeout ?? (ctx?.trackPerformance ? 30000 : undefined);
+
+  return {
+    ...config,
+    timeout,
+    hookCtx: { ...ctx, correlationId }
+  } as T;
+}
+
+export async function afterChannelResponse<T extends ChannelActionConfig>(
+  actionName: string,
+  responseType: "ok" | "error" | "timeout",
+  data: any,
+  config: T
+): Promise<void> {
+  const ctx = config.hookCtx;
+
+  // Concern 1: Performance tracking
+  if (ctx?.trackPerformance && ctx.startTime) {
+    const duration = Date.now() - ctx.startTime;
+    trackMetric('channel.rpc.duration', duration, {
+      action: actionName,
+      responseType
+    });
+  }
+
+  // Concern 2: Response logging
+  console.log(`[Channel] Response received:`, {
+    action: actionName,
+    responseType,
+    correlationId: ctx?.correlationId,
+    duration: ctx?.startTime ? Date.now() - ctx.startTime : undefined
+  });
+
+  // Concern 3: Error monitoring
+  if (responseType !== "ok" || (data && !data.success)) {
+    Sentry.captureMessage('Channel RPC issue', {
+      level: responseType === "ok" ? 'warning' : 'error',
+      extra: {
+        action: actionName,
+        responseType,
+        correlationId: ctx?.correlationId
+      }
+    });
+  }
+
+  // Concern 4: Telemetry
+  sendTelemetry({
+    event: 'channel.rpc.completed',
+    action: actionName,
+    responseType,
+    success: responseType === "ok" && data?.success,
+    correlationId: ctx?.correlationId
+  });
+}
+
+function generateCorrelationId(): string {
+  return `channel_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+```
+
+**Usage with composed channel hooks:**
+
+```typescript
+listTodosChannel({
+  channel: myChannel,
+  fields: ["id", "title"],
+  hookCtx: {
+    enableAuth: true,
+    trackPerformance: true,
+    correlationId: 'user-action-123'
+  },
+  resultHandler: (result) => {
+    if (result.success) {
+      console.log("Todos loaded:", result.data);
+    }
+  }
+});
+```
+
+#### Complete Working Example
+
+Here's a complete example showing all channel hook features:
+
+```typescript
+// channelHooks.ts
+export interface ActionChannelHookContext {
+  enableAuth?: boolean;
+  authToken?: string;
+  trackPerformance?: boolean;
+  startTime?: number;
+  correlationId?: string;
+}
+
+export interface ValidationChannelHookContext {
+  formId?: string;
+  validationLevel?: "strict" | "normal";
+}
+
+// Action hooks
+export async function beforeChannelPush<T extends ChannelActionConfig>(
+  actionName: string,
+  config: T
+): Promise<T> {
+  const ctx = config.hookCtx;
+
+  // Setup timing
+  if (ctx?.trackPerformance && ctx) {
+    ctx.startTime = Date.now();
+  }
+
+  console.log(`[Channel] ${actionName} starting`, {
+    correlationId: ctx?.correlationId
+  });
+
+  return config;
+}
+
+export async function afterChannelResponse<T extends ChannelActionConfig>(
+  actionName: string,
+  responseType: "ok" | "error" | "timeout",
+  data: any,
+  config: T
+): Promise<void> {
+  const ctx = config.hookCtx;
+
+  // Track timing
+  const duration = ctx?.startTime ? Date.now() - ctx.startTime : 0;
+
+  // Log result
+  console.log(`[Channel] ${actionName} completed:`, {
+    responseType,
+    duration: `${duration}ms`,
+    correlationId: ctx?.correlationId
+  });
+
+  // Track errors
+  if (responseType !== "ok") {
+    console.error(`[Channel] ${actionName} failed:`, { responseType, data });
+  }
+}
+
+// Validation hooks
+export async function beforeValidationChannelPush<T extends ValidationChannelConfig>(
+  actionName: string,
+  config: T
+): Promise<T> {
+  const ctx = config.hookCtx;
+  console.log(`[Channel Validation] ${actionName} started`, {
+    formId: ctx?.formId,
+    validationLevel: ctx?.validationLevel
+  });
+  return config;
+}
+
+export async function afterValidationChannelResponse<T extends ValidationChannelConfig>(
+  actionName: string,
+  responseType: "ok" | "error" | "timeout",
+  data: any,
+  config: T
+): Promise<void> {
+  const ctx = config.hookCtx;
+  console.log(`[Channel Validation] ${actionName} completed`, {
+    formId: ctx?.formId,
+    responseType,
+    hasErrors: responseType === "ok" && data && !data.success
+  });
+}
+```
+
+```typescript
+// Usage in your application
+import { listTodosChannel, createTodoChannel, validateCreateTodoChannel } from './ash_rpc';
+import { Channel } from "phoenix";
+
+// Action with channel hooks
+listTodosChannel({
+  channel: myChannel,
+  fields: ["id", "title", { user: ["name"] }],
+  hookCtx: {
+    trackPerformance: true,
+    correlationId: 'list-todos-123'
+  },
+  resultHandler: (result) => {
+    if (result.success) {
+      console.log("Todos loaded:", result.data);
+    }
+  }
+});
+
+// Validation with channel hooks
+validateCreateTodoChannel({
+  channel: myChannel,
+  input: { title: "Test Todo" },
+  hookCtx: {
+    formId: 'create-todo-form',
+    validationLevel: 'strict'
+  },
+  resultHandler: (result) => {
+    if (!result.success) {
+      console.log("Validation errors:", result.errors);
+    }
+  }
+});
+```
+
+#### Troubleshooting
+
+**Config precedence not working:**
+```typescript
+// ❌ Wrong: Original config gets overridden
+return {
+  timeout: 10000,
+  ...config
+};
+
+// ✅ Correct: Original config takes precedence
+return {
+  ...config,
+  timeout: config.timeout ?? 10000
+};
+```
+
+**Hook not executing:**
+- Verify channel hook functions are exported from the configured module
+- Check that `import_into_generated` includes the channel hooks module
+- Regenerate types with `mix ash.codegen --dev`
+- Ensure hook function names match the configuration exactly
+- Verify that `generate_phx_channel_rpc_actions: true` is set in config
+
+**TypeScript errors with channel hook context:**
+```typescript
+// ❌ Wrong: Type assertion without null check
+const ctx = config.hookCtx as ActionChannelHookContext;
+ctx.trackPerformance;  // Error if hookCtx is undefined
+
+// ✅ Correct: Optional chaining or type guard
+const ctx = config.hookCtx as ActionChannelHookContext | undefined;
+if (ctx?.trackPerformance) {
+  // Safe to use
+}
+```
+
+**Response type not being handled:**
+```typescript
+// ✅ Handle all three response types
+export async function afterChannelResponse(
+  actionName: string,
+  responseType: "ok" | "error" | "timeout",
+  data: any,
+  config: any
+): Promise<void> {
+  switch (responseType) {
+    case "ok":
+      // Handle successful response
+      break;
+    case "error":
+      // Handle error response
+      break;
+    case "timeout":
+      // Handle timeout response
+      break;
+  }
+}
+```
+
 ### Advanced Filtering and Pagination
 
 ```typescript
