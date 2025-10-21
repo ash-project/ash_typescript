@@ -233,5 +233,3 @@ This project is licensed under the MIT License - see the [MIT.txt](LICENSES/MIT.
 - **Forum**: [Elixir Forum - Ash Framework](https://elixirforum.com/c/elixir-framework-forums/ash-framework-forum)
 
 ---
-
-Made with ❤️ by the Ash community
