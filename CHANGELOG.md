@@ -30,11 +30,11 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * rpc: add typed query field verification at compile time by [@Torkan](https://github.com/Torkan)
 
-### Bug Fixes:
-
 * add type_mapping_overrides config setting by [@Torkan](https://github.com/Torkan)
 
-* codegen: warn when resources have extension but missing from by [@Torkan](https://github.com/Torkan)
+* codegen: warn when resources have extension but missing from domain by [@Torkan](https://github.com/Torkan)
+
+### Bug Fixes:
 
 * add support for generic actions returning typed struct(s) by [@Torkan](https://github.com/Torkan)
 
