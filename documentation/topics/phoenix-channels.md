@@ -31,14 +31,20 @@ import { createTodo, createTodoChannel } from './ash_rpc';
 // Standard HTTP-based function (always available)
 const httpResult = await createTodo({
   fields: ["id", "title"],
-  input: { title: "New Todo" }
+  input: {
+    title: "New Todo",
+    userId: "user-123"
+  }
 });
 
 // Channel-based function (generated when enabled)
 createTodoChannel({
   channel: myChannel,
   fields: ["id", "title"],
-  input: { title: "New Todo" },
+  input: {
+    title: "New Todo",
+    userId: "user-123"
+  },
   resultHandler: (result) => {
     if (result.success) {
       console.log("Todo created:", result.data);
@@ -90,12 +96,13 @@ defmodule MyAppWeb.UserSocket do
   @impl true
   def connect(params, socket, _connect_info) do
     # AshTypescript assumes that socket.assigns.ash_actor & socket.assigns.ash_tenant are correctly set if needed.
-    # This should be done during the socket connection setup, usually by decrypting the auth token sent by the client, or any other necessary data.
+    # This should be done during the socket connection setup, usually by decrypting the auth token sent by the client.
     # See https://hexdocs.pm/phoenix/channels.html#using-token-authentication for more information.
     {:ok, socket}
   end
 
-  def id(socket), do: socket.assigns.ash_actor.id
+  @impl true
+  def id(_socket), do: nil  # Return a unique identifier if you need presence tracking
 end
 
 # In your my_app_web/channels/ash_typescript_rpc_channel.ex
@@ -150,7 +157,7 @@ Channel functions support all the same features as HTTP functions:
 listTodosChannel({
   channel: ashTypeScriptRpcChannel,
   fields: ["id", "title", { user: ["name"] }],
-  filter: { status: "active" },
+  filter: { completed: { eq: false } },
   page: { limit: 10, offset: 0 },
   resultHandler: (result) => {
     if (result.success) {
@@ -185,13 +192,16 @@ Channel functions provide the same error structure as HTTP functions:
 createTodoChannel({
   channel: myChannel,
   fields: ["id", "title"],
-  input: { title: "New Todo" },
+  input: {
+    title: "New Todo",
+    userId: "user-123"
+  },
   resultHandler: (result) => {
     if (result.success) {
       // result.data is fully typed based on selected fields
       console.log("Created:", result.data.title);
     } else {
-      // Handle validation errors, network errors, etc.
+      // Handle validation errors, etc.
       result.errors.forEach(error => {
         console.error(`Error: ${error.message}`);
         if (error.fieldPath) {

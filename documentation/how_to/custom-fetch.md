@@ -24,20 +24,24 @@ These features enable:
 - Cache control
 - Credential management
 
+> **💡 Global Configuration Alternative**: The `customFetch` and `fetchOptions` parameters shown in this guide are ideal for per-request customization. However, if you need to apply the same custom fetch function or fetch options to all RPC calls globally, use **[Lifecycle Hooks](../topics/lifecycle-hooks.md)** instead. Configure them once in your application settings rather than passing them to every RPC call. You can still override these global defaults on a per-action basis by passing `customFetch` or `fetchOptions` to individual RPC calls. Lifecycle hooks also support other global concerns like authentication, request/response logging, and error tracking.
+
 ## Using fetchOptions
 
-All generated RPC functions accept an optional `fetchOptions` parameter that allows you to pass standard Fetch API options to customize the underlying request.
+All generated RPC functions accept an optional `fetchOptions` parameter that passes standard [Fetch API options](https://developer.mozilla.org/en-US/docs/Web/API/fetch#options) to customize the underlying request.
 
-### Basic Request Customization
-
-Add timeout and cache settings:
+### Example: Request with Fetch Options
 
 ```typescript
-import { createTodo } from './ash_rpc';
+import { createTodo, listTodos } from './ash_rpc';
 
+// Example: Add timeout and cache control
 const todo = await createTodo({
   fields: ["id", "title"],
-  input: { title: "New Todo" },
+  input: {
+    title: "New Todo",
+    userId: "user-id-123"
+  },
   fetchOptions: {
     signal: AbortSignal.timeout(5000), // 5 second timeout
     cache: 'no-cache',
@@ -45,21 +49,8 @@ const todo = await createTodo({
   }
 });
 
-if (todo.success) {
-  console.log("Created:", todo.data);
-}
-```
-
-### Request Cancellation
-
-Use AbortController for cancellable requests:
-
-```typescript
-import { listTodos } from './ash_rpc';
-
+// Example: Cancellable request
 const controller = new AbortController();
-
-// Start the request
 const todosPromise = listTodos({
   fields: ["id", "title"],
   fetchOptions: {
@@ -67,132 +58,11 @@ const todosPromise = listTodos({
   }
 });
 
-// Cancel if user navigates away or conditions change
-setTimeout(() => {
-  controller.abort();
-  console.log("Request cancelled");
-}, 3000);
-
-// Handle the response
-try {
-  const todos = await todosPromise;
-  if (todos.success) {
-    console.log("Todos:", todos.data);
-  }
-} catch (error) {
-  if (error.name === 'AbortError') {
-    console.log("Request was cancelled");
-  }
-}
+// Cancel the request
+controller.abort();
 ```
 
-### Cache Control
-
-Control caching behavior:
-
-```typescript
-import { getTodo } from './ash_rpc';
-
-// Force fresh data (no cache)
-const freshTodo = await getTodo({
-  fields: ["id", "title", "updatedAt"],
-  input: { id: "todo-123" },
-  fetchOptions: {
-    cache: 'no-cache'
-  }
-});
-
-// Allow cached data
-const cachedTodo = await getTodo({
-  fields: ["id", "title"],
-  input: { id: "todo-123" },
-  fetchOptions: {
-    cache: 'default'
-  }
-});
-
-// Force network, update cache
-const networkTodo = await getTodo({
-  fields: ["id", "title"],
-  input: { id: "todo-123" },
-  fetchOptions: {
-    cache: 'reload'
-  }
-});
-```
-
-### Credential Management
-
-Control how credentials are sent:
-
-```typescript
-import { listTodos } from './ash_rpc';
-
-// Include credentials (cookies, authorization headers)
-const todos = await listTodos({
-  fields: ["id", "title"],
-  fetchOptions: {
-    credentials: 'include'
-  }
-});
-
-// Omit credentials
-const publicTodos = await listTodos({
-  fields: ["id", "title"],
-  fetchOptions: {
-    credentials: 'omit'
-  }
-});
-
-// Same-origin only (default)
-const sameTodos = await listTodos({
-  fields: ["id", "title"],
-  fetchOptions: {
-    credentials: 'same-origin'
-  }
-});
-```
-
-### Redirect Handling
-
-Control redirect behavior:
-
-```typescript
-import { getTodo } from './ash_rpc';
-
-const todo = await getTodo({
-  fields: ["id", "title"],
-  input: { id: "todo-123" },
-  fetchOptions: {
-    redirect: 'follow',  // Follow redirects (default)
-    // redirect: 'error',   // Treat redirects as errors
-    // redirect: 'manual',  // Handle redirects manually
-  }
-});
-```
-
-### Combining Multiple Options
-
-Combine multiple fetch options:
-
-```typescript
-import { createTodo } from './ash_rpc';
-
-const controller = new AbortController();
-
-const todo = await createTodo({
-  fields: ["id", "title"],
-  input: { title: "New Todo" },
-  fetchOptions: {
-    signal: controller.signal,
-    cache: 'no-cache',
-    credentials: 'include',
-    redirect: 'follow',
-    mode: 'cors',
-    referrerPolicy: 'no-referrer'
-  }
-});
-```
+Any valid Fetch API option can be passed, including `signal`, `cache`, `credentials`, `mode`, `redirect`, `referrerPolicy`, and more. See the [MDN Fetch API documentation](https://developer.mozilla.org/en-US/docs/Web/API/fetch#options) for the complete list of available options.
 
 ## Custom Fetch Functions
 

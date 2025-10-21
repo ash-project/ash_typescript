@@ -7,103 +7,106 @@ SPDX-License-Identifier: MIT
 
 # Multitenancy Support
 
-AshTypescript provides automatic tenant parameter handling for multitenant resources. When a resource is configured with multitenancy, AshTypescript automatically adds tenant parameters to generated function signatures.
+AshTypescript provides automatic tenant parameter handling for multitenant resources. This is commonly used in SaaS applications where each customer or organization needs isolated data access.
+
+## Overview
+
+When a resource is configured with Ash multitenancy (using either `:attribute` or `:context` strategy), AshTypescript can automatically add tenant parameters to generated TypeScript function signatures, ensuring type-safe tenant isolation at compile time.
 
 ## Configuration
 
-Enable tenant parameter requirements in your configuration:
+The `require_tenant_parameters` setting controls how tenants are provided:
 
 ```elixir
 # config/config.exs
 config :ash_typescript, require_tenant_parameters: true
 ```
 
-## Automatic Tenant Parameters
+**When `true` (explicit tenants)**:
+- Tenant must be provided as a parameter in every RPC call
+- TypeScript enforces tenant parameter at compile time
+- Best for frontend applications that manage tenant context in state
 
-When working with multitenant resources, tenant parameters are automatically added to all RPC function signatures:
+**When `false` (default - implicit tenants)**:
+- Tenant is extracted from the Phoenix connection (e.g., from session, JWT claims, or custom plug)
+- No tenant parameter in TypeScript function signatures
+
+## Explicit Tenant Parameters
+
+With `require_tenant_parameters: true`, tenant parameters are automatically added to all RPC function signatures:
 
 ```typescript
-// Tenant parameters automatically added to function signatures
-const todos = await listTodos({
-  fields: ["id", "title"],
-  tenant: "org-123"
+// Tenant parameter required in function signature
+const projects = await listProjects({
+  fields: ["id", "name", "status"],
+  tenant: "acme-corp"  // Organization identifier
+});
+
+const invoice = await createInvoice({
+  input: {
+    customerId: "cust-456",
+    amount: 1500
+  },
+  fields: ["id", "invoiceNumber"],
+  tenant: "acme-corp"
 });
 ```
 
 ## Type Safety
 
-The tenant parameter is enforced at the TypeScript level:
+When enabled, the tenant parameter is enforced at the TypeScript level:
 
 ```typescript
 // TypeScript enforces tenant parameter
-const todos = await listTodos({
-  fields: ["id", "title"]
-  // ❌ Error: Property 'tenant' is missing
+const projects = await listProjects({
+  fields: ["id", "name"]
+  // ❌ TypeScript Error: Property 'tenant' is missing
 });
 
-const todos = await listTodos({
-  fields: ["id", "title"],
-  tenant: "org-123"  // ✅ Correct
+const projects = await listProjects({
+  fields: ["id", "name"],
+  tenant: "acme-corp"  // ✅ Correct
 });
 ```
 
-## Tenant Context
+## How It Works
 
-The tenant parameter is passed to Ash actions and properly scoped:
+When you configure a resource with multitenancy in Ash (see the [Ash Multitenancy Guide](https://hexdocs.pm/ash/multitenancy.html)), AshTypescript automatically detects this and handles tenant parameters appropriately based on your configuration.
 
-```elixir
-# In your resource
-defmodule MyApp.Todo do
-  use Ash.Resource,
-    domain: MyApp.Domain,
-    data_layer: AshPostgres.DataLayer
-
-  postgres do
-    table "todos"
-    repo MyApp.Repo
-  end
-
-  multitenancy do
-    strategy :attribute
-    attribute :organization_id
-  end
-
-  # ... rest of resource definition
-end
-```
-
-When you call the RPC action with a tenant, it's automatically applied:
+When calling RPC actions with `require_tenant_parameters: true`, the tenant value is passed to Ash and applied according to your resource's multitenancy strategy (`:attribute` or `:context`):
 
 ```typescript
-// Tenant is applied to the Ash query context
-const todos = await listTodos({
-  fields: ["id", "title"],
-  tenant: "org-123"  // Applied as organization_id filter
+// Tenant is automatically applied by Ash based on your resource configuration
+const projects = await listProjects({
+  fields: ["id", "name"],
+  tenant: "acme-corp"
 });
 ```
 
 ## Channel-based RPC
 
-Tenant parameters work seamlessly with Phoenix channel-based RPC:
+When using Phoenix channels, tenant parameters work identically to HTTP-based RPC:
 
 ```typescript
-import { listTodosChannel } from './ash_rpc';
+import { listProjectsChannel } from './ash_rpc';
 import { Channel } from "phoenix";
 
-listTodosChannel({
+listProjectsChannel({
   channel: myChannel,
-  fields: ["id", "title"],
-  tenant: "org-123",  // Tenant parameter included
+  fields: ["id", "name", "status"],
+  tenant: "acme-corp",  // Tenant parameter required
   resultHandler: (result) => {
     if (result.success) {
-      console.log("Todos:", result.data);
+      console.log("Projects:", result.data);
     }
   }
 });
 ```
 
+The tenant is included in the channel message payload and enforced server-side.
+
 ## See Also
 
 - [Phoenix Channels](phoenix-channels.md) - Learn about channel-based RPC
-- [Configuration](/documentation/dsls/DSL:-AshTypescript.md) - View all configuration options
-- [Ash Multitenancy](https://hexdocs.pm/ash/multitenancy.html) - Understand Ash multitenancy concepts
+- [Configuration Reference](../reference/configuration.md) - View all configuration options
+- [Ash Multitenancy Guide](https://hexdocs.pm/ash/multitenancy.html) - Understand Ash multitenancy strategies in depth

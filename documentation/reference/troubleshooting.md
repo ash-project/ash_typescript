@@ -75,14 +75,14 @@ defmodule MyApp.Task do
   use Ash.Resource
 
   typescript do
-    field_names %{
-      "field_1" => "field1",
-      "is_active?" => "isActive"
-    }
+    field_names [
+      field_1: :field1,
+      is_active?: :isActive
+    ]
 
-    argument_names %{
-      "field_2" => "field2"
-    }
+    argument_names [
+      some_action: [field_2: :field2]
+    ]
   end
 end
 ```
@@ -105,10 +105,10 @@ defmodule MyApp.Types.CustomMap do
     ]
 
   def typescript_field_names do
-    %{
-      "field_1" => "field1",
-      "is_valid?" => "isValid"
-    }
+    [
+      field_1: :field1,
+      is_valid?: :isValid
+    ]
   end
 end
 ```
@@ -128,10 +128,10 @@ defmodule MyApp.Domain do
   typescript_rpc do
     resource MyApp.Task do
       rpc_action :read_tasks, :read do
-        metadata_field_names %{
-          "field_1" => "field1",
-          "is_cached?" => "isCached"
-        }
+        metadata_field_names [
+          field_1: :field1,
+          is_cached?: :isCached
+        ]
       end
     end
   end

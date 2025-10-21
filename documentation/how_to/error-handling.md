@@ -26,7 +26,10 @@ import { createTodo } from './ash_rpc';
 
 const result = await createTodo({
   fields: ["id", "title"],
-  input: { title: "New Todo" }
+  input: {
+    title: "New Todo",
+    userId: "user-id-123"
+  }
 });
 
 if (result.success) {
@@ -70,7 +73,7 @@ import { createTodo } from './ash_rpc';
 // Missing required field
 const result = await createTodo({
   fields: ["id", "title"],
-  input: {}  // Missing required 'title' field
+  input: {}  // Missing required 'title' and 'userId' fields
 });
 
 if (!result.success) {
@@ -85,7 +88,8 @@ const result2 = await createTodo({
   fields: ["id", "title"],
   input: {
     title: "",  // Empty string when non-empty required
-    priority: "invalid-priority"  // Invalid enum value
+    priority: "invalid-priority",  // Invalid enum value
+    userId: "user-id-123"
   }
 });
 
@@ -234,7 +238,10 @@ function categorizeError(error: { message: string; code?: string; fieldPath?: st
 // Usage
 const result = await createTodo({
   fields: ["id", "title"],
-  input: { title: "" }
+  input: {
+    title: "",
+    userId: "user-id-123"
+  }
 });
 
 if (!result.success) {
@@ -269,7 +276,8 @@ const result = await createTodo({
   fields: ["id", "title"],
   input: {
     title: "",
-    dueDate: "invalid-date"
+    dueDate: "invalid-date",
+    userId: "user-id-123"
   }
 });
 
@@ -399,7 +407,10 @@ import { createTodoChannel } from './ash_rpc';
 createTodoChannel({
   channel: myChannel,
   fields: ["id", "title"],
-  input: { title: "New Todo" },
+  input: {
+    title: "New Todo",
+    userId: "user-id-123"
+  },
   resultHandler: (result) => {
     if (result.success) {
       console.log("Created:", result.data);
@@ -434,11 +445,11 @@ Never assume success - always handle both success and error cases:
 
 ```typescript
 // Bad: Assumes success
-const result = await createTodo({ fields: ["id"], input: { title: "Todo" } });
+const result = await createTodo({ fields: ["id"], input: { title: "Todo", userId: "user-id-123" } });
 console.log(result.data.id);  // Runtime error if not successful!
 
 // Good: Explicit handling
-const result = await createTodo({ fields: ["id"], input: { title: "Todo" } });
+const result = await createTodo({ fields: ["id"], input: { title: "Todo", userId: "user-id-123" } });
 if (result.success) {
   console.log(result.data.id);
 } else {
@@ -473,7 +484,10 @@ function getUserFriendlyMessage(error: {message: string; code?: string}): string
 
 const result = await createTodo({
   fields: ["id", "title"],
-  input: { title: "" }
+  input: {
+    title: "",
+    userId: "user-id-123"
+  }
 });
 
 if (!result.success) {
@@ -489,7 +503,10 @@ Always log detailed errors for debugging while showing user-friendly messages:
 ```typescript
 const result = await createTodo({
   fields: ["id", "title"],
-  input: { title: "New Todo" }
+  input: {
+    title: "New Todo",
+    userId: "user-id-123"
+  }
 });
 
 if (!result.success) {
@@ -518,7 +535,10 @@ function isSuccessResult<T>(
 
 const result = await createTodo({
   fields: ["id", "title"],
-  input: { title: "New Todo" }
+  input: {
+    title: "New Todo",
+    userId: "user-id-123"
+  }
 });
 
 if (isSuccessResult(result)) {

@@ -70,41 +70,14 @@ The installer performs the following tasks:
 
 ### `mix ash.codegen`
 
-**Preferred approach** for generating TypeScript types along with other Ash extensions in your project.
-
-#### Usage
+**Recommended approach** for most projects. This command runs code generation for all Ash extensions in your project, including AshTypescript.
 
 ```bash
 # Generate types for all Ash extensions including AshTypescript
 mix ash.codegen --dev
-
-# With custom output location
-mix ash.codegen --dev --output "assets/js/ash_rpc.ts"
 ```
 
-#### What It Does
-
-Runs code generation for all Ash extensions in your project, including:
-- AshTypescript (TypeScript types and RPC clients)
-- AshPostgres (database migrations, if installed)
-- AshGraphql (GraphQL schemas, if installed)
-- Other Ash extensions
-
-#### Options
-
-| Option | Description |
-|--------|-------------|
-| `--dev` | Run codegen for development environment |
-| `--output FILE` | Custom output file path for TypeScript |
-
-#### When to Use
-
-- ✅ Projects with multiple Ash extensions
-- ✅ Want to run all codegen tasks together
-- ✅ Standard workflow for Ash projects
-- ❌ Need fine-grained control over AshTypescript only
-
-**This is the recommended approach for most projects.**
+For detailed information about `mix ash.codegen`, see the [Ash documentation](https://hexdocs.pm/ash/Mix.Tasks.Ash.Codegen.html).
 
 ### `mix ash_typescript.codegen`
 

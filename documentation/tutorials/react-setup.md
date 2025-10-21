@@ -360,7 +360,7 @@ This automatically:
 Whenever you change resources or actions:
 
 ```bash
-mix ash.codegen --dev
+mix ash.codegen
 ```
 
 ### 3. Type Check

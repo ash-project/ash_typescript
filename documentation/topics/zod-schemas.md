@@ -53,6 +53,7 @@ import { createTodoZodSchema } from './ash_rpc';
 
 const input = {
   title: "New Todo",
+  userId: "user-123",
   priority: "high"
 };
 
@@ -82,7 +83,10 @@ function TodoForm() {
   const onSubmit = async (data) => {
     const result = await createTodo({
       fields: ["id", "title"],
-      input: data
+      input: {
+        ...data,
+        userId: "user-123"  // Add userId (not in form, from auth context)
+      }
     });
 
     if (result.success) {
@@ -120,30 +124,31 @@ const input: CreateTodoInput = {
 
 ## Schema Customization
 
-The generated Zod schemas respect Ash constraints:
-
-```elixir
-# In your Ash resource
-attribute :title, :string do
-  constraints min_length: 1, max_length: 100
-  allow_nil? false
-end
-
-attribute :priority, :atom do
-  constraints one_of: [:low, :medium, :high, :urgent]
-end
-```
+The generated Zod schemas automatically respect Ash attribute constraints (min/max length, allowed values, etc.). When you define constraints in your Ash resources, AshTypescript translates them into the appropriate Zod validators:
 
 ```typescript
-// Generated Zod schema reflects constraints
+// Generated Zod schema with constraints
 export const createTodoZodSchema = z.object({
-  title: z.string().min(1).max(100),  // Constraints from Ash
-  priority: z.enum(["low", "medium", "high", "urgent"]).optional()
+  title: z.string().min(1).max(100),  // Reflects Ash min_length/max_length constraints
+  priority: z.enum(["low", "medium", "high", "urgent"]).optional()  // Reflects Ash one_of constraint
 });
 ```
+
+For more information on defining attribute constraints, see the [Ash attributes documentation](https://hexdocs.pm/ash/Ash.Resource.Dsl.html#attributes).
+
+### Important: Zod Schemas are Complementary
+
+**Zod schemas cannot represent all Ash validations.** Complex validations, action-specific logic, database constraints, and business rules may exist on the server that cannot be expressed in a Zod schema.
+
+**Best Practice**: Always use Zod schemas in combination with server-side validation:
+
+1. **Client-side (Zod)**: Provides instant feedback for basic constraints like required fields, string lengths, and enum values
+2. **Server-side (Ash)**: Enforces all validation rules, business logic, and database constraints
+
+This layered approach provides the best user experience while maintaining data integrity.
 
 ## See Also
 
 - [Form Validation](form-validation.md) - Learn about server-side validation functions
-- [Type System](type-system.md) - Understand type generation and inference
+- [Configuration Reference](../reference/configuration.md) - View all Zod-related configuration options
 - [Zod Documentation](https://zod.dev/) - Official Zod documentation

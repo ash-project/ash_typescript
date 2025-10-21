@@ -262,6 +262,5 @@ Use the metadata_field_names option to provide valid TypeScript identifiers.
 
 ## See Also
 
-- [Field Name Mapping](/documentation/topics/field-argument-name-mapping.md) - Learn about field and argument name mapping
-- [Type System](/documentation/topics/type-system.md) - Understand type generation and inference
+- [Troubleshooting Guide](/documentation/reference/troubleshooting.md) - Learn about field and argument name mapping
 - [Ash Action Metadata](https://hexdocs.pm/ash/dsl-ash-resource.html#actions-read-metadata) - Learn about Ash metadata in depth

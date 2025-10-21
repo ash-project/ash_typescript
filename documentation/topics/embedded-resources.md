@@ -27,7 +27,7 @@ Use field selection to request embedded resource fields:
 const todo = await getTodo({
   fields: [
     "id", "title",
-    { metadata: ["priority", "tags", "customFields"] }
+    { metadata: ["category", "priorityScore", "tags", "customFields"] }
   ],
   input: { id: "todo-123" }
 });
@@ -43,7 +43,8 @@ type Todo = {
   id: string;
   title: string;
   metadata?: {
-    priority: string;
+    category: string;
+    priorityScore: number;
     tags: string[];
     customFields: Record<string, any>;
   } | null;
@@ -52,6 +53,5 @@ type Todo = {
 
 ## See Also
 
-- [Type System](type-system.md) - Learn about type generation and inference
-- [Field Selection](/documentation/tutorials/field-selection.md) - Understand field selection syntax
-- [Relationships](/documentation/reference/relationships.md) - Compare with relationship handling
+- [Field Selection](/documentation/how_to/field-selection.md) - Understand field selection syntax
+- [Ash Embedded Resources](https://hexdocs.pm/ash/embedded-resources.html) - Learn about Ash embedded resources in depth

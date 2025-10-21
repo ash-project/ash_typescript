@@ -27,15 +27,18 @@ config :ash_typescript,
   # run_endpoint: {:runtime_expr, "CustomTypes.getRunEndpoint()"},
   # validate_endpoint: {:runtime_expr, "process.env.RPC_VALIDATE_ENDPOINT"},
 
-  # Custom error response handling
-  # rpc_error_response_handler: "MyAppConfig.handleRpcResponseError",
-
   # Field formatting
   input_field_formatter: :camel_case,
   output_field_formatter: :camel_case,
 
   # Multitenancy
   require_tenant_parameters: false,
+
+  # Lifecycle hooks (optional)
+  # rpc_action_before_request_hook: "RpcHooks.beforeActionRequest",
+  # rpc_action_after_request_hook: "RpcHooks.afterActionRequest",
+  # rpc_validation_before_request_hook: "RpcHooks.beforeValidationRequest",
+  # rpc_validation_after_request_hook: "RpcHooks.afterValidationRequest",
 
   # Zod schema generation
   generate_zod_schemas: true,
@@ -48,6 +51,12 @@ config :ash_typescript,
   # Phoenix channel-based RPC actions
   generate_phx_channel_rpc_actions: false,
   phoenix_import_path: "phoenix",
+
+  # Phoenix channel lifecycle hooks (optional, requires generate_phx_channel_rpc_actions: true)
+  # rpc_action_before_channel_push_hook: "ChannelHooks.beforeChannelPush",
+  # rpc_action_after_channel_response_hook: "ChannelHooks.afterChannelResponse",
+  # rpc_validation_before_channel_push_hook: "ChannelHooks.beforeValidationChannelPush",
+  # rpc_validation_after_channel_response_hook: "ChannelHooks.afterValidationChannelResponse",
 
   # Custom type imports
   import_into_generated: [
@@ -75,16 +84,27 @@ config :ash_typescript,
 | `output_file` | `string` | `"assets/js/ash_rpc.ts"` | Path where generated TypeScript code will be written |
 | `run_endpoint` | `string \| {:runtime_expr, string}` | `"/rpc/run"` | Endpoint for executing RPC actions |
 | `validate_endpoint` | `string \| {:runtime_expr, string}` | `"/rpc/validate"` | Endpoint for validating RPC requests |
-| `rpc_error_response_handler` | `string \| nil` | `nil` | Custom function for handling HTTP error responses |
 | `input_field_formatter` | `:camel_case \| :snake_case` | `:camel_case` | How to format field names in request inputs |
 | `output_field_formatter` | `:camel_case \| :snake_case` | `:camel_case` | How to format field names in response outputs |
 | `require_tenant_parameters` | `boolean` | `false` | Whether to require tenant parameters in RPC calls |
+| `rpc_action_before_request_hook` | `string \| nil` | `nil` | Function called before RPC action requests |
+| `rpc_action_after_request_hook` | `string \| nil` | `nil` | Function called after RPC action requests |
+| `rpc_validation_before_request_hook` | `string \| nil` | `nil` | Function called before validation requests |
+| `rpc_validation_after_request_hook` | `string \| nil` | `nil` | Function called after validation requests |
+| `rpc_action_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for action hook context |
+| `rpc_validation_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for validation hook context |
 | `generate_zod_schemas` | `boolean` | `true` | Whether to generate Zod validation schemas |
 | `zod_import_path` | `string` | `"zod"` | Import path for Zod library |
 | `zod_schema_suffix` | `string` | `"ZodSchema"` | Suffix for generated Zod schema names |
 | `generate_validation_functions` | `boolean` | `true` | Whether to generate form validation functions |
 | `generate_phx_channel_rpc_actions` | `boolean` | `false` | Whether to generate Phoenix channel-based RPC functions |
 | `phoenix_import_path` | `string` | `"phoenix"` | Import path for Phoenix library |
+| `rpc_action_before_channel_push_hook` | `string \| nil` | `nil` | Function called before channel push for actions |
+| `rpc_action_after_channel_response_hook` | `string \| nil` | `nil` | Function called after channel response for actions |
+| `rpc_validation_before_channel_push_hook` | `string \| nil` | `nil` | Function called before channel push for validations |
+| `rpc_validation_after_channel_response_hook` | `string \| nil` | `nil` | Function called after channel response for validations |
+| `rpc_action_channel_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for channel action hook context |
+| `rpc_validation_channel_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for channel validation hook context |
 | `import_into_generated` | `list` | `[]` | List of custom modules to import |
 | `type_mapping_overrides` | `list` | `[]` | Override TypeScript types for Ash types |
 | `untyped_map_type` | `string` | `"Record<string, any>"` | TypeScript type for untyped maps |
@@ -342,110 +362,153 @@ export async function createTodo<Fields extends CreateTodoFields>(
 }
 ```
 
-## Custom Error Response Handling
+## Lifecycle Hooks Configuration
 
-For applications that need custom error handling when HTTP requests fail (e.g., enhanced logging, user notifications, retry logic), AshTypescript supports custom error response functions.
+AshTypescript provides lifecycle hooks that allow you to inject custom logic before and after HTTP requests and Phoenix Channel pushes. These hooks enable cross-cutting concerns like authentication, logging, telemetry, performance tracking, and error monitoring.
 
-### Why Use Custom Error Handlers?
+### Why Use Lifecycle Hooks?
 
-The default error handling returns a simple network error when a response is not OK:
-
-```typescript
-// Default behavior
-if (!response.ok) {
-  return {
-    success: false,
-    errors: [{ type: "network", message: response.statusText, details: {} }]
-  };
-}
-```
-
-Custom error handlers allow you to:
-- **Log errors** to external services (Sentry, Datadog, etc.)
-- **Parse server error responses** for more detailed error information
-- **Add retry logic** or circuit breaker patterns
-- **Display user-friendly error messages** based on HTTP status codes
-- **Track metrics** around API failures
+Lifecycle hooks provide a centralized way to:
+- **Add authentication tokens** - Inject auth headers for all requests
+- **Log requests and responses** - Track API calls for debugging
+- **Measure performance** - Time API calls and track latency
+- **Send telemetry** - Report metrics to monitoring services
+- **Handle errors globally** - Track errors in Sentry, Datadog, etc.
+- **Transform requests** - Modify config before sending
 
 ### Configuration
 
-Configure a custom error handler function that will be called when responses are not OK:
+Configure lifecycle hooks for HTTP-based RPC actions:
 
 ```elixir
 # config/config.exs
 config :ash_typescript,
-  # Reference a TypeScript function to handle non-OK responses
-  rpc_error_response_handler: "MyAppConfig.handleRpcResponseError",
+  # HTTP lifecycle hooks for RPC actions
+  rpc_action_before_request_hook: "RpcHooks.beforeActionRequest",
+  rpc_action_after_request_hook: "RpcHooks.afterActionRequest",
 
-  # Import the module containing your error handler
+  # HTTP lifecycle hooks for validation actions
+  rpc_validation_before_request_hook: "RpcHooks.beforeValidationRequest",
+  rpc_validation_after_request_hook: "RpcHooks.afterValidationRequest",
+
+  # TypeScript types for hook context (optional)
+  rpc_action_hook_context_type: "RpcHooks.ActionHookContext",
+  rpc_validation_hook_context_type: "RpcHooks.ValidationHookContext",
+
+  # Import the module containing your hook functions
   import_into_generated: [
     %{
-      import_name: "MyAppConfig",
-      file: "./myAppConfig"
+      import_name: "RpcHooks",
+      file: "./rpcHooks"
     }
   ]
 ```
 
-### TypeScript Implementation
+### Configuration Options
 
-Create a TypeScript file with your custom error handler function:
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `rpc_action_before_request_hook` | `string \| nil` | `nil` | Function called before RPC action requests |
+| `rpc_action_after_request_hook` | `string \| nil` | `nil` | Function called after RPC action requests |
+| `rpc_validation_before_request_hook` | `string \| nil` | `nil` | Function called before validation requests |
+| `rpc_validation_after_request_hook` | `string \| nil` | `nil` | Function called after validation requests |
+| `rpc_action_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for action hook context |
+| `rpc_validation_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for validation hook context |
 
-```typescript
-// myAppConfig.ts
+### Phoenix Channel Lifecycle Hooks
 
-// Custom error handler with enhanced error details
-export function handleRpcResponseError(response: Response) {
-  // Log error to monitoring service
-  console.error(`RPC Error: ${response.status} ${response.statusText}`, {
-    url: response.url,
-    status: response.status,
-    statusText: response.statusText,
-    timestamp: new Date().toISOString()
-  });
+For Phoenix Channel-based RPC actions, configure channel-specific hooks. Like HTTP hooks, channel hooks are separated between actions and validations:
 
-  // You could also send to external error tracking:
-  // Sentry.captureMessage(`RPC Error: ${response.status}`);
+```elixir
+config :ash_typescript,
+  # Enable channel RPC generation
+  generate_phx_channel_rpc_actions: true,
 
-  // Return enhanced error details
-  return {
-    success: false as const,
-    errors: [
-      {
-        type: "network" as const,
-        message: `HTTP ${response.status}: ${response.statusText}`,
-        details: {
-          url: response.url,
-          status: String(response.status)
-        }
-      }
-    ]
-  };
-}
+  # Channel lifecycle hooks for RPC actions
+  rpc_action_before_channel_push_hook: "ChannelHooks.beforeChannelPush",
+  rpc_action_after_channel_response_hook: "ChannelHooks.afterChannelResponse",
+
+  # Channel lifecycle hooks for validation actions
+  rpc_validation_before_channel_push_hook: "ChannelHooks.beforeValidationChannelPush",
+  rpc_validation_after_channel_response_hook: "ChannelHooks.afterValidationChannelResponse",
+
+  # Channel hook context types (optional)
+  rpc_action_channel_hook_context_type: "ChannelHooks.ChannelActionHookContext",
+  rpc_validation_channel_hook_context_type: "ChannelHooks.ChannelValidationHookContext",
+
+  # Import the module containing channel hooks
+  import_into_generated: [
+    %{
+      import_name: "ChannelHooks",
+      file: "./channelHooks"
+    }
+  ]
 ```
 
-### Generated Code
+### Channel Hook Options
 
-The generated RPC functions will call your custom error handler instead of the default error handling:
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `rpc_action_before_channel_push_hook` | `string \| nil` | `nil` | Function called before channel push for actions |
+| `rpc_action_after_channel_response_hook` | `string \| nil` | `nil` | Function called after channel response for actions |
+| `rpc_validation_before_channel_push_hook` | `string \| nil` | `nil` | Function called before channel push for validations |
+| `rpc_validation_after_channel_response_hook` | `string \| nil` | `nil` | Function called after channel response for validations |
+| `rpc_action_channel_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for channel action hook context |
+| `rpc_validation_channel_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for channel validation hook context |
+
+### Example Hook Implementation
 
 ```typescript
-// Generated in ash_rpc.ts
-import * as MyAppConfig from "./myAppConfig";
+// rpcHooks.ts
+export interface ActionHookContext {
+  enableLogging?: boolean;
+  enableTiming?: boolean;
+  customHeaders?: Record<string, string>;
+}
 
-export async function createTodo<Fields extends CreateTodoFields>(
-  config: CreateTodoConfig<Fields>
-): Promise<CreateTodoResult<Fields>> {
-  // ... request setup code ...
+export async function beforeActionRequest<T>(
+  action: string,
+  config: T & { hookCtx?: ActionHookContext }
+): Promise<T & { hookCtx?: ActionHookContext }> {
+  const startTime = performance.now();
 
-  const response = await fetchFunction(getRunEndpoint(), fetchOptions);
-
-  if (!response.ok) {
-    return MyAppConfig.handleRpcResponseError(response)  // Calls your custom handler
+  if (config.hookCtx?.enableLogging) {
+    console.log(`[${action}] Request started`, config);
   }
 
-  const result = await response.json();
-  return result as CreateTodoResult<Fields>;
+  // Add auth token
+  const token = localStorage.getItem('authToken');
+  const headers = {
+    ...config.headers,
+    ...config.hookCtx?.customHeaders,
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+
+  return {
+    ...config,
+    headers,
+    hookCtx: {
+      ...config.hookCtx,
+      startTime
+    }
+  };
+}
+
+export async function afterActionRequest<T>(
+  action: string,
+  config: T & { hookCtx?: ActionHookContext },
+  result: any
+): Promise<any> {
+  if (config.hookCtx?.enableTiming) {
+    const duration = performance.now() - (config.hookCtx as any).startTime;
+    console.log(`[${action}] Completed in ${duration}ms`);
+  }
+
+  return result;
 }
 ```
+
+For complete details and examples, see the [Lifecycle Hooks](../topics/lifecycle-hooks.md) documentation.
 
 ## Field and Argument Name Mapping
 

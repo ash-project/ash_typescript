@@ -9,19 +9,7 @@ SPDX-License-Identifier: MIT
 
 AshTypescript provides comprehensive support for Ash union types with selective field access. Union types allow a single field to hold values of different types, and AshTypescript lets you selectively request fields from specific union members.
 
-## Defining Union Types
-
-Define a union type attribute in your Ash resource:
-
-```elixir
-# In your resource
-attribute :content, :union do
-  constraints types: [
-    text: [type: :string],
-    checklist: [type: MyApp.ChecklistContent]
-  ]
-end
-```
+For information on defining union types in your Ash resources, see the [Ash union type documentation](https://hexdocs.pm/ash/Ash.Type.Union.html).
 
 ## Selective Field Access
 
@@ -49,8 +37,8 @@ Union types receive full type inference with discriminated unions:
 ```typescript
 // Generated types preserve union structure
 type TodoContent =
-  | { __type: "text"; text: string }
-  | { __type: "checklist"; items: string[]; completedCount: number };
+  | { text: string }
+  | { checklist: { items: string[]; completedCount: number } };
 
 type Todo = {
   id: string;
@@ -58,9 +46,12 @@ type Todo = {
   content?: TodoContent | null;
 };
 
-// TypeScript can discriminate based on __type
-if (todo.content?.__type === "checklist") {
-  console.log(todo.content.items); // TypeScript knows this is available
+// TypeScript discriminates based on which member is present
+if (todo.content?.checklist) {
+  console.log(todo.content.checklist.items); // TypeScript knows this is available
+  console.log(todo.content.checklist.completedCount);
+} else if (todo.content?.text) {
+  console.log(todo.content.text); // String value
 }
 ```
 
@@ -97,6 +88,6 @@ const todo = await getTodo({
 
 ## See Also
 
-- [Type System](type-system.md) - Learn about type generation and inference
 - [Embedded Resources](embedded-resources.md) - Understand embedded resource handling
-- [Field Selection](/documentation/tutorials/field-selection.md) - Master field selection syntax
+- [Field Selection](../how_to/field-selection.md) - Master field selection syntax
+- [Ash Union Types](https://hexdocs.pm/ash/Ash.Type.Union.html) - Learn about defining union types in Ash

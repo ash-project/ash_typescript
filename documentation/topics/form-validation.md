@@ -30,7 +30,8 @@ import { validateCreateTodo } from './ash_rpc';
 const validationResult = await validateCreateTodo({
   input: {
     title: "New Todo",
-    priority: "high"
+    priority: "high",
+    userId: "123e4567-e89b-12d3-a456-426614174000"
   }
 });
 
@@ -52,9 +53,10 @@ type ValidationResult =
   | {
       success: false;
       errors: Array<{
-        fieldPath: string;
+        type: string;
         message: string;
-        code: string;
+        fieldPath?: string;
+        details: Record<string, string>;
       }>;
     };
 ```
@@ -105,7 +107,8 @@ validateCreateTodoChannel({
   channel: myChannel,
   input: {
     title: "New Todo",
-    priority: "high"
+    priority: "high",
+    userId: "123e4567-e89b-12d3-a456-426614174000"
   },
   resultHandler: (result) => {
     if (result.success) {
@@ -150,58 +153,84 @@ function onInputChange(field, value, channel) {
 }
 ```
 
-## Validation vs. Zod Schemas
+## Recommended Approach: Combine Zod Schemas and Validation Functions
 
-AshTypescript provides two approaches to validation:
+**Best Practice**: Use Zod schemas for client-side validation first, then call validation functions only when schema validation passes. This provides instant user feedback while reducing network traffic and server load.
 
-### Server-side Validation (Validation Functions)
+### Two-Layer Validation Strategy
 
-- **When**: Validates against server-side Ash constraints
-- **Where**: Runs on the server
-- **Use for**: Complex business logic, database constraints, cross-field validation
-- **Pros**: Always up-to-date with server rules, no client-side duplication
-- **Cons**: Requires network round-trip
+AshTypescript provides two complementary validation mechanisms:
 
-```typescript
-const result = await validateCreateTodo({ input: formData });
-```
+#### 1. Client-side Validation (Zod Schemas)
 
-### Client-side Validation (Zod Schemas)
-
-- **When**: Validates against generated TypeScript types
-- **Where**: Runs in the browser
-- **Use for**: Basic type checking, instant feedback, offline validation
-- **Pros**: No network required, instant feedback
-- **Cons**: Must stay in sync with server
+- **Purpose**: Instant feedback for type errors and basic constraints
+- **When**: Always run first, before server validation
+- **Benefits**:
+  - Instant feedback (no network delay)
+  - Reduces unnecessary server calls
+  - Works offline
+  - Catches most common input errors
 
 ```typescript
-const result = createTodoZodSchema.safeParse(formData);
+import { createTodoZodSchema } from './ash_rpc';
+
+const zodResult = createTodoZodSchema.safeParse(formData);
+if (!zodResult.success) {
+  // Show errors immediately without server call
+  return { success: false, errors: zodResult.error.issues };
+}
 ```
 
-### Combined Approach
+#### 2. Server-side Validation (Validation Functions)
 
-Use both for optimal user experience:
+- **Purpose**: Business logic, database constraints, complex validations
+- **When**: Only after Zod validation passes
+- **Benefits**:
+  - Always up-to-date with server rules
+  - Validates complex business logic
+  - Checks database constraints (uniqueness, etc.)
+  - No client-side code duplication
+
+```typescript
+import { validateCreateTodo } from './ash_rpc';
+
+// Only call after Zod validation passes
+const result = await validateCreateTodo({
+  input: formData
+});
+```
+
+### Complete Validation Pattern
+
+Implement both layers for optimal user experience:
 
 ```typescript
 import { createTodoZodSchema, validateCreateTodo } from './ash_rpc';
 
 async function validateForm(formData) {
-  // 1. Quick client-side validation with Zod
+  // Layer 1: Client-side validation with Zod (instant feedback)
   const zodResult = createTodoZodSchema.safeParse(formData);
 
   if (!zodResult.success) {
+    // Return immediately - no server call needed
     return { success: false, errors: zodResult.error.issues };
   }
 
-  // 2. Server-side validation for business rules
+  // Layer 2: Server-side validation (only if Zod passes)
+  // This reduces network traffic and server load
   const serverResult = await validateCreateTodo({ input: formData });
 
   return serverResult;
 }
 ```
 
+**Why This Matters**: By validating with Zod first, you catch most errors instantly without making a server request. This means:
+- Users get immediate feedback for common mistakes
+- Your server handles fewer validation requests
+- Network traffic is reduced
+- Better user experience with no validation delays
+
 ## See Also
 
 - [Zod Schemas](zod-schemas.md) - Learn about client-side Zod validation
 - [Phoenix Channels](phoenix-channels.md) - Understand channel-based communication
-- [Type System](type-system.md) - Explore type generation and inference

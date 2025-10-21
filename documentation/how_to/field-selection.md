@@ -60,7 +60,7 @@ const todo = await getTodo({
 });
 ```
 
-**Note**: There is no "select all" option. This is intentional to prevent over-fetching and ensure you're explicit about data requirements.
+**Note**: There is no "select all" option. This is intentional to prevent over-fetching and ensure you're explicit about data requirements, which is needed for full type-safety.
 
 ## Nested Field Selection
 
@@ -211,9 +211,9 @@ const todo = await getTodo({
     "id",
     "title",
     {
-      "priorityScore": {
-        "args": { "multiplier": 2.5, "includeSubtasks": true },
-        "fields": ["score", "rank", "category"]
+      priorityScore: {
+        args: { multiplier: 2.5, includeSubtasks: true },
+        fields: ["score", "rank", "category"]
       }
     }
   ],
@@ -241,9 +241,9 @@ const todo = await getTodo({
         "name",
         "email",
         {
-          "activityScore": {
-            "args": { "days": 30 },
-            "fields": ["score", "trend"]
+          activityScore: {
+            args: { days: 30 },
+            fields: ["score", "trend"]
           }
         }
       ]
@@ -372,10 +372,10 @@ if (todo.success) {
   // TypeScript understands the union type
   const content = todo.data.content;
 
-  if (content.__type === "textContent") {
+  if (content.textContext) {
     console.log("Text:", content.text);
     console.log("Formatting:", content.formatting);
-  } else if (content.__type === "imageContent") {
+  } else if (content.imageContent) {
     console.log("Image URL:", content.url);
     console.log("Caption:", content.caption);
   }
@@ -407,35 +407,6 @@ const notification = await getNotification({
     }
   ],
   input: { id: "notif-123" }
-});
-```
-
-## Performance Optimization
-
-### Request Only What You Need
-
-Minimize payload size by requesting only necessary fields:
-
-```typescript
-// Bad: Over-fetching
-const todos = await listTodos({
-  fields: [
-    "id", "title", "description", "completed", "priority",
-    "createdAt", "updatedAt", "deletedAt", "archivedAt",
-    { user: ["id", "name", "email", "bio", "createdAt"] },
-    { assignee: ["id", "name", "email", "bio", "createdAt"] },
-    { tags: ["id", "name", "color", "description"] }
-  ]
-});
-
-// Good: Request only what's displayed
-const todos = await listTodos({
-  fields: [
-    "id",
-    "title",
-    "completed",
-    { user: ["name"] }
-  ]
 });
 ```
 
@@ -606,40 +577,6 @@ const fields = selectTodoFields(
 const todos = await listTodos({ fields });
 ```
 
-### Dynamic Field Selection Based on Permissions
-
-Select different fields based on user permissions:
-
-```typescript
-interface UserPermissions {
-  canViewPrivateFields: boolean;
-  canViewFinancialData: boolean;
-}
-
-function getTodoFieldsForUser(permissions: UserPermissions): any[] {
-  const fields: any[] = ["id", "title", "completed"];
-
-  if (permissions.canViewPrivateFields) {
-    fields.push("description", "priority");
-    fields.push({ user: ["name", "email"] });
-  } else {
-    fields.push({ user: ["name"] });
-  }
-
-  if (permissions.canViewFinancialData) {
-    fields.push("estimatedCost", "actualCost");
-  }
-
-  return fields;
-}
-
-// Usage
-const currentUserPermissions = await getCurrentUserPermissions();
-const todos = await listTodos({
-  fields: getTodoFieldsForUser(currentUserPermissions)
-});
-```
-
 ### Pagination with Consistent Fields
 
 Use consistent field selection across paginated requests:
@@ -695,148 +632,21 @@ async function fetchTodoDetail(id: string) {
 
 ### Search Results Pattern
 
-Include only fields relevant to search results:
+Include fields relevant to displaying search results:
 
 ```typescript
-async function searchTodos(query: string) {
+async function fetchTodosForDisplay() {
   return await listTodos({
     fields: [
       "id",
       "title",
-      "description",  // Include for search highlighting
+      "description",
+      "completed",
       { user: ["name"] },
       { tags: ["name"] }
-    ],
-    filter: {
-      or: [
-        { title: { ilike: `%${query}%` } },
-        { description: { ilike: `%${query}%` } }
-      ]
-    }
-  });
-}
-```
-
-### Dashboard/Analytics Pattern
-
-Select only aggregation-relevant fields:
-
-```typescript
-async function getTodoStatistics() {
-  const todos = await listTodos({
-    fields: [
-      "id",
-      "completed",
-      "priority",
-      "createdAt",
-      { user: ["id"] }  // Just ID for grouping
     ]
   });
-
-  if (todos.success) {
-    const stats = {
-      total: todos.data.length,
-      completed: todos.data.filter(t => t.completed).length,
-      byPriority: groupBy(todos.data, t => t.priority),
-      byUser: groupBy(todos.data, t => t.user.id)
-    };
-    return stats;
-  }
 }
-```
-
-## Best Practices
-
-### 1. Request Only What You Display
-
-Don't request fields you won't use:
-
-```typescript
-// Bad: Requesting unused fields
-const todos = await listTodos({
-  fields: ["id", "title", "description", "completed", "createdAt", "updatedAt"]
-});
-// Only displaying title and completed
-
-// Good: Request only what's needed
-const todos = await listTodos({
-  fields: ["id", "title", "completed"]
-});
-```
-
-### 2. Use Consistent Field Selection
-
-Keep field selection consistent for the same view:
-
-```typescript
-// Bad: Inconsistent fields
-const todos1 = await listTodos({ fields: ["id", "title"] });
-const todos2 = await listTodos({ fields: ["id", "title", "completed"] });
-
-// Good: Consistent field selection
-const fields = ["id", "title", "completed"];
-const todos1 = await listTodos({ fields });
-const todos2 = await listTodos({ fields });
-```
-
-### 3. Document Complex Field Selections
-
-Add comments for complex nested selections:
-
-```typescript
-const todo = await getTodo({
-  fields: [
-    "id",
-    "title",
-    {
-      // Include comment author details for display
-      comments: [
-        "id",
-        "text",
-        "createdAt",
-        {
-          // Author name and avatar for comment display
-          author: ["name", "avatarUrl"]
-        }
-      ],
-      // Tag colors for visual badges
-      tags: ["name", "color"]
-    }
-  ],
-  input: { id: todoId }
-});
-```
-
-### 4. Avoid Deep Nesting When Possible
-
-Limit nesting depth for performance and maintainability:
-
-```typescript
-// Be cautious with deep nesting
-const todo = await getTodo({
-  fields: [
-    "id",
-    {
-      comments: [
-        "text",
-        {
-          author: [
-            "name",
-            {
-              profile: [
-                "bio",
-                {
-                  settings: ["theme"]  // 4 levels deep - consider if necessary
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    }
-  ],
-  input: { id: todoId }
-});
 ```
 
 ## Related Documentation

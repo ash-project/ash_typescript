@@ -7,7 +7,7 @@ SPDX-License-Identifier: MIT
 
 # Lifecycle Hooks
 
-AshTypescript provides comprehensive lifecycle hooks for both HTTP and Phoenix Channel-based RPC actions. These hooks enable cross-cutting concerns like authentication, logging, telemetry, performance tracking, and error monitoring.
+AshTypescript provides comprehensive lifecycle hooks for both HTTP and Phoenix Channel-based RPC actions. These hooks enable cross-cutting concerns like logging, telemetry, performance tracking, and error monitoring. HTTP hooks additionally support authentication header injection.
 
 ## Table of Contents
 
@@ -20,7 +20,6 @@ AshTypescript provides comprehensive lifecycle hooks for both HTTP and Phoenix C
   - [afterRequest Hook](#afterrequest-hook)
   - [Config Precedence Rules](#config-precedence-rules)
   - [Exception Handling](#exception-handling)
-  - [Composing Multiple Concerns](#composing-multiple-concerns)
   - [Complete Working Example](#complete-working-example)
 - [Channel Lifecycle Hooks](#channel-lifecycle-hooks)
   - [Why Use Channel Lifecycle Hooks?](#why-use-channel-lifecycle-hooks)
@@ -30,7 +29,6 @@ AshTypescript provides comprehensive lifecycle hooks for both HTTP and Phoenix C
   - [beforeChannelPush Hook](#beforechannelpush-hook)
   - [afterChannelResponse Hook](#afterchannelresponse-hook)
   - [Channel Config Precedence Rules](#channel-config-precedence-rules)
-  - [Composing Multiple Channel Concerns](#composing-multiple-channel-concerns)
   - [Complete Channel Working Example](#complete-channel-working-example)
 - [Troubleshooting](#troubleshooting)
 
@@ -41,12 +39,13 @@ AshTypescript provides lifecycle hooks that let you inject custom logic before a
 ### Why Use HTTP Lifecycle Hooks?
 
 Lifecycle hooks provide a centralized way to:
-- **Add authentication tokens** - Inject auth headers for all requests
+- **Add authentication tokens** - Automatically inject auth headers from localStorage
 - **Log requests and responses** - Track API calls for debugging
 - **Measure performance** - Time API calls and track latency
 - **Send telemetry** - Report metrics to monitoring services
 - **Handle errors globally** - Track errors in Sentry, Datadog, etc.
-- **Add default headers** - Set default headers for all requests
+- **Add correlation IDs** - Track requests across distributed systems
+- **Add default headers** - Set client version, request IDs, etc.
 - **Transform requests** - Modify config before sending
 
 ### HTTP Configuration
@@ -195,21 +194,17 @@ The `beforeRequest` hook runs **before the HTTP request** and can modify the req
 
 ```typescript
 // rpcHooks.ts
-export interface ActionHookContext {
-  enableAuth?: boolean;
-  authToken?: string;
-}
-
 export function beforeRequest<T extends ActionConfig>(config: T): T {
-  const ctx = config.hookCtx;
+  // Fetch auth token from localStorage (if it exists)
+  const authToken = localStorage.getItem('authToken');
 
-  // Add auth token if context requests it
-  if (ctx?.enableAuth && ctx.authToken) {
+  // Add authentication header if token is present
+  if (authToken) {
     return {
       ...config,
       headers: {
         ...config.headers,
-        'Authorization': `Bearer ${ctx.authToken}`
+        'Authorization': `Bearer ${authToken}`
       }
     } as T;
   }
@@ -218,31 +213,54 @@ export function beforeRequest<T extends ActionConfig>(config: T): T {
 }
 ```
 
+This pattern automatically adds authentication to all RPC requests without needing to pass tokens through every call. The hook centralizes auth header logic in one place.
+
 ```typescript
-// Usage: Pass auth token via hook context
+// Usage: Auth headers are added automatically
 const todos = await listTodos({
-  fields: ["id", "title"],
-  hookCtx: {
-    enableAuth: true,
-    authToken: getUserAuthToken()
-  }
+  fields: ["id", "title"]
+  // No need to pass auth tokens - hook handles it!
 });
 ```
 
-#### Setting Default Headers
+#### Adding Correlation IDs for Request Tracking
 
 ```typescript
+// rpcHooks.ts
+export interface ActionHookContext {
+  correlationId?: string;
+}
+
 export function beforeRequest<T extends ActionConfig>(config: T): T {
-  // Add default headers for ALL requests (unconditional)
+  const ctx = config.hookCtx;
+
+  // Use provided correlation ID or generate one
+  const correlationId = ctx?.correlationId || generateRequestId();
+
   return {
     ...config,
     headers: {
       'X-Client-Version': '1.0.0',
-      'X-Request-ID': generateRequestId(),
+      'X-Correlation-ID': correlationId,
+      'X-Request-ID': correlationId,
       ...config.headers  // Original headers take precedence
     }
   } as T;
 }
+
+function generateRequestId(): string {
+  return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+```
+
+```typescript
+// Usage: Pass correlation ID for distributed tracing
+const todos = await listTodos({
+  fields: ["id", "title"],
+  hookCtx: {
+    correlationId: 'user-dashboard-load-456'
+  }
+});
 ```
 
 #### Request Timing Setup
@@ -467,8 +485,14 @@ function MyComponent() {
     try {
       const result = await createTodo({
         fields: ["id", "title"],
-        input: { title: "New Todo" },
-        hookCtx: { requireAuth: true }
+        input: {
+          title: "New Todo",
+          userId: "123e4567-e89b-12d3-a456-426614174000"
+        },
+        hookCtx: {
+          correlationId: 'user-submit-action',
+          trackPerformance: true
+        }
       });
       // Handle success
     } catch (error) {
@@ -479,119 +503,6 @@ function MyComponent() {
 }
 ```
 
-### Composing Multiple Concerns
-
-Since hooks don't support arrays, compose multiple concerns in a single hook function:
-
-```typescript
-// rpcHooks.ts - Composing auth + logging + timing
-export interface ActionHookContext {
-  enableAuth?: boolean;
-  authToken?: string;
-  trackPerformance?: boolean;
-  startTime?: number;
-  correlationId?: string;
-}
-
-export function beforeRequest<T extends ActionConfig>(config: T): T {
-  const ctx = config.hookCtx;
-
-  // Concern 1: Add correlation ID for request tracking
-  const correlationId = ctx?.correlationId || generateCorrelationId();
-
-  // Concern 2: Log outgoing request
-  console.log('Outgoing RPC request:', {
-    action: config.action,
-    correlationId,
-    timestamp: new Date().toISOString()
-  });
-
-  // Concern 3: Setup performance timing
-  if (ctx?.trackPerformance && ctx) {
-    ctx.startTime = Date.now();
-  }
-
-  // Concern 4: Add authentication
-  const headers: Record<string, string> = {
-    'X-Correlation-ID': correlationId,
-    ...config.headers
-  };
-
-  if (ctx?.enableAuth && ctx.authToken) {
-    headers['Authorization'] = `Bearer ${ctx.authToken}`;
-  }
-
-  return {
-    ...config,
-    headers,
-    hookCtx: { ...ctx, correlationId }
-  } as T;
-}
-
-export function afterRequest<T extends ActionConfig>(
-  response: Response,
-  result: any | null,
-  config: T
-): void {
-  const ctx = config.hookCtx;
-
-  // Concern 1: Performance tracking
-  if (ctx?.trackPerformance && ctx.startTime) {
-    const duration = Date.now() - ctx.startTime;
-    trackMetric('rpc.duration', duration, {
-      action: config.action,
-      status: response.status
-    });
-  }
-
-  // Concern 2: Response logging
-  console.log('RPC response received:', {
-    action: config.action,
-    status: response.status,
-    correlationId: ctx?.correlationId,
-    duration: ctx?.startTime ? Date.now() - ctx.startTime : undefined
-  });
-
-  // Concern 3: Error monitoring
-  if (result === null || !result.success) {
-    Sentry.captureMessage('RPC request failed', {
-      level: 'error',
-      extra: {
-        action: config.action,
-        status: response.status,
-        correlationId: ctx?.correlationId
-      }
-    });
-  }
-
-  // Concern 4: Telemetry
-  sendTelemetry({
-    event: 'rpc.request.completed',
-    action: config.action,
-    success: response.ok && result?.success,
-    correlationId: ctx?.correlationId
-  });
-}
-
-function generateCorrelationId(): string {
-  return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-```
-
-**Usage with composed hooks:**
-
-```typescript
-const todos = await listTodos({
-  fields: ["id", "title"],
-  hookCtx: {
-    enableAuth: true,
-    authToken: getAuthToken(),
-    trackPerformance: true,
-    correlationId: 'user-action-123'
-  }
-});
-```
-
 ### Complete Working Example
 
 Here's a complete example showing all hook features:
@@ -599,11 +510,9 @@ Here's a complete example showing all hook features:
 ```typescript
 // rpcHooks.ts
 export interface ActionHookContext {
-  enableAuth?: boolean;
-  authToken?: string;
   trackPerformance?: boolean;
   startTime?: number;
-  userId?: string;
+  correlationId?: string;
 }
 
 export interface ValidationHookContext {
@@ -614,25 +523,27 @@ export interface ValidationHookContext {
 export function beforeRequest<T extends ActionConfig>(config: T): T {
   const ctx = config.hookCtx;
 
-  // Always add client version
+  // Add correlation ID and client version headers
   const headers: Record<string, string> = {
     'X-Client-Version': '1.0.0',
+    'X-Correlation-ID': ctx?.correlationId || generateRequestId(),
     ...config.headers
   };
 
-  // Conditionally add auth
-  if (ctx?.enableAuth && ctx.authToken) {
-    headers['Authorization'] = `Bearer ${ctx.authToken}`;
-  }
-
-  // Setup timing
+  // Setup timing for performance tracking
   if (ctx?.trackPerformance && ctx) {
     ctx.startTime = Date.now();
   }
 
-  console.log(`[RPC] ${config.action} started`);
+  console.log(`[RPC] ${config.action} started`, {
+    correlationId: ctx?.correlationId
+  });
 
   return { ...config, headers } as T;
+}
+
+function generateRequestId(): string {
+  return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 export function afterRequest<T extends ActionConfig>(
@@ -686,18 +597,22 @@ import { createTodo, validateCreateTodo } from './ash_rpc';
 // Action with hooks
 const result = await createTodo({
   fields: ["id", "title", "createdAt"],
-  input: { title: "Learn AshTypescript Hooks" },
-  hookCtx: {
-    enableAuth: true,
-    authToken: localStorage.getItem('authToken'),
-    trackPerformance: true,
+  input: {
+    title: "Learn AshTypescript Hooks",
     userId: getCurrentUserId()
+  },
+  hookCtx: {
+    trackPerformance: true,
+    correlationId: 'user-create-todo-123'
   }
 });
 
 // Validation with hooks
 const validationResult = await validateCreateTodo({
-  input: { title: "Test Todo" },
+  input: {
+    title: "Test Todo",
+    userId: "123e4567-e89b-12d3-a456-426614174000"
+  },
   hookCtx: {
     formId: 'create-todo-form'
   }
@@ -706,7 +621,7 @@ const validationResult = await validateCreateTodo({
 
 ## Channel Lifecycle Hooks
 
-AshTypescript provides lifecycle hooks for Phoenix Channel-based RPC actions, mirroring the HTTP hooks functionality but adapted for real-time channel communication. These hooks enable the same cross-cutting concerns (authentication, logging, telemetry, performance tracking) but for WebSocket-based communication instead of HTTP requests.
+AshTypescript provides lifecycle hooks for Phoenix Channel-based RPC actions, mirroring the HTTP hooks functionality but adapted for real-time channel communication. These hooks enable the same cross-cutting concerns (logging, telemetry, performance tracking, error monitoring) but for WebSocket-based communication instead of HTTP requests.
 
 ### Why Use Channel Lifecycle Hooks?
 
@@ -1081,120 +996,6 @@ export async function beforeChannelPush<T extends ChannelActionConfig>(
 
 This ensures that per-request customizations always override hook defaults.
 
-### Composing Multiple Channel Concerns
-
-```typescript
-// channelHooks.ts - Composing auth + logging + timing
-export interface ActionChannelHookContext {
-  enableAuth?: boolean;
-  authToken?: string;
-  trackPerformance?: boolean;
-  startTime?: number;
-  correlationId?: string;
-}
-
-export async function beforeChannelPush<T extends ChannelActionConfig>(
-  actionName: string,
-  config: T
-): Promise<T> {
-  const ctx = config.hookCtx;
-
-  // Concern 1: Generate correlation ID for request tracking
-  const correlationId = ctx?.correlationId || generateCorrelationId();
-
-  // Concern 2: Log outgoing channel message
-  console.log(`[Channel] Pushing message:`, {
-    action: actionName,
-    correlationId,
-    timestamp: new Date().toISOString()
-  });
-
-  // Concern 3: Setup performance timing
-  if (ctx?.trackPerformance && ctx) {
-    ctx.startTime = Date.now();
-  }
-
-  // Concern 4: Set default timeout if not specified
-  const timeout = config.timeout ?? (ctx?.trackPerformance ? 30000 : undefined);
-
-  return {
-    ...config,
-    timeout,
-    hookCtx: { ...ctx, correlationId }
-  } as T;
-}
-
-export async function afterChannelResponse<T extends ChannelActionConfig>(
-  actionName: string,
-  responseType: "ok" | "error" | "timeout",
-  data: any,
-  config: T
-): Promise<void> {
-  const ctx = config.hookCtx;
-
-  // Concern 1: Performance tracking
-  if (ctx?.trackPerformance && ctx.startTime) {
-    const duration = Date.now() - ctx.startTime;
-    trackMetric('channel.rpc.duration', duration, {
-      action: actionName,
-      responseType
-    });
-  }
-
-  // Concern 2: Response logging
-  console.log(`[Channel] Response received:`, {
-    action: actionName,
-    responseType,
-    correlationId: ctx?.correlationId,
-    duration: ctx?.startTime ? Date.now() - ctx.startTime : undefined
-  });
-
-  // Concern 3: Error monitoring
-  if (responseType !== "ok" || (data && !data.success)) {
-    Sentry.captureMessage('Channel RPC issue', {
-      level: responseType === "ok" ? 'warning' : 'error',
-      extra: {
-        action: actionName,
-        responseType,
-        correlationId: ctx?.correlationId
-      }
-    });
-  }
-
-  // Concern 4: Telemetry
-  sendTelemetry({
-    event: 'channel.rpc.completed',
-    action: actionName,
-    responseType,
-    success: responseType === "ok" && data?.success,
-    correlationId: ctx?.correlationId
-  });
-}
-
-function generateCorrelationId(): string {
-  return `channel_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-```
-
-**Usage with composed channel hooks:**
-
-```typescript
-listTodosChannel({
-  channel: myChannel,
-  fields: ["id", "title"],
-  hookCtx: {
-    enableAuth: true,
-    trackPerformance: true,
-    correlationId: 'user-action-123'
-  },
-  resultHandler: (result) => {
-    if (result.success) {
-      console.log("Todos loaded:", result.data);
-    }
-  }
-});
-```
-
 ### Complete Channel Working Example
 
 Here's a complete example showing all channel hook features:
@@ -1202,8 +1003,6 @@ Here's a complete example showing all channel hook features:
 ```typescript
 // channelHooks.ts
 export interface ActionChannelHookContext {
-  enableAuth?: boolean;
-  authToken?: string;
   trackPerformance?: boolean;
   startTime?: number;
   correlationId?: string;
@@ -1308,7 +1107,10 @@ listTodosChannel({
 // Validation with channel hooks
 validateCreateTodoChannel({
   channel: myChannel,
-  input: { title: "Test Todo" },
+  input: {
+    title: "Test Todo",
+    userId: "123e4567-e89b-12d3-a456-426614174000"
+  },
   hookCtx: {
     formId: 'create-todo-form',
     validationLevel: 'strict'

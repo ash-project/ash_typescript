@@ -29,7 +29,7 @@ import { listTodos } from './ash_rpc';
 // List todos with field selection
 const todos = await listTodos({
   fields: ["id", "title", "completed", "priority"],
-  filter: { status: "active" },
+  filter: { completed: { eq: false } },
   sort: "-priority,+createdAt"
 });
 
@@ -88,11 +88,10 @@ Use complex nested structures for detailed data retrieval:
 // Complex nested field selection
 const todoWithDetails = await getTodo({
   fields: [
-    "id", "title", "description",
+    "id", "title", "description", "tags",
     {
-      user: ["name", "email", "avatarUrl"],
-      comments: ["id", "text", { author: ["name"] }],
-      tags: ["name", "color"]
+      user: ["id", "name", "email"],
+      comments: ["id", "content", "authorName"]
     }
   ],
   input: { id: "todo-123" }
@@ -101,34 +100,35 @@ const todoWithDetails = await getTodo({
 if (todoWithDetails.success) {
   console.log("Todo:", todoWithDetails.data.title);
   console.log("Comments:", todoWithDetails.data.comments.length);
-  todoWithDetails.data.tags.forEach(tag => {
-    console.log(`Tag: ${tag.name} (${tag.color})`);
+  console.log("Tags:", todoWithDetails.data.tags); // Array of strings
+  todoWithDetails.data.comments.forEach(comment => {
+    console.log(`Comment by ${comment.authorName}: ${comment.content}`);
   });
 }
 ```
 
-### Calculations with Arguments
+### Calculated Fields
 
-Request calculated fields with custom arguments:
+Request calculated fields that are computed by your Ash resource:
 
 ```typescript
-// Calculations with arguments
+// Calculated fields
 const todoWithCalc = await getTodo({
   fields: [
-    "id", "title",
-    {
-      "priorityScore": {
-        "args": { "multiplier": 2 },
-        "fields": ["score", "rank"]
-      }
-    }
+    "id",
+    "title",
+    "dueDate",
+    "isOverdue",      // Boolean calculation
+    "daysUntilDue"    // Integer calculation
   ],
   input: { id: "todo-123" }
 });
 
 if (todoWithCalc.success) {
-  console.log("Priority score:", todoWithCalc.data.priorityScore.score);
-  console.log("Rank:", todoWithCalc.data.priorityScore.rank);
+  console.log("Todo:", todoWithCalc.data.title);
+  console.log("Due date:", todoWithCalc.data.dueDate);
+  console.log("Is overdue:", todoWithCalc.data.isOverdue);
+  console.log("Days until due:", todoWithCalc.data.daysUntilDue);
 }
 ```
 
@@ -145,7 +145,8 @@ const newTodo = await createTodo({
   input: {
     title: "Learn AshTypescript",
     priority: "high",
-    dueDate: "2024-01-01"
+    dueDate: "2024-01-01",
+    userId: "user-id-123"
   }
 });
 
@@ -195,7 +196,6 @@ import { destroyTodo } from './ash_rpc';
 
 // Delete todo (primary key separate from input)
 const deletedTodo = await destroyTodo({
-  fields: [],  // Can request fields if the action returns the deleted record
   primaryKey: "todo-123"    // Primary key as separate parameter
 });
 
@@ -206,19 +206,6 @@ if (deletedTodo.success) {
 }
 ```
 
-You can optionally request fields if your destroy action is configured to return the deleted record:
-
-```typescript
-const deletedTodo = await destroyTodo({
-  fields: ["id", "title"],  // Get the deleted record data
-  primaryKey: "todo-123"
-});
-
-if (deletedTodo.success) {
-  console.log("Deleted:", deletedTodo.data.title);
-}
-```
-
 ## Error Handling
 
 All generated RPC functions return a `{success: true/false}` structure instead of throwing exceptions:
@@ -226,7 +213,10 @@ All generated RPC functions return a `{success: true/false}` structure instead o
 ```typescript
 const result = await createTodo({
   fields: ["id", "title"],
-  input: { title: "New Todo" }
+  input: {
+    title: "New Todo",
+    userId: "user-id-123"
+  }
 });
 
 if (result.success) {
@@ -251,7 +241,7 @@ if (result.success) {
 // Validation errors (e.g., missing required fields)
 const result = await createTodo({
   fields: ["id", "title"],
-  input: {}  // Missing required title
+  input: {}  // Missing required title and userId
 });
 
 if (!result.success) {
@@ -316,7 +306,10 @@ import { createTodo, listTodos } from './ash_rpc';
 // Add request timeout and custom cache settings
 const todo = await createTodo({
   fields: ["id", "title"],
-  input: { title: "New Todo" },
+  input: {
+    title: "New Todo",
+    userId: "user-id-123"
+  },
   fetchOptions: {
     signal: AbortSignal.timeout(5000), // 5 second timeout
     cache: 'no-cache',
@@ -441,82 +434,78 @@ import {
   buildCSRFHeaders
 } from './ash_rpc';
 
-async function todoLifecycle() {
-  const headers = buildCSRFHeaders();
+const headers = buildCSRFHeaders();
 
-  // 1. Create a new todo
-  const createResult = await createTodo({
-    fields: ["id", "title", "createdAt"],
-    input: {
-      title: "Learn AshTypescript CRUD",
-      priority: "high"
-    },
-    headers
-  });
+// 1. Create a new todo
+const createResult = await createTodo({
+  fields: ["id", "title", "createdAt"],
+  input: {
+    title: "Learn AshTypescript CRUD",
+    priority: "high",
+    userId: "user-id-123"
+  },
+  headers
+});
 
-  if (!createResult.success) {
-    console.error("Failed to create:", createResult.errors);
-    return;
-  }
-
-  const todoId = createResult.data.id;
-  console.log("Created:", createResult.data);
-
-  // 2. Read the todo
-  const getResult = await getTodo({
-    fields: ["id", "title", "priority", { user: ["name"] }],
-    input: { id: todoId },
-    headers
-  });
-
-  if (getResult.success) {
-    console.log("Retrieved:", getResult.data);
-  }
-
-  // 3. Update the todo
-  const updateResult = await updateTodo({
-    fields: ["id", "title", "priority", "updatedAt"],
-    primaryKey: todoId,
-    input: {
-      title: "Mastered AshTypescript CRUD",
-      priority: "completed"
-    },
-    headers
-  });
-
-  if (updateResult.success) {
-    console.log("Updated:", updateResult.data);
-  }
-
-  // 4. List all todos
-  const listResult = await listTodos({
-    fields: ["id", "title", "priority"],
-    filter: { priority: "completed" },
-    headers
-  });
-
-  if (listResult.success) {
-    console.log("Completed todos:", listResult.data.length);
-  }
-
-  // 5. Delete the todo
-  const deleteResult = await destroyTodo({
-    fields: ["id", "title"],
-    primaryKey: todoId,
-    headers
-  });
-
-  if (deleteResult.success) {
-    console.log("Deleted:", deleteResult.data);
-  }
+if (!createResult.success) {
+  console.error("Failed to create:", createResult.errors);
+  return;
 }
 
-todoLifecycle();
+const todoId = createResult.data.id;
+console.log("Created:", createResult.data);
+
+// 2. Read the todo
+const getResult = await getTodo({
+  fields: ["id", "title", "priority", { user: ["name"] }],
+  input: { id: todoId },
+  headers
+});
+
+if (getResult.success) {
+  console.log("Retrieved:", getResult.data);
+}
+
+// 3. Update the todo
+const updateResult = await updateTodo({
+  fields: ["id", "title", "priority", "updatedAt"],
+  primaryKey: todoId,
+  input: {
+    title: "Mastered AshTypescript CRUD",
+    priority: "completed"
+  },
+  headers
+});
+
+if (updateResult.success) {
+  console.log("Updated:", updateResult.data);
+}
+
+// 4. List all completed todos
+const listResult = await listTodos({
+  fields: ["id", "title", "priority"],
+  filter: { completed: { eq: true } },
+  headers
+});
+
+if (listResult.success) {
+  console.log("Completed todos:", listResult.data.length);
+}
+
+// 5. Delete the todo
+const deleteResult = await destroyTodo({
+  primaryKey: todoId,
+  headers
+});
+
+if (deleteResult.success) {
+  console.log("Deleted successfully");
+}
 ```
 
 ## Next Steps
 
 - Learn about [Phoenix Channel-based RPC actions](../topics/phoenix-channels.md) for real-time communication
-- Explore [field selection patterns](../topics/field-selection.md) for complex queries
-- Review [error handling strategies](../topics/error-handling.md) for production applications
-- See [authentication patterns](../topics/authentication.md) for securing your API calls
+- Explore [field selection patterns](field-selection.md) for complex queries
+- Review [error handling strategies](error-handling.md) for production applications
+- Learn about [custom fetch functions](custom-fetch.md) for adding authentication and request customization

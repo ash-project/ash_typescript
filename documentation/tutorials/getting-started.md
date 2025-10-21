@@ -78,6 +78,10 @@ defmodule MyApp.Todo do
 
   actions do
     defaults [:read, :create, :update, :destroy]
+
+    read :get_by_id do
+      get_by :id
+    end
   end
 end
 ```
@@ -93,8 +97,8 @@ defmodule MyApp.Domain do
   typescript_rpc do
     resource MyApp.Todo do
       rpc_action :list_todos, :read
+      rpc_action :get_todo, :get_by_id
       rpc_action :create_todo, :create
-      rpc_action :get_todo, :get
       rpc_action :update_todo, :update
       rpc_action :destroy_todo, :destroy
     end
@@ -149,10 +153,12 @@ Add configuration to `config/config.exs`:
 
 ```elixir
 config :ash_typescript,
-  otp_app: :my_app,
-  format: :as_written,  # or :snake_case, :camelCase, :PascalCase
-  rpc_endpoint: "/rpc",
-  output_folder: "assets/js"
+  ash_domains: [MyApp.Domain],
+  output_file: "assets/js/ash_rpc.ts",
+  run_endpoint: "/rpc/run",
+  validate_endpoint: "/rpc/validate",
+  input_field_formatter: :camel_case,   # :camel_case or :snake_case
+  output_field_formatter: :camel_case
 ```
 
 ## Generate TypeScript Types
@@ -160,11 +166,11 @@ config :ash_typescript,
 Run the code generator:
 
 ```bash
-# Recommended: Generate for all Ash extensions
-mix ash.codegen --dev
+# Recommended: Generate for all Ash extensions (includes AshTypescript)
+mix ash.codegen
 
 # Alternative: Generate only for AshTypescript
-mix ash_typescript.codegen --output "assets/js/ash_rpc.ts"
+mix ash_typescript.codegen
 ```
 
 This creates a TypeScript file with:
@@ -270,27 +276,4 @@ Now that you have AshTypescript set up, explore these topics:
 
 ## Troubleshooting
 
-### Types Not Compiling
-
-Ensure your `tsconfig.json` has correct settings:
-
-```json
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "strict": true,
-    "esModuleInterop": true
-  }
-}
-```
-
-### Resource Not Accessible
-
-Make sure your resource has the `AshTypescript.Resource` extension:
-
-```elixir
-use Ash.Resource,
-  extensions: [AshTypescript.Resource]  # Don't forget this!
-```
-
-For more troubleshooting help, see the [Troubleshooting Guide](../reference/troubleshooting.md).
+For troubleshooting help, see the [Troubleshooting Guide](../reference/troubleshooting.md).
