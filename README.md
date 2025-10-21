@@ -159,33 +159,6 @@ AshTypescript bridges the gap between Elixir and TypeScript by automatically gen
 - **Refactoring safety** - Rename fields in Elixir, get TypeScript errors immediately
 - **Living documentation** - Generated types serve as up-to-date API documentation
 
-## 🚨 Breaking Changes
-
-### Resource Extension Requirement (Security Enhancement)
-
-**Important**: All resources accessible through TypeScript RPC must now explicitly use the `AshTypescript.Resource` extension:
-
-```elixir
-defmodule MyApp.Todo do
-  use Ash.Resource,
-    domain: MyApp.Domain,
-    extensions: [AshTypescript.Resource]  # ← Required!
-
-  typescript do
-    type_name "Todo"
-  end
-end
-```
-
-This applies to:
-- ✅ Resources with RPC actions
-- ✅ Resources accessed through relationships
-- ❌ Internal resources (not meant for frontend access)
-
-**Migration**: Add the extension to all resources that should be accessible via RPC, then run `mix ash.codegen --dev`.
-
-For detailed migration steps and error symptoms, see the [Getting Started Guide](documentation/tutorials/getting-started.md#troubleshooting).
-
 ## 🚀 Example Repository
 
 Check out the **[AshTypescript Demo](https://github.com/ChristianAlexander/ash_typescript_demo)** by Christian Alexander featuring:
