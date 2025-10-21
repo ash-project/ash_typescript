@@ -11,6 +11,33 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.6.0](https://github.com/ash-project/ash_typescript/compare/v0.5.0...v0.6.0) (2025-10-21)
+
+
+
+
+### Features:
+
+* rpc: implement lifecycle hooks in TypeScript codegen by [@Torkan](https://github.com/Torkan)
+
+* rpc: add lifecycle hooks configuration API by [@Torkan](https://github.com/Torkan)
+
+* codegen: add configurable untyped map type by [@Torkan](https://github.com/Torkan)
+
+* rpc: add custom error response handler support by [@Torkan](https://github.com/Torkan)
+
+* rpc: add support for dynamic endpoint configuration via imported TypeScript functions by [@Torkan](https://github.com/Torkan)
+
+* rpc: add typed query field verification at compile time by [@Torkan](https://github.com/Torkan)
+
+### Bug Fixes:
+
+* add type_mapping_overrides config setting by [@Torkan](https://github.com/Torkan)
+
+* codegen: warn when resources have extension but missing from by [@Torkan](https://github.com/Torkan)
+
+* add support for generic actions returning typed struct(s) by [@Torkan](https://github.com/Torkan)
+
 ## [v0.5.0](https://github.com/ash-project/ash_typescript/compare/v0.4.0...v0.5.0) (2025-10-13)
 
 
