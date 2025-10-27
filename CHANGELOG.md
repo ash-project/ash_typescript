@@ -11,6 +11,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.6.1](https://github.com/ash-project/ash_typescript/compare/v0.6.0...v0.6.1) (2025-10-27)
+
+
+
+
+### Bug Fixes:
+
+* codegen: deduplicate resources when exposed in multiple domains by [@Torkan](https://github.com/Torkan)
+
+* codegen: fix mapped field names usage in typed queries by [@Torkan](https://github.com/Torkan)
+
 ## [v0.6.0](https://github.com/ash-project/ash_typescript/compare/v0.5.0...v0.6.0) (2025-10-21)
 
 
