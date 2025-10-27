@@ -29,10 +29,11 @@ defmodule AshTypescript.Resource.VerifyUniqueTypeNames do
           domain
           |> Ash.Domain.Info.resources()
           |> Enum.filter(&AshTypescript.Resource.Info.typescript_resource?/1)
-          |> Enum.map(fn resource ->
-            type_name = AshTypescript.Resource.Info.typescript_type_name!(resource)
-            {type_name, resource}
-          end)
+        end)
+        |> Enum.uniq()
+        |> Enum.map(fn resource ->
+          type_name = AshTypescript.Resource.Info.typescript_type_name!(resource)
+          {type_name, resource}
         end)
 
       # Group by type name to find duplicates

@@ -291,6 +291,7 @@ defmodule AshTypescript.Rpc.Codegen do
         AshTypescript.Rpc.Info.typescript_rpc(domain)
         |> Enum.map(fn %{resource: r} -> r end)
       end)
+      |> Enum.uniq()
 
     actions =
       otp_app
@@ -895,7 +896,8 @@ defmodule AshTypescript.Rpc.Codegen do
 
     case RequestedFieldsProcessor.process(resource, action.name, atomized_fields) do
       {:ok, {_select, _load, _template}} ->
-        type_fields = format_typed_query_fields_type_for_typescript(atomized_fields)
+        # Both type and const need to use mapped field names since UserResourceSchema has mapped names
+        type_fields = format_typed_query_fields_type_for_typescript(atomized_fields, resource)
 
         type_name = typed_query.ts_result_type_name
         const_name = typed_query.ts_fields_const_name
@@ -909,7 +911,7 @@ defmodule AshTypescript.Rpc.Codegen do
             "InferResult<#{resource_name}ResourceSchema, #{type_fields}>"
           end
 
-        const_fields = format_typed_query_fields_const_for_typescript(atomized_fields)
+        const_fields = format_typed_query_fields_const_for_typescript(atomized_fields, resource)
 
         """
         // Type for #{typed_query.name}
@@ -924,83 +926,89 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
-  defp format_typed_query_fields_const_for_typescript(fields) do
-    "[" <> format_fields_const_array(fields) <> "]"
+  defp format_typed_query_fields_const_for_typescript(fields, resource) do
+    "[" <> format_fields_const_array(fields, resource) <> "]"
   end
 
-  defp format_typed_query_fields_type_for_typescript(fields) do
-    "[" <> format_fields_type_array(fields) <> "]"
+  defp format_typed_query_fields_type_for_typescript(fields, resource) do
+    "[" <> format_fields_type_array(fields, resource) <> "]"
   end
 
-  defp format_fields_const_array(fields) do
+  defp format_fields_const_array(fields, resource) do
     fields
-    |> Enum.map_join(", ", &"#{format_field_item(&1)} as const")
+    |> Enum.map_join(", ", &"#{format_field_item(&1, resource)} as const")
   end
 
-  defp format_fields_type_array(fields) do
+  defp format_fields_type_array(fields, resource) do
     fields
-    |> Enum.map_join(", ", &format_field_item/1)
+    |> Enum.map_join(", ", &format_field_item(&1, resource))
   end
 
-  defp format_field_item(field) when is_atom(field) do
-    ~s["#{format_field_name(field)}"]
+  # format_field_item/2 - with resource context for field name mapping
+  defp format_field_item(field, resource) when is_atom(field) do
+    ~s["#{format_field_name(field, resource)}"]
   end
 
-  defp format_field_item({field, nested_fields}) when is_atom(field) and is_list(nested_fields) do
-    "{ #{format_field_name(field)}: [#{format_fields_type_array(nested_fields)}] }"
+  defp format_field_item({field, nested_fields}, resource)
+       when is_atom(field) and is_list(nested_fields) do
+    "{ #{format_field_name(field, resource)}: [#{format_fields_type_array(nested_fields, resource)}] }"
   end
 
-  defp format_field_item({field, {args, nested_fields}})
+  defp format_field_item({field, {args, nested_fields}}, resource)
        when is_atom(field) and is_map(args) and is_list(nested_fields) do
-    args_json = format_args_map(args)
+    args_json = format_args_map(args, resource)
 
-    "{ #{format_field_name(field)}: { #{formatted_args_field()}: #{args_json}, #{formatted_fields_field()}: [#{format_fields_type_array(nested_fields)}] } }"
+    "{ #{format_field_name(field, resource)}: { #{formatted_args_field()}: #{args_json}, #{formatted_fields_field()}: [#{format_fields_type_array(nested_fields, resource)}] } }"
   end
 
-  defp format_field_item({field, nested_fields}) when is_atom(field) and is_map(nested_fields) do
+  defp format_field_item({field, nested_fields}, resource)
+       when is_atom(field) and is_map(nested_fields) do
     case nested_fields do
       %{args: args, fields: fields} ->
-        args_json = format_args_map(args)
+        args_json = format_args_map(args, resource)
 
-        "{ #{format_field_name(field)}: { #{formatted_args_field()}: #{args_json}, #{formatted_fields_field()}: [#{format_fields_type_array(fields)}] } }"
+        "{ #{format_field_name(field, resource)}: { #{formatted_args_field()}: #{args_json}, #{formatted_fields_field()}: [#{format_fields_type_array(fields, resource)}] } }"
 
       _ ->
         inspect(nested_fields)
     end
   end
 
-  defp format_field_item(%{} = field_map) do
+  defp format_field_item(%{} = field_map, resource) do
     formatted_pairs =
       field_map
       |> Enum.map_join(", ", fn {k, v} ->
-        key = format_field_name(k)
-        value = format_field_item(v)
+        key = format_field_name(k, resource)
+        value = format_field_item(v, resource)
         "#{key}: #{value}"
       end)
 
     "{ #{formatted_pairs} }"
   end
 
-  defp format_field_item(list) when is_list(list) do
+  defp format_field_item(list, resource) when is_list(list) do
     formatted_items =
       list
-      |> Enum.map_join(", ", &format_field_item/1)
+      |> Enum.map_join(", ", &format_field_item(&1, resource))
 
     "[#{formatted_items}]"
   end
 
-  defp format_field_item(field), do: inspect(field)
+  defp format_field_item(field, _resource), do: inspect(field)
 
-  defp format_field_name(atom) do
+  defp format_field_name(atom, resource) do
+    # First apply the resource-specific field name mapping
+    mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, atom)
+    # Then apply the formatter (camelCase, etc.)
     formatter = AshTypescript.Rpc.output_field_formatter()
-    AshTypescript.FieldFormatter.format_field(atom, formatter)
+    AshTypescript.FieldFormatter.format_field(mapped_name, formatter)
   end
 
-  defp format_args_map(args) do
+  defp format_args_map(args, resource) do
     formatted_args =
       args
       |> Enum.map_join(", ", fn {k, v} ->
-        "\"#{format_field_name(k)}\": #{Jason.encode!(v)}"
+        "\"#{format_field_name(k, resource)}\": #{Jason.encode!(v)}"
       end)
 
     "{ #{formatted_args} }"
