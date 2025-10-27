@@ -38,7 +38,8 @@ if Mix.env() == :test do
 
   config :ash_typescript,
     ash_domains: [
-      AshTypescript.Test.Domain
+      AshTypescript.Test.Domain,
+      AshTypescript.Test.SecondDomain
     ],
     generate_phx_channel_rpc_actions: true,
     generate_validation_functions: true,
