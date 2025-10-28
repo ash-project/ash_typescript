@@ -1,4 +1,4 @@
-elixir 1.18.3-otp-27
-erlang 27.3.3
+elixir 1.19.0-otp-28
+erlang 28.1
 nodejs 22.16.0
 pipx 1.8.0
