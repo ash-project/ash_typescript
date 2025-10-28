@@ -579,14 +579,18 @@ defmodule AshTypescript.Rpc.Codegen do
 
     type InferResult<
       T extends TypedSchema,
-      SelectedFields extends UnifiedFieldSelection<T>[],
-    > = SelectedFields extends []
+      SelectedFields extends UnifiedFieldSelection<T>[] | undefined,
+    > = SelectedFields extends undefined
       ? {}
-      : UnionToIntersection<
+      : SelectedFields extends []
+      ? {}
+      : SelectedFields extends UnifiedFieldSelection<T>[]
+      ? UnionToIntersection<
           {
             [K in keyof SelectedFields]: InferFieldValue<T, SelectedFields[K]>;
           }[number]
-        >;
+        >
+      : {};
 
     // Pagination conditional types
     // Checks if a page configuration object has any pagination parameters
@@ -1278,7 +1282,7 @@ defmodule AshTypescript.Rpc.Codegen do
           export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
           #{metadata_type}
           type Infer#{rpc_action_name_pascal}Result<
-            Fields extends #{rpc_action_name_pascal}Fields,
+            Fields extends #{rpc_action_name_pascal}Fields | undefined,
             MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
           > = InferResult<#{resource_name}ResourceSchema, Fields>;
           """
@@ -1287,7 +1291,7 @@ defmodule AshTypescript.Rpc.Codegen do
           export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
           #{metadata_type}
           type Infer#{rpc_action_name_pascal}Result<
-            Fields extends #{rpc_action_name_pascal}Fields,
+            Fields extends #{rpc_action_name_pascal}Fields | undefined,
           > = InferResult<#{resource_name}ResourceSchema, Fields>;
           """
         end
@@ -1317,7 +1321,7 @@ defmodule AshTypescript.Rpc.Codegen do
               export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{target_resource_name}ResourceSchema>[];
 
               type Infer#{rpc_action_name_pascal}Result<
-                Fields extends #{rpc_action_name_pascal}Fields,
+                Fields extends #{rpc_action_name_pascal}Fields | undefined,
               > = Array<InferResult<#{target_resource_name}ResourceSchema, Fields>>;
               """
             else
@@ -1325,7 +1329,7 @@ defmodule AshTypescript.Rpc.Codegen do
               export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{target_resource_name}ResourceSchema>[];
 
               type Infer#{rpc_action_name_pascal}Result<
-                Fields extends #{rpc_action_name_pascal}Fields,
+                Fields extends #{rpc_action_name_pascal}Fields | undefined,
               > = InferResult<#{target_resource_name}ResourceSchema, Fields>;
               """
             end
@@ -1338,7 +1342,7 @@ defmodule AshTypescript.Rpc.Codegen do
               export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
 
               type Infer#{rpc_action_name_pascal}Result<
-                Fields extends #{rpc_action_name_pascal}Fields,
+                Fields extends #{rpc_action_name_pascal}Fields | undefined,
               > = Array<InferResult<#{typed_map_schema}, Fields>>;
               """
             else
@@ -1346,7 +1350,7 @@ defmodule AshTypescript.Rpc.Codegen do
               export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
 
               type Infer#{rpc_action_name_pascal}Result<
-                Fields extends #{rpc_action_name_pascal}Fields,
+                Fields extends #{rpc_action_name_pascal}Fields | undefined,
               > = InferResult<#{typed_map_schema}, Fields>;
               """
             end
@@ -1365,7 +1369,7 @@ defmodule AshTypescript.Rpc.Codegen do
             export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
 
             type Infer#{rpc_action_name_pascal}Result<
-              Fields extends #{rpc_action_name_pascal}Fields,
+              Fields extends #{rpc_action_name_pascal}Fields | undefined,
             > = InferResult<#{typed_map_schema}, Fields>;
             """
 
@@ -1383,7 +1387,7 @@ defmodule AshTypescript.Rpc.Codegen do
             export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
 
             type Infer#{rpc_action_name_pascal}Result<
-              Fields extends #{rpc_action_name_pascal}Fields,
+              Fields extends #{rpc_action_name_pascal}Fields | undefined,
             > = Array<InferResult<#{typed_map_schema}, Fields>>;
             """
 
@@ -1664,7 +1668,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
           """
           type Infer#{rpc_action_name_pascal}Result<
-            Fields extends #{rpc_action_name_pascal}Fields,
+            Fields extends #{rpc_action_name_pascal}Fields | undefined,
             MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = [],
             Page extends #{rpc_action_name_pascal}Config["page"] = undefined
           > = ConditionalPaginatedResultMixed<Page, #{array_type}, #{offset_type}, #{keyset_type}>;
@@ -1680,7 +1684,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
           """
           type Infer#{rpc_action_name_pascal}Result<
-            Fields extends #{rpc_action_name_pascal}Fields,
+            Fields extends #{rpc_action_name_pascal}Fields | undefined,
             MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = [],
             Page extends #{rpc_action_name_pascal}Config["page"] = undefined
           > = ConditionalPaginatedResult<Page, #{array_type}, #{offset_type}>;
@@ -1696,7 +1700,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
           """
           type Infer#{rpc_action_name_pascal}Result<
-            Fields extends #{rpc_action_name_pascal}Fields,
+            Fields extends #{rpc_action_name_pascal}Fields | undefined,
             MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = [],
             Page extends #{rpc_action_name_pascal}Config["page"] = undefined
           > = ConditionalPaginatedResult<Page, #{array_type}, #{keyset_type}>;
@@ -1723,7 +1727,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
           """
           type Infer#{rpc_action_name_pascal}Result<
-            Fields extends #{rpc_action_name_pascal}Fields,
+            Fields extends #{rpc_action_name_pascal}Fields | undefined,
             Page extends #{rpc_action_name_pascal}Config["page"] = undefined
           > = ConditionalPaginatedResultMixed<Page, #{array_type}, #{offset_type}, #{keyset_type}>;
           """
@@ -1738,7 +1742,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
           """
           type Infer#{rpc_action_name_pascal}Result<
-            Fields extends #{rpc_action_name_pascal}Fields,
+            Fields extends #{rpc_action_name_pascal}Fields | undefined,
             Page extends #{rpc_action_name_pascal}Config["page"] = undefined
           > = ConditionalPaginatedResult<Page, #{array_type}, #{offset_type}>;
           """
@@ -1753,7 +1757,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
           """
           type Infer#{rpc_action_name_pascal}Result<
-            Fields extends #{rpc_action_name_pascal}Fields,
+            Fields extends #{rpc_action_name_pascal}Fields | undefined,
             Page extends #{rpc_action_name_pascal}Config["page"] = undefined
           > = ConditionalPaginatedResult<Page, #{array_type}, #{keyset_type}>;
           """
@@ -2257,7 +2261,8 @@ defmodule AshTypescript.Rpc.Codegen do
               {:ok, type, _value} when type in [:resource, :array_of_resource] ->
                 updated_fields = config_fields ++ ["  #{formatted_fields_field()}: Fields;"]
 
-                {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
+                {updated_fields, true,
+                 "Fields extends #{rpc_action_name_pascal}Fields | undefined = undefined"}
 
               {:ok, type, _fields}
               when type in [
@@ -2272,7 +2277,8 @@ defmodule AshTypescript.Rpc.Codegen do
                       "  #{formatted_fields_field()}: Fields;"
                     ]
 
-                {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
+                {updated_fields, true,
+                 "Fields extends #{rpc_action_name_pascal}Fields | undefined = undefined"}
 
               {:ok, :unconstrained_map, _} ->
                 # Unconstrained maps don't support field selection
@@ -2290,7 +2296,8 @@ defmodule AshTypescript.Rpc.Codegen do
           type when type in [:create, :update] ->
             updated_fields = config_fields ++ ["  #{formatted_fields_field()}?: Fields;"]
 
-            {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
+            {updated_fields, true,
+             "Fields extends #{rpc_action_name_pascal}Fields | undefined = undefined"}
         end
       else
         {config_fields, false, nil}
@@ -2430,7 +2437,9 @@ defmodule AshTypescript.Rpc.Codegen do
                 function_return_generics_str =
                   "<Fields, Config[\"#{metadata_fields_key}\"] extends ReadonlyArray<any> ? Config[\"#{metadata_fields_key}\"] : [], Config[\"page\"]>"
 
-                config_generic = "Config extends #{rpc_action_name_pascal}Config"
+                config_generic =
+                  "Config extends #{rpc_action_name_pascal}Config = #{rpc_action_name_pascal}Config"
+
                 function_generics_str = "#{fields_generic}, #{config_generic}"
                 function_sig_str = "config: Config & { #{formatted_fields_field()}: Fields }"
 
@@ -2443,7 +2452,9 @@ defmodule AshTypescript.Rpc.Codegen do
                 result_data_generics_str = "<Fields, Page>"
                 function_return_generics_str = "<Fields, Config[\"page\"]>"
 
-                config_generic = "Config extends #{rpc_action_name_pascal}Config"
+                config_generic =
+                  "Config extends #{rpc_action_name_pascal}Config = #{rpc_action_name_pascal}Config"
+
                 function_generics_str = "#{fields_generic}, #{config_generic}"
                 function_sig_str = "config: Config & { #{formatted_fields_field()}: Fields }"
 
@@ -2469,14 +2480,22 @@ defmodule AshTypescript.Rpc.Codegen do
                 result_type_generics_str = "#{fields_generic}, #{metadata_param}"
                 result_data_generics_str = "<Fields>"
                 function_generics_str = "#{fields_generic}, #{metadata_param}"
-                function_return_generics_str = "<Fields, MetadataFields>"
+
+                function_return_generics_str =
+                  "<Fields extends undefined ? [] : Fields, MetadataFields>"
 
                 {result_type_generics_str, result_data_generics_str, function_generics_str,
                  "config: #{config_type_ref}", function_return_generics_str}
 
-              true ->
+              action.type == :read ->
+                # Read actions without metadata - fields are required, no conditional needed
                 {fields_generic, "<Fields>", fields_generic, "config: #{config_type_ref}",
                  "<Fields>"}
+
+              true ->
+                # Mutations and generic actions without metadata - fields are optional
+                {fields_generic, "<Fields>", fields_generic, "config: #{config_type_ref}",
+                 "<Fields extends undefined ? [] : Fields>"}
             end
 
           result_type = """
@@ -2554,49 +2573,10 @@ defmodule AshTypescript.Rpc.Codegen do
 
     before_request_hook = generate_before_request_hook_call(hook_config, rpc_action_name, false)
 
-    overloads =
-      if action.type in [:create, :update] and has_fields do
-        config_type_without_fields =
-          config_fields
-          |> Enum.reject(&String.contains?(&1, "#{formatted_fields_field()}"))
-          |> then(fn fields -> "{\n#{Enum.join(fields, "\n")}\n}" end)
-
-        if has_metadata do
-          metadata_param =
-            "MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []"
-
-          """
-          export async function #{function_name}<#{metadata_param}>(
-            config: #{config_type_without_fields}
-          ): Promise<#{rpc_action_name_pascal}Result<[], MetadataFields>>;
-          export async function #{function_name}<#{metadata_param}>(
-            config: #{config_type_without_fields} & { #{formatted_fields_field()}: [] }
-          ): Promise<#{rpc_action_name_pascal}Result<[], MetadataFields>>;
-          export async function #{function_name}<Fields extends #{rpc_action_name_pascal}Fields, #{metadata_param}>(
-            config: #{config_type_without_fields} & { #{formatted_fields_field()}: Fields }
-          ): Promise<#{rpc_action_name_pascal}Result<Fields, MetadataFields>>;
-          """
-        else
-          """
-          export async function #{function_name}(
-            config: #{config_type_without_fields}
-          ): Promise<#{rpc_action_name_pascal}Result<[]>>;
-          export async function #{function_name}(
-            config: #{config_type_without_fields} & { #{formatted_fields_field()}: never[] }
-          ): Promise<#{rpc_action_name_pascal}Result<[]>>;
-          export async function #{function_name}<Fields extends #{rpc_action_name_pascal}Fields>(
-            config: #{config_type_without_fields} & { #{formatted_fields_field()}: Fields }
-          ): Promise<#{rpc_action_name_pascal}Result<Fields>>;
-          """
-        end
-      else
-        ""
-      end
-
     """
     #{config_type_export}#{result_type_def}
 
-    #{overloads}export async function #{function_name}#{generic_part}(
+    export async function #{function_name}#{generic_part}(
       #{function_signature}
     ): Promise<#{return_type_def}> {
       #{before_request_hook}
@@ -2872,7 +2852,8 @@ defmodule AshTypescript.Rpc.Codegen do
               {:ok, type, _value} when type in [:resource, :array_of_resource] ->
                 updated_fields = config_fields ++ ["  #{formatted_fields_field()}: Fields;"]
 
-                {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
+                {updated_fields, true,
+                 "Fields extends #{rpc_action_name_pascal}Fields | undefined = undefined"}
 
               {:ok, type, _fields}
               when type in [
@@ -2887,7 +2868,8 @@ defmodule AshTypescript.Rpc.Codegen do
                       "  #{formatted_fields_field()}: Fields;"
                     ]
 
-                {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
+                {updated_fields, true,
+                 "Fields extends #{rpc_action_name_pascal}Fields | undefined = undefined"}
 
               {:ok, :unconstrained_map, _} ->
                 # Unconstrained maps don't support field selection
@@ -2905,7 +2887,8 @@ defmodule AshTypescript.Rpc.Codegen do
           type when type in [:create, :update] ->
             updated_fields = config_fields ++ ["  #{formatted_fields_field()}?: Fields;"]
 
-            {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
+            {updated_fields, true,
+             "Fields extends #{rpc_action_name_pascal}Fields | undefined = undefined"}
         end
       else
         {config_fields, false, nil}
@@ -3065,93 +3048,8 @@ defmodule AshTypescript.Rpc.Codegen do
           end
       end
 
-    # Unlike RPC functions which return Promise<Result>, channel functions use resultHandler callbacks.
-    # Generate overloads to enable proper type inference of the callback parameter based on fields presence.
-    overloads =
-      if action.type in [:create, :update] and has_fields do
-        base_config_fields =
-          config_fields
-          |> Enum.reject(
-            &(String.contains?(&1, "#{formatted_fields_field()}?") or
-                String.contains?(&1, "resultHandler:"))
-          )
-
-        if has_metadata do
-          metadata_param =
-            "MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []"
-
-          no_fields_config =
-            base_config_fields ++
-              [
-                "  resultHandler: (result: #{rpc_action_name_pascal}Result<[], MetadataFields>) => void;"
-              ]
-
-          no_fields_config_str = "{\n#{Enum.join(no_fields_config, "\n")}\n}"
-
-          empty_fields_config =
-            base_config_fields ++
-              [
-                "  resultHandler: (result: #{rpc_action_name_pascal}Result<[], MetadataFields>) => void;"
-              ]
-
-          empty_fields_config_str = "{\n#{Enum.join(empty_fields_config, "\n")}\n}"
-
-          with_fields_config =
-            base_config_fields ++
-              [
-                "  resultHandler: (result: #{rpc_action_name_pascal}Result<Fields, MetadataFields>) => void;"
-              ]
-
-          with_fields_config_str = "{\n#{Enum.join(with_fields_config, "\n")}\n}"
-
-          """
-          export async function #{function_name}<Fields extends #{rpc_action_name_pascal}Fields, #{metadata_param}>(
-            config: #{with_fields_config_str} & { #{formatted_fields_field()}: Fields }
-          ): Promise<void>;
-          export async function #{function_name}<#{metadata_param}>(
-            config: #{empty_fields_config_str} & { #{formatted_fields_field()}: [] }
-          ): Promise<void>;
-          export async function #{function_name}<#{metadata_param}>(
-            config: #{no_fields_config_str}
-          ): Promise<void>;
-          """
-        else
-          no_fields_config =
-            base_config_fields ++
-              ["  resultHandler: (result: #{rpc_action_name_pascal}Result<[]>) => void;"]
-
-          no_fields_config_str = "{\n#{Enum.join(no_fields_config, "\n")}\n}"
-
-          empty_fields_config =
-            base_config_fields ++
-              ["  resultHandler: (result: #{rpc_action_name_pascal}Result<[]>) => void;"]
-
-          empty_fields_config_str = "{\n#{Enum.join(empty_fields_config, "\n")}\n}"
-
-          with_fields_config =
-            base_config_fields ++
-              ["  resultHandler: (result: #{rpc_action_name_pascal}Result<Fields>) => void;"]
-
-          with_fields_config_str = "{\n#{Enum.join(with_fields_config, "\n")}\n}"
-
-          """
-          export async function #{function_name}<Fields extends #{rpc_action_name_pascal}Fields>(
-            config: #{with_fields_config_str} & { #{formatted_fields_field()}: Fields }
-          ): Promise<void>;
-          export async function #{function_name}(
-            config: #{empty_fields_config_str} & { #{formatted_fields_field()}: [] }
-          ): Promise<void>;
-          export async function #{function_name}(
-            config: #{no_fields_config_str}
-          ): Promise<void>;
-          """
-        end
-      else
-        ""
-      end
-
     """
-    #{overloads}export async function #{function_name}#{generic_part}(config: #{config_type_def}) {
+    export async function #{function_name}#{generic_part}(config: #{config_type_def}) {
       #{before_channel_push_hook}
 
       const timeout = config.timeout ?? processedConfig.timeout;
@@ -3226,13 +3124,17 @@ defmodule AshTypescript.Rpc.Codegen do
       )
 
     validation_function =
-      generate_validation_function(
-        resource,
-        action,
-        rpc_action_name,
-        endpoint_validate,
-        hook_config
-      )
+      if AshTypescript.Rpc.generate_validation_functions?() do
+        generate_validation_function(
+          resource,
+          action,
+          rpc_action_name,
+          endpoint_validate,
+          hook_config
+        )
+      else
+        ""
+      end
 
     channel_function =
       if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
