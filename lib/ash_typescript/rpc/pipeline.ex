@@ -193,6 +193,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   Performance-optimized single-pass filtering.
   For unconstrained maps, returns the normalized result directly.
   Handles metadata extraction for both read and mutation actions.
+  If the extraction template is empty for mutation actions (create/update), returns empty data.
   """
   @spec process_result(term(), Request.t()) :: {:ok, term()} | {:error, term()}
   def process_result(ash_result, %Request{} = request) do
@@ -201,22 +202,27 @@ defmodule AshTypescript.Rpc.Pipeline do
         {:error, error}
 
       result when is_list(result) or is_map(result) or is_tuple(result) ->
-        if unconstrained_map_action?(request.action) do
-          {:ok, ResultProcessor.normalize_value_for_json(result)}
+        if request.extraction_template == [] and request.action.type in [:create, :update] and
+             Enum.empty?(request.show_metadata) do
+          {:ok, %{}}
         else
-          resource_for_mapping =
-            if request.action.type == :action and returns_typed_struct?(request.action) do
-              nil
-            else
-              request.resource
-            end
+          if unconstrained_map_action?(request.action) do
+            {:ok, ResultProcessor.normalize_value_for_json(result)}
+          else
+            resource_for_mapping =
+              if request.action.type == :action and returns_typed_struct?(request.action) do
+                nil
+              else
+                request.resource
+              end
 
-          filtered =
-            ResultProcessor.process(result, request.extraction_template, resource_for_mapping)
+            filtered =
+              ResultProcessor.process(result, request.extraction_template, resource_for_mapping)
 
-          filtered_with_metadata = add_metadata(filtered, result, request)
+            filtered_with_metadata = add_metadata(filtered, result, request)
 
-          {:ok, filtered_with_metadata}
+            {:ok, filtered_with_metadata}
+          end
         end
 
       primitive_value ->
@@ -735,8 +741,11 @@ defmodule AshTypescript.Rpc.Pipeline do
         false
       else
         case action.type do
-          type when type in [:read, :create, :update] ->
+          :read ->
             true
+
+          type when type in [:create, :update, :destroy] ->
+            false
 
           :action ->
             case AshTypescript.Rpc.Codegen.action_returns_field_selectable_type?(action) do
