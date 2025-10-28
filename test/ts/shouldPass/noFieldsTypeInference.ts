@@ -21,7 +21,8 @@ if (createUserNoFieldsInferred.success) {
   // This should compile - empty object type
   const isEmpty = Object.keys(data).length === 0;
 
-  // @ts-expect-error - Should NOT have id property when no fields requested
+  // Properties should NOT exist when no fields requested - this line should error
+  // @ts-expect-error
   const shouldNotExist = createUserNoFieldsInferred.data.id;
 }
 
@@ -35,7 +36,7 @@ export const createUserEmptyFieldsInferred = await createUser({
 });
 
 if (createUserEmptyFieldsInferred.success) {
-  const data: {} = createUserEmptyFieldsInferred.data;
+  const data: unknown = createUserEmptyFieldsInferred.data;
 
   // @ts-expect-error - Should NOT have name property when fields is empty
   const shouldNotExist = createUserEmptyFieldsInferred.data.name;
