@@ -31,6 +31,7 @@ import "./shouldPass/precisePaginationTypes";
 import "./shouldPass/metadata";
 import "./shouldPass/genericActionTypedStruct";
 import "./shouldPass/rpcLifecycleHooks";
+import "./shouldPass/noFields";
 import "./rpcHooks";
 
 // Import Zod schema validation tests
