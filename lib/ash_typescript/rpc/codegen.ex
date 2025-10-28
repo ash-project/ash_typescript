@@ -580,11 +580,13 @@ defmodule AshTypescript.Rpc.Codegen do
     type InferResult<
       T extends TypedSchema,
       SelectedFields extends UnifiedFieldSelection<T>[],
-    > = UnionToIntersection<
-      {
-        [K in keyof SelectedFields]: InferFieldValue<T, SelectedFields[K]>;
-      }[number]
-    >;
+    > = SelectedFields extends []
+      ? {}
+      : UnionToIntersection<
+          {
+            [K in keyof SelectedFields]: InferFieldValue<T, SelectedFields[K]>;
+          }[number]
+        >;
 
     // Pagination conditional types
     // Checks if a page configuration object has any pagination parameters
@@ -2110,11 +2112,10 @@ defmodule AshTypescript.Rpc.Codegen do
     config_fields
   end
 
-  defp build_payload_fields(_resource, _action, rpc_action_name, context, opts) do
+  defp build_payload_fields(rpc_action_name, context, opts) do
     include_fields = Keyword.get(opts, :include_fields, false)
     include_filtering_pagination = Keyword.get(opts, :include_filtering_pagination, true)
     include_metadata_fields = Keyword.get(opts, :include_metadata_fields, false)
-
     payload_fields = ["action: \"#{rpc_action_name}\""]
 
     payload_fields =
@@ -2145,7 +2146,7 @@ defmodule AshTypescript.Rpc.Codegen do
       if include_fields do
         payload_fields ++
           [
-            "...(config.#{formatted_fields_field()} && { #{formatted_fields_field()}: config.#{formatted_fields_field()} })"
+            "...(config.#{formatted_fields_field()} !== undefined && { #{formatted_fields_field()}: config.#{formatted_fields_field()} })"
           ]
       else
         payload_fields
@@ -2544,7 +2545,7 @@ defmodule AshTypescript.Rpc.Codegen do
     generic_part = if generic_param != "", do: "<#{generic_param}>", else: ""
 
     payload_fields =
-      build_payload_fields(resource, action, rpc_action_name, context,
+      build_payload_fields(rpc_action_name, context,
         include_fields: has_fields,
         include_metadata_fields: has_metadata
       )
@@ -2553,10 +2554,49 @@ defmodule AshTypescript.Rpc.Codegen do
 
     before_request_hook = generate_before_request_hook_call(hook_config, rpc_action_name, false)
 
+    overloads =
+      if action.type in [:create, :update] and has_fields do
+        config_type_without_fields =
+          config_fields
+          |> Enum.reject(&String.contains?(&1, "#{formatted_fields_field()}"))
+          |> then(fn fields -> "{\n#{Enum.join(fields, "\n")}\n}" end)
+
+        if has_metadata do
+          metadata_param =
+            "MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []"
+
+          """
+          export async function #{function_name}<#{metadata_param}>(
+            config: #{config_type_without_fields}
+          ): Promise<#{rpc_action_name_pascal}Result<[], MetadataFields>>;
+          export async function #{function_name}<#{metadata_param}>(
+            config: #{config_type_without_fields} & { #{formatted_fields_field()}: [] }
+          ): Promise<#{rpc_action_name_pascal}Result<[], MetadataFields>>;
+          export async function #{function_name}<Fields extends #{rpc_action_name_pascal}Fields, #{metadata_param}>(
+            config: #{config_type_without_fields} & { #{formatted_fields_field()}: Fields }
+          ): Promise<#{rpc_action_name_pascal}Result<Fields, MetadataFields>>;
+          """
+        else
+          """
+          export async function #{function_name}(
+            config: #{config_type_without_fields}
+          ): Promise<#{rpc_action_name_pascal}Result<[]>>;
+          export async function #{function_name}(
+            config: #{config_type_without_fields} & { #{formatted_fields_field()}: never[] }
+          ): Promise<#{rpc_action_name_pascal}Result<[]>>;
+          export async function #{function_name}<Fields extends #{rpc_action_name_pascal}Fields>(
+            config: #{config_type_without_fields} & { #{formatted_fields_field()}: Fields }
+          ): Promise<#{rpc_action_name_pascal}Result<Fields>>;
+          """
+        end
+      else
+        ""
+      end
+
     """
     #{config_type_export}#{result_type_def}
 
-    export async function #{function_name}#{generic_part}(
+    #{overloads}export async function #{function_name}#{generic_part}(
       #{function_signature}
     ): Promise<#{return_type_def}> {
       #{before_request_hook}
@@ -2650,7 +2690,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     # Build the validation payload using helper (no fields or filtering/pagination for validation)
     validation_payload_fields =
-      build_payload_fields(resource, action, rpc_action_name, context,
+      build_payload_fields(rpc_action_name, context,
         include_fields: false,
         include_filtering_pagination: false
       )
@@ -2739,7 +2779,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     # Build the payload using helper (no fields or filtering/pagination for validation)
     payload_fields =
-      build_payload_fields(resource, action, rpc_action_name, context,
+      build_payload_fields(rpc_action_name, context,
         include_fields: false,
         include_filtering_pagination: false
       )
@@ -2981,7 +3021,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     # Build the payload using helper - include metadata_fields only when metadata is exposed
     payload_fields =
-      build_payload_fields(resource, action, rpc_action_name, context,
+      build_payload_fields(rpc_action_name, context,
         include_fields: has_fields,
         include_metadata_fields: has_metadata_for_payload
       )
@@ -3025,8 +3065,93 @@ defmodule AshTypescript.Rpc.Codegen do
           end
       end
 
+    # Unlike RPC functions which return Promise<Result>, channel functions use resultHandler callbacks.
+    # Generate overloads to enable proper type inference of the callback parameter based on fields presence.
+    overloads =
+      if action.type in [:create, :update] and has_fields do
+        base_config_fields =
+          config_fields
+          |> Enum.reject(
+            &(String.contains?(&1, "#{formatted_fields_field()}?") or
+                String.contains?(&1, "resultHandler:"))
+          )
+
+        if has_metadata do
+          metadata_param =
+            "MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []"
+
+          no_fields_config =
+            base_config_fields ++
+              [
+                "  resultHandler: (result: #{rpc_action_name_pascal}Result<[], MetadataFields>) => void;"
+              ]
+
+          no_fields_config_str = "{\n#{Enum.join(no_fields_config, "\n")}\n}"
+
+          empty_fields_config =
+            base_config_fields ++
+              [
+                "  resultHandler: (result: #{rpc_action_name_pascal}Result<[], MetadataFields>) => void;"
+              ]
+
+          empty_fields_config_str = "{\n#{Enum.join(empty_fields_config, "\n")}\n}"
+
+          with_fields_config =
+            base_config_fields ++
+              [
+                "  resultHandler: (result: #{rpc_action_name_pascal}Result<Fields, MetadataFields>) => void;"
+              ]
+
+          with_fields_config_str = "{\n#{Enum.join(with_fields_config, "\n")}\n}"
+
+          """
+          export async function #{function_name}<Fields extends #{rpc_action_name_pascal}Fields, #{metadata_param}>(
+            config: #{with_fields_config_str} & { #{formatted_fields_field()}: Fields }
+          ): Promise<void>;
+          export async function #{function_name}<#{metadata_param}>(
+            config: #{empty_fields_config_str} & { #{formatted_fields_field()}: [] }
+          ): Promise<void>;
+          export async function #{function_name}<#{metadata_param}>(
+            config: #{no_fields_config_str}
+          ): Promise<void>;
+          """
+        else
+          no_fields_config =
+            base_config_fields ++
+              ["  resultHandler: (result: #{rpc_action_name_pascal}Result<[]>) => void;"]
+
+          no_fields_config_str = "{\n#{Enum.join(no_fields_config, "\n")}\n}"
+
+          empty_fields_config =
+            base_config_fields ++
+              ["  resultHandler: (result: #{rpc_action_name_pascal}Result<[]>) => void;"]
+
+          empty_fields_config_str = "{\n#{Enum.join(empty_fields_config, "\n")}\n}"
+
+          with_fields_config =
+            base_config_fields ++
+              ["  resultHandler: (result: #{rpc_action_name_pascal}Result<Fields>) => void;"]
+
+          with_fields_config_str = "{\n#{Enum.join(with_fields_config, "\n")}\n}"
+
+          """
+          export async function #{function_name}<Fields extends #{rpc_action_name_pascal}Fields>(
+            config: #{with_fields_config_str} & { #{formatted_fields_field()}: Fields }
+          ): Promise<void>;
+          export async function #{function_name}(
+            config: #{empty_fields_config_str} & { #{formatted_fields_field()}: [] }
+          ): Promise<void>;
+          export async function #{function_name}(
+            config: #{no_fields_config_str}
+          ): Promise<void>;
+          """
+        end
+      else
+        ""
+      end
+
     """
-    export async function #{function_name}#{generic_part}(config: #{config_type_def}) {
+    #{overloads}export async function #{function_name}#{generic_part}(config: #{config_type_def}) {
       #{before_channel_push_hook}
 
       const timeout = config.timeout ?? processedConfig.timeout;

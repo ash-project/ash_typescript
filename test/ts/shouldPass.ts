@@ -32,6 +32,8 @@ import "./shouldPass/metadata";
 import "./shouldPass/genericActionTypedStruct";
 import "./shouldPass/rpcLifecycleHooks";
 import "./shouldPass/noFields";
+import "./shouldPass/noFieldsTypeInference";
+import "./shouldPass/channelNoFieldsTypeInference";
 import "./rpcHooks";
 
 // Import Zod schema validation tests
