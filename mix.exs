@@ -5,7 +5,7 @@
 defmodule AshTypescript.MixProject do
   use Mix.Project
 
-  @version "0.6.1"
+  @version "0.6.2"
 
   @description """
   The extension for tracking changes to your resources via a centralized event log, with replay functionality.

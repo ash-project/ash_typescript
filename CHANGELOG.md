@@ -11,6 +11,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.6.2](https://github.com/ash-project/ash_typescript/compare/v0.6.1...v0.6.2) (2025-10-28)
+
+
+
+
+### Bug Fixes:
+
+* rpc: generate optional fields parameter for create/update in TypeScript by [@Torkan](https://github.com/Torkan)
+
+* rpc: make fields parameter optional for create and update actions by [@Torkan](https://github.com/Torkan)
+
 ## [v0.6.1](https://github.com/ash-project/ash_typescript/compare/v0.6.0...v0.6.1) (2025-10-27)
 
 
