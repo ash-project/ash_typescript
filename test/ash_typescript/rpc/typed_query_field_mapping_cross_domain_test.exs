@@ -15,8 +15,6 @@ defmodule AshTypescript.Rpc.TypedQueryFieldMappingCrossDomainTest do
   alias AshTypescript.Test.User
 
   setup_all do
-    # Ensure TypeScript is generated before tests run
-    Mix.Task.run("test.codegen")
     :ok
   end
 
@@ -47,8 +45,8 @@ defmodule AshTypescript.Rpc.TypedQueryFieldMappingCrossDomainTest do
       # The second domain (AshTypescript.Test.SecondDomain) also has a typed query for User
       # This tests that the mapping is correctly applied even in the second domain
 
-      # Read the generated TypeScript file that was created during compilation
-      typescript = File.read!("test/ts/generated.ts")
+      # Generate TypeScript code
+      {:ok, typescript} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
       # Check that the typed query from the second domain exists
       assert typescript =~ "listUsersSecondDomain"
