@@ -2143,7 +2143,10 @@ defmodule AshTypescript.Rpc.Codegen do
 
     payload_fields =
       if include_fields do
-        payload_fields ++ ["#{formatted_fields_field()}: config.#{formatted_fields_field()}"]
+        payload_fields ++
+          [
+            "...(config.#{formatted_fields_field()} && { #{formatted_fields_field()}: config.#{formatted_fields_field()} })"
+          ]
       else
         payload_fields
       end
@@ -2278,8 +2281,13 @@ defmodule AshTypescript.Rpc.Codegen do
                 {config_fields, false, nil}
             end
 
-          _ ->
+          :read ->
             updated_fields = config_fields ++ ["  #{formatted_fields_field()}: Fields;"]
+
+            {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
+
+          type when type in [:create, :update] ->
+            updated_fields = config_fields ++ ["  #{formatted_fields_field()}?: Fields;"]
 
             {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
         end
@@ -2849,8 +2857,13 @@ defmodule AshTypescript.Rpc.Codegen do
                 {config_fields, false, nil}
             end
 
-          _ ->
+          :read ->
             updated_fields = config_fields ++ ["  #{formatted_fields_field()}: Fields;"]
+
+            {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
+
+          type when type in [:create, :update] ->
+            updated_fields = config_fields ++ ["  #{formatted_fields_field()}?: Fields;"]
 
             {updated_fields, true, "Fields extends #{rpc_action_name_pascal}Fields"}
         end
