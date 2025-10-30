@@ -157,7 +157,7 @@ interface ValidationConfig {
 }
 
 // Before request hook signature
-function beforeRequest(config: ActionConfig): ActionConfig {
+function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   // Access optional hook context
   const ctx = config.hookCtx;
 
@@ -167,6 +167,7 @@ function beforeRequest(config: ActionConfig): ActionConfig {
 
 // After request hook signature
 function afterRequest(
+  actionName: string,
   response: Response,
   result: any | null,  // null when response.ok is false
   config: ActionConfig
@@ -194,7 +195,7 @@ The `beforeRequest` hook runs **before the HTTP request** and can modify the req
 
 ```typescript
 // rpcHooks.ts
-export function beforeRequest<T extends ActionConfig>(config: T): T {
+export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   // Fetch auth token from localStorage (if it exists)
   const authToken = localStorage.getItem('authToken');
 
@@ -206,7 +207,7 @@ export function beforeRequest<T extends ActionConfig>(config: T): T {
         ...config.headers,
         'Authorization': `Bearer ${authToken}`
       }
-    } as T;
+    };
   }
 
   return config;
@@ -231,7 +232,7 @@ export interface ActionHookContext {
   correlationId?: string;
 }
 
-export function beforeRequest<T extends ActionConfig>(config: T): T {
+export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   const ctx = config.hookCtx;
 
   // Use provided correlation ID or generate one
@@ -245,7 +246,7 @@ export function beforeRequest<T extends ActionConfig>(config: T): T {
       'X-Request-ID': correlationId,
       ...config.headers  // Original headers take precedence
     }
-  } as T;
+  };
 }
 
 function generateRequestId(): string {
@@ -270,7 +271,7 @@ export interface ActionHookContext {
   startTime?: number;
 }
 
-export function beforeRequest<T extends ActionConfig>(config: T): T {
+export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   const ctx = config.hookCtx;
 
   // Store request start time in context for afterRequest hook
@@ -285,11 +286,11 @@ export function beforeRequest<T extends ActionConfig>(config: T): T {
 #### Logging Outgoing Requests
 
 ```typescript
-export function beforeRequest<T extends ActionConfig>(config: T): T {
+export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   const ctx = config.hookCtx;
 
   console.log('Outgoing RPC request:', {
-    action: config.action,
+    action: actionName,
     domain: config.domain,
     hasInput: !!config.input,
     timestamp: new Date().toISOString(),
@@ -313,10 +314,11 @@ The `afterRequest` hook runs **after the HTTP request completes** (both success 
 The `afterRequest` hook receives `null` as the result parameter when the response is not OK:
 
 ```typescript
-export function afterRequest<T extends ActionConfig>(
+export function afterRequest(
+  actionName: string,
   response: Response,
   result: any | null,
-  config: T
+  config: ActionConfig
 ): void {
   if (result === null) {
     // Response failed (response.ok === false)
@@ -338,15 +340,16 @@ export function afterRequest<T extends ActionConfig>(
 #### Logging All Responses
 
 ```typescript
-export function afterRequest<T extends ActionConfig>(
+export function afterRequest(
+  actionName: string,
   response: Response,
   result: any | null,
-  config: T
+  config: ActionConfig
 ): void {
   const ctx = config.hookCtx;
 
   console.log('RPC response received:', {
-    action: config.action,
+    action: actionName,
     domain: config.domain,
     status: response.status,
     ok: response.ok,
@@ -365,10 +368,11 @@ export interface ActionHookContext {
   trackPerformance?: boolean;
 }
 
-export function afterRequest<T extends ActionConfig>(
+export function afterRequest(
+  actionName: string,
   response: Response,
   result: any | null,
-  config: T
+  config: ActionConfig
 ): void {
   const ctx = config.hookCtx;
 
@@ -376,7 +380,7 @@ export function afterRequest<T extends ActionConfig>(
     const duration = Date.now() - ctx.startTime;
 
     console.log('Performance metrics:', {
-      action: config.action,
+      action: actionName,
       duration: `${duration}ms`,
       status: response.status,
       success: result !== null && result.success
@@ -384,7 +388,7 @@ export function afterRequest<T extends ActionConfig>(
 
     // Send to analytics service
     trackMetric('rpc.duration', duration, {
-      action: config.action,
+      action: actionName,
       status: response.status
     });
   }
@@ -394,15 +398,16 @@ export function afterRequest<T extends ActionConfig>(
 #### Telemetry Tracking
 
 ```typescript
-export function afterRequest<T extends ActionConfig>(
+export function afterRequest(
+  actionName: string,
   response: Response,
   result: any | null,
-  config: T
+  config: ActionConfig
 ): void {
   // Send telemetry to monitoring service
   sendTelemetry({
     event: 'rpc.request.completed',
-    action: config.action,
+    action: actionName,
     domain: config.domain,
     status: response.status,
     success: response.ok && result?.success,
@@ -414,17 +419,18 @@ export function afterRequest<T extends ActionConfig>(
 #### Error Monitoring
 
 ```typescript
-export function afterRequest<T extends ActionConfig>(
+export function afterRequest(
+  actionName: string,
   response: Response,
   result: any | null,
-  config: T
+  config: ActionConfig
 ): void {
   // Track errors in error monitoring service
   if (result === null || !result.success) {
     Sentry.captureMessage('RPC request failed', {
       level: 'error',
       extra: {
-        action: config.action,
+        action: actionName,
         status: response.status,
         errors: result?.errors,
         url: response.url
@@ -439,7 +445,7 @@ export function afterRequest<T extends ActionConfig>(
 When using `beforeRequest` hooks, the **original config always takes precedence** over the modified config:
 
 ```typescript
-export function beforeRequest<T extends ActionConfig>(config: T): T {
+export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   return {
     ...config,
     headers: {
@@ -447,7 +453,7 @@ export function beforeRequest<T extends ActionConfig>(config: T): T {
       ...config.headers  // ← Original headers override defaults
     },
     customFetch: config.customFetch || myDefaultFetch  // ← Original takes precedence
-  } as T;
+  };
 }
 ```
 
@@ -463,7 +469,7 @@ This ensures that per-request customizations always override hook defaults.
 Hooks **do not catch exceptions** - any errors thrown by hooks will propagate to the caller:
 
 ```typescript
-export function beforeRequest<T extends ActionConfig>(config: T): T {
+export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   if (!isValidConfig(config)) {
     // This exception propagates to the caller
     throw new Error('Invalid RPC configuration');
@@ -520,7 +526,7 @@ export interface ValidationHookContext {
 }
 
 // Action hooks
-export function beforeRequest<T extends ActionConfig>(config: T): T {
+export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   const ctx = config.hookCtx;
 
   // Add correlation ID and client version headers
@@ -535,21 +541,22 @@ export function beforeRequest<T extends ActionConfig>(config: T): T {
     ctx.startTime = Date.now();
   }
 
-  console.log(`[RPC] ${config.action} started`, {
+  console.log(`[RPC] ${actionName} started`, {
     correlationId: ctx?.correlationId
   });
 
-  return { ...config, headers } as T;
+  return { ...config, headers };
 }
 
 function generateRequestId(): string {
   return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-export function afterRequest<T extends ActionConfig>(
+export function afterRequest(
+  actionName: string,
   response: Response,
   result: any | null,
-  config: T
+  config: ActionConfig
 ): void {
   const ctx = config.hookCtx;
 
@@ -558,12 +565,12 @@ export function afterRequest<T extends ActionConfig>(
 
   // Log result
   if (result === null) {
-    console.error(`[RPC] ${config.action} failed:`, {
+    console.error(`[RPC] ${actionName} failed:`, {
       status: response.status,
       duration: `${duration}ms`
     });
   } else {
-    console.log(`[RPC] ${config.action} completed:`, {
+    console.log(`[RPC] ${actionName} completed:`, {
       success: result.success,
       duration: `${duration}ms`
     });
@@ -571,19 +578,20 @@ export function afterRequest<T extends ActionConfig>(
 }
 
 // Validation hooks
-export function beforeValidationRequest<T extends ValidationConfig>(config: T): T {
+export function beforeValidationRequest(actionName: string, config: ValidationConfig): ValidationConfig {
   const ctx = config.hookCtx;
-  console.log(`[Validation] ${config.action} started`, { formId: ctx?.formId });
+  console.log(`[Validation] ${actionName} started`, { formId: ctx?.formId });
   return config;
 }
 
-export function afterValidationRequest<T extends ValidationConfig>(
+export function afterValidationRequest(
+  actionName: string,
   response: Response,
   result: any | null,
-  config: T
+  config: ValidationConfig
 ): void {
   const ctx = config.hookCtx;
-  console.log(`[Validation] ${config.action} completed`, {
+  console.log(`[Validation] ${actionName} completed`, {
     formId: ctx?.formId,
     hasErrors: result && !result.success
   });
@@ -774,10 +782,10 @@ export interface ActionChannelHookContext {
   customTimeout?: number;
 }
 
-export async function beforeChannelPush<T extends ChannelActionConfig>(
+export async function beforeChannelPush(
   actionName: string,
-  config: T
-): Promise<T> {
+  config: ChannelActionConfig
+): Promise<ChannelActionConfig> {
   const ctx = config.hookCtx;
 
   // Set default timeout if not specified
@@ -785,7 +793,7 @@ export async function beforeChannelPush<T extends ChannelActionConfig>(
     return {
       ...config,
       timeout: ctx.customTimeout || 10000  // 10 second default
-    } as T;
+    };
   }
 
   return config;
@@ -814,10 +822,10 @@ export interface ActionChannelHookContext {
   startTime?: number;
 }
 
-export async function beforeChannelPush<T extends ChannelActionConfig>(
+export async function beforeChannelPush(
   actionName: string,
-  config: T
-): Promise<T> {
+  config: ChannelActionConfig
+): Promise<ChannelActionConfig> {
   const ctx = config.hookCtx;
 
   // Setup timing
@@ -847,11 +855,11 @@ The `afterChannelResponse` hook runs **after the channel response is received** 
 #### Logging All Channel Responses
 
 ```typescript
-export async function afterChannelResponse<T extends ChannelActionConfig>(
+export async function afterChannelResponse(
   actionName: string,
   responseType: "ok" | "error" | "timeout",
   data: any,
-  config: T
+  config: ChannelActionConfig
 ): Promise<void> {
   const ctx = config.hookCtx;
 
@@ -881,11 +889,11 @@ export interface ActionChannelHookContext {
   correlationId?: string;
 }
 
-export async function afterChannelResponse<T extends ChannelActionConfig>(
+export async function afterChannelResponse(
   actionName: string,
   responseType: "ok" | "error" | "timeout",
   data: any,
-  config: T
+  config: ChannelActionConfig
 ): Promise<void> {
   const ctx = config.hookCtx;
 
@@ -913,11 +921,11 @@ export async function afterChannelResponse<T extends ChannelActionConfig>(
 #### Telemetry Tracking
 
 ```typescript
-export async function afterChannelResponse<T extends ChannelActionConfig>(
+export async function afterChannelResponse(
   actionName: string,
   responseType: "ok" | "error" | "timeout",
   data: any,
-  config: T
+  config: ChannelActionConfig
 ): Promise<void> {
   // Send telemetry to monitoring service
   sendTelemetry({
@@ -943,11 +951,11 @@ export async function afterChannelResponse<T extends ChannelActionConfig>(
 #### Error Monitoring
 
 ```typescript
-export async function afterChannelResponse<T extends ChannelActionConfig>(
+export async function afterChannelResponse(
   actionName: string,
   responseType: "ok" | "error" | "timeout",
   data: any,
-  config: T
+  config: ChannelActionConfig
 ): Promise<void> {
   // Track errors in error monitoring service
   if (responseType === "error" || responseType === "timeout") {
@@ -978,14 +986,14 @@ export async function afterChannelResponse<T extends ChannelActionConfig>(
 When using `beforeChannelPush` hooks, the **original config always takes precedence** over the modified config:
 
 ```typescript
-export async function beforeChannelPush<T extends ChannelActionConfig>(
+export async function beforeChannelPush(
   actionName: string,
-  config: T
-): Promise<T> {
+  config: ChannelActionConfig
+): Promise<ChannelActionConfig> {
   return {
     ...config,
     timeout: config.timeout ?? 10000  // ← Original timeout takes precedence
-  } as T;
+  };
 }
 ```
 
@@ -1014,10 +1022,10 @@ export interface ValidationChannelHookContext {
 }
 
 // Action hooks
-export async function beforeChannelPush<T extends ChannelActionConfig>(
+export async function beforeChannelPush(
   actionName: string,
-  config: T
-): Promise<T> {
+  config: ChannelActionConfig
+): Promise<ChannelActionConfig> {
   const ctx = config.hookCtx;
 
   // Setup timing
@@ -1032,11 +1040,11 @@ export async function beforeChannelPush<T extends ChannelActionConfig>(
   return config;
 }
 
-export async function afterChannelResponse<T extends ChannelActionConfig>(
+export async function afterChannelResponse(
   actionName: string,
   responseType: "ok" | "error" | "timeout",
   data: any,
-  config: T
+  config: ChannelActionConfig
 ): Promise<void> {
   const ctx = config.hookCtx;
 
@@ -1057,10 +1065,10 @@ export async function afterChannelResponse<T extends ChannelActionConfig>(
 }
 
 // Validation hooks
-export async function beforeValidationChannelPush<T extends ValidationChannelConfig>(
+export async function beforeValidationChannelPush(
   actionName: string,
-  config: T
-): Promise<T> {
+  config: ValidationChannelConfig
+): Promise<ValidationChannelConfig> {
   const ctx = config.hookCtx;
   console.log(`[Channel Validation] ${actionName} started`, {
     formId: ctx?.formId,
@@ -1069,11 +1077,11 @@ export async function beforeValidationChannelPush<T extends ValidationChannelCon
   return config;
 }
 
-export async function afterValidationChannelResponse<T extends ValidationChannelConfig>(
+export async function afterValidationChannelResponse(
   actionName: string,
   responseType: "ok" | "error" | "timeout",
   data: any,
-  config: T
+  config: ValidationChannelConfig
 ): Promise<void> {
   const ctx = config.hookCtx;
   console.log(`[Channel Validation] ${actionName} completed`, {
@@ -1145,19 +1153,19 @@ return {
 **Performance timing not working:**
 ```typescript
 // ❌ Wrong: Context is read-only, modifications lost
-export function beforeRequest<T extends ActionConfig>(config: T): T {
+export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   const ctx = config.hookCtx;
   ctx.startTime = Date.now();  // Lost!
   return config;
 }
 
 // ✅ Correct: Return modified context
-export function beforeRequest<T extends ActionConfig>(config: T): T {
+export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   const ctx = config.hookCtx || {};
   return {
     ...config,
     hookCtx: { ...ctx, startTime: Date.now() }
-  } as T;
+  };
 }
 ```
 

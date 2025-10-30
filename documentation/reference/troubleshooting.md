@@ -240,7 +240,7 @@ return {
 **Wrong:**
 ```typescript
 // ❌ Context is read-only, modifications lost
-export function beforeRequest<T extends ActionConfig>(config: T): T {
+export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   const ctx = config.hookCtx;
   ctx.startTime = Date.now();  // Lost!
   return config;
@@ -250,12 +250,12 @@ export function beforeRequest<T extends ActionConfig>(config: T): T {
 **Correct:**
 ```typescript
 // ✅ Return modified context
-export function beforeRequest<T extends ActionConfig>(config: T): T {
+export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   const ctx = config.hookCtx || {};
   return {
     ...config,
     hookCtx: { ...ctx, startTime: Date.now() }
-  } as T;
+  };
 }
 ```
 
