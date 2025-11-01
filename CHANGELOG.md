@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.6.3](https://github.com/ash-project/ash_typescript/compare/v0.6.2...v0.6.3) (2025-11-01)
+
+
+
+
+### Bug Fixes:
+
+* use type constraints in zod schema generation by [@Torkan](https://github.com/Torkan)
+
 ## [v0.6.2](https://github.com/ash-project/ash_typescript/compare/v0.6.1...v0.6.2) (2025-10-28)
 
 
