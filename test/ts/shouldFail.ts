@@ -22,5 +22,6 @@ import "./shouldFail/noFieldsReadActions";
 // Import Zod schema validation failure tests
 import "./zod/shouldFail/invalidZodUsage";
 import "./zod/shouldFail/complexInvalidSchemas";
+import "./zod/shouldFail/constraintValidation";
 
 console.log("This file should NOT compile due to TypeScript errors!");

@@ -145,6 +145,114 @@ defmodule AshTypescript.Test.OrgTodo do
         allow_nil? false
       end
 
+      argument :number_of_employees, :integer do
+        allow_nil? false
+        constraints min: 1, max: 1000
+      end
+
+      argument :some_string, :string do
+        allow_nil? false
+        constraints min_length: 1, max_length: 100
+      end
+
+      # Regex constraint tests - various patterns
+      argument :email, :string do
+        allow_nil? false
+        constraints match: ~r/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+      end
+
+      argument :phone_number, :string do
+        allow_nil? false
+        constraints match: ~r/^\+?[1-9]\d{1,14}$/
+      end
+
+      argument :hex_color, :string do
+        allow_nil? false
+        constraints match: ~r/^#[0-9A-Fa-f]{6}$/
+      end
+
+      argument :slug, :string do
+        allow_nil? false
+        constraints match: ~r/^[a-z0-9]+(?:-[a-z0-9]+)*$/
+      end
+
+      argument :version, :string do
+        allow_nil? false
+        constraints match: ~r/^\d+\.\d+\.\d+$/
+      end
+
+      argument :case_insensitive_code, :string do
+        allow_nil? false
+        constraints match: ~r/^[A-Z]{3}-\d{4}$/i
+      end
+
+      argument :optional_url, :string do
+        allow_nil? true
+        constraints match: ~r/^https?:\/\/.+/
+      end
+
+      # Float constraint tests
+      argument :price, :float do
+        allow_nil? false
+        constraints min: 0.0, max: 999_999.99
+      end
+
+      argument :temperature, :float do
+        allow_nil? false
+        constraints greater_than: -273.15, less_than: 1_000_000.0
+      end
+
+      argument :percentage, :float do
+        allow_nil? false
+        constraints min: 0.0, max: 100.0
+      end
+
+      argument :optional_rating, :float do
+        allow_nil? true
+        constraints min: 0.0, max: 5.0
+      end
+
+      # CiString constraint tests
+      argument :username, :ci_string do
+        allow_nil? false
+        constraints min_length: 3, max_length: 20
+      end
+
+      argument :company_name, :ci_string do
+        allow_nil? false
+        constraints min_length: 2, max_length: 100, match: ~r/^[a-zA-Z0-9\s]+$/
+      end
+
+      argument :country_code, :ci_string do
+        allow_nil? false
+        constraints match: ~r/^[A-Z]{2}$/i
+      end
+
+      argument :optional_nickname, :ci_string do
+        allow_nil? true
+        constraints min_length: 2, max_length: 15
+      end
+
+      argument :address, :map do
+        constraints fields: [
+                      street_address: [
+                        type: :string,
+                        allow_nil?: false,
+                        description: "Street Address is required",
+                        constraints: [min_length: 5]
+                      ],
+                      location_id: [
+                        type: :string,
+                        allow_nil?: false,
+                        description: "Postal code is required",
+                        constraints: [min_length: 5]
+                      ],
+                      details: [type: :string, allow_nil?: true]
+                    ]
+
+        allow_nil? false
+      end
+
       change set_attribute(:completed, arg(:auto_complete))
       change manage_relationship(:user_id, :user, type: :append)
     end

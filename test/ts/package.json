@@ -10,7 +10,8 @@
   "scripts": {
     "compileGenerated": "tsc generated.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop -noErrorTruncation",
     "compileShouldPass": "tsc shouldPass.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop -noErrorTruncation",
-    "compileShouldFail": "tsc shouldFail.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop -noErrorTruncation"
+    "compileShouldFail": "tsc shouldFail.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop -noErrorTruncation",
+    "testZod": "tsc runZodTests.ts --lib DOM,es2022 --module commonjs --target es2022 --strict --moduleResolution node --esModuleInterop && node runZodTests.js"
   },
   "devDependencies": {
     "@types/phoenix": "^1.6.6",

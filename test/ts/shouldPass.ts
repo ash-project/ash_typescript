@@ -39,5 +39,6 @@ import "./rpcHooks";
 // Import Zod schema validation tests
 import "./zod/shouldPass/basicZodUsage";
 import "./zod/shouldPass/complexSchemaValidation";
+import "./zod/shouldPass/constraintValidation";
 
 console.log("All shouldPass tests should compile successfully!");

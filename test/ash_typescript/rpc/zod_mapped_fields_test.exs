@@ -247,8 +247,8 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
       # notes is allow_nil?: true, should be optional
       assert zod_schema =~ "notes: z.string().optional()"
 
-      # priority_level is allow_nil?: true, should be optional
-      assert zod_schema =~ "priorityLevel: z.number().int().optional()"
+      # priority_level is allow_nil?: true, has constraints [min: 1, max: 5], should be optional
+      assert zod_schema =~ "priorityLevel: z.number().int().min(1).max(5).optional()"
 
       # isPublic (from is_public?) has default value, should be optional
       assert zod_schema =~ "isPublic: z.boolean().optional()"

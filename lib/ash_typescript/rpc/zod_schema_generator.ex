@@ -48,10 +48,45 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   end
 
   def get_zod_type(%{type: Ash.Type.Atom}, _), do: "z.string()"
+
+  def get_zod_type(%{type: Ash.Type.String, constraints: constraints, allow_nil?: false}, _)
+      when constraints != [] do
+    build_string_zod_with_constraints(constraints, true)
+  end
+
+  def get_zod_type(%{type: Ash.Type.String, constraints: constraints}, _)
+      when constraints != [] do
+    build_string_zod_with_constraints(constraints, false)
+  end
+
   def get_zod_type(%{type: Ash.Type.String, allow_nil?: false}, _), do: "z.string().min(1)"
   def get_zod_type(%{type: Ash.Type.String}, _), do: "z.string()"
+
+  def get_zod_type(%{type: Ash.Type.CiString, constraints: constraints, allow_nil?: false}, _)
+      when constraints != [] do
+    build_string_zod_with_constraints(constraints, true)
+  end
+
+  def get_zod_type(%{type: Ash.Type.CiString, constraints: constraints}, _)
+      when constraints != [] do
+    build_string_zod_with_constraints(constraints, false)
+  end
+
+  def get_zod_type(%{type: Ash.Type.CiString, allow_nil?: false}, _), do: "z.string().min(1)"
   def get_zod_type(%{type: Ash.Type.CiString}, _), do: "z.string()"
+
+  def get_zod_type(%{type: Ash.Type.Integer, constraints: constraints}, _)
+      when constraints != [] do
+    build_integer_zod_with_constraints(constraints)
+  end
+
   def get_zod_type(%{type: Ash.Type.Integer}, _), do: "z.number().int()"
+
+  def get_zod_type(%{type: Ash.Type.Float, constraints: constraints}, _)
+      when constraints != [] do
+    build_float_zod_with_constraints(constraints)
+  end
+
   def get_zod_type(%{type: Ash.Type.Float}, _), do: "z.number()"
   def get_zod_type(%{type: Ash.Type.Decimal}, _), do: "z.string()"
   def get_zod_type(%{type: Ash.Type.Boolean}, _), do: "z.boolean()"
@@ -528,5 +563,120 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
       :action ->
         action.arguments != []
     end
+  end
+
+  defp build_integer_zod_with_constraints(constraints) do
+    base = "z.number().int()"
+
+    base
+    |> add_min_constraint(Keyword.get(constraints, :min))
+    |> add_max_constraint(Keyword.get(constraints, :max))
+  end
+
+  defp build_float_zod_with_constraints(constraints) do
+    base = "z.number()"
+
+    base
+    |> add_min_constraint(Keyword.get(constraints, :min))
+    |> add_max_constraint(Keyword.get(constraints, :max))
+    |> add_gt_constraint(Keyword.get(constraints, :greater_than))
+    |> add_lt_constraint(Keyword.get(constraints, :less_than))
+  end
+
+  defp build_string_zod_with_constraints(constraints, require_non_empty) do
+    base = "z.string()"
+    min_length = Keyword.get(constraints, :min_length)
+    max_length = Keyword.get(constraints, :max_length)
+
+    # If require_non_empty is true and no min_length is set, default to min(1)
+    effective_min_length =
+      if require_non_empty && is_nil(min_length) do
+        1
+      else
+        min_length
+      end
+
+    base
+    |> add_string_min_length(effective_min_length)
+    |> add_string_max_length(max_length)
+    |> add_string_regex(Keyword.get(constraints, :match))
+  end
+
+  defp add_min_constraint(zod_str, nil), do: zod_str
+  defp add_min_constraint(zod_str, min), do: "#{zod_str}.min(#{min})"
+
+  defp add_max_constraint(zod_str, nil), do: zod_str
+  defp add_max_constraint(zod_str, max), do: "#{zod_str}.max(#{max})"
+
+  defp add_gt_constraint(zod_str, nil), do: zod_str
+  defp add_gt_constraint(zod_str, gt), do: "#{zod_str}.gt(#{gt})"
+
+  defp add_lt_constraint(zod_str, nil), do: zod_str
+  defp add_lt_constraint(zod_str, lt), do: "#{zod_str}.lt(#{lt})"
+
+  defp add_string_min_length(zod_str, nil), do: zod_str
+  defp add_string_min_length(zod_str, min), do: "#{zod_str}.min(#{min})"
+
+  defp add_string_max_length(zod_str, nil), do: zod_str
+  defp add_string_max_length(zod_str, max), do: "#{zod_str}.max(#{max})"
+
+  defp add_string_regex(zod_str, nil), do: zod_str
+
+  defp add_string_regex(zod_str, regex) when is_struct(regex, Regex) do
+    source = Regex.source(regex)
+
+    # Skip regex conversion for PCRE-specific features to avoid silent validation errors
+    if regex_is_safe_for_js?(source) do
+      opts = Regex.opts(regex)
+
+      js_flags =
+        []
+        |> then(fn flags -> if :caseless in opts, do: ["i" | flags], else: flags end)
+        |> then(fn flags -> if :multiline in opts, do: ["m" | flags], else: flags end)
+        |> then(fn flags -> if :dotall in opts, do: ["s" | flags], else: flags end)
+        |> Enum.join()
+
+      escaped_source = String.replace(source, "/", "\\/")
+
+      "#{zod_str}.regex(/#{escaped_source}/#{js_flags})"
+    else
+      # Server-side Ash validation will still enforce the constraint
+      zod_str
+    end
+  end
+
+  defp add_string_regex(zod_str, {Spark.Regex, :cache, [pattern, opts]}) do
+    regex = Spark.Regex.cache(pattern, opts)
+    add_string_regex(zod_str, regex)
+  end
+
+  defp add_string_regex(zod_str, _other), do: zod_str
+
+  # Checks if a regex pattern uses PCRE-specific features incompatible with JavaScript
+  defp regex_is_safe_for_js?(source) do
+    pcre_only_patterns = [
+      # Lookbehind assertions
+      ~r/\(\?<[!=]/,
+      # Possessive quantifiers
+      ~r/[*+?]\+/,
+      # Atomic groups
+      ~r/\(\?>/,
+      # PCRE named captures (JS uses (?<name> which is safe)
+      ~r/\(\?P</,
+      # Inline modifiers
+      ~r/\(\?[imsxADSUXJ]/,
+      # Recursion
+      ~r/\(\?R\)/,
+      # Subroutines
+      ~r/\(\?[0-9]/,
+      # Conditionals
+      ~r/\(\?\([^)]+\)/,
+      # PCRE-specific anchors
+      ~r/\\[AG]/,
+      # Unicode properties (syntax differs)
+      ~r/\\[pP]\{/
+    ]
+
+    not Enum.any?(pcre_only_patterns, fn pattern -> Regex.match?(pattern, source) end)
   end
 end
