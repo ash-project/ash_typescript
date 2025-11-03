@@ -102,81 +102,173 @@ This separation allows you to:
 
 ### Hook Function Signatures
 
-Both `beforeRequest` and `afterRequest` hooks receive the full config object and can access the optional `hookCtx` from it:
+Both `beforeRequest` and `afterRequest` hooks receive the full config object and can access the optional `hookCtx` from it.
+
+**Important:** AshTypescript exports `ActionConfig` and `ValidationConfig` types from the generated file. These types automatically include your custom `hookCtx` types based on your configuration settings.
+
+#### Configuring Custom Hook Context Types
+
+When you configure context type settings in your Elixir config, the generated TypeScript interfaces will automatically include these types:
+
+```elixir
+# config/config.exs
+config :ash_typescript,
+  # TypeScript types for hook context
+  rpc_action_hook_context_type: "RpcHooks.ActionHookContext",
+  rpc_validation_hook_context_type: "RpcHooks.ValidationHookContext"
+```
+
+With this configuration, the generated `ActionConfig` and `ValidationConfig` types will have properly typed `hookCtx` fields:
 
 ```typescript
-// Config interface showing all available fields
-interface ActionConfig {
-  // Request data
-  fields?: any;                    // Field selection
-  input?: Record<string, any>;     // Input data (for mutations)
-  primaryKey?: any;                // Primary key (for get/update/destroy)
-  filter?: Record<string, any>;    // Filter options (for reads)
-  sort?: string;                   // Sort options
-  page?: {                         // Pagination options
-    limit?: number;
-    offset?: number;
-    count?: boolean;
-  };
-
-  // Metadata
-  metadataFields?: string[];       // Metadata field selection
-
-  // HTTP customization
-  headers?: Record<string, string>;           // Custom headers
-  fetchOptions?: RequestInit;                 // Fetch options (signal, cache, etc.)
-  customFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-
-  // Multitenancy
-  tenant?: string;                 // Tenant parameter
-
-  // Hook context
-  hookCtx?: any;                   // Custom hook context
-
-  // Internal fields (available but typically not modified)
-  action?: string;                 // Action name
-  domain?: string;                 // Domain name
+// Generated types (in your generated file)
+export interface ActionConfig {
+  // ... other fields ...
+  hookCtx?: RpcHooks.ActionHookContext;  // ← Your custom type
 }
 
-// Validation config (for validation hooks)
-interface ValidationConfig {
-  // Request data
-  input?: Record<string, any>;     // Input data
+export interface ValidationConfig {
+  // ... other fields ...
+  hookCtx?: RpcHooks.ValidationHookContext;  // ← Your custom type
+}
+```
 
-  // HTTP customization
-  headers?: Record<string, string>;           // Custom headers
-  fetchOptions?: RequestInit;                 // Fetch options (signal, cache, etc.)
-  customFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+#### Implementing Hook Functions
 
-  // Hook context
-  hookCtx?: any;                   // Custom hook context (typically ValidationHookContext)
+Simply import and use the generated config types directly - no generics needed!
 
-  // Internal fields
-  action?: string;                 // Action name
-  domain?: string;                 // Domain name
+```typescript
+// rpcHooks.ts - Define your custom hook context interfaces
+export interface ActionHookContext {
+  enableLogging?: boolean;
+  enableTiming?: boolean;
+  customHeaders?: Record<string, string>;
+  startTime?: number;
 }
 
-// Before request hook signature
-function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
-  // Access optional hook context
+export interface ValidationHookContext {
+  enableLogging?: boolean;
+  validationLevel?: "strict" | "normal";
+}
+
+// Import the generated config types
+import type { ActionConfig, ValidationConfig } from './generated';
+
+// Implement your hook functions - the hookCtx is already properly typed!
+export async function beforeActionRequest(
+  actionName: string,
+  config: ActionConfig
+): Promise<ActionConfig> {
   const ctx = config.hookCtx;
 
-  // Return modified config (or original config)
-  return { ...config, /* modifications */ };
+  // ctx is automatically typed as ActionHookContext | undefined
+  if (ctx?.enableLogging) {
+    console.log(`[Action] ${actionName} started`);
+  }
+
+  // Modify hookCtx if needed
+  const modifiedCtx = ctx ? { ...ctx, startTime: Date.now() } : undefined;
+
+  return {
+    ...config,
+    ...(modifiedCtx && { hookCtx: modifiedCtx })
+  };
 }
 
-// After request hook signature
-function afterRequest(
+export async function afterActionRequest(
   actionName: string,
   response: Response,
-  result: any | null,  // null when response.ok is false
+  result: any | null,
   config: ActionConfig
-): void {
-  // Access optional hook context
+): Promise<void> {
   const ctx = config.hookCtx;
 
-  // Perform side effects (logging, telemetry, etc.)
-  // No return value
+  // ctx.startTime is properly typed (no type assertion needed!)
+  if (ctx?.enableTiming && ctx.startTime) {
+    const duration = Date.now() - ctx.startTime;
+    console.log(`Request took ${duration}ms`);
+  }
+}
+
+// Similarly for validation hooks
+export async function beforeValidationRequest(
+  actionName: string,
+  config: ValidationConfig
+): Promise<ValidationConfig> {
+  const ctx = config.hookCtx;
+
+  if (ctx?.validationLevel === "strict") {
+    console.log(`[Validation] Running in strict mode`);
+  }
+
+  return config;
+}
+```
+
+**Key Benefits:**
+- **Type safety** - Your custom context fields are properly typed automatically
+- **IntelliSense** - IDE autocomplete works for your custom fields
+- **No generics needed** - The generated types already include your context types
+- **Simpler code** - Direct usage without complex generic constraints
+
+The exported `ActionConfig` interface includes all available configuration fields:
+
+```typescript
+// This type is exported from your generated file
+export interface ActionConfig {
+  // Request data
+  input?: Record<string, any>;
+  primaryKey?: any;
+  fields?: Array<string | Record<string, any>>; // Field selection
+  filter?: Record<string, any>; // Filter options (for reads)
+  sort?: string; // Sort options
+  page?:
+    | {
+        // Offset-based pagination
+        limit?: number;
+        offset?: number;
+        count?: boolean;
+      }
+    | {
+        // Keyset pagination
+        limit?: number;
+        after?: string;
+        before?: string;
+      };
+
+  // Metadata
+  metadataFields?: Record<string, any>; // Metadata field selection
+
+  // HTTP customization
+  headers?: Record<string, string>; // Custom headers
+  fetchOptions?: RequestInit; // Fetch options (signal, cache, etc.)
+  customFetch?: (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => Promise<Response>;
+
+  // Multitenancy
+  tenant?: string; // Tenant parameter
+
+  // Hook context
+  hookCtx?: Record<string, any>;
+}
+
+// This type is also exported from your generated file
+export interface ValidationConfig {
+  // Request data
+  input?: Record<string, any>;
+
+  // HTTP customization
+  headers?: Record<string, string>;
+  fetchOptions?: RequestInit;
+  customFetch?: (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => Promise<Response>;
+
+  // Hook context
+  hookCtx?: Record<string, any>;
 }
 ```
 
@@ -195,6 +287,8 @@ The `beforeRequest` hook runs **before the HTTP request** and can modify the req
 
 ```typescript
 // rpcHooks.ts
+import type { ActionConfig } from './generated';
+
 export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   // Fetch auth token from localStorage (if it exists)
   const authToken = localStorage.getItem('authToken');
@@ -228,6 +322,8 @@ const todos = await listTodos({
 
 ```typescript
 // rpcHooks.ts
+import type { ActionConfig } from './generated';
+
 export interface ActionHookContext {
   correlationId?: string;
 }
@@ -442,7 +538,7 @@ export function afterRequest(
 
 ### Config Precedence Rules
 
-When using `beforeRequest` hooks, the **original config always takes precedence** over the modified config:
+When using `beforeRequest` hooks, the **original config passed to the action always takes precedence** over the modified config:
 
 ```typescript
 export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
@@ -458,7 +554,7 @@ export function beforeRequest(actionName: string, config: ActionConfig): ActionC
 ```
 
 **Precedence order:**
-1. Original `config` values (highest priority)
+1. Original `config` values used in action (highest priority)
 2. Modified config from `beforeRequest` hook
 3. Default fetch implementation (lowest priority)
 
@@ -511,10 +607,13 @@ function MyComponent() {
 
 ### Complete Working Example
 
-Here's a complete example showing all hook features:
+Here's a complete example showing all hook features with the simplified pattern:
 
 ```typescript
 // rpcHooks.ts
+import type { ActionConfig, ValidationConfig } from './generated';
+
+// Define your custom hook context interfaces
 export interface ActionHookContext {
   trackPerformance?: boolean;
   startTime?: number;
@@ -525,8 +624,11 @@ export interface ValidationHookContext {
   formId?: string;
 }
 
-// Action hooks
-export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
+// Action hooks - directly use ActionConfig (no generics needed!)
+export async function beforeActionRequest(
+  actionName: string,
+  config: ActionConfig
+): Promise<ActionConfig> {
   const ctx = config.hookCtx;
 
   // Add correlation ID and client version headers
@@ -537,30 +639,34 @@ export function beforeRequest(actionName: string, config: ActionConfig): ActionC
   };
 
   // Setup timing for performance tracking
-  if (ctx?.trackPerformance && ctx) {
-    ctx.startTime = Date.now();
-  }
+  const modifiedCtx = ctx?.trackPerformance
+    ? { ...ctx, startTime: Date.now() }
+    : ctx;
 
   console.log(`[RPC] ${actionName} started`, {
     correlationId: ctx?.correlationId
   });
 
-  return { ...config, headers };
+  return {
+    ...config,
+    headers,
+    ...(modifiedCtx && { hookCtx: modifiedCtx })
+  };
 }
 
 function generateRequestId(): string {
   return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-export function afterRequest(
+export async function afterActionRequest(
   actionName: string,
   response: Response,
   result: any | null,
   config: ActionConfig
-): void {
+): Promise<void> {
   const ctx = config.hookCtx;
 
-  // Track timing
+  // Track timing (ctx.startTime is automatically properly typed!)
   const duration = ctx?.startTime ? Date.now() - ctx.startTime : 0;
 
   // Log result
@@ -577,19 +683,22 @@ export function afterRequest(
   }
 }
 
-// Validation hooks
-export function beforeValidationRequest(actionName: string, config: ValidationConfig): ValidationConfig {
+// Validation hooks - directly use ValidationConfig (no generics needed!)
+export async function beforeValidationRequest(
+  actionName: string,
+  config: ValidationConfig
+): Promise<ValidationConfig> {
   const ctx = config.hookCtx;
   console.log(`[Validation] ${actionName} started`, { formId: ctx?.formId });
   return config;
 }
 
-export function afterValidationRequest(
+export async function afterValidationRequest(
   actionName: string,
   response: Response,
   result: any | null,
   config: ValidationConfig
-): void {
+): Promise<void> {
   const ctx = config.hookCtx;
   console.log(`[Validation] ${actionName} completed`, {
     formId: ctx?.formId,
@@ -693,72 +802,143 @@ config :ash_typescript,
 
 ### Channel Hook Function Signatures
 
-Channel hooks receive the full config object and can access the optional `hookCtx` from it:
+Channel hooks receive the full config object and can access the optional `hookCtx` from it.
+
+**Important:** AshTypescript exports `ActionChannelConfig` and `ValidationChannelConfig` types from the generated file. These types automatically include your custom `hookCtx` types based on your configuration settings.
+
+#### Configuring Custom Channel Hook Context Types
+
+When you configure channel context type settings in your Elixir config, the generated TypeScript interfaces will automatically include these types:
+
+```elixir
+# config/config.exs
+config :ash_typescript,
+  # TypeScript types for channel hook context
+  rpc_action_channel_hook_context_type: "ChannelHooks.ActionChannelHookContext",
+  rpc_validation_channel_hook_context_type: "ChannelHooks.ValidationChannelHookContext"
+```
+
+With this configuration, the generated `ActionChannelConfig` and `ValidationChannelConfig` types will have properly typed `hookCtx` fields:
 
 ```typescript
-// Channel config interface showing all available fields
-interface ChannelActionConfig {
-  // Channel connection
-  channel: Channel;                    // Phoenix channel instance
-
-  // Request data
-  fields?: any;                        // Field selection
-  input?: Record<string, any>;         // Input data (for mutations)
-  primaryKey?: any;                    // Primary key (for get/update/destroy)
-  filter?: Record<string, any>;        // Filter options (for reads)
-  sort?: string;                       // Sort options
-  page?: {                             // Pagination options
-    limit?: number;
-    offset?: number;
-    count?: boolean;
-  };
-
-  // Metadata
-  metadataFields?: string[];           // Metadata field selection
-
-  // Channel options
-  timeout?: number;                    // Message timeout (milliseconds)
-
-  // Handlers
-  resultHandler: (result: any) => void;      // Called on "ok" response
-  errorHandler?: (error: any) => void;       // Called on "error" response
-  timeoutHandler?: () => void;               // Called on "timeout" response
-
-  // Multitenancy
-  tenant?: string;                     // Tenant parameter
-
-  // Hook context
-  hookCtx?: any;                       // Custom hook context
-
-  // Internal fields (available but typically not modified)
-  action?: string;                     // Action name
-  domain?: string;                     // Domain name
+// Generated types (in your generated file)
+export interface ActionChannelConfig {
+  // ... other fields ...
+  hookCtx?: ChannelHooks.ActionChannelHookContext;  // ← Your custom type
 }
 
-// Before channel push hook signature
-function beforeChannelPush(
+export interface ValidationChannelConfig {
+  // ... other fields ...
+  hookCtx?: ChannelHooks.ValidationChannelHookContext;  // ← Your custom type
+}
+```
+
+#### Implementing Channel Hook Functions
+
+Simply import and use the generated config types directly - no generics needed!
+
+```typescript
+// channelHooks.ts - Define your custom hook context interfaces
+export interface ActionChannelHookContext {
+  correlationId?: string;
+  trackPerformance?: boolean;
+  startTime?: number;
+}
+
+export interface ValidationChannelHookContext {
+  formId?: string;
+  validationLevel?: "strict" | "normal";
+}
+
+// Import the generated config types
+import type { ActionChannelConfig, ValidationChannelConfig } from './generated';
+
+// Implement your channel hook functions - the hookCtx is already properly typed!
+export async function beforeChannelPush(
   actionName: string,
-  config: ChannelActionConfig
-): ChannelActionConfig | Promise<ChannelActionConfig> {
-  // Access optional hook context
+  config: ActionChannelConfig
+): Promise<ActionChannelConfig> {
   const ctx = config.hookCtx;
 
-  // Return modified config (or original config)
-  return { ...config, /* modifications */ };
+  // ctx is automatically typed as ActionChannelHookContext | undefined
+  if (ctx?.trackPerformance) {
+    const modifiedCtx = { ...ctx, startTime: Date.now() };
+    return { ...config, hookCtx: modifiedCtx };
+  }
+
+  return config;
 }
 
-// After channel response hook signature
-function afterChannelResponse(
+export async function afterChannelResponse(
   actionName: string,
   responseType: "ok" | "error" | "timeout",
   data: any,  // result (for ok), error (for error), or null (for timeout)
-  config: ChannelActionConfig
-): void | Promise<void> {
-  // Access optional hook context
+  config: ActionChannelConfig
+): Promise<void> {
   const ctx = config.hookCtx;
 
-  // Perform side effects (logging, telemetry, etc.)
-  // No return value
+  // ctx.startTime is properly typed (no type assertion needed!)
+  if (ctx?.trackPerformance && ctx.startTime) {
+    const duration = Date.now() - ctx.startTime;
+    console.log(`[Channel] ${actionName} took ${duration}ms`);
+  }
+}
+
+// Similarly for validation channel hooks
+export async function beforeValidationChannelPush(
+  actionName: string,
+  config: ValidationChannelConfig
+): Promise<ValidationChannelConfig> {
+  const ctx = config.hookCtx;
+
+  if (ctx?.validationLevel === "strict") {
+    console.log(`[Channel Validation] Strict mode enabled`);
+  }
+
+  return config;
+}
+```
+
+**Key Benefits:**
+- **Type safety** - Your custom context fields are properly typed automatically
+- **IntelliSense** - IDE autocomplete works for your custom fields
+- **No generics needed** - The generated types already include your context types
+- **Simpler code** - Direct usage without complex generic constraints
+
+#### Channel Config Structure
+
+The generated `ActionChannelConfig` and `ValidationChannelConfig` interfaces include all available configuration fields:
+
+```typescript
+// Generated ActionChannelConfig interface (in your generated file)
+export interface ActionChannelConfig {
+  // Channel connection (required)
+  channel: Channel;
+
+  // Request parameters (varies by action)
+  input?: Record<string, any>;
+  primaryKey?: any;
+  fields?: Array<string | Record<string, any>>;
+  filter?: Record<string, any>;
+  sort?: string;
+  page?: { limit?: number; offset?: number; count?: boolean };
+
+  // Metadata
+  metadataFields?: Record<string, any>;
+
+  // Channel options
+  timeout?: number;
+
+  // Handlers (required for channel operations)
+  resultHandler: (result: any) => void;
+  errorHandler?: (error: any) => void;
+  timeoutHandler?: () => void;
+
+  // Multitenancy
+  tenant?: string;
+
+  // Hook context (automatically typed based on your config)
+  hookCtx?: YourActionChannelHookContext;
 }
 ```
 
@@ -768,6 +948,7 @@ function afterChannelResponse(
 - `afterChannelResponse` receives action name, response type, data, and config
 - Response type distinguishes between three channel outcomes: "ok", "error", "timeout"
 - Original config takes precedence over modified config
+- Your custom `hookCtx` type is automatically included when you configure context type settings
 
 ### beforeChannelPush Hook
 
@@ -1006,10 +1187,13 @@ This ensures that per-request customizations always override hook defaults.
 
 ### Complete Channel Working Example
 
-Here's a complete example showing all channel hook features:
+Here's a complete example showing all channel hook features with the simplified pattern:
 
 ```typescript
 // channelHooks.ts
+import type { ActionChannelConfig, ValidationChannelConfig } from './generated';
+
+// Define custom hook context interfaces
 export interface ActionChannelHookContext {
   trackPerformance?: boolean;
   startTime?: number;
@@ -1021,34 +1205,37 @@ export interface ValidationChannelHookContext {
   validationLevel?: "strict" | "normal";
 }
 
-// Action hooks
+// Action hooks - directly use ActionChannelConfig (no generics needed!)
 export async function beforeChannelPush(
   actionName: string,
-  config: ChannelActionConfig
-): Promise<ChannelActionConfig> {
+  config: ActionChannelConfig
+): Promise<ActionChannelConfig> {
   const ctx = config.hookCtx;
 
-  // Setup timing
-  if (ctx?.trackPerformance && ctx) {
-    ctx.startTime = Date.now();
-  }
+  // Setup timing - properly update context immutably
+  const modifiedCtx = ctx?.trackPerformance
+    ? { ...ctx, startTime: Date.now() }
+    : ctx;
 
   console.log(`[Channel] ${actionName} starting`, {
     correlationId: ctx?.correlationId
   });
 
-  return config;
+  return {
+    ...config,
+    ...(modifiedCtx && { hookCtx: modifiedCtx })
+  };
 }
 
 export async function afterChannelResponse(
   actionName: string,
   responseType: "ok" | "error" | "timeout",
   data: any,
-  config: ChannelActionConfig
+  config: ActionChannelConfig
 ): Promise<void> {
   const ctx = config.hookCtx;
 
-  // Track timing
+  // Track timing - ctx.startTime is automatically properly typed!
   const duration = ctx?.startTime ? Date.now() - ctx.startTime : 0;
 
   // Log result
@@ -1064,7 +1251,7 @@ export async function afterChannelResponse(
   }
 }
 
-// Validation hooks
+// Validation hooks - directly use ValidationChannelConfig (no generics needed!)
 export async function beforeValidationChannelPush(
   actionName: string,
   config: ValidationChannelConfig
