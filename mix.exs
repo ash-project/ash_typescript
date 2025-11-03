@@ -188,6 +188,7 @@ defmodule AshTypescript.MixProject do
       "test.compile_generated": "cmd cd test/ts && npm run compileGenerated",
       "test.compile_should_pass": "cmd cd test/ts && npm run compileShouldPass",
       "test.compile_should_fail": "cmd cd test/ts && npm run compileShouldFail",
+      "test.test_zod": "cmd cd test/ts && npm run testZod",
       tidewave:
         "run --no-halt -e 'Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4012) end)'",
       sobelow: "sobelow --skip",
