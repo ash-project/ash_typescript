@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.6.4](https://github.com/ash-project/ash_typescript/compare/v0.6.3...v0.6.4) (2025-11-03)
+
+
+
+
+### Bug Fixes:
+
+* add reusable action/validation helpers, improve lifecycle hook types by [@Torkan](https://github.com/Torkan)
+
 ## [v0.6.3](https://github.com/ash-project/ash_typescript/compare/v0.6.2...v0.6.3) (2025-11-01)
 
 
