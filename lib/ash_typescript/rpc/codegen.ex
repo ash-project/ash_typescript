@@ -333,11 +333,11 @@ defmodule AshTypescript.Rpc.Codegen do
 
     #{generate_utility_types()}
 
-    #{generate_helper_functions()}
+    #{generate_helper_functions(hook_config, endpoint_process, endpoint_validate)}
 
     #{generate_typed_queries_section(typed_queries, all_resources_for_schemas)}
 
-    #{generate_rpc_functions(rpc_resources_and_actions, endpoint_process, endpoint_validate, hook_config, otp_app, all_resources_for_schemas)}
+    #{generate_rpc_functions(rpc_resources_and_actions, otp_app, all_resources_for_schemas)}
     """
   end
 
@@ -666,9 +666,231 @@ defmodule AshTypescript.Rpc.Codegen do
     """
   end
 
-  defp generate_helper_functions do
+  defp generate_helper_functions(hook_config, endpoint_process, endpoint_validate) do
+    action_before_hook = Map.get(hook_config, :rpc_action_before_request_hook)
+    action_after_hook = Map.get(hook_config, :rpc_action_after_request_hook)
+    validation_before_hook = Map.get(hook_config, :rpc_validation_before_request_hook)
+    validation_after_hook = Map.get(hook_config, :rpc_validation_after_request_hook)
+    action_channel_before_hook = Map.get(hook_config, :rpc_action_before_channel_push_hook)
+    action_channel_after_hook = Map.get(hook_config, :rpc_action_after_channel_response_hook)
+
+    validation_channel_before_hook =
+      Map.get(hook_config, :rpc_validation_before_channel_push_hook)
+
+    validation_channel_after_hook =
+      Map.get(hook_config, :rpc_validation_after_channel_response_hook)
+
+    # Extract hook context types
+    action_hook_context_type =
+      Map.get(hook_config, :rpc_action_hook_context_type, "Record<string, any>")
+
+    validation_hook_context_type =
+      Map.get(hook_config, :rpc_validation_hook_context_type, "Record<string, any>")
+
+    action_channel_hook_context_type =
+      Map.get(hook_config, :rpc_action_channel_hook_context_type, "Record<string, any>")
+
+    validation_channel_hook_context_type =
+      Map.get(hook_config, :rpc_validation_channel_hook_context_type, "Record<string, any>")
+
+    # Generate action RPC request helper
+    action_helper =
+      generate_action_rpc_request_helper(
+        endpoint_process,
+        action_before_hook,
+        action_after_hook
+      )
+
+    # Generate validation RPC request helper (only if validation functions are enabled)
+    validation_helper =
+      if AshTypescript.Rpc.generate_validation_functions?() do
+        generate_validation_rpc_request_helper(
+          endpoint_validate,
+          validation_before_hook,
+          validation_after_hook
+        )
+      else
+        ""
+      end
+
+    # Generate action channel helper if channel RPC actions are enabled
+    action_channel_helper =
+      if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
+        generate_action_channel_push_helper(
+          "run",
+          action_channel_before_hook,
+          action_channel_after_hook
+        )
+      else
+        ""
+      end
+
+    # Generate validation channel helper (only if both validation and channel RPC actions are enabled)
+    validation_channel_helper =
+      if AshTypescript.Rpc.generate_validation_functions?() and
+           AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
+        generate_validation_channel_push_helper(
+          "validate",
+          validation_channel_before_hook,
+          validation_channel_after_hook
+        )
+      else
+        ""
+      end
+
+    # Conditional interface generation
+    validation_config_interface =
+      if AshTypescript.Rpc.generate_validation_functions?() do
+        """
+
+        /**
+         * Configuration options for validation RPC requests
+         */
+        export interface ValidationConfig {
+          // Request data
+          input?: Record<string, any>;
+
+          // HTTP customization
+          headers?: Record<string, string>;
+          fetchOptions?: RequestInit;
+          customFetch?: (
+            input: RequestInfo | URL,
+            init?: RequestInit,
+          ) => Promise<Response>;
+
+          // Hook context
+          hookCtx?: #{validation_hook_context_type};
+        }
+        """
+      else
+        ""
+      end
+
+    action_channel_config_interface =
+      if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
+        """
+
+        /**
+         * Configuration options for action channel RPC requests
+         */
+        export interface ActionChannelConfig {
+          // Request data
+          input?: Record<string, any>;
+          primaryKey?: any;
+          fields?: ReadonlyArray<string | Record<string, any>>;
+          filter?: Record<string, any>;
+          sort?: string;
+          page?:
+            | {
+                limit?: number;
+                offset?: number;
+                count?: boolean;
+              }
+            | {
+                limit?: number;
+                after?: string;
+                before?: string;
+              };
+
+          // Metadata
+          metadataFields?: ReadonlyArray<string | Record<string, any>>;
+
+          // Channel-specific
+          channel: any; // Phoenix Channel
+          resultHandler: (result: any) => void;
+          errorHandler?: (error: any) => void;
+          timeoutHandler?: () => void;
+          timeout?: number;
+
+          // Multitenancy
+          tenant?: string;
+
+          // Hook context
+          hookCtx?: #{action_channel_hook_context_type};
+        }
+        """
+      else
+        ""
+      end
+
+    validation_channel_config_interface =
+      if AshTypescript.Rpc.generate_validation_functions?() and
+           AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
+        """
+
+        /**
+         * Configuration options for validation channel RPC requests
+         */
+        export interface ValidationChannelConfig {
+          // Request data
+          input?: Record<string, any>;
+          primaryKey?: any;
+
+          // Channel-specific
+          channel: any; // Phoenix Channel
+          resultHandler: (result: any) => void;
+          errorHandler?: (error: any) => void;
+          timeoutHandler?: () => void;
+          timeout?: number;
+
+          // Multitenancy
+          tenant?: string;
+
+          // Hook context
+          hookCtx?: #{validation_channel_hook_context_type};
+        }
+        """
+      else
+        ""
+      end
+
     """
     // Helper Functions
+
+    /**
+     * Configuration options for action RPC requests
+     */
+    export interface ActionConfig {
+      // Request data
+      input?: Record<string, any>;
+      primaryKey?: any;
+      fields?: Array<string | Record<string, any>>; // Field selection
+      filter?: Record<string, any>; // Filter options (for reads)
+      sort?: string; // Sort options
+      page?:
+        | {
+            // Offset-based pagination
+            limit?: number;
+            offset?: number;
+            count?: boolean;
+          }
+        | {
+            // Keyset pagination
+            limit?: number;
+            after?: string;
+            before?: string;
+          };
+
+      // Metadata
+      metadataFields?: Record<string, any>; // Metadata field selection
+
+      // HTTP customization
+      headers?: Record<string, string>; // Custom headers
+      fetchOptions?: RequestInit; // Fetch options (signal, cache, etc.)
+      customFetch?: (
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ) => Promise<Response>;
+
+      // Multitenancy
+      tenant?: string; // Tenant parameter
+
+      // Hook context
+      hookCtx?: #{action_hook_context_type};
+    }
+    #{validation_config_interface}
+    #{action_channel_config_interface}
+    #{validation_channel_config_interface}
 
     /**
      * Gets the CSRF token from the page's meta tag
@@ -693,14 +915,248 @@ defmodule AshTypescript.Rpc.Codegen do
       return headers;
     }
 
+    #{action_helper}
+
+    #{validation_helper}
+
+    #{action_channel_helper}
+
+    #{validation_channel_helper}
+    """
+  end
+
+  defp generate_action_rpc_request_helper(endpoint, before_hook, after_hook) do
+    generate_rpc_request_helper_impl(
+      "executeActionRpcRequest",
+      "action RPC request",
+      "ActionConfig",
+      endpoint,
+      before_hook,
+      after_hook
+    )
+  end
+
+  defp generate_validation_rpc_request_helper(endpoint, before_hook, after_hook) do
+    generate_rpc_request_helper_impl(
+      "executeValidationRpcRequest",
+      "validation RPC request",
+      "ValidationConfig",
+      endpoint,
+      before_hook,
+      after_hook
+    )
+  end
+
+  defp generate_rpc_request_helper_impl(
+         function_name,
+         description,
+         config_type,
+         endpoint,
+         before_hook,
+         after_hook
+       ) do
+    success_field = format_output_field(:success)
+    errors_field = format_output_field(:errors)
+    type_field = formatted_error_type_field()
+    message_field = formatted_error_message_field()
+    details_field = formatted_error_details_field()
+
+    before_hook_code =
+      if before_hook do
+        """
+            let processedConfig = config;
+            if (#{before_hook}) {
+              processedConfig = await #{before_hook}(payload.action, config);
+            }
+        """
+      else
+        """
+            const processedConfig = config;
+        """
+      end
+
+    after_hook_code =
+      if after_hook do
+        """
+            if (#{after_hook}) {
+              await #{after_hook}(payload.action, response, result, processedConfig);
+            }
+        """
+      else
+        ""
+      end
+
+    """
+    /**
+     * Internal helper function for making #{description}s
+     * Handles hooks, request configuration, fetch execution, and error handling
+     * @param config Configuration matching #{config_type}
+     */
+    async function #{function_name}<T>(
+      payload: Record<string, any>,
+      config: #{config_type}
+    ): Promise<T> {
+    #{before_hook_code}
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...config.headers,
+        ...processedConfig.headers,
+      };
+
+      const fetchFunction = config.customFetch || processedConfig.customFetch || fetch;
+      const fetchOptions: RequestInit = {
+        ...config.fetchOptions,
+        ...processedConfig.fetchOptions,
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      };
+
+      const response = await fetchFunction(#{endpoint}, fetchOptions);
+      const result = response.ok ? await response.json() : null;
+
+    #{after_hook_code}
+      if (!response.ok) {
+        return {
+          #{success_field}: false,
+          #{errors_field}: [
+            {
+              #{type_field}: "network",
+              #{message_field}: response.statusText,
+              #{details_field}: {}
+            }
+          ],
+        } as T;
+      }
+
+      return result as T;
+    }
+    """
+  end
+
+  defp generate_action_channel_push_helper(event, before_hook, after_hook) do
+    generate_channel_push_helper_impl(
+      "executeActionChannelPush",
+      "action channel push",
+      "ActionChannelConfig",
+      event,
+      before_hook,
+      after_hook
+    )
+  end
+
+  defp generate_validation_channel_push_helper(event, before_hook, after_hook) do
+    generate_channel_push_helper_impl(
+      "executeValidationChannelPush",
+      "validation channel push",
+      "ValidationChannelConfig",
+      event,
+      before_hook,
+      after_hook
+    )
+  end
+
+  defp generate_channel_push_helper_impl(
+         function_name,
+         description,
+         config_type,
+         event,
+         before_hook,
+         after_hook
+       ) do
+    before_hook_code =
+      if before_hook do
+        """
+            let processedConfig = config;
+            if (#{before_hook}) {
+              processedConfig = await #{before_hook}(payload.action, config);
+            }
+        """
+      else
+        """
+            const processedConfig = config;
+        """
+      end
+
+    after_ok_hook_code =
+      if after_hook do
+        """
+              if (#{after_hook}) {
+                await #{after_hook}(payload.action, "ok", result, processedConfig);
+              }
+        """
+      else
+        ""
+      end
+
+    after_error_hook_code =
+      if after_hook do
+        """
+              if (#{after_hook}) {
+                await #{after_hook}(payload.action, "error", error, processedConfig);
+              }
+        """
+      else
+        ""
+      end
+
+    after_timeout_hook_code =
+      if after_hook do
+        """
+              if (#{after_hook}) {
+                await #{after_hook}(payload.action, "timeout", undefined, processedConfig);
+              }
+        """
+      else
+        ""
+      end
+
+    """
+    /**
+     * Internal helper function for making #{description} requests
+     * Handles hooks and channel push with receive handlers
+     * @param config Configuration matching #{config_type}
+     */
+    async function #{function_name}<T>(
+      channel: any,
+      payload: Record<string, any>,
+      timeout: number | undefined,
+      config: #{config_type}
+    ) {
+    #{before_hook_code}
+      const effectiveTimeout = timeout;
+
+      channel
+        .push("#{event}", payload, effectiveTimeout)
+        .receive("ok", async (result: T) => {
+    #{after_ok_hook_code}
+          config.resultHandler(result);
+        })
+        .receive("error", async (error: any) => {
+    #{after_error_hook_code}
+          (config.errorHandler
+            ? config.errorHandler
+            : (error: any) => {
+                console.error(
+                  \`An error occurred while running action \${payload.action}:\`,
+                  error
+                );
+              })(error);
+        })
+        .receive("timeout", async () => {
+    #{after_timeout_hook_code}
+          (config.timeoutHandler
+            ? config.timeoutHandler
+            : () => {
+                console.error(\`Timeout occurred while running action \${payload.action}\`);
+              })();
+        });
+    }
     """
   end
 
   defp generate_rpc_functions(
          resources_and_actions,
-         endpoint_process,
-         endpoint_validate,
-         hook_config,
          otp_app,
          _resources
        ) do
@@ -710,9 +1166,6 @@ defmodule AshTypescript.Rpc.Codegen do
         generate_rpc_function(
           resource_and_action,
           resources_and_actions,
-          endpoint_process,
-          endpoint_validate,
-          hook_config,
           otp_app
         )
       end)
@@ -1947,120 +2400,6 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
-  defp generate_before_request_hook_call(hook_config, action_name, is_validation) do
-    hook_function =
-      if is_validation do
-        Map.get(hook_config, :rpc_validation_before_request_hook)
-      else
-        Map.get(hook_config, :rpc_action_before_request_hook)
-      end
-
-    if hook_function do
-      """
-        let processedConfig = config;
-        if (#{hook_function}) {
-          processedConfig = await #{hook_function}("#{action_name}", config);
-        }
-      """
-      |> String.trim()
-    else
-      "let processedConfig = config;"
-    end
-  end
-
-  defp generate_after_request_hook_call(hook_config, action_name, is_validation) do
-    hook_function =
-      if is_validation do
-        Map.get(hook_config, :rpc_validation_after_request_hook)
-      else
-        Map.get(hook_config, :rpc_action_after_request_hook)
-      end
-
-    if hook_function do
-      """
-      if (#{hook_function}) {
-        await #{hook_function}("#{action_name}", response, result, processedConfig);
-      }
-      """
-      |> String.trim()
-    else
-      ""
-    end
-  end
-
-  defp generate_before_channel_push_hook_call(hook_config, action_name, is_validation) do
-    hook_function =
-      if is_validation do
-        Map.get(hook_config, :rpc_validation_before_channel_push_hook)
-      else
-        Map.get(hook_config, :rpc_action_before_channel_push_hook)
-      end
-
-    if hook_function do
-      """
-        let processedConfig = config;
-        if (#{hook_function}) {
-          processedConfig = await #{hook_function}("#{action_name}", config);
-        }
-      """
-      |> String.trim()
-    else
-      "let processedConfig = config;"
-    end
-  end
-
-  defp generate_after_channel_response_hook_call(
-         hook_config,
-         action_name,
-         is_validation,
-         response_type
-       ) do
-    hook_function =
-      if is_validation do
-        Map.get(hook_config, :rpc_validation_after_channel_response_hook)
-      else
-        Map.get(hook_config, :rpc_action_after_channel_response_hook)
-      end
-
-    case response_type do
-      :ok ->
-        if hook_function do
-          """
-          if (#{hook_function}) {
-            await #{hook_function}("#{action_name}", "ok", result, processedConfig);
-          }
-          """
-          |> String.trim()
-        else
-          ""
-        end
-
-      :error ->
-        if hook_function do
-          """
-          if (#{hook_function}) {
-            await #{hook_function}("#{action_name}", "error", error, processedConfig);
-          }
-          """
-          |> String.trim()
-        else
-          ""
-        end
-
-      :timeout ->
-        if hook_function do
-          """
-          if (#{hook_function}) {
-            await #{hook_function}("#{action_name}", "timeout", null, processedConfig);
-          }
-          """
-          |> String.trim()
-        else
-          ""
-        end
-    end
-  end
-
   defp build_common_config_fields(resource, _action, context, opts) do
     rpc_action_name_pascal = snake_to_pascal_case(opts[:rpc_action_name] || "action")
     simple_primary_key = Keyword.get(opts, :simple_primary_key, false)
@@ -2234,9 +2573,7 @@ defmodule AshTypescript.Rpc.Codegen do
          resource,
          action,
          rpc_action,
-         rpc_action_name,
-         endpoint_process,
-         hook_config
+         rpc_action_name
        ) do
     function_name =
       AshTypescript.FieldFormatter.format_field(
@@ -2571,47 +2908,18 @@ defmodule AshTypescript.Rpc.Codegen do
 
     payload_def = "{\n    #{Enum.join(payload_fields, ",\n    ")}\n  }"
 
-    before_request_hook = generate_before_request_hook_call(hook_config, rpc_action_name, false)
-
     """
     #{config_type_export}#{result_type_def}
 
     export async function #{function_name}#{generic_part}(
       #{function_signature}
     ): Promise<#{return_type_def}> {
-      #{before_request_hook}
-
       const payload = #{payload_def};
 
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        ...processedConfig.headers,
-        ...config.headers,
-      };
-
-      const fetchFunction = config.customFetch || processedConfig.customFetch || fetch;
-      const fetchOptions: RequestInit = {
-        ...processedConfig.fetchOptions,
-        ...config.fetchOptions,
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      };
-
-      const response = await fetchFunction(#{endpoint_process}, fetchOptions);
-
-      const result = response.ok ? await response.json() : null;
-
-      #{generate_after_request_hook_call(hook_config, rpc_action_name, false)}
-
-      if (!response.ok) {
-        return {
-          #{success_field}: false,
-          #{errors_field}: [{ #{formatted_error_type_field()}: "network", #{formatted_error_message_field()}: response.statusText, #{formatted_error_details_field()}: {} }],
-        };
-      }
-
-      return result as #{return_type_def};
+      return executeActionRpcRequest<#{return_type_def}>(
+        payload,
+        config
+      );
     }
     """
   end
@@ -2619,9 +2927,7 @@ defmodule AshTypescript.Rpc.Codegen do
   defp generate_validation_function(
          resource,
          action,
-         rpc_action_name,
-         endpoint_validate,
-         hook_config
+         rpc_action_name
        ) do
     function_name =
       AshTypescript.FieldFormatter.format_field(
@@ -2677,52 +2983,23 @@ defmodule AshTypescript.Rpc.Codegen do
 
     validation_payload_def = "{\n    #{Enum.join(validation_payload_fields, ",\n    ")}\n  }"
 
-    before_request_hook = generate_before_request_hook_call(hook_config, rpc_action_name, true)
-
     """
     #{validation_result_type}
 
     export async function #{function_name}(
       config: #{config_type_def}
     ): Promise<Validate#{rpc_action_name_pascal}Result> {
-      #{before_request_hook}
-
       const payload = #{validation_payload_def};
 
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        ...processedConfig.headers,
-        ...config.headers,
-      };
-
-      const fetchFunction = config.customFetch || processedConfig.customFetch || fetch;
-      const fetchOptions: RequestInit = {
-        ...processedConfig.fetchOptions,
-        ...config.fetchOptions,
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      };
-
-      const response = await fetchFunction(#{endpoint_validate}, fetchOptions);
-
-      const result = response.ok ? await response.json() : null;
-
-      #{generate_after_request_hook_call(hook_config, rpc_action_name, true)}
-
-      if (!response.ok) {
-        return {
-          #{success_field}: false,
-          #{errors_field}: [{ #{formatted_error_type_field()}: "network", #{formatted_error_message_field()}: response.statusText, #{formatted_error_details_field()}: {} }],
-        };
-      }
-
-      return result as Validate#{rpc_action_name_pascal}Result;
+      return executeValidationRpcRequest<Validate#{rpc_action_name_pascal}Result>(
+        payload,
+        config
+      );
     }
     """
   end
 
-  defp generate_channel_validation_function(resource, action, rpc_action_name, hook_config) do
+  defp generate_channel_validation_function(resource, action, rpc_action_name) do
     function_name =
       AshTypescript.FieldFormatter.format_field(
         "validate_#{rpc_action_name}_channel",
@@ -2766,55 +3043,14 @@ defmodule AshTypescript.Rpc.Codegen do
 
     payload_def = "{\n    #{Enum.join(payload_fields, ",\n    ")}\n  }"
 
-    before_channel_push_hook =
-      generate_before_channel_push_hook_call(hook_config, rpc_action_name, true)
-
-    after_ok_hook =
-      generate_after_channel_response_hook_call(hook_config, rpc_action_name, true, :ok)
-
-    after_error_hook =
-      generate_after_channel_response_hook_call(hook_config, rpc_action_name, true, :error)
-
-    after_timeout_hook =
-      generate_after_channel_response_hook_call(hook_config, rpc_action_name, true, :timeout)
-
     """
     export async function #{function_name}(config: #{config_type_def}) {
-      #{before_channel_push_hook}
-
-      const timeout = config.timeout ?? processedConfig.timeout;
-
-      config.channel
-        .push("validate", #{payload_def}, timeout)
-        .receive("ok", async (result: Validate#{rpc_action_name_pascal}Result) => {
-          #{after_ok_hook}
-          config.resultHandler(result);
-        })
-        .receive(
-          "error",
-          async (error: any) => {
-            #{after_error_hook}
-            (config.errorHandler
-              ? config.errorHandler
-              : (error: any) => {
-                  console.error(
-                    "An error occurred while validating action #{rpc_action_name}:",
-                    error,
-                  );
-                })(error);
-          },
-        )
-        .receive(
-          "timeout",
-          async () => {
-            #{after_timeout_hook}
-            (config.timeoutHandler
-              ? config.timeoutHandler
-              : () => {
-                  console.error("Timeout occurred while validating action #{rpc_action_name}");
-                })();
-          },
-        );
+      executeValidationChannelPush<Validate#{rpc_action_name_pascal}Result>(
+        config.channel,
+        #{payload_def},
+        config.timeout,
+        config
+      );
     }
     """
   end
@@ -2823,8 +3059,7 @@ defmodule AshTypescript.Rpc.Codegen do
          resource,
          action,
          rpc_action,
-         rpc_action_name,
-         hook_config
+         rpc_action_name
        ) do
     function_name =
       AshTypescript.FieldFormatter.format_field(
@@ -3011,18 +3246,6 @@ defmodule AshTypescript.Rpc.Codegen do
 
     payload_def = "{\n    #{Enum.join(payload_fields, ",\n    ")}\n  }"
 
-    before_channel_push_hook =
-      generate_before_channel_push_hook_call(hook_config, rpc_action_name, false)
-
-    after_ok_hook =
-      generate_after_channel_response_hook_call(hook_config, rpc_action_name, false, :ok)
-
-    after_error_hook =
-      generate_after_channel_response_hook_call(hook_config, rpc_action_name, false, :error)
-
-    after_timeout_hook =
-      generate_after_channel_response_hook_call(hook_config, rpc_action_name, false, :timeout)
-
     # Determine the result type for the ok handler
     result_type_for_handler =
       cond do
@@ -3050,41 +3273,12 @@ defmodule AshTypescript.Rpc.Codegen do
 
     """
     export async function #{function_name}#{generic_part}(config: #{config_type_def}) {
-      #{before_channel_push_hook}
-
-      const timeout = config.timeout ?? processedConfig.timeout;
-
-      config.channel
-        .push("run", #{payload_def}, timeout)
-        .receive("ok", async (result: #{result_type_for_handler}) => {
-          #{after_ok_hook}
-          config.resultHandler(result);
-        })
-        .receive(
-          "error",
-          async (error: any) => {
-            #{after_error_hook}
-            (config.errorHandler
-              ? config.errorHandler
-              : (error: any) => {
-                  console.error(
-                    "An error occurred while running action #{rpc_action_name}:",
-                    error,
-                  );
-                })(error);
-          },
-        )
-        .receive(
-          "timeout",
-          async () => {
-            #{after_timeout_hook}
-            (config.timeoutHandler
-              ? config.timeoutHandler
-              : () => {
-                  console.error("Timeout occurred while running action #{rpc_action_name}");
-                })();
-          },
-        );
+      executeActionChannelPush<#{result_type_for_handler}>(
+        config.channel,
+        #{payload_def},
+        config.timeout,
+        config
+      );
     }
     """
   end
@@ -3092,9 +3286,6 @@ defmodule AshTypescript.Rpc.Codegen do
   defp generate_rpc_function(
          {resource, action, rpc_action},
          _resources_and_actions,
-         endpoint_process,
-         endpoint_validate,
-         hook_config,
          _otp_app
        ) do
     rpc_action_name = to_string(rpc_action.name)
@@ -3118,9 +3309,7 @@ defmodule AshTypescript.Rpc.Codegen do
         resource,
         action,
         rpc_action,
-        rpc_action_name,
-        endpoint_process,
-        hook_config
+        rpc_action_name
       )
 
     validation_function =
@@ -3128,9 +3317,7 @@ defmodule AshTypescript.Rpc.Codegen do
         generate_validation_function(
           resource,
           action,
-          rpc_action_name,
-          endpoint_validate,
-          hook_config
+          rpc_action_name
         )
       else
         ""
@@ -3142,8 +3329,7 @@ defmodule AshTypescript.Rpc.Codegen do
           resource,
           action,
           rpc_action,
-          rpc_action_name,
-          hook_config
+          rpc_action_name
         )
       else
         ""
@@ -3152,7 +3338,7 @@ defmodule AshTypescript.Rpc.Codegen do
     channel_validation_function =
       if AshTypescript.Rpc.generate_validation_functions?() and
            AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
-        generate_channel_validation_function(resource, action, rpc_action_name, hook_config)
+        generate_channel_validation_function(resource, action, rpc_action_name)
       else
         ""
       end

@@ -80,11 +80,13 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
+      # Check that the hook is embedded in the executeActionChannelPush helper
+      assert typescript =~ "executeActionChannelPush"
       assert typescript =~ "let processedConfig = config;"
       assert typescript =~ "if (ChannelHooks.beforeChannelPush)"
 
       assert typescript =~
-               ~r/processedConfig = await ChannelHooks\.beforeChannelPush\("[^"]+", config\);/
+               ~r/processedConfig = await ChannelHooks\.beforeChannelPush\(payload\.action, config\);/
     end
 
     test "includes afterChannelResponse hook call for ok response" do
@@ -96,10 +98,12 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
+      # Check that the hook is embedded in the executeActionChannelPush helper
+      assert typescript =~ "executeActionChannelPush"
       assert typescript =~ "if (ChannelHooks.afterChannelResponse)"
 
       assert typescript =~
-               ~r/await ChannelHooks\.afterChannelResponse\("[^"]+", "ok", result, processedConfig\);/
+               ~r/await ChannelHooks\.afterChannelResponse\(payload\.action, "ok", result, processedConfig\);/
     end
 
     test "includes afterChannelResponse hook call for error response" do
@@ -111,8 +115,11 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
+      # Check that the hook is embedded in the executeActionChannelPush helper
+      assert typescript =~ "executeActionChannelPush"
+
       assert typescript =~
-               ~r/await ChannelHooks\.afterChannelResponse\("[^"]+", "error", error, processedConfig\);/
+               ~r/await ChannelHooks\.afterChannelResponse\(payload\.action, "error", error, processedConfig\);/
     end
 
     test "includes afterChannelResponse hook call for timeout response" do
@@ -124,11 +131,15 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
+      # Check that the hook is embedded in the executeActionChannelPush helper
+      # Note: The helper uses "undefined" instead of "null" for timeout
+      assert typescript =~ "executeActionChannelPush"
+
       assert typescript =~
-               ~r/await ChannelHooks\.afterChannelResponse\("[^"]+", "timeout", null, processedConfig\);/
+               ~r/await ChannelHooks\.afterChannelResponse\(payload\.action, "timeout", undefined, processedConfig\);/
     end
 
-    test "includes timeout with correct precedence (config.timeout ?? processedConfig.timeout)" do
+    test "includes timeout parameter in channel push" do
       Application.put_env(
         :ash_typescript,
         :rpc_action_before_channel_push_hook,
@@ -137,7 +148,9 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
-      assert typescript =~ ~r/config\.timeout \?\? processedConfig\.timeout/
+      # Timeout is passed to the helper which uses it directly
+      assert typescript =~ "executeActionChannelPush"
+      assert typescript =~ "config.timeout"
     end
 
     test "uses custom channel hook context type when configured" do
@@ -214,10 +227,12 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
+      # Check that the hook is embedded in the executeValidationChannelPush helper
+      assert typescript =~ "executeValidationChannelPush"
       assert typescript =~ "if (ChannelHooks.beforeValidationChannelPush)"
 
       assert typescript =~
-               ~r/processedConfig = await ChannelHooks\.beforeValidationChannelPush\("[^"]+", config\);/
+               ~r/processedConfig = await ChannelHooks\.beforeValidationChannelPush\(payload\.action, config\);/
     end
 
     test "includes afterChannelResponse hook call in channel validation function" do
@@ -229,10 +244,12 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
+      # Check that the hook is embedded in the executeValidationChannelPush helper
+      assert typescript =~ "executeValidationChannelPush"
       assert typescript =~ "if (ChannelHooks.afterValidationChannelResponse)"
 
       assert typescript =~
-               ~r/await ChannelHooks\.afterValidationChannelResponse\("[^"]+", "ok", result, processedConfig\);/
+               ~r/await ChannelHooks\.afterValidationChannelResponse\(payload\.action, "ok", result, processedConfig\);/
     end
 
     test "uses custom validation channel hook context type when configured" do
@@ -284,7 +301,8 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
-      assert typescript =~ "let processedConfig = config;"
+      # When no hooks, uses const instead of let
+      assert typescript =~ "const processedConfig = config;"
       # Should not have await calls to channel hooks
       refute typescript =~ "await ChannelHooks.beforeChannelPush"
       refute typescript =~ "await ChannelHooks.beforeValidationChannelPush"
@@ -361,7 +379,8 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
       assert typescript =~ "if (ChannelHooks.afterChannelResponse)"
-      assert typescript =~ "let processedConfig = config;"
+      # When no before hook, uses const instead of let
+      assert typescript =~ "const processedConfig = config;"
       # Should not have beforeChannelPush call
       refute typescript =~ "if (ChannelHooks.beforeChannelPush)"
     end

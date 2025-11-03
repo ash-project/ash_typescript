@@ -25,7 +25,7 @@ function createValidBaseData() {
     slug: "test",
     version: "1.0.0",
     caseInsensitiveCode: "ABC-1234",
-    price: 10.50,
+    price: 10.5,
     temperature: 20.0,
     percentage: 50.0,
     username: "testuser",
@@ -86,7 +86,10 @@ export function testIntegerNegative() {
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.log("Correctly rejected negative numberOfEmployees:", error.issues);
+      console.log(
+        "Correctly rejected negative numberOfEmployees:",
+        error.issues,
+      );
       return error.issues;
     }
     throw error;
@@ -143,7 +146,10 @@ export function testStringWayTooLong() {
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.log("Correctly rejected someString way over limit:", error.issues);
+      console.log(
+        "Correctly rejected someString way over limit:",
+        error.issues,
+      );
       return error.issues;
     }
     throw error;
@@ -203,11 +209,11 @@ export function testMultipleConstraintViolations() {
     if (error instanceof z.ZodError) {
       console.log("Correctly rejected multiple violations:", error.issues);
       // Should have errors for both numberOfEmployees and someString
-      const hasEmployeeError = error.issues.some(e =>
-        e.path.includes("numberOfEmployees")
+      const hasEmployeeError = error.issues.some((e) =>
+        e.path.includes("numberOfEmployees"),
       );
-      const hasStringError = error.issues.some(e =>
-        e.path.includes("someString")
+      const hasStringError = error.issues.some((e) =>
+        e.path.includes("someString"),
       );
 
       if (hasEmployeeError && hasStringError) {
@@ -268,7 +274,7 @@ export function testBoundaryViolations() {
     numberOfEmployees: 1000.01, // Just above 1000
   };
 
-  const errors = [];
+  const errors: Record<string, any>[] = [];
 
   try {
     createOrgTodoZodschema.parse(justBelowMin);
@@ -360,7 +366,10 @@ export function testInvalidEmailNoDomain() {
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.log("Correctly rejected email without domain extension:", error.issues);
+      console.log(
+        "Correctly rejected email without domain extension:",
+        error.issues,
+      );
       return error.issues;
     }
     throw error;
@@ -447,7 +456,10 @@ export function testInvalidHexColorLength() {
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.log("Correctly rejected hex color with wrong length:", error.issues);
+      console.log(
+        "Correctly rejected hex color with wrong length:",
+        error.issues,
+      );
       return error.issues;
     }
     throw error;
@@ -534,7 +546,10 @@ export function testInvalidSlugStartsWithHyphen() {
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.log("Correctly rejected slug starting with hyphen:", error.issues);
+      console.log(
+        "Correctly rejected slug starting with hyphen:",
+        error.issues,
+      );
       return error.issues;
     }
     throw error;
@@ -676,7 +691,7 @@ export function testFloatPriceBelowMin() {
 
 // Test 27: Float constraint - price above maximum
 export function testFloatPriceAboveMax() {
-  const invalidData = { ...createValidBaseData(), price: 1000000.00 }; // Above max: 999999.99
+  const invalidData = { ...createValidBaseData(), price: 1000000.0 }; // Above max: 999999.99
 
   try {
     createOrgTodoZodschema.parse(invalidData);
@@ -699,7 +714,10 @@ export function testFloatTemperatureAtGtBoundary() {
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.log("Correctly rejected temperature at gt boundary:", error.issues);
+      console.log(
+        "Correctly rejected temperature at gt boundary:",
+        error.issues,
+      );
       return error.issues;
     }
     throw error;
@@ -715,7 +733,10 @@ export function testFloatTemperatureAtLtBoundary() {
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.log("Correctly rejected temperature at lt boundary:", error.issues);
+      console.log(
+        "Correctly rejected temperature at lt boundary:",
+        error.issues,
+      );
       return error.issues;
     }
     throw error;
@@ -774,9 +795,9 @@ export function testOptionalFloatInvalid() {
 export function testMultipleFloatViolations() {
   const invalidData = {
     ...createValidBaseData(),
-    price: -100.0,        // Below min
-    temperature: -300.0,  // Below gt
-    percentage: 150.0,    // Above max
+    price: -100.0, // Below min
+    temperature: -300.0, // Below gt
+    percentage: 150.0, // Above max
   };
 
   try {
@@ -784,10 +805,17 @@ export function testMultipleFloatViolations() {
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.log("Correctly rejected multiple float violations:", error.issues);
-      const hasPriceError = error.issues.some(e => e.path.includes("price"));
-      const hasTempError = error.issues.some(e => e.path.includes("temperature"));
-      const hasPercentError = error.issues.some(e => e.path.includes("percentage"));
+      console.log(
+        "Correctly rejected multiple float violations:",
+        error.issues,
+      );
+      const hasPriceError = error.issues.some((e) => e.path.includes("price"));
+      const hasTempError = error.issues.some((e) =>
+        e.path.includes("temperature"),
+      );
+      const hasPercentError = error.issues.some((e) =>
+        e.path.includes("percentage"),
+      );
 
       if (hasPriceError && hasTempError && hasPercentError) {
         console.log("All three float constraint violations detected correctly");
@@ -839,7 +867,10 @@ export function testCiStringCompanyNameInvalidChars() {
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.log("Correctly rejected company name with invalid chars:", error.issues);
+      console.log(
+        "Correctly rejected company name with invalid chars:",
+        error.issues,
+      );
       return error.issues;
     }
     throw error;
@@ -871,7 +902,10 @@ export function testCiStringCountryCodeWrongLength() {
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.log("Correctly rejected country code wrong length:", error.issues);
+      console.log(
+        "Correctly rejected country code wrong length:",
+        error.issues,
+      );
       return error.issues;
     }
     throw error;
@@ -903,7 +937,10 @@ export function testOptionalCiStringInvalid() {
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.log("Correctly rejected invalid optional nickname:", error.issues);
+      console.log(
+        "Correctly rejected invalid optional nickname:",
+        error.issues,
+      );
       return error.issues;
     }
     throw error;
@@ -914,9 +951,9 @@ export function testOptionalCiStringInvalid() {
 export function testMultipleCiStringViolations() {
   const invalidData = {
     ...createValidBaseData(),
-    username: "ab",           // Too short
-    companyName: "A",         // Too short
-    countryCode: "123",       // Invalid format
+    username: "ab", // Too short
+    companyName: "A", // Too short
+    countryCode: "123", // Invalid format
   };
 
   try {
@@ -924,13 +961,24 @@ export function testMultipleCiStringViolations() {
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.log("Correctly rejected multiple CiString violations:", error.issues);
-      const hasUsernameError = error.issues.some(e => e.path.includes("username"));
-      const hasCompanyError = error.issues.some(e => e.path.includes("companyName"));
-      const hasCountryError = error.issues.some(e => e.path.includes("countryCode"));
+      console.log(
+        "Correctly rejected multiple CiString violations:",
+        error.issues,
+      );
+      const hasUsernameError = error.issues.some((e) =>
+        e.path.includes("username"),
+      );
+      const hasCompanyError = error.issues.some((e) =>
+        e.path.includes("companyName"),
+      );
+      const hasCountryError = error.issues.some((e) =>
+        e.path.includes("countryCode"),
+      );
 
       if (hasUsernameError && hasCompanyError && hasCountryError) {
-        console.log("All three CiString constraint violations detected correctly");
+        console.log(
+          "All three CiString constraint violations detected correctly",
+        );
       }
       return error.issues;
     }

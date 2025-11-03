@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 
+import type { ActionChannelConfig, ValidationChannelConfig } from "./generated";
+
+// Custom hook context interfaces for type safety
 export interface ActionChannelHookContext {
   enableAuth?: boolean;
   authToken?: string;
@@ -15,45 +18,10 @@ export interface ValidationChannelHookContext {
   validationLevel?: "strict" | "normal";
 }
 
-// Channel config interface showing all available fields
-export interface ChannelConfig {
-  // Request data
-  input?: any;
-  primaryKey?: any;
-  fields?: any;
-  filter?: Record<string, any>;
-  sort?: string;
-  page?: {
-    limit?: number;
-    offset?: number;
-    count?: boolean;
-  };
-
-  // Metadata
-  metadataFields?: any;
-
-  // Channel-specific
-  channel: any; // Phoenix Channel
-  resultHandler: (result: any) => void;
-  errorHandler?: (error: any) => void;
-  timeoutHandler?: () => void;
-  timeout?: number;
-
-  // Multitenancy
-  tenant?: string;
-
-  // Hook context
-  hookCtx?: ActionChannelHookContext;
-
-  // Internal fields
-  action?: string;
-  domain?: string;
-}
-
-export async function beforeChannelPush<T extends ChannelConfig>(
+export async function beforeChannelPush(
   actionName: string,
-  config: T,
-): Promise<T> {
+  config: ActionChannelConfig,
+): Promise<ActionChannelConfig> {
   const ctx = config.hookCtx;
 
   if (ctx?.trackPerformance) {
@@ -65,19 +33,19 @@ export async function beforeChannelPush<T extends ChannelConfig>(
   });
 
   // Can modify config (e.g., set default timeout)
-  const modifiedConfig: T = {
+  const modifiedConfig: ActionChannelConfig = {
     ...config,
     timeout: config.timeout ?? 10000, // Default 10s timeout
-  } as T;
+  };
 
   return modifiedConfig;
 }
 
-export async function afterChannelResponse<T extends ChannelConfig>(
+export async function afterChannelResponse(
   actionName: string,
   responseType: "ok" | "error" | "timeout",
   data: any,
-  config: T,
+  config: ActionChannelConfig,
 ): Promise<void> {
   const ctx = config.hookCtx;
 
@@ -102,13 +70,10 @@ export async function afterChannelResponse<T extends ChannelConfig>(
   }
 }
 
-export async function beforeValidationChannelPush<
-  T extends {
-    hookCtx?: ValidationChannelHookContext;
-    timeout?: number;
-    action?: string;
-  },
->(actionName: string, config: T): Promise<T> {
+export async function beforeValidationChannelPush(
+  actionName: string,
+  config: ValidationChannelConfig,
+): Promise<ValidationChannelConfig> {
   const ctx = config.hookCtx;
 
   console.log(`[Validation Channel beforePush] ${actionName}`, {
@@ -119,19 +84,14 @@ export async function beforeValidationChannelPush<
   return {
     ...config,
     timeout: config.timeout ?? 5000, // Shorter timeout for validations
-  } as T;
+  };
 }
 
-export async function afterValidationChannelResponse<
-  T extends {
-    hookCtx?: ValidationChannelHookContext;
-    action?: string;
-  },
->(
+export async function afterValidationChannelResponse(
   actionName: string,
   responseType: "ok" | "error" | "timeout",
   data: any,
-  config: T,
+  config: ValidationChannelConfig,
 ): Promise<void> {
   const ctx = config.hookCtx;
 

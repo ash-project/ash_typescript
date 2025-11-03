@@ -42,9 +42,10 @@ defmodule AshTypescript.Rpc.EndpointConfigurationTest do
           validate_endpoint: "/rpc/validate"
         )
 
-      # Should contain the string literal in fetch call
-      assert String.contains?(generated, ~s[fetchFunction("/rpc/run"])
-      assert String.contains?(generated, ~s[fetchFunction("/rpc/validate"])
+      # Endpoints are now embedded in the helper functions, not passed as parameters
+      # Check that the helpers contain the endpoints in their fetch calls
+      assert generated =~ ~r/function executeActionRpcRequest.*?fetch.*?"\/rpc\/run"/s
+      assert generated =~ ~r/function executeValidationRpcRequest.*?fetch.*?"\/rpc\/validate"/s
     end
 
     test "generates correct TypeScript with runtime expression endpoints" do
@@ -54,12 +55,16 @@ defmodule AshTypescript.Rpc.EndpointConfigurationTest do
           validate_endpoint: {:runtime_expr, "CustomTypes.getValidateEndpoint()"}
         )
 
-      # Should contain the runtime expression (without quotes) in fetch call
-      assert String.contains?(generated, "fetchFunction(CustomTypes.getRunEndpoint()")
-      assert String.contains?(generated, "fetchFunction(CustomTypes.getValidateEndpoint()")
+      # Endpoints are now embedded in the helper functions
+      # Check that the helpers contain the runtime expressions in their fetch calls
+      assert generated =~
+               ~r/function executeActionRpcRequest.*?fetch.*?CustomTypes\.getRunEndpoint\(\)/s
 
-      # Should NOT contain quoted versions
-      refute String.contains?(generated, ~s[fetchFunction("CustomTypes])
+      assert generated =~
+               ~r/function executeValidationRpcRequest.*?fetch.*?CustomTypes\.getValidateEndpoint\(\)/s
+
+      # Should NOT contain quoted versions of runtime expressions
+      refute generated =~ ~r/fetch.*?"CustomTypes/
     end
 
     test "generates correct TypeScript with mixed endpoint types" do
@@ -69,11 +74,13 @@ defmodule AshTypescript.Rpc.EndpointConfigurationTest do
           validate_endpoint: "/rpc/validate"
         )
 
-      # run_endpoint should be a runtime expression
-      assert String.contains?(generated, "fetchFunction(CustomTypes.getRunEndpoint()")
+      # Endpoints are now embedded in the helper functions
+      # run_endpoint should be a runtime expression in executeActionRpcRequest
+      assert generated =~
+               ~r/function executeActionRpcRequest.*?fetch.*?CustomTypes\.getRunEndpoint\(\)/s
 
-      # validate_endpoint should be a string literal
-      assert String.contains?(generated, ~s[fetchFunction("/rpc/validate"])
+      # validate_endpoint should be a string literal in executeValidationRpcRequest
+      assert generated =~ ~r/function executeValidationRpcRequest.*?fetch.*?"\/rpc\/validate"/s
     end
   end
 end

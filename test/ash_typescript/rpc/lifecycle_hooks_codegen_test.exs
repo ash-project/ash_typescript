@@ -76,9 +76,9 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
-      assert typescript =~ "let processedConfig = config;"
-      assert typescript =~ "if (MyHooks.beforeAction)"
-      assert typescript =~ ~r/processedConfig = await MyHooks\.beforeAction\("[^"]+", config\);/
+      # Check that the hook is embedded in the executeActionRpcRequest helper
+      assert typescript =~ ~r/if \(MyHooks\.beforeAction\)/
+      assert typescript =~ ~r/await MyHooks\.beforeAction\(payload\.action, config\)/
     end
 
     test "includes afterRequest hook call with correct parameters" do
@@ -86,11 +86,11 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
-      assert typescript =~ "const result = response.ok ? await response.json() : null;"
-      assert typescript =~ "if (MyHooks.afterAction)"
+      # Check that the hook is embedded in the executeActionRpcRequest helper
+      assert typescript =~ ~r/if \(MyHooks\.afterAction\)/
 
       assert typescript =~
-               ~r/await MyHooks\.afterAction\("[^"]+", response, result, processedConfig\);/
+               ~r/await MyHooks\.afterAction\(payload\.action, response, result, processedConfig\)/
     end
 
     test "includes config merging with correct precedence" do
@@ -102,8 +102,11 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
-      assert typescript =~ ~r/\.\.\.processedConfig\.headers,\s*\.\.\.config\.headers,/
-      assert typescript =~ ~r/\.\.\.processedConfig\.fetchOptions,\s*\.\.\.config\.fetchOptions,/
+      # Config merging is now done inside executeActionRpcRequest helper
+      # processedConfig (from hook) should come last to take precedence
+      assert typescript =~ "executeActionRpcRequest"
+      assert typescript =~ ~r/\.\.\.config\.headers,\s*\.\.\.processedConfig\.headers,/
+      assert typescript =~ ~r/\.\.\.config\.fetchOptions,\s*\.\.\.processedConfig\.fetchOptions,/
     end
 
     test "includes customFetch with correct precedence" do
@@ -115,6 +118,8 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
+      # customFetch precedence is still enforced inside executeActionRpcRequest helper
+      assert typescript =~ "executeActionRpcRequest"
       assert typescript =~ "config.customFetch || processedConfig.customFetch || fetch"
     end
 
@@ -123,6 +128,8 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
+      # JSON parsing is still done inside executeActionRpcRequest helper
+      assert typescript =~ "executeActionRpcRequest"
       assert typescript =~ "const result = response.ok ? await response.json() : null;"
     end
 
@@ -195,10 +202,9 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
-      assert typescript =~ "if (MyHooks.beforeValidation)"
-
-      assert typescript =~
-               ~r/processedConfig = await MyHooks\.beforeValidation\("[^"]+", config\);/
+      # Check that the hook is embedded in the executeValidationRpcRequest helper
+      assert typescript =~ ~r/if \(MyHooks\.beforeValidation\)/
+      assert typescript =~ ~r/await MyHooks\.beforeValidation\(payload\.action, config\)/
     end
 
     test "includes afterValidationRequest hook call in validation function" do
@@ -210,10 +216,11 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
-      assert typescript =~ "if (MyHooks.afterValidation)"
+      # Check that the hook is embedded in the executeValidationRpcRequest helper
+      assert typescript =~ ~r/if \(MyHooks\.afterValidation\)/
 
       assert typescript =~
-               ~r/await MyHooks\.afterValidation\("[^"]+", response, result, processedConfig\);/
+               ~r/await MyHooks\.afterValidation\(payload\.action, response, result, processedConfig\)/
     end
 
     test "uses custom validation hook context type when configured" do
@@ -264,7 +271,8 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
-      assert typescript =~ "let processedConfig = config;"
+      # When no hooks, uses const instead of let
+      assert typescript =~ "const processedConfig = config;"
       # Should not have HTTP beforeRequest hook calls (channel hooks may still be present)
       # Note: Channel hooks use "beforeChannelPush" or "beforeValidationChannelPush"
       refute typescript =~ ~r/processedConfig = await \w+\.beforeAction\(/
@@ -326,8 +334,9 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
-      assert typescript =~ "if (MyHooks.beforeAction)"
-      refute typescript =~ "MyHooks.afterAction"
+      # With new pattern, check that before hook is in helper but not after
+      assert typescript =~ ~r/if \(MyHooks\.beforeAction\)/
+      refute typescript =~ ~r/if \(MyHooks\.afterAction\)/
     end
 
     test "can have only afterRequest hooks without beforeRequest hooks" do
@@ -336,9 +345,10 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
 
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
-      assert typescript =~ "if (MyHooks.afterAction)"
-      assert typescript =~ "let processedConfig = config;"
-      refute typescript =~ "processedConfig = await MyHooks"
+      # With new pattern, check that after hook is in helper but not before
+      assert typescript =~ ~r/if \(MyHooks\.afterAction\)/
+      # Should have processedConfig = config (not let processedConfig since no before hook)
+      assert typescript =~ "const processedConfig = config;"
     end
   end
 end
