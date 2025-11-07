@@ -106,7 +106,7 @@ export const TodoMetadataSchema = z.object({...});
 
 - **Main implementation**: `lib/ash_typescript/rpc/zod_schema_generator.ex`
 - **Integration point**: `lib/ash_typescript/rpc/codegen.ex`
-- **Type mapping reference**: `lib/ash_typescript/codegen.ex`
+- **Type mapping reference**: `lib/ash_typescript/codegen/type_mapper.ex`
 
 ## Common Issues
 

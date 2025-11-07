@@ -100,7 +100,7 @@ defstruct [
 
 ## Field Processing Integration
 
-Field processing is handled by `RequestedFieldsProcessor` in Stage 1 (parse_request):
+Field processing is handled by the `RequestedFieldsProcessor` module (entry point/delegator) in Stage 1 (parse_request). The actual implementation is modularized across 11 specialized files in `lib/ash_typescript/rpc/field_processing/`:
 
 ```elixir
 {:ok, {select, load, template}} = RequestedFieldsProcessor.process(
@@ -110,6 +110,13 @@ Field processing is handled by `RequestedFieldsProcessor` in Stage 1 (parse_requ
 # load: Calculations/relationships to load
 # template: Extraction template for result processing
 ```
+
+**Processing Flow**:
+1. **Atomizer** - Converts client field names to atoms
+2. **Validator** - Validates field selections
+3. **FieldClassifier** - Determines field types and return types
+4. **FieldProcessor** - Orchestrates processing and routes to type processors
+5. **Type Processors** - Specialized handling for each type family
 
 ### Field Classification
 
@@ -345,7 +352,14 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 ## Key Files
 
 - `lib/ash_typescript/rpc/pipeline.ex` - Four-stage orchestration
-- `lib/ash_typescript/rpc/requested_fields_processor.ex` - Field validation and templates
+- `lib/ash_typescript/rpc/requested_fields_processor.ex` - Field processing entry point (delegator)
+- `lib/ash_typescript/rpc/field_processing/` - Modular field processing subsystem:
+  - `atomizer.ex` - Field name atomization
+  - `validator.ex` - Field validation
+  - `field_classifier.ex` - Type classification
+  - `field_processor.ex` - Core orchestration
+  - `utilities.ex` - Shared helpers
+  - `type_processors/*.ex` - 6 specialized type processors
 - `lib/ash_typescript/rpc/result_processor.ex` - Template-based result extraction
 - `lib/ash_typescript/rpc/request.ex` - Request data structure
 - `lib/ash_typescript/rpc/error_builder.ex` - Comprehensive error handling

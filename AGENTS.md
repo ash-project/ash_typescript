@@ -119,11 +119,26 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 
 | Purpose | Location |
 |---------|----------|
-| **Core type generation** | `lib/ash_typescript/codegen.ex` |
+| **Core type generation (entry point)** | `lib/ash_typescript/codegen.ex` (delegator) |
+| **Type system introspection** | `lib/ash_typescript/type_system/introspection.ex` |
+| **Resource discovery** | `lib/ash_typescript/codegen/embedded_scanner.ex` |
+| **Type aliases generation** | `lib/ash_typescript/codegen/type_aliases.ex` |
+| **TypeScript type mapping** | `lib/ash_typescript/codegen/type_mapper.ex` |
+| **Resource schema generation** | `lib/ash_typescript/codegen/resource_schemas.ex` |
+| **Filter types generation** | `lib/ash_typescript/codegen/filter_types.ex` |
 | **RPC client generation** | `lib/ash_typescript/rpc/codegen.ex` |
 | **Pipeline orchestration** | `lib/ash_typescript/rpc/pipeline.ex` |
-| **Field processing** | `lib/ash_typescript/rpc/requested_fields_processor.ex` |
+| **Field processing (entry point)** | `lib/ash_typescript/rpc/requested_fields_processor.ex` (delegator) |
+| **Field atomization** | `lib/ash_typescript/rpc/field_processing/atomizer.ex` |
+| **Field validation** | `lib/ash_typescript/rpc/field_processing/validator.ex` |
+| **Field classification** | `lib/ash_typescript/rpc/field_processing/field_classifier.ex` |
+| **Core field orchestration** | `lib/ash_typescript/rpc/field_processing/field_processor.ex` |
+| **Type-specific processors** | `lib/ash_typescript/rpc/field_processing/type_processors/` |
 | **Result extraction** | `lib/ash_typescript/rpc/result_processor.ex` |
+| **Shared formatting logic** | `lib/ash_typescript/rpc/formatter_core.ex` |
+| **Input formatting** | `lib/ash_typescript/rpc/input_formatter.ex` (thin wrapper) |
+| **Output formatting** | `lib/ash_typescript/rpc/output_formatter.ex` (thin wrapper) |
+| **Resource verifiers** | `lib/ash_typescript/resource/verifiers/` |
 | **Test domain** | `test/support/domain.ex` |
 | **Primary test resource** | `test/support/resources/todo.ex` |
 | **TypeScript validation** | `test/ts/shouldPass/` & `test/ts/shouldFail/` |
@@ -185,10 +200,21 @@ mix credo --strict                   # Linting
 4. **format_output** - Format for client consumption
 
 ### Key Modules
-- **RequestedFieldsProcessor** - Field validation and template building
+- **RequestedFieldsProcessor** (delegator) - Entry point for field processing
+- **Field Processing Subsystem** - 11 specialized modules for field processing:
+  - `Atomizer` - Converts client field names to internal atoms
+  - `Validator` - Validates field selections
+  - `FieldClassifier` - Determines return types and field types
+  - `FieldProcessor` - Core orchestration and routing
+  - `TypeProcessors/*` - 6 specialized processors (calculation, embedded, relationship, tuple, typed_struct, union)
 - **ResultProcessor** - Result extraction using templates
 - **Pipeline** - Four-stage orchestration
 - **ErrorBuilder** - Comprehensive error handling
+
+### Type System Architecture
+- **Type Introspection**: Centralized in `type_system/introspection.ex`
+- **Codegen Organization**: 5 focused modules (embedded_scanner, type_aliases, type_mapper, resource_schemas, filter_types)
+- **Formatter Core**: Shared formatting logic with direction parameter (:input/:output)
 
 ### Type Inference Architecture
 - **Unified Schema**: Single ResourceSchema with `__type` metadata
@@ -200,6 +226,7 @@ mix credo --strict                   # Linting
 - **Embedded Resources**: Full relationship-like architecture with calculation support
 - **Union Field Selection**: Selective member fetching with `{content: ["field1", {"nested": ["field2"]}]}`
 - **Headers Support**: All RPC functions accept optional headers for custom authentication
+- **Modular Processing**: Each type family has dedicated processor for maintainability
 
 ## Common Errors
 

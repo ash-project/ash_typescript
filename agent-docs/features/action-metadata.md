@@ -289,10 +289,11 @@ Metadata mapping affects:
    - Uses mapped names in TypeScript types
    - Different return types for read vs mutation actions
 
-2. **Type Generation** (`lib/ash_typescript/codegen.ex`)
+2. **Type Generation** (`lib/ash_typescript/codegen/resource_schemas.ex`)
    - Read actions: metadata fields merged into result type
    - Mutations: separate `metadata` field in result type
    - Type inference based on selected metadata fields
+   - Entry point: `lib/ash_typescript/codegen.ex` (delegator)
 
 ### RPC Pipeline
 

@@ -90,7 +90,11 @@ end
 
 ## Key Files
 
-- `lib/ash_typescript/codegen.ex` - Main type generation and schema building
+- `lib/ash_typescript/codegen.ex` - Main entrypoint (delegator to specialized modules)
+- `lib/ash_typescript/codegen/resource_schemas.ex` - Resource schema generation
+- `lib/ash_typescript/codegen/type_mapper.ex` - TypeScript type mapping
+- `lib/ash_typescript/codegen/type_aliases.ex` - Ash type alias generation
+- `lib/ash_typescript/type_system/introspection.ex` - Type introspection and classification
 - `lib/ash_typescript/rpc/codegen.ex` - TypeScript utility types and RPC client generation
 - Generated schemas use metadata patterns for efficient inference
 

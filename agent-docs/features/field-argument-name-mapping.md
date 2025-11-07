@@ -342,9 +342,10 @@ Requirements:
 
 Field/argument mapping affects:
 
-1. **Type Schema Generation** (`lib/ash_typescript/codegen.ex`)
+1. **Type Schema Generation** (`lib/ash_typescript/codegen/resource_schemas.ex`)
    - Uses mapped names in TypeScript type definitions
    - Applies to all schema types (attributes, relationships, calculations, aggregates)
+   - Entry point: `lib/ash_typescript/codegen.ex` (delegator)
 
 2. **Zod Schema Generation** (`lib/ash_typescript/rpc/zod_schema_generator.ex`)
    - Uses mapped names in Zod validation schemas
@@ -358,12 +359,13 @@ Field/argument mapping affects:
 
 Mapping is handled in the RPC pipeline:
 
-1. **Input Formatting** (`lib/ash_typescript/rpc/input_formatter.ex`)
-   - Maps TypeScript field/argument names → Elixir names
+1. **Input Formatting** (`lib/ash_typescript/rpc/formatter_core.ex`)
+   - Core formatting logic shared between input and output formatters
+   - Maps TypeScript field/argument names → Elixir names (via `input_formatter.ex` wrapper)
    - Applies before Ash action execution
 
 2. **Result Processing** (`lib/ash_typescript/rpc/result_processor.ex`)
-   - Maps Elixir field names → TypeScript names
+   - Maps Elixir field names → TypeScript names (via `formatter_core.ex`)
    - Applies to output data
 
 3. **Validation Errors** (`lib/ash_typescript/rpc/validation_error_schemas.ex`)
@@ -486,11 +488,13 @@ end
 | File | Purpose |
 |------|---------|
 | `lib/ash_typescript/resource.ex` | DSL definition for field_names and argument_names |
-| `lib/ash_typescript/resource/verify_field_names.ex` | Resource-level field verification |
-| `lib/ash_typescript/resource/verify_mapped_field_names.ex` | field_names configuration validation |
-| `lib/ash_typescript/resource/verify_map_field_names.ex` | Composite type constraint verification |
-| `lib/ash_typescript/codegen.ex` | Type generation with mapped names |
-| `lib/ash_typescript/rpc/input_formatter.ex` | Input mapping (TS → Elixir) |
+| `lib/ash_typescript/resource/verifiers/verify_field_names.ex` | Resource-level field verification |
+| `lib/ash_typescript/resource/verifiers/verify_mapped_field_names.ex` | field_names configuration validation |
+| `lib/ash_typescript/resource/verifiers/verify_map_field_names.ex` | Composite type constraint verification |
+| `lib/ash_typescript/codegen/resource_schemas.ex` | Resource schema generation with mapped names |
+| `lib/ash_typescript/codegen/type_mapper.ex` | TypeScript type mapping |
+| `lib/ash_typescript/rpc/formatter_core.ex` | Core formatting logic (shared between input/output) |
+| `lib/ash_typescript/rpc/input_formatter.ex` | Input mapping wrapper (TS → Elixir) |
 | `lib/ash_typescript/rpc/result_processor.ex` | Output mapping (Elixir → TS) |
 | `lib/ash_typescript/rpc/zod_schema_generator.ex` | Zod schema with mapped names |
 | `test/ash_typescript/rpc/rpc_field_argument_mapping_test.exs` | End-to-end mapping tests |

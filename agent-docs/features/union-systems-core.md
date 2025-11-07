@@ -42,7 +42,9 @@ Union field selection uses selective member fetching:
 ## Key Files
 - `lib/ash_typescript/rpc/result_processor.ex` - Union transformation
 - `lib/ash_typescript/rpc/requested_fields_processor.ex` - Field selection parsing and validation
-- `lib/ash_typescript/codegen.ex` - TypeScript generation
+- `lib/ash_typescript/codegen/resource_schemas.ex` - TypeScript schema generation
+- `lib/ash_typescript/codegen/type_mapper.ex` - TypeScript type mapping
+- `lib/ash_typescript/type_system/introspection.ex` - Type introspection (includes union utilities)
 
 ## Common Issues
 - **:map_with_tag Creation Failures**: Remove complex field constraints, use simple definitions

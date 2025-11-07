@@ -86,7 +86,7 @@ cd test/ts && npm run compileShouldFail # Invalid patterns rejected
 ## Change-Specific Validations
 
 ### Type System Changes
-When modifying `lib/ash_typescript/codegen.ex` or `lib/ash_typescript/rpc/codegen.ex`:
+When modifying `lib/ash_typescript/codegen/` modules (type_mapper.ex, resource_schemas.ex, etc.) or `lib/ash_typescript/rpc/codegen.ex`:
 
 ```bash
 # Check for unmapped types (indicates problems)

@@ -8,6 +8,25 @@ SPDX-License-Identifier: MIT
 
 Key architectural decisions and their reasoning for AI assistant context.
 
+## 2025-11-07: Comprehensive Codebase Refactoring
+
+**Change**: Major refactoring to eliminate code duplication and improve organization
+**Why**: Reduce maintenance burden, improve discoverability, eliminate ~300 lines of duplicate code
+**Impact**:
+- `codegen.ex`: 1,539 → 64 lines (96% reduction, now a delegator)
+- `requested_fields_processor.ex`: 1,289 → 68 lines (95% reduction, now a delegator)
+- Type introspection: 89 scattered usages → 1 centralized module
+- Formatters: 626 LOC with 70% duplication → 303 LOC + 430 shared core
+- Verifiers: Moved to `resource/verifiers/` for consistent directory structure
+- Filter types: Moved from top-level to `codegen/filter_types.ex` for logical grouping
+**Key Modules Created**:
+- `lib/ash_typescript/type_system/introspection.ex` - Centralized type introspection
+- `lib/ash_typescript/codegen/` - 5 focused modules (embedded_scanner, type_aliases, type_mapper, resource_schemas, helpers) + filter_types
+- `lib/ash_typescript/rpc/formatter_core.ex` - Shared formatting logic
+- `lib/ash_typescript/rpc/field_processing/` - 11 specialized modules (atomizer, validator, field_classifier, field_processor, utilities, 6 type processors)
+- `lib/ash_typescript/resource/verifiers/` - Organized verifier modules
+**Benefits**: Single source of truth, better separation of concerns, improved maintainability, zero breaking changes, no files over 874 lines
+
 ## 2025-09-16: Phoenix Channel RPC Actions
 
 **Change**: Added Phoenix channel-based RPC action generation alongside HTTP-based functions
