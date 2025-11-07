@@ -36,9 +36,9 @@ defmodule AshTypescript.Resource do
   use Spark.Dsl.Extension,
     sections: [@typescript],
     verifiers: [
-      AshTypescript.Resource.VerifyUniqueTypeNames,
-      AshTypescript.Resource.VerifyFieldNames,
-      AshTypescript.Resource.VerifyMappedFieldNames,
-      AshTypescript.Resource.VerifyMapFieldNames
+      AshTypescript.Resource.Verifiers.VerifyUniqueTypeNames,
+      AshTypescript.Resource.Verifiers.VerifyFieldNames,
+      AshTypescript.Resource.Verifiers.VerifyMappedFieldNames,
+      AshTypescript.Resource.Verifiers.VerifyMapFieldNames
     ]
 end

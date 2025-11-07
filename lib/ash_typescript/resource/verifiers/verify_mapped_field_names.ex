@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Resource.VerifyMappedFieldNames do
+defmodule AshTypescript.Resource.Verifiers.VerifyMappedFieldNames do
   @moduledoc """
   Verifies that field_names configuration is valid.
 

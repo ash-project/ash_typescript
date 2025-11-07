@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Resource.VerifyFieldNames do
+defmodule AshTypescript.Resource.Verifiers.VerifyFieldNames do
   @moduledoc """
   Verifies that resource field names are valid for TypeScript generation.
 

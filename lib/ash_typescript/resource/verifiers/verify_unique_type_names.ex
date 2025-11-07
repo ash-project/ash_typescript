@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Resource.VerifyUniqueTypeNames do
+defmodule AshTypescript.Resource.Verifiers.VerifyUniqueTypeNames do
   @moduledoc """
   Checks that all resources using AshTypescript.Resource have unique type_name values.
   """
