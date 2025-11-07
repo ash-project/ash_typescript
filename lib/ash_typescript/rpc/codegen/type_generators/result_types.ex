@@ -1,0 +1,294 @@
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs.contributors>
+#
+# SPDX-License-Identifier: MIT
+
+defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
+  @moduledoc """
+  Generates TypeScript result types for RPC actions.
+
+  Result types define the shape of data returned from RPC actions, including:
+  - Field selection types (which fields can be selected)
+  - Inferred result types (what the result looks like given a field selection)
+  - Pagination wrapper types (for paginated results)
+  - Metadata integration (for actions that return metadata)
+  """
+
+  import AshTypescript.Codegen
+  import AshTypescript.Helpers
+
+  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
+  alias AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes
+  alias AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes
+
+  @doc """
+  Generates the TypeScript result type for an RPC action.
+
+  The generated type includes:
+  - A Fields type (what fields can be selected)
+  - An InferResult type (what the result will be given a field selection)
+  - Optional metadata types (if metadata is enabled)
+  - Optional pagination types (if the action supports pagination)
+
+  ## Parameters
+
+    * `resource` - The Ash resource
+    * `action` - The Ash action
+    * `rpc_action` - The RPC action configuration
+    * `rpc_action_name` - The snake_case name of the RPC action
+
+  ## Returns
+
+  A string containing the TypeScript type definitions for this action's result.
+  """
+  def generate_result_type(resource, action, rpc_action, rpc_action_name) do
+    resource_name = build_resource_type_name(resource)
+    rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
+
+    case action.type do
+      :read when action.get? ->
+        metadata_type =
+          MetadataTypes.generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal)
+
+        has_metadata =
+          MetadataTypes.metadata_enabled?(
+            MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
+          )
+
+        if has_metadata do
+          """
+          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+          #{metadata_type}
+          type Infer#{rpc_action_name_pascal}Result<
+            Fields extends #{rpc_action_name_pascal}Fields,
+            MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
+          > = (InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>) | null;
+          """
+        else
+          """
+          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+          type Infer#{rpc_action_name_pascal}Result<
+            Fields extends #{rpc_action_name_pascal}Fields,
+          > = InferResult<#{resource_name}ResourceSchema, Fields> | null;
+          """
+        end
+
+      :read ->
+        if ActionIntrospection.action_supports_pagination?(action) do
+          metadata_type =
+            MetadataTypes.generate_action_metadata_type(
+              action,
+              rpc_action,
+              rpc_action_name_pascal
+            )
+
+          has_metadata =
+            MetadataTypes.metadata_enabled?(
+              MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
+            )
+
+          fields_type = """
+          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+          #{metadata_type}
+          """
+
+          pagination_type =
+            if ActionIntrospection.action_requires_pagination?(action) do
+              PaginationTypes.generate_pagination_result_type(
+                resource,
+                action,
+                rpc_action_name_pascal,
+                resource_name,
+                has_metadata
+              )
+            else
+              PaginationTypes.generate_conditional_pagination_result_type(
+                resource,
+                action,
+                rpc_action_name_pascal,
+                resource_name,
+                has_metadata
+              )
+            end
+
+          fields_type <> "\n" <> pagination_type
+        else
+          metadata_type =
+            MetadataTypes.generate_action_metadata_type(
+              action,
+              rpc_action,
+              rpc_action_name_pascal
+            )
+
+          has_metadata =
+            MetadataTypes.metadata_enabled?(
+              MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
+            )
+
+          if has_metadata do
+            """
+            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+            #{metadata_type}
+            type Infer#{rpc_action_name_pascal}Result<
+              Fields extends #{rpc_action_name_pascal}Fields,
+              MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
+            > = Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
+            """
+          else
+            """
+            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+            type Infer#{rpc_action_name_pascal}Result<
+              Fields extends #{rpc_action_name_pascal}Fields,
+            > = Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+            """
+          end
+        end
+
+      action_type when action_type in [:create, :update] ->
+        metadata_type =
+          MetadataTypes.generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal)
+
+        has_metadata =
+          MetadataTypes.metadata_enabled?(
+            MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
+          )
+
+        if has_metadata do
+          """
+          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+          #{metadata_type}
+          type Infer#{rpc_action_name_pascal}Result<
+            Fields extends #{rpc_action_name_pascal}Fields | undefined,
+            MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
+          > = InferResult<#{resource_name}ResourceSchema, Fields>;
+          """
+        else
+          """
+          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+          #{metadata_type}
+          type Infer#{rpc_action_name_pascal}Result<
+            Fields extends #{rpc_action_name_pascal}Fields | undefined,
+          > = InferResult<#{resource_name}ResourceSchema, Fields>;
+          """
+        end
+
+      :destroy ->
+        metadata_type =
+          MetadataTypes.generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal)
+
+        has_metadata =
+          MetadataTypes.metadata_enabled?(
+            MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
+          )
+
+        if has_metadata do
+          """
+          #{metadata_type}
+          type Infer#{rpc_action_name_pascal}Result<
+            MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
+          > = {};
+          """
+        else
+          metadata_type
+        end
+
+      :action ->
+        case ActionIntrospection.action_returns_field_selectable_type?(action) do
+          {:ok, type, value} when type in [:resource, :array_of_resource] ->
+            target_resource_name = build_resource_type_name(value)
+
+            if type == :array_of_resource do
+              """
+              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{target_resource_name}ResourceSchema>[];
+
+              type Infer#{rpc_action_name_pascal}Result<
+                Fields extends #{rpc_action_name_pascal}Fields | undefined,
+              > = Array<InferResult<#{target_resource_name}ResourceSchema, Fields>>;
+              """
+            else
+              """
+              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{target_resource_name}ResourceSchema>[];
+
+              type Infer#{rpc_action_name_pascal}Result<
+                Fields extends #{rpc_action_name_pascal}Fields | undefined,
+              > = InferResult<#{target_resource_name}ResourceSchema, Fields>;
+              """
+            end
+
+          {:ok, type, value} when type in [:typed_map, :array_of_typed_map] ->
+            typed_map_schema = build_map_type(value)
+
+            if type == :array_of_typed_map do
+              """
+              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
+
+              type Infer#{rpc_action_name_pascal}Result<
+                Fields extends #{rpc_action_name_pascal}Fields | undefined,
+              > = Array<InferResult<#{typed_map_schema}, Fields>>;
+              """
+            else
+              """
+              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
+
+              type Infer#{rpc_action_name_pascal}Result<
+                Fields extends #{rpc_action_name_pascal}Fields | undefined,
+              > = InferResult<#{typed_map_schema}, Fields>;
+              """
+            end
+
+          {:ok, :typed_struct, {module, fields}} ->
+            field_name_mappings =
+              if function_exported?(module, :typescript_field_names, 0) do
+                module.typescript_field_names()
+              else
+                nil
+              end
+
+            typed_map_schema = build_map_type(fields, nil, field_name_mappings)
+
+            """
+            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
+
+            type Infer#{rpc_action_name_pascal}Result<
+              Fields extends #{rpc_action_name_pascal}Fields | undefined,
+            > = InferResult<#{typed_map_schema}, Fields>;
+            """
+
+          {:ok, :array_of_typed_struct, {module, fields}} ->
+            field_name_mappings =
+              if function_exported?(module, :typescript_field_names, 0) do
+                module.typescript_field_names()
+              else
+                nil
+              end
+
+            typed_map_schema = build_map_type(fields, nil, field_name_mappings)
+
+            """
+            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
+
+            type Infer#{rpc_action_name_pascal}Result<
+              Fields extends #{rpc_action_name_pascal}Fields | undefined,
+            > = Array<InferResult<#{typed_map_schema}, Fields>>;
+            """
+
+          {:ok, :unconstrained_map, _} ->
+            """
+            type Infer#{rpc_action_name_pascal}Result = Record<string, any>;
+            """
+
+          _ ->
+            if action.returns do
+              return_type = get_ts_type(%{type: action.returns, constraints: action.constraints})
+
+              """
+              type Infer#{rpc_action_name_pascal}Result = #{return_type};
+              """
+            else
+              """
+              type Infer#{rpc_action_name_pascal}Result = {};
+              """
+            end
+        end
+    end
+  end
+end
