@@ -80,6 +80,8 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :destroy_user_settings, :destroy
     end
 
+    resource AshTypescript.Test.Post
+
     resource AshTypescript.Test.OrgTodo do
       rpc_action :list_org_todos, :read
       rpc_action :get_org_todo, :get_by_id
