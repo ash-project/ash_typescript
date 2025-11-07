@@ -10,8 +10,51 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   supporting all Ash types including embedded resources, union types, and custom types.
   """
 
-  import AshTypescript.Codegen
+  alias AshTypescript.Codegen.Helpers, as: CodegenHelpers
+  alias AshTypescript.TypeSystem.Introspection
+
   import AshTypescript.Helpers
+
+  # Helper to format field with output formatter
+  defp format_field(field_name) do
+    AshTypescript.FieldFormatter.format_field(field_name, formatter())
+  end
+
+  # Get formatter (called at runtime, not compile time)
+  defp formatter do
+    AshTypescript.Rpc.output_field_formatter()
+  end
+
+  # Helper to process an argument into a Zod field definition
+  defp process_argument_field(resource, action, arg) do
+    optional = arg.allow_nil? || arg.default != nil
+
+    mapped_name =
+      AshTypescript.Resource.Info.get_mapped_argument_name(
+        resource,
+        action.name,
+        arg.name
+      )
+
+    formatted_name = format_field(mapped_name)
+    zod_type = get_zod_type(arg)
+    zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
+
+    {formatted_name, zod_type}
+  end
+
+  # Helper to process an accept field into a Zod field definition
+  defp process_accept_field(resource, field_name) do
+    attr = Ash.Resource.Info.attribute(resource, field_name)
+    optional = attr.allow_nil? || attr.default != nil
+
+    mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
+    formatted_name = format_field(mapped_name)
+    zod_type = get_zod_type(attr)
+    zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
+
+    {formatted_name, zod_type}
+  end
 
   @doc """
   Maps Ash types to Zod schema constructors.
@@ -148,7 +191,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
 
       instance_of != nil ->
         if Spark.Dsl.is?(instance_of, Ash.Resource) do
-          resource_name = build_resource_type_name(instance_of)
+          resource_name = CodegenHelpers.build_resource_type_name(instance_of)
           suffix = AshTypescript.Rpc.zod_schema_suffix()
           "#{resource_name}#{suffix}"
         else
@@ -195,8 +238,8 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
       is_custom_type?(type) ->
         "z.string()"
 
-      AshTypescript.Codegen.is_embedded_resource?(type) ->
-        resource_name = build_resource_type_name(type)
+      Introspection.is_embedded_resource?(type) ->
+        resource_name = CodegenHelpers.build_resource_type_name(type)
         suffix = AshTypescript.Rpc.zod_schema_suffix()
         "#{resource_name}#{suffix}"
 
@@ -249,27 +292,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
             arguments = action.arguments
 
             if arguments != [] do
-              Enum.map(arguments, fn arg ->
-                optional = arg.allow_nil? || arg.default != nil
-
-                mapped_name =
-                  AshTypescript.Resource.Info.get_mapped_argument_name(
-                    resource,
-                    action.name,
-                    arg.name
-                  )
-
-                formatted_arg_name =
-                  AshTypescript.FieldFormatter.format_field(
-                    mapped_name,
-                    AshTypescript.Rpc.output_field_formatter()
-                  )
-
-                zod_type = get_zod_type(arg)
-                zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
-
-                {formatted_arg_name, zod_type}
-              end)
+              Enum.map(arguments, &process_argument_field(resource, action, &1))
             else
               []
             end
@@ -279,48 +302,10 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
             arguments = action.arguments
 
             if accepts != [] || arguments != [] do
-              accept_field_defs =
-                Enum.map(accepts, fn field_name ->
-                  attr = Ash.Resource.Info.attribute(resource, field_name)
-                  optional = attr.allow_nil? || attr.default != nil
-
-                  mapped_name =
-                    AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
-
-                  formatted_field_name =
-                    AshTypescript.FieldFormatter.format_field(
-                      mapped_name,
-                      AshTypescript.Rpc.output_field_formatter()
-                    )
-
-                  zod_type = get_zod_type(attr)
-                  zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
-
-                  {formatted_field_name, zod_type}
-                end)
+              accept_field_defs = Enum.map(accepts, &process_accept_field(resource, &1))
 
               argument_field_defs =
-                Enum.map(arguments, fn arg ->
-                  optional = arg.allow_nil? || arg.default != nil
-
-                  mapped_name =
-                    AshTypescript.Resource.Info.get_mapped_argument_name(
-                      resource,
-                      action.name,
-                      arg.name
-                    )
-
-                  formatted_arg_name =
-                    AshTypescript.FieldFormatter.format_field(
-                      mapped_name,
-                      AshTypescript.Rpc.output_field_formatter()
-                    )
-
-                  zod_type = get_zod_type(arg)
-                  zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
-
-                  {formatted_arg_name, zod_type}
-                end)
+                Enum.map(arguments, &process_argument_field(resource, action, &1))
 
               accept_field_defs ++ argument_field_defs
             else
@@ -329,48 +314,10 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
 
           action_type when action_type in [:update, :destroy] ->
             if action.accept != [] || action.arguments != [] do
-              accept_field_defs =
-                Enum.map(action.accept, fn field_name ->
-                  attr = Ash.Resource.Info.attribute(resource, field_name)
-                  optional = attr.allow_nil? || attr.default != nil
-
-                  mapped_name =
-                    AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
-
-                  formatted_field_name =
-                    AshTypescript.FieldFormatter.format_field(
-                      mapped_name,
-                      AshTypescript.Rpc.output_field_formatter()
-                    )
-
-                  zod_type = get_zod_type(attr)
-                  zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
-
-                  {formatted_field_name, zod_type}
-                end)
+              accept_field_defs = Enum.map(action.accept, &process_accept_field(resource, &1))
 
               argument_field_defs =
-                Enum.map(action.arguments, fn arg ->
-                  optional = arg.allow_nil? || arg.default != nil
-
-                  mapped_name =
-                    AshTypescript.Resource.Info.get_mapped_argument_name(
-                      resource,
-                      action.name,
-                      arg.name
-                    )
-
-                  formatted_arg_name =
-                    AshTypescript.FieldFormatter.format_field(
-                      mapped_name,
-                      AshTypescript.Rpc.output_field_formatter()
-                    )
-
-                  zod_type = get_zod_type(arg)
-                  zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
-
-                  {formatted_arg_name, zod_type}
-                end)
+                Enum.map(action.arguments, &process_argument_field(resource, action, &1))
 
               accept_field_defs ++ argument_field_defs
             else
@@ -381,27 +328,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
             arguments = action.arguments
 
             if arguments != [] do
-              Enum.map(arguments, fn arg ->
-                optional = arg.allow_nil? || arg.default != nil
-
-                mapped_name =
-                  AshTypescript.Resource.Info.get_mapped_argument_name(
-                    resource,
-                    action.name,
-                    arg.name
-                  )
-
-                formatted_arg_name =
-                  AshTypescript.FieldFormatter.format_field(
-                    mapped_name,
-                    AshTypescript.Rpc.output_field_formatter()
-                  )
-
-                zod_type = get_zod_type(arg)
-                zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
-
-                {formatted_arg_name, zod_type}
-              end)
+              Enum.map(arguments, &process_argument_field(resource, action, &1))
             else
               []
             end
@@ -447,7 +374,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   Generates a Zod schema for a single embedded resource.
   """
   def generate_zod_schema_for_embedded_resource(resource) do
-    resource_name = build_resource_type_name(resource)
+    resource_name = CodegenHelpers.build_resource_type_name(resource)
     suffix = AshTypescript.Rpc.zod_schema_suffix()
     schema_name = "#{resource_name}#{suffix}"
 
@@ -457,11 +384,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
       |> Enum.map_join("\n", fn attr ->
         mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr.name)
 
-        formatted_name =
-          AshTypescript.FieldFormatter.format_field(
-            mapped_name,
-            AshTypescript.Rpc.output_field_formatter()
-          )
+        formatted_name = format_field(mapped_name)
 
         zod_type = get_zod_type(attr)
 
@@ -525,11 +448,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
     union_schemas =
       types
       |> Enum.map_join(", ", fn {type_name, config} ->
-        formatted_name =
-          AshTypescript.FieldFormatter.format_field(
-            type_name,
-            AshTypescript.Rpc.output_field_formatter()
-          )
+        formatted_name = format_field(type_name)
 
         type = Keyword.get(config, :type, :string)
         constraints = Keyword.get(config, :constraints, [])

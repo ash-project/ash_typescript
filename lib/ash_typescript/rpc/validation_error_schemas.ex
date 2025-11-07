@@ -13,6 +13,8 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   import AshTypescript.Helpers
   import AshTypescript.Codegen, only: [build_resource_type_name: 1]
 
+  alias AshTypescript.TypeSystem.Introspection
+
   @doc """
   Generates validation error type for an RPC action.
   """
@@ -119,7 +121,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
         "#{error_type}[]"
 
       Ash.Type.Union ->
-        union_types = Keyword.get(constraints, :types, [])
+        union_types = Introspection.get_union_types_from_constraints(type, constraints)
         build_union_error_type(union_types)
 
       map_like when map_like in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] ->
@@ -138,7 +140,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
       Ash.Type.Struct ->
         instance_of = Keyword.get(constraints, :instance_of)
 
-        if instance_of && AshTypescript.Codegen.is_embedded_resource?(instance_of) do
+        if instance_of && Introspection.is_embedded_resource?(instance_of) do
           resource_name = build_resource_type_name(instance_of)
           "#{resource_name}ValidationErrors"
         else
@@ -150,11 +152,11 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
           is_custom_type?(custom_type) ->
             "#{custom_type.typescript_type_name()}ValidationErrors"
 
-          AshTypescript.Codegen.is_embedded_resource?(custom_type) ->
+          Introspection.is_embedded_resource?(custom_type) ->
             resource_name = build_resource_type_name(custom_type)
             "#{resource_name}ValidationErrors"
 
-          AshTypescript.Codegen.is_typed_struct?(custom_type) ->
+          Introspection.is_typed_struct?(custom_type) ->
             resource_name = build_resource_type_name(custom_type)
             "#{resource_name}ValidationErrors"
 

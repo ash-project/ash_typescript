@@ -8,6 +8,8 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   normalizes/transforms the payload to be JSON-serializable.
   """
 
+  alias AshTypescript.TypeSystem.Introspection
+
   @doc """
   Main entry point for processing Ash results.
   """
@@ -71,7 +73,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     typed_struct_module =
       if is_map(data) and not is_tuple(data) and Map.has_key?(data, :__struct__) do
         module = data.__struct__
-        if AshTypescript.Codegen.is_typed_struct?(module), do: module, else: nil
+        if Introspection.is_typed_struct?(module), do: module, else: nil
       else
         nil
       end
@@ -400,32 +402,12 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     # Try to find the union attribute that contains this member
     attribute =
       Enum.find(Ash.Resource.Info.attributes(resource), fn attr ->
-        case attr.type do
-          Ash.Type.Union ->
-            union_types = Keyword.get(attr.constraints, :types, [])
-            Keyword.has_key?(union_types, member_name)
-
-          {:array, Ash.Type.Union} ->
-            items_constraints = Keyword.get(attr.constraints, :items, [])
-            union_types = Keyword.get(items_constraints, :types, [])
-            Keyword.has_key?(union_types, member_name)
-
-          _ ->
-            false
-        end
+        union_types = Introspection.get_union_types(attr)
+        union_types != [] and Keyword.has_key?(union_types, member_name)
       end)
 
     if attribute do
-      union_types =
-        case attribute.type do
-          Ash.Type.Union ->
-            Keyword.get(attribute.constraints, :types, [])
-
-          {:array, Ash.Type.Union} ->
-            items_constraints = Keyword.get(attribute.constraints, :items, [])
-            Keyword.get(items_constraints, :types, [])
-        end
-
+      union_types = Introspection.get_union_types(attribute)
       member_config = Keyword.get(union_types, member_name)
       member_type = Keyword.get(member_config, :type)
 

@@ -19,6 +19,9 @@ defmodule AshTypescript.Rpc.Pipeline do
     ResultProcessor
   }
 
+  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
+  alias AshTypescript.TypeSystem.Introspection
+
   alias AshTypescript.{FieldFormatter, Rpc}
 
   @doc """
@@ -69,9 +72,15 @@ defmodule AshTypescript.Rpc.Pipeline do
       formatted_sort = format_sort_string(normalized_params[:sort], input_formatter)
 
       exposed_metadata_fields =
-        AshTypescript.Rpc.Codegen.get_exposed_metadata_fields(rpc_action, action)
+        AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes.get_exposed_metadata_fields(
+          rpc_action,
+          action
+        )
 
-      metadata_enabled? = not Enum.empty?(exposed_metadata_fields)
+      metadata_enabled? =
+        AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes.metadata_enabled?(
+          exposed_metadata_fields
+        )
 
       metadata_fields_param =
         normalized_params[:metadata_fields] || normalized_params["metadata_fields"]
@@ -233,10 +242,10 @@ defmodule AshTypescript.Rpc.Pipeline do
   defp returns_typed_struct?(action) do
     case action.returns do
       {:array, module} when is_atom(module) ->
-        AshTypescript.Codegen.is_typed_struct?(module)
+        Introspection.is_typed_struct?(module)
 
       module when is_atom(module) ->
-        AshTypescript.Codegen.is_typed_struct?(module)
+        Introspection.is_typed_struct?(module)
 
       _ ->
         false
@@ -567,7 +576,7 @@ defmodule AshTypescript.Rpc.Pipeline do
     case action_result do
       {:ok, result} ->
         returns_resource? =
-          case AshTypescript.Rpc.Codegen.action_returns_field_selectable_type?(request.action) do
+          case ActionIntrospection.action_returns_field_selectable_type?(request.action) do
             {:ok, :resource, _} -> true
             {:ok, :array_of_resource, _} -> true
             _ -> false
@@ -729,7 +738,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp unconstrained_map_action?(action) do
-    case AshTypescript.Rpc.Codegen.action_returns_field_selectable_type?(action) do
+    case ActionIntrospection.action_returns_field_selectable_type?(action) do
       {:ok, :unconstrained_map, _} -> true
       _ -> false
     end
@@ -748,7 +757,7 @@ defmodule AshTypescript.Rpc.Pipeline do
             false
 
           :action ->
-            case AshTypescript.Rpc.Codegen.action_returns_field_selectable_type?(action) do
+            case ActionIntrospection.action_returns_field_selectable_type?(action) do
               {:ok, :unconstrained_map, _} -> false
               {:ok, _, _} -> true
               _ -> false
