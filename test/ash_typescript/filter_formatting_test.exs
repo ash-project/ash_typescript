@@ -6,7 +6,7 @@ defmodule AshTypescript.FilterFormattingTest do
   # async: false because we're modifying application config
   use ExUnit.Case, async: false
 
-  alias AshTypescript.Filter
+  alias AshTypescript.Codegen.FilterTypes
   alias AshTypescript.Test.{Post, User}
 
   setup do
@@ -29,7 +29,7 @@ defmodule AshTypescript.FilterFormattingTest do
     test "generates FilterInput with camelCase field names when output formatter is :camel_case" do
       Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
 
-      result = Filter.generate_filter_type(Post)
+      result = FilterTypes.generate_filter_type(Post)
 
       # Check that attribute field names are formatted to camelCase
       # view_count -> viewCount
@@ -60,7 +60,7 @@ defmodule AshTypescript.FilterFormattingTest do
     test "generates FilterInput with snake_case field names when output formatter is :snake_case" do
       Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
 
-      result = Filter.generate_filter_type(Post)
+      result = FilterTypes.generate_filter_type(Post)
 
       # Check that attribute field names remain in snake_case
       assert String.contains?(result, "view_count?: {")
@@ -83,7 +83,7 @@ defmodule AshTypescript.FilterFormattingTest do
     test "generates FilterInput with PascalCase field names when output formatter is :pascal_case" do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
-      result = Filter.generate_filter_type(Post)
+      result = FilterTypes.generate_filter_type(Post)
 
       # Check that attribute field names are converted to PascalCase
       # view_count -> ViewCount
@@ -113,7 +113,7 @@ defmodule AshTypescript.FilterFormattingTest do
     test "relationship filters use formatted field names" do
       Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
 
-      result = Filter.generate_filter_type(Post)
+      result = FilterTypes.generate_filter_type(Post)
 
       # Check relationships are formatted (if any multi-word relationships exist)
       # For now, check that relationships are present and properly typed
@@ -125,7 +125,7 @@ defmodule AshTypescript.FilterFormattingTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
 
       # Test with a resource that has aggregates (using User resource which may have aggregates)
-      result = Filter.generate_filter_type(User)
+      result = FilterTypes.generate_filter_type(User)
 
       # Check that the result contains FilterInput structure
       assert String.contains?(result, "export type UserFilterInput")
@@ -141,7 +141,7 @@ defmodule AshTypescript.FilterFormattingTest do
     test "mixed formatting scenarios work correctly" do
       Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
 
-      result = Filter.generate_filter_type(Post)
+      result = FilterTypes.generate_filter_type(Post)
 
       # Verify various field types are all formatted consistently
       # string field
@@ -189,7 +189,7 @@ defmodule AshTypescript.FilterFormattingTest do
         {TestFormatter, :prefix_field}
       )
 
-      result = Filter.generate_filter_type(Post)
+      result = FilterTypes.generate_filter_type(Post)
 
       # Check that the custom formatter is applied to attribute field names
       assert String.contains?(result, "prefix_title?: {")

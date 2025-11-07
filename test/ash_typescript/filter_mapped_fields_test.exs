@@ -18,12 +18,12 @@ defmodule AshTypescript.FilterMappedFieldsTest do
   """
   use ExUnit.Case, async: true
 
-  alias AshTypescript.Filter
+  alias AshTypescript.Codegen.FilterTypes
   alias AshTypescript.Test.Task
 
   describe "filter type generation with mapped field names" do
     test "generate_filter_type includes mapped field names for attributes" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # Should contain the mapped name 'isArchived' (from archived?)
       assert result =~ "isArchived?: {"
@@ -32,7 +32,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
     end
 
     test "mapped boolean field has correct filter operations" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # Find the isArchived filter section
       is_archived_section =
@@ -55,7 +55,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
     end
 
     test "unmapped fields still appear correctly" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # 'title' has no mapping and should appear as-is
       assert result =~ "title?: {"
@@ -63,7 +63,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
     end
 
     test "filter type structure is valid TypeScript" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # Should have proper structure
       assert result =~ "export type TaskFilterInput = {"
@@ -74,7 +74,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
     end
 
     test "all mapped fields use consistent naming" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # Verify that archived? -> is_archived mapping is consistently applied
       assert result =~ "isArchived?: {"
@@ -93,7 +93,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
     end
 
     test "filter includes id field with UUID operations" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # Should have id field
       assert result =~ "id?: {"
@@ -113,7 +113,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
     end
 
     test "filter includes string field operations" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # Should have title field
       assert result =~ "title?: {"
@@ -137,7 +137,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
     end
 
     test "filter includes boolean field operations" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # Should have completed field
       assert result =~ "completed?: {"
@@ -162,7 +162,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
 
   describe "filter type with embedded resource" do
     test "embedded resource field appears in filter" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # Should have metadata field (embedded resource)
       assert result =~ "metadata?: {"
@@ -184,7 +184,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
 
   describe "field ordering and structure" do
     test "mapped fields maintain consistent ordering with other fields" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # Extract field names in order (looking for field definitions ending with ?: {)
       field_pattern = ~r/(\w+)\?:\s*\{/
@@ -200,7 +200,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
     end
 
     test "each field has proper closing brace" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # Count opening and closing braces for isArchived
       is_archived_full =
@@ -221,7 +221,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
 
   describe "comprehensive filter mapping coverage" do
     test "all Task fields are present with correct mappings" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # Standard fields (unmapped)
       assert result =~ "id?: {"
@@ -237,7 +237,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
     end
 
     test "logical operators are present in filter type" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # Should have logical operators at the top
       assert result =~ "and?: Array<TaskFilterInput>;"
@@ -246,7 +246,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
     end
 
     test "filter operations use camelCase formatting" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # Check that filter operations are formatted
       assert result =~ "eq?:"
@@ -261,7 +261,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
   describe "filter type for TaskMetadata embedded resource" do
     test "embedded resource generates its own filter type" do
       embedded_resource = AshTypescript.Test.TaskMetadata
-      result = Filter.generate_filter_type(embedded_resource)
+      result = FilterTypes.generate_filter_type(embedded_resource)
 
       # Should have proper filter type name
       assert result =~ "export type TaskMetadataFilterInput = {"
@@ -274,7 +274,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
 
     test "embedded resource filter uses mapped field names" do
       embedded_resource = AshTypescript.Test.TaskMetadata
-      result = Filter.generate_filter_type(embedded_resource)
+      result = FilterTypes.generate_filter_type(embedded_resource)
 
       # Should contain mapped field names
       assert result =~ "createdBy?: {"
@@ -290,7 +290,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
 
     test "embedded resource mapped fields have correct filter operations" do
       embedded_resource = AshTypescript.Test.TaskMetadata
-      result = Filter.generate_filter_type(embedded_resource)
+      result = FilterTypes.generate_filter_type(embedded_resource)
 
       # Find the createdBy filter section (string field)
       created_by_section =
@@ -321,7 +321,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
 
     test "embedded resource integer field has comparison operations" do
       embedded_resource = AshTypescript.Test.TaskMetadata
-      result = Filter.generate_filter_type(embedded_resource)
+      result = FilterTypes.generate_filter_type(embedded_resource)
 
       # Find the priorityLevel filter section (integer field)
       priority_section =
@@ -344,7 +344,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
 
   describe "filter type consistency with TypeScript client" do
     test "filter types match generated TypeScript expectations" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # TypeScript client sends filter with mapped names
       assert result =~ "isArchived?: {"
@@ -356,7 +356,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
     end
 
     test "nested filter structures work with mapped names" do
-      result = Filter.generate_filter_type(Task)
+      result = FilterTypes.generate_filter_type(Task)
 
       # Logical operators should reference TaskFilterInput
       assert result =~ "and?: Array<TaskFilterInput>;"
