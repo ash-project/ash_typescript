@@ -10,7 +10,8 @@ defmodule AshTypescript.UnionTypesTest do
   describe "union type support" do
     test "discovers embedded resources from union types" do
       # Test the embedded resource discovery function
-      embedded_resources = Codegen.find_embedded_resources([AshTypescript.Test.Todo])
+      embedded_resources =
+        AshTypescript.Rpc.ResourceScanner.find_referenced_resources(AshTypescript.Test.Todo)
 
       # Check that our union type embedded resources are discovered
       assert AshTypescript.Test.TodoContent.TextContent in embedded_resources
@@ -23,7 +24,7 @@ defmodule AshTypescript.UnionTypesTest do
 
       # Test the private function through the public API
       embedded_from_todo =
-        AshTypescript.Codegen.find_embedded_resources([AshTypescript.Test.Todo])
+        AshTypescript.Rpc.ResourceScanner.find_referenced_resources(AshTypescript.Test.Todo)
 
       # Steps 1 & 2: computation removed - was unused
 
