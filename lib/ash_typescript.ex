@@ -299,4 +299,51 @@ defmodule AshTypescript do
       "Record<string, any>"
     )
   end
+
+  @doc """
+  Gets whether to warn about resources with the AshTypescript.Resource extension
+  that are not configured in any domain's typescript_rpc block.
+
+  When enabled, during code generation, a warning will be displayed for any resource
+  that has the AshTypescript.Resource extension but is not listed in any domain's
+  typescript_rpc configuration block. These resources will not have TypeScript types
+  generated.
+
+  ## Configuration
+
+      # Disable warnings (silent)
+      config :ash_typescript, warn_on_missing_rpc_config: false
+
+      # Enable warnings (default)
+      config :ash_typescript, warn_on_missing_rpc_config: true
+
+  ## Returns
+  A boolean indicating whether to display warnings, defaulting to `true`.
+  """
+  def warn_on_missing_rpc_config? do
+    Application.get_env(:ash_typescript, :warn_on_missing_rpc_config, true)
+  end
+
+  @doc """
+  Gets whether to warn about non-RPC resources that are referenced by RPC resources.
+
+  When enabled, during code generation, a warning will be displayed for any non-RPC
+  resource that is referenced in attributes, calculations, or aggregates of RPC resources.
+  The warning includes the paths showing where each resource is referenced, helping
+  you decide whether the resource should be added to the RPC configuration.
+
+  ## Configuration
+
+      # Disable warnings (silent)
+      config :ash_typescript, warn_on_non_rpc_references: false
+
+      # Enable warnings (default)
+      config :ash_typescript, warn_on_non_rpc_references: true
+
+  ## Returns
+  A boolean indicating whether to display warnings, defaulting to `true`.
+  """
+  def warn_on_non_rpc_references? do
+    Application.get_env(:ash_typescript, :warn_on_non_rpc_references, true)
+  end
 end

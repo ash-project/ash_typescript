@@ -9,10 +9,11 @@ defmodule AshTypescript.Rpc.Codegen do
   import AshTypescript.Codegen
   import AshTypescript.Codegen.FilterTypes
 
+  alias AshTypescript.Codegen.TypeDiscovery
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries
-  alias AshTypescript.Rpc.Codegen.ResourceCollector
+  alias AshTypescript.Rpc.Codegen.RpcConfigCollector
   alias AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes
   alias AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes
   alias AshTypescript.Rpc.Codegen.TypescriptStatic
@@ -100,16 +101,19 @@ defmodule AshTypescript.Rpc.Codegen do
       Keyword.get(opts, :rpc_validation_channel_hook_context_type) ||
         AshTypescript.rpc_validation_channel_hook_context_type()
 
-    resources_and_actions = ResourceCollector.get_rpc_resources_and_actions(otp_app)
+    resources_and_actions = RpcConfigCollector.get_rpc_resources_and_actions(otp_app)
 
     # Check verifiers before generating
     # Get all RPC resources (including those without actions) for verification
-    rpc_resources = ResourceCollector.get_all_rpc_resources(otp_app)
+    rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
     domains = Ash.Info.domains(otp_app)
 
     case AshTypescript.VerifierChecker.check_all_verifiers(rpc_resources ++ domains) do
       :ok ->
-        ResourceCollector.warn_missing_rpc_resources(otp_app, rpc_resources)
+        case TypeDiscovery.build_rpc_warnings(otp_app) do
+          nil -> :ok
+          message -> IO.warn(message)
+        end
 
         {:ok,
          generate_full_typescript(
@@ -167,7 +171,7 @@ defmodule AshTypescript.Rpc.Codegen do
         end)
       end)
 
-    typed_queries = ResourceCollector.get_typed_queries(otp_app)
+    typed_queries = RpcConfigCollector.get_typed_queries(otp_app)
 
     embedded_resources = find_embedded_resources(otp_app)
     typed_struct_modules = find_typed_struct_modules(rpc_resources)
