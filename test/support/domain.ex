@@ -140,6 +140,10 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :destroy_task_metadata_one, :destroy, show_metadata: [:some_string]
       rpc_action :destroy_task_metadata_two, :destroy, show_metadata: [:some_string, :some_number]
     end
+
+    resource AshTypescript.Test.MapFieldResource
+    resource AshTypescript.Test.EmptyResource
+    resource AshTypescript.Test.PostComment
   end
 
   resources do
