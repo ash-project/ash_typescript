@@ -28,11 +28,16 @@ defmodule AshTypescript.MixProject do
       dialyzer: [
         plt_add_apps: [:mix]
       ],
-      preferred_cli_env: [
+      consolidate_protocols: Mix.env() != :test
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
         "test.codegen": :test,
         tidewave: :test
-      ],
-      consolidate_protocols: Mix.env() != :test
+      ]
     ]
   end
 
