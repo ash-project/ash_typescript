@@ -7,14 +7,14 @@ defmodule AshTypescript.Codegen.TypeAliases do
   Generates TypeScript type aliases for Ash types (e.g., UUID, Decimal, DateTime, etc.).
   """
 
-  alias AshTypescript.Codegen.{EmbeddedScanner, Helpers}
+  alias AshTypescript.Codegen.{TypeDiscovery, Helpers}
   alias AshTypescript.TypeSystem.Introspection
 
   @doc """
   Generates TypeScript type aliases for all Ash types used in resources, actions, and calculations.
   """
   def generate_ash_type_aliases(resources, actions, otp_app) do
-    embedded_resources = EmbeddedScanner.find_embedded_resources(otp_app)
+    embedded_resources = TypeDiscovery.find_embedded_resources(otp_app)
     all_resources = resources ++ embedded_resources
 
     resource_types =

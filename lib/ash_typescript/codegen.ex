@@ -9,7 +9,7 @@ defmodule AshTypescript.Codegen do
   This module serves as the primary entry point for code generation. It delegates
   to specialized submodules in `AshTypescript.Codegen.*` for specific tasks:
 
-  - `EmbeddedScanner` - Discovers embedded resources and TypedStruct modules
+  - `TypeDiscovery` - Discovers all types needing TypeScript definitions
   - `TypeAliases` - Generates TypeScript type aliases for Ash types
   - `ResourceSchemas` - Generates resource schemas (output and input)
   - `TypeMapper` - Maps Ash types to TypeScript types
@@ -17,7 +17,7 @@ defmodule AshTypescript.Codegen do
   """
 
   alias AshTypescript.Codegen.{
-    EmbeddedScanner,
+    TypeDiscovery,
     Helpers,
     ResourceSchemas,
     TypeAliases,
@@ -26,9 +26,9 @@ defmodule AshTypescript.Codegen do
 
   alias AshTypescript.TypeSystem.Introspection
 
-  # Delegate resource discovery to EmbeddedScanner
-  defdelegate find_embedded_resources(otp_app), to: EmbeddedScanner
-  defdelegate find_typed_struct_modules(resources), to: EmbeddedScanner
+  # Delegate resource discovery to TypeDiscovery
+  defdelegate find_embedded_resources(otp_app), to: TypeDiscovery
+  defdelegate find_typed_struct_modules(resources), to: TypeDiscovery
 
   # Delegate type alias generation to TypeAliases
   defdelegate generate_ash_type_aliases(resources, actions, otp_app), to: TypeAliases
