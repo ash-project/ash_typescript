@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.7.1](https://github.com/ash-project/ash_typescript/compare/v0.7.0...v0.7.1) (2025-11-08)
+
+
+
+
+### Bug Fixes:
+
+* add missing resources to typescript_rpc in test setup to fix compile warnings by [@Torkan](https://github.com/Torkan)
+
 ## [v0.7.0](https://github.com/ash-project/ash_typescript/compare/v0.6.4...v0.7.0) (2025-11-08)
 
 
