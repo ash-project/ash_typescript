@@ -11,6 +11,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.7.0](https://github.com/ash-project/ash_typescript/compare/v0.6.4...v0.7.0) (2025-11-08)
+
+
+
+
+### Features:
+
+* add configurable warnings for RPC resource discovery and references by [@Torkan](https://github.com/Torkan)
+
+* add resource scanner for embedded resource discovery by [@Torkan](https://github.com/Torkan)
+
 ## [v0.6.4](https://github.com/ash-project/ash_typescript/compare/v0.6.3...v0.6.4) (2025-11-03)
 
 
