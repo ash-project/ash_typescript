@@ -350,9 +350,9 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
         AshTypescript.Resource in extensions
       end)
 
-    all_resources_with_extension
-    |> Enum.reject(&Ash.Resource.Info.embedded?/1)
-    |> Enum.reject(&(&1 in rpc_resources))
+    Enum.reject(all_resources_with_extension, fn resource ->
+      Ash.Resource.Info.embedded?(resource) or resource in rpc_resources
+    end)
   end
 
   @doc """
@@ -488,9 +488,7 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
       "Todo -> metadata -> (union: text)"
   """
   def format_path(path) do
-    path
-    |> Enum.map(&format_path_segment/1)
-    |> Enum.join(" -> ")
+    Enum.map_join(path, " -> ", &format_path_segment/1)
   end
 
   # Private functions

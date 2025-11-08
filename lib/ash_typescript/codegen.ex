@@ -17,10 +17,10 @@ defmodule AshTypescript.Codegen do
   """
 
   alias AshTypescript.Codegen.{
-    TypeDiscovery,
     Helpers,
     ResourceSchemas,
     TypeAliases,
+    TypeDiscovery,
     TypeMapper
   }
 
