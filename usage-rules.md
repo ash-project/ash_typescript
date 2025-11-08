@@ -258,6 +258,8 @@ User wants to...
 | "Invalid field names in map/keyword/tuple" | Map constraint has invalid fields | Create custom `Ash.Type.NewType` with `typescript_field_names/0` |
 | "Invalid metadata field name" | Metadata field has `_1` or `?` | Add `metadata_field_names` to `rpc_action` |
 | "Metadata field conflicts with resource field" | Metadata field shadows resource field | Rename metadata field or use different name |
+| "⚠️  Found resources with AshTypescript.Resource extension" | Resource has extension but not in RPC config | Add to `typescript_rpc` block or disable warning |
+| "⚠️  Found non-RPC resources referenced by RPC resources" | RPC resource references non-RPC resource | Add to RPC config or disable warning |
 
 ## Basic Setup
 
@@ -1122,8 +1124,100 @@ config :ash_typescript,
   generate_zod_schemas: false,
   import_into_generated: [
     %{import_name: "CustomTypes", file: "./customTypes"}
-  ]
+  ],
+
+  # RPC resource warnings (default: true for both)
+  warn_on_missing_rpc_config: true,
+  warn_on_non_rpc_references: true
 ```
+
+## RPC Resource Warnings
+
+AshTypescript provides compile-time warnings for potential RPC configuration issues. These appear during `mix compile` or code generation.
+
+### Warning 1: Resources with Extension but Not in RPC Config
+
+**Message:**
+```
+⚠️  Found resources with AshTypescript.Resource extension
+   but not listed in any domain's typescript_rpc block:
+
+   • MyApp.ForgottenResource
+
+   These resources will not have TypeScript types generated.
+```
+
+**What it means:** You added `AshTypescript.Resource` extension to a resource but didn't configure it in any `typescript_rpc` block.
+
+**How to fix:**
+1. **Add to RPC config** (if resource should be accessible):
+   ```elixir
+   typescript_rpc do
+     resource MyApp.ForgottenResource do
+       rpc_action :list, :read
+     end
+   end
+   ```
+
+2. **Remove extension** (if resource doesn't need TypeScript):
+   ```elixir
+   use Ash.Resource,
+     domain: MyApp.Domain
+     # Remove: extensions: [AshTypescript.Resource]
+   ```
+
+3. **Disable warning** (if intentional):
+   ```elixir
+   config :ash_typescript, warn_on_missing_rpc_config: false
+   ```
+
+### Warning 2: Non-RPC Resources Referenced by RPC Resources
+
+**Message:**
+```
+⚠️  Found non-RPC resources referenced by RPC resources:
+
+   • MyApp.InternalResource
+     Referenced from:
+       - Todo -> metadata -> TodoMetadata -> internal
+       - User -> profile_data
+
+   These resources will NOT have TypeScript types or RPC functions generated.
+```
+
+**What it means:** An RPC resource references another resource (in attribute/calculation/aggregate) that isn't configured as RPC.
+
+**How to fix:**
+1. **Add to RPC config** (if should be accessible):
+   ```elixir
+   typescript_rpc do
+     resource MyApp.InternalResource do
+       rpc_action :get, :get
+     end
+   end
+   ```
+
+2. **Leave as-is** (if intentionally internal-only - TypeScript will still generate basic types but no RPC functions)
+
+3. **Disable warning** (if you have many internal resources):
+   ```elixir
+   config :ash_typescript, warn_on_non_rpc_references: false
+   ```
+
+### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `warn_on_missing_rpc_config` | `boolean` | `true` | Warn about resources with extension but not in RPC config |
+| `warn_on_non_rpc_references` | `boolean` | `true` | Warn about non-RPC resources referenced by RPC resources |
+
+**When to disable warnings:**
+- During gradual migration to RPC
+- Many internal-only resources that are referenced
+- Clear convention for which resources are RPC-accessible
+- Warning noise outweighs benefits for your use case
+
+**Best practice:** Keep warnings enabled during development to catch configuration mistakes early.
 
 ## Quick Commands
 

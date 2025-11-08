@@ -11,7 +11,7 @@ SPDX-License-Identifier: MIT
 
 **AshTypescript** generates TypeScript types and RPC clients from Ash resources, providing end-to-end type safety between Elixir backends and TypeScript frontends.
 
-**Key Features**: Type generation, RPC client generation, Phoenix channel RPC actions, action metadata support, nested calculations, multitenancy, embedded resources, union types, field/argument/metadata name mapping
+**Key Features**: Type generation, RPC client generation, Phoenix channel RPC actions, action metadata support, nested calculations, multitenancy, embedded resources, union types, field/argument/metadata name mapping, configurable RPC warnings
 
 ## 🚨 Critical Development Rules
 
@@ -213,7 +213,7 @@ mix credo --strict                   # Linting
 
 ### Type System Architecture
 - **Type Introspection**: Centralized in `type_system/introspection.ex`
-- **Codegen Organization**: 5 focused modules (embedded_scanner, type_aliases, type_mapper, resource_schemas, filter_types)
+- **Codegen Organization**: 5 focused modules (type_discovery, type_aliases, type_mapper, resource_schemas, filter_types)
 - **Formatter Core**: Shared formatting logic with direction parameter (:input/:output)
 
 ### Type Inference Architecture
@@ -240,6 +240,32 @@ mix credo --strict                   # Linting
 | "Metadata field conflicts with resource field" | Metadata field shadows resource field | Rename metadata field or use different mapped name |
 | TypeScript `unknown` types | Schema key mismatch | Check `__type` metadata generation |
 | Field selection fails | Invalid field format | Use unified field format only |
+
+## RPC Resource Warnings
+
+AshTypescript provides compile-time warnings for potential RPC configuration issues:
+
+### Warning: Resources with Extension but Not in RPC Config
+**Message:** `⚠️  Found resources with AshTypescript.Resource extension but not listed in any domain's typescript_rpc block`
+
+**Cause:** Resource has `AshTypescript.Resource` extension but isn't configured in any `typescript_rpc` block
+
+**Solutions:**
+- Add resource to a domain's `typescript_rpc` block, OR
+- Remove `AshTypescript.Resource` extension if not needed, OR
+- Disable warning: `config :ash_typescript, warn_on_missing_rpc_config: false`
+
+### Warning: Non-RPC Resources Referenced by RPC Resources
+**Message:** `⚠️  Found non-RPC resources referenced by RPC resources`
+
+**Cause:** RPC resource references another resource (in attribute/calculation/aggregate) that isn't itself configured as RPC
+
+**Solutions:**
+- Add referenced resource to `typescript_rpc` block if it should be accessible, OR
+- Leave as-is if resource is intentionally internal-only, OR
+- Disable warning: `config :ash_typescript, warn_on_non_rpc_references: false`
+
+**Note:** Both warnings can be independently configured. See [Configuration Reference](documentation/reference/configuration.md#rpc-resource-warnings) for details.
 
 ## Testing Workflow
 
