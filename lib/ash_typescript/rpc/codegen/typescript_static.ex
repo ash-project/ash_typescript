@@ -237,6 +237,20 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
           ? UnifiedFieldSelection<NonNullable<Resource>>[]
           : never
         : T[K] extends {
+              __type: "FieldSelectableCalculation";
+              __resource: infer Resource;
+            }
+          ? T[K] extends { __args: infer Args }
+            ? NonNullable<Resource> extends TypedSchema
+              ? {
+                  #{formatted_args_field()}: Args;
+                  #{formatted_fields_field()}: UnifiedFieldSelection<NonNullable<Resource>>[];
+                }
+              : { #{formatted_args_field()}: Args }
+            : NonNullable<Resource> extends TypedSchema
+              ? UnifiedFieldSelection<NonNullable<Resource>>[]
+              : never
+          : T[K] extends {
               __type: "ComplexCalculation";
               __returnType: infer ReturnType;
             }
@@ -299,6 +313,17 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
                       : InferResult<NonNullable<Resource>, Field[K]>
                 : never
               : T[K] extends {
+                    __type: "FieldSelectableCalculation";
+                    __resource: infer Resource;
+                  }
+                ? NonNullable<Resource> extends TypedSchema
+                  ? T[K] extends { __array: true }
+                    ? Array<InferResult<NonNullable<Resource>, Field[K] extends { #{formatted_fields_field()}: any } ? Field[K]["#{formatted_fields_field()}"] : Field[K]>>
+                    : null extends Resource
+                      ? InferResult<NonNullable<Resource>, Field[K] extends { #{formatted_fields_field()}: any } ? Field[K]["#{formatted_fields_field()}"] : Field[K]> | null
+                      : InferResult<NonNullable<Resource>, Field[K] extends { #{formatted_fields_field()}: any } ? Field[K]["#{formatted_fields_field()}"] : Field[K]>
+                  : never
+                : T[K] extends {
                     __type: "ComplexCalculation";
                     __returnType: infer ReturnType;
                   }
