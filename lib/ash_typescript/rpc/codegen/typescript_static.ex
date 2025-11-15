@@ -436,9 +436,12 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
     export type AshRpcError = {
       type: string;
       message: string;
-      field?: string;
-      fieldPath?: string;
+      shortMessage?: string;
+      fields?: string[];
+      path?: Array<string | number>;
+      vars?: Record<string, any>;
       details?: Record<string, any>;
+      errorId?: string;
     }
 
 

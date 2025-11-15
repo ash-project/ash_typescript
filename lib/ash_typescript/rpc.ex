@@ -128,6 +128,35 @@ defmodule AshTypescript.Rpc do
   @rpc %Spark.Dsl.Section{
     name: :typescript_rpc,
     describe: "Define available RPC-actions for resources in this domain.",
+    schema: [
+      error_handler: [
+        type: {:or, [:mfa, :module]},
+        doc: """
+        An MFA or module that implements error handling for RPC operations.
+
+        The error handler will be called with (error, context) and should return a modified error map.
+        If a module is provided, it must export a handle_error/2 function.
+
+        Example:
+        ```elixir
+        error_handler {MyApp.CustomErrorHandler, :handle_error, []}
+        # or
+        error_handler MyApp.CustomErrorHandler
+        ```
+        """,
+        default: {AshTypescript.Rpc.DefaultErrorHandler, :handle_error, []}
+      ],
+      show_raised_errors?: [
+        type: :boolean,
+        default: false,
+        doc: """
+        Whether to show detailed information for raised exceptions.
+
+        Set to true in development to see full error details.
+        Keep false in production for security.
+        """
+      ]
+    ],
     entities: [
       @resource
     ]
