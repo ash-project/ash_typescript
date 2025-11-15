@@ -59,10 +59,37 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   end
 
   defp extract_list_fields(results, extraction_template, resource) do
-    if extraction_template == [] and Enum.any?(results, &(not is_map(&1))) do
-      Enum.map(results, &normalize_value_for_json/1)
-    else
-      Enum.map(results, &extract_single_result(&1, extraction_template, resource))
+    cond do
+      # For empty templates with structs that are resources, extract all public fields
+      (extraction_template == [] and Enum.any?(results, &is_struct(&1)) and
+         resource) && Ash.Resource.Info.resource?(resource) ->
+        # Extract all public fields from resource structs
+        Enum.map(results, fn item ->
+          case item do
+            %_struct{} ->
+              public_attrs = Ash.Resource.Info.public_attributes(resource)
+              public_calcs = Ash.Resource.Info.public_calculations(resource)
+              public_aggs = Ash.Resource.Info.public_aggregates(resource)
+
+              all_public_fields =
+                Enum.map(public_attrs, & &1.name) ++
+                  Enum.map(public_calcs, & &1.name) ++
+                  Enum.map(public_aggs, & &1.name)
+
+              extract_single_result(item, all_public_fields, resource)
+
+            other ->
+              normalize_value_for_json(other)
+          end
+        end)
+
+      # For empty templates with non-map values, just normalize
+      extraction_template == [] and Enum.any?(results, &(not is_map(&1))) ->
+        Enum.map(results, &normalize_value_for_json/1)
+
+      # Otherwise use the extraction template
+      true ->
+        Enum.map(results, &extract_single_result(&1, extraction_template, resource))
     end
   end
 
@@ -138,9 +165,64 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       %Ash.NotLoaded{} ->
         acc
 
-      # Extract the value and normalize it
+      # Extract the value
       value ->
-        Map.put(acc, output_field_name, normalize_value_for_json(value))
+        # Check if this field is a struct type that should be treated as nested
+        field_resource = get_field_struct_resource(resource, field_atom)
+
+        normalized_value =
+          if field_resource do
+            # If it's a struct field with a resource, treat it like a nested field
+            # and only include public attributes
+            case value do
+              nil ->
+                nil
+
+              %_struct{} = struct_value ->
+                # Extract all public fields when no specific selection is made
+                public_attrs = Ash.Resource.Info.public_attributes(field_resource)
+                public_calcs = Ash.Resource.Info.public_calculations(field_resource)
+                public_aggs = Ash.Resource.Info.public_aggregates(field_resource)
+
+                all_public_fields =
+                  Enum.map(public_attrs, & &1.name) ++
+                    Enum.map(public_calcs, & &1.name) ++
+                    Enum.map(public_aggs, & &1.name)
+
+                extract_single_result(struct_value, all_public_fields, field_resource)
+
+              list when is_list(list) ->
+                Enum.map(list, fn item ->
+                  case item do
+                    nil ->
+                      nil
+
+                    %_struct{} ->
+                      public_attrs = Ash.Resource.Info.public_attributes(field_resource)
+                      public_calcs = Ash.Resource.Info.public_calculations(field_resource)
+                      public_aggs = Ash.Resource.Info.public_aggregates(field_resource)
+
+                      all_public_fields =
+                        Enum.map(public_attrs, & &1.name) ++
+                          Enum.map(public_calcs, & &1.name) ++
+                          Enum.map(public_aggs, & &1.name)
+
+                      extract_single_result(item, all_public_fields, field_resource)
+
+                    other ->
+                      normalize_value_for_json(other)
+                  end
+                end)
+
+              other ->
+                normalize_value_for_json(other)
+            end
+          else
+            # For non-struct fields, normalize as usual
+            normalize_value_for_json(value)
+          end
+
+        Map.put(acc, output_field_name, normalized_value)
     end
   end
 
@@ -201,11 +283,16 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   # Recursively normalize values for JSON serialization
   def normalize_value_for_json(value) do
+    normalize_value_for_json(value, nil)
+  end
+
+  # Version with extraction template for field selection
+  defp normalize_value_for_json(value, extraction_template) do
     case value do
       # Handle Ash union types
       %Ash.Union{type: type_name, value: union_value} ->
         type_key = to_string(type_name)
-        normalized_value = normalize_value_for_json(union_value)
+        normalized_value = normalize_value_for_json(union_value, extraction_template)
         %{type_key => normalized_value}
 
       # Handle native Elixir structs that need special JSON formatting
@@ -232,35 +319,81 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
       # Convert structs to maps recursively
       %_struct{} = struct_data ->
-        struct_data
-        |> Map.from_struct()
-        |> Enum.reduce(%{}, fn {key, val}, acc ->
-          Map.put(acc, key, normalize_value_for_json(val))
-        end)
+        normalize_struct(struct_data, extraction_template)
 
       list when is_list(list) ->
         if Keyword.keyword?(list) do
           result =
             Enum.reduce(list, %{}, fn {key, val}, acc ->
               string_key = to_string(key)
-              normalized_val = normalize_value_for_json(val)
+              normalized_val = normalize_value_for_json(val, extraction_template)
               Map.put(acc, string_key, normalized_val)
             end)
 
           result
         else
-          Enum.map(list, &normalize_value_for_json/1)
+          Enum.map(list, &normalize_value_for_json(&1, extraction_template))
         end
 
       # Handle maps recursively (but not structs, handled above)
       map when is_map(map) and not is_struct(map) ->
         Enum.reduce(map, %{}, fn {key, val}, acc ->
-          Map.put(acc, key, normalize_value_for_json(val))
+          Map.put(acc, key, normalize_value_for_json(val, extraction_template))
         end)
 
       # Pass through primitives
       primitive ->
         primitive
+    end
+  end
+
+  # Normalize struct data, filtering to public attributes if it's a resource
+  defp normalize_struct(struct_data, extraction_template) do
+    module = struct_data.__struct__
+
+    # If it's an Ash resource, filter to public attributes
+    if Ash.Resource.Info.resource?(module) do
+      normalize_resource_struct(struct_data, module, extraction_template)
+    else
+      # For other structs, convert all fields
+      struct_data
+      |> Map.from_struct()
+      |> Enum.reduce(%{}, fn {key, val}, acc ->
+        Map.put(acc, key, normalize_value_for_json(val, nil))
+      end)
+    end
+  end
+
+  # Normalize a resource struct with field filtering and selection
+  defp normalize_resource_struct(struct_data, resource, extraction_template) do
+    # If we have an extraction template, use it for field selection
+    if extraction_template do
+      extract_single_result(struct_data, extraction_template, resource)
+    else
+      # Otherwise, include all public attributes
+      public_attrs = Ash.Resource.Info.public_attributes(resource)
+
+      # Also include public calculations and aggregates
+      public_calcs = Ash.Resource.Info.public_calculations(resource)
+      public_aggs = Ash.Resource.Info.public_aggregates(resource)
+
+      # Combine all public field names
+      public_field_names =
+        (Enum.map(public_attrs, & &1.name) ++
+           Enum.map(public_calcs, & &1.name) ++
+           Enum.map(public_aggs, & &1.name))
+        |> MapSet.new()
+
+      # Convert to map and filter to public fields
+      struct_data
+      |> Map.from_struct()
+      |> Enum.reduce(%{}, fn {key, val}, acc ->
+        if MapSet.member?(public_field_names, key) do
+          Map.put(acc, key, normalize_value_for_json(val, nil))
+        else
+          acc
+        end
+      end)
     end
   end
 
@@ -367,24 +500,95 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       relationship = Ash.Resource.Info.relationship(resource, field_name) ->
         relationship.destination
 
-      # Check if it's an embedded resource attribute
+      # Check if it's an attribute
+      attribute = Ash.Resource.Info.attribute(resource, field_name) ->
+        get_resource_from_attribute_type(attribute.type, attribute.constraints)
+
+      # Check if it's a calculation
+      calculation = Ash.Resource.Info.public_calculation(resource, field_name) ->
+        get_resource_from_type(calculation.type, calculation.constraints)
+
+      # Check if it's an aggregate
+      aggregate = Ash.Resource.Info.public_aggregate(resource, field_name) ->
+        # Aggregates typically don't have nested resources, but check just in case
+        aggregate_type = Ash.Resource.Info.aggregate_type(resource, aggregate)
+        get_resource_from_type(aggregate_type, [])
+
+      true ->
+        nil
+    end
+  end
+
+  # Helper to extract resource from attribute type
+  defp get_resource_from_attribute_type(type, constraints) do
+    case type do
+      {:array, inner_type} ->
+        get_resource_from_type(inner_type, constraints[:items] || [])
+
+      other ->
+        get_resource_from_type(other, constraints)
+    end
+  end
+
+  # Helper to extract resource from a type and constraints
+  defp get_resource_from_type(type, constraints) do
+    case type do
+      # Check for Ash.Type.Struct with instance_of
+      Ash.Type.Struct ->
+        instance_of = Keyword.get(constraints, :instance_of)
+
+        if instance_of && Ash.Resource.Info.resource?(instance_of) do
+          instance_of
+        else
+          nil
+        end
+
+      # Check for embedded resource types
+      resource_module when is_atom(resource_module) ->
+        if Ash.Resource.Info.resource?(resource_module) &&
+             Ash.Resource.Info.embedded?(resource_module) do
+          resource_module
+        else
+          nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  # Get the resource type for a field if it's a struct type (not nested/relationship)
+  defp get_field_struct_resource(nil, _field_name), do: nil
+
+  defp get_field_struct_resource(resource, field_name) do
+    cond do
+      # Check attributes for struct types
       attribute = Ash.Resource.Info.attribute(resource, field_name) ->
         case attribute.type do
-          {:array, embedded_resource} when is_atom(embedded_resource) ->
-            if Ash.Resource.Info.resource?(embedded_resource) &&
-                 Ash.Resource.Info.embedded?(embedded_resource) do
-              embedded_resource
-            else
-              nil
-            end
+          Ash.Type.Struct ->
+            instance_of = Keyword.get(attribute.constraints || [], :instance_of)
+            if instance_of && Ash.Resource.Info.resource?(instance_of), do: instance_of, else: nil
 
-          embedded_resource when is_atom(embedded_resource) ->
-            if Ash.Resource.Info.resource?(embedded_resource) &&
-                 Ash.Resource.Info.embedded?(embedded_resource) do
-              embedded_resource
-            else
-              nil
-            end
+          {:array, Ash.Type.Struct} ->
+            items_constraints = Keyword.get(attribute.constraints || [], :items, [])
+            instance_of = Keyword.get(items_constraints, :instance_of)
+            if instance_of && Ash.Resource.Info.resource?(instance_of), do: instance_of, else: nil
+
+          _ ->
+            nil
+        end
+
+      # Check calculations for struct types
+      calculation = Ash.Resource.Info.public_calculation(resource, field_name) ->
+        case calculation.type do
+          Ash.Type.Struct ->
+            instance_of = Keyword.get(calculation.constraints || [], :instance_of)
+            if instance_of && Ash.Resource.Info.resource?(instance_of), do: instance_of, else: nil
+
+          {:array, Ash.Type.Struct} ->
+            items_constraints = Keyword.get(calculation.constraints || [], :items, [])
+            instance_of = Keyword.get(items_constraints, :instance_of)
+            if instance_of && Ash.Resource.Info.resource?(instance_of), do: instance_of, else: nil
 
           _ ->
             nil

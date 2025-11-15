@@ -619,10 +619,8 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       assert result["success"] == false
       first_error = List.first(result["errors"])
-      assert first_error["type"] == "unknown_error"
-      assert first_error["message"] == "An unexpected error occurred"
-      assert String.contains?(first_error["details"]["error"], "invalid_user_field")
-      assert String.contains?(first_error["details"]["error"], "user")
+      assert first_error["type"] == "unknown_field"
+      assert is_binary(first_error["message"])
     end
 
     test "missing required input parameters return validation errors" do
@@ -642,11 +640,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       # Should get validation error about missing required field
       first_error = List.first(result["errors"])
 
-      assert first_error["type"] in [
-               "validation_error",
-               "input_validation_error",
-               "ash_error"
-             ]
+      assert first_error["type"] == "required"
     end
 
     test "invalid pagination parameters return proper error" do

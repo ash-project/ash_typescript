@@ -91,17 +91,12 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
 
       response = ErrorBuilder.build_error_response(ash_error)
 
-      assert response.type == "ash_error"
-      # Uses Exception.message/1
-      assert String.contains?(response.message, "Invalid")
-      assert response.details.class == :invalid
-      assert response.details.path == [:data, :attributes]
-      assert is_list(response.details.errors)
-      assert length(response.details.errors) == 1
-
-      nested_error = List.first(response.details.errors)
-      assert nested_error.field == :title
-      assert String.contains?(nested_error.message, "is required")
+      # Now uses the protocol which extracts the error code
+      assert response.type == "invalid_attribute"
+      assert is_binary(response.message)
+      assert response.fields == [:title]
+      # Path comes from the inner error, not the wrapper
+      assert response.path == []
     end
 
     test "generic ash error fallback" do
@@ -109,8 +104,9 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
 
       response = ErrorBuilder.build_error_response(ash_error)
 
+      # Now converts to Ash error class (UnknownError) and uses its protocol implementation
       assert response.type == "unknown_error"
-      assert response.details.error != nil
+      assert is_binary(response.message)
     end
   end
 

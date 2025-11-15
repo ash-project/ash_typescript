@@ -10,11 +10,15 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
   detailed context for debugging and client consumption.
   """
 
+  alias AshTypescript.Rpc.Errors
+
   @doc """
   Builds a detailed error response from various error types.
 
   Converts internal error tuples into structured error responses
   with clear messages and debugging context.
+
+  For Ash framework errors, uses the new Error protocol for standardized extraction.
   """
   @spec build_error_response(term()) :: map()
   def build_error_response(error) do
@@ -24,6 +28,8 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
         %{
           type: "action_not_found",
           message: "RPC action '#{action_name}' not found",
+          path: [],
+          fields: [],
           details: %{
             action_name: action_name,
             suggestion: "Check that the action is properly configured in your domain's rpc block"
@@ -161,7 +167,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           type: "invalid_field_selection",
           message: "Cannot select fields from primitive type #{return_type_string}",
           details: %{
-            field_type: "primitive_type",
+            field_code: "primitive_type",
             return_type: return_type_string,
             suggestion: "Remove the field selection for this primitive type"
           }
@@ -227,7 +233,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           message: "Fields parameter must be an array",
           details: %{
             received: inspect(fields),
-            expected_type: "array",
+            expected_code: "array",
             suggestion: "Wrap field names in an array, e.g., [\"field1\", \"field2\"]"
           }
         }
@@ -299,39 +305,35 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
 
       # === ASH FRAMEWORK ERRORS ===
 
-      # NotFound errors (specific handling)
-      %Ash.Error.Query.NotFound{} = not_found_error ->
-        %{
-          type: "not_found",
-          message: Exception.message(not_found_error),
-          details: %{
-            resource: not_found_error.resource,
-            primary_key: not_found_error.primary_key
-          }
-        }
+      # Any exception or Ash error - convert to Ash error class and process
+      error when is_exception(error) or is_map(error) ->
+        # Always convert to Ash error class first
+        ash_error = Ash.Error.to_error_class(error)
 
-      # Check for NotFound errors nested inside other Ash errors
-      %{class: :invalid, errors: errors} = ash_error when is_list(errors) ->
-        case Enum.find(errors, &is_struct(&1, Ash.Error.Query.NotFound)) do
-          %Ash.Error.Query.NotFound{} = not_found_error ->
-            %{
-              type: "not_found",
-              message: Exception.message(not_found_error),
-              details: %{
-                resource: not_found_error.resource,
-                primary_key: not_found_error.primary_key
-              }
-            }
+        # Process through the new error system
+        transformed = Errors.to_errors(ash_error)
 
-          _ ->
-            build_ash_error_response(ash_error)
+        case transformed do
+          [single_error] -> single_error
+          multiple -> %{type: "multiple_errors", errors: multiple}
         end
 
-      # Generic Ash errors
-      %{class: _class} = ash_error ->
-        build_ash_error_response(ash_error)
-
       # === FALLBACK ERROR HANDLERS ===
+
+      # Invalid field type errors (from validator throws)
+      {:invalid_field_type, field_name, path} ->
+        field_path = Enum.join(path ++ [field_name], ".")
+
+        %{
+          type: "unknown_field",
+          message: "Unknown field '#{field_path}'",
+          field_path: field_path,
+          details: %{
+            field: field_name,
+            path: path,
+            suggestion: "Check that the field exists and is accessible"
+          }
+        }
 
       {field_error_type, _} when is_atom(field_error_type) ->
         %{
@@ -351,48 +353,6 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
     end
-  end
-
-  # Build error responses for Ash framework errors
-  defp build_ash_error_response(ash_error) when is_exception(ash_error) do
-    %{
-      type: "ash_error",
-      message: Exception.message(ash_error),
-      details: %{
-        class: ash_error.class,
-        errors: serialize_nested_errors(ash_error.errors || []),
-        path: ash_error.path || []
-      }
-    }
-  end
-
-  defp build_ash_error_response(ash_error) do
-    %{
-      type: "ash_error",
-      message: inspect(ash_error),
-      details: %{
-        error: inspect(ash_error)
-      }
-    }
-  end
-
-  defp serialize_nested_errors(errors) when is_list(errors) do
-    Enum.map(errors, &serialize_single_error/1)
-  end
-
-  defp serialize_single_error(error) when is_exception(error) do
-    %{
-      message: Exception.message(error),
-      field: Map.get(error, :field),
-      fields: Map.get(error, :fields, []),
-      path: Map.get(error, :path, [])
-    }
-    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
-    |> Map.new()
-  end
-
-  defp serialize_single_error(error) do
-    %{message: inspect(error)}
   end
 
   # Format field type for error messages
