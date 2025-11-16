@@ -135,7 +135,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
           case field do
             %rel{}
             when rel in [
-                   Ash.Resource.RElationships.HasMany,
+                   Ash.Resource.Relationships.HasMany,
                    Ash.Resource.Relationships.ManyToMany,
                    Ash.Resource.Relationships.HasOne,
                    Ash.Resource.Relationships.BelongsTo
@@ -226,8 +226,8 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     allow_nil?
   end
 
-  defp type_name(%{type: {:array, type}}) do
-    case type_name(type) do
+  defp type_name(%{type: {:array, type}} = attr) do
+    case type_name(%{attr | type: type}) do
       nil -> nil
       type_name -> "#{type_name}[]"
     end
