@@ -364,15 +364,42 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
           AshTypescript.Rpc.output_field_formatter()
         )
 
-      return_type = get_calculation_return_type_for_metadata(calc, calc.allow_nil?)
+      # Check if this is a struct type with instance_of pointing to a resource
+      {metadata_type, resource_type} = get_calculation_metadata_type(calc)
 
       metadata =
-        if Enum.empty?(calc.arguments) do
-          "{ __type: \"ComplexCalculation\"; __returnType: #{return_type}; }"
-        else
-          args_type = generate_calculation_args_type(calc.arguments)
+        case metadata_type do
+          :field_selectable_resource ->
+            # Treat like a relationship for field selection
+            if Enum.empty?(calc.arguments) do
+              "{ __type: \"ComplexCalculation\"; __resource: #{resource_type}; }"
+            else
+              args_type = generate_calculation_args_type(calc.arguments)
 
-          "{ __type: \"ComplexCalculation\"; __returnType: #{return_type}; __args: #{args_type}; }"
+              "{ __type: \"ComplexCalculation\"; __resource: #{resource_type}; __args: #{args_type}; }"
+            end
+
+          :field_selectable_array ->
+            # Array of resources, treat like has_many relationship
+            if Enum.empty?(calc.arguments) do
+              "{ __type: \"ComplexCalculation\"; __array: true; __resource: #{resource_type}; }"
+            else
+              args_type = generate_calculation_args_type(calc.arguments)
+
+              "{ __type: \"ComplexCalculation\"; __array: true; __resource: #{resource_type}; __args: #{args_type}; }"
+            end
+
+          _ ->
+            # Regular complex calculation
+            return_type = get_calculation_return_type_for_metadata(calc, calc.allow_nil?)
+
+            if Enum.empty?(calc.arguments) do
+              "{ __type: \"ComplexCalculation\"; __returnType: #{return_type}; }"
+            else
+              args_type = generate_calculation_args_type(calc.arguments)
+
+              "{ __type: \"ComplexCalculation\"; __returnType: #{return_type}; __args: #{args_type}; }"
+            end
         end
 
       "  #{formatted_name}: #{metadata};"
@@ -477,6 +504,45 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   defp get_embedded_resource_from_attr(%{type: type}) when is_atom(type), do: type
   defp get_embedded_resource_from_attr(%{type: {:array, type}}) when is_atom(type), do: type
+
+  defp get_calculation_metadata_type(calc) do
+    case calc.type do
+      Ash.Type.Struct ->
+        constraints = calc.constraints || []
+        instance_of = Keyword.get(constraints, :instance_of)
+
+        if instance_of && Ash.Resource.Info.resource?(instance_of) do
+          resource_name = Helpers.build_resource_type_name(instance_of)
+
+          resource_type =
+            if calc.allow_nil? do
+              "#{resource_name}ResourceSchema | null"
+            else
+              "#{resource_name}ResourceSchema"
+            end
+
+          {:field_selectable_resource, resource_type}
+        else
+          {:regular, nil}
+        end
+
+      {:array, Ash.Type.Struct} ->
+        constraints = calc.constraints || []
+        items_constraints = Keyword.get(constraints, :items, [])
+        instance_of = Keyword.get(items_constraints, :instance_of)
+
+        if instance_of && Ash.Resource.Info.resource?(instance_of) do
+          resource_name = Helpers.build_resource_type_name(instance_of)
+          resource_type = "#{resource_name}ResourceSchema"
+          {:field_selectable_array, resource_type}
+        else
+          {:regular, nil}
+        end
+
+      _ ->
+        {:regular, nil}
+    end
+  end
 
   defp get_calculation_return_type_for_metadata(calc, allow_nil?) do
     base_type =

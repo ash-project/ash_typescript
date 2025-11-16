@@ -17,6 +17,15 @@ Define available RPC-actions for resources in this domain.
 
 
 
+### Options
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`error_handler`](#typescript_rpc-error_handler){: #typescript_rpc-error_handler } | `mfa \| module` | `{AshTypescript.Rpc.DefaultErrorHandler, :handle_error, []}` | An MFA or module that implements error handling for RPC operations. The error handler will be called with (error, context) and should return a modified error map. If a module is provided, it must export a handle_error/2 function. Example: ```elixir error_handler {MyApp.CustomErrorHandler, :handle_error, []} # or error_handler MyApp.CustomErrorHandler ``` |
+| [`show_raised_errors?`](#typescript_rpc-show_raised_errors?){: #typescript_rpc-show_raised_errors? } | `boolean` | `false` | Whether to show detailed information for raised exceptions. Set to true in development to see full error details. Keep false in production for security. |
+
+
+
 ### typescript_rpc.resource
 ```elixir
 resource resource

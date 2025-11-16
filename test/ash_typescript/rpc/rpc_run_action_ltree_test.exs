@@ -399,7 +399,8 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["type"] == "ash_error"
+      # This is a validation error for invalid attribute format
+      assert error["type"] == "invalid_attribute"
 
       assert String.contains?(
                error["message"],

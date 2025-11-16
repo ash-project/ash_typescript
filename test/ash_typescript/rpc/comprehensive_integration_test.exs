@@ -1274,10 +1274,8 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       assert result["success"] == false
       first_error = List.first(result["errors"])
-      assert first_error["type"] == "unknown_error"
-      assert first_error["message"] == "An unexpected error occurred"
-      assert String.contains?(first_error["details"]["error"], "invalid_user_field")
-      assert String.contains?(first_error["details"]["error"], "user")
+      assert first_error["type"] == "unknown_field"
+      assert is_binary(first_error["message"])
     end
 
     test "missing required input parameters return validation errors" do
@@ -1296,7 +1294,8 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       assert result["success"] == false
       # Should get validation error about missing required field
       first_error = List.first(result["errors"])
-      assert first_error["type"] == "ash_error"
+      # Should get validation error about missing required field
+      assert first_error["type"] == "required"
     end
 
     test "invalid primary key for get operations returns not found error" do

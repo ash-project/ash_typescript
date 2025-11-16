@@ -112,6 +112,7 @@ defmodule AshTypescript.MixProject do
 
         # Topics
         "documentation/topics/lifecycle-hooks.md",
+        "documentation/topics/error-handling.md",
         "documentation/topics/phoenix-channels.md",
         "documentation/topics/embedded-resources.md",
         "documentation/topics/union-types.md",

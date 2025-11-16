@@ -253,14 +253,14 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
           : T[K] extends { __type: "Union"; __primitiveFields: infer PrimitiveFields }
             ? T[K] extends { __array: true }
               ? (PrimitiveFields | {
-                  [UnionKey in keyof Omit<T[K], "__type" | "__primitiveFields" | "__array">]?: T[K][UnionKey] extends { __type: "TypedMap"; __primitiveFields: any }
+                  [UnionKey in keyof Omit<T[K], "__type" | "__primitiveFields" | "__array">]?: T[K][UnionKey] extends TypedSchema
                     ? T[K][UnionKey]["__primitiveFields"][]
                     : T[K][UnionKey] extends TypedSchema
                       ? UnifiedFieldSelection<T[K][UnionKey]>[]
                       : never;
                 })[]
               : (PrimitiveFields | {
-                  [UnionKey in keyof Omit<T[K], "__type" | "__primitiveFields">]?: T[K][UnionKey] extends { __type: "TypedMap"; __primitiveFields: any }
+                  [UnionKey in keyof Omit<T[K], "__type" | "__primitiveFields">]?: T[K][UnionKey] extends TypedSchema}
                     ? T[K][UnionKey]["__primitiveFields"][]
                     : T[K][UnionKey] extends TypedSchema
                       ? UnifiedFieldSelection<T[K][UnionKey]>[]
@@ -411,9 +411,12 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
     export type AshRpcError = {
       type: string;
       message: string;
-      field?: string;
-      fieldPath?: string;
+      shortMessage?: string;
+      fields?: string[];
+      path?: Array<string | number>;
+      vars?: Record<string, any>;
       details?: Record<string, any>;
+      errorId?: string;
     }
 
 
