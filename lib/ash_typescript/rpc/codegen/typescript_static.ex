@@ -253,7 +253,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
           : T[K] extends { __type: "Union"; __primitiveFields: infer PrimitiveFields }
             ? T[K] extends { __array: true }
               ? (PrimitiveFields | {
-                  [UnionKey in keyof Omit<T[K], "__type" | "__primitiveFields" | "__array">]?: T[K][UnionKey] extends TypedSchema
+                  [UnionKey in keyof Omit<T[K], "__type" | "__primitiveFields" | "__array">]?: T[K][UnionKey] extends { __type: "TypedMap"; __primitiveFields: any }
                     ? T[K][UnionKey]["__primitiveFields"][]
                     : T[K][UnionKey] extends TypedSchema
                       ? UnifiedFieldSelection<T[K][UnionKey]>[]
