@@ -560,7 +560,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
               };
 
           // Metadata
-          metadataFields?: ReadonlyArray<string | Record<string, any>>;
+          metadataFields?: ReadonlyArray<string>;
 
           // Channel-specific
           channel: any; // Phoenix Channel
@@ -639,7 +639,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
           };
 
       // Metadata
-      metadataFields?: Record<string, any>; // Metadata field selection
+      metadataFields?: ReadonlyArray<string>;
 
       // HTTP customization
       headers?: Record<string, string>; // Custom headers
