@@ -13,8 +13,8 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   import AshTypescript.Helpers
   import AshTypescript.Codegen, only: [build_resource_type_name: 1]
 
-  alias AshTypescript.TypeSystem.Introspection
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
+  alias AshTypescript.TypeSystem.Introspection
 
   @doc """
   Generates validation error type for an RPC action.

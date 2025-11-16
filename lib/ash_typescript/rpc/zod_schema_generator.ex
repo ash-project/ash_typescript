@@ -11,8 +11,8 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   """
 
   alias AshTypescript.Codegen.Helpers, as: CodegenHelpers
-  alias AshTypescript.TypeSystem.Introspection
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
+  alias AshTypescript.TypeSystem.Introspection
 
   import AshTypescript.Helpers
 
