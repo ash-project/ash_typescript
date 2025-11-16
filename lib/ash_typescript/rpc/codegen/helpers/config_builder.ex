@@ -25,17 +25,17 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   - `:requires_primary_key` - Whether the action requires a primary key (update/destroy)
   - `:supports_pagination` - Whether the action supports pagination (list reads)
   - `:supports_filtering` - Whether the action supports filtering (list reads)
-  - `:has_input` - Whether the action has input (arguments or accepts)
+  - `:action_input_type` - Whether the input is :none, :required, or :optional
 
   ## Examples
 
-      iex> get_action_context(MyResource, read_action)
+      iex> get_action_context(MyRes ource, read_action)
       %{
         requires_tenant: true,
         requires_primary_key: false,
         supports_pagination: true,
         supports_filtering: true,
-        has_input: false
+        action_input_type: :required 
       }
   """
   def get_action_context(resource, action) do
@@ -46,7 +46,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
         action.type == :read and not action.get? and
           ActionIntrospection.action_supports_pagination?(action),
       supports_filtering: action.type == :read and not action.get?,
-      has_input: ActionIntrospection.action_has_input?(resource, action)
+      action_input_type: ActionIntrospection.action_input_type(resource, action)
     }
   end
 
@@ -210,10 +210,15 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
       end
 
     config_fields =
-      if context.has_input do
-        config_fields ++ ["  #{format_output_field(:input)}: #{rpc_action_name_pascal}Input;"]
-      else
-        config_fields
+      case context.action_input_type do
+        :required ->
+          config_fields ++ ["  #{format_output_field(:input)}: #{rpc_action_name_pascal}Input;"]
+
+        :optional ->
+          config_fields ++ ["  #{format_output_field(:input)}?: #{rpc_action_name_pascal}Input;"]
+
+        :none ->
+          config_fields
       end
 
     # Add hookCtx field if hooks are enabled

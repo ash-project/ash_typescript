@@ -67,11 +67,16 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
       end
 
     payload_fields =
-      if context.has_input do
-        payload_fields ++
-          ["#{format_output_field(:input)}: config.#{format_output_field(:input)}"]
-      else
-        payload_fields
+      case context.action_input_type do
+        :required ->
+          payload_fields ++
+            ["#{format_output_field(:input)}: config.#{format_output_field(:input)}"]
+
+        :optional ->
+          ["#{format_output_field(:input)}?: config.#{format_output_field(:input)}"]
+
+        :none ->
+          payload_fields
       end
 
     payload_fields =

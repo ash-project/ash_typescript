@@ -12,6 +12,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
 
   alias AshTypescript.Codegen.Helpers, as: CodegenHelpers
   alias AshTypescript.TypeSystem.Introspection
+  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
   import AshTypescript.Helpers
 
@@ -282,7 +283,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   Generates a Zod schema definition for action input validation.
   """
   def generate_zod_schema(resource, action, rpc_action_name) do
-    if action_has_input?(resource, action) do
+    if ActionIntrospection.action_input_type(resource, action) != :none do
       suffix = AshTypescript.Rpc.zod_schema_suffix()
       schema_name = format_output_field("#{rpc_action_name}_#{suffix}")
 
@@ -465,23 +466,6 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
       Code.ensure_loaded?(type) and
       function_exported?(type, :typescript_type_name, 0) and
       Spark.implements_behaviour?(type, Ash.Type)
-  end
-
-  defp action_has_input?(resource, action) do
-    case action.type do
-      :read ->
-        action.arguments != []
-
-      :create ->
-        accepts = Ash.Resource.Info.action(resource, action.name).accept || []
-        accepts != [] || action.arguments != []
-
-      action_type when action_type in [:update, :destroy] ->
-        action.accept != [] || action.arguments != []
-
-      :action ->
-        action.arguments != []
-    end
   end
 
   defp build_integer_zod_with_constraints(constraints) do

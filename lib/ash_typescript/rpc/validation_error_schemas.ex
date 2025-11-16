@@ -14,12 +14,13 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   import AshTypescript.Codegen, only: [build_resource_type_name: 1]
 
   alias AshTypescript.TypeSystem.Introspection
+  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
   @doc """
   Generates validation error type for an RPC action.
   """
   def generate_validation_error_type(resource, action, rpc_action_name) do
-    if action_has_input?(resource, action) do
+    if ActionIntrospection.action_input_type(resource, action) != :none do
       error_type_name = "#{snake_to_pascal_case(rpc_action_name)}ValidationErrors"
       error_field_defs = generate_rpc_action_error_fields(resource, action)
 
@@ -326,22 +327,5 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
       Code.ensure_loaded?(type) and
       function_exported?(type, :typescript_type_name, 0) and
       Spark.implements_behaviour?(type, Ash.Type)
-  end
-
-  defp action_has_input?(resource, action) do
-    case action.type do
-      :read ->
-        action.arguments != []
-
-      :create ->
-        accepts = Ash.Resource.Info.action(resource, action.name).accept || []
-        accepts != [] || action.arguments != []
-
-      action_type when action_type in [:update, :destroy] ->
-        action.accept != [] || action.arguments != []
-
-      :action ->
-        action.arguments != []
-    end
   end
 end

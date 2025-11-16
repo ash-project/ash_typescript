@@ -100,26 +100,37 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   end
 
   @doc """
-  Returns true if the action accepts input.
-
-  Checks for:
-  - Arguments on any action type
-  - Accept list on create/update/destroy actions
+  Returns :required | :optional | :none
   """
-  def action_has_input?(resource, action) do
-    case action.type do
-      :read ->
-        action.arguments != []
+  def action_input_type(resource, action) do
+    inputs =
+      resource
+      |> Ash.Resource.Info.action_inputs(action.name)
+      |> Enum.filter(&is_atom/1)
+      |> Enum.map(fn input ->
+        Enum.find(action.arguments, fn argument ->
+          argument.name == input
+        end) || Ash.Resource.Info.attribute(resource, input)
+      end)
+      |> Enum.uniq_by(& &1.name)
 
-      :create ->
-        accepts = Ash.Resource.Info.action(resource, action.name).accept || []
-        accepts != [] || action.arguments != []
+    cond do
+      Enum.empty?(inputs) ->
+        :none
 
-      action_type when action_type in [:update, :destroy] ->
-        action.accept != [] || action.arguments != []
+      Enum.any?(inputs, fn
+        %Ash.Resource.Actions.Argument{} = input ->
+          not input.allow_nil? and is_nil(input.default)
 
-      :action ->
-        action.arguments != []
+        %Ash.Resource.Attribute{} = input ->
+          input.name not in Map.get(action, :allow_nil_input, []) and
+              (input.name in Map.get(action, :require_attributes, []) ||
+                 (not input.allow_nil? and is_nil(input.default)))
+      end) ->
+        :required
+
+      true ->
+        :optional
     end
   end
 
