@@ -885,20 +885,12 @@ defmodule AshTypescript.Rpc.Pipeline do
   defp primary_key_filter(resource, primary_key_value) do
     primary_key_fields = Ash.Resource.Info.primary_key(resource)
 
-    case primary_key_fields do
-      [field] when not is_map(primary_key_value) ->
-        [{field, primary_key_value}]
-
-      fields when is_map(primary_key_value) ->
-        # For composite primary keys, primary_key_value should be a map or keyword list
-        if is_map(primary_key_value) or Keyword.keyword?(primary_key_value) do
-          Enum.map(fields, fn field ->
-            {field, Map.get(primary_key_value, field)}
-          end)
-        else
-          # Single value for single field primary key
-          [{List.first(fields), primary_key_value}]
-        end
+    if is_map(primary_key_value) do
+      Enum.map(primary_key_fields, fn field ->
+        {field, Map.get(primary_key_value, field)}
+      end)
+    else
+      [{List.first(primary_key_fields), primary_key_value}]
     end
   end
 
