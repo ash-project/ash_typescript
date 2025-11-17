@@ -60,6 +60,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   defp extract_list_fields(results, extraction_template, resource) do
     cond do
+      # For empty templates with primitive struct types (Date, DateTime, etc.), just normalize
+      extraction_template == [] and Enum.any?(results, &is_primitive_struct?/1) ->
+        Enum.map(results, &normalize_value_for_json/1)
+
       # For empty templates with structs that are resources, extract all public fields
       (extraction_template == [] and Enum.any?(results, &is_struct(&1)) and
          resource) && Ash.Resource.Info.resource?(resource) ->
@@ -93,53 +97,71 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
+  # Check if a value is a primitive struct type that should be normalized rather than extracted
+  defp is_primitive_struct?(value) do
+    case value do
+      %DateTime{} -> true
+      %Date{} -> true
+      %Time{} -> true
+      %NaiveDateTime{} -> true
+      %Decimal{} -> true
+      %Ash.CiString{} -> true
+      _ -> false
+    end
+  end
+
   defp extract_single_result(data, extraction_template, resource)
        when is_list(extraction_template) do
-    is_tuple = is_tuple(data)
-
-    typed_struct_module =
-      if is_map(data) and not is_tuple(data) and Map.has_key?(data, :__struct__) do
-        module = data.__struct__
-        if Introspection.is_typed_struct?(module), do: module, else: nil
-      else
-        nil
-      end
-
-    normalized_data =
-      cond do
-        is_tuple ->
-          convert_tuple_to_map(data, extraction_template)
-
-        Keyword.keyword?(data) ->
-          Map.new(data)
-
-        true ->
-          normalize_data(data)
-      end
-
-    effective_resource = resource || typed_struct_module
-
-    if is_tuple do
-      normalized_data
+    # For empty templates with primitive struct types (Date, DateTime, etc.), just normalize
+    if extraction_template == [] and is_primitive_struct?(data) do
+      normalize_value_for_json(data)
     else
-      Enum.reduce(extraction_template, %{}, fn field_spec, acc ->
-        case field_spec do
-          field_atom when is_atom(field_atom) or is_tuple(data) ->
-            extract_simple_field(normalized_data, field_atom, acc, effective_resource)
+      is_tuple = is_tuple(data)
 
-          {field_atom, nested_template} when is_atom(field_atom) and is_list(nested_template) ->
-            extract_nested_field(
-              normalized_data,
-              field_atom,
-              nested_template,
-              acc,
-              effective_resource
-            )
-
-          _ ->
-            acc
+      typed_struct_module =
+        if is_map(data) and not is_tuple(data) and Map.has_key?(data, :__struct__) do
+          module = data.__struct__
+          if Introspection.is_typed_struct?(module), do: module, else: nil
+        else
+          nil
         end
-      end)
+
+      normalized_data =
+        cond do
+          is_tuple ->
+            convert_tuple_to_map(data, extraction_template)
+
+          Keyword.keyword?(data) ->
+            Map.new(data)
+
+          true ->
+            normalize_data(data)
+        end
+
+      effective_resource = resource || typed_struct_module
+
+      if is_tuple do
+        normalized_data
+      else
+        Enum.reduce(extraction_template, %{}, fn field_spec, acc ->
+          case field_spec do
+            field_atom when is_atom(field_atom) or is_tuple(data) ->
+              extract_simple_field(normalized_data, field_atom, acc, effective_resource)
+
+            {field_atom, nested_template} when is_atom(field_atom) and is_list(nested_template) ->
+              extract_nested_field(
+                normalized_data,
+                field_atom,
+                nested_template,
+                acc,
+                effective_resource
+              )
+
+            _ ->
+              acc
+          end
+        end)
+      end
     end
   end
 
