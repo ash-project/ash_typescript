@@ -84,5 +84,17 @@ defmodule AshTypescript.Test.Article do
         :body
       ]
     end
+
+    action :get_important_dates, {:array, :date} do
+      run fn _input, _context ->
+        {:ok, [~D[2025-01-15], ~D[2025-02-20], ~D[2025-03-25]]}
+      end
+    end
+
+    action :get_publication_date, :date do
+      run fn _input, _context ->
+        {:ok, ~D[2025-01-15]}
+      end
+    end
   end
 end

@@ -813,4 +813,51 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
       end)
     end
   end
+
+  describe "date array return type action (get_important_dates)" do
+    setup do
+      conn = TestHelpers.build_rpc_conn()
+      %{conn: conn}
+    end
+
+    test "returns dates as ISO strings", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_important_dates",
+          "fields" => []
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+
+      # Should return array of dates as ISO strings
+      assert is_list(data)
+      assert length(data) == 3
+
+      # Each item should be a date string in ISO format
+      assert data == ["2025-01-15", "2025-02-20", "2025-03-25"]
+    end
+  end
+
+  describe "single date return type action (get_publication_date)" do
+    setup do
+      conn = TestHelpers.build_rpc_conn()
+      %{conn: conn}
+    end
+
+    test "returns date as ISO string", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_publication_date",
+          "fields" => []
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+
+      # Should return a single date as ISO string
+      assert is_binary(data)
+      assert data == "2025-01-15"
+    end
+  end
 end

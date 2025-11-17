@@ -148,7 +148,10 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :destroy_content, :destroy
     end
 
-    resource AshTypescript.Test.Article
+    resource AshTypescript.Test.Article do
+      rpc_action :get_important_dates, :get_important_dates
+      rpc_action :get_publication_date, :get_publication_date
+    end
   end
 
   resources do
