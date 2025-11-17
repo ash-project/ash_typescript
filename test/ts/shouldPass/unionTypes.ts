@@ -212,7 +212,11 @@ export const createTodoWithChecklistContent = await createTodo({
     {
       content: [
         {
-          checklist: ["title", "items", "completedCount"],
+          checklist: [
+            "title",
+            "completedCount",
+            { items: ["text", "completed", "createdAt"] },
+          ],
         },
       ],
     },

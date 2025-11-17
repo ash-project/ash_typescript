@@ -107,39 +107,93 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
         process_generic_fields(requested_fields, path)
 
       {:ash_type, type, constraints} when is_atom(type) ->
-        fake_attribute = %{type: type, constraints: constraints}
+        # Check if this is a NewType that wraps a union
+        if Ash.Type.NewType.new_type?(type) do
+          subtype = Ash.Type.NewType.subtype_of(type)
 
-        if Introspection.is_typed_struct_from_attribute?(fake_attribute) do
-          if requested_fields == [] do
-            throw({:requires_field_selection, :typed_struct, nil})
-          end
+          if subtype == Ash.Type.Union do
+            # This is a NewType wrapping a union - process as union
+            union_types = Keyword.get(constraints, :types, [])
 
-          field_specs = Keyword.get(constraints, :fields, [])
-          instance_of = Keyword.get(constraints, :instance_of)
-
-          field_name_mappings =
-            if instance_of && function_exported?(instance_of, :typescript_field_names, 0) do
-              instance_of.typescript_field_names()
-            else
-              []
-            end
-
-          {_field_names, template_items} =
-            TypedStructProcessor.process_typed_struct_fields(
+            UnionProcessor.process_union_fields(
+              union_types,
               requested_fields,
-              field_specs,
               path,
-              field_name_mappings,
               &process_fields_for_type/3
             )
+          else
+            # NewType wrapping something else - check if it's a TypedStruct
+            fake_attribute = %{type: subtype, constraints: constraints}
 
-          {[], [], template_items}
-        else
-          if requested_fields != [] do
-            throw({:invalid_field_selection, :primitive_type, return_type})
+            if Introspection.is_typed_struct_from_attribute?(fake_attribute) do
+              if requested_fields == [] do
+                throw({:requires_field_selection, :typed_struct, nil})
+              end
+
+              field_specs = Keyword.get(constraints, :fields, [])
+              instance_of = Keyword.get(constraints, :instance_of)
+
+              field_name_mappings =
+                if instance_of && function_exported?(instance_of, :typescript_field_names, 0) do
+                  instance_of.typescript_field_names()
+                else
+                  []
+                end
+
+              {_field_names, template_items} =
+                TypedStructProcessor.process_typed_struct_fields(
+                  requested_fields,
+                  field_specs,
+                  path,
+                  field_name_mappings,
+                  &process_fields_for_type/3
+                )
+
+              {[], [], template_items}
+            else
+              if requested_fields != [] do
+                throw({:invalid_field_selection, :primitive_type, return_type})
+              end
+
+              {[], [], []}
+            end
           end
+        else
+          # Not a NewType - check if it's a TypedStruct
+          fake_attribute = %{type: type, constraints: constraints}
 
-          {[], [], []}
+          if Introspection.is_typed_struct_from_attribute?(fake_attribute) do
+            if requested_fields == [] do
+              throw({:requires_field_selection, :typed_struct, nil})
+            end
+
+            field_specs = Keyword.get(constraints, :fields, [])
+            instance_of = Keyword.get(constraints, :instance_of)
+
+            field_name_mappings =
+              if instance_of && function_exported?(instance_of, :typescript_field_names, 0) do
+                instance_of.typescript_field_names()
+              else
+                []
+              end
+
+            {_field_names, template_items} =
+              TypedStructProcessor.process_typed_struct_fields(
+                requested_fields,
+                field_specs,
+                path,
+                field_name_mappings,
+                &process_fields_for_type/3
+              )
+
+            {[], [], template_items}
+          else
+            if requested_fields != [] do
+              throw({:invalid_field_selection, :primitive_type, return_type})
+            end
+
+            {[], [], []}
+          end
         end
 
       _ ->

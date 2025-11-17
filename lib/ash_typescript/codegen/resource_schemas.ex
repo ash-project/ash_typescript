@@ -162,7 +162,8 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
                   "  #{formatted_name}: #{type_str};"
                 end
               else
-                field =
+                # Check the actual type (unwrap NewType for classification)
+                actual_field =
                   if Ash.Type.NewType.new_type?(field.type) do
                     %{
                       field
@@ -175,15 +176,18 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
                   end
 
                 cond do
-                  is_embedded_attribute?(field) ->
-                    if embedded_resource_allowed?(field, allowed_resources) do
-                      nil
+                  is_embedded_attribute?(actual_field) ->
+                    if embedded_resource_allowed?(actual_field, allowed_resources) do
+                      embedded_field_definition(resource, actual_field)
                     else
-                      embedded_field_definition(resource, field)
+                      nil
                     end
 
-                  is_union_attribute?(field) ->
-                    union_field_definition(resource, field)
+                  is_union_attribute?(actual_field) ->
+                    union_field_definition(resource, actual_field)
+
+                  is_map_attribute?(actual_field) or is_keyword_attribute?(actual_field) or is_tuple_attribute?(actual_field) ->
+                    typed_map_field_definition(resource, field)
 
                   true ->
                     mapped_name =
@@ -195,6 +199,8 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
                         AshTypescript.Rpc.output_field_formatter()
                       )
 
+                    # Pass the ORIGINAL field, not the unwrapped one, so TypeMapper
+                    # can access typescript_field_names callback if present
                     type_str = TypeMapper.get_ts_type(field)
 
                     if allow_nil?(field) do
@@ -245,7 +251,8 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     if Helpers.is_simple_calculation(calc) do
       is_complex_attr?(calc, false)
     else
-      false
+      # Calculations with arguments are always complex
+      true
     end
   end
 
@@ -443,6 +450,103 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
         _ ->
           union_metadata
+      end
+
+    if attr.allow_nil? do
+      "  #{formatted_name}: #{final_type} | null;"
+    else
+      "  #{formatted_name}: #{final_type};"
+    end
+  end
+
+  defp typed_map_field_definition(resource, attr) do
+    mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr.name)
+
+    formatted_name =
+      AshTypescript.FieldFormatter.format_field(
+        mapped_name,
+        AshTypescript.Rpc.output_field_formatter()
+      )
+
+    # Get the constraints for the TypedMap
+    {_inner_type, constraints} =
+      case attr.type do
+        {:array, inner} -> {inner, attr.constraints[:items] || []}
+        inner -> {inner, attr.constraints || []}
+      end
+
+    field_specs = Keyword.get(constraints, :fields, [])
+
+    # Check if this NewType has typescript_field_names callback
+    # Extract the actual type (handle {:array, Type} case)
+    actual_type =
+      case attr.type do
+        {:array, inner} -> inner
+        type -> type
+      end
+
+    field_name_mappings =
+      if is_atom(actual_type) and function_exported?(actual_type, :typescript_field_names, 0) do
+        actual_type.typescript_field_names()
+      else
+        nil
+      end
+
+    # Build the primitive fields list
+    primitive_fields =
+      field_specs
+      |> Enum.map(fn {field_name, _config} -> field_name end)
+      |> Enum.map(fn field_name ->
+        # Apply field name mapping if present
+        mapped_field_name =
+          if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
+            Keyword.get(field_name_mappings, field_name)
+          else
+            field_name
+          end
+
+        formatted = AshTypescript.FieldFormatter.format_field(mapped_field_name, AshTypescript.Rpc.output_field_formatter())
+        "\"#{formatted}\""
+      end)
+      |> Enum.join(" | ")
+
+    # Build field definitions
+    field_defs =
+      field_specs
+      |> Enum.map(fn {field_name, config} ->
+        field_type = Keyword.get(config, :type)
+        allow_nil = Keyword.get(config, :allow_nil?, true)
+
+        # Apply field name mapping if present
+        mapped_field_name =
+          if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
+            Keyword.get(field_name_mappings, field_name)
+          else
+            field_name
+          end
+
+        formatted_field = AshTypescript.FieldFormatter.format_field(mapped_field_name, AshTypescript.Rpc.output_field_formatter())
+        ts_type = TypeMapper.get_ts_type(%{type: field_type, constraints: Keyword.get(config, :constraints, [])})
+
+        if allow_nil do
+          "#{formatted_field}: #{ts_type} | null"
+        else
+          "#{formatted_field}: #{ts_type}"
+        end
+      end)
+      |> Enum.join(", ")
+
+    # Build the TypedMap metadata
+    typed_map_metadata = "{#{field_defs}, __type: \"TypedMap\", __primitiveFields: #{primitive_fields}}"
+
+    # Check if this is an array and add __array: true
+    final_type =
+      case attr.type do
+        {:array, _} ->
+          "{ __array: true; #{field_defs}, __type: \"TypedMap\", __primitiveFields: #{primitive_fields} }"
+
+        _ ->
+          typed_map_metadata
       end
 
     if attr.allow_nil? do

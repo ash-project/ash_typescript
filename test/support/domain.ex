@@ -105,12 +105,9 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :get_task_stats, :get_task_stats
       rpc_action :list_task_stats, :list_task_stats
 
-      # Read action with metadata field name mapping
       rpc_action :read_tasks_with_mapped_metadata, :read_with_invalid_metadata_names,
         show_metadata: [:meta_1, :is_valid?, :field_2],
         metadata_field_names: [meta_1: :meta1, is_valid?: :is_valid, field_2: :field2]
-
-      # Read actions with different show_metadata configurations
       rpc_action :read_tasks_with_metadata_all, :read_with_metadata, show_metadata: nil
       rpc_action :read_tasks_with_metadata_false, :read_with_metadata, show_metadata: false
       rpc_action :read_tasks_with_metadata_empty, :read_with_metadata, show_metadata: []
@@ -119,21 +116,18 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :read_tasks_with_metadata_two, :read_with_metadata,
         show_metadata: [:some_string, :some_number]
 
-      # Create actions with different show_metadata configurations
       rpc_action :create_task_metadata_all, :create, show_metadata: nil
       rpc_action :create_task_metadata_false, :create, show_metadata: false
       rpc_action :create_task_metadata_empty, :create, show_metadata: []
       rpc_action :create_task_metadata_one, :create, show_metadata: [:some_string]
       rpc_action :create_task_metadata_two, :create, show_metadata: [:some_string, :some_number]
 
-      # Update actions with different show_metadata configurations
       rpc_action :update_task_metadata_all, :update, show_metadata: nil
       rpc_action :update_task_metadata_false, :update, show_metadata: false
       rpc_action :update_task_metadata_empty, :update, show_metadata: []
       rpc_action :update_task_metadata_one, :update, show_metadata: [:some_string]
       rpc_action :update_task_metadata_two, :update, show_metadata: [:some_string, :some_number]
 
-      # Destroy actions with different show_metadata configurations
       rpc_action :destroy_task_metadata_all, :destroy, show_metadata: nil
       rpc_action :destroy_task_metadata_false, :destroy, show_metadata: false
       rpc_action :destroy_task_metadata_empty, :destroy, show_metadata: []
@@ -144,6 +138,16 @@ defmodule AshTypescript.Test.Domain do
     resource AshTypescript.Test.PostComment
     resource AshTypescript.Test.MapFieldResource
     resource AshTypescript.Test.EmptyResource
+
+    resource AshTypescript.Test.Content do
+      rpc_action :list_content, :read
+      rpc_action :get_content, :get_by_id
+      rpc_action :create_content, :create
+      rpc_action :update_content, :update
+      rpc_action :destroy_content, :destroy
+    end
+
+    resource AshTypescript.Test.Article
   end
 
   resources do
@@ -159,5 +163,7 @@ defmodule AshTypescript.Test.Domain do
     resource AshTypescript.Test.NoRelationshipsResource
     resource AshTypescript.Test.EmptyResource
     resource AshTypescript.Test.MapFieldResource
+    resource AshTypescript.Test.Content
+    resource AshTypescript.Test.Article
   end
 end

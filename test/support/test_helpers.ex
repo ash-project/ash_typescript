@@ -17,7 +17,7 @@ defmodule AshTypescript.Test.TestHelpers do
   import Plug.Conn
   import ExUnit.Assertions
   alias AshTypescript.Rpc
-  alias AshTypescript.Test.{Domain, Todo, User}
+  alias AshTypescript.Test.{Domain, Todo, User, Content}
 
   @doc """
   Creates a properly configured Plug.Conn for RPC testing.
@@ -208,6 +208,81 @@ defmodule AshTypescript.Test.TestHelpers do
   end
 
   @doc """
+  Creates a test content item with an article.
+
+  Options:
+  - `:title` - Content title (default: "Test Content")
+  - `:user_id` - User ID (author) (required)
+  - `:thumbnail_url` - Thumbnail URL (default: "https://example.com/thumb.jpg")
+  - `:thumbnail_alt` - Thumbnail alt text (default: "Thumbnail")
+  - `:published_at` - Published timestamp (default: nil)
+  - `:category` - Content category (default: :nutrition)
+  - `:article_hero_image_url` - Article hero image URL (default: "https://example.com/hero.jpg")
+  - `:article_hero_image_alt` - Article hero image alt text (default: "Hero Image")
+  - `:article_summary` - Article summary (default: "Test summary")
+  - `:article_body` - Article body (default: "Test body content")
+  - `:fields` - Fields to return (default: ["id", "title"])
+  - `:via_rpc` - Create via RPC action instead of direct Ash (default: false)
+
+  Returns the created content data.
+  """
+  def create_test_content(conn_or_opts \\ [], opts \\ [])
+
+  def create_test_content(conn, opts) when is_struct(conn) do
+    opts =
+      Keyword.merge(
+        [
+          title: "Test Content",
+          thumbnail_url: "https://example.com/thumb.jpg",
+          thumbnail_alt: "Thumbnail",
+          published_at: nil,
+          category: :nutrition,
+          article_hero_image_url: "https://example.com/hero.jpg",
+          article_hero_image_alt: "Hero Image",
+          article_summary: "Test summary",
+          article_body: "Test body content",
+          fields: ["id", "title"],
+          via_rpc: true
+        ],
+        opts
+      )
+
+    unless opts[:user_id] do
+      raise ArgumentError, "user_id is required for creating test content"
+    end
+
+    if opts[:via_rpc] do
+      create_content_via_rpc(conn, opts)
+    else
+      create_content_direct(opts)
+    end
+  end
+
+  def create_test_content(opts, _) when is_list(opts) do
+    opts =
+      Keyword.merge(
+        [
+          title: "Test Content",
+          thumbnail_url: "https://example.com/thumb.jpg",
+          thumbnail_alt: "Thumbnail",
+          published_at: nil,
+          category: :nutrition,
+          article_hero_image_url: "https://example.com/hero.jpg",
+          article_hero_image_alt: "Hero Image",
+          article_summary: "Test summary",
+          article_body: "Test body content"
+        ],
+        opts
+      )
+
+    unless opts[:user_id] do
+      raise ArgumentError, "user_id is required for creating test content"
+    end
+
+    create_content_direct(opts)
+  end
+
+  @doc """
   Validates that a result contains only the requested fields.
 
   Args:
@@ -343,5 +418,66 @@ defmodule AshTypescript.Test.TestHelpers do
       user_id: opts[:user_id]
     })
     |> Ash.create!(domain: Domain)
+  end
+
+  defp create_content_via_rpc(conn, opts) do
+    # Build article input - use snake_case as it's passed directly to manage_relationship
+    article_input = %{
+      "hero_image_url" => opts[:article_hero_image_url],
+      "hero_image_alt" => opts[:article_hero_image_alt],
+      "summary" => opts[:article_summary],
+      "body" => opts[:article_body]
+    }
+
+    # Build content input - use camelCase for top-level fields
+    input = %{
+      "type" => "article",
+      "title" => opts[:title],
+      "thumbnailUrl" => opts[:thumbnail_url],
+      "thumbnailAlt" => opts[:thumbnail_alt],
+      "category" => to_string(opts[:category]),
+      "userId" => opts[:user_id],
+      "item" => article_input
+    }
+
+    input =
+      if opts[:published_at],
+        do: Map.put(input, "publishedAt", opts[:published_at]),
+        else: input
+
+    content_params = %{
+      "action" => "create_content",
+      "fields" => opts[:fields],
+      "input" => input
+    }
+
+    result = Rpc.run_action(:ash_typescript, conn, content_params)
+    assert_rpc_success(result)
+  end
+
+  defp create_content_direct(opts) do
+    # First create the content (without article relationship initially)
+    content =
+      Content
+      |> Ash.Changeset.for_create(:create, %{
+        type: :article,
+        title: opts[:title],
+        thumbnail_url: opts[:thumbnail_url],
+        thumbnail_alt: opts[:thumbnail_alt],
+        published_at: opts[:published_at],
+        category: opts[:category],
+        user_id: opts[:user_id],
+        item: %{
+          hero_image_url: opts[:article_hero_image_url],
+          hero_image_alt: opts[:article_hero_image_alt],
+          summary: opts[:article_summary],
+          body: opts[:article_body]
+        }
+      })
+      |> Ash.create!(domain: Domain)
+
+    # Reload content to get the relationship
+    content
+    |> Ash.load!([:article], domain: Domain)
   end
 end

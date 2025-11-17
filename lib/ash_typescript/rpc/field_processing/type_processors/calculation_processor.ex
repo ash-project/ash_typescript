@@ -149,8 +149,23 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.CalculationProcessor 
         template,
         process_fields_fn
       ) do
+    # Extract args and fields from the nested structure (if present)
+    # For calculations without arguments, this will be %{args: %{}, fields: [...]}
+    # For backward compatibility, also support plain arrays
+    fields =
+      case nested_fields do
+        %{} = map when is_map(map) ->
+          Map.get(map, :fields, [])
+
+        list when is_list(list) ->
+          list
+
+        _ ->
+          []
+      end
+
     # Validate that nested fields are not empty
-    if nested_fields == [] do
+    if fields == [] do
       field_path = Utilities.build_field_path(path, calc_name)
 
       throw({:requires_field_selection, :calculation_complex, field_path})
@@ -168,7 +183,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.CalculationProcessor 
     new_path = path ++ [calc_name]
 
     {nested_select, nested_load, nested_template} =
-      process_fields_fn.(calc_return_type, nested_fields, new_path)
+      process_fields_fn.(calc_return_type, fields, new_path)
 
     load_spec = Utilities.build_load_spec(calc_name, nested_select, nested_load)
 

@@ -19,7 +19,10 @@ export const todoWithFullSettings = await getTodo({
     "id",
     "title",
     {
-      metadata: ["category", "settings"],
+      metadata: [
+        "category",
+        { settings: ["notifications", "autoArchive", "reminderFrequency"] },
+      ],
     },
   ],
 });
@@ -38,13 +41,7 @@ if (todoWithFullSettings.success && todoWithFullSettings.data) {
     const reminderFrequency: number | null =
       todoWithFullSettings.data.metadata.settings.reminderFrequency;
 
-    // Validate TypedMap metadata
-    const mapType: "TypedMap" =
-      todoWithFullSettings.data.metadata.settings.__type;
-    const primitiveFields:
-      | "notifications"
-      | "autoArchive"
-      | "reminderFrequency" = "notifications"; // Example usage
+    // TypedMap fields are available without metadata in the result
   }
 }
 
@@ -55,7 +52,10 @@ export const todoWithPartialSettings = await getTodo({
     "id",
     "title",
     {
-      metadata: ["category", "settings"],
+      metadata: [
+        "category",
+        { settings: ["notifications", "autoArchive", "reminderFrequency"] },
+      ],
     },
   ],
 });
@@ -83,7 +83,11 @@ export const todoWithMultipleTypedMaps = await getTodo({
     "id",
     "title",
     {
-      metadata: ["category", "settings", "customFields"],
+      metadata: [
+        "category",
+        { settings: ["notifications", "autoArchive", "reminderFrequency"] },
+        "customFields",
+      ],
     },
   ],
 });
@@ -136,7 +140,12 @@ export const createTodoWithTypedMap = await createTodo({
     "id",
     "title",
     {
-      metadata: ["category", "priorityScore", "settings", "customFields"],
+      metadata: [
+        "category",
+        "priorityScore",
+        { settings: ["notifications", "autoArchive", "reminderFrequency"] },
+        "customFields",
+      ],
     },
   ],
   headers: buildCSRFHeaders(),
@@ -192,7 +201,11 @@ export const updateTodoWithTypedMap = await updateTodo({
     "id",
     "title",
     {
-      metadata: ["category", "settings", "customFields"],
+      metadata: [
+        "category",
+        { settings: ["notifications", "autoArchive", "reminderFrequency"] },
+        "customFields",
+      ],
     },
   ],
 });
@@ -231,7 +244,10 @@ export const todoWithTypedMapCalculation = await getTodo({
     "id",
     "title",
     {
-      metadata: ["category", "settings"],
+      metadata: [
+        "category",
+        { settings: ["notifications", "autoArchive", "reminderFrequency"] },
+      ],
     },
     {
       self: {
@@ -239,7 +255,13 @@ export const todoWithTypedMapCalculation = await getTodo({
         fields: [
           "id",
           {
-            metadata: ["category", "settings", "customFields"],
+            metadata: [
+              "category",
+              {
+                settings: ["notifications", "autoArchive", "reminderFrequency"],
+              },
+              "customFields",
+            ],
           },
         ],
       },
@@ -291,7 +313,11 @@ export const todoWithNullableTypedMaps = await getTodo({
     "id",
     "title",
     {
-      metadata: ["category", "settings", "customFields"],
+      metadata: [
+        "category",
+        { settings: ["notifications", "autoArchive", "reminderFrequency"] },
+        "customFields",
+      ],
     },
   ],
 });
@@ -348,7 +374,10 @@ export const createTodoWithMinimalTypedMap = await createTodo({
     "id",
     "title",
     {
-      metadata: ["category", "settings"],
+      metadata: [
+        "category",
+        { settings: ["notifications", "autoArchive", "reminderFrequency"] },
+      ],
     },
   ],
 });
@@ -384,7 +413,9 @@ export const typedMapFormattingTest = await getTodo({
     "id",
     "title",
     {
-      metadata: ["settings"],
+      metadata: [
+        { settings: ["notifications", "autoArchive", "reminderFrequency"] },
+      ],
     },
   ],
 });
@@ -418,8 +449,15 @@ export const complexTypedMapScenario = await getTodo({
     "id",
     "title",
     {
-      metadata: ["category", "settings", "customFields"],
-      metadataHistory: ["category", "settings"],
+      metadata: [
+        "category",
+        "customFields",
+        { settings: ["notifications", "autoArchive", "reminderFrequency"] },
+      ],
+      metadataHistory: [
+        "category",
+        { settings: ["notifications", "autoArchive", "reminderFrequency"] },
+      ],
     },
     {
       self: {
@@ -427,8 +465,17 @@ export const complexTypedMapScenario = await getTodo({
         fields: [
           "id",
           {
-            metadata: ["settings"],
-            metadataHistory: ["settings", "customFields"],
+            metadata: [
+              {
+                settings: ["notifications", "autoArchive", "reminderFrequency"],
+              },
+            ],
+            metadataHistory: [
+              {
+                settings: ["notifications", "autoArchive", "reminderFrequency"],
+              },
+              "customFields",
+            ],
           },
         ],
       },

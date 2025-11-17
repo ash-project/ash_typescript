@@ -153,7 +153,7 @@ export const complexEmbeddedScenario = await getTodo({
     "id",
     "title",
     {
-      metadata: ["category", "settings"],
+      metadata: ["category", { settings: ["notifications", "autoArchive", "reminderFrequency"] }],
       metadataHistory: ["category", "priorityScore"],
     },
     {
@@ -188,8 +188,14 @@ if (complexEmbeddedScenario.success && complexEmbeddedScenario.data) {
   // Top level embedded resources
   if (complexEmbeddedScenario.data.metadata) {
     const topCategory: string = complexEmbeddedScenario.data.metadata.category;
-    const topSettings: Record<string, any> | null | undefined =
-      complexEmbeddedScenario.data.metadata.settings;
+    if (complexEmbeddedScenario.data.metadata.settings) {
+      const topNotifications: boolean | null =
+        complexEmbeddedScenario.data.metadata.settings.notifications;
+      const topAutoArchive: boolean | null =
+        complexEmbeddedScenario.data.metadata.settings.autoArchive;
+      const topReminderFreq: number | null =
+        complexEmbeddedScenario.data.metadata.settings.reminderFrequency;
+    }
   }
 
   // Array embedded resources (metadataHistory)

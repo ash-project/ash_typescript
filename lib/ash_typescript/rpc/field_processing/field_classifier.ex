@@ -186,13 +186,31 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldClassifier do
               :calculation_complex
 
             {:ash_type, type, constraints} when is_atom(type) ->
-              # Check if this is a TypedStruct module by creating a fake attribute
-              fake_attribute = %{type: type, constraints: constraints}
+              # Check if this is a NewType that wraps a union
+              if Ash.Type.NewType.new_type?(type) do
+                subtype = Ash.Type.NewType.subtype_of(type)
 
-              if Introspection.is_typed_struct_from_attribute?(fake_attribute) do
-                :calculation_complex
+                if subtype == Ash.Type.Union do
+                  :calculation_complex
+                else
+                  # Check if the wrapped type is TypedStruct
+                  fake_attribute = %{type: subtype, constraints: constraints}
+
+                  if Introspection.is_typed_struct_from_attribute?(fake_attribute) do
+                    :calculation_complex
+                  else
+                    :calculation
+                  end
+                end
               else
-                :calculation
+                # Check if this is a TypedStruct module by creating a fake attribute
+                fake_attribute = %{type: type, constraints: constraints}
+
+                if Introspection.is_typed_struct_from_attribute?(fake_attribute) do
+                  :calculation_complex
+                else
+                  :calculation
+                end
               end
 
             _ ->
