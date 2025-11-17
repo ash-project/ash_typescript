@@ -20,6 +20,7 @@
     {:reuse, command: ["pipx", "run", "reuse", "lint", "-q"]},
     {:credo, "mix credo --strict"},
     {:sobelow, "mix sobelow --config"},
+    {:test_codegen, "mix test.codegen"},
     {:compile_generated, "mix cmd --cd test/ts npm run compileGenerated"},
     {:compile_should_pass, "mix cmd --cd test/ts npm run compileShouldPass"},
     {:compile_should_fail, "mix cmd --cd test/ts npm run compileShouldFail"},
