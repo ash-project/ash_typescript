@@ -80,6 +80,7 @@ Example: `metadata_field_names [field_1: :field1, is_valid?: :isValid]`
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
+| [`read_action`](#typescript_rpc-resource-rpc_action-read_action){: #typescript_rpc-resource-rpc_action-read_action } | `atom` |  | The read action to use for update and destroy operations when finding records |
 | [`show_metadata`](#typescript_rpc-resource-rpc_action-show_metadata){: #typescript_rpc-resource-rpc_action-show_metadata } | `nil \| boolean \| list(atom)` |  | Which metadata fields to expose (nil=all, false/[]=none, list=specific fields) |
 | [`metadata_field_names`](#typescript_rpc-resource-rpc_action-metadata_field_names){: #typescript_rpc-resource-rpc_action-metadata_field_names } | `list({atom, atom})` | `[]` | Map metadata field names to valid TypeScript identifiers |
 

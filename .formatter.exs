@@ -9,6 +9,7 @@ spark_locals_without_parens = [
   field_names: 1,
   fields: 1,
   metadata_field_names: 1,
+  read_action: 1,
   resource: 1,
   resource: 2,
   rpc_action: 2,

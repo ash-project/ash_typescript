@@ -11,7 +11,14 @@ defmodule AshTypescript.Rpc do
 
     Defines the mapping between a named RPC endpoint and an Ash action.
     """
-    defstruct [:name, :action, :show_metadata, :metadata_field_names, __spark_metadata__: nil]
+    defstruct [
+      :name,
+      :action,
+      :read_action,
+      :show_metadata,
+      :metadata_field_names,
+      __spark_metadata__: nil
+    ]
   end
 
   defmodule Resource do
@@ -93,6 +100,11 @@ defmodule AshTypescript.Rpc do
       action: [
         type: :atom,
         doc: "The resource action to expose"
+      ],
+      read_action: [
+        type: :atom,
+        doc: "The read action to use for update and destroy operations when finding records",
+        required: false
       ],
       show_metadata: [
         type: {:or, [nil, :boolean, {:list, :atom}]},

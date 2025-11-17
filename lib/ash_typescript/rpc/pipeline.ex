@@ -543,35 +543,120 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp execute_update_action(%Request{} = request, opts) do
-    with {:ok, record} <- Ash.get(request.resource, request.primary_key, opts) do
-      record
-      |> Ash.Changeset.for_update(request.action.name, request.input, opts)
-      |> Ash.Changeset.select(request.select)
-      |> Ash.Changeset.load(request.load)
-      |> Ash.update()
+    # Build a query to find the record by primary key
+    filter = primary_key_filter(request.resource, request.primary_key)
+
+    # Use the configured read_action if available
+    read_action = request.rpc_action.read_action
+
+    query =
+      request.resource
+      |> Ash.Query.do_filter(filter)
+      |> Ash.Query.set_tenant(opts[:tenant])
+      |> Ash.Query.set_context(opts[:context] || %{})
+      |> Ash.Query.limit(1)
+
+    # Build bulk_update options with read_action if configured
+    bulk_opts = [
+      return_errors?: true,
+      notify?: true,
+      strategy: [:atomic, :stream, :atomic_batches],
+      allow_stream_with: :full_read,
+      authorize_changeset_with: authorize_bulk_with(request.resource),
+      return_records?: true,
+      tenant: opts[:tenant],
+      context: opts[:context] || %{},
+      actor: opts[:actor],
+      domain: request.domain,
+      select: request.select,
+      load: request.load
+    ]
+
+    # Add read_action if configured
+    bulk_opts =
+      if read_action do
+        Keyword.put(bulk_opts, :read_action, read_action)
+      else
+        bulk_opts
+      end
+
+    # Use bulk_update with the query
+    result =
+      query
+      |> Ash.bulk_update(request.action.name, request.input, bulk_opts)
+
+    # Handle the bulk result
+    case result do
+      %Ash.BulkResult{status: :success, records: [record]} ->
+        {:ok, record}
+
+      %Ash.BulkResult{status: :success, records: []} ->
+        {:error, Ash.Error.Query.NotFound.exception(resource: request.resource)}
+
+      %Ash.BulkResult{errors: errors} when errors != [] ->
+        {:error, errors}
+
+      other ->
+        {:error, other}
     end
   end
 
   defp execute_destroy_action(%Request{} = request, opts) do
-    with {:ok, record} <- Ash.get(request.resource, request.primary_key, opts) do
-      changeset =
-        Ash.Changeset.for_destroy(
-          record,
-          request.action.name,
-          request.input,
-          opts ++ [error?: true]
-        )
+    # Build a query to find the record by primary key
+    filter = primary_key_filter(request.resource, request.primary_key)
 
-      case Ash.destroy(changeset, return_destroyed?: true) do
-        :ok ->
-          {:ok, %{}}
+    # Use the configured read_action if available
+    read_action = request.rpc_action.read_action
 
-        {:ok, destroyed_record} ->
-          {:ok, destroyed_record}
+    query =
+      request.resource
+      |> Ash.Query.do_filter(filter)
+      |> Ash.Query.set_tenant(opts[:tenant])
+      |> Ash.Query.set_context(opts[:context] || %{})
+      |> Ash.Query.limit(1)
+      |> apply_select_and_load(request)
 
-        error ->
-          error
+    # Build bulk_destroy options with read_action if configured
+    bulk_opts = [
+      return_errors?: true,
+      notify?: true,
+      strategy: [:atomic, :stream, :atomic_batches],
+      allow_stream_with: :full_read,
+      authorize_changeset_with: authorize_bulk_with(request.resource),
+      return_records?: true,
+      tenant: opts[:tenant],
+      context: opts[:context] || %{},
+      actor: opts[:actor],
+      domain: request.domain
+    ]
+
+    # Add read_action if configured
+    bulk_opts =
+      if read_action do
+        Keyword.put(bulk_opts, :read_action, read_action)
+      else
+        bulk_opts
       end
+
+    # Use bulk_destroy with the query
+    result =
+      query
+      |> Ash.bulk_destroy(request.action.name, request.input, bulk_opts)
+
+    # Handle the bulk result
+    case result do
+      %Ash.BulkResult{status: :success, records: [record]} ->
+        {:ok, record}
+
+      %Ash.BulkResult{status: :success, records: []} ->
+        # If no records returned but operation succeeded, return empty map
+        {:ok, %{}}
+
+      %Ash.BulkResult{errors: errors} when errors != [] ->
+        {:error, errors}
+
+      other ->
+        {:error, other}
     end
   end
 
@@ -794,6 +879,53 @@ defmodule AshTypescript.Rpc.Pipeline do
       end
     else
       :ok
+    end
+  end
+
+  defp primary_key_filter(resource, primary_key_value) do
+    primary_key_fields = Ash.Resource.Info.primary_key(resource)
+
+    case primary_key_fields do
+      [field] when not is_map(primary_key_value) ->
+        [{field, primary_key_value}]
+
+      fields when is_map(primary_key_value) ->
+        # For composite primary keys, primary_key_value should be a map or keyword list
+        if is_map(primary_key_value) or Keyword.keyword?(primary_key_value) do
+          Enum.map(fields, fn field ->
+            {field, Map.get(primary_key_value, field)}
+          end)
+        else
+          # Single value for single field primary key
+          [{List.first(fields), primary_key_value}]
+        end
+    end
+  end
+
+  # Helper to determine authorization strategy for bulk operations
+  defp authorize_bulk_with(resource) do
+    if Ash.DataLayer.data_layer_can?(resource, :expr_error) do
+      :error
+    else
+      :filter
+    end
+  end
+
+  # Helper to apply select and load to a query
+  # Only applies them if they contain actual values (not empty lists)
+  # Empty lists can cause issues with embedded resource loading
+  defp apply_select_and_load(query, request) do
+    query =
+      if request.select && request.select != [] do
+        Ash.Query.select(query, request.select)
+      else
+        query
+      end
+
+    if request.load && request.load != [] do
+      Ash.Query.load(query, request.load)
+    else
+      query
     end
   end
 
