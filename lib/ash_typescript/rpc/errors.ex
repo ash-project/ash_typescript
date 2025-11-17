@@ -64,22 +64,38 @@ defmodule AshTypescript.Rpc.Errors do
   end
 
   defp process_single_error(error, domain, resource, _action, context) do
-    transformed_error =
-      if ErrorProtocol.impl_for(error) do
-        try do
-          ErrorProtocol.to_error(error)
-        rescue
-          e ->
-            Logger.warning("""
-            Failed to transform error via protocol: #{inspect(e)}
-            Original error: #{inspect(error)}
-            """)
+    # Check if we should show raised errors
+    show_raised_errors? = get_show_raised_errors?(domain)
 
-            fallback_error_response(error)
-        end
+    transformed_error =
+      if show_raised_errors? and is_exception(error) do
+        # When show_raised_errors? is true, always expose the actual exception message
+        %{
+          message: Exception.message(error),
+          short_message: error.__struct__ |> Module.split() |> List.last(),
+          code: Macro.underscore(error.__struct__ |> Module.split() |> List.last()),
+          vars: %{},
+          fields: [],
+          path: Map.get(error, :path, [])
+        }
       else
-        # No protocol implementation - use fallback
-        handle_unimplemented_error(error)
+        # Use protocol implementation or fallback
+        if ErrorProtocol.impl_for(error) do
+          try do
+            ErrorProtocol.to_error(error)
+          rescue
+            e ->
+              Logger.warning("""
+              Failed to transform error via protocol: #{inspect(e)}
+              Original error: #{inspect(error)}
+              """)
+
+              fallback_error_response(error, false)
+          end
+        else
+          # No protocol implementation - use fallback
+          handle_unimplemented_error(error, false)
+        end
       end
 
     # Apply resource-level error handler if configured
@@ -139,9 +155,16 @@ defmodule AshTypescript.Rpc.Errors do
     end
   end
 
-  defp handle_unimplemented_error(error) when is_exception(error) do
+  defp get_show_raised_errors?(nil), do: false
+
+  defp get_show_raised_errors?(domain) do
+    AshTypescript.Rpc.Info.typescript_rpc_show_raised_errors?(domain)
+  end
+
+  defp handle_unimplemented_error(error, _show_raised_errors?) when is_exception(error) do
     uuid = Ash.UUID.generate()
 
+    # Log the full error details for debugging (only visible server-side)
     Logger.warning("""
     Unhandled error in RPC (no protocol implementation).
     Error ID: #{uuid}
@@ -175,7 +198,7 @@ defmodule AshTypescript.Rpc.Errors do
     }
   end
 
-  defp handle_unimplemented_error(error) do
+  defp handle_unimplemented_error(error, _show_raised_errors?) do
     uuid = Ash.UUID.generate()
 
     Logger.warning("""
@@ -195,9 +218,9 @@ defmodule AshTypescript.Rpc.Errors do
     }
   end
 
-  defp fallback_error_response(error) when is_exception(error) do
+  defp fallback_error_response(error, _show_raised_errors?) when is_exception(error) do
     %{
-      message: Exception.message(error),
+      message: "something went wrong",
       short_message: "Error",
       code: "error",
       vars: %{},
@@ -206,9 +229,9 @@ defmodule AshTypescript.Rpc.Errors do
     }
   end
 
-  defp fallback_error_response(error) do
+  defp fallback_error_response(_error, _show_raised_errors?) do
     %{
-      message: inspect(error),
+      message: "something went wrong",
       short_message: "Error",
       code: "error",
       vars: %{},

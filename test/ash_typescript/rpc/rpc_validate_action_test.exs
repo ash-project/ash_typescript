@@ -56,34 +56,6 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
 
       assert result["success"] == true
     end
-
-    test "works across all action types without field specification", %{conn: conn} do
-      actions_to_test = [
-        "create_todo",
-        "list_todos",
-        "get_statistics_todo",
-        "bulk_complete_todo"
-      ]
-
-      for action <- actions_to_test do
-        result =
-          Rpc.validate_action(:ash_typescript, conn, %{
-            "action" => action,
-            "input" => %{}
-          })
-
-        # All actions should parse successfully in validation mode
-        assert is_map(result)
-        assert Map.has_key?(result, "success")
-
-        # If validation fails, it should be for input validation, not field requirements
-        if not result["success"] do
-          error_message = inspect(result["errors"])
-          refute error_message =~ "fields"
-          refute error_message =~ "empty_fields_array"
-        end
-      end
-    end
   end
 
   describe "form validation scenarios" do

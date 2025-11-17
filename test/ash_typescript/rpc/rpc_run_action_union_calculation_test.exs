@@ -100,10 +100,6 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionCalculationTest do
           ]
         })
 
-      if result["success"] != true do
-        IO.inspect(result, label: "Failed result", limit: :infinity)
-      end
-
       assert result["success"] == true
       data = result["data"]
 

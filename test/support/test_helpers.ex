@@ -17,7 +17,7 @@ defmodule AshTypescript.Test.TestHelpers do
   import Plug.Conn
   import ExUnit.Assertions
   alias AshTypescript.Rpc
-  alias AshTypescript.Test.{Domain, Todo, User, Content}
+  alias AshTypescript.Test.{Content, Domain, Todo, User}
 
   @doc """
   Creates a properly configured Plug.Conn for RPC testing.

@@ -52,7 +52,8 @@ defmodule AshTypescript.Rpc.Pipeline do
            conn_or_socket.assigns[:ash_context] || %{}}
       end
 
-    with {:ok, {resource, action, rpc_action}} <- discover_action(otp_app, normalized_params),
+    with {:ok, {domain, resource, action, rpc_action}} <-
+           discover_action(otp_app, normalized_params),
          :ok <-
            validate_required_parameters_for_action_type(
              normalized_params,
@@ -137,6 +138,7 @@ defmodule AshTypescript.Rpc.Pipeline do
 
       request =
         Request.new(%{
+          domain: domain,
           resource: resource,
           action: action,
           rpc_action: rpc_action,
@@ -282,9 +284,9 @@ defmodule AshTypescript.Rpc.Pipeline do
             nil ->
               {:error, {:typed_query_not_found, typed_query_name}}
 
-            {resource, typed_query} ->
+            {domain, resource, typed_query} ->
               action = Ash.Resource.Info.action(resource, typed_query.action)
-              {:ok, {resource, action, typed_query}}
+              {:ok, {domain, resource, action, typed_query}}
           end
         end
 
@@ -296,9 +298,9 @@ defmodule AshTypescript.Rpc.Pipeline do
             nil ->
               {:error, {:action_not_found, action_name}}
 
-            {resource, rpc_action} ->
+            {domain, resource, rpc_action} ->
               action = Ash.Resource.Info.action(resource, rpc_action.action)
-              {:ok, {resource, action, rpc_action}}
+              {:ok, {domain, resource, action, rpc_action}}
           end
         end
 
@@ -313,12 +315,15 @@ defmodule AshTypescript.Rpc.Pipeline do
 
     otp_app
     |> Ash.Info.domains()
-    |> Enum.flat_map(&AshTypescript.Rpc.Info.typescript_rpc/1)
-    |> Enum.find_value(fn %{resource: resource, typed_queries: typed_queries} ->
-      Enum.find_value(typed_queries, fn typed_query ->
-        if to_string(typed_query.name) == query_string do
-          {resource, typed_query}
-        end
+    |> Enum.find_value(fn domain ->
+      domain
+      |> AshTypescript.Rpc.Info.typescript_rpc()
+      |> Enum.find_value(fn %{resource: resource, typed_queries: typed_queries} ->
+        Enum.find_value(typed_queries, fn typed_query ->
+          if to_string(typed_query.name) == query_string do
+            {domain, resource, typed_query}
+          end
+        end)
       end)
     end)
   end
@@ -329,12 +334,15 @@ defmodule AshTypescript.Rpc.Pipeline do
 
     otp_app
     |> Ash.Info.domains()
-    |> Enum.flat_map(&AshTypescript.Rpc.Info.typescript_rpc/1)
-    |> Enum.find_value(fn %{resource: resource, rpc_actions: rpc_actions} ->
-      Enum.find_value(rpc_actions, fn rpc_action ->
-        if to_string(rpc_action.name) == action_string do
-          {resource, rpc_action}
-        end
+    |> Enum.find_value(fn domain ->
+      domain
+      |> AshTypescript.Rpc.Info.typescript_rpc()
+      |> Enum.find_value(fn %{resource: resource, rpc_actions: rpc_actions} ->
+        Enum.find_value(rpc_actions, fn rpc_action ->
+          if to_string(rpc_action.name) == action_string do
+            {domain, resource, rpc_action}
+          end
+        end)
       end)
     end)
   end

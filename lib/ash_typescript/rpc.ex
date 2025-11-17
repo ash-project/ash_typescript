@@ -171,7 +171,7 @@ defmodule AshTypescript.Rpc do
       AshTypescript.Rpc.VerifyRpcWarnings
     ]
 
-  alias AshTypescript.Rpc.{ErrorBuilder, Pipeline}
+  alias AshTypescript.Rpc.{ErrorBuilder, Errors, Pipeline}
 
   def codegen(args) do
     Mix.Task.reenable("ash_typescript.codegen")
@@ -399,23 +399,30 @@ defmodule AshTypescript.Rpc do
     case action.type do
       :read ->
         # For read actions, validate by building a query
-        validate_read_action(resource, action, input, opts)
+        validate_read_action(request, input, opts)
 
       action_type when action_type in [:update, :destroy] ->
         case Ash.get(resource, request.primary_key, opts) do
           {:ok, record} ->
-            perform_form_validation(record, action.name, input, opts)
+            perform_form_validation(record, action.name, input, opts, request)
 
           {:error, error} ->
-            %{success: false, errors: [ErrorBuilder.build_error_response(error)]}
+            errors =
+              Errors.to_errors(error, request.domain, resource, action.name, request.context)
+
+            %{success: false, errors: errors}
         end
 
       _ ->
-        perform_form_validation(resource, action.name, input, opts)
+        perform_form_validation(resource, action.name, input, opts, request)
     end
   end
 
-  defp validate_read_action(resource, action, input, opts) do
+  defp validate_read_action(
+         %{resource: resource, action: action, domain: domain, context: context},
+         input,
+         opts
+       ) do
     # For read actions, validate by building a query
     query =
       resource
@@ -427,15 +434,7 @@ defmodule AshTypescript.Rpc do
         %{success: true}
 
       %Ash.Query{errors: errors} when errors != [] ->
-        formatted_errors =
-          errors
-          |> Enum.map(fn error ->
-            %{
-              type: "validation_error",
-              message: Exception.message(error)
-            }
-          end)
-
+        formatted_errors = Errors.to_errors(errors, domain, resource, action.name, context)
         %{success: false, errors: formatted_errors}
 
       _ ->
@@ -443,42 +442,43 @@ defmodule AshTypescript.Rpc do
     end
   rescue
     e ->
-      %{
-        success: false,
-        errors: [
-          %{
-            type: "validation_error",
-            message: Exception.message(e)
-          }
-        ]
-      }
+      formatted_errors = Errors.to_errors(e, domain, resource, action.name, context)
+      %{success: false, errors: formatted_errors}
   end
 
-  defp perform_form_validation(record_or_resource, action_name, input, opts) do
-    form_errors =
+  defp perform_form_validation(record_or_resource, action_name, input, opts, %{
+         domain: domain,
+         resource: resource,
+         context: context
+       }) do
+    form =
       record_or_resource
       |> AshPhoenix.Form.for_action(action_name, opts)
       |> AshPhoenix.Form.validate(input)
-      |> AshPhoenix.Form.errors()
+
+    form_errors = AshPhoenix.Form.errors(form)
 
     if Enum.empty?(form_errors) do
       %{success: true}
     else
-      formatted_errors =
+      # Convert form errors to exceptions/error classes for proper handling
+      errors =
         form_errors
         |> Enum.map(fn {field, messages} ->
-          formatted_messages =
-            messages
-            |> List.wrap()
-            |> Enum.map(&to_string/1)
-
-          %{
-            type: "validation_error",
-            field: to_string(field),
-            errors: formatted_messages
-          }
+          messages
+          |> List.wrap()
+          |> Enum.map(fn message ->
+            # Create a validation error structure
+            %Ash.Error.Changes.InvalidAttribute{
+              field: field,
+              message: to_string(message),
+              path: [field]
+            }
+          end)
         end)
+        |> List.flatten()
 
+      formatted_errors = Errors.to_errors(errors, domain, resource, action_name, context)
       %{success: false, errors: formatted_errors}
     end
   end

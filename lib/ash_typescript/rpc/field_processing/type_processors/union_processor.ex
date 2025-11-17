@@ -139,20 +139,40 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.UnionProcessor do
 
         %{} = member_map ->
           # Union member(s) with field selection - process each member in the map
-          process_member_map(member_map, union_types, path, process_fields_fn, context, load_acc, template_acc)
+          process_member_map(
+            member_map,
+            union_types,
+            path,
+            process_fields_fn,
+            context,
+            load_acc,
+            template_acc
+          )
 
         _ ->
           # Invalid field item type
           field_path = build_error_path(path, context)
-          error_type = if context == :attribute, do: :invalid_union_field_format, else: :invalid_field_format
+
+          error_type =
+            if context == :attribute, do: :invalid_union_field_format, else: :invalid_field_format
+
           throw({error_type, field_item, field_path})
       end
     end)
   end
 
   # Process a map of union members with field selection
-  defp process_member_map(member_map, union_types, path, process_fields_fn, context, load_acc, template_acc) do
-    Enum.reduce(member_map, {load_acc, template_acc}, fn {member, member_fields}, {l_acc, t_acc} ->
+  defp process_member_map(
+         member_map,
+         union_types,
+         path,
+         process_fields_fn,
+         context,
+         load_acc,
+         template_acc
+       ) do
+    Enum.reduce(member_map, {load_acc, template_acc}, fn {member, member_fields},
+                                                         {l_acc, t_acc} ->
       if Keyword.has_key?(union_types, member) do
         member_config = Keyword.get(union_types, member)
         member_return_type = union_member_to_return_type(member_config)

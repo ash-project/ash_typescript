@@ -108,6 +108,7 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :read_tasks_with_mapped_metadata, :read_with_invalid_metadata_names,
         show_metadata: [:meta_1, :is_valid?, :field_2],
         metadata_field_names: [meta_1: :meta1, is_valid?: :is_valid, field_2: :field2]
+
       rpc_action :read_tasks_with_metadata_all, :read_with_metadata, show_metadata: nil
       rpc_action :read_tasks_with_metadata_false, :read_with_metadata, show_metadata: false
       rpc_action :read_tasks_with_metadata_empty, :read_with_metadata, show_metadata: []

@@ -11,6 +11,7 @@ defmodule AshTypescript.Rpc.Request do
   """
 
   @type t :: %__MODULE__{
+          domain: module(),
           resource: module(),
           action: map(),
           rpc_action: map(),
@@ -29,6 +30,7 @@ defmodule AshTypescript.Rpc.Request do
         }
 
   defstruct [
+    :domain,
     :resource,
     :action,
     :rpc_action,
