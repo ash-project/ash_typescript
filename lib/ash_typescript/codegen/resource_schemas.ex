@@ -279,26 +279,24 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     union_types
     |> Enum.filter(fn {_name, config} ->
       type = Keyword.get(config, :type)
+      constraints = Keyword.get(config, :constraints, [])
+      has_fields = Keyword.has_key?(constraints, :fields)
 
       case type do
-        Ash.Type.Map ->
-          false
+        # Non-primitive types with fields
+        Ash.Type.Map when has_fields -> false
+        Ash.Type.Keyword when has_fields -> false
+        Ash.Type.Struct when has_fields -> false
+        Ash.Type.Tuple when has_fields -> false
+        Ash.Type.Union -> false
 
-        Ash.Type.Keyword ->
-          false
-
-        Ash.Type.Struct ->
-          false
-
-        Ash.Type.Union ->
-          false
-
+        # Embedded resources and types with field constraints are non-primitive
         atom_type when is_atom(atom_type) ->
-          not Introspection.is_embedded_resource?(atom_type) and
-            not Introspection.is_typed_struct?(atom_type)
+          not Introspection.is_embedded_resource?(atom_type) and not has_fields
 
+        # Everything else could be primitive
         _ ->
-          false
+          true
       end
     end)
     |> Enum.map(fn {name, _config} -> name end)
@@ -582,11 +580,10 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   defp is_embedded_attribute?(_), do: false
 
-  defp is_typed_struct_attribute?(%{type: type}) when is_atom(type),
-    do: Introspection.is_typed_struct?(type)
-
-  defp is_typed_struct_attribute?(%{type: {:array, type}}) when is_atom(type),
-    do: Introspection.is_typed_struct?(type)
+  # Check if attribute has field constraints with instance_of (TypedStruct or similar)
+  defp is_typed_struct_attribute?(%{constraints: constraints}) do
+    Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of)
+  end
 
   defp is_typed_struct_attribute?(_), do: false
 
@@ -743,7 +740,8 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
             resource_name = Helpers.build_resource_type_name(type)
             "#{formatted_name}?: #{resource_name}ResourceSchema"
 
-          Introspection.is_typed_struct?(type) ->
+          # Type with field constraints and instance_of (TypedStruct or similar)
+          Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of) ->
             "#{formatted_name}?: any"
 
           true ->

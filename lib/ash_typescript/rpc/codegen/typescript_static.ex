@@ -179,7 +179,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
 
     // Resource schema constraint
     type TypedSchema = {
-      __type: "Resource" | "TypedStruct" | "TypedMap" | "Union";
+      __type: "Resource" | "TypedMap" | "Union";
       __primitiveFields: string;
     };
 

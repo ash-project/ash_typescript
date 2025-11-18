@@ -157,15 +157,23 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldClassifier do
 
     cond do
       attribute = Ash.Resource.Info.public_attribute(resource, field_name) ->
-        case attribute.type do
-          type_module when is_atom(type_module) ->
-            Introspection.classify_ash_type(type_module, attribute, false)
+        # First check if this attribute has field constraints (struct/map/keyword with fields)
+        # If so, it requires field selection
+        constraints = attribute.constraints || []
 
-          {:array, inner_type} when is_atom(inner_type) ->
-            Introspection.classify_ash_type(inner_type, attribute, true)
+        if has_field_constraints?(attribute.type, constraints) do
+          :field_constrained_type
+        else
+          case attribute.type do
+            type_module when is_atom(type_module) ->
+              Introspection.classify_ash_type(type_module, attribute, false)
 
-          _ ->
-            :attribute
+            {:array, inner_type} when is_atom(inner_type) ->
+              Introspection.classify_ash_type(inner_type, attribute, true)
+
+            _ ->
+              :attribute
+          end
         end
 
       Ash.Resource.Info.public_relationship(resource, field_name) ->
@@ -179,34 +187,38 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldClassifier do
             {:resource, _} ->
               :calculation_complex
 
-            {:ash_type, Ash.Type.Struct, _} ->
-              :calculation_complex
+            {:ash_type, Ash.Type.Struct, constraints} ->
+              # Struct with fields requires field selection
+              if Keyword.has_key?(constraints, :fields) do
+                :calculation_complex
+              else
+                :calculation_complex
+              end
 
             {:ash_type, {:array, inner_type}, _} when inner_type == Ash.Type.Struct ->
               :calculation_complex
 
             {:ash_type, type, constraints} when is_atom(type) ->
-              # Check if this is a NewType that wraps a union
+              # Check if this is a NewType
               if Ash.Type.NewType.new_type?(type) do
                 subtype = Ash.Type.NewType.subtype_of(type)
 
-                if subtype == Ash.Type.Union do
-                  :calculation_complex
-                else
-                  # Check if the wrapped type is TypedStruct
-                  fake_attribute = %{type: subtype, constraints: constraints}
-
-                  if Introspection.is_typed_struct_from_attribute?(fake_attribute) do
+                cond do
+                  # NewType wrapping a union requires field selection
+                  subtype == Ash.Type.Union ->
                     :calculation_complex
-                  else
+
+                  # NewType wrapping struct with fields requires field selection
+                  subtype == Ash.Type.Struct and Keyword.has_key?(constraints, :fields) ->
+                    :calculation_complex
+
+                  # Other NewTypes - simple calculation
+                  true ->
                     :calculation
-                  end
                 end
               else
-                # Check if this is a TypedStruct module by creating a fake attribute
-                fake_attribute = %{type: type, constraints: constraints}
-
-                if Introspection.is_typed_struct_from_attribute?(fake_attribute) do
+                # Not a NewType - check if it has field constraints
+                if Keyword.has_key?(constraints, :fields) do
                   :calculation_complex
                 else
                   :calculation
@@ -246,4 +258,42 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldClassifier do
   Delegates to TypeSystem.Introspection.
   """
   def is_primitive_type?(type), do: Introspection.is_primitive_type?(type)
+
+  # Private helper to check if a type has field constraints
+  # This is used to identify types that need field selection (Keyword, TypedStruct, etc.)
+  defp has_field_constraints?(type, constraints) do
+    cond do
+      # Skip Tuple - it has its own classification
+      type == Ash.Type.Tuple ->
+        false
+
+      # Keyword with fields should be classified as field_constrained_type
+      type == Ash.Type.Keyword and Keyword.has_key?(constraints, :fields) ->
+        true
+
+      # Struct with fields and instance_of (TypedStruct pattern)
+      Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of) ->
+        true
+
+      # Check if it's a NewType wrapping a struct with fields
+      is_atom(type) and Ash.Type.NewType.new_type?(type) ->
+        subtype = Ash.Type.NewType.subtype_of(type)
+
+        cond do
+          # NewType wrapping Struct with fields
+          subtype == Ash.Type.Struct and Keyword.has_key?(constraints, :fields) ->
+            true
+
+          # NewType wrapping Keyword with fields
+          subtype == Ash.Type.Keyword and Keyword.has_key?(constraints, :fields) ->
+            true
+
+          true ->
+            false
+        end
+
+      true ->
+        false
+    end
+  end
 end

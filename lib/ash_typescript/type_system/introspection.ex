@@ -15,50 +15,6 @@ defmodule AshTypescript.TypeSystem.Introspection do
   """
 
   @doc """
-  Checks if a module is a TypedStruct using Spark DSL detection.
-
-  ## Examples
-
-      iex> AshTypescript.TypeSystem.Introspection.is_typed_struct?(MyApp.CustomType)
-      true
-
-      iex> AshTypescript.TypeSystem.Introspection.is_typed_struct?(Ash.Type.String)
-      false
-  """
-  def is_typed_struct?(module) when is_atom(module) do
-    Code.ensure_loaded?(module) and
-      function_exported?(module, :spark_is, 0) and
-      is_ash_typed_struct?(module)
-  end
-
-  def is_typed_struct?(_), do: false
-
-  defp is_ash_typed_struct?(module) do
-    module.spark_is() == Ash.TypedStruct
-  rescue
-    _ -> false
-  end
-
-  @doc """
-  Gets the field information from a TypedStruct module using Ash's DSL pattern.
-  Returns a list of field definitions.
-
-  ## Examples
-
-      iex> AshTypescript.TypeSystem.Introspection.get_typed_struct_fields(MyApp.CustomType)
-      [%{name: :field1, type: :string}, ...]
-  """
-  def get_typed_struct_fields(module) do
-    if is_typed_struct?(module) do
-      Spark.Dsl.Extension.get_entities(module, [:typed_struct])
-    else
-      []
-    end
-  rescue
-    _ -> []
-  end
-
-  @doc """
   Checks if a module is an embedded Ash resource.
 
   ## Examples
@@ -113,7 +69,6 @@ defmodule AshTypescript.TypeSystem.Introspection do
   - `:embedded_resource` - Single embedded resource
   - `:embedded_resource_array` - Array of embedded resources
   - `:tuple` - Tuple type
-  - `:typed_struct` - TypedStruct with field constraints
   - `:attribute` - Simple attribute (default)
 
   ## Parameters
@@ -127,7 +82,7 @@ defmodule AshTypescript.TypeSystem.Introspection do
       iex> AshTypescript.TypeSystem.Introspection.classify_ash_type(MyApp.Address, attr, false)
       :embedded_resource
   """
-  def classify_ash_type(type_module, attribute, is_array) do
+  def classify_ash_type(type_module, _attribute, is_array) do
     cond do
       type_module == Ash.Type.Union ->
         :union_attribute
@@ -138,36 +93,8 @@ defmodule AshTypescript.TypeSystem.Introspection do
       type_module == Ash.Type.Tuple ->
         :tuple
 
-      is_typed_struct_from_attribute?(attribute) ->
-        :typed_struct
-
-      # Handle keyword and tuple types with field constraints
-      type_module in [Ash.Type.Keyword, Ash.Type.Tuple] ->
-        :typed_struct
-
       true ->
         :attribute
-    end
-  end
-
-  @doc """
-  Checks if an attribute represents a typed struct (has fields and instance_of constraints).
-
-  ## Examples
-
-      iex> attr = %{constraints: [fields: [...], instance_of: MyApp.CustomType]}
-      iex> AshTypescript.TypeSystem.Introspection.is_typed_struct_from_attribute?(attr)
-      true
-  """
-  def is_typed_struct_from_attribute?(attribute) do
-    constraints = attribute.constraints || []
-
-    with true <- Keyword.has_key?(constraints, :fields),
-         true <- Keyword.has_key?(constraints, :instance_of),
-         instance_of when is_atom(instance_of) <- Keyword.get(constraints, :instance_of) do
-      true
-    else
-      _ -> false
     end
   end
 

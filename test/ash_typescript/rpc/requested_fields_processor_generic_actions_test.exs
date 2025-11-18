@@ -221,7 +221,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           ]
         )
 
-      assert error == {:unknown_field, :invalid_field, "typed_struct", "invalidField"}
+      assert error == {:unknown_field, :invalid_field, "field_constrained_type", "invalidField"}
     end
 
     test "requires field selection for typed struct return types" do
@@ -232,7 +232,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           []
         )
 
-      assert error == {:requires_field_selection, :typed_struct, nil}
+      assert error == {:requires_field_selection, :field_constrained_type, nil}
     end
   end
 
@@ -288,7 +288,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           ]
         )
 
-      assert error == {:unknown_field, :invalid_field, "typed_struct", "invalidField"}
+      assert error == {:unknown_field, :invalid_field, "field_constrained_type", "invalidField"}
     end
 
     test "requires field selection for array of typed struct return types" do
@@ -299,7 +299,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           []
         )
 
-      assert error == {:requires_field_selection, :typed_struct, nil}
+      assert error == {:requires_field_selection, :field_constrained_type, nil}
     end
   end
 end

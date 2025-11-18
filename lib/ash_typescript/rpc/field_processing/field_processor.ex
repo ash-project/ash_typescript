@@ -10,8 +10,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
   and delegates to specialized type processors for complex types like unions and calculations.
   """
 
-  alias AshTypescript.TypeSystem.Introspection
-
   alias AshTypescript.Rpc.FieldProcessing.{
     FieldClassifier,
     Utilities,
@@ -21,7 +19,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
   alias AshTypescript.Rpc.FieldProcessing.TypeProcessors.{
     CalculationProcessor,
     TupleProcessor,
-    TypedStructProcessor,
     UnionProcessor
   }
 
@@ -95,11 +92,21 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
         process_fields_for_type(inner_return_type, requested_fields, path)
 
       {:ash_type, Ash.Type.Struct, constraints} ->
-        case Keyword.get(constraints, :instance_of) do
-          resource_module when is_atom(resource_module) ->
-            process_resource_fields(resource_module, requested_fields, path)
+        # Check if this has field constraints (struct with fields like TypedStruct)
+        fields = Keyword.get(constraints, :fields)
+        instance_of = Keyword.get(constraints, :instance_of)
 
-          _ ->
+        cond do
+          # Struct with both instance_of and fields - process like Map with fields
+          fields != nil and instance_of != nil ->
+            process_field_constrained_type(constraints, requested_fields, path)
+
+          # Struct with instance_of only - might be a resource
+          instance_of != nil and Ash.Resource.Info.resource?(instance_of) ->
+            process_resource_fields(instance_of, requested_fields, path)
+
+          # Generic struct or no constraints
+          true ->
             process_generic_fields(requested_fields, path)
         end
 
@@ -107,87 +114,38 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
         process_generic_fields(requested_fields, path)
 
       {:ash_type, type, constraints} when is_atom(type) ->
-        # Check if this is a NewType that wraps a union
+        # Check if this is a NewType
         if Ash.Type.NewType.new_type?(type) do
           subtype = Ash.Type.NewType.subtype_of(type)
 
-          if subtype == Ash.Type.Union do
-            # This is a NewType wrapping a union - process as union
-            union_types = Keyword.get(constraints, :types, [])
+          cond do
+            # NewType wrapping a union
+            subtype == Ash.Type.Union ->
+              union_types = Keyword.get(constraints, :types, [])
 
-            UnionProcessor.process_union_fields(
-              union_types,
-              requested_fields,
-              path,
-              &process_fields_for_type/3
-            )
-          else
-            # NewType wrapping something else - check if it's a TypedStruct
-            fake_attribute = %{type: subtype, constraints: constraints}
-
-            if Introspection.is_typed_struct_from_attribute?(fake_attribute) do
-              if requested_fields == [] do
-                throw({:requires_field_selection, :typed_struct, nil})
-              end
-
-              field_specs = Keyword.get(constraints, :fields, [])
-              instance_of = Keyword.get(constraints, :instance_of)
-
-              field_name_mappings =
-                if instance_of && function_exported?(instance_of, :typescript_field_names, 0) do
-                  instance_of.typescript_field_names()
-                else
-                  []
-                end
-
-              {_field_names, template_items} =
-                TypedStructProcessor.process_typed_struct_fields(
-                  requested_fields,
-                  field_specs,
-                  path,
-                  field_name_mappings,
-                  &process_fields_for_type/3
-                )
-
-              {[], [], template_items}
-            else
-              if requested_fields != [] do
-                throw({:invalid_field_selection, :primitive_type, return_type})
-              end
-
-              {[], [], []}
-            end
-          end
-        else
-          # Not a NewType - check if it's a TypedStruct
-          fake_attribute = %{type: type, constraints: constraints}
-
-          if Introspection.is_typed_struct_from_attribute?(fake_attribute) do
-            if requested_fields == [] do
-              throw({:requires_field_selection, :typed_struct, nil})
-            end
-
-            field_specs = Keyword.get(constraints, :fields, [])
-            instance_of = Keyword.get(constraints, :instance_of)
-
-            field_name_mappings =
-              if instance_of && function_exported?(instance_of, :typescript_field_names, 0) do
-                instance_of.typescript_field_names()
-              else
-                []
-              end
-
-            {_field_names, template_items} =
-              TypedStructProcessor.process_typed_struct_fields(
+              UnionProcessor.process_union_fields(
+                union_types,
                 requested_fields,
-                field_specs,
                 path,
-                field_name_mappings,
                 &process_fields_for_type/3
               )
 
-            {[], [], template_items}
+            # NewType wrapping a struct with fields (like TypedStruct)
+            subtype == Ash.Type.Struct and Keyword.has_key?(constraints, :fields) ->
+              process_field_constrained_type(constraints, requested_fields, path)
+
+            # NewType wrapping something else - delegate to subtype processing
+            true ->
+              inner_return_type = {:ash_type, subtype, constraints}
+              process_fields_for_type(inner_return_type, requested_fields, path)
+          end
+        else
+          # Not a NewType - check if it has field constraints
+          if Keyword.has_key?(constraints, :fields) do
+            # Type with field constraints - process like Map
+            process_map_fields(constraints, requested_fields, path)
           else
+            # Primitive type or no special handling
             if requested_fields != [] do
               throw({:invalid_field_selection, :primitive_type, return_type})
             end
@@ -243,47 +201,26 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
       :attribute ->
         {select ++ [field_name], load, template ++ [field_name]}
 
-      :calculation ->
+      field_type when field_type in [:calculation, :aggregate] ->
         {select, load ++ [field_name], template ++ [field_name]}
-
-      :tuple ->
-        field_path = Utilities.build_field_path(path, field_name)
-        throw({:requires_field_selection, :tuple, field_path})
 
       :calculation_with_args ->
         field_path = Utilities.build_field_path(path, field_name)
         throw({:calculation_requires_args, field_name, field_path})
 
-      :calculation_complex ->
+      field_type
+      when field_type in [
+             :tuple,
+             :calculation_complex,
+             :complex_aggregate,
+             :relationship,
+             :embedded_resource,
+             :embedded_resource_array,
+             :field_constrained_type,
+             :union_attribute
+           ] ->
         field_path = Utilities.build_field_path(path, field_name)
-        throw({:requires_field_selection, :calculation_complex, field_path})
-
-      :aggregate ->
-        {select, load ++ [field_name], template ++ [field_name]}
-
-      :complex_aggregate ->
-        field_path = Utilities.build_field_path(path, field_name)
-        throw({:requires_field_selection, :complex_aggregate, field_path})
-
-      :relationship ->
-        field_path = Utilities.build_field_path(path, field_name)
-        throw({:requires_field_selection, :relationship, field_path})
-
-      :embedded_resource ->
-        field_path = Utilities.build_field_path(path, field_name)
-        throw({:requires_field_selection, :embedded_resource, field_path})
-
-      :embedded_resource_array ->
-        field_path = Utilities.build_field_path(path, field_name)
-        throw({:requires_field_selection, :embedded_resource_array, field_path})
-
-      :typed_struct ->
-        field_path = Utilities.build_field_path(path, field_name)
-        throw({:requires_field_selection, :typed_struct, field_path})
-
-      :union_attribute ->
-        field_path = Utilities.build_field_path(path, field_name)
-        throw({:requires_field_selection, :union_attribute, field_path})
+        throw({:requires_field_selection, field_type, field_path})
 
       {:error, :not_found} ->
         field_path = Utilities.build_field_path(path, field_name)
@@ -353,16 +290,15 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
           &process_fields_for_type/3
         )
 
-      :typed_struct ->
-        TypedStructProcessor.process_typed_struct(
+      :field_constrained_type ->
+        process_field_constrained_attribute(
           resource,
           field_name,
           nested_fields,
           path,
           select,
           load,
-          template,
-          &process_fields_for_type/3
+          template
         )
 
       :union_attribute ->
@@ -416,17 +352,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
               &process_fields_for_type/3
             )
 
-          :typed_struct ->
-            TypedStructProcessor.process_typed_struct(
-              resource,
-              field_name,
-              nested_fields,
-              path,
-              s,
-              l,
-              t,
-              &process_fields_for_type/3
-            )
+          :field_constrained_type ->
+            process_field_constrained_attribute(resource, field_name, nested_fields, path, s, l, t)
 
           :union_attribute ->
             process_union_with_member_map(resource, field_name, nested_fields, path, s, l, t)
@@ -518,6 +445,109 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
       template,
       &process_fields_for_type/3
     )
+  end
+
+  # Processes a field-constrained attribute from a resource
+  defp process_field_constrained_attribute(
+         resource,
+         field_name,
+         nested_fields,
+         path,
+         select,
+         load,
+         template
+       ) do
+    Validator.validate_non_empty_fields(nested_fields, field_name, path, "field_constrained_type")
+
+    attribute = Ash.Resource.Info.attribute(resource, field_name)
+    constraints = attribute.constraints || []
+
+    new_path = path ++ [field_name]
+
+    {_nested_select, _nested_load, nested_template} =
+      process_field_constrained_type(constraints, nested_fields, new_path)
+
+    new_select = select ++ [field_name]
+
+    {new_select, load, template ++ [{field_name, nested_template}]}
+  end
+
+  @doc """
+  Processes types with field constraints (like TypedStruct, Keyword with fields).
+
+  Similar to process_map_fields but also supports field name mapping via
+  the instance_of module's typescript_field_names/0 callback.
+  """
+  def process_field_constrained_type(constraints, requested_fields, path) do
+    if requested_fields == [] do
+      throw({:requires_field_selection, :field_constrained_type, nil})
+    end
+
+    field_specs = Keyword.get(constraints, :fields, [])
+    instance_of = Keyword.get(constraints, :instance_of)
+
+    # Get field name mappings if available
+    field_name_mappings =
+      if instance_of && function_exported?(instance_of, :typescript_field_names, 0) do
+        instance_of.typescript_field_names()
+      else
+        []
+      end
+
+    # Build reverse mapping for client -> server name conversion
+    reverse_mappings =
+      Enum.into(field_name_mappings, %{}, fn {elixir_name, ts_name} ->
+        {ts_name, elixir_name}
+      end)
+
+    Validator.check_for_duplicate_fields(requested_fields, path)
+
+    error_type = "field_constrained_type"
+
+    Enum.reduce(requested_fields, {[], [], []}, fn field, {select, load, template} ->
+      case field do
+        field_name when is_atom(field_name) or is_binary(field_name) ->
+          # Convert string to atom if needed
+          field_atom =
+            if is_binary(field_name) do
+              String.to_existing_atom(field_name)
+            else
+              field_name
+            end
+
+          # Map TS name back to Elixir name if needed
+          elixir_field_name = Map.get(reverse_mappings, field_atom, field_atom)
+
+          if Keyword.has_key?(field_specs, elixir_field_name) do
+            {select, load, template ++ [elixir_field_name]}
+          else
+            field_path = Utilities.build_field_path(path, field_atom)
+            throw({:unknown_field, field_atom, error_type, field_path})
+          end
+
+        %{} = field_map ->
+          Enum.reduce(field_map, {select, load, template}, fn {field_name, nested_fields},
+                                                              {s, l, t} ->
+            elixir_field_name = Map.get(reverse_mappings, field_name, field_name)
+
+            if Keyword.has_key?(field_specs, elixir_field_name) do
+              field_spec = Keyword.get(field_specs, elixir_field_name)
+              field_type = Keyword.get(field_spec, :type)
+              field_constraints = Keyword.get(field_spec, :constraints, [])
+              field_return_type = {:ash_type, field_type, field_constraints}
+              new_path = path ++ [elixir_field_name]
+
+              {_nested_select, _nested_load, nested_template} =
+                process_fields_for_type(field_return_type, nested_fields, new_path)
+
+              {s, l, t ++ [{elixir_field_name, nested_template}]}
+            else
+              field_path = Utilities.build_field_path(path, field_name)
+              throw({:unknown_field, field_name, error_type, field_path})
+            end
+          end)
+      end
+    end)
   end
 
   @doc """

@@ -118,10 +118,17 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     else
       is_tuple = is_tuple(data)
 
-      typed_struct_module =
+      # Check if this is a struct with field name mappings (e.g., TypedStruct or any struct with typescript_field_names/0)
+      struct_with_mappings =
         if is_map(data) and not is_tuple(data) and Map.has_key?(data, :__struct__) do
           module = data.__struct__
-          if Introspection.is_typed_struct?(module), do: module, else: nil
+
+          # Use this module for field mapping if it exports typescript_field_names/0
+          if Code.ensure_loaded?(module) and function_exported?(module, :typescript_field_names, 0) do
+            module
+          else
+            nil
+          end
         else
           nil
         end
@@ -138,7 +145,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
             normalize_data(data)
         end
 
-      effective_resource = resource || typed_struct_module
+      effective_resource = resource || struct_with_mappings
 
       if is_tuple do
         normalized_data

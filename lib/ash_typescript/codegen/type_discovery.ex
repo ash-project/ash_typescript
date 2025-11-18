@@ -136,9 +136,10 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
   end
 
   @doc """
-  Discovers all TypedStruct modules referenced by the given resources.
+  Discovers all types with field constraints referenced by the given resources.
 
-  Scans public attributes of resources to find TypedStruct module references
+  Scans public attributes of resources to find types with field constraints
+  (Map with fields, Keyword with fields, Tuple with fields, Struct with fields, TypedStruct)
   in direct types, arrays, and union types.
 
   ## Parameters
@@ -147,18 +148,33 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
 
   ## Returns
 
-  A list of unique TypedStruct modules.
+  A list of unique type info maps containing:
+    * `:instance_of` - The module (if available)
+    * `:constraints` - The type constraints
+    * `:field_name_mappings` - Field name mappings (if available)
 
   ## Examples
 
       iex> resources = TypeDiscovery.scan_rpc_resources(:my_app)
-      iex> TypeDiscovery.find_typed_struct_modules(resources)
-      [MyApp.CustomStruct, MyApp.MetadataStruct]
+      iex> TypeDiscovery.find_field_constrained_types(resources)
+      [%{instance_of: MyApp.TaskStats, constraints: [...], field_name_mappings: [...]}]
+  """
+  def find_field_constrained_types(resources) do
+    resources
+    |> Enum.flat_map(&extract_field_constrained_types_from_resource/1)
+    |> Enum.uniq_by(fn type_info -> type_info.instance_of end)
+  end
+
+  @doc """
+  Deprecated: Use find_field_constrained_types/1 instead.
+
+  This function is kept for backward compatibility.
   """
   def find_typed_struct_modules(resources) do
     resources
-    |> Enum.flat_map(&extract_typed_structs_from_resource/1)
-    |> Enum.uniq()
+    |> find_field_constrained_types()
+    |> Enum.map(fn type_info -> type_info.instance_of end)
+    |> Enum.filter(& &1)
   end
 
   @doc """
@@ -520,27 +536,31 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
     |> Enum.into(%{})
   end
 
-  defp extract_typed_structs_from_resource(resource) do
+  defp extract_field_constrained_types_from_resource(resource) do
     resource
     |> Ash.Resource.Info.public_attributes()
-    |> Enum.filter(&is_typed_struct_attribute?/1)
-    |> Enum.flat_map(&extract_typed_struct_modules/1)
-    |> Enum.filter(& &1)
+    |> Enum.filter(&has_field_constraints?/1)
+    |> Enum.flat_map(&extract_field_constrained_type_info/1)
+    |> Enum.filter(fn type_info -> type_info.instance_of != nil end)
   end
 
-  defp is_typed_struct_attribute?(%Ash.Resource.Attribute{
+  defp has_field_constraints?(%Ash.Resource.Attribute{
          type: type,
          constraints: constraints
        }) do
     case type do
+      # Union - check if any member has field constraints
       Ash.Type.Union ->
         union_types = Introspection.get_union_types_from_constraints(type, constraints)
 
         Enum.any?(union_types, fn {_type_name, type_config} ->
-          type = Keyword.get(type_config, :type)
-          type && Introspection.is_typed_struct?(type)
+          member_constraints = Keyword.get(type_config, :constraints, [])
+
+          Keyword.has_key?(member_constraints, :fields) and
+            Keyword.has_key?(member_constraints, :instance_of)
         end)
 
+      # Array of union - check union members
       {:array, Ash.Type.Union} ->
         items_constraints = Keyword.get(constraints, :items, [])
 
@@ -548,33 +568,41 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
           Introspection.get_union_types_from_constraints(Ash.Type.Union, items_constraints)
 
         Enum.any?(union_types, fn {_type_name, type_config} ->
-          type = Keyword.get(type_config, :type)
-          type && Introspection.is_typed_struct?(type)
+          member_constraints = Keyword.get(type_config, :constraints, [])
+
+          Keyword.has_key?(member_constraints, :fields) and
+            Keyword.has_key?(member_constraints, :instance_of)
         end)
 
-      module when is_atom(module) ->
-        Introspection.is_typed_struct?(module)
-
-      {:array, module} when is_atom(module) ->
-        Introspection.is_typed_struct?(module)
-
+      # Direct type or array of type - check for fields + instance_of
       _ ->
-        false
+        Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of)
     end
   end
 
-  defp is_typed_struct_attribute?(_), do: false
+  defp has_field_constraints?(_), do: false
 
-  defp extract_typed_struct_modules(%Ash.Resource.Attribute{type: type, constraints: constraints}) do
+  defp extract_field_constrained_type_info(%Ash.Resource.Attribute{
+         type: type,
+         constraints: constraints
+       }) do
     case type do
+      # Union - extract info from members with field constraints
       Ash.Type.Union ->
         union_types = Introspection.get_union_types_from_constraints(type, constraints)
 
         Enum.flat_map(union_types, fn {_type_name, type_config} ->
-          type = Keyword.get(type_config, :type)
-          if type && Introspection.is_typed_struct?(type), do: [type], else: []
+          member_constraints = Keyword.get(type_config, :constraints, [])
+
+          if Keyword.has_key?(member_constraints, :fields) and
+               Keyword.has_key?(member_constraints, :instance_of) do
+            [build_type_info(member_constraints)]
+          else
+            []
+          end
         end)
 
+      # Array of union - extract from union members
       {:array, Ash.Type.Union} ->
         items_constraints = Keyword.get(constraints, :items, [])
 
@@ -582,19 +610,41 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
           Introspection.get_union_types_from_constraints(Ash.Type.Union, items_constraints)
 
         Enum.flat_map(union_types, fn {_type_name, type_config} ->
-          type = Keyword.get(type_config, :type)
-          if type && Introspection.is_typed_struct?(type), do: [type], else: []
+          member_constraints = Keyword.get(type_config, :constraints, [])
+
+          if Keyword.has_key?(member_constraints, :fields) and
+               Keyword.has_key?(member_constraints, :instance_of) do
+            [build_type_info(member_constraints)]
+          else
+            []
+          end
         end)
 
-      module when is_atom(module) ->
-        if Introspection.is_typed_struct?(module), do: [module], else: []
-
-      {:array, module} when is_atom(module) ->
-        if Introspection.is_typed_struct?(module), do: [module], else: []
-
+      # Direct type with field constraints
       _ ->
-        []
+        if Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of) do
+          [build_type_info(constraints)]
+        else
+          []
+        end
     end
+  end
+
+  defp build_type_info(constraints) do
+    instance_of = Keyword.get(constraints, :instance_of)
+
+    field_name_mappings =
+      if instance_of && function_exported?(instance_of, :typescript_field_names, 0) do
+        instance_of.typescript_field_names()
+      else
+        nil
+      end
+
+    %{
+      instance_of: instance_of,
+      constraints: constraints,
+      field_name_mappings: field_name_mappings
+    }
   end
 
   # Helper to follow a relationship path and get the final related resource

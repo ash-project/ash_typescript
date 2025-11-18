@@ -174,7 +174,7 @@ defmodule AshTypescript.Rpc.Codegen do
     typed_queries = RpcConfigCollector.get_typed_queries(otp_app)
 
     embedded_resources = find_embedded_resources(otp_app)
-    typed_struct_modules = find_typed_struct_modules(rpc_resources)
+    field_constrained_types = find_field_constrained_types(rpc_resources)
     all_resources_for_schemas = rpc_resources ++ embedded_resources
 
     """
@@ -193,7 +193,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     #{ValidationErrorSchemas.generate_validation_error_schemas_for_embedded_resources(embedded_resources)}
 
-    #{ValidationErrorSchemas.generate_validation_error_schemas_for_typed_structs(typed_struct_modules)}
+    #{ValidationErrorSchemas.generate_validation_error_schemas_for_typed_structs(field_constrained_types)}
 
     #{generate_filter_types(all_resources_for_schemas, all_resources_for_schemas)}
 

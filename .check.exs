@@ -21,10 +21,10 @@
     {:credo, "mix credo --strict"},
     {:sobelow, "mix sobelow --config"},
     {:test_codegen, "mix test.codegen"},
-    {:compile_generated, "mix cmd --cd test/ts npm run compileGenerated"},
-    {:compile_should_pass, "mix cmd --cd test/ts npm run compileShouldPass"},
-    {:compile_should_fail, "mix cmd --cd test/ts npm run compileShouldFail"},
-    {:test_zod, "mix cmd --cd test/ts npm run testZod"},
+    {:compile_generated, "mix cmd --cd test/ts npm run compileGenerated", deps: [:test_codegen]},
+    {:compile_should_pass, "mix cmd --cd test/ts npm run compileShouldPass", deps: [:test_codegen]},
+    {:compile_should_fail, "mix cmd --cd test/ts npm run compileShouldFail", deps: [:test_codegen]},
+    {:test_zod, "mix cmd --cd test/ts npm run testZod", deps: [:test_codegen]},
 
     ## custom new tools may be added (mix tasks or arbitrary commands)
     # {:my_mix_task, command: "mix release", env: %{"MIX_ENV" => "prod"}},

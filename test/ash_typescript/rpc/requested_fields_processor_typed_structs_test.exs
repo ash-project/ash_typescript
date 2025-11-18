@@ -154,7 +154,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
         ])
 
       assert error ==
-               {:unknown_field, :invalid_field, "typed_struct", "timestampInfo.invalidField"}
+               {:unknown_field, :invalid_field, "field_constrained_type", "timestampInfo.invalidField"}
     end
 
     test "returns error for invalid nested typed struct field" do
@@ -163,7 +163,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           %{statistics: [:view_count, :invalid_field]}
         ])
 
-      assert error == {:unknown_field, :invalid_field, "typed_struct", "statistics.invalidField"}
+      assert error == {:unknown_field, :invalid_field, "field_constrained_type", "statistics.invalidField"}
     end
 
     test "returns error for duplicate typed struct fields" do
@@ -181,7 +181,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           :timestamp_info
         ])
 
-      assert error == {:requires_field_selection, :typed_struct, "timestampInfo"}
+      assert error == {:requires_field_selection, :field_constrained_type, "timestampInfo"}
     end
 
     test "returns error when typed struct is requested as empty map" do
@@ -190,7 +190,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           %{statistics: []}
         ])
 
-      assert error == {:requires_field_selection, "typedstruct", "statistics"}
+      assert error == {:requires_field_selection, "field_constrained_type", "statistics"}
     end
   end
 

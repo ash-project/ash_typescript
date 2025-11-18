@@ -12,8 +12,6 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   - Return type field selectability
   """
 
-  alias AshTypescript.TypeSystem.Introspection
-
   @doc """
   Returns true if the action supports pagination.
 
@@ -142,8 +140,8 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   - `{:ok, :array_of_resource, resource_module}` - Array of resources
   - `{:ok, :typed_map, fields}` - Typed map with constraints
   - `{:ok, :array_of_typed_map, fields}` - Array of typed maps
-  - `{:ok, :typed_struct, {module, fields}}` - TypedStruct module
-  - `{:ok, :array_of_typed_struct, {module, fields}}` - Array of TypedStruct modules
+  - `{:ok, :typed_struct, {module, fields}}` - Type with field constraints (TypedStruct or similar)
+  - `{:ok, :array_of_typed_struct, {module, fields}}` - Array of types with field constraints
   - `{:ok, :unconstrained_map, nil}` - Map without field constraints
   - `{:error, :not_generic_action}` - Not a generic action
   - `{:error, reason}` - Other errors
@@ -187,9 +185,11 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
         end
 
       {:array, module} when is_atom(module) ->
-        if Introspection.is_typed_struct?(module) do
-          constraints = action.constraints || []
-          items_constraints = Keyword.get(constraints, :items, [])
+        constraints = action.constraints || []
+        items_constraints = Keyword.get(constraints, :items, [])
+
+        # Check for field constraints instead of using Spark DSL introspection
+        if has_field_constraints?(items_constraints) do
           fields = Keyword.get(items_constraints, :fields, [])
           {:ok, :array_of_typed_struct, {module, fields}}
         else
@@ -206,8 +206,10 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
         end
 
       module when is_atom(module) ->
-        if Introspection.is_typed_struct?(module) do
-          constraints = action.constraints || []
+        constraints = action.constraints || []
+
+        # Check for field constraints instead of using Spark DSL introspection
+        if has_field_constraints?(constraints) do
           fields = Keyword.get(constraints, :fields, [])
           {:ok, :typed_struct, {module, fields}}
         else
@@ -217,5 +219,10 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
       _ ->
         {:error, :not_field_selectable_type}
     end
+  end
+
+  # Check if constraints indicate a type with field definitions (TypedStruct or similar)
+  defp has_field_constraints?(constraints) do
+    Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of)
   end
 end

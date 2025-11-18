@@ -29,6 +29,7 @@ defmodule AshTypescript.Codegen do
   # Delegate resource discovery to TypeDiscovery
   defdelegate find_embedded_resources(otp_app), to: TypeDiscovery
   defdelegate find_typed_struct_modules(resources), to: TypeDiscovery
+  defdelegate find_field_constrained_types(resources), to: TypeDiscovery
 
   # Delegate type alias generation to TypeAliases
   defdelegate generate_ash_type_aliases(resources, actions, otp_app), to: TypeAliases
@@ -45,7 +46,6 @@ defmodule AshTypescript.Codegen do
   defdelegate get_ts_type(type_and_constraints, select_and_loads \\ nil), to: TypeMapper
   defdelegate get_ts_input_type(attr), to: TypeMapper
   defdelegate build_map_type(fields, select \\ nil, field_name_mappings \\ nil), to: TypeMapper
-  defdelegate build_typed_struct_input_type(typed_struct_module), to: TypeMapper
   defdelegate build_union_type(types), to: TypeMapper
   defdelegate build_union_input_type(types), to: TypeMapper
   defdelegate build_resource_type(resource, select_and_loads \\ nil), to: TypeMapper
@@ -59,6 +59,4 @@ defmodule AshTypescript.Codegen do
 
   # Delegate type introspection to TypeSystem.Introspection
   defdelegate is_embedded_resource?(module), to: Introspection
-  defdelegate is_typed_struct?(module), to: Introspection
-  defdelegate get_typed_struct_fields(module), to: Introspection
 end

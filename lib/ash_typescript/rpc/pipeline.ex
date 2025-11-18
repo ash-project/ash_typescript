@@ -20,8 +20,6 @@ defmodule AshTypescript.Rpc.Pipeline do
   }
 
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
-  alias AshTypescript.TypeSystem.Introspection
-
   alias AshTypescript.{FieldFormatter, Rpc}
 
   @doc """
@@ -222,7 +220,8 @@ defmodule AshTypescript.Rpc.Pipeline do
           else
             resource_for_mapping =
               if request.action.type == :action and returns_typed_struct?(request.action) do
-                nil
+                # For TypedStruct returns, use the TypedStruct module for field name mapping
+                get_typed_struct_module(request.action)
               else
                 request.resource
               end
@@ -241,17 +240,38 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp returns_typed_struct?(action) do
+  # Gets the module for field name mapping if the action returns a type with field constraints
+  defp get_typed_struct_module(action) do
+    constraints = action.constraints || []
+
     case action.returns do
-      {:array, module} when is_atom(module) ->
-        Introspection.is_typed_struct?(module)
+      {:array, _module} ->
+        items_constraints = Keyword.get(constraints, :items, [])
+        get_instance_of_with_mappings(items_constraints)
 
-      module when is_atom(module) ->
-        Introspection.is_typed_struct?(module)
-
-      _ ->
-        false
+      _single_type ->
+        get_instance_of_with_mappings(constraints)
     end
+  end
+
+  # Helper to extract instance_of module if it has field name mappings
+  defp get_instance_of_with_mappings(constraints) do
+    if Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of) do
+      instance_of = Keyword.get(constraints, :instance_of)
+
+      if function_exported?(instance_of, :typescript_field_names, 0) do
+        instance_of
+      else
+        nil
+      end
+    else
+      nil
+    end
+  end
+
+  # Checks if action returns a type with field constraints and field name mappings
+  defp returns_typed_struct?(action) do
+    get_typed_struct_module(action) != nil
   end
 
   @doc """

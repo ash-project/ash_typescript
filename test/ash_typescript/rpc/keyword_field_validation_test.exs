@@ -15,7 +15,7 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
 
       result = RequestedFieldsProcessor.process(Todo, :read, fields)
 
-      assert {:error, {:requires_field_selection, :typed_struct, "options"}} = result
+      assert {:error, {:requires_field_selection, :field_constrained_type, "options"}} = result
     end
 
     test "rejects empty keyword field selection" do
@@ -76,7 +76,7 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
 
       result = RequestedFieldsProcessor.process(Todo, :read, fields)
 
-      assert {:error, {:unknown_field, :invalid_field, "typed_struct", "options.invalidField"}} =
+      assert {:error, {:unknown_field, :invalid_field, "field_constrained_type", "options.invalidField"}} =
                result
     end
 
