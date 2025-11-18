@@ -67,6 +67,15 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldClassifier do
             {:ash_type, calculation.type, calculation.constraints || []}
         end
 
+      {:array, Ash.Type.Struct} ->
+        case Keyword.get(calculation.constraints || [], :instance_of) do
+          resource_module when is_atom(resource_module) ->
+            {:array, {:resource, resource_module}}
+
+          _ ->
+            {:ash_type, calculation.type, calculation.constraints || []}
+        end
+
       type ->
         {:ash_type, type, calculation.constraints || []}
     end
@@ -183,58 +192,22 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldClassifier do
         if accepts_arguments?(calculation) do
           :calculation_with_args
         else
-          case determine_calculation_return_type(calculation) do
-            {:resource, _} ->
-              :calculation_complex
+          return_type = determine_calculation_return_type(calculation)
 
-            {:ash_type, Ash.Type.Struct, constraints} ->
-              # Struct with fields requires field selection
-              if Keyword.has_key?(constraints, :fields) do
-                :calculation_complex
-              else
-                :calculation_complex
-              end
-
-            {:ash_type, {:array, inner_type}, _} when inner_type == Ash.Type.Struct ->
-              :calculation_complex
-
-            {:ash_type, type, constraints} when is_atom(type) ->
-              # Check if this is a NewType
-              if Ash.Type.NewType.new_type?(type) do
-                subtype = Ash.Type.NewType.subtype_of(type)
-
-                cond do
-                  # NewType wrapping a union requires field selection
-                  subtype == Ash.Type.Union ->
-                    :calculation_complex
-
-                  # NewType wrapping struct with fields requires field selection
-                  subtype == Ash.Type.Struct and Keyword.has_key?(constraints, :fields) ->
-                    :calculation_complex
-
-                  # Other NewTypes - simple calculation
-                  true ->
-                    :calculation
-                end
-              else
-                # Not a NewType - check if it has field constraints
-                if Keyword.has_key?(constraints, :fields) do
-                  :calculation_complex
-                else
-                  :calculation
-                end
-              end
-
-            _ ->
-              :calculation
+          if is_complex_return_type?(return_type) do
+            :calculation_complex
+          else
+            :calculation
           end
         end
 
       aggregate = Ash.Resource.Info.public_aggregate(resource, field_name) ->
-        case determine_aggregate_return_type(resource, aggregate) do
-          {:resource, _} -> :complex_aggregate
-          {:array, {:resource, _}} -> :complex_aggregate
-          _ -> :aggregate
+        return_type = determine_aggregate_return_type(resource, aggregate)
+
+        if is_complex_aggregate_return_type?(return_type) do
+          :complex_aggregate
+        else
+          :aggregate
         end
 
       true ->
@@ -259,41 +232,42 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldClassifier do
   """
   def is_primitive_type?(type), do: Introspection.is_primitive_type?(type)
 
+  # Private helper to determine if a calculation return type requires field selection
+  defp is_complex_return_type?({:resource, _}), do: true
+  defp is_complex_return_type?({:array, {:resource, _}}), do: true
+
+  defp is_complex_return_type?({:ash_type, Ash.Type.Struct, constraints}) do
+    Keyword.has_key?(constraints, :fields)
+  end
+
+  defp is_complex_return_type?({:ash_type, {:array, inner_type}, _})
+       when inner_type == Ash.Type.Struct,
+       do: true
+
+  defp is_complex_return_type?({:ash_type, type, constraints}) when is_atom(type) do
+    {unwrapped_type, unwrapped_constraints} =
+      Introspection.unwrap_new_type(type, constraints)
+
+    unwrapped_type == Ash.Type.Union or
+      Keyword.has_key?(unwrapped_constraints, :fields)
+  end
+
+  defp is_complex_return_type?(_), do: false
+
+  # Private helper to determine if an aggregate return type requires field selection
+  defp is_complex_aggregate_return_type?({:resource, _}), do: true
+  defp is_complex_aggregate_return_type?({:array, {:resource, _}}), do: true
+  defp is_complex_aggregate_return_type?(_), do: false
+
   # Private helper to check if a type has field constraints
   # This is used to identify types that need field selection (Keyword, TypedStruct, etc.)
+  #
+  # Note: Tuple is excluded because it needs special handling with positional indices
+  # via TupleProcessor, not the generic field_constrained_type processing.
   defp has_field_constraints?(type, constraints) do
-    cond do
-      # Skip Tuple - it has its own classification
-      type == Ash.Type.Tuple ->
-        false
+    {unwrapped_type, unwrapped_constraints} = Introspection.unwrap_new_type(type, constraints)
 
-      # Keyword with fields should be classified as field_constrained_type
-      type == Ash.Type.Keyword and Keyword.has_key?(constraints, :fields) ->
-        true
-
-      # Struct with fields and instance_of (TypedStruct pattern)
-      Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of) ->
-        true
-
-      # Check if it's a NewType wrapping a struct with fields
-      is_atom(type) and Ash.Type.NewType.new_type?(type) ->
-        subtype = Ash.Type.NewType.subtype_of(type)
-
-        cond do
-          # NewType wrapping Struct with fields
-          subtype == Ash.Type.Struct and Keyword.has_key?(constraints, :fields) ->
-            true
-
-          # NewType wrapping Keyword with fields
-          subtype == Ash.Type.Keyword and Keyword.has_key?(constraints, :fields) ->
-            true
-
-          true ->
-            false
-        end
-
-      true ->
-        false
-    end
+    # Exclude Tuple - it has its own :tuple classification and TupleProcessor
+    unwrapped_type != Ash.Type.Tuple and Keyword.has_key?(unwrapped_constraints, :fields)
   end
 end

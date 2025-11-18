@@ -196,9 +196,10 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
             "#{resource_name}ValidationErrors"
 
           Ash.Type.NewType.new_type?(custom_type) ->
-            subtype = Ash.Type.NewType.subtype_of(custom_type)
-            sub_constraints = Ash.Type.NewType.constraints(custom_type, constraints)
-            get_ts_error_type(%{type: subtype, constraints: sub_constraints})
+            {unwrapped_type, unwrapped_constraints} =
+              Introspection.unwrap_new_type(custom_type, constraints)
+
+            get_ts_error_type(%{type: unwrapped_type, constraints: unwrapped_constraints})
 
           Spark.implements_behaviour?(custom_type, Ash.Type.Enum) ->
             "string[]"

@@ -163,17 +163,10 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
                 end
               else
                 # Check the actual type (unwrap NewType for classification)
-                actual_field =
-                  if Ash.Type.NewType.new_type?(field.type) do
-                    %{
-                      field
-                      | type: Ash.Type.NewType.subtype_of(field.type),
-                        constraints:
-                          Ash.Type.NewType.constraints(field.type, field.constraints || [])
-                    }
-                  else
-                    field
-                  end
+                {unwrapped_type, unwrapped_constraints} =
+                  Introspection.unwrap_new_type(field.type, field.constraints || [])
+
+                actual_field = %{field | type: unwrapped_type, constraints: unwrapped_constraints}
 
                 cond do
                   is_embedded_attribute?(actual_field) ->
@@ -258,21 +251,18 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   end
 
   defp is_complex_attr?(attr, _) do
-    if Ash.Type.NewType.new_type?(attr.type) do
-      is_complex_attr?(%{
-        attr
-        | type: Ash.Type.NewType.subtype_of(attr.type),
-          constraints: Ash.Type.NewType.constraints(attr.type, attr.constraints || [])
-      })
-    else
-      is_union_attribute?(attr) or
-        is_embedded_attribute?(attr) or
-        is_typed_struct_attribute?(attr) or
-        is_keyword_attribute?(attr) or
-        is_map_attribute?(attr) or
-        is_struct_attribute?(attr) or
-        is_tuple_attribute?(attr)
-    end
+    {unwrapped_type, unwrapped_constraints} =
+      Introspection.unwrap_new_type(attr.type, attr.constraints || [])
+
+    unwrapped_attr = %{attr | type: unwrapped_type, constraints: unwrapped_constraints}
+
+    is_union_attribute?(unwrapped_attr) or
+      is_embedded_attribute?(unwrapped_attr) or
+      is_typed_struct_attribute?(unwrapped_attr) or
+      is_keyword_attribute?(unwrapped_attr) or
+      is_map_attribute?(unwrapped_attr) or
+      is_struct_attribute?(unwrapped_attr) or
+      is_tuple_attribute?(unwrapped_attr)
   end
 
   defp get_union_primitive_fields(union_types) do

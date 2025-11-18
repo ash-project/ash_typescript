@@ -59,4 +59,5 @@ defmodule AshTypescript.Codegen do
 
   # Delegate type introspection to TypeSystem.Introspection
   defdelegate is_embedded_resource?(module), to: Introspection
+  defdelegate unwrap_new_type(type, constraints), to: Introspection
 end

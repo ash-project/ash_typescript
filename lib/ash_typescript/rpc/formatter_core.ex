@@ -284,18 +284,26 @@ defmodule AshTypescript.Rpc.FormatterCore do
 
   # Input-specific union identification
 
-  defp identify_union_member(data, union_types, formatter) do
-    case data do
-      map when is_map(map) ->
-        identify_tagged_union_member(map, union_types, formatter) ||
-          identify_key_based_union_member(map, union_types)
+  defp identify_union_member(%{} = map, union_types, formatter) do
+    cond do
+      tagged = identify_tagged_union_member(map, union_types, formatter) ->
+        tagged
 
-      primitive ->
-        primitive_type = get_primitive_ash_type(primitive)
+      key_based = identify_key_based_union_member(map, union_types) ->
+        key_based
 
-        Enum.find(union_types, fn {_member_name, member_spec} ->
-          Keyword.get(member_spec, :type) == primitive_type
-        end)
+      true ->
+        nil
+    end
+  end
+
+  defp identify_union_member(value, union_types, _formatter) do
+    case Ash.Type.Union.cast_input(value, types: union_types) do
+      {:ok, %Ash.Union{type: type}} ->
+        Enum.find(union_types, fn {member_name, _member_spec} -> member_name == type end)
+
+      {:error, _} ->
+        nil
     end
   end
 
@@ -317,15 +325,6 @@ defmodule AshTypescript.Rpc.FormatterCore do
     Enum.find(union_types, fn {member_name, _member_spec} ->
       MapSet.member?(map_keys, to_string(member_name))
     end)
-  end
-
-  defp get_primitive_ash_type(primitive) do
-    cond do
-      is_binary(primitive) -> Ash.Type.String
-      is_integer(primitive) -> Ash.Type.Integer
-      is_float(primitive) -> Ash.Type.Float
-      is_boolean(primitive) -> Ash.Type.Boolean
-    end
   end
 
   defp has_matching_tag?(map, tag_field, tag_value, formatter) do

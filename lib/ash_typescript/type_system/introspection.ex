@@ -174,4 +174,63 @@ defmodule AshTypescript.TypeSystem.Introspection do
   end
 
   def is_ash_type?(_), do: false
+
+  @doc """
+  Recursively unwraps Ash.Type.NewType to get the underlying type and constraints.
+
+  When a type is wrapped in one or more NewType wrappers, this function
+  recursively unwraps them until it reaches the base type. If the NewType
+  has a `typescript_field_names/0` callback and the constraints don't already
+  have an `instance_of` key, it will add the NewType module as `instance_of`
+  to preserve the reference for field name mapping.
+
+  ## Parameters
+  - `type` - The type to unwrap (e.g., MyApp.CustomType)
+  - `constraints` - The constraints for the type
+
+  ## Returns
+  A tuple `{unwrapped_type, unwrapped_constraints}` where:
+  - `unwrapped_type` is the final underlying type after all NewType unwrapping
+  - `unwrapped_constraints` are the final constraints, potentially augmented with `instance_of`
+
+  ## Examples
+
+      iex> # Simple NewType with typescript_field_names
+      iex> unwrap_new_type(MyApp.TaskStats, [])
+      {Ash.Type.Struct, [fields: [...], instance_of: MyApp.TaskStats]}
+
+      iex> # Nested NewTypes (outermost with callback wins)
+      iex> unwrap_new_type(MyApp.Wrapper, [])
+      {Ash.Type.String, [max_length: 100, instance_of: MyApp.Wrapper]}
+
+      iex> # Non-NewType (returns unchanged)
+      iex> unwrap_new_type(Ash.Type.String, [max_length: 50])
+      {Ash.Type.String, [max_length: 50]}
+  """
+  def unwrap_new_type(type, constraints) when is_atom(type) do
+    if Ash.Type.NewType.new_type?(type) do
+      subtype = Ash.Type.NewType.subtype_of(type)
+      sub_constraints = Ash.Type.NewType.constraints(type, constraints)
+
+      # Preserve reference to outermost NewType with typescript_field_names
+      # Only add instance_of if:
+      # 1. This NewType has typescript_field_names callback
+      # 2. Constraints don't already have instance_of (preserves outermost)
+      augmented_constraints =
+        if function_exported?(type, :typescript_field_names, 0) and
+             not Keyword.has_key?(sub_constraints, :instance_of) do
+          Keyword.put(sub_constraints, :instance_of, type)
+        else
+          sub_constraints
+        end
+
+      # Recursively unwrap the subtype
+      unwrap_new_type(subtype, augmented_constraints)
+    else
+      # Base case: not a NewType, return as-is
+      {type, constraints}
+    end
+  end
+
+  def unwrap_new_type(type, constraints), do: {type, constraints}
 end

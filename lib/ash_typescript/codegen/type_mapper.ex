@@ -242,29 +242,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
         "#{resource_name}ResourceSchema"
 
       Ash.Type.NewType.new_type?(type) ->
-        sub_type_constraints = Ash.Type.NewType.constraints(type, constraints)
-        subtype = Ash.Type.NewType.subtype_of(type)
-
-        # Check if this NewType has typescript_field_names callback
-        field_name_mappings =
-          if function_exported?(type, :typescript_field_names, 0) do
-            type.typescript_field_names()
-          else
-            nil
-          end
-
-        # If it's a map/keyword/tuple type with field mappings, handle specially
-        if field_name_mappings && subtype in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] do
-          case Keyword.get(sub_type_constraints, :fields) do
-            nil ->
-              get_ts_type(%{attr | type: subtype, constraints: sub_type_constraints})
-
-            fields ->
-              build_map_type(fields, nil, field_name_mappings)
-          end
-        else
-          get_ts_type(%{attr | type: subtype, constraints: sub_type_constraints})
-        end
+        {unwrapped_type, unwrapped_constraints} = Introspection.unwrap_new_type(type, constraints)
+        get_ts_type(%{attr | type: unwrapped_type, constraints: unwrapped_constraints})
 
       Spark.implements_behaviour?(type, Ash.Type.Enum) ->
         case type do

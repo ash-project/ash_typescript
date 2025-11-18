@@ -8,6 +8,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   normalizes/transforms the payload to be JSON-serializable.
   """
 
+  alias AshTypescript.Rpc.FieldExtractor
   alias AshTypescript.TypeSystem.Introspection
 
   @doc """
@@ -116,8 +117,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     if extraction_template == [] and is_primitive_struct?(data) do
       normalize_value_for_json(data)
     else
-      is_tuple = is_tuple(data)
-
       # Check if this is a struct with field name mappings (e.g., TypedStruct or any struct with typescript_field_names/0)
       struct_with_mappings =
         if is_map(data) and not is_tuple(data) and Map.has_key?(data, :__struct__) do
@@ -133,26 +132,18 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           nil
         end
 
-      normalized_data =
-        cond do
-          is_tuple ->
-            convert_tuple_to_map(data, extraction_template)
-
-          Keyword.keyword?(data) ->
-            Map.new(data)
-
-          true ->
-            normalize_data(data)
-        end
+      # Normalize data structure to map for unified field extraction
+      normalized_data = FieldExtractor.normalize_for_extraction(data, extraction_template)
 
       effective_resource = resource || struct_with_mappings
 
-      if is_tuple do
+      # For tuples, the normalized_data already contains the extracted fields in the correct structure
+      if is_tuple(data) do
         normalized_data
       else
         Enum.reduce(extraction_template, %{}, fn field_spec, acc ->
           case field_spec do
-            field_atom when is_atom(field_atom) or is_tuple(data) ->
+            field_atom when is_atom(field_atom) ->
               extract_simple_field(normalized_data, field_atom, acc, effective_resource)
 
             {field_atom, nested_template} when is_atom(field_atom) and is_list(nested_template) ->
@@ -296,16 +287,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       other ->
         other
     end
-  end
-
-  # Convert tuple to map using extraction template field order
-  defp convert_tuple_to_map(tuple, extraction_template) do
-    tuple_values = Tuple.to_list(tuple)
-
-    Enum.reduce(extraction_template, %{}, fn %{field_name: field_name, index: index}, acc ->
-      value = Enum.at(tuple_values, index)
-      Map.put(acc, field_name, value)
-    end)
   end
 
   def normalize_value_for_json(nil), do: nil
