@@ -53,42 +53,45 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.CalculationProcessor 
     calculation = Ash.Resource.Info.calculation(resource, calc_name)
 
     if is_nil(calculation) do
-      field_path = Utilities.build_field_path(path, calc_name)
-      throw({:unknown_field, calc_name, resource, field_path})
+      throw({:unknown_field, calc_name, resource, path})
     end
 
     calc_return_type = FieldClassifier.determine_calculation_return_type(calculation)
 
-    field_path = Utilities.build_field_path(path, calc_name)
     fields_provided = Map.has_key?(nested_fields, :fields)
 
-    # Validate field selection based on return type
     case calc_return_type do
       {:ash_type, {:array, inner_type}, _constraints} ->
         if FieldClassifier.is_primitive_type?(inner_type) do
-          # Arrays of primitive types should not accept fields parameter at all
           if fields_provided do
-            field_path = Utilities.build_field_path(path, calc_name)
-            throw({:invalid_field_selection, calc_name, :calculation, field_path})
+            throw({:invalid_field_selection, calc_name, :calculation, path})
           end
         end
 
       {:ash_type, Ash.Type.Struct, _constraints} ->
-        # Struct types require fields to be provided and non-empty
-        Validator.validate_complex_type_fields(fields_provided, fields, field_path, "Calculation")
+        Validator.validate_complex_type_fields(
+          fields_provided,
+          fields,
+          calc_name,
+          path,
+          "Calculation"
+        )
 
       {:ash_type, type, _constraints} ->
         if FieldClassifier.is_primitive_type?(type) do
-          # Primitive types should not accept fields parameter at all
           if fields_provided do
-            field_path = Utilities.build_field_path(path, calc_name)
-            throw({:invalid_field_selection, calc_name, :calculation, field_path})
+            throw({:invalid_field_selection, calc_name, :calculation, path})
           end
         end
 
       {:resource, _resource} ->
-        # Resource types require fields to be provided and non-empty
-        Validator.validate_complex_type_fields(fields_provided, fields, field_path, "Calculation")
+        Validator.validate_complex_type_fields(
+          fields_provided,
+          fields,
+          calc_name,
+          path,
+          "Calculation"
+        )
     end
 
     new_path = path ++ [calc_name]
@@ -104,15 +107,11 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.CalculationProcessor 
 
     load_spec =
       if load_fields == [] do
-        # When there are no nested fields to load, just pass the args directly
         {calc_name, args}
       else
-        # When there are nested fields, use the tuple format
         {calc_name, {args, load_fields}}
       end
 
-    # For calculations, if there's no nested template (empty fields), just use the calc name
-    # Otherwise, include the nested structure
     template_item =
       if nested_template == [] do
         calc_name
@@ -164,18 +163,14 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.CalculationProcessor 
           []
       end
 
-    # Validate that nested fields are not empty
     if fields == [] do
-      field_path = Utilities.build_field_path(path, calc_name)
-
-      throw({:requires_field_selection, :calculation_complex, field_path})
+      throw({:requires_field_selection, :calculation_complex, calc_name, path})
     end
 
     calculation = Ash.Resource.Info.calculation(resource, calc_name)
 
     if is_nil(calculation) do
-      field_path = Utilities.build_field_path(path, calc_name)
-      throw({:unknown_field, calc_name, resource, field_path})
+      throw({:unknown_field, calc_name, resource, path})
     end
 
     calc_return_type = FieldClassifier.determine_calculation_return_type(calculation)
@@ -207,9 +202,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.CalculationProcessor 
       ) do
     # Validate that nested fields are not empty (custom message for aggregates)
     if nested_fields == [] do
-      field_path = Utilities.build_field_path(path, agg_name)
-
-      throw({:requires_field_selection, :complex_aggregate, field_path})
+      throw({:requires_field_selection, :complex_aggregate, agg_name, path})
     end
 
     aggregate = Ash.Resource.Info.aggregate(resource, agg_name)

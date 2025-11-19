@@ -8,8 +8,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.Validator do
   and properly structured.
   """
 
-  alias AshTypescript.Rpc.FieldProcessing.Utilities
-
   @doc """
   Validates that nested fields are non-empty for fields that require field selection.
 
@@ -24,17 +22,12 @@ defmodule AshTypescript.Rpc.FieldProcessing.Validator do
   """
   def validate_non_empty_fields(nested_fields, field_name, path, error_type \\ "Relationship") do
     if not is_list(nested_fields) do
-      field_path = Utilities.build_field_path(path, field_name)
-
-      throw(
-        {:unsupported_field_combination, :relationship, field_name, nested_fields, field_path}
-      )
+      throw({:unsupported_field_combination, :relationship, field_name, nested_fields, path})
     end
 
     if nested_fields == [] do
-      field_path = Utilities.build_field_path(path, field_name)
-
-      throw({:requires_field_selection, String.downcase(error_type), field_path})
+      error_type_atom = error_type |> String.downcase() |> String.to_atom()
+      throw({:requires_field_selection, error_type_atom, field_name, path})
     end
   end
 
@@ -48,16 +41,17 @@ defmodule AshTypescript.Rpc.FieldProcessing.Validator do
 
   - `fields_provided` - Boolean indicating if fields parameter was provided
   - `fields` - The fields list
-  - `field_path` - The path to the field for error messages
+  - `field_name` - The name of the field for error messages
+  - `path` - The current path in the field hierarchy
   - `_type_description` - Description of the type (currently unused but kept for compatibility)
   """
-  def validate_complex_type_fields(fields_provided, fields, field_path, _type_description) do
+  def validate_complex_type_fields(fields_provided, fields, field_name, path, _type_description) do
     if not fields_provided do
-      throw({:requires_field_selection, :complex_type, field_path})
+      throw({:requires_field_selection, :complex_type, field_name, path})
     end
 
     if fields == [] do
-      throw({:requires_field_selection, :complex_type, field_path})
+      throw({:requires_field_selection, :complex_type, field_name, path})
     end
   end
 
@@ -105,8 +99,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.Validator do
 
     if !Enum.empty?(duplicate_fields) do
       duplicate_field = List.first(duplicate_fields)
-      field_path = Utilities.build_field_path(path, duplicate_field)
-      throw({:duplicate_field, duplicate_field, field_path})
+      throw({:duplicate_field, duplicate_field, path})
     end
   end
 end

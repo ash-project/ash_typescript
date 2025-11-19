@@ -67,6 +67,15 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldClassifier do
             {:ash_type, calculation.type, calculation.constraints || []}
         end
 
+      {:array, Ash.Type.Struct} ->
+        case Keyword.get(calculation.constraints || [], :instance_of) do
+          resource_module when is_atom(resource_module) ->
+            {:array, {:resource, resource_module}}
+
+          _ ->
+            {:ash_type, calculation.type, calculation.constraints || []}
+        end
+
       type ->
         {:ash_type, type, calculation.constraints || []}
     end
@@ -157,15 +166,21 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldClassifier do
 
     cond do
       attribute = Ash.Resource.Info.public_attribute(resource, field_name) ->
-        case attribute.type do
-          type_module when is_atom(type_module) ->
-            Introspection.classify_ash_type(type_module, attribute, false)
+        constraints = attribute.constraints || []
 
-          {:array, inner_type} when is_atom(inner_type) ->
-            Introspection.classify_ash_type(inner_type, attribute, true)
+        if has_field_constraints?(attribute.type, constraints) do
+          :field_constrained_type
+        else
+          case attribute.type do
+            type_module when is_atom(type_module) ->
+              Introspection.classify_ash_type(type_module, attribute, false)
 
-          _ ->
-            :attribute
+            {:array, inner_type} when is_atom(inner_type) ->
+              Introspection.classify_ash_type(inner_type, attribute, true)
+
+            _ ->
+              :attribute
+          end
         end
 
       Ash.Resource.Info.public_relationship(resource, field_name) ->
@@ -175,54 +190,22 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldClassifier do
         if accepts_arguments?(calculation) do
           :calculation_with_args
         else
-          case determine_calculation_return_type(calculation) do
-            {:resource, _} ->
-              :calculation_complex
+          return_type = determine_calculation_return_type(calculation)
 
-            {:ash_type, Ash.Type.Struct, _} ->
-              :calculation_complex
-
-            {:ash_type, {:array, inner_type}, _} when inner_type == Ash.Type.Struct ->
-              :calculation_complex
-
-            {:ash_type, type, constraints} when is_atom(type) ->
-              # Check if this is a NewType that wraps a union
-              if Ash.Type.NewType.new_type?(type) do
-                subtype = Ash.Type.NewType.subtype_of(type)
-
-                if subtype == Ash.Type.Union do
-                  :calculation_complex
-                else
-                  # Check if the wrapped type is TypedStruct
-                  fake_attribute = %{type: subtype, constraints: constraints}
-
-                  if Introspection.is_typed_struct_from_attribute?(fake_attribute) do
-                    :calculation_complex
-                  else
-                    :calculation
-                  end
-                end
-              else
-                # Check if this is a TypedStruct module by creating a fake attribute
-                fake_attribute = %{type: type, constraints: constraints}
-
-                if Introspection.is_typed_struct_from_attribute?(fake_attribute) do
-                  :calculation_complex
-                else
-                  :calculation
-                end
-              end
-
-            _ ->
-              :calculation
+          if is_complex_return_type?(return_type) do
+            :calculation_complex
+          else
+            :calculation
           end
         end
 
       aggregate = Ash.Resource.Info.public_aggregate(resource, field_name) ->
-        case determine_aggregate_return_type(resource, aggregate) do
-          {:resource, _} -> :complex_aggregate
-          {:array, {:resource, _}} -> :complex_aggregate
-          _ -> :aggregate
+        return_type = determine_aggregate_return_type(resource, aggregate)
+
+        if is_complex_aggregate_return_type?(return_type) do
+          :complex_aggregate
+        else
+          :aggregate
         end
 
       true ->
@@ -246,4 +229,46 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldClassifier do
   Delegates to TypeSystem.Introspection.
   """
   def is_primitive_type?(type), do: Introspection.is_primitive_type?(type)
+
+  # Private helper to determine if a calculation return type requires field selection
+  defp is_complex_return_type?({:resource, _}), do: true
+  defp is_complex_return_type?({:array, {:resource, _}}), do: true
+
+  defp is_complex_return_type?({:ash_type, Ash.Type.Struct, constraints}) do
+    Keyword.has_key?(constraints, :fields)
+  end
+
+  defp is_complex_return_type?({:ash_type, {:array, inner_type}, _})
+       when inner_type == Ash.Type.Struct,
+       do: true
+
+  defp is_complex_return_type?({:ash_type, type, constraints}) when is_atom(type) do
+    {unwrapped_type, unwrapped_constraints} =
+      Introspection.unwrap_new_type(type, constraints)
+
+    unwrapped_type == Ash.Type.Union or
+      Keyword.has_key?(unwrapped_constraints, :fields)
+  end
+
+  defp is_complex_return_type?(_), do: false
+
+  defp is_complex_aggregate_return_type?({:resource, _}), do: true
+  defp is_complex_aggregate_return_type?({:array, {:resource, _}}), do: true
+  defp is_complex_aggregate_return_type?(_), do: false
+
+  # Tuple is excluded - it needs special handling with positional indices via TupleProcessor
+  defp has_field_constraints?(type, constraints) do
+    {unwrapped_type, unwrapped_constraints} = Introspection.unwrap_new_type(type, constraints)
+
+    # Exclude Tuple - it has its own :tuple classification and TupleProcessor
+    if unwrapped_type == Ash.Type.Tuple do
+      false
+    else
+      # Check for direct :fields key (Keyword, TypedStruct, etc.)
+      # OR for {:array, :map} or {:array, Ash.Type.Map} with items.fields constraints (TypedMap arrays)
+      Keyword.has_key?(unwrapped_constraints, :fields) or
+        (unwrapped_type in [{:array, :map}, {:array, Ash.Type.Map}] and
+           get_in(unwrapped_constraints, [:items, :fields]) != nil)
+    end
+  end
 end

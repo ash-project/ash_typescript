@@ -10,7 +10,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.UnionProcessor do
   (called a "member") potentially having its own nested structure and fields.
   """
 
-  alias AshTypescript.Rpc.FieldProcessing.{Utilities, Validator}
+  alias AshTypescript.Rpc.FieldProcessing.Validator
   alias AshTypescript.TypeSystem.Introspection
 
   @doc """
@@ -46,10 +46,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.UnionProcessor do
         template,
         process_fields_fn
       ) do
-    # Union field selection format: [:member_name, %{member_name: member_fields}]
-    # Example: [:note, %{text: [:id, :text, :formatting]}]
-    # Also supports shorthand: %{member_name: member_fields} for single member selection
-
     normalized_fields = normalize_fields(nested_fields)
 
     Validator.validate_non_empty_fields(normalized_fields, field_name, path, "Union")
@@ -114,11 +110,9 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.UnionProcessor do
     {[], load_items, template_items}
   end
 
-  # Normalizes field selection format from shorthand map to list format
   defp normalize_fields(fields) do
     case fields do
       %{} = field_map when map_size(field_map) > 0 ->
-        # Convert map to list format: %{member: fields} -> [%{member: fields}]
         [field_map]
 
       fields when is_list(fields) ->
@@ -129,16 +123,13 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.UnionProcessor do
     end
   end
 
-  # Processes union members with a unified approach for both attributes and union types
   defp process_union_members(normalized_fields, union_types, path, process_fields_fn, context) do
     Enum.reduce(normalized_fields, {[], []}, fn field_item, {load_acc, template_acc} ->
       case field_item do
         member when is_atom(member) ->
-          # Simple union member selection (like :note, :priority_value, :url)
           process_simple_member(member, union_types, path, context, load_acc, template_acc)
 
         %{} = member_map ->
-          # Union member(s) with field selection - process each member in the map
           process_member_map(
             member_map,
             union_types,
@@ -150,18 +141,14 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.UnionProcessor do
           )
 
         _ ->
-          # Invalid field item type
-          field_path = build_error_path(path, context)
-
           error_type =
             if context == :attribute, do: :invalid_union_field_format, else: :invalid_field_format
 
-          throw({error_type, field_item, field_path})
+          throw({error_type, field_item, path})
       end
     end)
   end
 
-  # Process a map of union members with field selection
   defp process_member_map(
          member_map,
          union_types,
@@ -173,12 +160,13 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.UnionProcessor do
        ) do
     Enum.reduce(member_map, {load_acc, template_acc}, fn {member, member_fields},
                                                          {l_acc, t_acc} ->
-      if Keyword.has_key?(union_types, member) do
-        member_config = Keyword.get(union_types, member)
-        member_return_type = union_member_to_return_type(member_config)
-        new_path = path ++ [member]
+      member_atom = if is_binary(member), do: String.to_existing_atom(member), else: member
 
-        # Use the provided field processing function
+      if Keyword.has_key?(union_types, member_atom) do
+        member_config = Keyword.get(union_types, member_atom)
+        member_return_type = union_member_to_return_type(member_config)
+        new_path = path ++ [member_atom]
+
         {_nested_select, nested_load, nested_template} =
           process_fields_fn.(member_return_type, member_fields, new_path)
 
@@ -200,23 +188,24 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.UnionProcessor do
         case context do
           :attribute ->
             if combined_load_fields != [] do
-              {l_acc ++ [{member, combined_load_fields}], t_acc ++ [{member, nested_template}]}
+              # Use member_atom for load (Ash expects atoms), original member for template
+              {l_acc ++ [{member_atom, combined_load_fields}],
+               t_acc ++ [{member, nested_template}]}
             else
               {l_acc, t_acc ++ [{member, nested_template}]}
             end
 
           :union_type ->
+            # Keep original member format for template (string if from map)
             {l_acc ++ combined_load_fields, t_acc ++ [{member, nested_template}]}
         end
       else
-        field_path = build_error_path(path, context, member)
         error_context = if context == :attribute, do: "union_attribute", else: "union_type"
-        throw({:unknown_field, member, error_context, field_path})
+        throw({:unknown_field, member_atom, error_context, path})
       end
     end)
   end
 
-  # Process a simple member selection (atom without nested fields)
   defp process_simple_member(member, union_types, path, context, load_acc, template_acc) do
     if Keyword.has_key?(union_types, member) do
       member_config = Keyword.get(union_types, member)
@@ -225,41 +214,26 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.UnionProcessor do
       case member_return_type do
         {:ash_type, map_like, constraints}
         when map_like in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] ->
-          # Map type with field constraints requires field selection
           field_specs = Keyword.get(constraints, :fields, [])
 
           if field_specs != [] do
-            field_path = build_error_path(path, context, member)
-            throw({:requires_field_selection, :complex_type, field_path})
+            throw({:requires_field_selection, :complex_type, member, path})
           else
-            # Map with no field constraints - simple type
             {load_acc, template_acc ++ [member]}
           end
 
         {:ash_type, _type, _constraints} ->
-          # Simple type - no field selection needed
           {load_acc, template_acc ++ [member]}
 
         {:resource, _resource} ->
-          # Embedded resource requires field selection
-          field_path = build_error_path(path, context, member)
-          throw({:requires_field_selection, :complex_type, field_path})
+          throw({:requires_field_selection, :complex_type, member, path})
       end
     else
-      field_path = build_error_path(path, context, member)
       error_context = if context == :attribute, do: "union_attribute", else: "union_type"
-      throw({:unknown_field, member, error_context, field_path})
+      throw({:unknown_field, member, error_context, path})
     end
   end
 
-  # Build error path based on context
-  defp build_error_path(path, :attribute), do: Utilities.build_field_path(path, nil)
-  defp build_error_path(path, :union_type), do: Utilities.build_field_path(path, "union")
-  defp build_error_path(path, :attribute, member), do: Utilities.build_field_path(path, member)
-  defp build_error_path(path, :union_type, member), do: Utilities.build_field_path(path, member)
-
-  # Helper function to extract union types from attribute constraints
-  # Handles both direct union types and array union types
   defp get_union_types(attribute) do
     Introspection.get_union_types(attribute)
   end

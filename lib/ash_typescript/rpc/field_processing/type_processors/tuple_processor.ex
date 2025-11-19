@@ -10,7 +10,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.TupleProcessor do
   but ordered.
   """
 
-  alias AshTypescript.Rpc.FieldProcessing.{Utilities, Validator}
+  alias AshTypescript.Rpc.FieldProcessing.Validator
 
   @doc """
   Processes a tuple field with nested field selection.
@@ -70,32 +70,28 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.TupleProcessor do
             index = Enum.find_index(field_names, &(&1 == field_name))
             {select, load, template ++ [%{field_name: field_name, index: index}]}
           else
-            field_path = Utilities.build_field_path(path, field_name)
-            throw({:unknown_field, field_name, "tuple", field_path})
+            throw({:unknown_field, field_name, "tuple", path})
           end
 
         %{} = field_map ->
-          # Handle nested field selection for complex types within tuples
           Enum.reduce(field_map, {select, load, template}, fn {field_name, nested_fields},
                                                               {s, l, t} ->
-            if Keyword.has_key?(field_specs, field_name) do
-              field_spec = Keyword.get(field_specs, field_name)
+            field_atom =
+              if is_binary(field_name), do: String.to_existing_atom(field_name), else: field_name
+
+            if Keyword.has_key?(field_specs, field_atom) do
+              field_spec = Keyword.get(field_specs, field_atom)
               field_type = Keyword.get(field_spec, :type)
               field_constraints = Keyword.get(field_spec, :constraints, [])
-
-              # Determine the return type for this field
               field_return_type = {:ash_type, field_type, field_constraints}
-              new_path = path ++ [field_name]
+              new_path = path ++ [field_atom]
 
-              # Process the nested fields based on the field's type
               {_nested_select, _nested_load, nested_template} =
                 process_fields_fn.(field_return_type, nested_fields, new_path)
 
-              # For tuple fields, we don't need to add to select/load, just template
               {s, l, t ++ [{field_name, nested_template}]}
             else
-              field_path = Utilities.build_field_path(path, field_name)
-              throw({:unknown_field, field_name, "tuple", field_path})
+              throw({:unknown_field, field_atom, "tuple", path})
             end
           end)
       end

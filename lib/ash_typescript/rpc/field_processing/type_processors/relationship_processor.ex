@@ -7,8 +7,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.RelationshipProcessor
   Processes relationship fields, loading related resources with their requested fields.
   """
 
-  alias AshTypescript.Rpc.FieldProcessing.Utilities
-
   @doc """
   Processes a relationship field with nested field selection.
 
@@ -35,8 +33,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.TypeProcessors.RelationshipProcessor
       # to avoid circular dependencies
       {dest_resource, rel_name, nested_fields, path, select, load, template}
     else
-      field_path = Utilities.build_field_path(path, rel_name)
-      throw({:unknown_field, rel_name, resource, field_path})
+      throw({:unknown_field, rel_name, resource, path})
     end
   end
 end
