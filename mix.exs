@@ -8,7 +8,7 @@ defmodule AshTypescript.MixProject do
   @version "0.8.0"
 
   @description """
-  The extension for tracking changes to your resources via a centralized event log, with replay functionality.
+  Generate type-safe TypeScript clients directly from your Ash resources and actions, ensuring end-to-end type safety between your backend and frontend.
   """
 
   def project do
