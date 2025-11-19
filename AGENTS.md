@@ -142,6 +142,7 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Test domain** | `test/support/domain.ex` |
 | **Primary test resource** | `test/support/resources/todo.ex` |
 | **TypeScript validation** | `test/ts/shouldPass/` & `test/ts/shouldFail/` |
+| **TypeScript call extractor** | `test/support/ts_action_call_extractor.ex` |
 
 ## Command Reference
 
@@ -175,6 +176,12 @@ mix credo --strict                   # Linting
 | [troubleshooting.md](agent-docs/troubleshooting.md) | Development troubleshooting |
 | [testing-and-validation.md](agent-docs/testing-and-validation.md) | Test organization and validation procedures |
 | [architecture-decisions.md](agent-docs/architecture-decisions.md) | Architecture decisions and context |
+
+### Implementation Plans
+
+| File | Purpose |
+|------|----------|
+| [run-ts.md](agent-plans/run-ts.md) | Plan for TypeScript runtime validation - executing extracted TS calls via RPC |
 
 ### Implementation Documentation Guide
 
@@ -225,6 +232,7 @@ mix credo --strict                   # Linting
 - **Field Selection**: Unified format supporting nested relationships and calculations
 - **Embedded Resources**: Full relationship-like architecture with calculation support
 - **Union Field Selection**: Selective member fetching with `{content: ["field1", {"nested": ["field2"]}]}`
+- **Union Input Format**: REQUIRED wrapped format `{member_name: value}` for all union inputs
 - **Headers Support**: All RPC functions accept optional headers for custom authentication
 - **Modular Processing**: Each type family has dedicated processor for maintainability
 
@@ -240,6 +248,9 @@ mix credo --strict                   # Linting
 | "Metadata field conflicts with resource field" | Metadata field shadows resource field | Rename metadata field or use different mapped name |
 | TypeScript `unknown` types | Schema key mismatch | Check `__type` metadata generation |
 | Field selection fails | Invalid field format | Use unified field format only |
+| "Union input must be a map" | Direct value for union input | Wrap in map: `{member_name: value}` |
+| "Union input map contains multiple member keys" | Multiple union members in input | Provide exactly one member key |
+| "Union input map does not contain any valid member key" | Invalid or missing member key | Use valid member name from union definition |
 
 ## RPC Resource Warnings
 
