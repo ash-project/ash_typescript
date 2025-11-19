@@ -38,12 +38,10 @@ defmodule AshTypescript.Rpc.InputFormatter do
   except for untyped map keys which are preserved exactly.
   """
   def format(data, resource, action_name, formatter) do
-    try do
-      {:ok, format_data(data, resource, action_name, formatter)}
-    catch
-      :throw, error ->
-        {:error, error}
-    end
+    {:ok, format_data(data, resource, action_name, formatter)}
+  catch
+    :throw, error ->
+      {:error, error}
   end
 
   defp format_data(data, resource, action_name, formatter) do

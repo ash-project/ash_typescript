@@ -150,7 +150,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
             "title" => "Test Todo",
             "autoComplete" => false,
             # Should be UUID string, not integer
-            "userId" => 12345
+            "userId" => 12_345
           }
         })
 

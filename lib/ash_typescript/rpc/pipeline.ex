@@ -19,8 +19,8 @@ defmodule AshTypescript.Rpc.Pipeline do
     ResultProcessor
   }
 
-  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.{FieldFormatter, Rpc}
+  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
   @doc """
   Stage 1: Parse and validate request.

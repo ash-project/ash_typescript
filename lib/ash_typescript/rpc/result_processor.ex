@@ -116,12 +116,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     if extraction_template == [] and is_primitive_struct?(data) do
       normalize_value_for_json(data)
     else
-      # Check if this is a struct with field name mappings (e.g., TypedStruct or any struct with typescript_field_names/0)
       struct_with_mappings =
-        if is_map(data) and not is_tuple(data) and Map.has_key?(data, :__struct__) do
+        if is_struct(data) do
           module = data.__struct__
 
-          # Use this module for field mapping if it exports typescript_field_names/0
           if Code.ensure_loaded?(module) and
                function_exported?(module, :typescript_field_names, 0) do
             module

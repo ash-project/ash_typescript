@@ -161,21 +161,19 @@ defmodule AshTypescript.Test.TsActionCallExtractor do
   # 5. Remove TypeScript-specific syntax (as const)
   # 6. Parse as JSON
   defp ts_to_map(ts_string) do
-    try do
-      json_string =
-        ts_string
-        |> remove_comments()
-        |> remove_trailing_commas()
-        |> quote_object_keys()
-        |> String.replace("undefined", "null")
-        |> remove_as_const()
+    json_string =
+      ts_string
+      |> remove_comments()
+      |> remove_trailing_commas()
+      |> quote_object_keys()
+      |> String.replace("undefined", "null")
+      |> remove_as_const()
 
-      with {:error, reason} <- Jason.decode(json_string) do
-        {:error, {:json_parse_error, reason}}
-      end
-    rescue
-      e -> {:error, {:exception, e}}
+    with {:error, reason} <- Jason.decode(json_string) do
+      {:error, {:json_parse_error, reason}}
     end
+  rescue
+    e -> {:error, {:exception, e}}
   end
 
   # Remove JavaScript/TypeScript comments.
