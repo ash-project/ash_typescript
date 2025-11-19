@@ -210,7 +210,15 @@ defmodule AshTypescript.TypeSystem.Introspection do
   def unwrap_new_type(type, constraints) when is_atom(type) do
     if Ash.Type.NewType.new_type?(type) do
       subtype = Ash.Type.NewType.subtype_of(type)
-      sub_constraints = Ash.Type.NewType.constraints(type, constraints)
+
+      # Get constraints from the NewType
+      # Ash.Type.NewType.constraints/2 only returns passed constraints when lazy_init? is false,
+      # but do_init/1 returns the full merged constraints including subtype_constraints
+      constraints =
+        case type.do_init(constraints) do
+          {:ok, merged_constraints} -> merged_constraints
+          {:error, _} -> constraints
+        end
 
       # Preserve reference to outermost NewType with typescript_field_names
       # Only add instance_of if:
@@ -218,13 +226,13 @@ defmodule AshTypescript.TypeSystem.Introspection do
       # 2. Constraints don't already have instance_of (preserves outermost)
       augmented_constraints =
         if function_exported?(type, :typescript_field_names, 0) and
-             not Keyword.has_key?(sub_constraints, :instance_of) do
-          Keyword.put(sub_constraints, :instance_of, type)
+             not Keyword.has_key?(constraints, :instance_of) do
+          Keyword.put(constraints, :instance_of, type)
         else
-          sub_constraints
+          constraints
         end
 
-      unwrap_new_type(subtype, augmented_constraints)
+      {subtype, augmented_constraints}
     else
       {type, constraints}
     end

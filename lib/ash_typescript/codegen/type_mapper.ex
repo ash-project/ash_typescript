@@ -394,6 +394,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
       type = Keyword.get(config, :type)
       constraints = Keyword.get(config, :constraints, [])
       has_fields = Keyword.has_key?(constraints, :fields)
+      has_instance_of = Keyword.has_key?(constraints, :instance_of)
 
       case type do
         Ash.Type.Map when has_fields ->
@@ -408,7 +409,15 @@ defmodule AshTypescript.Codegen.TypeMapper do
         Ash.Type.Struct when has_fields ->
           false
 
+        # Ash.Type.Struct with instance_of constraint references a complex resource type
+        Ash.Type.Struct when has_instance_of ->
+          false
+
         Ash.Type.Union ->
+          false
+
+        # :struct with instance_of constraint references a complex resource type
+        :struct when has_instance_of ->
           false
 
         atom_type when is_atom(atom_type) ->

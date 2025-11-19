@@ -271,6 +271,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       type = Keyword.get(config, :type)
       constraints = Keyword.get(config, :constraints, [])
       has_fields = Keyword.has_key?(constraints, :fields)
+      has_instance_of = Keyword.has_key?(constraints, :instance_of)
 
       case type do
         Ash.Type.Map when has_fields ->
@@ -280,6 +281,10 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
           false
 
         Ash.Type.Struct when has_fields ->
+          false
+
+        # Ash.Type.Struct with instance_of constraint references a complex resource type
+        Ash.Type.Struct when has_instance_of ->
           false
 
         Ash.Type.Tuple when has_fields ->
@@ -567,8 +572,6 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   defp is_typed_struct_attribute?(%{constraints: constraints}) do
     Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of)
   end
-
-  defp is_typed_struct_attribute?(_), do: false
 
   defp is_keyword_attribute?(%{type: Ash.Type.Keyword, constraints: constraints}),
     do: Keyword.has_key?(constraints, :fields)
