@@ -342,9 +342,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
 
       {:error, :not_found} ->
         throw({:unknown_field, field_name, resource, path})
-
-      field_type ->
-        throw({:invalid_field_selection, field_name, field_type, path})
     end
   end
 
