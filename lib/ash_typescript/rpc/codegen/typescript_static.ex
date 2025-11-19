@@ -179,7 +179,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
 
     // Resource schema constraint
     type TypedSchema = {
-      __type: "Resource" | "TypedStruct" | "TypedMap" | "Union";
+      __type: "Resource" | "TypedMap" | "Union";
       __primitiveFields: string;
     };
 
@@ -478,20 +478,66 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
     >["errors"];
 
     /**
-     * Represents an error from an unsuccessful RPC call
+     * Represents an error from an unsuccessful RPC call.
+     *
+     * This type matches the error structure defined in the AshTypescript.Rpc.Error protocol.
+     *
      * @example
-     * const error: AshRpcError = { type: "validation_error", message: "Something went wrong" }
+     * const error: AshRpcError = {
+     *   type: "invalid_changes",
+     *   message: "Invalid value for field %{field}",
+     *   shortMessage: "Invalid changes",
+     *   vars: { field: "email" },
+     *   fields: ["email"],
+     *   path: ["user", "email"],
+     *   details: { suggestion: "Provide a valid email address" }
+     * }
      */
     export type AshRpcError = {
+      /** Machine-readable error type (e.g., "invalid_changes", "not_found") */
       type: string;
+      /** Full error message (may contain template variables like %{key}) */
       message: string;
-      shortMessage?: string;
-      fields?: string[];
-      path?: Array<string | number>;
-      vars?: Record<string, any>;
+      /** Concise version of the message */
+      shortMessage: string;
+      /** Variables to interpolate into the message template */
+      vars: Record<string, any>;
+      /** List of affected field names (for field-level errors) */
+      fields: string[];
+      /** Path to the error location in the data structure */
+      path: string[];
+      /** Optional map with extra details (e.g., suggestions, hints) */
       details?: Record<string, any>;
-      errorId?: string;
     }
+
+    /**
+     * Represents the result of a validation RPC call.
+     *
+     * All validation actions return this same structure, indicating either
+     * successful validation or a list of validation errors.
+     *
+     * @example
+     * // Successful validation
+     * const result: ValidationResult = { success: true };
+     *
+     * // Failed validation
+     * const result: ValidationResult = {
+     *   success: false,
+     *   errors: [
+     *     {
+     *       type: "required",
+     *       message: "is required",
+     *       shortMessage: "Required field",
+     *       vars: { field: "email" },
+     *       fields: ["email"],
+     *       path: []
+     *     }
+     *   ]
+     * };
+     */
+    export type ValidationResult =
+      | { #{format_output_field(:success)}: true }
+      | { #{format_output_field(:success)}: false; #{format_output_field(:errors)}: AshRpcError[]; };
 
 
 
@@ -521,7 +567,6 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
     validation_channel_after_hook =
       Map.get(hook_config, :rpc_validation_after_channel_response_hook)
 
-    # Extract hook context types
     action_hook_context_type =
       Map.get(hook_config, :rpc_action_hook_context_type, "Record<string, any>")
 
@@ -534,7 +579,6 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
     validation_channel_hook_context_type =
       Map.get(hook_config, :rpc_validation_channel_hook_context_type, "Record<string, any>")
 
-    # Generate action RPC request helper
     action_helper =
       generate_action_rpc_request_helper(
         endpoint_process,
@@ -542,7 +586,6 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
         action_after_hook
       )
 
-    # Generate validation RPC request helper (only if validation functions are enabled)
     validation_helper =
       if AshTypescript.Rpc.generate_validation_functions?() do
         generate_validation_rpc_request_helper(
@@ -554,7 +597,6 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
         ""
       end
 
-    # Generate action channel helper if channel RPC actions are enabled
     action_channel_helper =
       if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
         generate_action_channel_push_helper(
@@ -566,7 +608,6 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
         ""
       end
 
-    # Generate validation channel helper (only if both validation and channel RPC actions are enabled)
     validation_channel_helper =
       if AshTypescript.Rpc.generate_validation_functions?() and
            AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
@@ -579,7 +620,6 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
         ""
       end
 
-    # Conditional interface generation
     validation_config_interface =
       if AshTypescript.Rpc.generate_validation_functions?() do
         """
@@ -766,8 +806,6 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
     """
   end
 
-  # Private helper functions
-
   defp generate_action_rpc_request_helper(endpoint, before_hook, after_hook) do
     generate_rpc_request_helper_impl(
       "executeActionRpcRequest",
@@ -802,6 +840,10 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
     errors_field = format_output_field(:errors)
     type_field = formatted_error_type_field()
     message_field = formatted_error_message_field()
+    short_message_field = formatted_error_short_message_field()
+    vars_field = formatted_error_vars_field()
+    fields_field = formatted_error_fields_field()
+    path_field = formatted_error_path_field()
     details_field = formatted_error_details_field()
 
     before_hook_code =
@@ -864,9 +906,13 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
           #{success_field}: false,
           #{errors_field}: [
             {
-              #{type_field}: "network",
-              #{message_field}: response.statusText,
-              #{details_field}: {}
+              #{type_field}: "network_error",
+              #{message_field}: `Network request failed: ${response.statusText}`,
+              #{short_message_field}: "Network error",
+              #{vars_field}: { statusCode: response.status, statusText: response.statusText },
+              #{fields_field}: [],
+              #{path_field}: [],
+              #{details_field}: { statusCode: response.status }
             }
           ],
         } as T;

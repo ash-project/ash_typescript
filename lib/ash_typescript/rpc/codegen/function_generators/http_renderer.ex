@@ -17,7 +17,6 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
   Renders an HTTP execution function (Promise-based).
   """
   def render_execution_function(resource, action, rpc_action, rpc_action_name) do
-    # Build the function shape using shared core logic
     shape =
       FunctionCore.build_execution_function_shape(
         resource,
@@ -27,14 +26,12 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
         transport: :http
       )
 
-    # Format the function name for HTTP
     function_name =
       AshTypescript.FieldFormatter.format_field(
         rpc_action_name,
         AshTypescript.Rpc.output_field_formatter()
       )
 
-    # Add HTTP-specific config fields
     http_config_fields =
       shape.config_fields ++
         [
@@ -43,18 +40,15 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
           "  customFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;"
         ]
 
-    # Build optional pagination config type if needed
     {config_type_export, config_type_ref} =
       TypeBuilders.build_optional_pagination_config(
         shape,
         http_config_fields
       )
 
-    # Build the result type
     {result_type_def, return_type_def, generic_param, function_signature} =
       TypeBuilders.build_result_type(shape, config_type_ref)
 
-    # Build the payload
     payload_fields =
       PayloadBuilder.build_payload_fields(rpc_action_name, shape.context,
         include_fields: shape.has_fields,
@@ -63,10 +57,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
 
     payload_def = "{\n    #{Enum.join(payload_fields, ",\n    ")}\n  }"
 
-    # Generate TypeScript generic parameter
     generic_part = if generic_param != "", do: "<#{generic_param}>", else: ""
 
-    # Render the complete function
     """
     #{config_type_export}#{result_type_def}
 
@@ -87,7 +79,6 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
   Renders an HTTP validation function.
   """
   def render_validation_function(resource, action, rpc_action_name) do
-    import AshTypescript.Helpers
     alias AshTypescript.Rpc.Codegen.Helpers.{ConfigBuilder, PayloadBuilder}
 
     shape =
@@ -103,7 +94,6 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
         AshTypescript.Rpc.output_field_formatter()
       )
 
-    # Build config fields using helper (validation uses simple primary key type)
     config_fields =
       ConfigBuilder.build_common_config_fields(resource, action, shape.context,
         rpc_action_name: rpc_action_name,
@@ -121,25 +111,6 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
 
-    success_field = format_output_field(:success)
-    errors_field = format_output_field(:errors)
-
-    validation_result_type = """
-    export type Validate#{shape.rpc_action_name_pascal}Result =
-      | { #{success_field}: true }
-      | {
-          #{success_field}: false;
-          #{errors_field}: Array<{
-            #{formatted_error_type_field()}: string;
-            #{formatted_error_message_field()}: string;
-            #{format_output_field(:field)}?: string;
-            #{formatted_error_field_path_field()}?: string;
-            #{formatted_error_details_field()}?: Record<string, any>;
-          }>;
-        };
-    """
-
-    # Build the validation payload using helper (no fields or filtering/pagination for validation)
     validation_payload_fields =
       PayloadBuilder.build_payload_fields(rpc_action_name, shape.context,
         include_fields: false,
@@ -149,14 +120,12 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
     validation_payload_def = "{\n    #{Enum.join(validation_payload_fields, ",\n    ")}\n  }"
 
     """
-    #{validation_result_type}
-
     export async function #{function_name}(
       config: #{config_type_def}
-    ): Promise<Validate#{shape.rpc_action_name_pascal}Result> {
+    ): Promise<ValidationResult> {
       const payload = #{validation_payload_def};
 
-      return executeValidationRpcRequest<Validate#{shape.rpc_action_name_pascal}Result>(
+      return executeValidationRpcRequest<ValidationResult>(
         payload,
         config
       );

@@ -29,15 +29,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
     errors_field = format_output_field(:errors)
 
     error_type_def = """
-    {
-            #{success_field}: false;
-            #{errors_field}: Array<{
-              #{formatted_error_type_field()}: string;
-              #{formatted_error_message_field()}: string;
-              #{formatted_error_field_path_field()}?: string;
-              #{formatted_error_details_field()}: Record<string, string>;
-            }>;
-          }
+    { #{success_field}: false; #{errors_field}: AshRpcError[]; }
     """
 
     cond do
@@ -79,8 +71,6 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
     end
   end
 
-  # Private helpers
-
   defp build_destroy_result_type(shape, success_field, error_type_def, config_type_ref) do
     if shape.has_metadata do
       result_type = """
@@ -113,7 +103,6 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypeBuilders do
           " #{format_output_field(:metadata)}: Pick<#{shape.rpc_action_name_pascal}Metadata, MetadataFields[number]>;",
         else: ""
 
-    # For optional pagination, update result type to include Page generic
     {result_type_generics, return_type_generics, function_generics, function_sig,
      function_return_generics} =
       cond do

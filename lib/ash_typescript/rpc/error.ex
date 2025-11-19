@@ -18,6 +18,7 @@ defprotocol AshTypescript.Rpc.Error do
   - `:vars` - A map of variables to interpolate into messages
   - `:fields` - A list of affected field names (for field-level errors)
   - `:path` - The path to the error location in the data structure
+  - `:details` - An optional map with extra details
 
   ## Example Implementation
 
@@ -42,7 +43,6 @@ defprotocol AshTypescript.Rpc.Error do
   def to_error(exception)
 end
 
-# Implementation for Ash.Error.Changes.InvalidChanges
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Changes.InvalidChanges do
   def to_error(error) do
     %{
@@ -56,7 +56,6 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Changes.InvalidChanges do
   end
 end
 
-# Implementation for Ash.Error.Query.InvalidQuery
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Query.InvalidQuery do
   def to_error(error) do
     %{
@@ -70,7 +69,6 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Query.InvalidQuery do
   end
 end
 
-# Implementation for Ash.Error.Query.NotFound
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Query.NotFound do
   def to_error(error) do
     %{
@@ -84,7 +82,6 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Query.NotFound do
   end
 end
 
-# Implementation for Ash.Error.Changes.Required
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Changes.Required do
   def to_error(error) do
     %{
@@ -98,7 +95,6 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Changes.Required do
   end
 end
 
-# Implementation for Ash.Error.Query.Required
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Query.Required do
   def to_error(error) do
     %{
@@ -112,7 +108,6 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Query.Required do
   end
 end
 
-# Implementation for Ash.Error.Forbidden.Policy
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Forbidden.Policy do
   def to_error(error) do
     # Check if policy breakdown should be shown (would need configuration)
@@ -134,7 +129,6 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Forbidden.Policy do
   end
 end
 
-# Implementation for Ash.Error.Forbidden.ForbiddenField
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Forbidden.ForbiddenField do
   def to_error(error) do
     %{
@@ -148,7 +142,6 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Forbidden.ForbiddenField do
   end
 end
 
-# Implementation for Ash.Error.Changes.InvalidAttribute
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Changes.InvalidAttribute do
   def to_error(error) do
     %{
@@ -162,7 +155,6 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Changes.InvalidAttribute do
   end
 end
 
-# Implementation for Ash.Error.Changes.InvalidArgument
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Changes.InvalidArgument do
   def to_error(error) do
     %{
@@ -176,7 +168,6 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Changes.InvalidArgument do
   end
 end
 
-# Implementation for Ash.Error.Query.InvalidArgument
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Query.InvalidArgument do
   def to_error(error) do
     %{
@@ -190,7 +181,6 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Query.InvalidArgument do
   end
 end
 
-# Implementation for Ash.Error.Page.InvalidKeyset
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Page.InvalidKeyset do
   def to_error(error) do
     %{
@@ -204,7 +194,6 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Page.InvalidKeyset do
   end
 end
 
-# Implementation for Ash.Error.Query.InvalidPage
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Query.InvalidPage do
   def to_error(error) do
     %{
@@ -218,7 +207,6 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Query.InvalidPage do
   end
 end
 
-# Implementation for Ash.Error.Invalid.InvalidPrimaryKey
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Invalid.InvalidPrimaryKey do
   def to_error(error) do
     %{
@@ -232,7 +220,6 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Invalid.InvalidPrimaryKey do
   end
 end
 
-# Implementation for Ash.Error.Query.ReadActionRequiresActor
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Query.ReadActionRequiresActor do
   def to_error(error) do
     %{
@@ -246,7 +233,6 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Query.ReadActionRequiresActor do
   end
 end
 
-# Implementation for Ash.Error.Unknown.UnknownError
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Unknown.UnknownError do
   def to_error(error) do
     %{
@@ -260,7 +246,6 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Unknown.UnknownError do
   end
 end
 
-# Check if AshAuthentication is available and implement its errors
 if Code.ensure_loaded?(AshAuthentication.Errors.AuthenticationFailed) do
   defimpl AshTypescript.Rpc.Error, for: AshAuthentication.Errors.AuthenticationFailed do
     def to_error(error) do

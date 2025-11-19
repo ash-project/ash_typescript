@@ -17,7 +17,6 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
   Renders a Channel execution function (handler-based).
   """
   def render_execution_function(resource, action, rpc_action, rpc_action_name) do
-    # Build the function shape using shared core logic
     shape =
       FunctionCore.build_execution_function_shape(
         resource,
@@ -27,21 +26,17 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
         transport: :channel
       )
 
-    # Format the function name for Channel (with "_channel" suffix)
     function_name =
       AshTypescript.FieldFormatter.format_field(
         "#{rpc_action_name}_channel",
         AshTypescript.Rpc.output_field_formatter()
       )
 
-    # Build config fields with channel-specific additions
     channel_config_fields = ["  channel: Channel;"] ++ shape.config_fields
 
-    # Build handler types based on action type and metadata
     {result_handler_type, error_handler_type, timeout_handler_type, generic_part} =
       build_handler_types(shape)
 
-    # Add handler fields to config
     config_fields =
       channel_config_fields ++
         [
@@ -53,7 +48,6 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
 
-    # Build the payload
     payload_fields =
       PayloadBuilder.build_payload_fields(rpc_action_name, shape.context,
         include_fields: shape.has_fields,
@@ -62,10 +56,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
 
     payload_def = "{\n    #{Enum.join(payload_fields, ",\n    ")}\n  }"
 
-    # Determine the result type for the handler
     result_type_for_handler = build_result_type_for_handler(shape)
 
-    # Render the complete function
     """
     export async function #{function_name}#{generic_part}(config: #{config_type_def}) {
       executeActionChannelPush<#{result_type_for_handler}>(
@@ -97,7 +89,6 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
         AshTypescript.Rpc.output_field_formatter()
       )
 
-    # Build config fields using helper, then add channel-specific fields
     config_fields =
       ["  channel: Channel;"] ++
         ConfigBuilder.build_common_config_fields(resource, action, shape.context,
@@ -107,7 +98,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
           is_channel: true
         )
 
-    result_handler_type = "(result: Validate#{shape.rpc_action_name_pascal}Result) => void"
+    result_handler_type = "(result: ValidationResult) => void"
     error_handler_type = "any"
     timeout_handler_type = "() => void"
 
@@ -122,7 +113,6 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
 
-    # Build the payload using helper (no fields or filtering/pagination for validation)
     payload_fields =
       PayloadBuilder.build_payload_fields(rpc_action_name, shape.context,
         include_fields: false,
@@ -133,7 +123,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
 
     """
     export async function #{function_name}(config: #{config_type_def}) {
-      executeValidationChannelPush<Validate#{shape.rpc_action_name_pascal}Result>(
+      executeValidationChannelPush<ValidationResult>(
         config.channel,
         #{payload_def},
         config.timeout,
@@ -142,8 +132,6 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
     }
     """
   end
-
-  # Private helpers
 
   defp build_handler_types(shape) do
     cond do
@@ -166,7 +154,6 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
         end
 
       shape.has_fields ->
-        # For actions with metadata, add MetadataFields generic
         if shape.has_metadata do
           metadata_param =
             "MetadataFields extends ReadonlyArray<keyof #{shape.rpc_action_name_pascal}Metadata> = []"

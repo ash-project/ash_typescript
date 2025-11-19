@@ -12,6 +12,8 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
 
   alias AshTypescript.Rpc.Errors
 
+  @stale_generated_file_hint "This error is most likely happening because the generated typescript file used is not up to date with the running backend. Check that you are using the latest generated file, and/or that a new file has been generated after the last backend changes."
+
   @doc """
   Builds a detailed error response from various error types.
 
@@ -27,12 +29,14 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
       {:action_not_found, action_name} ->
         %{
           type: "action_not_found",
-          message: "RPC action '#{action_name}' not found",
+          message: "RPC action %{action_name} not found",
+          short_message: "Action not found",
+          vars: %{action_name: action_name},
           path: [],
           fields: [],
           details: %{
-            action_name: action_name,
-            suggestion: "Check that the action is properly configured in your domain's rpc block"
+            suggestion: "Check that the action is properly configured in your domain's rpc block",
+            hint: @stale_generated_file_hint
           }
         }
 
@@ -40,10 +44,14 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
       {:tenant_required, resource} ->
         %{
           type: "tenant_required",
-          message: "Tenant parameter is required for multitenant resource #{inspect(resource)}",
+          message: "Tenant parameter is required for multitenant resource %{resource}",
+          short_message: "Tenant required",
+          vars: %{resource: inspect(resource)},
+          path: [],
+          fields: [],
           details: %{
-            resource: inspect(resource),
-            suggestion: "Add a 'tenant' parameter to your request"
+            suggestion: "Add a 'tenant' parameter to your request",
+            hint: @stale_generated_file_hint
           }
         }
 
@@ -51,125 +59,168 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
       {:invalid_fields, field_error} ->
         build_error_response(field_error)
 
-      # Direct field error from RequestedFieldsProcessor
-      %{type: :invalid_field, field: field_name} ->
-        %{
-          type: "invalid_field",
-          message: "Invalid field '#{field_name}'",
-          field: field_name
-        }
-
       # === FIELD VALIDATION ERRORS WITH FIELD PATHS ===
 
-      # Unknown field errors
-      {:unknown_field, _field_atom, "map", field_path} ->
+      # Unknown field errors - now accepts raw path instead of formatted field_path
+      {:unknown_field, field_atom, "map", path} when is_list(path) ->
+        full_field_path = build_complete_field_path(path, field_atom)
+        formatted_path = format_path(path)
+
         %{
           type: "unknown_map_field",
-          message: "Unknown field '#{field_path}' for map return type",
-          field_path: field_path,
+          message: "Unknown field %{field} for map return type",
+          short_message: "Unknown map field",
+          vars: %{field: full_field_path},
+          path: formatted_path,
+          fields: [full_field_path],
           details: %{
-            field: field_path,
-            suggestion: "Check that the field name is valid for the map's field constraints"
+            suggestion: "Check that the field name is valid for the map's field constraints",
+            hint: @stale_generated_file_hint
           }
         }
 
-      {:unknown_field, _field_atom, "typed_struct", field_path} ->
-        %{
-          type: "unknown_typed_struct_field",
-          message: "Unknown field '#{field_path}' for typed struct",
-          field_path: field_path,
-          details: %{
-            field: field_path,
-            suggestion: "Check that the field name is valid for the typed struct definition"
-          }
-        }
+      {:unknown_field, field_atom, "union_attribute", path} when is_list(path) ->
+        full_field_path = build_complete_field_path(path, field_atom)
+        formatted_path = format_path(path)
 
-      {:unknown_field, _field_atom, "union_attribute", field_path} ->
         %{
           type: "unknown_union_field",
-          message: "Unknown union member '#{field_path}'",
-          field_path: field_path,
+          message: "Unknown union member %{field}",
+          short_message: "Unknown union member",
+          vars: %{field: full_field_path},
+          path: formatted_path,
+          fields: [full_field_path],
           details: %{
-            field: field_path,
             suggestion:
-              "Check that the union member name is valid for the union attribute definition"
+              "Check that the union member name is valid for the union attribute definition",
+            hint: @stale_generated_file_hint
           }
         }
 
-      {:unknown_field, _field_atom, resource, field_path} ->
+      {:unknown_field, field_atom, resource, path} when is_list(path) ->
+        full_field_path = build_complete_field_path(path, field_atom)
+        formatted_path = format_path(path)
+
         %{
           type: "unknown_field",
-          message: "Unknown field '#{field_path}' for resource #{inspect(resource)}",
-          field_path: field_path,
+          message: "Unknown field %{field} for resource %{resource}",
+          short_message: "Unknown field",
+          vars: %{field: full_field_path, resource: inspect(resource)},
+          path: formatted_path,
+          fields: [full_field_path],
           details: %{
-            field: field_path,
-            resource: inspect(resource),
             suggestion:
-              "Check the field name spelling and ensure it's a public attribute, calculation, or relationship"
+              "Check the field name spelling and ensure it's a public attribute, calculation, or relationship",
+            hint: @stale_generated_file_hint
           }
         }
 
-      # Calculation errors
-      {:calculation_requires_args, field_atom, field_path} ->
+      # Calculation errors - now accepts raw path
+      {:calculation_requires_args, field_atom, path} when is_list(path) ->
+        full_field_path = build_complete_field_path(path, field_atom)
+        formatted_path = format_path(path)
+
         %{
           type: "invalid_field_format",
-          message: "Calculation '#{field_path}' requires arguments",
-          field_path: field_path,
+          message: "Calculation %{field} requires arguments",
+          short_message: "Calculation requires arguments",
+          vars: %{field: full_field_path},
+          path: formatted_path,
+          fields: [full_field_path],
           details: %{
-            field: field_path,
-            suggestion: "Provide arguments in the format: {\"#{field_atom}\": {\"args\": {...}}}"
+            suggestion: "Provide arguments in the format: {\"#{field_atom}\": {\"args\": {...}}}",
+            hint: @stale_generated_file_hint
           }
         }
 
-      {:invalid_calculation_args, _field_atom, field_path} ->
+      {:invalid_calculation_args, field_atom, path} when is_list(path) ->
+        full_field_path = build_complete_field_path(path, field_atom)
+        formatted_path = format_path(path)
+
         %{
           type: "invalid_calculation_args",
-          message: "Invalid arguments for calculation '#{field_path}'",
-          field_path: field_path,
+          message: "Invalid arguments for calculation %{field}",
+          short_message: "Invalid calculation arguments",
+          vars: %{field: full_field_path},
+          path: formatted_path,
+          fields: [full_field_path],
           details: %{
-            field: field_path,
-            expected: "Map containing argument values or valid field selection format"
+            expected: "Map containing argument values or valid field selection format",
+            hint: @stale_generated_file_hint
           }
         }
 
-      # Field selection requirement errors
-      {:requires_field_selection, field_type, field_path} ->
+      # Field selection requirement errors - accepts raw path and field_name
+      {:requires_field_selection, field_type, field_name, path}
+      when is_list(path) and is_atom(field_name) ->
+        full_field_path = build_complete_field_path(path, field_name)
+        formatted_path = format_path(path)
+
         %{
           type: "requires_field_selection",
-          message:
-            "#{String.capitalize(to_string(field_type))} '#{field_path}' requires field selection",
-          field_path: field_path,
+          message: "%{field_type} %{field} requires field selection",
+          short_message: "Field selection required",
+          vars: %{
+            field_type: String.capitalize(to_string(field_type)),
+            field: full_field_path
+          },
+          path: formatted_path,
+          fields: [full_field_path],
           details: %{
-            field_type: field_type,
-            field: field_path,
-            suggestion: "Specify which fields to select from this #{field_type}"
+            suggestion: "Specify which fields to select from this #{field_type}",
+            hint: @stale_generated_file_hint
           }
         }
 
-      {:invalid_field_selection, _field_atom, field_type, field_path} ->
+      # Legacy pattern for requires_field_selection with nil field
+      {:requires_field_selection, field_type, nil} ->
+        %{
+          type: "requires_field_selection",
+          message: "%{field_type} requires field selection",
+          short_message: "Field selection required",
+          vars: %{
+            field_type: String.capitalize(to_string(field_type))
+          },
+          path: [],
+          fields: [],
+          details: %{
+            suggestion: "Specify which fields to select from this #{field_type}",
+            hint: @stale_generated_file_hint
+          }
+        }
+
+      {:invalid_field_selection, field_atom, field_type, path} when is_list(path) ->
         field_type_string = format_field_type(field_type)
+        full_field_path = build_complete_field_path(path, field_atom)
+        formatted_path = format_path(path)
 
         %{
           type: "invalid_field_selection",
-          message: "Cannot select fields from #{field_type_string} '#{field_path}'",
-          field_path: field_path,
+          message: "Cannot select fields from %{field_type} %{field}",
+          short_message: "Invalid field selection",
+          vars: %{field_type: field_type_string, field: full_field_path},
+          path: formatted_path,
+          fields: [full_field_path],
           details: %{
-            field: field_path,
-            field_type: field_type_string,
-            suggestion: "Remove the field selection for this #{field_type_string} field"
+            suggestion: "Remove the field selection for this #{field_type_string} field",
+            hint: @stale_generated_file_hint
           }
         }
 
-      {:invalid_field_selection, :primitive_type, return_type} ->
+      {:invalid_field_selection, :primitive_type, return_type, requested_fields, path} ->
         return_type_string = format_field_type(return_type)
 
         %{
           type: "invalid_field_selection",
-          message: "Cannot select fields from primitive type #{return_type_string}",
+          message: "Cannot select fields from primitive type %{return_type}",
+          short_message: "Invalid field selection",
+          vars: %{return_type: return_type_string},
+          path: format_path(path),
+          fields: [],
           details: %{
-            field_code: "primitive_type",
-            return_type: return_type_string,
-            suggestion: "Remove the field selection for this primitive type"
+            requested_fields: requested_fields,
+            suggestion: "Remove the field selection for this primitive type",
+            hint: @stale_generated_file_hint
           }
         }
 
@@ -179,49 +230,70 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
 
         %{
           type: "invalid_field_selection",
-          message: "Cannot select fields from #{field_type_string} '#{field_path_string}'",
-          field_path: field_path_string,
+          message: "Cannot select fields from %{field_type} %{field}",
+          short_message: "Invalid field selection",
+          vars: %{field_type: field_type_string, field: field_path_string},
+          path: parse_field_path_to_formatted_path(field_path_string),
+          fields: [field_path_string],
           details: %{
-            field_type: field_type_string,
-            suggestion: "Remove the field selection for this #{field_type_string} field"
+            suggestion: "Remove the field selection for this #{field_type_string} field",
+            hint: @stale_generated_file_hint
           }
         }
 
-      # Field nesting errors
-      {:field_does_not_support_nesting, field_path} ->
+      # Field nesting errors - now accepts raw path
+      {:field_does_not_support_nesting, field_name, path} when is_list(path) ->
+        full_field_path = build_complete_field_path(path, field_name)
+        formatted_path = format_path(path)
+
         %{
           type: "field_does_not_support_nesting",
-          message: "Field '#{field_path}' does not support nested field selection",
-          field_path: field_path,
+          message: "Field %{field} does not support nested field selection",
+          short_message: "Field does not support nesting",
+          vars: %{field: full_field_path},
+          path: formatted_path,
+          fields: [full_field_path],
           details: %{
-            field: field_path,
-            suggestion: "Remove the nested specification for this field"
+            suggestion: "Remove the nested specification for this field",
+            hint: @stale_generated_file_hint
           }
         }
 
-      # Duplicate field errors
-      {:duplicate_field, _field_atom, field_path} ->
+      # Duplicate field errors - now accepts raw path
+      {:duplicate_field, field_atom, path} when is_list(path) ->
+        full_field_path = build_complete_field_path(path, field_atom)
+        formatted_path = format_path(path)
+
         %{
           type: "duplicate_field",
-          message: "Field '#{field_path}' was requested multiple times",
-          field_path: field_path,
+          message: "Field %{field} was requested multiple times",
+          short_message: "Duplicate field",
+          vars: %{field: full_field_path},
+          path: formatted_path,
+          fields: [full_field_path],
           details: %{
-            field: field_path,
-            suggestion: "Remove duplicate field specifications"
+            suggestion: "Remove duplicate field specifications",
+            hint: @stale_generated_file_hint
           }
         }
 
-      # Field combination errors
-      {:unsupported_field_combination, field_type, _field_atom, field_spec, field_path} ->
+      # Field combination errors - now accepts raw path
+      {:unsupported_field_combination, field_type, field_atom, field_spec, path}
+      when is_list(path) ->
+        full_field_path = build_complete_field_path(path, field_atom)
+        formatted_path = format_path(path)
+
         %{
           type: "unsupported_field_combination",
-          message: "Unsupported combination of field type and specification for '#{field_path}'",
-          field_path: field_path,
+          message: "Unsupported combination of field type and specification for %{field}",
+          short_message: "Unsupported field combination",
+          vars: %{field: full_field_path, field_type: to_string(field_type)},
+          path: formatted_path,
+          fields: [full_field_path],
           details: %{
-            field: field_path,
-            field_type: field_type,
             field_spec: inspect(field_spec),
-            suggestion: "Check the documentation for valid field specification formats"
+            suggestion: "Check the documentation for valid field specification formats",
+            hint: @stale_generated_file_hint
           }
         }
 
@@ -231,10 +303,63 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
         %{
           type: "invalid_fields_type",
           message: "Fields parameter must be an array",
+          short_message: "Invalid fields type",
+          vars: %{received: inspect(fields)},
+          path: [],
+          fields: [],
           details: %{
-            received: inspect(fields),
             expected_code: "array",
-            suggestion: "Wrap field names in an array, e.g., [\"field1\", \"field2\"]"
+            suggestion: "Wrap field names in an array, e.g., [\"field1\", \"field2\"]",
+            hint: @stale_generated_file_hint
+          }
+        }
+
+      # === UNION INPUT VALIDATION ERRORS ===
+
+      {:invalid_union_input, :not_a_map} ->
+        %{
+          type: "invalid_union_input",
+          message: "Union input must be a map with exactly one member key",
+          short_message: "Invalid union input",
+          vars: %{},
+          path: [],
+          fields: [],
+          details: %{
+            suggestion: "Provide union input in the format: {\"member_name\": value}",
+            hint: @stale_generated_file_hint
+          }
+        }
+
+      {:invalid_union_input, :no_member_key, member_names} ->
+        %{
+          type: "invalid_union_input",
+          message: "Union input map does not contain any valid member key",
+          short_message: "Invalid union input",
+          vars: %{expected_members: Enum.join(member_names, ", ")},
+          path: [],
+          fields: [],
+          details: %{
+            expected_members: member_names,
+            suggestion: "Provide exactly one of the following keys: %{expected_members}",
+            hint: @stale_generated_file_hint
+          }
+        }
+
+      {:invalid_union_input, :multiple_member_keys, found_keys, member_names} ->
+        %{
+          type: "invalid_union_input",
+          message: "Union input map contains multiple member keys: %{found_keys}",
+          short_message: "Invalid union input",
+          vars: %{
+            found_keys: Enum.join(found_keys, ", "),
+            expected_members: Enum.join(member_names, ", ")
+          },
+          path: [],
+          fields: [],
+          details: %{
+            suggestion:
+              "Provide exactly one member key, not multiple. Choose one of: %{expected_members}",
+            hint: @stale_generated_file_hint
           }
         }
 
@@ -243,10 +368,14 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
       {:missing_required_parameter, parameter} ->
         %{
           type: "missing_required_parameter",
-          message: "Required parameter '#{parameter}' is missing or empty",
+          message: "Required parameter %{parameter} is missing or empty",
+          short_message: "Missing required parameter",
+          vars: %{parameter: to_string(parameter)},
+          path: [],
+          fields: [],
           details: %{
-            parameter: parameter,
-            suggestion: "Ensure '#{parameter}' parameter is provided and not empty"
+            suggestion: "Ensure %{parameter} parameter is provided and not empty",
+            hint: @stale_generated_file_hint
           }
         }
 
@@ -254,32 +383,13 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
         %{
           type: "empty_fields_array",
           message: "Fields array cannot be empty",
+          short_message: "Empty fields array",
+          vars: %{},
+          path: [],
+          fields: [],
           details: %{
-            suggestion: "Provide at least one field name in the fields array"
-          }
-        }
-
-      {:invalid_pagination_type, parameter, value} ->
-        %{
-          type: "invalid_pagination_type",
-          message: "Invalid data type for pagination parameter '#{parameter}'",
-          details: %{
-            parameter: parameter,
-            received: inspect(value),
-            expected: "Integer",
-            suggestion: "Provide an integer value for #{parameter}"
-          }
-        }
-
-      {:invalid_pagination_value, parameter, value, constraint} ->
-        %{
-          type: "invalid_pagination_value",
-          message: "Invalid value for pagination parameter '#{parameter}': #{constraint}",
-          details: %{
-            parameter: parameter,
-            received: value,
-            constraint: constraint,
-            suggestion: "Ensure #{parameter} meets the constraint: #{constraint}"
+            suggestion: "Provide at least one field name in the fields array",
+            hint: @stale_generated_file_hint
           }
         }
 
@@ -287,9 +397,13 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
         %{
           type: "invalid_input_format",
           message: "Input parameter must be a map",
+          short_message: "Invalid input format",
+          vars: %{received: inspect(invalid_input)},
+          path: [],
+          fields: [],
           details: %{
-            received: inspect(invalid_input),
-            expected: "Map containing input parameters"
+            expected: "Map containing input parameters",
+            hint: @stale_generated_file_hint
           }
         }
 
@@ -297,9 +411,13 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
         %{
           type: "invalid_pagination",
           message: "Invalid pagination parameter format",
+          short_message: "Invalid pagination",
+          vars: %{received: inspect(invalid_value)},
+          path: [],
+          fields: [],
           details: %{
-            received: inspect(invalid_value),
-            expected: "Map with pagination parameters (limit, offset, before, after, etc.)"
+            expected: "Map with pagination parameters (limit, offset, before, after, etc.)",
+            hint: @stale_generated_file_hint
           }
         }
 
@@ -322,25 +440,40 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
 
       # Invalid field type errors (from validator throws)
       {:invalid_field_type, field_name, path} ->
-        field_path = Enum.join(path ++ [field_name], ".")
+        formatted_path = format_path(path)
+
+        formatted_field =
+          AshTypescript.FieldFormatter.format_field(
+            to_string(field_name),
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        field_path = Enum.join(formatted_path ++ [formatted_field], ".")
 
         %{
           type: "unknown_field",
-          message: "Unknown field '#{field_path}'",
-          field_path: field_path,
+          message: "Unknown field %{field}",
+          short_message: "Unknown field",
+          vars: %{field: field_path},
+          path: formatted_path,
+          fields: [field_path],
           details: %{
-            field: field_name,
-            path: path,
-            suggestion: "Check that the field exists and is accessible"
+            suggestion: "Check that the field exists and is accessible",
+            hint: @stale_generated_file_hint
           }
         }
 
       {field_error_type, _} when is_atom(field_error_type) ->
         %{
           type: "field_validation_error",
-          message: "Field validation error: #{field_error_type}",
+          message: "Field validation error: %{error_type}",
+          short_message: "Field validation error",
+          vars: %{error_type: to_string(field_error_type)},
+          path: [],
+          fields: [],
           details: %{
-            error: inspect(error)
+            error: inspect(error),
+            hint: @stale_generated_file_hint
           }
         }
 
@@ -348,15 +481,50 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
         %{
           type: "unknown_error",
           message: "An unexpected error occurred",
+          short_message: "Unknown error",
+          vars: %{},
+          path: [],
+          fields: [],
           details: %{
-            error: inspect(other)
+            error: inspect(other),
+            hint: @stale_generated_file_hint
           }
         }
     end
   end
 
-  # Format field type for error messages
   defp format_field_type(:primitive_type), do: "primitive type"
   defp format_field_type({:ash_type, type, _}), do: "#{inspect(type)}"
   defp format_field_type(other), do: "#{inspect(other)}"
+
+  defp format_path(path) when is_list(path) do
+    formatter = AshTypescript.Rpc.output_field_formatter()
+
+    Enum.map(path, fn field ->
+      AshTypescript.FieldFormatter.format_field(to_string(field), formatter)
+    end)
+  end
+
+  defp format_field_name(field_name) when is_atom(field_name) do
+    format_field_name(to_string(field_name))
+  end
+
+  defp format_field_name(field_name) when is_binary(field_name) do
+    formatter = AshTypescript.Rpc.output_field_formatter()
+    AshTypescript.FieldFormatter.format_field(field_name, formatter)
+  end
+
+  defp build_complete_field_path(path, field_name) when is_list(path) do
+    formatted_path = format_path(path)
+    formatted_field = format_field_name(field_name)
+
+    case formatted_path do
+      [] -> formatted_field
+      _ -> Enum.join(formatted_path ++ [formatted_field], ".")
+    end
+  end
+
+  defp parse_field_path_to_formatted_path(field_path) when is_binary(field_path) do
+    String.split(field_path, ".")
+  end
 end
