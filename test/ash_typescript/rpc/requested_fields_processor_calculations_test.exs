@@ -249,7 +249,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           }
         ])
 
-      assert error == {:duplicate_field, :self, "self"}
+      assert error == {:duplicate_field, :self, []}
     end
   end
 
@@ -262,7 +262,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           :self
         ])
 
-      assert error == {:calculation_requires_args, :self, "self"}
+      assert error == {:calculation_requires_args, :self, []}
     end
 
     test "rejects calculation that doesn't take arguments when requested with nested structure" do
@@ -274,7 +274,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           }
         ])
 
-      assert error == {:invalid_calculation_args, :is_overdue, "isOverdue"}
+      assert error == {:invalid_calculation_args, :is_overdue, []}
     end
 
     test "rejects aggregate when requested with nested structure" do
@@ -286,7 +286,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           }
         ])
 
-      assert error == {:invalid_field_selection, :comment_count, :aggregate, "commentCount"}
+      assert error == {:invalid_field_selection, :comment_count, :aggregate, []}
     end
 
     test "rejects attribute when requested with nested structure" do
@@ -298,7 +298,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           }
         ])
 
-      assert error == {:field_does_not_support_nesting, "title"}
+      assert error == {:field_does_not_support_nesting, :title, []}
     end
 
     test "rejects invalid fields in calculation field selection" do
@@ -310,7 +310,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
         ])
 
       assert error ==
-               {:unknown_field, :invalid_field, AshTypescript.Test.Todo, "self.invalidField"}
+               {:unknown_field, :invalid_field, AshTypescript.Test.Todo, [:self]}
     end
 
     test "rejects invalid nested relationship fields in calculations" do
@@ -325,7 +325,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
         ])
 
       assert error ==
-               {:unknown_field, :invalid_field, AshTypescript.Test.User, "self.user.invalidField"}
+               {:unknown_field, :invalid_field, AshTypescript.Test.User, [:self, :user]}
     end
 
     test "rejects calculations with missing fields key" do
@@ -339,7 +339,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
 
       # This should be treated as a regular relationship, which will fail since
       # :self is a calculation not a relationship
-      assert error == {:requires_field_selection, :complex_type, "self"}
+      assert error == {:requires_field_selection, :complex_type, :self, []}
     end
 
     test "rejects calculations with missing args key" do
@@ -352,7 +352,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
         ])
 
       # This should also be treated as a regular relationship and fail
-      assert error == {:invalid_calculation_args, :self, "self"}
+      assert error == {:invalid_calculation_args, :self, []}
     end
 
     test "rejects non-existent calculations" do
@@ -364,7 +364,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
         ])
 
       assert error ==
-               {:unknown_field, :non_existent_calc, AshTypescript.Test.Todo, "nonExistentCalc"}
+               {:unknown_field, :non_existent_calc, AshTypescript.Test.Todo, []}
     end
 
     test "handles malformed calculation request structure" do
@@ -377,7 +377,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
         ])
 
       # This gets treated as a regular relationship with invalid nested fields
-      assert error == {:invalid_calculation_args, :self, "self"}
+      assert error == {:invalid_calculation_args, :self, []}
     end
 
     test "rejects duplicate attribute fields" do
@@ -389,7 +389,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           :id
         ])
 
-      assert error == {:duplicate_field, :id, "id"}
+      assert error == {:duplicate_field, :id, []}
     end
 
     test "rejects duplicate relationship fields" do
@@ -400,7 +400,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           %{user: [:email]}
         ])
 
-      assert error == {:duplicate_field, :user, "user"}
+      assert error == {:duplicate_field, :user, []}
     end
 
     test "rejects mixed atom and map for same field" do
@@ -412,7 +412,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           %{is_overdue: %{args: %{}}}
         ])
 
-      assert error == {:duplicate_field, :is_overdue, "isOverdue"}
+      assert error == {:duplicate_field, :is_overdue, []}
     end
   end
 
@@ -433,8 +433,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
         ])
 
       assert error ==
-               {:invalid_field_selection, :formatted_summary, :calculation,
-                "metadata.formattedSummary"}
+               {:invalid_field_selection, :formatted_summary, :calculation, [:metadata]}
     end
 
     test "rejects complex calculation without fields parameter" do
@@ -445,7 +444,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           }
         ])
 
-      assert error == {:requires_field_selection, :complex_type, "self"}
+      assert error == {:requires_field_selection, :complex_type, :self, []}
     end
 
     test "rejects complex calculation with empty fields" do
@@ -456,7 +455,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           }
         ])
 
-      assert error == {:requires_field_selection, :complex_type, "self"}
+      assert error == {:requires_field_selection, :complex_type, :self, []}
     end
 
     test "processes calculation with basic field selection" do

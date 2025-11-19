@@ -214,8 +214,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
         ])
 
       assert error ==
-               {:unknown_field, :non_existing_field, AshTypescript.Test.User,
-                "user.nonExistingField"}
+               {:unknown_field, :non_existing_field, AshTypescript.Test.User, [:user]}
     end
   end
 
@@ -248,7 +247,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
           ]
         )
 
-      assert error == {:unknown_field, :invalid_field, "map", "invalidField"}
+      assert error == {:unknown_field, :invalid_field, "map", []}
     end
   end
 
@@ -275,7 +274,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
           [:id]
         )
 
-      assert error == {:invalid_field_selection, :primitive_type, {:ash_type, Ash.Type.UUID, []}}
+      assert error ==
+               {:invalid_field_selection, :primitive_type, {:ash_type, Ash.Type.UUID, []}, [:id],
+                []}
     end
 
     test "processes fields for array of structs correctly" do
@@ -396,7 +397,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
         ])
 
       assert error ==
-               {:unknown_field, :not_exposed_items, AshTypescript.Test.Todo, "notExposedItems"}
+               {:unknown_field, :not_exposed_items, AshTypescript.Test.Todo, []}
     end
 
     test "allows relationships to resources with AshTypescript.Resource extension" do

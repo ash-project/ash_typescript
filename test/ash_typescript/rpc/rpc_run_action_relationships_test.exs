@@ -659,7 +659,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "user.invalidField"
+      assert List.first(error["fields"]) == "user.invalidField"
     end
 
     test "returns error for invalid nested relationship", %{conn: conn} do
@@ -675,7 +675,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "user.invalidRelationship"
+      assert List.first(error["fields"]) == "user.invalidRelationship"
     end
 
     test "returns error for invalid deeply nested field", %{conn: conn} do
@@ -698,7 +698,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "user.comments.invalidField"
+      assert List.first(error["fields"]) == "user.comments.invalidField"
     end
 
     test "validates relationship existence before processing nested fields", %{conn: conn} do
@@ -714,7 +714,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "nonexistentRelation"
+      assert List.first(error["fields"]) == "nonexistentRelation"
     end
 
     test "returns error for relationships requested as simple atoms without field specification",
@@ -733,7 +733,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "requires_field_selection"
-      assert error["details"]["field"] =~ "user"
+      assert List.first(error["fields"]) =~ "user"
     end
   end
 
@@ -892,7 +892,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
       assert result["success"] == false
       error = List.first(result["errors"])
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "notExposedItems"
+      assert List.first(error["fields"]) == "notExposedItems"
     end
 
     test "allows RPC action with fields accessing allowed relationships", %{

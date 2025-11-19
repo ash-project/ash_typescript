@@ -99,7 +99,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
           :invalid_field
         ])
 
-      assert error == {:unknown_field, :invalid_field, AshTypescript.Test.Todo, "invalidField"}
+      assert error == {:unknown_field, :invalid_field, AshTypescript.Test.Todo, []}
     end
 
     test "returns error for invalid nested field" do
@@ -109,7 +109,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
         ])
 
       assert error ==
-               {:unknown_field, :invalid_field, AshTypescript.Test.User, "user.invalidField"}
+               {:unknown_field, :invalid_field, AshTypescript.Test.User, [:user]}
     end
 
     test "returns error for invalid relationship" do
@@ -119,8 +119,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
         ])
 
       assert error ==
-               {:unknown_field, :invalid_relationship, AshTypescript.Test.Todo,
-                "invalidRelationship"}
+               {:unknown_field, :invalid_relationship, AshTypescript.Test.Todo, []}
     end
   end
 end

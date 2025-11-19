@@ -17,8 +17,9 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       response = ErrorBuilder.build_error_response(error)
 
       assert response.type == "action_not_found"
-      assert response.message == "RPC action 'nonexistent_action' not found"
-      assert response.details.action_name == "nonexistent_action"
+      assert response.message == "RPC action %{action_name} not found"
+      assert response.short_message == "Action not found"
+      assert response.vars.action_name == "nonexistent_action"
       assert String.contains?(response.details.suggestion, "rpc block")
     end
 
@@ -28,8 +29,12 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       response = ErrorBuilder.build_error_response(error)
 
       assert response.type == "tenant_required"
-      assert String.contains?(response.message, "Todo")
-      assert response.details.resource != nil
+
+      assert response.message ==
+               "Tenant parameter is required for multitenant resource %{resource}"
+
+      assert response.short_message == "Tenant required"
+      assert String.contains?(response.vars.resource, "Todo")
       assert String.contains?(response.details.suggestion, "tenant")
     end
 
@@ -40,36 +45,43 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
 
       assert response.type == "invalid_pagination"
       assert response.message == "Invalid pagination parameter format"
-      assert response.details.received == "\"invalid_value\""
+      assert response.short_message == "Invalid pagination"
+      assert response.vars.received == "\"invalid_value\""
       assert String.contains?(response.details.expected, "Map")
     end
   end
 
   describe "field validation error messages" do
     test "unknown field error provides debugging context" do
-      error = {:invalid_fields, {:unknown_field, :nonexistent, Todo, "nonexistent"}}
+      error = {:invalid_fields, {:unknown_field, :nonexistent, Todo, []}}
 
       response = ErrorBuilder.build_error_response(error)
 
       assert response.type == "unknown_field"
-      assert response.message == "Unknown field 'nonexistent' for resource #{inspect(Todo)}"
-      assert response.field_path == "nonexistent"
-      assert response.details.field == "nonexistent"
-      assert response.details.resource == inspect(Todo)
+      assert response.message == "Unknown field %{field} for resource %{resource}"
+      assert response.short_message == "Unknown field"
+      assert response.vars.field == "nonexistent"
+      assert response.vars.resource == inspect(Todo)
+      assert response.fields == ["nonexistent"]
       assert String.contains?(response.details.suggestion, "public attribute")
     end
 
     test "unsupported field combination error shows all context" do
       error =
         {:invalid_fields,
-         {:unsupported_field_combination, :relationship, :user, "invalid_spec", "user"}}
+         {:unsupported_field_combination, :relationship, :user, "invalid_spec", []}}
 
       response = ErrorBuilder.build_error_response(error)
 
       assert response.type == "unsupported_field_combination"
-      assert response.field_path == "user"
-      assert response.details.field == "user"
-      assert response.details.field_type == :relationship
+
+      assert response.message ==
+               "Unsupported combination of field type and specification for %{field}"
+
+      assert response.short_message == "Unsupported field combination"
+      assert response.vars.field == "user"
+      assert response.vars.field_type == "relationship"
+      assert response.fields == ["user"]
       assert response.details.field_spec == "\"invalid_spec\""
       assert String.contains?(response.details.suggestion, "documentation")
     end
@@ -116,7 +128,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
         {:action_not_found, "test"},
         {:tenant_required, Todo},
         {:invalid_pagination, "invalid"},
-        {:invalid_fields, {:unknown_field, :test, Todo, "test"}},
+        {:invalid_fields, {:unknown_field, :test, Todo, []}},
         {:invalid_fields, {:invalid_field_format, "invalid"}},
         "unknown error"
       ]
@@ -139,24 +151,28 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     end
 
     test "error messages are user-friendly" do
-      error = {:invalid_fields, {:unknown_field, :nonexistent, Todo, "nonexistent"}}
+      error = {:invalid_fields, {:unknown_field, :nonexistent, Todo, []}}
       response = ErrorBuilder.build_error_response(error)
 
-      # Message should be clear and not contain internal terms
+      # Message template should be clear and not contain internal terms
       refute String.contains?(response.message, "atom")
       refute String.contains?(response.message, "module")
       refute String.contains?(response.message, "struct")
 
-      # Should contain helpful terms
-      assert String.contains?(response.message, "field")
-      assert String.contains?(response.message, "resource")
+      # Should contain helpful template variables
+      assert String.contains?(response.message, "%{field}")
+      assert String.contains?(response.message, "%{resource}")
+
+      # Vars should have user-friendly values
+      refute String.contains?(response.vars.field, "atom")
+      refute String.contains?(response.vars.resource, "module")
     end
 
     test "suggestions are actionable" do
       errors_with_suggestions = [
         {:action_not_found, "test"},
         {:tenant_required, Todo},
-        {:invalid_fields, {:unknown_field, :test, Todo, "test"}}
+        {:invalid_fields, {:unknown_field, :test, Todo, []}}
       ]
 
       for error <- errors_with_suggestions do
@@ -210,7 +226,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
                Pipeline.parse_request(:ash_typescript, conn, params)
 
       # Should be a field validation error
-      assert {:unknown_field, :unknown_field, Todo, "unknownField"} = error_response
+      assert {:unknown_field, :unknown_field, Todo, []} = error_response
     end
 
     test "nested field validation errors are preserved" do
@@ -225,7 +241,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
                Pipeline.parse_request(:ash_typescript, conn, params)
 
       # Should be a relationship field error with nested context
-      assert {:unknown_field, :unknown_user_field, User, "user.unknownUserField"} = error_response
+      assert {:unknown_field, :unknown_user_field, User, [:user]} = error_response
     end
   end
 end

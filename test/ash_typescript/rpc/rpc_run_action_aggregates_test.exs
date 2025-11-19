@@ -193,7 +193,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["message"] =~ "Cannot select fields from :aggregate 'commentCount'"
+      assert error["message"] == "Cannot select fields from %{field_type} %{field}"
     end
 
     test "rejects nested field selection on exists aggregate", %{conn: conn} do
@@ -206,7 +206,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["message"] =~ "Cannot select fields from :aggregate 'hasComments'"
+      assert error["message"] == "Cannot select fields from %{field_type} %{field}"
     end
 
     test "rejects nested field selection on primitive list aggregate", %{conn: conn} do
@@ -219,7 +219,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["message"] =~ "Cannot select fields from :aggregate 'commentAuthors'"
+      assert error["message"] == "Cannot select fields from %{field_type} %{field}"
     end
   end
 
@@ -240,7 +240,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "latestComment"
+      assert List.first(error["fields"]) == "latestComment"
     end
 
     test "rejects non-existent complex aggregate (recent_comments)", %{conn: conn} do
@@ -254,7 +254,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "recentComments"
+      assert List.first(error["fields"]) == "recentComments"
     end
 
     test "rejects non-existent complex aggregate with nested relationships", %{conn: conn} do
@@ -277,7 +277,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "latestComment"
+      assert List.first(error["fields"]) == "latestComment"
     end
 
     test "rejects non-existent complex aggregate with empty field selection", %{conn: conn} do
@@ -291,7 +291,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "latestComment"
+      assert List.first(error["fields"]) == "latestComment"
     end
 
     test "rejects non-existent complex aggregate as simple string", %{conn: conn} do
@@ -306,7 +306,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "latestComment"
+      assert List.first(error["fields"]) == "latestComment"
     end
   end
 
@@ -456,7 +456,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "nonExistentAggregate"
+      assert List.first(error["fields"]) == "nonExistentAggregate"
     end
 
     test "rejects duplicate aggregate fields", %{conn: conn} do
@@ -469,7 +469,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["message"] =~ "Field 'commentCount' was requested multiple times"
+      assert error["message"] == "Field %{field} was requested multiple times"
     end
 
     test "rejects mixed atom and map for same aggregate", %{conn: conn} do
@@ -482,7 +482,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["message"] =~ "Field 'commentCount' was requested multiple times"
+      assert error["message"] == "Field %{field} was requested multiple times"
     end
   end
 

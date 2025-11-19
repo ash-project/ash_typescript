@@ -93,57 +93,6 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
     end
   end
 
-  describe "RPC action validation error type generation with mapped names" do
-    test "validation error type uses mapped field names", %{generated: generated} do
-      # Find the UpdateTaskValidationErrors type definition
-      error_type_match =
-        Regex.run(~r/export type UpdateTaskValidationErrors = \{[^}]+\}/s, generated)
-
-      assert error_type_match, "UpdateTaskValidationErrors type should be defined"
-
-      error_type = List.first(error_type_match)
-
-      # Should contain mapped field names
-      assert error_type =~ "title?: string[];"
-      assert error_type =~ "isArchived?: string[];"
-
-      # Should NOT contain internal field names
-      refute error_type =~ "archived?"
-    end
-
-    test "validation error type uses mapped argument names", %{generated: generated} do
-      # Find the MarkCompletedTaskValidationErrors type definition
-      error_type_match =
-        Regex.run(~r/export type MarkCompletedTaskValidationErrors = \{[^}]+\}/s, generated)
-
-      assert error_type_match, "MarkCompletedTaskValidationErrors type should be defined"
-
-      error_type = List.first(error_type_match)
-
-      # Should contain mapped argument name
-      assert error_type =~ "isCompleted?: string[];"
-
-      # Should NOT contain internal argument name
-      refute error_type =~ "completed?"
-    end
-
-    test "validation error fields are always optional arrays", %{generated: generated} do
-      error_type_match =
-        Regex.run(~r/export type UpdateTaskValidationErrors = \{[^}]+\}/s, generated)
-
-      error_type = List.first(error_type_match)
-
-      # All validation error fields should be optional string arrays
-      assert error_type =~ "title?: string[];"
-      assert error_type =~ "isArchived?: string[];"
-      refute error_type =~ "archived?"
-
-      # Should not have required (non-optional) fields
-      refute error_type =~ ~r/title: string\[\]/
-      refute error_type =~ ~r/isArchived: string\[\]/
-    end
-  end
-
   describe "RPC action result type generation with mapped names" do
     test "result type success case uses mapped field names", %{generated: generated} do
       # Result type should be defined
@@ -152,11 +101,11 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
       assert generated =~ "InferUpdateTaskResult<Fields>"
     end
 
-    test "result type error case uses mapped validation error type", %{generated: generated} do
-      # Error case should reference validation errors type with mapped names
+    test "result type error case uses AshRpcError array", %{generated: generated} do
+      # Error case should reference AshRpcError[]
       assert generated =~ "export type UpdateTaskResult"
       assert generated =~ "success: false"
-      assert generated =~ "UpdateTaskValidationErrors"
+      assert generated =~ "errors: AshRpcError[]"
     end
   end
 
@@ -202,8 +151,7 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
     end
 
     test "validation function returns correct result type", %{generated: generated} do
-      # Should return ValidateUpdateTaskResult
-      assert generated =~ ~r/function validateUpdateTask.*Promise<ValidateUpdateTaskResult>/s
+      assert generated =~ ~r/function validateUpdateTask.*Promise<ValidationResult>/s
     end
   end
 
@@ -257,24 +205,6 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
       refute mark_input =~ "completed?"
     end
 
-    test "all Task action validation error types use mapped names", %{generated: generated} do
-      # Test UpdateTaskValidationErrors
-      update_errors =
-        Regex.run(~r/export type UpdateTaskValidationErrors = \{[^}]+\}/s, generated)
-        |> List.first()
-
-      assert update_errors =~ "isArchived?: string[];"
-      refute update_errors =~ "archived?"
-
-      # Test MarkCompletedTaskValidationErrors
-      mark_errors =
-        Regex.run(~r/export type MarkCompletedTaskValidationErrors = \{[^}]+\}/s, generated)
-        |> List.first()
-
-      assert mark_errors =~ "isCompleted?: string[];"
-      refute mark_errors =~ "completed?"
-    end
-
     test "all validation functions use mapped input types", %{generated: generated} do
       # Test validateUpdateTask
       assert generated =~ "export async function validateUpdateTask"
@@ -301,13 +231,16 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
       refute update_input_type =~ "archived?"
     end
 
-    test "validation functions match validation result types", %{generated: generated} do
-      # validateMarkCompletedTask function
+    test "validation functions use shared validation result type", %{generated: generated} do
+      # validateMarkCompletedTask function should return the shared ValidationResult type
       assert generated =~
-               ~r/function validateMarkCompletedTask.*Promise<ValidateMarkCompletedTaskResult>/s
+               ~r/function validateMarkCompletedTask.*Promise<ValidationResult>/s
 
-      # ValidateMarkCompletedTaskResult type should be defined
-      assert generated =~ "export type ValidateMarkCompletedTaskResult"
+      # The shared ValidationResult type should be defined
+      assert generated =~ "export type ValidationResult"
+
+      # Individual validation result types should not be generated
+      refute generated =~ "export type ValidateMarkCompletedTaskResult"
 
       # Input type should use mapped argument name
       mark_input_type =
@@ -352,17 +285,6 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
       # Mapped field should use mapped name
       assert update_input_type =~ "isArchived?: boolean;"
       refute update_input_type =~ "archived?"
-    end
-
-    test "mixed mapped and unmapped fields in validation errors", %{generated: generated} do
-      update_errors_type =
-        Regex.run(~r/export type UpdateTaskValidationErrors = \{[^}]+\}/s, generated)
-        |> List.first()
-
-      # Should have both mapped and unmapped fields
-      assert update_errors_type =~ "title?: string[];"
-      assert update_errors_type =~ "isArchived?: string[];"
-      refute update_errors_type =~ "archived?"
     end
   end
 

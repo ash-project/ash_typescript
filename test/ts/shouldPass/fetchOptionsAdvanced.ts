@@ -310,8 +310,11 @@ if (comprehensiveValidation.success) {
   errors.forEach(error => {
     const type: string = error.type;
     const message: string = error.message;
-    const field: string | undefined = error.field;
-    const fieldPath: string | undefined = error.fieldPath;
+    const shortMessage: string = error.shortMessage;
+    const vars: Record<string, any> = error.vars;
+    const fields: string[] = error.fields;
+    const path: string[] = error.path;
+    const details: Record<string, any> | undefined = error.details;
   });
 }
 

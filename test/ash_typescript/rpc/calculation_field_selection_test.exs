@@ -11,7 +11,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
       # This should be rejected - complex types require field selection
       result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [:summary])
 
-      assert {:error, {:requires_field_selection, :calculation_complex, "summary"}} = result
+      assert {:error, {:requires_field_selection, :calculation_complex, :summary, []}} = result
     end
 
     test "should allow field selection for calculation without arguments that returns complex type" do

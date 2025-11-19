@@ -53,7 +53,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           ]
         )
 
-      assert error == {:unknown_field, :invalid_field, "map", "invalidField"}
+      assert error == {:unknown_field, :invalid_field, "map", []}
     end
 
     test "rejects nested field selection for map types" do
@@ -66,7 +66,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           ]
         )
 
-      assert error == {:unknown_field, :nested, "map", "nested"}
+      assert error == {:unknown_field, :nested, "map", []}
     end
   end
 
@@ -93,7 +93,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           [:id]
         )
 
-      assert error == {:invalid_field_selection, :primitive_type, {:ash_type, Ash.Type.UUID, []}}
+      assert error ==
+               {:invalid_field_selection, :primitive_type, {:ash_type, Ash.Type.UUID, []}, [:id],
+                []}
     end
 
     test "processes fields for array of structs" do
@@ -221,7 +223,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           ]
         )
 
-      assert error == {:unknown_field, :invalid_field, "typed_struct", "invalidField"}
+      assert error == {:unknown_field, :invalid_field, "field_constrained_type", []}
     end
 
     test "requires field selection for typed struct return types" do
@@ -232,7 +234,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           []
         )
 
-      assert error == {:requires_field_selection, :typed_struct, nil}
+      assert error == {:requires_field_selection, :field_constrained_type, nil}
     end
   end
 
@@ -288,7 +290,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           ]
         )
 
-      assert error == {:unknown_field, :invalid_field, "typed_struct", "invalidField"}
+      assert error == {:unknown_field, :invalid_field, "field_constrained_type", []}
     end
 
     test "requires field selection for array of typed struct return types" do
@@ -299,7 +301,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           []
         )
 
-      assert error == {:requires_field_selection, :typed_struct, nil}
+      assert error == {:requires_field_selection, :field_constrained_type, nil}
     end
   end
 end

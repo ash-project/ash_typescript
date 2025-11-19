@@ -162,12 +162,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
       {:ok, {select, load, extraction_template}} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           :id,
-          %{content: %{checklist: [:id, :title, :items]}}
+          %{content: %{checklist: [:id, :title, %{items: [:text, :completed]}]}}
         ])
 
       assert select == [:id, :content]
       assert load == []
-      assert extraction_template == [:id, content: [checklist: [:id, :title, :items]]]
+
+      assert extraction_template == [
+               :id,
+               content: [checklist: [:id, :title, items: [:text, :completed]]]
+             ]
     end
 
     test "processes union field selection for link content" do
@@ -209,8 +213,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
         ])
 
       assert error ==
-               {:unknown_field, :invalid_field, AshTypescript.Test.TodoMetadata,
-                "metadata.invalidField"}
+               {:unknown_field, :invalid_field, AshTypescript.Test.TodoMetadata, [:metadata]}
     end
 
     test "returns error for invalid nested embedded resource field" do
@@ -221,7 +224,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
 
       assert error ==
                {:unknown_field, :invalid_field, AshTypescript.Test.TodoMetadata,
-                "metadataHistory.invalidField"}
+                [:metadata_history]}
     end
 
     test "returns error for invalid union member field" do
@@ -232,7 +235,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
 
       assert error ==
                {:unknown_field, :invalid_field, AshTypescript.Test.TodoContent.TextContent,
-                "content.text.invalidField"}
+                [:content, :text]}
     end
 
     test "returns error for accessing private embedded resource field" do
@@ -242,8 +245,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
         ])
 
       assert error ==
-               {:unknown_field, :internal_notes, AshTypescript.Test.TodoMetadata,
-                "metadata.internalNotes"}
+               {:unknown_field, :internal_notes, AshTypescript.Test.TodoMetadata, [:metadata]}
     end
 
     test "returns error for calculation requiring args without providing them" do
@@ -253,7 +255,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
         ])
 
       assert error ==
-               {:calculation_requires_args, :adjusted_priority, "metadata.adjustedPriority"}
+               {:calculation_requires_args, :adjusted_priority, [:metadata]}
     end
 
     test "returns error for providing args to calculation that doesn't accept them" do
@@ -270,7 +272,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           }
         ])
 
-      assert error == {:invalid_calculation_args, :display_category, "metadata.displayCategory"}
+      assert error == {:invalid_calculation_args, :display_category, [:metadata]}
     end
 
     test "returns error for duplicate embedded resource fields" do
@@ -279,7 +281,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           %{metadata: [:category, :priority_score, :category]}
         ])
 
-      assert error == {:duplicate_field, :category, "metadata.category"}
+      assert error == {:duplicate_field, :category, [:metadata]}
     end
 
     test "returns error when embedded resource is requested as simple atom" do
@@ -288,7 +290,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           :metadata
         ])
 
-      assert error == {:requires_field_selection, :embedded_resource, "metadata"}
+      assert error == {:requires_field_selection, :embedded_resource, :metadata, []}
     end
 
     test "returns error when primitive calculation with arguments includes fields parameter" do
@@ -307,8 +309,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
         ])
 
       assert error ==
-               {:invalid_field_selection, :adjusted_priority, :calculation,
-                "metadata.adjustedPriority"}
+               {:invalid_field_selection, :adjusted_priority, :calculation, [:metadata]}
     end
   end
 

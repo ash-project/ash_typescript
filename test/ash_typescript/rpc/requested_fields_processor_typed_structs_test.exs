@@ -154,7 +154,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
         ])
 
       assert error ==
-               {:unknown_field, :invalid_field, "typed_struct", "timestampInfo.invalidField"}
+               {:unknown_field, :invalid_field, "field_constrained_type", [:timestamp_info]}
     end
 
     test "returns error for invalid nested typed struct field" do
@@ -163,7 +163,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           %{statistics: [:view_count, :invalid_field]}
         ])
 
-      assert error == {:unknown_field, :invalid_field, "typed_struct", "statistics.invalidField"}
+      assert error == {:unknown_field, :invalid_field, "field_constrained_type", [:statistics]}
     end
 
     test "returns error for duplicate typed struct fields" do
@@ -172,7 +172,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           %{timestamp_info: [:created_by, :created_at, :created_by]}
         ])
 
-      assert error == {:duplicate_field, :created_by, "timestampInfo.createdBy"}
+      assert error == {:duplicate_field, :created_by, [:timestamp_info]}
     end
 
     test "returns error when typed struct is requested as simple atom" do
@@ -181,7 +181,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           :timestamp_info
         ])
 
-      assert error == {:requires_field_selection, :typed_struct, "timestampInfo"}
+      assert error == {:requires_field_selection, :field_constrained_type, :timestamp_info, []}
     end
 
     test "returns error when typed struct is requested as empty map" do
@@ -190,7 +190,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           %{statistics: []}
         ])
 
-      assert error == {:requires_field_selection, "typedstruct", "statistics"}
+      assert error == {:requires_field_selection, :field_constrained_type, :statistics, []}
     end
   end
 
@@ -280,8 +280,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
       result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
 
       assert {:error,
-              {:unknown_field, :invalid_field, "map",
-               "statistics.performanceMetrics.invalidField"}} = result
+              {:unknown_field, :invalid_field, "map", [:statistics, :performance_metrics]}} =
+               result
     end
 
     test "validates duplicate field detection in maps within typed structs" do
@@ -301,9 +301,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
       result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
 
-      assert {:error,
-              {:duplicate_field, :efficiency_score,
-               "statistics.performanceMetrics.efficiencyScore"}} = result
+      assert {:error, {:duplicate_field, :efficiency_score, [:statistics, :performance_metrics]}} =
+               result
     end
 
     test "supports all valid fields in performance_metrics map" do

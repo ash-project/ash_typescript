@@ -433,9 +433,10 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
             "title" => "Text Content Todo",
             "userId" => user["id"],
             "content" => %{
-              "content_type" => "text",
-              "text" => "Sample text content",
-              "formatting" => "markdown"
+              "text" => %{
+                "text" => "Sample text content",
+                "formatting" => "markdown"
+              }
             }
           },
           "fields" => ["id", "title"]
@@ -448,13 +449,14 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
             "title" => "Checklist Content Todo",
             "userId" => user["id"],
             "content" => %{
-              "content_type" => "checklist",
-              "title" => "My Checklist",
-              "items" => [
-                %{"text" => "Item 1", "completed" => false},
-                %{"text" => "Item 2", "completed" => false},
-                %{"text" => "Item 3", "completed" => false}
-              ]
+              "checklist" => %{
+                "title" => "My Checklist",
+                "items" => [
+                  %{"text" => "Item 1", "completed" => false},
+                  %{"text" => "Item 2", "completed" => false},
+                  %{"text" => "Item 3", "completed" => false}
+                ]
+              }
             }
           },
           "fields" => ["id", "title"]
@@ -467,9 +469,10 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
             "title" => "Link Content Todo",
             "userId" => user["id"],
             "content" => %{
-              "content_type" => "link",
-              "url" => "https://example.com",
-              "title" => "Example Link"
+              "link" => %{
+                "url" => "https://example.com",
+                "title" => "Example Link"
+              }
             }
           },
           "fields" => ["id", "title"]
@@ -528,7 +531,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
           "action" => "list_todos",
           "fields" => [
             "id",
-            %{"content" => %{"checklist" => ["id", "title", "items"]}}
+            %{"content" => %{"checklist" => ["id", "title", %{"items" => ["text", "completed"]}]}}
           ]
         })
 
@@ -658,7 +661,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "metadata.invalidField"
+      assert List.first(error["fields"]) == "metadata.invalidField"
     end
 
     test "returns error for invalid nested embedded resource field", %{conn: conn} do
@@ -674,7 +677,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "metadataHistory.invalidField"
+      assert List.first(error["fields"]) == "metadataHistory.invalidField"
     end
 
     test "returns error for invalid union member field", %{conn: conn} do
@@ -690,7 +693,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "content.text.invalidField"
+      assert List.first(error["fields"]) == "content.text.invalidField"
     end
 
     test "returns error for accessing private embedded resource field", %{conn: conn} do
@@ -706,7 +709,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "metadata.internalNotes"
+      assert List.first(error["fields"]) == "metadata.internalNotes"
     end
 
     test "returns error for calculation requiring args without providing them", %{conn: conn} do
@@ -722,7 +725,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "invalid_field_format"
-      assert error["details"]["field"] =~ "adjustedPriority"
+      assert List.first(error["fields"]) =~ "adjustedPriority"
     end
 
     test "returns error for providing args to calculation that doesn't accept them", %{conn: conn} do
@@ -746,7 +749,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "invalid_calculation_args"
-      assert error["details"]["field"] =~ "displayCategory"
+      assert List.first(error["fields"]) =~ "displayCategory"
     end
 
     test "returns error when embedded resource is requested as simple atom", %{conn: conn} do
@@ -855,9 +858,10 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
             "title" => "Create Todo with Text Content",
             "userId" => user["id"],
             "content" => %{
-              "content_type" => "text",
-              "text" => "Created text content",
-              "formatting" => "plain"
+              "text" => %{
+                "text" => "Created text content",
+                "formatting" => "plain"
+              }
             }
           },
           "fields" => [

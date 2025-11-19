@@ -239,7 +239,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "invalidField"
+      assert List.first(error["fields"]) == "invalidField"
     end
 
     test "returns error for invalid nested field", %{conn: conn} do
@@ -253,7 +253,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "user.invalidField"
+      assert List.first(error["fields"]) == "user.invalidField"
     end
 
     test "returns error for invalid relationship", %{conn: conn} do
@@ -267,7 +267,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "invalidRelationship"
+      assert List.first(error["fields"]) == "invalidRelationship"
     end
   end
 end

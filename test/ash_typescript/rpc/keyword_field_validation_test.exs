@@ -15,7 +15,7 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
 
       result = RequestedFieldsProcessor.process(Todo, :read, fields)
 
-      assert {:error, {:requires_field_selection, :typed_struct, "options"}} = result
+      assert {:error, {:requires_field_selection, :field_constrained_type, :options, []}} = result
     end
 
     test "rejects empty keyword field selection" do
@@ -37,16 +37,12 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
       assert {:ok, {select, _load, template}} = result
       assert :id in select
       assert :title in select
-      assert "options" in select
+      assert :options in select
 
       # Verify that the options field has proper template structure
-      options_template =
-        Enum.find(template, fn
-          {"options", _} -> true
-          _ -> false
-        end)
+      options_template = template[:options]
 
-      assert options_template == {"options", [:priority, :category, :notify]}
+      assert options_template == [:priority, :category, :notify]
     end
 
     test "accepts partial keyword field selection" do
@@ -58,16 +54,12 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
       assert {:ok, {select, _load, template}} = result
       assert :id in select
       assert :title in select
-      assert "options" in select
+      assert :options in select
 
       # Verify template only includes requested field
-      options_template =
-        Enum.find(template, fn
-          {"options", _} -> true
-          _ -> false
-        end)
+      options_template = template[:options]
 
-      assert options_template == {"options", [:priority]}
+      assert options_template == [:priority]
     end
 
     test "rejects invalid keyword field names" do
@@ -76,7 +68,7 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
 
       result = RequestedFieldsProcessor.process(Todo, :read, fields)
 
-      assert {:error, {:unknown_field, :invalid_field, "typed_struct", "options.invalidField"}} =
+      assert {:error, {:unknown_field, :invalid_field, "field_constrained_type", [:options]}} =
                result
     end
 
@@ -98,47 +90,30 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
       # Verify regular fields
       assert :id in select
       assert :title in select
-      assert "options" in select
-      assert "coordinates" in select
+      assert :options in select
+      assert :coordinates in select
 
       # Verify relationship is in load
-      user_load =
-        Enum.find(load, fn
-          {"user", _} -> true
-          _ -> false
-        end)
+      user_load = load[:user]
 
-      assert user_load == {"user", [:id, :name]}
+      assert user_load == [:id, :name]
 
       # Verify templates
-      options_template =
-        Enum.find(template, fn
-          {"options", _} -> true
-          _ -> false
-        end)
+      options_template = template[:options]
 
-      assert options_template == {"options", [:priority, :category]}
+      assert options_template == [:priority, :category]
 
-      coordinates_template =
-        Enum.find(template, fn
-          {"coordinates", _} -> true
-          _ -> false
-        end)
+      coordinates_template = template[:coordinates]
 
       assert coordinates_template ==
-               {"coordinates",
-                [
-                  %{index: 0, field_name: :latitude},
-                  %{index: 1, field_name: :longitude}
-                ]}
+               [
+                 %{index: 0, field_name: :latitude},
+                 %{index: 1, field_name: :longitude}
+               ]
 
-      user_template =
-        Enum.find(template, fn
-          {"user", _} -> true
-          _ -> false
-        end)
+      user_template = template[:user]
 
-      assert user_template == {"user", [:id, :name]}
+      assert user_template == [:id, :name]
     end
   end
 
@@ -149,7 +124,7 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
 
       result = RequestedFieldsProcessor.process(Todo, :read, fields)
 
-      assert {:error, {:requires_field_selection, :tuple, "coordinates"}} = result
+      assert {:error, {:requires_field_selection, :tuple, :coordinates, []}} = result
     end
 
     test "accepts valid tuple field selection" do
@@ -161,20 +136,15 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
       assert {:ok, {select, _load, template}} = result
       assert :id in select
       assert :title in select
-      assert "coordinates" in select
+      assert :coordinates in select
 
-      coordinates_template =
-        Enum.find(template, fn
-          {"coordinates", _} -> true
-          _ -> false
-        end)
+      coordinates_template = template[:coordinates]
 
       assert coordinates_template ==
-               {"coordinates",
-                [
-                  %{index: 0, field_name: :latitude},
-                  %{index: 1, field_name: :longitude}
-                ]}
+               [
+                 %{index: 0, field_name: :latitude},
+                 %{index: 1, field_name: :longitude}
+               ]
     end
   end
 end

@@ -88,7 +88,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       assert error["type"] == "action_not_found"
       assert error["message"] =~ "not found"
       # Details use camelCase
-      assert error["details"]["actionName"] == "non_existent_action"
+      assert error["vars"]["actionName"] == "non_existent_action"
     end
 
     test "invalid enum value returns invalid_attribute" do
@@ -127,7 +127,8 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       [error | _] = result["errors"]
 
       assert error["type"] == "missing_required_parameter"
-      assert error["message"] =~ "fields"
+      assert error["message"] == "Required parameter %{parameter} is missing or empty"
+      assert error["vars"]["parameter"] == "fields"
     end
 
     test "invalid pagination returns proper error" do
@@ -164,9 +165,11 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       [error | _] = result["errors"]
 
       assert error["type"] == "unknown_field"
-      # Check if fieldPath (camelCase) contains the invalid field name
-      field_path = error["fieldPath"] || ""
-      assert String.contains?(field_path, "invalid_nested_field")
+      # Check if the field in vars contains the invalid field name
+      field = error["vars"]["field"] || ""
+      assert String.contains?(field, "invalidNestedField")
+      # Also check that path includes the parent
+      assert "user" in error["path"]
     end
 
     test "validate action returns errors with atom keys" do
@@ -182,8 +185,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       if not result["success"] do
         [error | _] = result["errors"]
         # Validate returns maps with atom keys
-        assert Map.has_key?(error, :type)
-        assert error.type == "not_found"
+        assert error["type"] == "not_found"
       end
     end
   end

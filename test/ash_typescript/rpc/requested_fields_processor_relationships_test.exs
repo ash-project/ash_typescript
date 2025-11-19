@@ -221,7 +221,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
         ])
 
       assert error ==
-               {:unknown_field, :invalid_field, AshTypescript.Test.User, "user.invalidField"}
+               {:unknown_field, :invalid_field, AshTypescript.Test.User, [:user]}
     end
 
     test "returns error for invalid nested relationship" do
@@ -231,8 +231,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
         ])
 
       assert error ==
-               {:unknown_field, :invalid_relationship, AshTypescript.Test.User,
-                "user.invalidRelationship"}
+               {:unknown_field, :invalid_relationship, AshTypescript.Test.User, [:user]}
     end
 
     test "returns error for invalid deeply nested field" do
@@ -250,7 +249,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
 
       assert error ==
                {:unknown_field, :invalid_field, AshTypescript.Test.TodoComment,
-                "user.comments.invalidField"}
+                [:user, :comments]}
     end
 
     test "validates relationship existence before processing nested fields" do
@@ -260,8 +259,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
         ])
 
       assert error ==
-               {:unknown_field, :nonexistent_relation, AshTypescript.Test.Todo,
-                "nonexistentRelation"}
+               {:unknown_field, :nonexistent_relation, AshTypescript.Test.Todo, []}
     end
 
     test "rejects relationships requested as simple atoms without field specification" do
@@ -272,7 +270,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
           :user
         ])
 
-      assert error == {:requires_field_selection, :relationship, "user"}
+      assert error == {:requires_field_selection, :relationship, :user, []}
     end
   end
 
@@ -284,7 +282,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
           %{user: []}
         ])
 
-      assert error == {:requires_field_selection, "relationship", "user"}
+      assert error == {:requires_field_selection, :relationship, :user, []}
     end
 
     test "handles relationship with only nested relationships (no direct fields)" do

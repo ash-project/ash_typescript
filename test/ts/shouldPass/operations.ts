@@ -185,8 +185,10 @@ export const getTodoBasic = await getTodo({
 if (getTodoBasic.success) {
   const todoId: string = getTodoBasic.data!.id;
   const todoTitle: string = getTodoBasic.data!.title;
-  const todoDescription: string | null | undefined = getTodoBasic.data!.description;
-  const todoCompleted: boolean | null | undefined = getTodoBasic.data!.completed;
+  const todoDescription: string | null | undefined =
+    getTodoBasic.data!.description;
+  const todoCompleted: boolean | null | undefined =
+    getTodoBasic.data!.completed;
   const todoStatus: string | null | undefined = getTodoBasic.data!.status;
   const todoPriority: string | null | undefined = getTodoBasic.data!.priority;
 }
@@ -227,9 +229,9 @@ export const getTodoWithSelf = await getTodo({
     {
       self: {
         args: { prefix: "get_" },
-        fields: ["id", "title", "description", "completed"]
-      }
-    }
+        fields: ["id", "title", "description", "completed"],
+      },
+    },
   ],
 });
 
@@ -241,8 +243,10 @@ if (getTodoWithSelf.success) {
   if (getTodoWithSelf.data!.self) {
     const selfId: string = getTodoWithSelf.data!.self.id;
     const selfTitle: string = getTodoWithSelf.data!.self.title;
-    const selfDescription: string | null | undefined = getTodoWithSelf.data!.self.description;
-    const selfCompleted: boolean | null | undefined = getTodoWithSelf.data!.self.completed;
+    const selfDescription: string | null | undefined =
+      getTodoWithSelf.data!.self.description;
+    const selfCompleted: boolean | null | undefined =
+      getTodoWithSelf.data!.self.completed;
   }
 }
 

@@ -57,7 +57,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           %{priority_score: [:some_field]}
         ])
 
-      assert error == {:field_does_not_support_nesting, "priorityScore"}
+      assert error == {:field_does_not_support_nesting, :priority_score, []}
     end
   end
 
@@ -107,7 +107,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           %{color_palette: [:primary, :secondary]}
         ])
 
-      assert error == {:field_does_not_support_nesting, "colorPalette"}
+      assert error == {:field_does_not_support_nesting, :color_palette, []}
     end
 
     test "rejects color_palette with complex nested structure" do
@@ -120,7 +120,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           }
         ])
 
-      assert error == {:field_does_not_support_nesting, "colorPalette"}
+      assert error == {:field_does_not_support_nesting, :color_palette, []}
     end
   end
 
@@ -246,8 +246,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
         ])
 
       assert error ==
-               {:unknown_field, :non_existent_custom_type, AshTypescript.Test.Todo,
-                "nonExistentCustomType"}
+               {:unknown_field, :non_existent_custom_type, AshTypescript.Test.Todo, []}
     end
 
     test "rejects duplicate custom type fields" do
@@ -258,7 +257,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           :priority_score
         ])
 
-      assert error == {:duplicate_field, :priority_score, "priorityScore"}
+      assert error == {:duplicate_field, :priority_score, []}
     end
 
     test "rejects mixed atom and map for same custom type" do
@@ -270,7 +269,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           %{color_palette: []}
         ])
 
-      assert error == {:duplicate_field, :color_palette, "colorPalette"}
+      assert error == {:duplicate_field, :color_palette, []}
     end
 
     test "handles complex nested error scenarios with custom types" do
@@ -290,7 +289,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           }
         ])
 
-      assert error == {:field_does_not_support_nesting, "user.todos.priorityScore"}
+      assert error == {:field_does_not_support_nesting, :priority_score, [:user, :todos]}
     end
 
     test "validates custom types in calculation field selection errors" do
@@ -308,7 +307,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           }
         ])
 
-      assert error == {:field_does_not_support_nesting, "self.colorPalette"}
+      assert error == {:field_does_not_support_nesting, :color_palette, [:self]}
     end
   end
 
@@ -341,7 +340,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
         ])
 
       # Should format field name using camelCase for TypeScript
-      assert error == {:field_does_not_support_nesting, "priorityScore"}
+      assert error == {:field_does_not_support_nesting, :priority_score, []}
     end
 
     test "handles custom types in all action types consistently" do

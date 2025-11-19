@@ -21,16 +21,12 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorKeywordTest do
       {:ok, {select, _load, template}} = result
 
       # Check if options field is present in the select fields (first element of tuple)
-      assert "options" in select
+      assert :options in select
 
       # Check if options field is properly templated (third element of tuple)
-      options_template =
-        Enum.find(template, fn
-          {"options", _} -> true
-          _ -> false
-        end)
+      options_template = template[:options]
 
-      assert options_template == {"options", [:priority, :category, :notify]}
+      assert options_template == [:priority, :category, :notify]
     end
 
     test "processes nested fields with keyword types" do
@@ -50,32 +46,20 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorKeywordTest do
       # Verify all fields are processed correctly in select
       assert :id in select
       assert :title in select
-      assert "options" in select
+      assert :options in select
 
       # Verify user relationship is in load
-      user_load =
-        Enum.find(load, fn
-          {"user", _} -> true
-          _ -> false
-        end)
+      user_load = load[:user]
 
-      assert user_load == {"user", [:id, :name]}
+      assert user_load == [:id, :name]
 
       # Verify templates are correct
-      options_template =
-        Enum.find(template, fn
-          {"options", _} -> true
-          _ -> false
-        end)
+      options_template = template[:options]
 
-      user_template =
-        Enum.find(template, fn
-          {"user", _} -> true
-          _ -> false
-        end)
+      user_template = template[:user]
 
-      assert options_template == {"options", [:priority, :category]}
-      assert user_template == {"user", [:id, :name]}
+      assert options_template == [:priority, :category]
+      assert user_template == [:id, :name]
     end
   end
 
@@ -86,9 +70,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorKeywordTest do
 
       {:ok, {select, load, template}} = RequestedFieldsProcessor.process(Todo, :read, fields)
 
-      assert select == ["options"]
+      assert select == [:options]
       assert load == []
-      assert template == [{"options", [:priority, :category, :notify]}]
+      assert template == [options: [:priority, :category, :notify]]
     end
   end
 end

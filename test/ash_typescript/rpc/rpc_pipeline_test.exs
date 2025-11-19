@@ -20,7 +20,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
       conn = %Plug.Conn{}
 
       assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
-      assert {:unknown_field, :unknown_field, Todo, "unknownField"} = error
+      assert {:unknown_field, :unknown_field, Todo, []} = error
     end
 
     test "fails on invalid field format" do
@@ -47,7 +47,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
       # Should fail when trying to process relationship with invalid spec
-      assert {:unsupported_field_combination, :relationship, :user, "invalid_spec", "user"} =
+      assert {:unsupported_field_combination, :relationship, :user, "invalid_spec", []} =
                error
     end
 
@@ -61,7 +61,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
       conn = %Plug.Conn{}
 
       assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
-      assert {:field_does_not_support_nesting, "title"} = error
+      assert {:field_does_not_support_nesting, :title, []} = error
     end
 
     test "succeeds with valid fields" do

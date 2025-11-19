@@ -89,7 +89,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           %{comment_count: [:id]}
         ])
 
-      assert error == {:invalid_field_selection, :comment_count, :aggregate, "commentCount"}
+      assert error == {:invalid_field_selection, :comment_count, :aggregate, []}
     end
 
     test "rejects nested field selection on exists aggregate" do
@@ -98,7 +98,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           %{has_comments: [:id]}
         ])
 
-      assert error == {:invalid_field_selection, :has_comments, :aggregate, "hasComments"}
+      assert error == {:invalid_field_selection, :has_comments, :aggregate, []}
     end
 
     test "rejects nested field selection on primitive list aggregate" do
@@ -107,7 +107,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           %{comment_authors: [:id]}
         ])
 
-      assert error == {:invalid_field_selection, :comment_authors, :aggregate, "commentAuthors"}
+      assert error == {:invalid_field_selection, :comment_authors, :aggregate, []}
     end
   end
 
@@ -119,7 +119,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           %{latest_comment: [:id, :content, :author_name]}
         ])
 
-      assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, "latestComment"}
+      assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, []}
     end
 
     test "rejects non-existent complex aggregate (recent_comments)" do
@@ -130,7 +130,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
         ])
 
       assert error ==
-               {:unknown_field, :recent_comments, AshTypescript.Test.Todo, "recentComments"}
+               {:unknown_field, :recent_comments, AshTypescript.Test.Todo, []}
     end
 
     test "rejects non-existent complex aggregate with nested relationships" do
@@ -146,7 +146,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           }
         ])
 
-      assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, "latestComment"}
+      assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, []}
     end
 
     test "rejects non-existent complex aggregate with empty field selection" do
@@ -155,7 +155,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           %{latest_comment: []}
         ])
 
-      assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, "latestComment"}
+      assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, []}
     end
 
     test "rejects non-existent complex aggregate as simple atom" do
@@ -165,7 +165,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           :latest_comment
         ])
 
-      assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, "latestComment"}
+      assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, []}
     end
 
     test "rejects non-existent complex aggregate in mixed field selection" do
@@ -178,7 +178,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           %{latest_comment: [:id, :content]}
         ])
 
-      assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, "latestComment"}
+      assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, []}
     end
   end
 
@@ -261,8 +261,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
         ])
 
       assert error ==
-               {:unknown_field, :non_existent_aggregate, AshTypescript.Test.Todo,
-                "nonExistentAggregate"}
+               {:unknown_field, :non_existent_aggregate, AshTypescript.Test.Todo, []}
     end
 
     test "rejects duplicate aggregate fields" do
@@ -272,7 +271,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           :comment_count
         ])
 
-      assert error == {:duplicate_field, :comment_count, "commentCount"}
+      assert error == {:duplicate_field, :comment_count, []}
     end
 
     test "rejects mixed atom and map for same aggregate" do
@@ -282,7 +281,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           %{comment_count: []}
         ])
 
-      assert error == {:duplicate_field, :comment_count, "commentCount"}
+      assert error == {:duplicate_field, :comment_count, []}
     end
 
     test "handles non-existent aggregate" do
@@ -292,7 +291,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           :latest_comment
         ])
 
-      assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, "latestComment"}
+      assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, []}
     end
   end
 

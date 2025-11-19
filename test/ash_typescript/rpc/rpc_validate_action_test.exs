@@ -114,7 +114,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
       if not result["success"] do
         assert length(result["errors"]) > 0, "Should have at least one error"
         [error | _] = result["errors"]
-        assert error.type == "not_found"
+        assert error["type"] == "not_found"
       end
     end
 

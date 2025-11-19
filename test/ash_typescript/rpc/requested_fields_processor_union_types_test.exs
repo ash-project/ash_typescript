@@ -38,7 +38,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
           %{
             content: [
               %{
-                checklist: [:id, :title, :items, :allow_reordering]
+                checklist: [:id, :title, %{items: [:text, :completed]}, :allow_reordering]
               }
             ]
           }
@@ -49,7 +49,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
       assert extraction_template == [
                :id,
-               content: [checklist: [:id, :title, :items, :allow_reordering]]
+               content: [checklist: [:id, :title, :allow_reordering, items: [:text, :completed]]]
              ]
     end
 
@@ -96,7 +96,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
             content: [
               %{
                 text: [:id, :text, :formatting],
-                checklist: [:id, :title, :items],
+                checklist: [:id, :title, %{items: [:text, :completed]}],
                 link: [:id, :url, :title]
               }
             ]
@@ -118,7 +118,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
       expected_sorted =
         Enum.sort([
           {:text, [:id, :text, :formatting]},
-          {:checklist, [:id, :title, :items]},
+          {:checklist, [:id, :title, items: [:text, :completed]]},
           {:link, [:id, :url, :title]}
         ])
 
@@ -133,7 +133,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
             content: [
               %{text: [:id, :text, :formatting]},
               %{link: [:id, :url, :title]},
-              %{checklist: [:id, :title, :items]}
+              %{checklist: [:id, :title, %{items: [:text, :completed]}]}
             ]
           }
         ])
@@ -147,7 +147,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                content: [
                  text: [:id, :text, :formatting],
                  link: [:id, :url, :title],
-                 checklist: [:id, :title, :items]
+                 checklist: [:id, :title, items: [:text, :completed]]
                ]
              ]
     end
@@ -589,7 +589,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
         ])
 
       assert error ==
-               {:unknown_field, :invalid_member, "union_attribute", "content.invalidMember"}
+               {:unknown_field, :invalid_member, "union_attribute", [:content]}
     end
 
     test "rejects invalid field in embedded resource union member" do
@@ -606,7 +606,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
       assert error ==
                {:unknown_field, :invalid_field, AshTypescript.Test.TodoContent.TextContent,
-                "content.text.invalidField"}
+                [:content, :text]}
     end
 
     test "rejects invalid field in map union member with field constraints" do
@@ -621,7 +621,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
           }
         ])
 
-      assert error == {:unknown_field, :invalid_field, "map", "attachments.file.invalidField"}
+      assert error == {:unknown_field, :invalid_field, "map", [:attachments, :file]}
     end
 
     test "rejects invalid union member in attachments array" do
@@ -635,8 +635,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
         ])
 
       assert error ==
-               {:unknown_field, :invalid_attachment_type, "union_attribute",
-                "attachments.invalidAttachmentType"}
+               {:unknown_field, :invalid_attachment_type, "union_attribute", [:attachments]}
     end
 
     test "rejects invalid union member in status_info" do
@@ -650,7 +649,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
         ])
 
       assert error ==
-               {:unknown_field, :invalid_status, "union_attribute", "statusInfo.invalidStatus"}
+               {:unknown_field, :invalid_status, "union_attribute", [:status_info]}
     end
 
     test "rejects empty union field selection" do
@@ -661,7 +660,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
           }
         ])
 
-      assert error == {:requires_field_selection, "union", "content"}
+      assert error == {:requires_field_selection, :union, :content, []}
     end
 
     test "rejects union attribute requested as simple atom" do
@@ -670,7 +669,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
           :content
         ])
 
-      assert error == {:requires_field_selection, :union_attribute, "content"}
+      assert error == {:requires_field_selection, :union_attribute, :content, []}
     end
 
     test "rejects file attachment requested as simple atom (requires field selection)" do
@@ -683,7 +682,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
           }
         ])
 
-      assert error == {:requires_field_selection, :complex_type, "attachments.file"}
+      assert error == {:requires_field_selection, :complex_type, :file, [:attachments]}
     end
 
     test "rejects image attachment requested as simple atom (requires field selection)" do
@@ -696,7 +695,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
           }
         ])
 
-      assert error == {:requires_field_selection, :complex_type, "attachments.image"}
+      assert error == {:requires_field_selection, :complex_type, :image, [:attachments]}
     end
 
     test "rejects duplicate union field requests" do
@@ -710,7 +709,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
           }
         ])
 
-      assert error == {:duplicate_field, :note, "content.note"}
+      assert error == {:duplicate_field, :note, [:content]}
     end
 
     test "accepts union members in single map with different members" do
@@ -757,7 +756,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
           }
         ])
 
-      assert error == {:duplicate_field, :text, "content.text"}
+      assert error == {:duplicate_field, :text, [:content]}
     end
 
     test "rejects mixed simple and nested selection for same union member" do
@@ -773,7 +772,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
           }
         ])
 
-      assert error == {:duplicate_field, :note, "content.note"}
+      assert error == {:duplicate_field, :note, [:content]}
     end
   end
 
@@ -819,7 +818,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 checklist: [
                   :id,
                   :title,
-                  :items,
+                  %{items: [:text, :completed]},
                   :total_items,
                   :completed_count,
                   :progress_percentage
@@ -844,10 +843,10 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                  checklist: [
                    :id,
                    :title,
-                   :items,
                    :total_items,
                    :completed_count,
-                   :progress_percentage
+                   :progress_percentage,
+                   items: [:text, :completed]
                  ]
                ]
              ]

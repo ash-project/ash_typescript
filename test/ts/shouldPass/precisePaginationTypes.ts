@@ -9,7 +9,6 @@ import { listRecentTodos, listTodos } from "../generated";
 
 // Test 1: Offset pagination → result should be precisely the offset type
 export const testOffsetPagination = await listTodos({
-  input: {},
   fields: ["id", "title"],
   page: { offset: 0, limit: 10 },
 });

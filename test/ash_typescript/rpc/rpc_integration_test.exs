@@ -87,8 +87,8 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       error = List.first(error_response["errors"])
       assert error["type"] == "unknown_field"
-      assert String.contains?(error["message"], "unknownField")
-      assert String.contains?(error["message"], "Todo")
+      assert String.contains?(error["vars"]["field"] || "", "unknownField")
+      assert String.contains?(error["vars"]["resource"] || "", "Todo")
     end
 
     test "validation-only endpoint works correctly" do
@@ -226,15 +226,15 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       error = List.first(error_response["errors"])
       assert error["type"] == "action_not_found"
-      assert error["message"] == "RPC action 'nonexistent_action' not found"
-      assert error["details"]["actionName"] == "nonexistent_action"
+      assert error["message"] == "RPC action %{action_name} not found"
+      assert error["vars"]["actionName"] == "nonexistent_action"
       assert String.contains?(error["details"]["suggestion"], "rpc block")
     end
 
     test "field validation errors are user-friendly" do
       params = %{
         "action" => "list_todos",
-        "fields" => ["id", "completely_unknown_field"]
+        "fields" => ["id", "completelyUnknownField"]
       }
 
       conn = %Plug.Conn{}
@@ -247,13 +247,13 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       error = List.first(error_response["errors"])
       assert error["type"] == "unknown_field"
       assert String.contains?(error["message"], "Unknown field")
-      assert String.contains?(error["fieldPath"] || "", "completely_unknown_field")
+      assert String.contains?(error["vars"]["field"] || "", "completelyUnknownField")
     end
 
     test "nested field errors provide context" do
       params = %{
         "action" => "list_todos",
-        "fields" => [%{"user" => ["id", "nonexistent_user_field"]}]
+        "fields" => [%{"user" => ["id", "nonexistentUserField"]}]
       }
 
       conn = %Plug.Conn{}
@@ -266,7 +266,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       error = List.first(error_response["errors"])
       assert error["type"] == "unknown_field"
       assert String.contains?(error["message"], "Unknown field")
-      assert String.contains?(error["fieldPath"] || "", "nonexistent_user_field")
+      assert String.contains?(error["vars"]["field"] || "", "nonexistentUserField")
     end
   end
 
@@ -378,7 +378,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       error = List.first(error_response["errors"])
       assert error["type"] == "unknown_field"
-      assert String.contains?(error["fieldPath"] || error["message"] || "", "titel")
+      assert String.contains?(error["vars"]["field"] || "", "titel")
     end
 
     test "wrong action name should fail" do

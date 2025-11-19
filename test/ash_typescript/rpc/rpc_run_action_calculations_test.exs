@@ -642,7 +642,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field" || error["type"] == "invalid_field_format"
-      assert error["details"]["field"] =~ "self"
+      assert List.first(error["fields"]) =~ "self"
     end
 
     test "returns error for calculation that doesn't take arguments when requested with nested structure",
@@ -662,7 +662,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "invalid_calculation_args"
-      assert error["details"]["field"] == "isOverdue"
+      assert List.first(error["fields"]) == "isOverdue"
     end
 
     test "returns error for aggregate when requested with nested structure", %{conn: conn} do
@@ -681,7 +681,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "invalid_field_selection"
-      assert error["details"]["field"] == "commentCount"
+      assert List.first(error["fields"]) == "commentCount"
     end
 
     test "returns error for attribute when requested with nested structure", %{conn: conn} do
@@ -700,7 +700,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "field_does_not_support_nesting"
-      assert error["details"]["field"] == "title"
+      assert List.first(error["fields"]) == "title"
     end
 
     test "returns error for invalid fields in calculation field selection", %{conn: conn} do
@@ -721,7 +721,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "self.invalidField"
+      assert List.first(error["fields"]) == "self.invalidField"
     end
 
     test "returns error for invalid nested relationship fields in calculations", %{conn: conn} do
@@ -742,7 +742,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "self.user.invalidField"
+      assert List.first(error["fields"]) == "self.user.invalidField"
     end
 
     test "returns error for calculations with missing fields key", %{conn: conn} do
@@ -799,7 +799,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert is_list(result["errors"])
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
-      assert error["details"]["field"] == "nonExistentCalc"
+      assert List.first(error["fields"]) == "nonExistentCalc"
     end
 
     test "handles malformed calculation request structure", %{conn: conn} do
