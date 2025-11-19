@@ -11,6 +11,35 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.8.0](https://github.com/ash-project/ash_typescript/compare/v0.7.1...v0.8.0) (2025-11-19)
+
+
+
+
+### Features:
+
+* add FieldExtractor module for unified tuple/keyword/map extraction by [@Torkan](https://github.com/Torkan)
+
+### Bug Fixes:
+
+* exclude struct union members with instance_of from primitiveFields by [@Torkan](https://github.com/Torkan)
+
+* require wrapped format for union inputs with proper validation by [@Torkan](https://github.com/Torkan)
+
+* add is_primitive_struct? check in result_processor by [@Torkan](https://github.com/Torkan) [(#17)](https://github.com/ash-project/ash_typescript/pull/17)
+
+### Improvements:
+
+* preserve TypedStruct instance_of for field name mappings by [@Torkan](https://github.com/Torkan)
+
+* standardize RPC error structure with vars, path, fields, details by [@Torkan](https://github.com/Torkan)
+
+* use bulk actions for update/destroy by [@zachdaniel](https://github.com/zachdaniel) [(#17)](https://github.com/ash-project/ash_typescript/pull/17)
+
+* support `read_action` configuration by [@zachdaniel](https://github.com/zachdaniel) [(#17)](https://github.com/ash-project/ash_typescript/pull/17)
+
+* better error handling & struct field selection in RPC by [@zachdaniel](https://github.com/zachdaniel) [(#17)](https://github.com/ash-project/ash_typescript/pull/17)
+
 ## [v0.7.1](https://github.com/ash-project/ash_typescript/compare/v0.7.0...v0.7.1) (2025-11-08)
 
 
