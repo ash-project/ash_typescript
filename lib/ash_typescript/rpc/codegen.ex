@@ -17,7 +17,6 @@ defmodule AshTypescript.Rpc.Codegen do
   alias AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes
   alias AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes
   alias AshTypescript.Rpc.Codegen.TypescriptStatic
-  alias AshTypescript.Rpc.ValidationErrorSchemas
   alias AshTypescript.Rpc.ZodSchemaGenerator
 
   @doc """
@@ -103,8 +102,6 @@ defmodule AshTypescript.Rpc.Codegen do
 
     resources_and_actions = RpcConfigCollector.get_rpc_resources_and_actions(otp_app)
 
-    # Check verifiers before generating
-    # Get all RPC resources (including those without actions) for verification
     rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
     domains = Ash.Info.domains(otp_app)
 
@@ -174,7 +171,6 @@ defmodule AshTypescript.Rpc.Codegen do
     typed_queries = RpcConfigCollector.get_typed_queries(otp_app)
 
     embedded_resources = find_embedded_resources(otp_app)
-    typed_struct_modules = find_typed_struct_modules(rpc_resources)
     all_resources_for_schemas = rpc_resources ++ embedded_resources
 
     """
@@ -190,10 +186,6 @@ defmodule AshTypescript.Rpc.Codegen do
     #{generate_all_schemas_for_resources(all_resources_for_schemas, all_resources_for_schemas)}
 
     #{ZodSchemaGenerator.generate_zod_schemas_for_embedded_resources(embedded_resources)}
-
-    #{ValidationErrorSchemas.generate_validation_error_schemas_for_embedded_resources(embedded_resources)}
-
-    #{ValidationErrorSchemas.generate_validation_error_schemas_for_typed_structs(typed_struct_modules)}
 
     #{generate_filter_types(all_resources_for_schemas, all_resources_for_schemas)}
 
@@ -235,9 +227,6 @@ defmodule AshTypescript.Rpc.Codegen do
     rpc_action_name = to_string(rpc_action.name)
 
     input_type = InputTypes.generate_input_type(resource, action, rpc_action_name)
-
-    error_type =
-      ValidationErrorSchemas.generate_validation_error_type(resource, action, rpc_action_name)
 
     zod_schema =
       if AshTypescript.Rpc.generate_zod_schemas?() do
@@ -312,7 +301,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     functions_section = Enum.join(function_parts, "\n\n")
 
-    base_types = [input_type, error_type] |> Enum.reject(&(&1 == ""))
+    base_types = [input_type] |> Enum.reject(&(&1 == ""))
 
     output_parts =
       if zod_schema != "" do
