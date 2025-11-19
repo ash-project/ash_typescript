@@ -34,7 +34,8 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
     "noFields.ts",
     "noFieldsTypeInference.ts",
     "complexScenarios.ts",
-    "conditionalPagination.ts"
+    "conditionalPagination.ts",
+    "unionCalculationSyntax.ts"
   ]
 
   describe "TypeScript shouldPass runtime validation" do
@@ -75,7 +76,28 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
           "fields" => ["id", "title", "completed"]
         })
 
-      %{conn: conn, user: user, todo: todo, task: task}
+      # Create test content with article for union calculation tests
+      # Note: nested item fields use snake_case as manage_relationship doesn't go through RPC input mapping
+      %{"success" => true, "data" => content} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_content",
+          "input" => %{
+            "title" => "Test Content",
+            "thumbnailUrl" => "https://example.com/thumb.jpg",
+            "thumbnailAlt" => "Test thumbnail",
+            "category" => "fitness",
+            "userId" => user["id"],
+            "item" => %{
+              "heroImageUrl" => "https://example.com/hero.jpg",
+              "heroImageAlt" => "Test hero image",
+              "summary" => "Test summary",
+              "body" => "Test body content"
+            }
+          },
+          "fields" => ["id", "title"]
+        })
+
+      %{conn: conn, user: user, todo: todo, task: task, content: content}
     end
 
     for file <- @test_files do
@@ -83,12 +105,13 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
         conn: conn,
         user: user,
         todo: todo,
-        task: task
+        task: task,
+        content: content
       } do
         file_path = Path.join(@ts_dir, unquote(file))
-        content = File.read!(file_path)
+        file_content = File.read!(file_path)
 
-        calls = TsActionCallExtractor.extract_calls(content)
+        calls = TsActionCallExtractor.extract_calls(file_content)
 
         assert length(calls) > 0,
                "Expected to extract at least one call from #{unquote(file)}"
@@ -138,6 +161,10 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
               # Update user action needs a valid primary key
               action_name == "update_user" ->
                 Map.put(request, "primaryKey", user["id"])
+
+              # Get content action needs a valid content ID in input
+              action_name == "get_content" ->
+                put_in(request["input"]["id"], content["id"])
 
               true ->
                 request

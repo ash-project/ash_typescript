@@ -122,6 +122,13 @@ defmodule AshTypescript.Test.Content do
 
       argument :item, :map do
         allow_nil? false
+
+        constraints fields: [
+                      hero_image_url: [type: :string],
+                      hero_image_alt: [type: :string],
+                      summary: [type: :string],
+                      body: [type: :string]
+                    ]
       end
 
       argument :user_id, :uuid do
