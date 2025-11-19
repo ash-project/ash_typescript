@@ -163,17 +163,10 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
                 end
               else
                 # Check the actual type (unwrap NewType for classification)
-                actual_field =
-                  if Ash.Type.NewType.new_type?(field.type) do
-                    %{
-                      field
-                      | type: Ash.Type.NewType.subtype_of(field.type),
-                        constraints:
-                          Ash.Type.NewType.constraints(field.type, field.constraints || [])
-                    }
-                  else
-                    field
-                  end
+                {unwrapped_type, unwrapped_constraints} =
+                  Introspection.unwrap_new_type(field.type, field.constraints || [])
+
+                actual_field = %{field | type: unwrapped_type, constraints: unwrapped_constraints}
 
                 cond do
                   is_embedded_attribute?(actual_field) ->
@@ -258,47 +251,48 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   end
 
   defp is_complex_attr?(attr, _) do
-    if Ash.Type.NewType.new_type?(attr.type) do
-      is_complex_attr?(%{
-        attr
-        | type: Ash.Type.NewType.subtype_of(attr.type),
-          constraints: Ash.Type.NewType.constraints(attr.type, attr.constraints || [])
-      })
-    else
-      is_union_attribute?(attr) or
-        is_embedded_attribute?(attr) or
-        is_typed_struct_attribute?(attr) or
-        is_keyword_attribute?(attr) or
-        is_map_attribute?(attr) or
-        is_struct_attribute?(attr) or
-        is_tuple_attribute?(attr)
-    end
+    {unwrapped_type, unwrapped_constraints} =
+      Introspection.unwrap_new_type(attr.type, attr.constraints || [])
+
+    unwrapped_attr = %{attr | type: unwrapped_type, constraints: unwrapped_constraints}
+
+    is_union_attribute?(unwrapped_attr) or
+      is_embedded_attribute?(unwrapped_attr) or
+      is_typed_struct_attribute?(unwrapped_attr) or
+      is_keyword_attribute?(unwrapped_attr) or
+      is_map_attribute?(unwrapped_attr) or
+      is_struct_attribute?(unwrapped_attr) or
+      is_tuple_attribute?(unwrapped_attr)
   end
 
   defp get_union_primitive_fields(union_types) do
     union_types
     |> Enum.filter(fn {_name, config} ->
       type = Keyword.get(config, :type)
+      constraints = Keyword.get(config, :constraints, [])
+      has_fields = Keyword.has_key?(constraints, :fields)
 
       case type do
-        Ash.Type.Map ->
+        Ash.Type.Map when has_fields ->
           false
 
-        Ash.Type.Keyword ->
+        Ash.Type.Keyword when has_fields ->
           false
 
-        Ash.Type.Struct ->
+        Ash.Type.Struct when has_fields ->
+          false
+
+        Ash.Type.Tuple when has_fields ->
           false
 
         Ash.Type.Union ->
           false
 
         atom_type when is_atom(atom_type) ->
-          not Introspection.is_embedded_resource?(atom_type) and
-            not Introspection.is_typed_struct?(atom_type)
+          not Introspection.is_embedded_resource?(atom_type) and not has_fields
 
         _ ->
-          false
+          true
       end
     end)
     |> Enum.map(fn {name, _config} -> name end)
@@ -312,7 +306,6 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       |> Enum.map_join(
         " | ",
         fn field_name ->
-          # Apply field name mapping if resource is provided
           mapped_name =
             if resource do
               AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
@@ -440,12 +433,9 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
     union_metadata = generate_union_metadata(attr)
 
-    # Check if this is an array union and add __array: true
     final_type =
       case attr.type do
         {:array, Ash.Type.Union} ->
-          # Extract the content of the union metadata and add __array: true
-          # Remove outer braces
           union_content = String.slice(union_metadata, 1..-2//1)
           "{ __array: true; #{union_content} }"
 
@@ -469,7 +459,6 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         AshTypescript.Rpc.output_field_formatter()
       )
 
-    # Get the constraints for the TypedMap
     {_inner_type, constraints} =
       case attr.type do
         {:array, inner} -> {inner, attr.constraints[:items] || []}
@@ -478,8 +467,6 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
     field_specs = Keyword.get(constraints, :fields, [])
 
-    # Check if this NewType has typescript_field_names callback
-    # Extract the actual type (handle {:array, Type} case)
     actual_type =
       case attr.type do
         {:array, inner} -> inner
@@ -493,12 +480,10 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         nil
       end
 
-    # Build the primitive fields list
     primitive_fields =
       field_specs
       |> Enum.map(fn {field_name, _config} -> field_name end)
       |> Enum.map_join(" | ", fn field_name ->
-        # Apply field name mapping if present
         mapped_field_name =
           if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
             Keyword.get(field_name_mappings, field_name)
@@ -515,14 +500,12 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         "\"#{formatted}\""
       end)
 
-    # Build field definitions
     field_defs =
       field_specs
       |> Enum.map_join(", ", fn {field_name, config} ->
         field_type = Keyword.get(config, :type)
         allow_nil = Keyword.get(config, :allow_nil?, true)
 
-        # Apply field name mapping if present
         mapped_field_name =
           if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
             Keyword.get(field_name_mappings, field_name)
@@ -549,11 +532,9 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         end
       end)
 
-    # Build the TypedMap metadata
     typed_map_metadata =
       "{#{field_defs}, __type: \"TypedMap\", __primitiveFields: #{primitive_fields}}"
 
-    # Check if this is an array and add __array: true
     final_type =
       case attr.type do
         {:array, _} ->
@@ -582,11 +563,10 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   defp is_embedded_attribute?(_), do: false
 
-  defp is_typed_struct_attribute?(%{type: type}) when is_atom(type),
-    do: Introspection.is_typed_struct?(type)
-
-  defp is_typed_struct_attribute?(%{type: {:array, type}}) when is_atom(type),
-    do: Introspection.is_typed_struct?(type)
+  # Check if attribute has field constraints with instance_of (TypedStruct or similar)
+  defp is_typed_struct_attribute?(%{constraints: constraints}) do
+    Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of)
+  end
 
   defp is_typed_struct_attribute?(_), do: false
 
@@ -743,7 +723,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
             resource_name = Helpers.build_resource_type_name(type)
             "#{formatted_name}?: #{resource_name}ResourceSchema"
 
-          Introspection.is_typed_struct?(type) ->
+          Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of) ->
             "#{formatted_name}?: any"
 
           true ->

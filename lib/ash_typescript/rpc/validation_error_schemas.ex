@@ -61,17 +61,47 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   end
 
   @doc """
-  Generates validation error schemas for typed struct modules.
+  Generates validation error schemas for types with field constraints.
+
+  Accepts either:
+  - A list of type info maps (new format): `%{instance_of:, constraints:, field_name_mappings:}`
+  - A list of modules (legacy format): for backward compatibility
+
+  Returns TypeScript validation error schema definitions.
   """
-  def generate_validation_error_schemas_for_typed_structs(typed_struct_modules) do
-    if typed_struct_modules != [] do
+  def generate_validation_error_schemas_for_typed_structs(type_infos) when is_list(type_infos) do
+    if type_infos != [] do
       schemas =
-        typed_struct_modules
-        |> Enum.map_join("\n\n", &generate_validation_error_schema_for_typed_struct/1)
+        type_infos
+        |> Enum.map_join("\n\n", fn
+          %{instance_of: instance_of, constraints: constraints, field_name_mappings: mappings} ->
+            generate_validation_error_schema_for_field_type(instance_of, constraints, mappings)
+
+          module when is_atom(module) ->
+            constraints =
+              if Ash.Type.NewType.new_type?(module) do
+                Ash.Type.NewType.constraints(module, [])
+              else
+                []
+              end
+
+            field_name_mappings =
+              if function_exported?(module, :typescript_field_names, 0) do
+                module.typescript_field_names()
+              else
+                nil
+              end
+
+            generate_validation_error_schema_for_field_type(
+              module,
+              constraints,
+              field_name_mappings
+            )
+        end)
 
       """
       // ============================
-      // Validation Error Schemas for TypedStruct Modules
+      // Validation Error Schemas for Field-Constrained Types
       // ============================
 
       #{schemas}
@@ -157,14 +187,16 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
             resource_name = build_resource_type_name(custom_type)
             "#{resource_name}ValidationErrors"
 
-          Introspection.is_typed_struct?(custom_type) ->
-            resource_name = build_resource_type_name(custom_type)
+          Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of) ->
+            instance_of = Keyword.get(constraints, :instance_of)
+            resource_name = build_resource_type_name(instance_of)
             "#{resource_name}ValidationErrors"
 
           Ash.Type.NewType.new_type?(custom_type) ->
-            subtype = Ash.Type.NewType.subtype_of(custom_type)
-            sub_constraints = Ash.Type.NewType.constraints(custom_type, constraints)
-            get_ts_error_type(%{type: subtype, constraints: sub_constraints})
+            {unwrapped_type, unwrapped_constraints} =
+              Introspection.unwrap_new_type(custom_type, constraints)
+
+            get_ts_error_type(%{type: unwrapped_type, constraints: unwrapped_constraints})
 
           Spark.implements_behaviour?(custom_type, Ash.Type.Enum) ->
             "string[]"
@@ -281,28 +313,24 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
     end
   end
 
-  defp generate_validation_error_schema_for_typed_struct(typed_struct_module) do
-    resource_name = build_resource_type_name(typed_struct_module)
+  defp generate_validation_error_schema_for_field_type(
+         instance_of_module,
+         constraints,
+         field_name_mappings
+       ) do
+    resource_name = build_resource_type_name(instance_of_module)
 
-    fields = AshTypescript.Codegen.get_typed_struct_fields(typed_struct_module)
-
-    # Get field name mappings if defined
-    field_name_mappings =
-      if function_exported?(typed_struct_module, :typescript_field_names, 0) do
-        typed_struct_module.typescript_field_names()
-      else
-        []
-      end
+    fields = Keyword.get(constraints, :fields, [])
 
     error_fields =
       fields
-      |> Enum.map_join("\n", fn field ->
+      |> Enum.map_join("\n", fn {field_name, field_config} ->
         # Apply field name mapping if defined
         mapped_name =
-          if Keyword.has_key?(field_name_mappings, field.name) do
-            Keyword.get(field_name_mappings, field.name)
+          if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
+            Keyword.get(field_name_mappings, field_name)
           else
-            field.name
+            field_name
           end
 
         formatted_name =
@@ -311,7 +339,9 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
             AshTypescript.Rpc.output_field_formatter()
           )
 
-        error_type = get_ts_error_type(%{type: field.type, constraints: field.constraints || []})
+        field_type = Keyword.get(field_config, :type)
+        field_constraints = Keyword.get(field_config, :constraints, [])
+        error_type = get_ts_error_type(%{type: field_type, constraints: field_constraints})
         "  #{formatted_name}?: #{error_type};"
       end)
 

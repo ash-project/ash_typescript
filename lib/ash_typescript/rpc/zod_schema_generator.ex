@@ -16,17 +16,14 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
 
   import AshTypescript.Helpers
 
-  # Helper to format field with output formatter
   defp format_field(field_name) do
     AshTypescript.FieldFormatter.format_field(field_name, formatter())
   end
 
-  # Get formatter (called at runtime, not compile time)
   defp formatter do
     AshTypescript.Rpc.output_field_formatter()
   end
 
-  # Helper to process an argument into a Zod field definition
   defp process_argument_field(resource, action, arg) do
     optional = arg.allow_nil? || arg.default != nil
 
@@ -44,7 +41,6 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
     {formatted_name, zod_type}
   end
 
-  # Helper to process an accept field into a Zod field definition
   defp process_accept_field(resource, field_name) do
     attr = Ash.Resource.Info.attribute(resource, field_name)
     optional = attr.allow_nil? || attr.default != nil
@@ -158,8 +154,12 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   def get_zod_type(%{type: Ash.Type.Map, constraints: constraints}, context)
       when constraints != [] do
     case Keyword.get(constraints, :fields) do
-      nil -> "z.record(z.string(), z.any())"
-      fields -> build_zod_object_type(fields, context, nil)
+      nil ->
+        "z.record(z.string(), z.any())"
+
+      fields ->
+        field_name_mappings = get_field_name_mappings(constraints)
+        build_zod_object_type(fields, context, field_name_mappings)
     end
   end
 
@@ -168,8 +168,12 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   def get_zod_type(%{type: Ash.Type.Keyword, constraints: constraints}, context)
       when constraints != [] do
     case Keyword.get(constraints, :fields) do
-      nil -> "z.record(z.string(), z.any())"
-      fields -> build_zod_object_type(fields, context, nil)
+      nil ->
+        "z.record(z.string(), z.any())"
+
+      fields ->
+        field_name_mappings = get_field_name_mappings(constraints)
+        build_zod_object_type(fields, context, field_name_mappings)
     end
   end
 
@@ -177,8 +181,12 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
 
   def get_zod_type(%{type: Ash.Type.Tuple, constraints: constraints}, context) do
     case Keyword.get(constraints, :fields) do
-      nil -> "z.record(z.string(), z.any())"
-      fields -> build_zod_object_type(fields, context, nil)
+      nil ->
+        "z.record(z.string(), z.any())"
+
+      fields ->
+        field_name_mappings = get_field_name_mappings(constraints)
+        build_zod_object_type(fields, context, field_name_mappings)
     end
   end
 
@@ -188,7 +196,8 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
 
     cond do
       fields != nil ->
-        build_zod_object_type(fields, context, nil)
+        field_name_mappings = get_field_name_mappings(constraints)
+        build_zod_object_type(fields, context, field_name_mappings)
 
       instance_of != nil ->
         if Spark.Dsl.is?(instance_of, Ash.Resource) do
@@ -245,30 +254,10 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
         "#{resource_name}#{suffix}"
 
       Ash.Type.NewType.new_type?(type) ->
-        sub_type_constraints = Ash.Type.NewType.constraints(type, constraints)
-        subtype = Ash.Type.NewType.subtype_of(type)
+        {unwrapped_type, unwrapped_constraints} =
+          Introspection.unwrap_new_type(type, constraints)
 
-        # Check if this NewType has typescript_field_names callback
-        field_name_mappings =
-          if function_exported?(type, :typescript_field_names, 0) do
-            type.typescript_field_names()
-          else
-            nil
-          end
-
-        # If it's a map/keyword/tuple/struct type with field mappings, handle specially
-        if field_name_mappings &&
-             subtype in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple, Ash.Type.Struct] do
-          case Keyword.get(sub_type_constraints, :fields) do
-            nil ->
-              get_zod_type(%{attr | type: subtype, constraints: sub_type_constraints}, context)
-
-            fields ->
-              build_zod_object_type(fields, context, field_name_mappings)
-          end
-        else
-          get_zod_type(%{attr | type: subtype, constraints: sub_type_constraints}, context)
-        end
+        get_zod_type(%{attr | type: unwrapped_type, constraints: unwrapped_constraints}, context)
 
       Spark.implements_behaviour?(type, Ash.Type.Enum) ->
         enum_values = Enum.map_join(type.values(), ", ", &"\"#{to_string(&1)}\"")
@@ -459,6 +448,16 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
       end)
 
     "z.union([#{union_schemas}])"
+  end
+
+  defp get_field_name_mappings(constraints) do
+    instance_of = Keyword.get(constraints, :instance_of)
+
+    if instance_of && function_exported?(instance_of, :typescript_field_names, 0) do
+      instance_of.typescript_field_names()
+    else
+      nil
+    end
   end
 
   defp is_custom_type?(type) do

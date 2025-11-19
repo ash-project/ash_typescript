@@ -15,50 +15,6 @@ defmodule AshTypescript.TypeSystem.Introspection do
   """
 
   @doc """
-  Checks if a module is a TypedStruct using Spark DSL detection.
-
-  ## Examples
-
-      iex> AshTypescript.TypeSystem.Introspection.is_typed_struct?(MyApp.CustomType)
-      true
-
-      iex> AshTypescript.TypeSystem.Introspection.is_typed_struct?(Ash.Type.String)
-      false
-  """
-  def is_typed_struct?(module) when is_atom(module) do
-    Code.ensure_loaded?(module) and
-      function_exported?(module, :spark_is, 0) and
-      is_ash_typed_struct?(module)
-  end
-
-  def is_typed_struct?(_), do: false
-
-  defp is_ash_typed_struct?(module) do
-    module.spark_is() == Ash.TypedStruct
-  rescue
-    _ -> false
-  end
-
-  @doc """
-  Gets the field information from a TypedStruct module using Ash's DSL pattern.
-  Returns a list of field definitions.
-
-  ## Examples
-
-      iex> AshTypescript.TypeSystem.Introspection.get_typed_struct_fields(MyApp.CustomType)
-      [%{name: :field1, type: :string}, ...]
-  """
-  def get_typed_struct_fields(module) do
-    if is_typed_struct?(module) do
-      Spark.Dsl.Extension.get_entities(module, [:typed_struct])
-    else
-      []
-    end
-  rescue
-    _ -> []
-  end
-
-  @doc """
   Checks if a module is an embedded Ash resource.
 
   ## Examples
@@ -113,7 +69,6 @@ defmodule AshTypescript.TypeSystem.Introspection do
   - `:embedded_resource` - Single embedded resource
   - `:embedded_resource_array` - Array of embedded resources
   - `:tuple` - Tuple type
-  - `:typed_struct` - TypedStruct with field constraints
   - `:attribute` - Simple attribute (default)
 
   ## Parameters
@@ -127,7 +82,7 @@ defmodule AshTypescript.TypeSystem.Introspection do
       iex> AshTypescript.TypeSystem.Introspection.classify_ash_type(MyApp.Address, attr, false)
       :embedded_resource
   """
-  def classify_ash_type(type_module, attribute, is_array) do
+  def classify_ash_type(type_module, _attribute, is_array) do
     cond do
       type_module == Ash.Type.Union ->
         :union_attribute
@@ -138,36 +93,8 @@ defmodule AshTypescript.TypeSystem.Introspection do
       type_module == Ash.Type.Tuple ->
         :tuple
 
-      is_typed_struct_from_attribute?(attribute) ->
-        :typed_struct
-
-      # Handle keyword and tuple types with field constraints
-      type_module in [Ash.Type.Keyword, Ash.Type.Tuple] ->
-        :typed_struct
-
       true ->
         :attribute
-    end
-  end
-
-  @doc """
-  Checks if an attribute represents a typed struct (has fields and instance_of constraints).
-
-  ## Examples
-
-      iex> attr = %{constraints: [fields: [...], instance_of: MyApp.CustomType]}
-      iex> AshTypescript.TypeSystem.Introspection.is_typed_struct_from_attribute?(attr)
-      true
-  """
-  def is_typed_struct_from_attribute?(attribute) do
-    constraints = attribute.constraints || []
-
-    with true <- Keyword.has_key?(constraints, :fields),
-         true <- Keyword.has_key?(constraints, :instance_of),
-         instance_of when is_atom(instance_of) <- Keyword.get(constraints, :instance_of) do
-      true
-    else
-      _ -> false
     end
   end
 
@@ -247,4 +174,61 @@ defmodule AshTypescript.TypeSystem.Introspection do
   end
 
   def is_ash_type?(_), do: false
+
+  @doc """
+  Recursively unwraps Ash.Type.NewType to get the underlying type and constraints.
+
+  When a type is wrapped in one or more NewType wrappers, this function
+  recursively unwraps them until it reaches the base type. If the NewType
+  has a `typescript_field_names/0` callback and the constraints don't already
+  have an `instance_of` key, it will add the NewType module as `instance_of`
+  to preserve the reference for field name mapping.
+
+  ## Parameters
+  - `type` - The type to unwrap (e.g., MyApp.CustomType)
+  - `constraints` - The constraints for the type
+
+  ## Returns
+  A tuple `{unwrapped_type, unwrapped_constraints}` where:
+  - `unwrapped_type` is the final underlying type after all NewType unwrapping
+  - `unwrapped_constraints` are the final constraints, potentially augmented with `instance_of`
+
+  ## Examples
+
+      iex> # Simple NewType with typescript_field_names
+      iex> unwrap_new_type(MyApp.TaskStats, [])
+      {Ash.Type.Struct, [fields: [...], instance_of: MyApp.TaskStats]}
+
+      iex> # Nested NewTypes (outermost with callback wins)
+      iex> unwrap_new_type(MyApp.Wrapper, [])
+      {Ash.Type.String, [max_length: 100, instance_of: MyApp.Wrapper]}
+
+      iex> # Non-NewType (returns unchanged)
+      iex> unwrap_new_type(Ash.Type.String, [max_length: 50])
+      {Ash.Type.String, [max_length: 50]}
+  """
+  def unwrap_new_type(type, constraints) when is_atom(type) do
+    if Ash.Type.NewType.new_type?(type) do
+      subtype = Ash.Type.NewType.subtype_of(type)
+      sub_constraints = Ash.Type.NewType.constraints(type, constraints)
+
+      # Preserve reference to outermost NewType with typescript_field_names
+      # Only add instance_of if:
+      # 1. This NewType has typescript_field_names callback
+      # 2. Constraints don't already have instance_of (preserves outermost)
+      augmented_constraints =
+        if function_exported?(type, :typescript_field_names, 0) and
+             not Keyword.has_key?(sub_constraints, :instance_of) do
+          Keyword.put(sub_constraints, :instance_of, type)
+        else
+          sub_constraints
+        end
+
+      unwrap_new_type(subtype, augmented_constraints)
+    else
+      {type, constraints}
+    end
+  end
+
+  def unwrap_new_type(type, constraints), do: {type, constraints}
 end
