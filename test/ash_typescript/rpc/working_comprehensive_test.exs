@@ -537,7 +537,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
           "input" => %{
             "title" => "Note Content Todo",
             "userId" => user_id,
-            "content" => "This is a simple note"
+            "content" => %{"note" => "This is a simple note"}
           },
           "fields" => ["id", "title", %{"content" => ["note"]}]
         })
@@ -556,7 +556,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
           "input" => %{
             "title" => "Priority Content Todo",
             "userId" => user_id,
-            "content" => 8
+            "content" => %{"priorityValue" => 8}
           },
           "fields" => ["id", "title", %{"content" => ["priorityValue"]}]
         })

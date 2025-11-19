@@ -433,9 +433,10 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
             "title" => "Text Content Todo",
             "userId" => user["id"],
             "content" => %{
-              "content_type" => "text",
-              "text" => "Sample text content",
-              "formatting" => "markdown"
+              "text" => %{
+                "text" => "Sample text content",
+                "formatting" => "markdown"
+              }
             }
           },
           "fields" => ["id", "title"]
@@ -448,13 +449,14 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
             "title" => "Checklist Content Todo",
             "userId" => user["id"],
             "content" => %{
-              "content_type" => "checklist",
-              "title" => "My Checklist",
-              "items" => [
-                %{"text" => "Item 1", "completed" => false},
-                %{"text" => "Item 2", "completed" => false},
-                %{"text" => "Item 3", "completed" => false}
-              ]
+              "checklist" => %{
+                "title" => "My Checklist",
+                "items" => [
+                  %{"text" => "Item 1", "completed" => false},
+                  %{"text" => "Item 2", "completed" => false},
+                  %{"text" => "Item 3", "completed" => false}
+                ]
+              }
             }
           },
           "fields" => ["id", "title"]
@@ -467,9 +469,10 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
             "title" => "Link Content Todo",
             "userId" => user["id"],
             "content" => %{
-              "content_type" => "link",
-              "url" => "https://example.com",
-              "title" => "Example Link"
+              "link" => %{
+                "url" => "https://example.com",
+                "title" => "Example Link"
+              }
             }
           },
           "fields" => ["id", "title"]
@@ -855,9 +858,10 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
             "title" => "Create Todo with Text Content",
             "userId" => user["id"],
             "content" => %{
-              "content_type" => "text",
-              "text" => "Created text content",
-              "formatting" => "plain"
+              "text" => %{
+                "text" => "Created text content",
+                "formatting" => "plain"
+              }
             }
           },
           "fields" => [

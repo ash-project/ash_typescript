@@ -99,6 +99,7 @@ defmodule AshTypescript.Rpc.OutputFormatter do
     case type do
       # Union - handle with embedded resource callback
       Ash.Type.Union ->
+        # For output direction, callback returns raw value
         embedded_callback = fn data, module, _direction ->
           format_data(data, module, :read, formatter)
         end

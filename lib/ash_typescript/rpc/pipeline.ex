@@ -380,12 +380,14 @@ defmodule AshTypescript.Rpc.Pipeline do
 
       formatter = Rpc.input_field_formatter()
 
-      parsed_input =
-        InputFormatter.format(raw_input_with_pk, resource, action.name, formatter)
+      case InputFormatter.format(raw_input_with_pk, resource, action.name, formatter) do
+        {:ok, parsed_input} ->
+          converted_input = convert_keyword_tuple_inputs(parsed_input, resource, action)
+          {:ok, converted_input}
 
-      converted_input = convert_keyword_tuple_inputs(parsed_input, resource, action)
-
-      {:ok, converted_input}
+        {:error, _} = error ->
+          error
+      end
     else
       {:error, {:invalid_input_format, raw_input}}
     end
@@ -838,9 +840,11 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp format_output_data(%{success: false, errors: errors}, formatter, _request) do
+    formatted_errors = Enum.map(errors, &format_field_names(&1, formatter))
+
     %{
       FieldFormatter.format_field("success", formatter) => false,
-      FieldFormatter.format_field("errors", formatter) => errors
+      FieldFormatter.format_field("errors", formatter) => formatted_errors
     }
   end
 

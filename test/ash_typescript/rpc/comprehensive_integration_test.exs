@@ -936,9 +936,10 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
             "title" => "Text Content Todo",
             "userId" => user_id,
             "content" => %{
-              "text" => "This is text content",
-              "wordCount" => 5,
-              "contentType" => "text"
+              "text" => %{
+                "text" => "This is text content",
+                "wordCount" => 5
+              }
             }
           },
           "fields" => ["id", "title", %{"content" => [%{"text" => ["id", "text", "wordCount"]}]}]
@@ -962,7 +963,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           "input" => %{
             "title" => "Note Content Todo",
             "userId" => user_id,
-            "content" => "This is a simple note"
+            "content" => %{"note" => "This is a simple note"}
           },
           "fields" => ["id", "title", %{"content" => ["note"]}]
         })
@@ -981,7 +982,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           "input" => %{
             "title" => "Priority Content Todo",
             "userId" => user_id,
-            "content" => 8
+            "content" => %{"priorityValue" => 8}
           },
           "fields" => ["id", "title", %{"content" => ["priorityValue"]}]
         })
@@ -1009,11 +1010,12 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
             "title" => "Status Info Todo",
             "userId" => user_id,
             "statusInfo" => %{
-              "statusType" => "detailed",
-              "message" => "In progress with details",
-              "progressPercentage" => 45,
-              "assignedTo" => "Developer A",
-              "lastUpdated" => "2024-01-15T10:30:00Z"
+              "detailed" => %{
+                "message" => "In progress with details",
+                "progressPercentage" => 45,
+                "assignedTo" => "Developer A",
+                "lastUpdated" => "2024-01-15T10:30:00Z"
+              }
             }
           },
           "fields" => [
@@ -1056,23 +1058,25 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
             "title" => "Attachments Todo",
             "userId" => user_id,
             "attachments" => [
-              # File attachment (tagged map with attachment_type field)
+              # File attachment (wrapped format)
               %{
-                "attachmentType" => "file",
-                "filename" => "document.pdf",
-                "size" => 1_024_000,
-                "mimeType" => "application/pdf"
+                "file" => %{
+                  "filename" => "document.pdf",
+                  "size" => 1_024_000,
+                  "mimeType" => "application/pdf"
+                }
               },
-              # Image attachment (tagged map with attachment_type field)
+              # Image attachment (wrapped format)
               %{
-                "attachmentType" => "image",
-                "filename" => "screenshot.png",
-                "width" => 1920,
-                "height" => 1080,
-                "altText" => "Application screenshot"
+                "image" => %{
+                  "filename" => "screenshot.png",
+                  "width" => 1920,
+                  "height" => 1080,
+                  "altText" => "Application screenshot"
+                }
               },
-              # URL attachment (untagged string)
-              "https://example.com/reference"
+              # URL attachment (wrapped format)
+              %{"url" => "https://example.com/reference"}
             ]
           },
           "fields" => [

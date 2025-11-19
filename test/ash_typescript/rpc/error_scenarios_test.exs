@@ -182,8 +182,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       if not result["success"] do
         [error | _] = result["errors"]
         # Validate returns maps with atom keys
-        assert Map.has_key?(error, :type)
-        assert error.type == "not_found"
+        assert error["type"] == "not_found"
       end
     end
   end

@@ -225,6 +225,7 @@ mix credo --strict                   # Linting
 - **Field Selection**: Unified format supporting nested relationships and calculations
 - **Embedded Resources**: Full relationship-like architecture with calculation support
 - **Union Field Selection**: Selective member fetching with `{content: ["field1", {"nested": ["field2"]}]}`
+- **Union Input Format**: REQUIRED wrapped format `{member_name: value}` for all union inputs
 - **Headers Support**: All RPC functions accept optional headers for custom authentication
 - **Modular Processing**: Each type family has dedicated processor for maintainability
 
@@ -240,6 +241,9 @@ mix credo --strict                   # Linting
 | "Metadata field conflicts with resource field" | Metadata field shadows resource field | Rename metadata field or use different mapped name |
 | TypeScript `unknown` types | Schema key mismatch | Check `__type` metadata generation |
 | Field selection fails | Invalid field format | Use unified field format only |
+| "Union input must be a map" | Direct value for union input | Wrap in map: `{member_name: value}` |
+| "Union input map contains multiple member keys" | Multiple union members in input | Provide exactly one member key |
+| "Union input map does not contain any valid member key" | Invalid or missing member key | Use valid member name from union definition |
 
 ## RPC Resource Warnings
 

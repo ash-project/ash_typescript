@@ -30,9 +30,10 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             "title" => "Text Todo",
             "userId" => user["id"],
             "content" => %{
-              "content_type" => "text",
-              "text" => "Sample text content",
-              "formatting" => "markdown"
+              "text" => %{
+                "text" => "Sample text content",
+                "formatting" => "markdown"
+              }
             }
           },
           "fields" => ["id", "title"]
@@ -45,14 +46,15 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             "title" => "Checklist Todo",
             "userId" => user["id"],
             "content" => %{
-              "content_type" => "checklist",
-              "title" => "Shopping List",
-              "items" => [
-                %{"text" => "Milk", "completed" => false},
-                %{"text" => "Bread", "completed" => false},
-                %{"text" => "Eggs", "completed" => false}
-              ],
-              "allow_reordering" => true
+              "checklist" => %{
+                "title" => "Shopping List",
+                "items" => [
+                  %{"text" => "Milk", "completed" => false},
+                  %{"text" => "Bread", "completed" => false},
+                  %{"text" => "Eggs", "completed" => false}
+                ],
+                "allow_reordering" => true
+              }
             }
           },
           "fields" => ["id", "title"]
@@ -65,10 +67,11 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             "title" => "Link Todo",
             "userId" => user["id"],
             "content" => %{
-              "content_type" => "link",
-              "url" => "https://example.com",
-              "title" => "Example Site",
-              "description" => "A sample website"
+              "link" => %{
+                "url" => "https://example.com",
+                "title" => "Example Site",
+                "description" => "A sample website"
+              }
             }
           },
           "fields" => ["id", "title"]
@@ -346,7 +349,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
           "input" => %{
             "title" => "Note Todo",
             "userId" => user["id"],
-            "content" => "Simple note content"
+            "content" => %{"note" => "Simple note content"}
           },
           "fields" => ["id", "title"]
         })
@@ -357,7 +360,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
           "input" => %{
             "title" => "Priority Todo",
             "userId" => user["id"],
-            "content" => 5
+            "content" => %{"priorityValue" => 5}
           },
           "fields" => ["id", "title"]
         })
@@ -557,10 +560,11 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             "userId" => user["id"],
             "attachments" => [
               %{
-                "attachment_type" => "file",
-                "filename" => "document.pdf",
-                "size" => 1024,
-                "mime_type" => "application/pdf"
+                "file" => %{
+                  "filename" => "document.pdf",
+                  "size" => 1024,
+                  "mime_type" => "application/pdf"
+                }
               }
             ]
           },
@@ -575,11 +579,12 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             "userId" => user["id"],
             "attachments" => [
               %{
-                "attachment_type" => "image",
-                "filename" => "photo.jpg",
-                "width" => 800,
-                "height" => 600,
-                "alt_text" => "A photo"
+                "image" => %{
+                  "filename" => "photo.jpg",
+                  "width" => 800,
+                  "height" => 600,
+                  "alt_text" => "A photo"
+                }
               }
             ]
           },
@@ -593,7 +598,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             "title" => "URL Todo",
             "userId" => user["id"],
             "attachments" => [
-              "https://example.com/resource"
+              %{"url" => "https://example.com/resource"}
             ]
           },
           "fields" => ["id", "title"]
@@ -849,8 +854,9 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             "title" => "Simple Status Todo",
             "userId" => user["id"],
             "statusInfo" => %{
-              "status_type" => "simple",
-              "value" => "In Progress"
+              "simple" => %{
+                "value" => "In Progress"
+              }
             }
           },
           "fields" => ["id", "title"]
@@ -863,8 +869,9 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             "title" => "Detailed Status Todo",
             "userId" => user["id"],
             "statusInfo" => %{
-              "status_type" => "detailed",
-              "value" => "Detailed status information"
+              "detailed" => %{
+                "value" => "Detailed status information"
+              }
             }
           },
           "fields" => ["id", "title"]
@@ -962,8 +969,9 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             "title" => "Automated Status Todo",
             "userId" => user["id"],
             "statusInfo" => %{
-              "status_type" => "automated",
-              "value" => "Automatically managed"
+              "automated" => %{
+                "value" => "Automatically managed"
+              }
             }
           },
           "fields" => ["id", "title"]
@@ -1067,9 +1075,10 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             "userId" => user["id"],
             "autoComplete" => false,
             "content" => %{
-              "content_type" => "text",
-              "text" => "Complex content",
-              "formatting" => "markdown"
+              "text" => %{
+                "text" => "Complex content",
+                "formatting" => "markdown"
+              }
             },
             "customData" => %{
               "customField1" => "value1",
@@ -1077,12 +1086,13 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             },
             "attachments" => [
               %{
-                "attachment_type" => "file",
-                "filename" => "doc.pdf",
-                "size" => 2048,
-                "mime_type" => "application/pdf"
+                "file" => %{
+                  "filename" => "doc.pdf",
+                  "size" => 2048,
+                  "mime_type" => "application/pdf"
+                }
               },
-              "https://example.com"
+              %{"url" => "https://example.com"}
             ]
           },
           "fields" => ["id"]
@@ -1317,7 +1327,127 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
   describe "union type validation and error handling" do
     setup do
       conn = TestHelpers.build_rpc_conn()
-      %{conn: conn}
+
+      # Create a user for input validation tests
+      %{"success" => true, "data" => user} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_user",
+          "input" => %{
+            "name" => "Validation User",
+            "email" => "validation@example.com"
+          },
+          "fields" => ["id"]
+        })
+
+      %{conn: conn, user: user}
+    end
+
+    test "returns error for non-map union input", %{conn: conn, user: user} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_todo",
+          "input" => %{
+            "title" => "Invalid Union Input",
+            "userId" => user["id"],
+            "content" => "direct string value not wrapped"
+          },
+          "fields" => ["id"]
+        })
+
+      assert result["success"] == false
+      assert is_list(result["errors"])
+      [error | _] = result["errors"]
+      assert error["type"] == "invalid_union_input"
+      assert error["message"] =~ "must be a map"
+    end
+
+    test "returns error for empty union input map", %{conn: conn, user: user} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_todo",
+          "input" => %{
+            "title" => "Empty Union Map",
+            "userId" => user["id"],
+            "content" => %{}
+          },
+          "fields" => ["id"]
+        })
+
+      assert result["success"] == false
+      assert is_list(result["errors"])
+      [error | _] = result["errors"]
+
+      assert error["type"] == "invalid_union_input"
+      assert error["message"] =~ "does not contain any valid member key"
+      assert is_list(error["details"]["expectedMembers"])
+    end
+
+    test "returns error for multiple union member keys", %{conn: conn, user: user} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_todo",
+          "input" => %{
+            "title" => "Multiple Union Members",
+            "userId" => user["id"],
+            "content" => %{
+              "note" => "some note",
+              "priorityValue" => 5
+            }
+          },
+          "fields" => ["id"]
+        })
+
+      assert result["success"] == false
+      assert is_list(result["errors"])
+      [error | _] = result["errors"]
+
+      assert error["type"] == "invalid_union_input"
+      assert error["message"] =~ "multiple member keys"
+      assert is_list(error["details"]["foundKeys"])
+      assert length(error["details"]["foundKeys"]) == 2
+    end
+
+    test "returns error for invalid union member key", %{conn: conn, user: user} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_todo",
+          "input" => %{
+            "title" => "Invalid Member Key",
+            "userId" => user["id"],
+            "content" => %{
+              "invalidMember" => "value"
+            }
+          },
+          "fields" => ["id"]
+        })
+
+      assert result["success"] == false
+      assert is_list(result["errors"])
+      [error | _] = result["errors"]
+      assert error["type"] == "invalid_union_input"
+      assert error["message"] =~ "does not contain any valid member key"
+    end
+
+    test "returns error for invalid union member in attachment", %{conn: conn, user: user} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_todo",
+          "input" => %{
+            "title" => "Invalid Attachment",
+            "userId" => user["id"],
+            "attachments" => [
+              %{
+                "invalidType" => "value"
+              }
+            ]
+          },
+          "fields" => ["id"]
+        })
+
+      assert result["success"] == false
+      assert is_list(result["errors"])
+      [error | _] = result["errors"]
+      assert error["type"] == "invalid_union_input"
     end
 
     test "returns error for invalid union member", %{conn: conn} do
@@ -1522,9 +1652,10 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             "title" => "Complex Calculations Todo",
             "userId" => user["id"],
             "content" => %{
-              "content_type" => "text",
-              "text" => "This is a complex text with calculations",
-              "formatting" => "markdown"
+              "text" => %{
+                "text" => "This is a complex text with calculations",
+                "formatting" => "markdown"
+              }
             }
           },
           "fields" => ["id"]
@@ -1605,14 +1736,15 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             "title" => "Deep Checklist Todo",
             "userId" => user["id"],
             "content" => %{
-              "content_type" => "checklist",
-              "title" => "Complex Checklist",
-              "items" => [
-                %{"text" => "Item 1", "completed" => false},
-                %{"text" => "Item 2", "completed" => false},
-                %{"text" => "Item 3", "completed" => false}
-              ],
-              "allow_reordering" => true
+              "checklist" => %{
+                "title" => "Complex Checklist",
+                "items" => [
+                  %{"text" => "Item 1", "completed" => false},
+                  %{"text" => "Item 2", "completed" => false},
+                  %{"text" => "Item 3", "completed" => false}
+                ],
+                "allow_reordering" => true
+              }
             }
           },
           "fields" => ["id"]
@@ -1785,8 +1917,9 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             "title" => "Edge Case Todo",
             "userId" => user["id"],
             "content" => %{
-              "content_type" => "text",
-              "text" => "Minimal text content"
+              "text" => %{
+                "text" => "Minimal text content"
+              }
             }
           },
           "fields" => ["id"]
@@ -1894,7 +2027,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
           "input" => %{
             "title" => "Simple Note Todo",
             "userId" => user["id"],
-            "content" => "Just a note"
+            "content" => %{"note" => "Just a note"}
           },
           "fields" => ["id"]
         })
@@ -1954,10 +2087,11 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             "userId" => user["id"],
             "attachments" => [
               %{
-                "attachment_type" => "file",
-                "filename" => "test.pdf",
-                "size" => 1024,
-                "mime_type" => "application/pdf"
+                "file" => %{
+                  "filename" => "test.pdf",
+                  "size" => 1024,
+                  "mime_type" => "application/pdf"
+                }
               }
             ]
           },

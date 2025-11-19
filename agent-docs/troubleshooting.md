@@ -16,6 +16,58 @@ SPDX-License-Identifier: MIT
 | TypeScript compilation errors | Schema generation problems | Check resource schema structure |
 | "Unknown type" for embedded resources | Missing resource configuration | Verify embedded resource is properly defined |
 | Tests failing randomly | Environment/compilation issues | Clean rebuild: `mix clean && mix deps.compile` |
+| "Union input must be a map" | Direct value for union input | Use wrapped format: `{member_name: value}` |
+| "Multiple member keys" | Multiple union members provided | Provide exactly one member key |
+| "No valid member key" | Wrong member name | Check union definition for valid member names |
+
+## Union Input Format Errors
+
+### Error: "Union input must be a map with exactly one member key"
+
+**Cause**: Providing a direct value instead of wrapped discriminated union format
+
+**Wrong**:
+```elixir
+%{"content" => "direct string value"}
+```
+
+**Correct**:
+```elixir
+%{"content" => %{"note" => "string value"}}
+```
+
+### Error: "Union input map contains multiple member keys"
+
+**Cause**: Providing more than one union member in input
+
+**Wrong**:
+```elixir
+%{"content" => %{"note" => "text", "priorityValue" => 5}}
+```
+
+**Correct**:
+```elixir
+%{"content" => %{"note" => "text"}}
+# OR
+%{"content" => %{"priorityValue" => 5}}
+```
+
+### Error: "Union input map does not contain any valid member key"
+
+**Cause**: Using invalid member name or empty map
+
+**Wrong**:
+```elixir
+%{"content" => %{}}
+# OR
+%{"content" => %{"invalidMember" => "value"}}
+```
+
+**Correct**:
+```elixir
+%{"content" => %{"note" => "value"}}
+# Check union definition for valid member names
+```
 
 ## Critical Environment Rules
 

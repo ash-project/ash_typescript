@@ -238,6 +238,40 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
+      # === UNION INPUT VALIDATION ERRORS ===
+
+      {:invalid_union_input, :not_a_map} ->
+        %{
+          type: "invalid_union_input",
+          message: "Union input must be a map with exactly one member key",
+          details: %{
+            suggestion: "Provide union input in the format: {\"member_name\": value}"
+          }
+        }
+
+      {:invalid_union_input, :no_member_key, member_names} ->
+        %{
+          type: "invalid_union_input",
+          message: "Union input map does not contain any valid member key",
+          details: %{
+            expected_members: member_names,
+            suggestion:
+              "Provide exactly one of the following keys: #{Enum.join(member_names, ", ")}"
+          }
+        }
+
+      {:invalid_union_input, :multiple_member_keys, found_keys, member_names} ->
+        %{
+          type: "invalid_union_input",
+          message: "Union input map contains multiple member keys: #{Enum.join(found_keys, ", ")}",
+          details: %{
+            found_keys: found_keys,
+            expected_members: member_names,
+            suggestion:
+              "Provide exactly one member key, not multiple. Choose one of: #{Enum.join(member_names, ", ")}"
+          }
+        }
+
       # === INPUT AND SYSTEM VALIDATION ERRORS ===
 
       {:missing_required_parameter, parameter} ->
