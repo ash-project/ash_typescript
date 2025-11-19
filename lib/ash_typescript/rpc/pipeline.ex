@@ -20,8 +20,6 @@ defmodule AshTypescript.Rpc.Pipeline do
   }
 
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
-  alias AshTypescript.TypeSystem.Introspection
-
   alias AshTypescript.{FieldFormatter, Rpc}
 
   @doc """
@@ -222,7 +220,8 @@ defmodule AshTypescript.Rpc.Pipeline do
           else
             resource_for_mapping =
               if request.action.type == :action and returns_typed_struct?(request.action) do
-                nil
+                # For TypedStruct returns, use the TypedStruct module for field name mapping
+                get_typed_struct_module(request.action)
               else
                 request.resource
               end
@@ -241,17 +240,35 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp returns_typed_struct?(action) do
+  defp get_typed_struct_module(action) do
+    constraints = action.constraints || []
+
     case action.returns do
-      {:array, module} when is_atom(module) ->
-        Introspection.is_typed_struct?(module)
+      {:array, _module} ->
+        items_constraints = Keyword.get(constraints, :items, [])
+        get_instance_of_with_mappings(items_constraints)
 
-      module when is_atom(module) ->
-        Introspection.is_typed_struct?(module)
-
-      _ ->
-        false
+      _single_type ->
+        get_instance_of_with_mappings(constraints)
     end
+  end
+
+  defp get_instance_of_with_mappings(constraints) do
+    if Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of) do
+      instance_of = Keyword.get(constraints, :instance_of)
+
+      if function_exported?(instance_of, :typescript_field_names, 0) do
+        instance_of
+      else
+        nil
+      end
+    else
+      nil
+    end
+  end
+
+  defp returns_typed_struct?(action) do
+    get_typed_struct_module(action) != nil
   end
 
   @doc """
@@ -360,12 +377,14 @@ defmodule AshTypescript.Rpc.Pipeline do
 
       formatter = Rpc.input_field_formatter()
 
-      parsed_input =
-        InputFormatter.format(raw_input_with_pk, resource, action.name, formatter)
+      case InputFormatter.format(raw_input_with_pk, resource, action.name, formatter) do
+        {:ok, parsed_input} ->
+          converted_input = convert_keyword_tuple_inputs(parsed_input, resource, action)
+          {:ok, converted_input}
 
-      converted_input = convert_keyword_tuple_inputs(parsed_input, resource, action)
-
-      {:ok, converted_input}
+        {:error, _} = error ->
+          error
+      end
     else
       {:error, {:invalid_input_format, raw_input}}
     end
@@ -543,10 +562,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp execute_update_action(%Request{} = request, opts) do
-    # Build a query to find the record by primary key
     filter = primary_key_filter(request.resource, request.primary_key)
-
-    # Use the configured read_action if available
     read_action = request.rpc_action.read_action
 
     query =
@@ -556,7 +572,6 @@ defmodule AshTypescript.Rpc.Pipeline do
       |> Ash.Query.set_context(opts[:context] || %{})
       |> Ash.Query.limit(1)
 
-    # Build bulk_update options with read_action if configured
     bulk_opts = [
       return_errors?: true,
       notify?: true,
@@ -572,7 +587,6 @@ defmodule AshTypescript.Rpc.Pipeline do
       load: request.load
     ]
 
-    # Add read_action if configured
     bulk_opts =
       if read_action do
         Keyword.put(bulk_opts, :read_action, read_action)
@@ -580,12 +594,10 @@ defmodule AshTypescript.Rpc.Pipeline do
         bulk_opts
       end
 
-    # Use bulk_update with the query
     result =
       query
       |> Ash.bulk_update(request.action.name, request.input, bulk_opts)
 
-    # Handle the bulk result
     case result do
       %Ash.BulkResult{status: :success, records: [record]} ->
         {:ok, record}
@@ -602,10 +614,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp execute_destroy_action(%Request{} = request, opts) do
-    # Build a query to find the record by primary key
     filter = primary_key_filter(request.resource, request.primary_key)
-
-    # Use the configured read_action if available
     read_action = request.rpc_action.read_action
 
     query =
@@ -616,7 +625,6 @@ defmodule AshTypescript.Rpc.Pipeline do
       |> Ash.Query.limit(1)
       |> apply_select_and_load(request)
 
-    # Build bulk_destroy options with read_action if configured
     bulk_opts = [
       return_errors?: true,
       notify?: true,
@@ -630,7 +638,6 @@ defmodule AshTypescript.Rpc.Pipeline do
       domain: request.domain
     ]
 
-    # Add read_action if configured
     bulk_opts =
       if read_action do
         Keyword.put(bulk_opts, :read_action, read_action)
@@ -638,12 +645,10 @@ defmodule AshTypescript.Rpc.Pipeline do
         bulk_opts
       end
 
-    # Use bulk_destroy with the query
     result =
       query
       |> Ash.bulk_destroy(request.action.name, request.input, bulk_opts)
 
-    # Handle the bulk result
     case result do
       %Ash.BulkResult{status: :success, records: [record]} ->
         {:ok, record}
@@ -818,9 +823,11 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp format_output_data(%{success: false, errors: errors}, formatter, _request) do
+    formatted_errors = Enum.map(errors, &format_field_names(&1, formatter))
+
     %{
       FieldFormatter.format_field("success", formatter) => false,
-      FieldFormatter.format_field("errors", formatter) => errors
+      FieldFormatter.format_field("errors", formatter) => formatted_errors
     }
   end
 
@@ -894,7 +901,6 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  # Helper to determine authorization strategy for bulk operations
   defp authorize_bulk_with(resource) do
     if Ash.DataLayer.data_layer_can?(resource, :expr_error) do
       :error
@@ -948,7 +954,6 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  # Add metadata to read results (merge into records)
   defp add_read_metadata(filtered_result, original_result, show_metadata, rpc_action)
        when is_list(filtered_result) do
     if is_list(original_result) do
@@ -983,13 +988,8 @@ defmodule AshTypescript.Rpc.Pipeline do
   defp do_add_read_metadata(filtered_record, original_record, show_metadata, rpc_action)
        when is_map(filtered_record) do
     metadata_map = Map.get(original_record, :__metadata__, %{})
-
-    Enum.reduce(show_metadata, filtered_record, fn metadata_field, acc ->
-      mapped_field_name =
-        AshTypescript.Rpc.Info.get_mapped_metadata_field_name(rpc_action, metadata_field)
-
-      Map.put(acc, mapped_field_name, Map.get(metadata_map, metadata_field))
-    end)
+    extracted_metadata = extract_metadata_fields(metadata_map, show_metadata, rpc_action)
+    Map.merge(filtered_record, extracted_metadata)
   end
 
   defp do_add_read_metadata(filtered_record, _original_record, _show_metadata, _rpc_action) do
@@ -998,15 +998,16 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp add_mutation_metadata(filtered_result, original_result, show_metadata, rpc_action) do
     metadata_map = Map.get(original_result, :__metadata__, %{})
-
-    extracted_metadata =
-      Enum.reduce(show_metadata, %{}, fn metadata_field, acc ->
-        mapped_field_name =
-          AshTypescript.Rpc.Info.get_mapped_metadata_field_name(rpc_action, metadata_field)
-
-        Map.put(acc, mapped_field_name, Map.get(metadata_map, metadata_field))
-      end)
-
+    extracted_metadata = extract_metadata_fields(metadata_map, show_metadata, rpc_action)
     %{data: filtered_result, metadata: extracted_metadata}
+  end
+
+  defp extract_metadata_fields(metadata_map, show_metadata, rpc_action) do
+    Enum.reduce(show_metadata, %{}, fn metadata_field, acc ->
+      mapped_field_name =
+        AshTypescript.Rpc.Info.get_mapped_metadata_field_name(rpc_action, metadata_field)
+
+      Map.put(acc, mapped_field_name, Map.get(metadata_map, metadata_field))
+    end)
   end
 end

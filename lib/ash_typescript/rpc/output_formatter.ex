@@ -41,21 +41,17 @@ defmodule AshTypescript.Rpc.OutputFormatter do
     format_data(data, resource, action_name, formatter)
   end
 
-  # Core formatting logic
-
   defp format_data(data, resource, action_name, formatter) do
     case data do
       map when is_map(map) and not is_struct(map) ->
         format_map(map, resource, action_name, formatter)
 
       list when is_list(list) ->
-        # For lists, format each item with same context
         Enum.map(list, fn item ->
           format_data(item, resource, action_name, formatter)
         end)
 
       other ->
-        # Primitives, structs, etc. - return as-is
         other
     end
   end
@@ -69,7 +65,6 @@ defmodule AshTypescript.Rpc.OutputFormatter do
       formatted_value =
         case internal_key do
           :results when is_list(value) ->
-            # Format each item as an instance of the current resource
             Enum.map(value, fn item ->
               format_data(item, resource, action_name, formatter)
             end)
@@ -78,7 +73,6 @@ defmodule AshTypescript.Rpc.OutputFormatter do
             format_value(value, type, constraints, resource, formatter)
         end
 
-      # Convert internal key to client format for output
       output_key = FieldFormatter.format_field(internal_key, formatter)
       {output_key, formatted_value}
     end)
@@ -86,7 +80,6 @@ defmodule AshTypescript.Rpc.OutputFormatter do
 
   defp format_map(map, resource, _action_name, formatter) do
     Enum.into(map, %{}, fn {internal_key, value} ->
-      # Get Ash type information for this field (full resource scope)
       {type, constraints} = get_output_field_type(resource, internal_key)
       formatted_value = format_value(value, type, constraints, resource, formatter)
       output_key = FieldFormatter.format_field(internal_key, formatter)
@@ -97,7 +90,6 @@ defmodule AshTypescript.Rpc.OutputFormatter do
 
   defp format_value(data, type, constraints, resource, formatter) do
     case type do
-      # Union - handle with embedded resource callback
       Ash.Type.Union ->
         embedded_callback = fn data, module, _direction ->
           format_data(data, module, :read, formatter)
@@ -112,7 +104,6 @@ defmodule AshTypescript.Rpc.OutputFormatter do
           embedded_callback
         )
 
-      # Struct type with instance_of constraint - format as the specified resource
       Ash.Type.Struct ->
         instance_of = Keyword.get(constraints, :instance_of)
 
@@ -120,20 +111,16 @@ defmodule AshTypescript.Rpc.OutputFormatter do
              not is_struct(data) do
           format_data(data, instance_of, :read, formatter)
         else
-          # Delegate to FormatterCore
           FormatterCore.format_value(data, type, constraints, resource, formatter, :output)
         end
 
-      # Embedded Resource - recurse using the embedded resource
       module when is_atom(module) ->
         if Ash.Resource.Info.resource?(module) do
           format_data(data, module, :read, formatter)
         else
-          # Delegate to FormatterCore for all other types
           FormatterCore.format_value(data, type, constraints, resource, formatter, :output)
         end
 
-      # All other types - delegate to FormatterCore
       _ ->
         FormatterCore.format_value(data, type, constraints, resource, formatter, :output)
     end
