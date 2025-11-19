@@ -31,7 +31,39 @@ Both `:type_and_value` and `:map_with_tag` storage modes use identical internal 
 
 **Field Resolution**: Handle both atom and formatted field names in union members
 
-## Implementation Pattern
+## Union Input Format (Required)
+
+**CRITICAL**: Union inputs MUST use wrapped discriminated union format.
+
+### Required Format
+All union input values must be wrapped in a map with exactly one member key:
+
+```elixir
+# Correct - Primitive union member
+%{"content" => %{"note" => "Some text"}}
+
+# Correct - Complex union member (embedded resource)
+%{"content" => %{"text" => %{"text" => "Content", "formatting" => "markdown"}}}
+
+# Correct - Array of union values
+%{"attachments" => [
+  %{"url" => "https://example.com"},
+  %{"file" => %{"filename" => "doc.pdf", "size" => 1024}}
+]}
+```
+
+### Validation Rules
+1. **Must be a map**: Direct values like `"content" => "text"` are rejected
+2. **Exactly one member key**: Multiple keys like `%{"note" => "x", "priorityValue" => 5}` are rejected
+3. **Valid member name**: Key must match a defined union member
+4. **Empty maps rejected**: `%{"content" => %{}}` is invalid
+
+### Error Messages
+- `invalid_union_input`: Union input must be a map with exactly one member key
+- `invalid_union_input`: Union input map does not contain any valid member key
+- `invalid_union_input`: Union input map contains multiple member keys
+
+## Field Selection Pattern (Output)
 
 Union field selection uses selective member fetching:
 - Primitive members: direct selection

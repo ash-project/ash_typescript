@@ -72,14 +72,12 @@ defmodule AshTypescript.Rpc.FormatterCore do
 
         if instance_of && Ash.Resource.Info.resource?(instance_of) && is_map(data) &&
              not is_struct(data) do
-          # Format as the specified resource (output only)
           data
         else
           data
         end
 
       module when is_atom(module) ->
-        # Check if it's a custom type that needs map key conversion
         if is_custom_type_with_map_storage?(module) && is_map(data) && not is_struct(data) do
           case direction do
             :input ->
@@ -132,38 +130,67 @@ defmodule AshTypescript.Rpc.FormatterCore do
 
     case direction do
       :input ->
-        {_member_name, member_spec} = identify_union_member(data, union_types, formatter)
+        {member_name, member_spec} =
+          case identify_union_member(data, union_types, formatter) do
+            {:ok, result} -> result
+            {:error, error} -> throw(error)
+          end
+
         member_type = Keyword.get(member_spec, :type)
         member_constraints = Keyword.get(member_spec, :constraints, [])
 
+        # Extract the actual value from the wrapped format: {"member_name" => value}
+        # Find the client key that matches this member name (after parsing)
+        client_key =
+          Enum.find(Map.keys(data), fn key ->
+            internal_key = FieldFormatter.parse_input_field(key, formatter)
+            internal_key == member_name or to_string(internal_key) == to_string(member_name)
+          end)
+
+        member_value = Map.get(data, client_key)
+
         formatted_data =
-          case {member_type, data} do
+          case {member_type, member_value} do
             {Ash.Type.Map, map} when is_map(map) and not is_struct(map) ->
               tag_field = Keyword.get(member_spec, :tag)
+              tag_value = Keyword.get(member_spec, :tag_value)
 
-              if tag_field do
-                format_tagged_union_map(map, tag_field, formatter, :input)
+              if tag_field && tag_value do
+                format_tagged_union_map(map, tag_field, tag_value, formatter, :input)
               else
                 map
               end
 
             _ ->
-              data
+              member_value
           end
 
-        # Handle embedded resources via callback if provided
-        if is_atom(member_type) && Ash.Resource.Info.resource?(member_type) &&
-             embedded_resource_callback do
-          embedded_resource_callback.(formatted_data, member_type, :input)
+        formatted_value =
+          if is_atom(member_type) && Ash.Resource.Info.resource?(member_type) &&
+               embedded_resource_callback do
+            embedded_resource_callback.(formatted_data, member_type, :input)
+          else
+            format_value(
+              formatted_data,
+              member_type,
+              member_constraints,
+              resource,
+              formatter,
+              :input
+            )
+          end
+
+        # Inject tag field for embedded resources or other types with tags (after formatting)
+        tag_field = Keyword.get(member_spec, :tag)
+        tag_value = Keyword.get(member_spec, :tag_value)
+
+        if tag_field && tag_value && member_type != Ash.Type.Map &&
+             is_map(formatted_value) && !is_struct(formatted_value) do
+          # For embedded resources and other non-Map types that have tags,
+          # inject the tag field into the formatted value
+          Map.put(formatted_value, tag_field, tag_value)
         else
-          format_value(
-            formatted_data,
-            member_type,
-            member_constraints,
-            resource,
-            formatter,
-            :input
-          )
+          formatted_value
         end
 
       :output ->
@@ -176,7 +203,6 @@ defmodule AshTypescript.Rpc.FormatterCore do
             member_data =
               extract_union_member_data(data, member_name, member_spec, storage_type, formatter)
 
-            # Handle embedded resources via callback if provided
             formatted_member_value =
               if is_atom(member_type) && Ash.Resource.Info.resource?(member_type) &&
                    embedded_resource_callback do
@@ -284,47 +310,66 @@ defmodule AshTypescript.Rpc.FormatterCore do
 
   # Input-specific union identification
 
-  defp identify_union_member(data, union_types, formatter) do
-    case data do
-      map when is_map(map) ->
-        identify_tagged_union_member(map, union_types, formatter) ||
-          identify_key_based_union_member(map, union_types)
+  defp identify_union_member(%{} = map, union_types, formatter) do
+    case identify_tagged_union_member(map, union_types, formatter) do
+      {:ok, member} ->
+        {:ok, member}
 
-      primitive ->
-        primitive_type = get_primitive_ash_type(primitive)
-
-        Enum.find(union_types, fn {_member_name, member_spec} ->
-          Keyword.get(member_spec, :type) == primitive_type
-        end)
+      :not_found ->
+        identify_key_based_union_member(map, union_types, formatter)
     end
   end
 
+  defp identify_union_member(_value, _union_types, _formatter) do
+    {:error, {:invalid_union_input, :not_a_map}}
+  end
+
   defp identify_tagged_union_member(map, union_types, formatter) do
-    Enum.find_value(union_types, fn {_member_name, member_spec} = member ->
-      with tag_field when not is_nil(tag_field) <- Keyword.get(member_spec, :tag),
-           tag_value <- Keyword.get(member_spec, :tag_value),
-           true <- has_matching_tag?(map, tag_field, tag_value, formatter) do
-        member
-      else
-        _ -> nil
-      end
-    end)
+    case Enum.find_value(union_types, fn {_member_name, member_spec} = member ->
+           with tag_field when not is_nil(tag_field) <- Keyword.get(member_spec, :tag),
+                tag_value <- Keyword.get(member_spec, :tag_value),
+                true <- has_matching_tag?(map, tag_field, tag_value, formatter) do
+             member
+           else
+             _ -> nil
+           end
+         end) do
+      nil -> :not_found
+      member -> {:ok, member}
+    end
   end
 
-  defp identify_key_based_union_member(map, union_types) do
-    map_keys = MapSet.new(Map.keys(map))
+  defp identify_key_based_union_member(map, union_types, formatter) do
+    # Get output formatter for error messages (so client sees correct field names)
+    output_formatter = AshTypescript.Rpc.output_field_formatter()
 
-    Enum.find(union_types, fn {member_name, _member_spec} ->
-      MapSet.member?(map_keys, to_string(member_name))
-    end)
-  end
+    member_names =
+      Enum.map(union_types, fn {name, _} ->
+        FieldFormatter.format_field(to_string(name), output_formatter)
+      end)
 
-  defp get_primitive_ash_type(primitive) do
-    cond do
-      is_binary(primitive) -> Ash.Type.String
-      is_integer(primitive) -> Ash.Type.Integer
-      is_float(primitive) -> Ash.Type.Float
-      is_boolean(primitive) -> Ash.Type.Boolean
+    matching_members =
+      Enum.filter(union_types, fn {member_name, _member_spec} ->
+        Enum.any?(Map.keys(map), fn client_key ->
+          internal_key = FieldFormatter.parse_input_field(client_key, formatter)
+          to_string(internal_key) == to_string(member_name)
+        end)
+      end)
+
+    case matching_members do
+      [] ->
+        {:error, {:invalid_union_input, :no_member_key, member_names}}
+
+      [single_member] ->
+        {:ok, single_member}
+
+      multiple_members ->
+        found_keys =
+          Enum.map(multiple_members, fn {name, _} ->
+            FieldFormatter.format_field(to_string(name), output_formatter)
+          end)
+
+        {:error, {:invalid_union_input, :multiple_member_keys, found_keys, member_names}}
     end
   end
 
@@ -335,17 +380,23 @@ defmodule AshTypescript.Rpc.FormatterCore do
     end)
   end
 
-  defp format_tagged_union_map(map, tag_field, formatter, :input) do
-    # Find and convert client tag field to internal format, then to original format
-    Enum.find_value(map, fn {client_key, tag_value} ->
-      internal_key = FieldFormatter.parse_input_field(client_key, formatter)
+  defp format_tagged_union_map(map, tag_field, tag_value, formatter, :input) do
+    normalized_map =
+      Enum.find_value(map, fn {client_key, existing_tag_value} ->
+        internal_key = FieldFormatter.parse_input_field(client_key, formatter)
 
-      if internal_key == tag_field && client_key != tag_field do
-        map
-        |> Map.delete(client_key)
-        |> Map.put(tag_field, tag_value)
-      end
-    end) || map
+        if internal_key == tag_field && client_key != tag_field do
+          map
+          |> Map.delete(client_key)
+          |> Map.put(tag_field, existing_tag_value)
+        end
+      end) || map
+
+    if Map.has_key?(normalized_map, tag_field) do
+      normalized_map
+    else
+      Map.put(normalized_map, tag_field, tag_value)
+    end
   end
 
   # Output-specific union extraction

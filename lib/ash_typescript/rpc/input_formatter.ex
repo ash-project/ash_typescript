@@ -38,10 +38,13 @@ defmodule AshTypescript.Rpc.InputFormatter do
   except for untyped map keys which are preserved exactly.
   """
   def format(data, resource, action_name, formatter) do
-    format_data(data, resource, action_name, formatter)
+    try do
+      {:ok, format_data(data, resource, action_name, formatter)}
+    catch
+      :throw, error ->
+        {:error, error}
+    end
   end
-
-  # Core formatting logic
 
   defp format_data(data, resource, action_name, formatter) do
     case data do
@@ -49,13 +52,11 @@ defmodule AshTypescript.Rpc.InputFormatter do
         format_map(map, resource, action_name, formatter)
 
       list when is_list(list) ->
-        # For lists, format each item with same context
         Enum.map(list, fn item ->
           format_data(item, resource, action_name, formatter)
         end)
 
       other ->
-        # Primitives, structs, etc. - return as-is
         other
     end
   end
@@ -63,8 +64,6 @@ defmodule AshTypescript.Rpc.InputFormatter do
   defp format_map(map, resource, action_name, formatter) do
     Enum.into(map, %{}, fn {key, value} ->
       internal_key = FieldFormatter.parse_input_field(key, formatter)
-
-      # Apply reverse mapping to get the original field/argument name
       original_key = get_original_field_or_argument_name(resource, action_name, internal_key)
 
       {type, constraints} = get_input_field_type(resource, action_name, original_key)
@@ -92,7 +91,6 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   defp format_value(data, type, constraints, resource, formatter) do
     case type do
-      # Union - handle with embedded resource callback
       Ash.Type.Union ->
         embedded_callback = fn data, module, _direction ->
           format_data(data, module, :create, formatter)
@@ -107,16 +105,13 @@ defmodule AshTypescript.Rpc.InputFormatter do
           embedded_callback
         )
 
-      # Embedded Resource - recurse using the embedded resource (simplified for input)
       module when is_atom(module) ->
         if Ash.Resource.Info.resource?(module) do
           format_data(data, module, :create, formatter)
         else
-          # Delegate to FormatterCore for all other types
           FormatterCore.format_value(data, type, constraints, resource, formatter, :input)
         end
 
-      # All other types - delegate to FormatterCore
       _ ->
         FormatterCore.format_value(data, type, constraints, resource, formatter, :input)
     end
