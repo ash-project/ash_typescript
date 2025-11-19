@@ -19,6 +19,69 @@ SPDX-License-Identifier: MIT
 
 Generate type-safe TypeScript clients directly from your Elixir Ash resources, ensuring end-to-end type safety between your backend and frontend. Never write API types manually again.
 
+## 🚨 0.7.1 → 0.8.0 - Breaking Changes
+
+### Error Field Type Change
+
+The `errors` field in all action responses is now always of type `AshRpcError[]`, providing more consistent error handling:
+
+```typescript
+// ❌ Before (0.7.x) - errors could be different types
+const result = await createTodo({...});
+if (!result.success) {
+  // errors could be various shapes
+  console.log(result.errors); // Type was inconsistent
+}
+
+// ✅ After (0.8.0) - errors is always AshRpcError[]
+const result = await createTodo({...});
+if (!result.success) {
+  // errors is always AshRpcError[]
+  result.errors.forEach(error => {
+    console.log(error.message, error.field, error.code);
+  });
+}
+
+export type AshRpcError = {
+  /** Machine-readable error type (e.g., "invalid_changes", "not_found") */
+  type: string;
+  /** Full error message (may contain template variables like %{key}) */
+  message: string;
+  /** Concise version of the message */
+  shortMessage: string;
+  /** Variables to interpolate into the message template */
+  vars: Record<string, any>;
+  /** List of affected field names (for field-level errors) */
+  fields: string[];
+  /** Path to the error location in the data structure */
+  path: string[];
+  /** Optional map with extra details (e.g., suggestions, hints) */
+  details?: Record<string, any>;
+}
+```
+
+### Composite Type Field Selection
+
+Type inference for certain composite types has improved after some internal refactoring. Earlier, the type-checking allowed users to select some composite fields using the string syntax, which would return the entire value.
+
+Now however, since AshTypescript is able to more accurately see that a field is a composite type, you may experience that explicit field selection is now required in certain places where a string value earlier was okay.
+
+```typescript
+// ❌ Before (0.7.x) - string syntax worked where fields should really be required
+const todos = await listTodos({
+  fields: ["id", "title", "item"] // ← "item" is a composite type
+});
+
+// ✅ After (0.8.0) - must specify fields for composite types
+const todos = await listTodos({
+  fields: ["id", "title", { item: ["id", "name", "description"] }]
+});
+
+**Migration Guide:**
+1. Update error handling code to expect `AshRpcError[]` for the `errors` field
+2. Replace string field names with object syntax for any composite types (embedded resources, union types, etc.)
+3. Run TypeScript compilation after upgrading to catch any remaining type errors
+
 ## ✨ Features
 
 - **🔥 Zero-config TypeScript generation** - Automatically generates types from Ash resources
