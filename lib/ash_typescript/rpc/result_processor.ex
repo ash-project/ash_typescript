@@ -8,6 +8,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   normalizes/transforms the payload to be JSON-serializable.
   """
 
+  alias AshTypescript.Rpc.FieldExtractor
   alias AshTypescript.TypeSystem.Introspection
 
   @doc """
@@ -97,7 +98,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  # Check if a value is a primitive struct type that should be normalized rather than extracted
   defp is_primitive_struct?(value) do
     case value do
       %DateTime{} -> true
@@ -116,36 +116,34 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     if extraction_template == [] and is_primitive_struct?(data) do
       normalize_value_for_json(data)
     else
-      is_tuple = is_tuple(data)
-
-      typed_struct_module =
+      # Check if this is a struct with field name mappings (e.g., TypedStruct or any struct with typescript_field_names/0)
+      struct_with_mappings =
         if is_map(data) and not is_tuple(data) and Map.has_key?(data, :__struct__) do
           module = data.__struct__
-          if Introspection.is_typed_struct?(module), do: module, else: nil
+
+          # Use this module for field mapping if it exports typescript_field_names/0
+          if Code.ensure_loaded?(module) and
+               function_exported?(module, :typescript_field_names, 0) do
+            module
+          else
+            nil
+          end
         else
           nil
         end
 
-      normalized_data =
-        cond do
-          is_tuple ->
-            convert_tuple_to_map(data, extraction_template)
+      # Normalize data structure to map for unified field extraction
+      normalized_data = FieldExtractor.normalize_for_extraction(data, extraction_template)
 
-          Keyword.keyword?(data) ->
-            Map.new(data)
+      effective_resource = resource || struct_with_mappings
 
-          true ->
-            normalize_data(data)
-        end
-
-      effective_resource = resource || typed_struct_module
-
-      if is_tuple do
+      # For tuples, the normalized_data already contains the extracted fields in the correct structure
+      if is_tuple(data) do
         normalized_data
       else
         Enum.reduce(extraction_template, %{}, fn field_spec, acc ->
           case field_spec do
-            field_atom when is_atom(field_atom) or is_tuple(data) ->
+            field_atom when is_atom(field_atom) ->
               extract_simple_field(normalized_data, field_atom, acc, effective_resource)
 
             {field_atom, nested_template} when is_atom(field_atom) and is_list(nested_template) ->
@@ -280,7 +278,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  # Normalize data structure to map with atom keys
   defp normalize_data(data) do
     case data do
       %_struct{} = struct_data ->
@@ -291,19 +288,8 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  # Convert tuple to map using extraction template field order
-  defp convert_tuple_to_map(tuple, extraction_template) do
-    tuple_values = Tuple.to_list(tuple)
-
-    Enum.reduce(extraction_template, %{}, fn %{field_name: field_name, index: index}, acc ->
-      value = Enum.at(tuple_values, index)
-      Map.put(acc, field_name, value)
-    end)
-  end
-
   def normalize_value_for_json(nil), do: nil
 
-  # Recursively normalize values for JSON serialization
   def normalize_value_for_json(value) do
     normalize_value_for_json(value, nil)
   end
@@ -317,7 +303,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         normalized_value = normalize_value_for_json(union_value, extraction_template)
         %{type_key => normalized_value}
 
-      # Handle native Elixir structs that need special JSON formatting
       %DateTime{} = dt ->
         DateTime.to_iso8601(dt)
 
@@ -339,7 +324,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       atom when is_atom(atom) and not is_nil(atom) and not is_boolean(atom) ->
         Atom.to_string(atom)
 
-      # Convert structs to maps recursively
       %_struct{} = struct_data ->
         normalize_struct(struct_data, extraction_template)
 
@@ -357,27 +341,22 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           Enum.map(list, &normalize_value_for_json(&1, extraction_template))
         end
 
-      # Handle maps recursively (but not structs, handled above)
       map when is_map(map) and not is_struct(map) ->
         Enum.reduce(map, %{}, fn {key, val}, acc ->
           Map.put(acc, key, normalize_value_for_json(val, extraction_template))
         end)
 
-      # Pass through primitives
       primitive ->
         primitive
     end
   end
 
-  # Normalize struct data, filtering to public attributes if it's a resource
   defp normalize_struct(struct_data, extraction_template) do
     module = struct_data.__struct__
 
-    # If it's an Ash resource, filter to public attributes
     if Ash.Resource.Info.resource?(module) do
       normalize_resource_struct(struct_data, module, extraction_template)
     else
-      # For other structs, convert all fields
       struct_data
       |> Map.from_struct()
       |> Enum.reduce(%{}, fn {key, val}, acc ->
@@ -386,27 +365,20 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  # Normalize a resource struct with field filtering and selection
   defp normalize_resource_struct(struct_data, resource, extraction_template) do
-    # If we have an extraction template, use it for field selection
     if extraction_template do
       extract_single_result(struct_data, extraction_template, resource)
     else
-      # Otherwise, include all public attributes
       public_attrs = Ash.Resource.Info.public_attributes(resource)
-
-      # Also include public calculations and aggregates
       public_calcs = Ash.Resource.Info.public_calculations(resource)
       public_aggs = Ash.Resource.Info.public_aggregates(resource)
 
-      # Combine all public field names
       public_field_names =
         (Enum.map(public_attrs, & &1.name) ++
            Enum.map(public_calcs, & &1.name) ++
            Enum.map(public_aggs, & &1.name))
         |> MapSet.new()
 
-      # Convert to map and filter to public fields
       struct_data
       |> Map.from_struct()
       |> Enum.reduce(%{}, fn {key, val}, acc ->
@@ -419,7 +391,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  # Extract nested data recursively with proper permission handling
   defp extract_nested_data(data, template, resource) do
     case data do
       # Forbidden nested data gets set to nil
@@ -434,14 +405,11 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       nil ->
         nil
 
-      # Handle keyword lists specially - they should be treated as single data structures, not lists
       list when is_list(list) and length(list) > 0 ->
         if Keyword.keyword?(list) do
-          # Convert keyword list to map and extract using the template
           keyword_map = Enum.into(list, %{})
           extract_single_result(keyword_map, template, resource)
         else
-          # Handle normal lists of nested data (e.g., has_many relationships, arrays)
           Enum.map(list, fn item ->
             case item do
               %Ash.ForbiddenField{} ->
@@ -462,39 +430,29 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           end)
         end
 
-      # Handle empty lists
       list when is_list(list) ->
         []
 
-      # Handle union types specially
       %Ash.Union{type: active_type, value: union_value} ->
         extract_union_fields(active_type, union_value, template, resource)
 
-      # Handle single nested item
       single_item ->
         extract_single_result(single_item, template, resource)
     end
   end
 
-  # Extract fields from union types based on the active union member
   defp extract_union_fields(active_type, union_value, template, resource) do
     Enum.reduce(template, %{}, fn member_spec, acc ->
       case member_spec do
-        # Simple member (atom) - just the member name
         member_atom when is_atom(member_atom) ->
           if member_atom == active_type do
-            # This is the active member, return the normalized union value
             Map.put(acc, member_atom, normalize_value_for_json(union_value))
           else
-            # This is not the active member, don't include it in the result
             acc
           end
 
-        # Complex member with field selection
         {member_atom, member_template} when is_atom(member_atom) ->
           if member_atom == active_type do
-            # This is the active member, extract its fields
-            # For union members, we might need to determine the nested resource
             member_resource = get_union_member_resource(resource, member_atom)
 
             extracted_fields =
@@ -513,26 +471,20 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end)
   end
 
-  # Get the resource type for a nested field (relationship or embedded resource)
   defp get_nested_resource(nil, _field_name), do: nil
 
   defp get_nested_resource(resource, field_name) do
     cond do
-      # Check if it's a relationship
       relationship = Ash.Resource.Info.relationship(resource, field_name) ->
         relationship.destination
 
-      # Check if it's an attribute
       attribute = Ash.Resource.Info.attribute(resource, field_name) ->
         get_resource_from_attribute_type(attribute.type, attribute.constraints)
 
-      # Check if it's a calculation
       calculation = Ash.Resource.Info.public_calculation(resource, field_name) ->
         get_resource_from_type(calculation.type, calculation.constraints)
 
-      # Check if it's an aggregate
       aggregate = Ash.Resource.Info.public_aggregate(resource, field_name) ->
-        # Aggregates typically don't have nested resources, but check just in case
         aggregate_type = Ash.Resource.Info.aggregate_type(resource, aggregate)
         get_resource_from_type(aggregate_type, [])
 
@@ -541,7 +493,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  # Helper to extract resource from attribute type
   defp get_resource_from_attribute_type(type, constraints) do
     case type do
       {:array, inner_type} ->
@@ -552,10 +503,8 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  # Helper to extract resource from a type and constraints
   defp get_resource_from_type(type, constraints) do
     case type do
-      # Check for Ash.Type.Struct with instance_of
       Ash.Type.Struct ->
         instance_of = Keyword.get(constraints, :instance_of)
 
@@ -565,7 +514,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           nil
         end
 
-      # Check for embedded resource types
       resource_module when is_atom(resource_module) ->
         if Ash.Resource.Info.resource?(resource_module) &&
              Ash.Resource.Info.embedded?(resource_module) do
@@ -579,12 +527,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  # Get the resource type for a field if it's a struct type (not nested/relationship)
   defp get_field_struct_resource(nil, _field_name), do: nil
 
   defp get_field_struct_resource(resource, field_name) do
     cond do
-      # Check attributes for struct types
       attribute = Ash.Resource.Info.attribute(resource, field_name) ->
         case attribute.type do
           Ash.Type.Struct ->
@@ -600,7 +546,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
             nil
         end
 
-      # Check calculations for struct types
       calculation = Ash.Resource.Info.public_calculation(resource, field_name) ->
         case calculation.type do
           Ash.Type.Struct ->
@@ -621,11 +566,9 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  # Get the resource type for a union member (if it's an embedded resource)
   defp get_union_member_resource(nil, _member_name), do: nil
 
   defp get_union_member_resource(resource, member_name) do
-    # Try to find the union attribute that contains this member
     attribute =
       Enum.find(Ash.Resource.Info.attributes(resource), fn attr ->
         union_types = Introspection.get_union_types(attr)
@@ -637,7 +580,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       member_config = Keyword.get(union_types, member_name)
       member_type = Keyword.get(member_config, :type)
 
-      # Check if the member type is an embedded resource
       if is_atom(member_type) && Ash.Resource.Info.resource?(member_type) &&
            Ash.Resource.Info.embedded?(member_type) do
         member_type
