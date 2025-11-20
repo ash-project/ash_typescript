@@ -81,7 +81,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
 
     if has_metadata do
       """
-      type Infer#{rpc_action_name_pascal}Result<
+      export type Infer#{rpc_action_name_pascal}Result<
         Fields extends #{rpc_action_name_pascal}Fields,
         MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
       > = {
@@ -93,7 +93,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
       """
     else
       """
-      type Infer#{rpc_action_name_pascal}Result<
+      export type Infer#{rpc_action_name_pascal}Result<
         Fields extends #{rpc_action_name_pascal}Fields,
       > = {
         #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
@@ -128,7 +128,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
 
     if has_metadata do
       """
-      type Infer#{rpc_action_name_pascal}Result<
+      export type Infer#{rpc_action_name_pascal}Result<
         Fields extends #{rpc_action_name_pascal}Fields,
         MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
       > = {
@@ -143,7 +143,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
       """
     else
       """
-      type Infer#{rpc_action_name_pascal}Result<
+      export type Infer#{rpc_action_name_pascal}Result<
         Fields extends #{rpc_action_name_pascal}Fields,
       > = {
         #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
@@ -178,7 +178,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
 
     if has_metadata do
       """
-      type Infer#{rpc_action_name_pascal}Result<
+      export type Infer#{rpc_action_name_pascal}Result<
         Fields extends #{rpc_action_name_pascal}Fields,
         MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
       > = {
@@ -202,7 +202,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
       """
     else
       """
-      type Infer#{rpc_action_name_pascal}Result<
+      export type Infer#{rpc_action_name_pascal}Result<
         Fields extends #{rpc_action_name_pascal}Fields,
       > = {
         #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
@@ -275,7 +275,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
             )
 
           """
-          type Infer#{rpc_action_name_pascal}Result<
+          export type Infer#{rpc_action_name_pascal}Result<
             Fields extends #{rpc_action_name_pascal}Fields | undefined,
             MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = [],
             Page extends #{rpc_action_name_pascal}Config["page"] = undefined
@@ -291,7 +291,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
             )
 
           """
-          type Infer#{rpc_action_name_pascal}Result<
+          export type Infer#{rpc_action_name_pascal}Result<
             Fields extends #{rpc_action_name_pascal}Fields | undefined,
             MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = [],
             Page extends #{rpc_action_name_pascal}Config["page"] = undefined
@@ -307,7 +307,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
             )
 
           """
-          type Infer#{rpc_action_name_pascal}Result<
+          export type Infer#{rpc_action_name_pascal}Result<
             Fields extends #{rpc_action_name_pascal}Fields | undefined,
             MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = [],
             Page extends #{rpc_action_name_pascal}Config["page"] = undefined
@@ -334,7 +334,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
             )
 
           """
-          type Infer#{rpc_action_name_pascal}Result<
+          export type Infer#{rpc_action_name_pascal}Result<
             Fields extends #{rpc_action_name_pascal}Fields | undefined,
             Page extends #{rpc_action_name_pascal}Config["page"] = undefined
           > = ConditionalPaginatedResultMixed<Page, #{array_type}, #{offset_type}, #{keyset_type}>;
@@ -349,7 +349,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
             )
 
           """
-          type Infer#{rpc_action_name_pascal}Result<
+          export type Infer#{rpc_action_name_pascal}Result<
             Fields extends #{rpc_action_name_pascal}Fields | undefined,
             Page extends #{rpc_action_name_pascal}Config["page"] = undefined
           > = ConditionalPaginatedResult<Page, #{array_type}, #{offset_type}>;
@@ -364,7 +364,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
             )
 
           """
-          type Infer#{rpc_action_name_pascal}Result<
+          export type Infer#{rpc_action_name_pascal}Result<
             Fields extends #{rpc_action_name_pascal}Fields | undefined,
             Page extends #{rpc_action_name_pascal}Config["page"] = undefined
           > = ConditionalPaginatedResult<Page, #{array_type}, #{keyset_type}>;
