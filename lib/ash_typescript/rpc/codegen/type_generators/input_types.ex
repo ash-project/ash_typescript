@@ -58,7 +58,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                     AshTypescript.Rpc.output_field_formatter()
                   )
 
-                {formatted_arg_name, get_ts_type(arg), optional}
+                {formatted_arg_name, get_ts_input_type(arg), optional}
               end)
             else
               []
@@ -105,7 +105,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                       AshTypescript.Rpc.output_field_formatter()
                     )
 
-                  {formatted_arg_name, get_ts_type(arg), optional}
+                  {formatted_arg_name, get_ts_input_type(arg), optional}
                 end)
 
               accept_field_defs ++ argument_field_defs
@@ -151,7 +151,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                       AshTypescript.Rpc.output_field_formatter()
                     )
 
-                  {formatted_arg_name, get_ts_type(arg), optional}
+                  {formatted_arg_name, get_ts_input_type(arg), optional}
                 end)
 
               accept_field_defs ++ argument_field_defs
@@ -179,7 +179,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                     AshTypescript.Rpc.output_field_formatter()
                   )
 
-                {formatted_arg_name, get_ts_type(arg), optional}
+                {formatted_arg_name, get_ts_input_type(arg), optional}
               end)
             else
               []
