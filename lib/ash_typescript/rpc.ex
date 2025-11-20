@@ -233,7 +233,7 @@ defmodule AshTypescript.Rpc do
   Defaults to false (opt-in feature).
   """
   def generate_zod_schemas? do
-    Application.get_env(:ash_typescript, :generate_zod_schemas)
+    Application.get_env(:ash_typescript, :generate_zod_schemas, false)
   end
 
   @doc """
@@ -274,7 +274,7 @@ defmodule AshTypescript.Rpc do
   Defaults to false.
   """
   def generate_validation_functions? do
-    Application.get_env(:ash_typescript, :generate_validation_functions)
+    Application.get_env(:ash_typescript, :generate_validation_functions, false)
   end
 
   @doc """
