@@ -14,14 +14,20 @@ All errors from RPC actions are returned in a standardized format:
 
 ```typescript
 export type AshRpcError = {
-  type: string;                      // Error type (e.g., "not_found", "invalid_attribute")
-  message: string;                    // Error message template (may contain %{var} placeholders)
-  shortMessage?: string;              // Brief error description
-  fields?: string[];                  // Affected field names
-  path?: Array<string | number>;      // Path to error location in data structure
-  vars?: Record<string, any>;        // Variables for message interpolation
-  details?: Record<string, any>;     // Additional error context
-  errorId?: string;                  // Unique error identifier for tracking
+  /** Machine-readable error type (e.g., "invalid_changes", "not_found") */
+  type: string;
+  /** Full error message (may contain template variables like %{key}) */
+  message: string;
+  /** Concise version of the message */
+  shortMessage: string;
+  /** Variables to interpolate into the message template */
+  vars: Record<string, any>;
+  /** List of affected field names (for field-level errors) */
+  fields: string[];
+  /** Path to the error location in the data structure */
+  path: string[];
+  /** Optional map with extra details (e.g., suggestions, hints) */
+  details?: Record<string, any>;
 }
 ```
 
@@ -200,14 +206,14 @@ end
 
 ## Field Path Tracking
 
-Errors include a `path` field (returned as camelCase `fieldPath` in JSON) that tracks the location of errors in nested data structures:
+Errors include `fields` and `path` arrays that track the location of errors in data structures:
 
 ```javascript
 // Error in nested relationship field
 {
   type: "unknown_field",
   message: "Unknown field 'user.invalid_field'",
-  fieldPath: "user.invalid_field",
+  fields: ["invalid_field"],
   path: ["user"]
 }
 

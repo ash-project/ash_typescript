@@ -41,8 +41,8 @@ if (result.success) {
   // Error case: handle the errors
   result.errors.forEach(error => {
     console.error(`Error: ${error.message}`);
-    if (error.fieldPath) {
-      console.error(`Field: ${error.fieldPath}`);
+    if (error.fields.length > 0) {
+      console.error(`Fields: ${error.fields.join(', ')}`);
     }
   });
 }
@@ -50,14 +50,24 @@ if (result.success) {
 
 ## Error Structure
 
-Each error in the `errors` array contains:
+Each error in the `errors` array is an `AshRpcError`:
 
 ```typescript
-interface AshError {
-  message: string;      // Human-readable error message
-  fieldPath?: string;   // Optional field path (e.g., "title", "user.email")
-  code?: string;        // Optional error code for programmatic handling
-  vars?: Record<string, any>;  // Additional error metadata
+export type AshRpcError = {
+  /** Machine-readable error type (e.g., "invalid_changes", "not_found") */
+  type: string;
+  /** Full error message (may contain template variables like %{key}) */
+  message: string;
+  /** Concise version of the message */
+  shortMessage: string;
+  /** Variables to interpolate into the message template */
+  vars: Record<string, any>;
+  /** List of affected field names (for field-level errors) */
+  fields: string[];
+  /** Path to the error location in the data structure */
+  path: string[];
+  /** Optional map with extra details (e.g., suggestions, hints) */
+  details?: Record<string, any>;
 }
 ```
 
@@ -78,7 +88,8 @@ const result = await createTodo({
 
 if (!result.success) {
   result.errors.forEach(error => {
-    console.error(`${error.fieldPath}: ${error.message}`);
+    const field = error.fields[0] || 'unknown';
+    console.error(`${field}: ${error.message}`);
     // Output: "title: is required"
   });
 }
@@ -95,10 +106,10 @@ const result2 = await createTodo({
 
 if (!result2.success) {
   result2.errors.forEach(error => {
-    if (error.fieldPath === "title") {
+    if (error.fields.includes("title")) {
       console.error("Title cannot be empty");
     }
-    if (error.fieldPath === "priority") {
+    if (error.fields.includes("priority")) {
       console.error("Invalid priority value");
     }
   });
@@ -121,7 +132,7 @@ if (!result.success) {
   // Check if it's a not-found error
   const notFoundError = result.errors.find(e =>
     e.message.toLowerCase().includes("not found") ||
-    e.code === "not_found"
+    e.type === "not_found"
   );
 
   if (notFoundError) {
@@ -149,8 +160,8 @@ const result = await updateTodo({
 
 if (!result.success) {
   const authError = result.errors.find(e =>
-    e.code === "unauthorized" ||
-    e.code === "forbidden" ||
+    e.type === "unauthorized" ||
+    e.type === "forbidden" ||
     e.message.toLowerCase().includes("permission")
   );
 
@@ -203,36 +214,36 @@ try {
 Create type-safe error handling utilities:
 
 ```typescript
-type ErrorCode =
+type ErrorCategory =
   | "validation_error"
   | "not_found"
   | "unauthorized"
   | "forbidden"
   | "network_error";
 
-interface TypedError {
-  code: ErrorCode;
+interface CategorizedError {
+  category: ErrorCategory;
   message: string;
-  fieldPath?: string;
+  fields: string[];
 }
 
-function categorizeError(error: { message: string; code?: string; fieldPath?: string }): TypedError {
+function categorizeError(error: { message: string; type: string; fields: string[] }): CategorizedError {
   const msg = error.message.toLowerCase();
 
-  if (error.code === "unauthorized" || msg.includes("unauthorized")) {
-    return { code: "unauthorized", message: error.message, fieldPath: error.fieldPath };
+  if (error.type === "unauthorized" || msg.includes("unauthorized")) {
+    return { category: "unauthorized", message: error.message, fields: error.fields };
   }
-  if (error.code === "forbidden" || msg.includes("permission")) {
-    return { code: "forbidden", message: error.message, fieldPath: error.fieldPath };
+  if (error.type === "forbidden" || msg.includes("permission")) {
+    return { category: "forbidden", message: error.message, fields: error.fields };
   }
-  if (error.code === "not_found" || msg.includes("not found")) {
-    return { code: "not_found", message: error.message, fieldPath: error.fieldPath };
+  if (error.type === "not_found" || msg.includes("not found")) {
+    return { category: "not_found", message: error.message, fields: error.fields };
   }
   if (msg.includes("network") || msg.includes("timeout")) {
-    return { code: "network_error", message: error.message, fieldPath: error.fieldPath };
+    return { category: "network_error", message: error.message, fields: error.fields };
   }
 
-  return { code: "validation_error", message: error.message, fieldPath: error.fieldPath };
+  return { category: "validation_error", message: error.message, fields: error.fields };
 }
 
 // Usage
@@ -246,10 +257,11 @@ const result = await createTodo({
 
 if (!result.success) {
   result.errors.forEach(error => {
-    const typed = categorizeError(error);
-    switch (typed.code) {
+    const categorized = categorizeError(error);
+    switch (categorized.category) {
       case "validation_error":
-        console.error(`Validation error on ${typed.fieldPath}: ${typed.message}`);
+        const field = categorized.fields[0] || 'unknown';
+        console.error(`Validation error on ${field}: ${categorized.message}`);
         break;
       case "unauthorized":
         console.error("Please log in to continue");
@@ -268,8 +280,8 @@ if (!result.success) {
 Extract and handle errors for specific fields:
 
 ```typescript
-function getFieldError(errors: Array<{message: string; fieldPath?: string}>, fieldPath: string) {
-  return errors.find(e => e.fieldPath === fieldPath);
+function getFieldError(errors: Array<{message: string; fields: string[]}>, fieldName: string) {
+  return errors.find(e => e.fields.includes(fieldName));
 }
 
 const result = await createTodo({
@@ -352,7 +364,7 @@ if (result.success) {
 Create a global error handler for consistent error management:
 
 ```typescript
-type ErrorHandler = (errors: Array<{message: string; code?: string; fieldPath?: string}>) => void;
+type ErrorHandler = (errors: Array<{message: string; type: string; fields: string[]}>) => void;
 
 let globalErrorHandler: ErrorHandler | null = null;
 
@@ -379,9 +391,9 @@ setGlobalErrorHandler((errors) => {
     console.error("API Error:", error);
 
     // Show toast notification for certain errors
-    if (error.code === "unauthorized") {
+    if (error.type === "unauthorized") {
       showToast("Please log in to continue");
-    } else if (error.code === "forbidden") {
+    } else if (error.type === "forbidden") {
       showToast("You don't have permission for this action");
     }
   });
@@ -418,8 +430,8 @@ createTodoChannel({
       // Handle errors in result handler
       result.errors.forEach(error => {
         console.error(`Error: ${error.message}`);
-        if (error.fieldPath) {
-          console.error(`Field: ${error.fieldPath}`);
+        if (error.fields.length > 0) {
+          console.error(`Fields: ${error.fields.join(', ')}`);
         }
       });
     }
@@ -462,17 +474,17 @@ if (result.success) {
 Transform technical errors into user-friendly messages:
 
 ```typescript
-function getUserFriendlyMessage(error: {message: string; code?: string}): string {
-  if (error.code === "validation_error" || error.message.includes("required")) {
+function getUserFriendlyMessage(error: {message: string; type: string}): string {
+  if (error.type === "required" || error.message.includes("required")) {
     return "Please check that all required fields are filled out correctly.";
   }
-  if (error.code === "not_found") {
+  if (error.type === "not_found") {
     return "The requested item could not be found.";
   }
-  if (error.code === "unauthorized") {
+  if (error.type === "unauthorized") {
     return "Please log in to continue.";
   }
-  if (error.code === "forbidden") {
+  if (error.type === "forbidden") {
     return "You don't have permission to perform this action.";
   }
   if (error.message.includes("network") || error.message.includes("timeout")) {

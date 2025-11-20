@@ -42,7 +42,7 @@ If you prefer manual setup, add to your `mix.exs`:
 ```elixir
 defp deps do
   [
-    {:ash_typescript, "~> 0.5"}
+    {:ash_typescript, "~> 0.8"}
   ]
 end
 ```
@@ -233,8 +233,8 @@ if (result.success) {
   // Handle errors
   result.errors.forEach(error => {
     console.error(`Error: ${error.message}`);
-    if (error.fieldPath) {
-      console.error(`Field: ${error.fieldPath}`);
+    if (error.fields.length > 0) {
+      console.error(`Fields: ${error.fields.join(', ')}`);
     }
   });
 }

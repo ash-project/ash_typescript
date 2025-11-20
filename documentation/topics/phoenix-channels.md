@@ -204,8 +204,8 @@ createTodoChannel({
       // Handle validation errors, etc.
       result.errors.forEach(error => {
         console.error(`Error: ${error.message}`);
-        if (error.fieldPath) {
-          console.error(`Field: ${error.fieldPath}`);
+        if (error.fields.length > 0) {
+          console.error(`Fields: ${error.fields.join(', ')}`);
         }
       });
     }

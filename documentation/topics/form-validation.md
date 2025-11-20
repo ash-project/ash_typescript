@@ -38,7 +38,8 @@ const validationResult = await validateCreateTodo({
 if (!validationResult.success) {
   // Handle validation errors
   validationResult.errors.forEach(error => {
-    console.log(`Field ${error.fieldPath}: ${error.message}`);
+    const field = error.fields[0] || 'unknown';
+    console.log(`Field ${field}: ${error.message}`);
   });
 }
 ```
@@ -55,8 +56,11 @@ type ValidationResult =
       errors: Array<{
         type: string;
         message: string;
-        fieldPath?: string;
-        details: Record<string, string>;
+        shortMessage: string;
+        vars: Record<string, any>;
+        fields: string[];
+        path: string[];
+        details?: Record<string, any>;
       }>;
     };
 ```
@@ -77,7 +81,8 @@ async function handleSubmit(formData) {
   if (!validation.success) {
     // Show validation errors to user
     validation.errors.forEach(error => {
-      showFieldError(error.fieldPath, error.message);
+      const field = error.fields[0] || 'unknown';
+      showFieldError(field, error.message);
     });
     return;
   }
@@ -115,7 +120,8 @@ validateCreateTodoChannel({
       console.log("Validation passed");
     } else {
       result.errors.forEach(error => {
-        console.log(`Field ${error.fieldPath}: ${error.message}`);
+        const field = error.fields[0] || 'unknown';
+        console.log(`Field ${field}: ${error.message}`);
       });
     }
   },

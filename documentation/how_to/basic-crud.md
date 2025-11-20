@@ -228,8 +228,8 @@ if (result.success) {
   // Handle validation errors, network errors, etc.
   result.errors.forEach(error => {
     console.error(`Error: ${error.message}`);
-    if (error.fieldPath) {
-      console.error(`Field: ${error.fieldPath}`);
+    if (error.fields.length > 0) {
+      console.error(`Fields: ${error.fields.join(', ')}`);
     }
   });
 }
@@ -246,7 +246,8 @@ const result = await createTodo({
 
 if (!result.success) {
   result.errors.forEach(error => {
-    console.error(`${error.fieldPath}: ${error.message}`);
+    const field = error.fields[0] || 'unknown';
+    console.error(`${field}: ${error.message}`);
     // Output: "title: is required"
   });
 }
