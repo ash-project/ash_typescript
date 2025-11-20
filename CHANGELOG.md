@@ -11,6 +11,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.8.1](https://github.com/ash-project/ash_typescript/compare/v0.8.0...v0.8.1) (2025-11-20)
+
+
+
+
+### Bug Fixes:
+
+* test: remove URLs from argsWithFieldConstraints to fix parser issue by [@Torkan](https://github.com/Torkan)
+
+* codegen: make nullable fields optional and fix spacing in input types by [@Torkan](https://github.com/Torkan)
+
+* codegen: use get_ts_input_type for argument types in input schemas by [@Torkan](https://github.com/Torkan)
+
+* Add default boolean values to config getters by zeadhani [(#20)](https://github.com/ash-project/ash_typescript/pull/20)
+
 ## [v0.8.0](https://github.com/ash-project/ash_typescript/compare/v0.7.1...v0.8.0) (2025-11-19)
 
 
