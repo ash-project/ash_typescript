@@ -35,7 +35,8 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
     "noFieldsTypeInference.ts",
     "complexScenarios.ts",
     "conditionalPagination.ts",
-    "unionCalculationSyntax.ts"
+    "unionCalculationSyntax.ts",
+    "argsWithFieldConstraints.ts"
   ]
 
   describe "TypeScript shouldPass runtime validation" do
@@ -165,6 +166,18 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
               # Get content action needs a valid content ID in input
               action_name == "get_content" ->
                 put_in(request["input"]["id"], content["id"])
+
+              # Create content action needs a valid user ID and optionally author ID
+              action_name == "create_content" ->
+                request
+                |> put_in(["input", "userId"], user["id"])
+                |> then(fn req ->
+                  if get_in(req, ["input", "authorId"]) do
+                    put_in(req, ["input", "authorId"], user["id"])
+                  else
+                    req
+                  end
+                end)
 
               true ->
                 request
