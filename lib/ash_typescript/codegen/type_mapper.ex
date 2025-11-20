@@ -78,8 +78,9 @@ defmodule AshTypescript.Codegen.TypeMapper do
           )
 
         allow_nil = Keyword.get(field_config, :allow_nil?, true)
-        optional = if allow_nil, do: "| null", else: ""
-        "#{formatted_field_name}: #{field_type}#{optional}"
+        optional_marker = if allow_nil, do: "?", else: ""
+        null_type = if allow_nil, do: " | null", else: ""
+        "#{formatted_field_name}#{optional_marker}: #{field_type}#{null_type}"
       end)
 
     "{#{field_types}}"
