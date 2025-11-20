@@ -127,7 +127,7 @@ defmodule AshTypescript.Test.Content do
                       hero_image_url: [type: :string],
                       hero_image_alt: [type: :string],
                       summary: [type: :string],
-                      body: [type: :string]
+                      body: [type: :string, allow_nil?: false]
                     ]
       end
 

@@ -24,7 +24,7 @@ defmodule AshTypescript.Test.Task do
   typescript do
     type_name "Task"
     field_names archived?: :is_archived
-    argument_names mark_completed: [completed?: :is_completed]
+    argument_names mark_completed: [is_task_completed_now?: :is_completed]
   end
 
   attributes do
@@ -153,12 +153,12 @@ defmodule AshTypescript.Test.Task do
       metadata :some_number, :integer, allow_nil?: false
       metadata :some_boolean, :boolean
 
-      argument :completed?, :boolean do
+      argument :is_task_completed_now?, :boolean do
         allow_nil? false
       end
 
       change fn changeset, _context ->
-        completed_value = Ash.Changeset.get_argument(changeset, :completed?)
+        completed_value = Ash.Changeset.get_argument(changeset, :is_task_completed_now?)
 
         Ash.Changeset.change_attribute(changeset, :completed, completed_value)
         |> Ash.Changeset.after_action(fn _changeset, record ->
