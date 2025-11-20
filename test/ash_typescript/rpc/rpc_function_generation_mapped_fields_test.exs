@@ -176,7 +176,8 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
       # The function should use MarkCompletedTaskInput type
       assert generated =~ "export async function markCompletedTaskChannel"
       assert generated =~ ~r/markCompletedTaskChannel.*input: MarkCompletedTaskInput/s
-      refute generated =~ ~r/markCompletedTaskChannel.*completed\?/s
+      refute generated =~ ~r/isTaskCompletedNow\?/s
+      refute generated =~ ~r/is_task_completed_now\?/s
     end
   end
 
@@ -214,7 +215,8 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
       # Test validateMarkCompletedTask
       assert generated =~ "export async function validateMarkCompletedTask"
       assert generated =~ ~r/validateMarkCompletedTask.*input: MarkCompletedTaskInput/s
-      refute generated =~ ~r/validateMarkCompletedTask.*completed\?/s
+      refute generated =~ ~r/isTaskCompletedNow\?/s
+      refute generated =~ ~r/is_task_completed_now\?/s
     end
   end
 
