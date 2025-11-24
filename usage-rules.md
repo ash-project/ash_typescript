@@ -225,6 +225,7 @@ attribute :metadata, MyApp.CustomMetadata, public?: true
 | Error Pattern | Fix |
 |---------------|-----|
 | Missing `extensions: [AshTypescript.Rpc]` | Add to domain `use Ash.Domain` |
+| Resource missing `typescript` block | Add `AshTypescript.Resource` extension AND `typescript do type_name "Name" end` |
 | No `rpc_action` declarations | Explicitly declare each exposed action |
 | Using `page`/`sort` on get actions | Only read actions support pagination/sorting |
 | Missing `fields` parameter | Always include `fields: [...]` |
@@ -242,6 +243,7 @@ attribute :metadata, MyApp.CustomMetadata, public?: true
 | "Property does not exist" | Types out of sync | `mix ash_typescript.codegen` |
 | "fields is required" | Missing fields | Add `fields: [...]` |
 | "No domains found" | Wrong environment | Use `MIX_ENV=test` |
+| "not properly configured for TypeScript" | Missing typescript block | Add extension + `typescript do type_name "Name" end` |
 | "Action not found" | Missing RPC declaration | Add `rpc_action` |
 | "403 Forbidden" | CSRF issue | Use `buildCSRFHeaders()` |
 | "Union field selection requires" | Union syntax error | Use `{union: ["member", {complex: [...]}]}` |
