@@ -11,6 +11,16 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.8.3](https://github.com/ash-project/ash_typescript/compare/v0.8.2...v0.8.3) (2025-11-24)
+
+
+
+
+### Bug Fixes:
+
+* improved error message for missing AshTypescript.Resource extension or missing typescript dsl-block
+* add closing backticks on the code example for composite type field selection by Jacob Bahn [(#21)](https://github.com/ash-project/ash_typescript/pull/21)
+
 ## [v0.8.2](https://github.com/ash-project/ash_typescript/compare/v0.8.1...v0.8.2) (2025-11-20)
 
 
