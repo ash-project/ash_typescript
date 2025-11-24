@@ -33,7 +33,21 @@ defmodule AshTypescript.Rpc.VerifyRpc do
 
               {:halt,
                {:error,
-                "#{resource} has rpc actions or typed queries, but is not using the AshTypescript.Resource extension"}}
+                """
+                #{resource} has rpc actions or typed queries, but is not properly configured for TypeScript generation.
+
+                To fix this, ensure the resource:
+                1. Has `AshTypescript.Resource` in its extensions list
+                2. Has a `typescript` DSL block with at least `type_name` defined
+
+                Example:
+                  use Ash.Resource,
+                    extensions: [AshTypescript.Resource]
+
+                  typescript do
+                    type_name "MyResource"
+                  end
+                """}}
 
             error ->
               {:halt, error}
