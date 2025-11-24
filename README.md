@@ -76,6 +76,7 @@ const todos = await listTodos({
 const todos = await listTodos({
   fields: ["id", "title", { item: ["id", "name", "description"] }]
 });
+```
 
 **Migration Guide:**
 1. Update error handling code to expect `AshRpcError[]` for the `errors` field
