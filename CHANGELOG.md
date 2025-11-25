@@ -11,6 +11,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.8.4](https://github.com/ash-project/ash_typescript/compare/v0.8.3...v0.8.4) (2025-11-25)
+
+
+
+
+### Bug Fixes:
+
+* codegen: support calculation fields in aggregates across all modules by [@Torkan](https://github.com/Torkan)
+
+* rpc: respect allow_nil_input and require_attributes for input type optionality by [@Torkan](https://github.com/Torkan)
+
+* support sum aggregates over calculations and discover calculation argument types by Oliver Severin Mulelid-Tynes [(#23)](https://github.com/ash-project/ash_typescript/pull/23)
+
 ## [v0.8.3](https://github.com/ash-project/ash_typescript/compare/v0.8.2...v0.8.3) (2025-11-24)
 
 
