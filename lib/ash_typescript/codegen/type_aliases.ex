@@ -27,7 +27,19 @@ defmodule AshTypescript.Codegen.TypeAliases do
         types =
           resource
           |> Ash.Resource.Info.public_calculations()
-          |> Enum.reduce(types, fn calc, types -> MapSet.put(types, calc.type) end)
+          |> Enum.reduce(types, fn calc, types ->
+            # Add the calculation's return type
+            types = MapSet.put(types, calc.type)
+
+            # Also add types from calculation arguments
+            Enum.reduce(calc.arguments, types, fn arg, types ->
+              if Ash.Type.ash_type?(arg.type) do
+                MapSet.put(types, arg.type)
+              else
+                types
+              end
+            end)
+          end)
 
         resource
         |> Ash.Resource.Info.public_aggregates()
