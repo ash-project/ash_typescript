@@ -85,6 +85,33 @@ defmodule AshTypescript.Test.Article do
       ]
     end
 
+    create :create_with_optional_hero_image do
+      accept [
+        :content_id,
+        :hero_image_url,
+        :hero_image_alt,
+        :summary,
+        :body
+      ]
+
+      # hero_image_url has allow_nil?: false on the attribute,
+      # but this action allows nil input for it
+      allow_nil_input [:hero_image_url]
+    end
+
+    update :update_with_required_hero_image_alt do
+      accept [
+        :hero_image_url,
+        :hero_image_alt,
+        :summary,
+        :body
+      ]
+
+      # hero_image_alt is optional for normal updates,
+      # but this action requires it
+      require_attributes [:hero_image_alt]
+    end
+
     action :get_important_dates, {:array, :date} do
       run fn _input, _context ->
         {:ok, [~D[2025-01-15], ~D[2025-02-20], ~D[2025-03-25]]}

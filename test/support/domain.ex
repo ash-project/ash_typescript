@@ -151,6 +151,10 @@ defmodule AshTypescript.Test.Domain do
     resource AshTypescript.Test.Article do
       rpc_action :get_important_dates, :get_important_dates
       rpc_action :get_publication_date, :get_publication_date
+      rpc_action :create_article_with_optional_hero_image, :create_with_optional_hero_image
+
+      rpc_action :update_article_with_required_hero_image_alt,
+                 :update_with_required_hero_image_alt
     end
   end
 
