@@ -36,6 +36,7 @@ import "./shouldPass/noFieldsTypeInference";
 import "./shouldPass/channelNoFieldsTypeInference";
 import "./shouldPass/unionCalculationSyntax";
 import "./shouldPass/argsWithFieldConstraints";
+import "./shouldPass/inputOptionality";
 import "./rpcHooks";
 
 // Import Zod schema validation tests
