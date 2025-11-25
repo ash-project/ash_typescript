@@ -301,9 +301,21 @@ defmodule AshTypescript.Test.Todo do
       sort created_at: :desc
     end
 
-    # Sum aggregate over a calculation field (not an attribute)
-    # This tests the fix that allows aggregates to reference calculation fields
+    # Aggregates over calculation fields (not attributes)
+    # These test the fix that allows aggregates to reference calculation fields
     sum :total_weighted_score, :comments, :weighted_score do
+      public? true
+    end
+
+    list :weighted_scores, :comments, :weighted_score do
+      public? true
+    end
+
+    first :first_weighted_score, :comments, :weighted_score do
+      public? true
+    end
+
+    max :max_weighted_score, :comments, :weighted_score do
       public? true
     end
   end
