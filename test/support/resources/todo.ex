@@ -300,6 +300,12 @@ defmodule AshTypescript.Test.Todo do
       public? true
       sort created_at: :desc
     end
+
+    # Sum aggregate over a calculation field (not an attribute)
+    # This tests the fix that allows aggregates to reference calculation fields
+    sum :total_weighted_score, :comments, :weighted_score do
+      public? true
+    end
   end
 
   calculations do
@@ -340,6 +346,22 @@ defmodule AshTypescript.Test.Todo do
               AshTypescript.Test.TodoStatistics,
               AshTypescript.Test.SummaryCalculation do
       public? true
+    end
+
+    # Calculation with arguments that use types requiring type aliases
+    # This tests that calculation argument types are discovered for type alias generation
+    calculate :filtered_data, :string, expr("filtered") do
+      public? true
+
+      argument :after_date, Ash.Type.Date do
+        allow_nil? true
+        default nil
+      end
+
+      argument :user_id, Ash.Type.UUID do
+        allow_nil? true
+        default nil
+      end
     end
   end
 

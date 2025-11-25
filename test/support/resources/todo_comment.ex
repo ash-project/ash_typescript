@@ -47,6 +47,13 @@ defmodule AshTypescript.Test.TodoComment do
     update_timestamp :updated_at
   end
 
+  calculations do
+    # A weighted score calculation for testing sum aggregates over calculations
+    calculate :weighted_score, :integer, expr(rating * if(is_helpful, 2, 1)) do
+      public? true
+    end
+  end
+
   relationships do
     belongs_to :todo, AshTypescript.Test.Todo do
       allow_nil? false

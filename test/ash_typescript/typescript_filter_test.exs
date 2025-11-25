@@ -202,4 +202,19 @@ defmodule AshTypescript.FilterTest do
       assert String.contains?(result, "name?: {")
     end
   end
+
+  describe "aggregate filter types" do
+    test "generates filter type for sum aggregate over a calculation field" do
+      # Todo has a :total_weighted_score sum aggregate that references
+      # the :weighted_score calculation on TodoComment (not an attribute)
+      result = FilterTypes.generate_filter_type(AshTypescript.Test.Todo)
+
+      # Should generate filter type for the sum aggregate over calculation
+      assert String.contains?(result, "totalWeightedScore?: {")
+      # Sum aggregates over integer calculations should have numeric operations
+      assert String.contains?(result, "eq?: number")
+      assert String.contains?(result, "greaterThan?: number")
+      assert String.contains?(result, "lessThan?: number")
+    end
+  end
 end
