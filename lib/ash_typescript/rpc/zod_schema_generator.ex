@@ -41,9 +41,15 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
     {formatted_name, zod_type}
   end
 
-  defp process_accept_field(resource, field_name) do
+  defp process_accept_field(resource, field_name, action) do
     attr = Ash.Resource.Info.attribute(resource, field_name)
-    optional = attr.allow_nil? || attr.default != nil
+
+    optional =
+      if action.type in [:update, :destroy] do
+        field_name not in action.require_attributes
+      else
+        field_name in action.allow_nil_input || attr.allow_nil? || attr.default != nil
+      end
 
     mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
     formatted_name = format_field(mapped_name)
@@ -292,7 +298,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
             arguments = action.arguments
 
             if accepts != [] || arguments != [] do
-              accept_field_defs = Enum.map(accepts, &process_accept_field(resource, &1))
+              accept_field_defs = Enum.map(accepts, &process_accept_field(resource, &1, action))
 
               argument_field_defs =
                 Enum.map(arguments, &process_argument_field(resource, action, &1))
@@ -304,7 +310,9 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
 
           action_type when action_type in [:update, :destroy] ->
             if action.accept != [] || action.arguments != [] do
-              accept_field_defs = Enum.map(action.accept, &process_accept_field(resource, &1))
+              # Pass action to check require_attributes for optionality
+              accept_field_defs =
+                Enum.map(action.accept, &process_accept_field(resource, &1, action))
 
               argument_field_defs =
                 Enum.map(action.arguments, &process_argument_field(resource, action, &1))
