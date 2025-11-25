@@ -106,8 +106,12 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldClassifier do
           dest_resource = relationship && relationship.destination
 
           if dest_resource do
-            if attribute = Ash.Resource.Info.attribute(dest_resource, aggregate.field) do
-              {:ash_type, attribute.type, attribute.constraints || []}
+            field =
+              Ash.Resource.Info.attribute(dest_resource, aggregate.field) ||
+                Ash.Resource.Info.calculation(dest_resource, aggregate.field)
+
+            if field do
+              {:ash_type, field.type, Map.get(field, :constraints) || []}
             else
               {:ash_type, Ash.Type.String, []}
             end
@@ -131,8 +135,12 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldClassifier do
           dest_resource = relationship && relationship.destination
 
           if dest_resource do
-            if attribute = Ash.Resource.Info.attribute(dest_resource, aggregate.field) do
-              {:ash_type, {:array, attribute.type}, []}
+            field =
+              Ash.Resource.Info.attribute(dest_resource, aggregate.field) ||
+                Ash.Resource.Info.calculation(dest_resource, aggregate.field)
+
+            if field do
+              {:ash_type, {:array, field.type}, []}
             else
               {:ash_type, {:array, Ash.Type.String}, []}
             end

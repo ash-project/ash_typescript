@@ -57,26 +57,28 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       |> Enum.filter(& &1.public?)
       |> Enum.map(fn
         %Ash.Resource.Aggregate{} = aggregate ->
-          attribute =
+          field =
             if aggregate.field do
               related = Ash.Resource.Info.related(resource, aggregate.relationship_path)
-              Ash.Resource.Info.attribute(related, aggregate.field)
+
+              Ash.Resource.Info.attribute(related, aggregate.field) ||
+                Ash.Resource.Info.calculation(related, aggregate.field)
             end
 
-          attribute_type =
-            if attribute do
-              attribute.type
+          field_type =
+            if field do
+              field.type
             end
 
-          attribute_constraints =
-            if attribute do
-              attribute.constraints
+          field_constraints =
+            if field do
+              Map.get(field, :constraints)
             end
 
           case Ash.Query.Aggregate.kind_to_type(
                  aggregate.kind,
-                 attribute_type,
-                 attribute_constraints
+                 field_type,
+                 field_constraints
                ) do
             {:ok, type, constraints} ->
               Map.merge(aggregate, %{type: type, constraints: constraints})

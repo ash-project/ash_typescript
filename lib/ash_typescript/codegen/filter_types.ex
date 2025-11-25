@@ -140,12 +140,15 @@ defmodule AshTypescript.Codegen.FilterTypes do
         next, acc -> Ash.Resource.Info.relationship(acc, next).destination
       end)
 
-    # Try to find the field as an attribute first, then fall back to calculation
     field =
       Ash.Resource.Info.attribute(related_resource, aggregate.field) ||
         Ash.Resource.Info.calculation(related_resource, aggregate.field)
 
-    generate_attribute_filter(%{field | name: aggregate.name}, resource)
+    if field do
+      generate_attribute_filter(%{field | name: aggregate.name}, resource)
+    else
+      ""
+    end
   end
 
   defp get_applicable_operations(type, base_type) do
