@@ -118,7 +118,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
               accept_field_defs =
                 Enum.map(action.accept, fn field_name ->
                   attr = Ash.Resource.Info.attribute(resource, field_name)
-                  optional = attr.allow_nil? || attr.default != nil
+                  optional = field_name in action.allow_nil_input || attr.allow_nil? || attr.default != nil
                   base_type = AshTypescript.Codegen.get_ts_input_type(attr)
                   field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
 
