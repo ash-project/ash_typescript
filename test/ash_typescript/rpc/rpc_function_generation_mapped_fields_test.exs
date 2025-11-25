@@ -282,7 +282,8 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
         Regex.run(~r/export type UpdateTaskInput = \{[^}]+\}/s, generated) |> List.first()
 
       # 'title' has no mapping and should appear as-is
-      assert update_input_type =~ "title: string;"
+      # All accepted attributes are optional for update actions
+      assert update_input_type =~ "title?: string;"
 
       # Mapped field should use mapped name
       assert update_input_type =~ "isArchived?: boolean;"
