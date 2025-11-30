@@ -108,7 +108,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       get_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => todo_id,
+          "input" => %{"id" => todo_id},
           "fields" => [
             "id",
             "title",
@@ -197,11 +197,8 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       assert update_result["success"] == true
       assert update_result["data"]["id"] == todo_id
-      # Unchanged
       assert update_result["data"]["title"] == "Test Todo"
-      # Updated
       assert update_result["data"]["status"] == "ongoing"
-      # Updated
       assert update_result["data"]["description"] == "Updated description"
     end
 
@@ -223,7 +220,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       # Destroy returns empty data
       assert destroy_result["data"] == %{}
 
-      # Verify todo is actually deleted
+      # Verify todo is actually deleted - get operations return not found error
       get_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
@@ -264,7 +261,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       get_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => todo_id,
+          "input" => %{"id" => todo_id},
           "fields" => [
             "id",
             "title",
@@ -283,15 +280,11 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       assert data["title"] == "Future Todo"
       assert data["dueDate"] == future_date
 
-      # Assert calculation types and reasonable values
       assert is_boolean(data["isOverdue"])
-      # Future date should not be overdue
       assert data["isOverdue"] == false
 
       assert is_integer(data["daysUntilDue"])
-      # Future date should have positive days
       assert data["daysUntilDue"] > 0
-      # Should be around 7 days
       assert data["daysUntilDue"] <= 7
     end
   end
@@ -348,7 +341,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       get_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => todo_id,
+          "input" => %{"id" => todo_id},
           "fields" => [
             "id",
             "title",
@@ -373,12 +366,9 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       assert data["id"] == todo_id
       assert data["title"] == "Aggregate Test Todo"
 
-      # Assert aggregate values
       assert data["commentCount"] == 2
-      # Only first comment is helpful
       assert data["helpfulCommentCount"] == 1
       assert data["hasComments"] == true
-      # (5 + 3) / 2
       assert data["averageRating"] == 4.0
       assert data["highestRating"] == 5
       assert Enum.sort(data["commentAuthors"]) == ["Commenter 1", "Commenter 2"]
@@ -448,7 +438,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       get_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => todo1["id"],
+          "input" => %{"id" => todo1["id"]},
           "fields" => [
             "id",
             "title",
@@ -514,10 +504,8 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       assert secondary_comment["user"]["id"] == user2["id"]
       assert secondary_comment["user"]["name"] == "Secondary User"
 
-      # Assert aggregates
       assert data["commentCount"] == 2
       assert data["helpfulCommentCount"] == 1
-      # (5 + 4) / 2
       assert data["averageRating"] == 4.5
     end
   end

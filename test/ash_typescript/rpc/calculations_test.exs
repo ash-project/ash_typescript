@@ -70,7 +70,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       past_get_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => past_todo_id,
+          "input" => %{"id" => past_todo_id},
           "fields" => ["id", "title", "dueDate", "isOverdue"]
         })
 
@@ -79,14 +79,13 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       past_data = past_get_result["data"]
       assert past_data["title"] == "Past Due Todo"
       assert is_boolean(past_data["isOverdue"])
-      # Past date should be overdue
       assert past_data["isOverdue"] == true
 
       # Test future todo
       future_get_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => future_todo_id,
+          "input" => %{"id" => future_todo_id},
           "fields" => ["id", "title", "dueDate", "isOverdue"]
         })
 
@@ -95,7 +94,6 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       future_data = future_get_result["data"]
       assert future_data["title"] == "Future Due Todo"
       assert is_boolean(future_data["isOverdue"])
-      # Future date should not be overdue
       assert future_data["isOverdue"] == false
     end
 
@@ -123,7 +121,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       get_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => todo_id,
+          "input" => %{"id" => todo_id},
           "fields" => ["id", "title", "dueDate", "isOverdue"]
         })
 
@@ -133,7 +131,6 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       assert data["title"] == "No Due Date Todo"
       assert is_nil(data["dueDate"]) or data["dueDate"] == nil
       assert is_boolean(data["isOverdue"])
-      # No due date should not be overdue
       assert data["isOverdue"] == false
     end
   end
@@ -166,7 +163,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       get_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => todo_id,
+          "input" => %{"id" => todo_id},
           "fields" => ["id", "title", "dueDate", "daysUntilDue"]
         })
 
@@ -175,8 +172,6 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       data = get_result["data"]
       assert data["title"] == "Days Calculation Todo"
       assert is_integer(data["daysUntilDue"])
-
-      # Should be approximately the target days (allowing for slight timing differences)
       assert data["daysUntilDue"] >= target_days - 1
       assert data["daysUntilDue"] <= target_days + 1
     end
@@ -209,7 +204,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       get_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => todo_id,
+          "input" => %{"id" => todo_id},
           "fields" => ["id", "title", "dueDate", "daysUntilDue"]
         })
 
@@ -218,8 +213,6 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       data = get_result["data"]
       assert data["title"] == "Past Days Todo"
       assert is_integer(data["daysUntilDue"])
-
-      # Should be approximately the past days (negative value)
       assert data["daysUntilDue"] >= past_days - 1
       assert data["daysUntilDue"] <= past_days + 1
     end
@@ -248,7 +241,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       get_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => todo_id,
+          "input" => %{"id" => todo_id},
           "fields" => ["id", "title", "dueDate", "daysUntilDue"]
         })
 
@@ -258,8 +251,6 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       assert data["title"] == "No Due Date Days Todo"
       assert is_nil(data["dueDate"])
 
-      # days_until_due calculation should handle nil gracefully
-      # (behavior depends on calculation implementation)
       if Map.has_key?(data, "daysUntilDue") do
         assert is_integer(data["daysUntilDue"]) or is_nil(data["daysUntilDue"])
       end
@@ -335,9 +326,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       assert future_todo["isOverdue"] == false
       assert no_date_todo["isOverdue"] == false
 
-      # Past date
       assert past_todo["daysUntilDue"] < 0
-      # Future date
       assert future_todo["daysUntilDue"] > 0
     end
   end
@@ -358,7 +347,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       result1 =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => todo["id"],
+          "input" => %{"id" => todo["id"]},
           "fields" => ["id", "title", "isOverdue"]
         })
 
@@ -371,7 +360,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       result2 =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => todo["id"],
+          "input" => %{"id" => todo["id"]},
           "fields" => ["id", "title", "daysUntilDue"]
         })
 
@@ -384,7 +373,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       result3 =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => todo["id"],
+          "input" => %{"id" => todo["id"]},
           "fields" => ["id", "title", "isOverdue", "daysUntilDue"]
         })
 
@@ -410,7 +399,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => todo["id"],
+          "input" => %{"id" => todo["id"]},
           "fields" => ["id", "isOverdue", "daysUntilDue"]
         })
 
@@ -460,7 +449,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
         result =
           Rpc.run_action(:ash_typescript, conn, %{
             "action" => "get_todo",
-            "primaryKey" => todo["id"],
+            "input" => %{"id" => todo["id"]},
             "fields" => ["id", "isOverdue", "daysUntilDue"]
           })
 
@@ -515,12 +504,8 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       assert result["success"] == true
       assert length(result["data"]) == todo_count
 
-      # Performance check: should complete reasonably quickly
-      # (adjust threshold based on system performance requirements)
-      # 5 seconds max for basic calculation operations
       assert duration < 5000
 
-      # Verify all calculations completed
       for todo_data <- result["data"] do
         assert is_boolean(todo_data["isOverdue"])
         assert is_integer(todo_data["daysUntilDue"]) or is_nil(todo_data["daysUntilDue"])

@@ -35,7 +35,7 @@ defmodule AshTypescript.Rpc.OutputFieldFormattingTest do
       fetch_result =
         AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => todo_id,
+          "input" => %{"id" => todo_id},
           "fields" => ["id", "title", "customData"]
         })
 

@@ -156,7 +156,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       # Step 3: Get the todo with relationship and calculation fields
       get_params = %{
         "action" => "get_todo",
-        "primaryKey" => todo_id,
+        "input" => %{"id" => todo_id},
         "fields" => [
           "id",
           "title",
@@ -248,11 +248,8 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       update_result = Rpc.run_action(:ash_typescript, conn, update_params)
       assert update_result["success"] == true
       assert update_result["data"]["id"] == todo_id
-      # Unchanged
       assert update_result["data"]["title"] == "Test Todo"
-      # Updated
       assert update_result["data"]["status"] == "ongoing"
-      # Updated
       assert update_result["data"]["description"] == "Updated description"
     end
 
@@ -295,15 +292,14 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       # Destroy now returns data with the requested fields (id is nil after destruction)
       assert destroy_result["data"] == %{"id" => todo_id}
 
-      # Verify todo is actually deleted
+      # Verify todo is actually deleted - get operations return not found error
       get_params = %{
         "action" => "get_todo",
-        "primaryKey" => todo_id,
+        "input" => %{"id" => todo_id},
         "fields" => ["id"]
       }
 
       get_result = Rpc.run_action(:ash_typescript, conn, get_params)
-      # Get operations now return not found errors when records don't exist
       assert get_result["success"] == false
       first_error = List.first(get_result["errors"])
       assert first_error["type"] == "not_found"
@@ -343,7 +339,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       # Get todo with calculations
       get_params = %{
         "action" => "get_todo",
-        "primaryKey" => todo_id,
+        "input" => %{"id" => todo_id},
         "fields" => [
           "id",
           "title",
@@ -363,15 +359,11 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       assert data["title"] == "Future Todo"
       assert data["dueDate"] == future_date
 
-      # Assert calculation types and reasonable values
       assert is_boolean(data["isOverdue"])
-      # Future date should not be overdue
       assert data["isOverdue"] == false
 
       assert is_integer(data["daysUntilDue"])
-      # Future date should have positive days
       assert data["daysUntilDue"] > 0
-      # Should be around 7 days
       assert data["daysUntilDue"] <= 7
     end
 
@@ -405,7 +397,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       # Get todo with self calculation and prefix argument
       get_params = %{
         "action" => "get_todo",
-        "primaryKey" => todo_id,
+        "input" => %{"id" => todo_id},
         "fields" => [
           "id",
           "title",
@@ -463,7 +455,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       # Get todo with user relationship that includes self calculation
       get_params = %{
         "action" => "get_todo",
-        "primaryKey" => todo_id,
+        "input" => %{"id" => todo_id},
         "fields" => [
           "id",
           "title",
@@ -557,7 +549,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       # Get todo with aggregates
       get_params = %{
         "action" => "get_todo",
-        "primaryKey" => todo_id,
+        "input" => %{"id" => todo_id},
         "fields" => [
           "id",
           "title",
@@ -585,15 +577,11 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       assert data["id"] == todo_id
       assert data["title"] == "Aggregate Test Todo"
 
-      # Assert aggregate values
       assert data["commentCount"] == 2
-      # Only first comment is helpful
       assert data["helpfulCommentCount"] == 1
       assert data["hasComments"] == true
-      # (5 + 3) / 2
       assert data["averageRating"] == 4.0
       assert data["highestRating"] == 5
-      # Latest by creation
       assert data["latestCommentContent"] == "Second comment"
       assert Enum.sort(data["commentAuthors"]) == ["Commenter 1", "Commenter 2"]
     end
@@ -677,31 +665,26 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       assert metadata["deadline"] == "2024-12-31"
       assert metadata["estimatedHours"] == 2.0
 
-      # Assert priorityScore (PriorityScore custom type - now just an integer)
       priority_score = data["priorityScore"]
       assert priority_score == 92
 
-      # Assert colorPalette (ColorPalette custom type)
       color_palette = data["colorPalette"]
       assert color_palette["primary"] == "#3498DB"
       assert color_palette["secondary"] == "#E74C3C"
       assert color_palette["accent"] == "#F39C12"
 
-      # Assert timestampInfo (TodoTimestamp typed struct)
       timestamp_info = data["timestampInfo"]
       assert timestamp_info["createdBy"] == "test_user"
       assert timestamp_info["createdAt"] == "2024-01-01T12:00:00Z"
       assert timestamp_info["updatedBy"] == "test_user"
       assert timestamp_info["updatedAt"] == "2024-01-01T12:00:00Z"
 
-      # Assert statistics (TodoStatistics typed struct)
       statistics = data["statistics"]
       assert statistics["viewCount"] == 15
       assert statistics["editCount"] == 3
       assert statistics["completionTimeSeconds"] == 1800
       assert statistics["difficultyRating"] == 4.5
 
-      # Assert performance metrics
       performance_metrics = statistics["performanceMetrics"]
       assert performance_metrics["focusTimeSeconds"] == 1200
       assert performance_metrics["interruptionCount"] == 3
@@ -774,7 +757,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       # Test complex relationship query with nested field selection
       get_params = %{
         "action" => "get_todo",
-        "primaryKey" => todo1["id"],
+        "input" => %{"id" => todo1["id"]},
         "fields" => [
           "id",
           "title",
@@ -859,10 +842,8 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       assert secondary_comment["user"]["id"] == user2["id"]
       assert secondary_comment["user"]["name"] == "Secondary User"
 
-      # Assert aggregates
       assert data["commentCount"] == 2
       assert data["helpfulCommentCount"] == 1
-      # (5 + 4) / 2
       assert data["averageRating"] == 4.5
     end
 
@@ -1311,11 +1292,11 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => fake_uuid,
+          "input" => %{"id" => fake_uuid},
           "fields" => ["id", "title"]
         })
 
-      # Get operations return not found errors when records don't exist
+      # Get operations return not found errors when records don't exist (default behavior)
       assert result["success"] == false
       first_error = List.first(result["errors"])
       assert first_error["type"] == "not_found"
@@ -1413,7 +1394,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       # Execute complex nested query
       complex_params = %{
         "action" => "get_todo",
-        "primaryKey" => todo_id,
+        "input" => %{"id" => todo_id},
         "fields" => [
           # Basic fields
           "id",
@@ -1525,12 +1506,9 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       assert metadata["priorityScore"] == 98
       assert metadata["tags"] == ["complex", "comprehensive"]
 
-      # Assert aggregates
       assert data["commentCount"] == 3
-      # Comments 1 and 3
       assert data["helpfulCommentCount"] == 2
       assert data["hasComments"] == true
-      # (3 + 4 + 5) / 3
       assert data["averageRating"] == 4.0
       assert data["highestRating"] == 5
       assert length(data["commentAuthors"]) == 3

@@ -36,7 +36,9 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
     "complexScenarios.ts",
     "conditionalPagination.ts",
     "unionCalculationSyntax.ts",
-    "argsWithFieldConstraints.ts"
+    "argsWithFieldConstraints.ts",
+    "get.ts",
+    "getBy.ts"
   ]
 
   describe "TypeScript shouldPass runtime validation" do
@@ -54,7 +56,6 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
           "fields" => ["id", "name", "email"]
         })
 
-      # Create test todo
       %{"success" => true, "data" => todo} =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "create_todo",
@@ -62,9 +63,10 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
             "title" => "Test Todo",
             "userId" => user["id"],
             "status" => "pending",
+            "priority" => "high",
             "autoComplete" => false
           },
-          "fields" => ["id", "title", "status", "completed"]
+          "fields" => ["id", "title", "status", "completed", "priority"]
         })
 
       # Create test task for metadata tests
@@ -131,43 +133,53 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
             }
             |> maybe_add_primary_key(config)
             |> maybe_add_metadata_fields(config)
+            |> maybe_add_get_by(config)
 
           # Inject test data for actions that need it
           request =
             cond do
-              # Create todo actions need a valid user ID
               action_name == "create_todo" ->
                 put_in(request["input"]["userId"], user["id"])
 
-              # Get todo actions need a primary key to fetch
-              action_name == "get_todo" and not Map.has_key?(request, "primaryKey") ->
-                Map.put(request, "primaryKey", todo["id"])
+              action_name == "get_todo" ->
+                put_in(request, ["input", "id"], todo["id"])
 
-              # Update todo actions need a valid primary key (replace hardcoded IDs)
+              # get_single_todo uses get? which doesn't require id in input
+              # It just constrains the action to return a single record
+              action_name == "get_single_todo" ->
+                request
+
+              # get_user_by_email uses get_by, so inject the email into getBy
+              action_name == "get_user_by_email" ->
+                request
+                |> Map.put_new("getBy", %{})
+                |> put_in(["getBy", "email"], user["email"])
+
+              # get_todo_by_user_and_status uses get_by, so inject values into getBy
+              action_name == "get_todo_by_user_and_status" ->
+                request
+                |> Map.put_new("getBy", %{})
+                |> put_in(["getBy", "userId"], user["id"])
+                |> put_in(["getBy", "status"], "pending")
+
               action_name == "update_todo" ->
                 Map.put(request, "primaryKey", todo["id"])
 
-              # Update task actions need a valid primary key
               action_name == "update_task" ->
                 Map.put(request, "primaryKey", task["id"])
 
-              # Mark completed task action needs a valid primary key
               action_name == "mark_completed_task" ->
                 Map.put(request, "primaryKey", task["id"])
 
-              # Destroy task action needs a valid primary key
               action_name == "destroy_task" ->
                 Map.put(request, "primaryKey", task["id"])
 
-              # Update user action needs a valid primary key
               action_name == "update_user" ->
                 Map.put(request, "primaryKey", user["id"])
 
-              # Get content action needs a valid content ID in input
               action_name == "get_content" ->
                 put_in(request["input"]["id"], content["id"])
 
-              # Create content action needs a valid user ID and optionally author ID
               action_name == "create_content" ->
                 request
                 |> put_in(["input", "userId"], user["id"])
@@ -233,6 +245,14 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
   defp maybe_add_metadata_fields(request, config) do
     if config["metadataFields"] do
       Map.put(request, "metadataFields", config["metadataFields"])
+    else
+      request
+    end
+  end
+
+  defp maybe_add_get_by(request, config) do
+    if config["getBy"] do
+      Map.put(request, "getBy", config["getBy"])
     else
       request
     end
