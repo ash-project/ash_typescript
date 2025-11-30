@@ -17,6 +17,9 @@ defmodule AshTypescript.Rpc do
       :read_action,
       :show_metadata,
       :metadata_field_names,
+      :get?,
+      :get_by,
+      :not_found_error?,
       __spark_metadata__: nil
     ]
   end
@@ -91,6 +94,12 @@ defmodule AshTypescript.Rpc do
     Metadata field naming: Use `metadata_field_names` to map invalid metadata field names
     (e.g., `field_1`, `is_valid?`) to valid TypeScript identifiers.
     Example: `metadata_field_names [field_1: :field1, is_valid?: :isValid]`
+
+    Get options:
+    - `get?` - When true, retrieves a single resource by primary key. Requires primary key
+      in the RPC call and returns a single result or null.
+    - `get_by` - Retrieves a single resource by the specified fields. The fields must be
+      valid resource attributes. Returns a single result or null.
     """,
     schema: [
       name: [
@@ -115,6 +124,24 @@ defmodule AshTypescript.Rpc do
         type: {:list, {:tuple, [:atom, :atom]}},
         doc: "Map metadata field names to valid TypeScript identifiers",
         default: []
+      ],
+      get?: [
+        type: :boolean,
+        doc:
+          "When true, retrieves a single resource by primary key. Returns single result or null.",
+        default: false
+      ],
+      get_by: [
+        type: {:list, :atom},
+        doc:
+          "Retrieves a single resource by the specified fields (must be resource attributes). Returns single result or null.",
+        default: []
+      ],
+      not_found_error?: [
+        type: {:in, [true, false, nil]},
+        doc:
+          "When true (default from global config), returns an error if no record is found. When false, returns null. Only applies to get actions (get?, get_by, or action.get?). If not specified, uses the global config `config :ash_typescript, not_found_error?: true`.",
+        default: nil
       ]
     ],
     args: [:name, :action]
@@ -279,6 +306,18 @@ defmodule AshTypescript.Rpc do
   end
 
   @doc """
+  Gets the global default for not_found_error? behavior on get actions.
+
+  When true (default), get actions return an error if no record is found.
+  When false, get actions return null instead of an error.
+
+  Individual rpc_action configurations can override this global default.
+  """
+  def not_found_error? do
+    Application.get_env(:ash_typescript, :not_found_error?, true)
+  end
+
+  @doc """
   Checks if RPC action hooks are enabled (either beforeRequest or afterRequest).
 
   Returns true if either beforeRequest or afterRequest hook is configured for RPC actions.
@@ -436,12 +475,12 @@ defmodule AshTypescript.Rpc do
          input,
          opts
        ) do
-    # For read actions, validate by building a query
+    # For read actions, just validate the input against the action definition
+    # get_by validation is handled in parse_get_by during request parsing
     query =
       resource
       |> Ash.Query.for_read(action.name, input, opts)
 
-    # If we can build the query without errors, validation passes
     case query do
       %Ash.Query{errors: []} ->
         %{success: true}
