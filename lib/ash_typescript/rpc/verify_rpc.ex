@@ -144,17 +144,77 @@ defmodule AshTypescript.Rpc.VerifyRpc do
 
   def verify_rpc_actions(resource, rpc_actions) do
     Enum.reduce_while(rpc_actions, :ok, fn rpc_action, acc ->
-      if Ash.Resource.Info.action(resource, rpc_action.action) do
-        {:cont, acc}
-      else
-        {:halt,
-         {:error,
-          Spark.Error.DslError.exception(
-            message:
-              "RPC action #{rpc_action.name} references action #{rpc_action.action}, which does not exist on resource #{resource}"
-          )}}
+      case Ash.Resource.Info.action(resource, rpc_action.action) do
+        nil ->
+          {:halt,
+           {:error,
+            Spark.Error.DslError.exception(
+              message:
+                "RPC action #{rpc_action.name} references action #{rpc_action.action}, which does not exist on resource #{resource}"
+            )}}
+
+        action ->
+          case verify_get_options(resource, rpc_action, action) do
+            :ok -> {:cont, acc}
+            error -> {:halt, error}
+          end
       end
     end)
+  end
+
+  defp verify_get_options(resource, rpc_action, action) do
+    get? = Map.get(rpc_action, :get?, false)
+    get_by = Map.get(rpc_action, :get_by) || []
+
+    cond do
+      # get? can only be used on read actions
+      get? and action.type != :read ->
+        {:error,
+         Spark.Error.DslError.exception(
+           message:
+             "RPC action #{rpc_action.name}: get? option can only be used on read actions, but #{rpc_action.action} is a #{action.type} action"
+         )}
+
+      # get_by can only be used on read actions
+      get_by != [] and action.type != :read ->
+        {:error,
+         Spark.Error.DslError.exception(
+           message:
+             "RPC action #{rpc_action.name}: get_by option can only be used on read actions, but #{rpc_action.action} is a #{action.type} action"
+         )}
+
+      # get? and get_by are mutually exclusive
+      get? and get_by != [] ->
+        {:error,
+         Spark.Error.DslError.exception(
+           message:
+             "RPC action #{rpc_action.name}: get? and get_by options are mutually exclusive. Use get? to fetch by primary key, or get_by to fetch by specific fields."
+         )}
+
+      # Validate get_by fields exist on the resource
+      get_by != [] ->
+        validate_get_by_fields_exist(resource, rpc_action, get_by)
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_get_by_fields_exist(resource, rpc_action, get_by) do
+    invalid_fields =
+      Enum.reject(get_by, fn field ->
+        Ash.Resource.Info.attribute(resource, field) != nil
+      end)
+
+    if invalid_fields == [] do
+      :ok
+    else
+      {:error,
+       Spark.Error.DslError.exception(
+         message:
+           "RPC action #{rpc_action.name}: get_by contains invalid fields: #{inspect(invalid_fields)}. These must be valid attribute names on the resource."
+       )}
+    end
   end
 
   def verify_typed_queries(resource, typed_queries) do
