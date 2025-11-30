@@ -44,8 +44,25 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
     resource_name = build_resource_type_name(resource)
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
 
-    case action.type do
-      :read when action.get? ->
+    # Check both Ash's native get? and RPC's get?/get_by options
+    ash_get? = action.type == :read and Map.get(action, :get?, false)
+    rpc_get? = Map.get(rpc_action, :get?, false)
+    rpc_get_by = (Map.get(rpc_action, :get_by) || []) != []
+
+    is_get_action = ash_get? or rpc_get? or rpc_get_by
+
+    # When not_found_error? is true (default), don't add | null (errors are returned instead)
+    # If not explicitly set (nil), use the global config default
+    not_found_error? =
+      case Map.get(rpc_action, :not_found_error?) do
+        nil -> AshTypescript.Rpc.not_found_error?()
+        value -> value
+      end
+
+    null_suffix = if not_found_error?, do: "", else: " | null"
+
+    case {action.type, is_get_action} do
+      {:read, true} ->
         metadata_type =
           MetadataTypes.generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal)
 
@@ -61,18 +78,18 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
           export type Infer#{rpc_action_name_pascal}Result<
             Fields extends #{rpc_action_name_pascal}Fields,
             MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
-          > = (InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>) | null;
+          > = (InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>)#{null_suffix};
           """
         else
           """
           export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
           export type Infer#{rpc_action_name_pascal}Result<
             Fields extends #{rpc_action_name_pascal}Fields,
-          > = InferResult<#{resource_name}ResourceSchema, Fields> | null;
+          > = InferResult<#{resource_name}ResourceSchema, Fields>#{null_suffix};
           """
         end
 
-      :read ->
+      {:read, false} ->
         if ActionIntrospection.action_supports_pagination?(action) do
           metadata_type =
             MetadataTypes.generate_action_metadata_type(
@@ -143,7 +160,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
           end
         end
 
-      action_type when action_type in [:create, :update] ->
+      {action_type, _} when action_type in [:create, :update] ->
         metadata_type =
           MetadataTypes.generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal)
 
@@ -171,7 +188,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
           """
         end
 
-      :destroy ->
+      {:destroy, _} ->
         metadata_type =
           MetadataTypes.generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal)
 
@@ -191,7 +208,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
           metadata_type
         end
 
-      :action ->
+      {:action, _} ->
         case ActionIntrospection.action_returns_field_selectable_type?(action) do
           {:ok, type, value} when type in [:resource, :array_of_resource] ->
             target_resource_name = build_resource_type_name(value)

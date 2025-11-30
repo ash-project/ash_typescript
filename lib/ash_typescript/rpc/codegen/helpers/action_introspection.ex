@@ -99,9 +99,13 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
 
   @doc """
   Returns :required | :optional | :none
+
+  Note: The action may be augmented with RPC-level settings (e.g., get_by adds arguments).
+  We need to check both the DSL-defined inputs AND any dynamically added arguments.
   """
   def action_input_type(resource, action) do
-    inputs =
+    # Get DSL-defined inputs
+    dsl_inputs =
       resource
       |> Ash.Resource.Info.action_inputs(action.name)
       |> Enum.filter(&is_atom/1)
@@ -111,6 +115,14 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
         end) || Ash.Resource.Info.attribute(resource, input)
       end)
       |> Enum.uniq_by(& &1.name)
+
+    # Get all action arguments (includes dynamically added ones from RPC get_by)
+    all_arguments = action.arguments || []
+
+    # Combine: DSL inputs + any arguments not already in DSL inputs
+    dsl_input_names = Enum.map(dsl_inputs, & &1.name)
+    extra_arguments = Enum.reject(all_arguments, fn arg -> arg.name in dsl_input_names end)
+    inputs = dsl_inputs ++ extra_arguments
 
     cond do
       Enum.empty?(inputs) ->

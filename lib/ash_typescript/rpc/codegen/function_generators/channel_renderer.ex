@@ -51,7 +51,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
     payload_fields =
       PayloadBuilder.build_payload_fields(rpc_action_name, shape.context,
         include_fields: shape.has_fields,
-        include_metadata_fields: shape.has_metadata
+        include_metadata_fields: shape.has_metadata,
+        rpc_action: rpc_action
       )
 
     payload_def = "{\n    #{Enum.join(payload_fields, ",\n    ")}\n  }"

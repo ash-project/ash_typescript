@@ -36,7 +36,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore do
 
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
     resource_name = build_resource_type_name(resource)
-    context = ConfigBuilder.get_action_context(resource, action)
+    context = ConfigBuilder.get_action_context(resource, action, rpc_action)
 
     # Check metadata configuration
     has_metadata =
@@ -55,6 +55,10 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore do
         is_channel: transport == :channel
       )
 
+    # Add getBy fields if this is a get_by action
+    base_config_fields =
+      base_config_fields ++ ConfigBuilder.build_get_by_config_field(resource, rpc_action)
+
     # Determine field selection capabilities
     {config_fields, has_fields, fields_generic} =
       build_fields_config(
@@ -72,10 +76,9 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore do
     # Add metadata fields
     config_fields = add_metadata_fields(config_fields, has_metadata)
 
-    # Check if this is optional pagination
     is_optional_pagination =
       action.type == :read and
-        not action.get? and
+        not context.is_get_action and
         ActionIntrospection.action_supports_pagination?(action) and
         not ActionIntrospection.action_requires_pagination?(action) and
         has_fields

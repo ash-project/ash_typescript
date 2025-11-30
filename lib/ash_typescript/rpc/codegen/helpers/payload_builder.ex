@@ -27,6 +27,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
       - `:include_fields` - If true, include optional fields parameter
       - `:include_filtering_pagination` - If true, include filter/sort/page parameters (default: true)
       - `:include_metadata_fields` - If true, include optional metadata_fields parameter
+      - `:rpc_action` - The RPC action struct (needed for get_by field detection)
 
   ## Returns
 
@@ -48,6 +49,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
     include_fields = Keyword.get(opts, :include_fields, false)
     include_filtering_pagination = Keyword.get(opts, :include_filtering_pagination, true)
     include_metadata_fields = Keyword.get(opts, :include_metadata_fields, false)
+    rpc_action = Keyword.get(opts, :rpc_action)
     payload_fields = ["action: \"#{rpc_action_name}\""]
 
     payload_fields =
@@ -62,6 +64,17 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
       if context.requires_primary_key do
         payload_fields ++
           ["#{format_output_field(:primary_key)}: config.#{format_output_field(:primary_key)}"]
+      else
+        payload_fields
+      end
+
+    # Add get_by field if this is a get_by action
+    payload_fields =
+      if rpc_action && (Map.get(rpc_action, :get_by) || []) != [] do
+        get_by_field = format_output_field(:get_by)
+
+        payload_fields ++
+          ["#{get_by_field}: config.#{get_by_field}"]
       else
         payload_fields
       end

@@ -226,6 +226,9 @@ defmodule AshTypescript.Rpc.Codegen do
        ) do
     rpc_action_name = to_string(rpc_action.name)
 
+    # Augment action with RPC settings (get?, get_by) so generators see the full picture
+    action = augment_action_with_rpc_settings(action, rpc_action, resource)
+
     input_type = InputTypes.generate_input_type(resource, action, rpc_action_name)
 
     zod_schema =
@@ -313,5 +316,32 @@ defmodule AshTypescript.Rpc.Codegen do
     Enum.join(output_parts, "\n")
     |> String.trim_trailing("\n")
     |> then(&(&1 <> "\n"))
+  end
+
+  # Augments the action with RPC-level settings (get?, get_by)
+  # This allows TypeScript generators to see the full picture of what the action does
+  #
+  # Note: get? and get_by no longer add arguments - they are handled separately:
+  # - get? just sets action.get? = true to indicate single-record return
+  # - get_by stores the fields for generating a separate getBy config field
+  defp augment_action_with_rpc_settings(action, rpc_action, _resource) do
+    rpc_get? = Map.get(rpc_action, :get?, false)
+    rpc_get_by = Map.get(rpc_action, :get_by) || []
+
+    cond do
+      # RPC get? - just mark as a get action
+      rpc_get? ->
+        Map.put(action, :get?, true)
+
+      # RPC get_by - mark as get action and store fields for getBy generation
+      rpc_get_by != [] ->
+        action
+        |> Map.put(:get?, true)
+        |> Map.put(:rpc_get_by_fields, rpc_get_by)
+
+      # No RPC modifications
+      true ->
+        action
+    end
   end
 end

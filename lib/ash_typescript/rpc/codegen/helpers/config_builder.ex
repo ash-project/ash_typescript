@@ -18,6 +18,15 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   @doc """
   Gets the action context - a map of booleans indicating what features the action supports.
 
+  Note: The action should be augmented with RPC settings (get?, get_by) before calling this.
+  This is done in the codegen module via `augment_action_with_rpc_settings/3`.
+
+  ## Parameters
+
+    * `resource` - The Ash resource
+    * `action` - The Ash action (possibly augmented with RPC settings)
+    * `rpc_action` - Optional. The RPC action configuration (used for get? primary key requirement)
+
   ## Returns
 
   A map with the following keys:
@@ -26,27 +35,42 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   - `:supports_pagination` - Whether the action supports pagination (list reads)
   - `:supports_filtering` - Whether the action supports filtering (list reads)
   - `:action_input_type` - Whether the input is :none, :required, or :optional
+  - `:is_get_action` - Whether this is a get action (returns single or null)
 
   ## Examples
 
-      iex> get_action_context(MyRes ource, read_action)
+      iex> get_action_context(MyResource, read_action)
       %{
         requires_tenant: true,
         requires_primary_key: false,
         supports_pagination: true,
         supports_filtering: true,
-        action_input_type: :required 
+        action_input_type: :required,
+        is_get_action: false
       }
   """
-  def get_action_context(resource, action) do
+  def get_action_context(resource, action, rpc_action \\ nil) do
+    # Check both Ash's native get? and RPC's get?/get_by options
+    ash_get? = action.type == :read and Map.get(action, :get?, false)
+
+    is_get_action =
+      if rpc_action do
+        rpc_get? = Map.get(rpc_action, :get?, false)
+        rpc_get_by = (Map.get(rpc_action, :get_by) || []) != []
+        ash_get? or rpc_get? or rpc_get_by
+      else
+        ash_get?
+      end
+
     %{
       requires_tenant: AshTypescript.Rpc.requires_tenant_parameter?(resource),
       requires_primary_key: action.type in [:update, :destroy],
       supports_pagination:
-        action.type == :read and not action.get? and
+        action.type == :read and not is_get_action and
           ActionIntrospection.action_supports_pagination?(action),
-      supports_filtering: action.type == :read and not action.get?,
-      action_input_type: ActionIntrospection.action_input_type(resource, action)
+      supports_filtering: action.type == :read and not is_get_action,
+      action_input_type: ActionIntrospection.action_input_type(resource, action),
+      is_get_action: is_get_action
     }
   end
 
@@ -245,6 +269,47 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
       end
 
     config_fields
+  end
+
+  @doc """
+  Builds the getBy configuration field for the TypeScript config type.
+
+  This is used for `get_by` RPC actions where records are looked up by specific fields.
+
+  ## Parameters
+
+    * `resource` - The Ash resource
+    * `rpc_action` - The RPC action configuration
+
+  ## Returns
+
+  A list of TypeScript field definition strings, or an empty list if no get_by fields.
+
+  ## Examples
+
+      # Single get_by field
+      ["  getBy: {", "    email: string;", "  };"]
+
+      # Multiple get_by fields
+      ["  getBy: {", "    userId: UUID;", "    status: Status;", "  };"]
+  """
+  def build_get_by_config_field(resource, rpc_action) do
+    get_by_fields = Map.get(rpc_action, :get_by) || []
+
+    if get_by_fields == [] do
+      []
+    else
+      formatted_get_by = format_output_field(:get_by)
+
+      field_lines =
+        Enum.map(get_by_fields, fn field_name ->
+          attr = Ash.Resource.Info.attribute(resource, field_name)
+          formatted_field_name = format_output_field(field_name)
+          "    #{formatted_field_name}: #{get_ts_type(attr)};"
+        end)
+
+      ["  #{formatted_get_by}: {"] ++ field_lines ++ ["  };"]
+    end
   end
 
   # Private helper functions for pagination config fields
