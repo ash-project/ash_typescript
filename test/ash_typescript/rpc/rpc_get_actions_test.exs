@@ -638,54 +638,56 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
   end
 
   describe "get actions - type generation verification" do
-    test "get_single_todo has correct function signature in generated code" do
-      # Verify the generated TypeScript has the expected structure
-      # This tests the codegen, not runtime behavior
-      generated_file = File.read!("test/ts/generated.ts")
+    setup do
+      {:ok, generated} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, generated: generated}
+    end
 
+    test "get_single_todo has correct function signature in generated code", %{
+      generated: generated
+    } do
       # Check that getSingleTodo function exists
-      assert String.contains?(generated_file, "export async function getSingleTodo")
+      assert String.contains?(generated, "export async function getSingleTodo")
 
       # Check that GetSingleTodoInput exists (for action's built-in arguments)
-      assert String.contains?(generated_file, "GetSingleTodoInput")
+      assert String.contains?(generated, "GetSingleTodoInput")
 
       # Check that input is optional (get? doesn't require any specific input)
-      assert String.contains?(generated_file, "input?: GetSingleTodoInput")
+      assert String.contains?(generated, "input?: GetSingleTodoInput")
     end
 
-    test "get_user_by_email has correct function signature with getBy in generated code" do
-      generated_file = File.read!("test/ts/generated.ts")
-
+    test "get_user_by_email has correct function signature with getBy in generated code", %{
+      generated: generated
+    } do
       # Check that getUserByEmail function exists
-      assert String.contains?(generated_file, "export async function getUserByEmail")
+      assert String.contains?(generated, "export async function getUserByEmail")
 
       # Check that getBy config field exists with email field
-      assert String.contains?(generated_file, "getBy: {")
-      assert String.contains?(generated_file, "email: string")
+      assert String.contains?(generated, "getBy: {")
+      assert String.contains?(generated, "email: string")
     end
 
-    test "get_todo_by_user_and_status has correct function signature with multiple getBy fields" do
-      generated_file = File.read!("test/ts/generated.ts")
-
+    test "get_todo_by_user_and_status has correct function signature with multiple getBy fields",
+         %{
+           generated: generated
+         } do
       # Check that function exists
-      assert String.contains?(generated_file, "export async function getTodoByUserAndStatus")
+      assert String.contains?(generated, "export async function getTodoByUserAndStatus")
 
       # Check that getBy config has both fields
-      assert String.contains?(generated_file, "getBy: {")
-      assert String.contains?(generated_file, "userId: UUID")
+      assert String.contains?(generated, "getBy: {")
+      assert String.contains?(generated, "userId: UUID")
       # status is an inline enum type (not a separate Status alias)
       assert String.contains?(
-               generated_file,
+               generated,
                "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\""
              )
     end
 
-    test "get actions do not have pagination or filter options" do
-      generated_file = File.read!("test/ts/generated.ts")
-
+    test "get actions do not have pagination or filter options", %{generated: generated} do
       # Find the GetSingleTodo config block
       [_, after_get_single] =
-        String.split(generated_file, "export async function getSingleTodo", parts: 2)
+        String.split(generated, "export async function getSingleTodo", parts: 2)
 
       get_single_block = String.split(after_get_single, "export async function", parts: 2) |> hd()
 
@@ -697,7 +699,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
       # Find the GetUserByEmail config block
       [_, after_get_by_email] =
-        String.split(generated_file, "export async function getUserByEmail", parts: 2)
+        String.split(generated, "export async function getUserByEmail", parts: 2)
 
       get_by_email_block =
         String.split(after_get_by_email, "export async function", parts: 2) |> hd()
@@ -1001,16 +1003,21 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
   end
 
   describe "not_found_error? TypeScript codegen" do
-    test "result type includes | null for not_found_error?: false actions" do
-      generated_file = File.read!("test/ts/generated.ts")
+    setup do
+      {:ok, generated} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, generated: generated}
+    end
 
+    test "result type includes | null for not_found_error?: false actions", %{
+      generated: generated
+    } do
       # get_user_by_email_nullable has not_found_error?: false
       # Result type should include | null
-      assert String.contains?(generated_file, "InferGetUserByEmailNullableResult<")
+      assert String.contains?(generated, "InferGetUserByEmailNullableResult<")
 
       # Find the result type definition
       [_, after_nullable_result] =
-        String.split(generated_file, "InferGetUserByEmailNullableResult<", parts: 2)
+        String.split(generated, "InferGetUserByEmailNullableResult<", parts: 2)
 
       result_type_block =
         String.split(after_nullable_result, "export type", parts: 2)
@@ -1020,17 +1027,17 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       assert String.contains?(result_type_block, "| null")
     end
 
-    test "result type does not include | null for default not_found_error? (true)" do
-      generated_file = File.read!("test/ts/generated.ts")
-
+    test "result type does not include | null for default not_found_error? (true)", %{
+      generated: generated
+    } do
       # get_user_by_email has default not_found_error? (true)
       # Result type should NOT include | null
-      assert String.contains?(generated_file, "InferGetUserByEmailResult<")
+      assert String.contains?(generated, "InferGetUserByEmailResult<")
 
       # Find the result type definition - look for the exact pattern
       # to avoid matching GetUserByEmailNullable or GetUserByEmailError
       [_, after_result] =
-        String.split(generated_file, "export type InferGetUserByEmailResult<", parts: 2)
+        String.split(generated, "export type InferGetUserByEmailResult<", parts: 2)
 
       # Get just the result type line (up to the semicolon)
       result_type_line =
@@ -1042,16 +1049,16 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       refute String.contains?(result_type_line, "| null")
     end
 
-    test "result type does not include | null for explicit not_found_error?: true" do
-      generated_file = File.read!("test/ts/generated.ts")
-
+    test "result type does not include | null for explicit not_found_error?: true", %{
+      generated: generated
+    } do
       # get_user_by_email_error has explicit not_found_error?: true
       # Result type should NOT include | null
-      assert String.contains?(generated_file, "InferGetUserByEmailErrorResult<")
+      assert String.contains?(generated, "InferGetUserByEmailErrorResult<")
 
       # Find the result type definition
       [_, after_error_result] =
-        String.split(generated_file, "export type InferGetUserByEmailErrorResult<", parts: 2)
+        String.split(generated, "export type InferGetUserByEmailErrorResult<", parts: 2)
 
       # Get just the result type line (up to the semicolon)
       result_type_line =
