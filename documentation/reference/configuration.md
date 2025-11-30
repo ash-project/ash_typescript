@@ -78,7 +78,10 @@ config :ash_typescript,
 
   # RPC resource warnings
   warn_on_missing_rpc_config: true,
-  warn_on_non_rpc_references: true
+  warn_on_non_rpc_references: true,
+
+  # Get action behavior
+  not_found_error?: true  # Default: true (return error). Set false to return null.
 ```
 
 ### Configuration Options
@@ -114,6 +117,7 @@ config :ash_typescript,
 | `untyped_map_type` | `string` | `"Record<string, any>"` | TypeScript type for untyped maps |
 | `warn_on_missing_rpc_config` | `boolean` | `true` | Warn about resources with AshTypescript.Resource extension not in RPC config |
 | `warn_on_non_rpc_references` | `boolean` | `true` | Warn about non-RPC resources referenced by RPC resources |
+| `not_found_error?` | `boolean` | `true` | Global default for get actions: `true` returns error on not found, `false` returns null |
 
 ## Domain Configuration
 
@@ -165,6 +169,32 @@ Each `rpc_action` can be configured with:
 
 - **First argument** - Name of the generated TypeScript function (e.g., `:list_todos`)
 - **Second argument** - Name of the Ash action to execute (e.g., `:read`)
+
+#### RPC Action Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `get?` | `boolean` | `false` | Constrain read action to return single record (uses `Ash.read_one`) |
+| `get_by` | `list(atom)` | `[]` | Lookup single record by specified fields (passed via `getBy` config) |
+| `not_found_error?` | `boolean` | `nil` | Override global `not_found_error?` for this action. `true` = error, `false` = null |
+
+```elixir
+typescript_rpc do
+  resource MyApp.User do
+    # Standard read returns list
+    rpc_action :list_users, :read
+
+    # get? returns single record or error/null
+    rpc_action :get_single_user, :read, get?: true
+
+    # get_by looks up by specific fields
+    rpc_action :get_user_by_email, :read, get_by: [:email]
+
+    # not_found_error?: false returns null instead of error
+    rpc_action :find_user, :read, get_by: [:email], not_found_error?: false
+  end
+end
+```
 
 ### Typed Query Configuration
 

@@ -19,9 +19,28 @@ SPDX-License-Identifier: MIT
 
 Generate type-safe TypeScript clients directly from your Elixir Ash resources, ensuring end-to-end type safety between your backend and frontend. Never write API types manually again.
 
-## 🚨 0.7.1 → 0.8.0 - Breaking Changes
+## 🚨 Breaking Changes
 
-### Error Field Type Change
+### 0.9.0 - Get Action Not Found Behavior
+
+Get actions (`get?`, `get_by`, or Ash actions with `get?: true`) now return an error by default when no record is found:
+
+```typescript
+// ❌ Before (0.8.x) - returned success with null data
+const user = await getUserByEmail({ getBy: { email: "missing@example.com" }, fields: ["id"] });
+// { success: true, data: null }
+
+// ✅ After (0.9.0+) - returns error by default
+const user = await getUserByEmail({ getBy: { email: "missing@example.com" }, fields: ["id"] });
+// { success: false, errors: [{ type: "not_found", ... }] }
+```
+
+**Migration options:**
+1. Update error handling to check for `not_found` errors
+2. Add `not_found_error?: false` to specific actions to restore old behavior
+3. Set global default: `config :ash_typescript, not_found_error?: false`
+
+### 0.8.0 - Error Field Type Change
 
 The `errors` field in all action responses is now always of type `AshRpcError[]`, providing more consistent error handling:
 
@@ -89,6 +108,7 @@ const todos = await listTodos({
 - **🛡️ End-to-end type safety** - Catch integration errors at compile time, not runtime
 - **⚡ Smart field selection** - Request only needed fields with full type inference
 - **🎯 RPC client generation** - Type-safe function calls for all action types
+- **🔍 Get actions** - Single record retrieval with `get?`, `get_by`, and `not_found_error?` options
 - **📡 Phoenix Channel support** - Generate channel-based RPC functions for real-time applications
 - **🪝 Lifecycle hooks** - Inject custom logic before/after requests (auth, logging, telemetry, error tracking)
 - **🏢 Multitenancy ready** - Automatic tenant parameter handling

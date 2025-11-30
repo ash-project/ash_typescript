@@ -59,6 +59,47 @@ if (todo.success) {
 }
 ```
 
+### Get by Specific Fields
+
+Use `get_by` actions to lookup records by specific fields:
+
+```typescript
+// Configured in Elixir: rpc_action :get_user_by_email, :read, get_by: [:email]
+const user = await getUserByEmail({
+  getBy: { email: "user@example.com" },
+  fields: ["id", "name", "email"]
+});
+
+if (user.success) {
+  console.log("User:", user.data);
+}
+```
+
+### Handling Not Found
+
+By default, get actions return an error when no record is found. Use `not_found_error?: false` to return `null` instead:
+
+```elixir
+# Elixir configuration
+rpc_action :find_user, :read, get_by: [:email], not_found_error?: false
+```
+
+```typescript
+const user = await findUser({
+  getBy: { email: "maybe@example.com" },
+  fields: ["id", "name"]
+});
+
+if (user.success) {
+  // user.data is User | null
+  if (user.data) {
+    console.log("Found:", user.data.name);
+  } else {
+    console.log("User not found");
+  }
+}
+```
+
 ### Get with Relationships
 
 Include related data using nested field selection:

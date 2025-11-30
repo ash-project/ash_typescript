@@ -37,6 +37,9 @@ SPDX-License-Identifier: MIT
 | **Argument Mapping** | `argument_names [action: [arg_1: :arg1]]` | Map invalid argument names |
 | **Metadata Config** | `show_metadata: [:field1, :field2]` | Control metadata exposure |
 | **Metadata Mapping** | `metadata_field_names: [field_1: :field1]` | Map metadata field names |
+| **Get Action** | `rpc_action :get_todo, :read, get?: true` | Single record via Ash.read_one |
+| **Get By Fields** | `rpc_action :get_by_email, :read, get_by: [:email]` | Single record by specific fields |
+| **Not Found Error** | `not_found_error?: false` | Return null instead of error |
 | **Metadata Selection (Read)** | `metadataFields: [\"field1\"]` | Select metadata (merged into records) |
 | **Metadata Access (Mutations)** | `result.metadata.field1` | Access metadata (separate field) |
 | **Type Overrides** | `type_mapping_overrides: [{Module, \"TSType\"}]` | Map dependency types |
@@ -46,7 +49,7 @@ SPDX-License-Identifier: MIT
 | Action Type | Fields | Filter | Page | Sort | Input | PrimaryKey |
 |-------------|--------|--------|------|------|-------|------------|
 | **read** | ✓ | ✓ | ✓ | ✓ | ✓ | - |
-| **get** | ✓ | - | - | - | - | - |
+| **read (get?/get_by)** | ✓ | - | - | - | ✓ | - |
 | **create** | ✓ | - | - | - | ✓ | - |
 | **update** | ✓ | - | - | - | ✓ | ✓ |
 | **destroy** | ✓ | - | - | - | ✓ | ✓ |
@@ -73,6 +76,19 @@ end
 
 ```bash
 mix ash_typescript.codegen --output "assets/js/ash_rpc.ts"
+```
+
+### Get Actions (Single Record)
+
+```elixir
+rpc_action :get_user, :read, get?: true                        # Single record
+rpc_action :get_by_email, :read, get_by: [:email]              # Lookup by field
+rpc_action :find_user, :read, get_by: [:email], not_found_error?: false  # Return null
+```
+
+```typescript
+const user = await getByEmail({ getBy: { email: "a@b.com" }, fields: ["id"] });
+// not_found_error?: false → user.data is User | null (not error)
 ```
 
 ### TypeScript Usage Examples
@@ -228,6 +244,8 @@ attribute :metadata, MyApp.CustomMetadata, public?: true
 | Resource missing `typescript` block | Add `AshTypescript.Resource` extension AND `typescript do type_name "Name" end` |
 | No `rpc_action` declarations | Explicitly declare each exposed action |
 | Using `page`/`sort` on get actions | Only read actions support pagination/sorting |
+| Get action returns error on not found | Add `not_found_error?: false` to return null |
+| Missing `getBy` for get_by action | Add `getBy: { field: value }` to config |
 | Missing `fields` parameter | Always include `fields: [...]` |
 | Filter syntax: `{ completed: false }` | Use operators: `{ completed: { eq: false } }` |
 | Missing `tenant` for multitenant resource | Add `tenant: "org-123"` |
@@ -253,6 +271,8 @@ attribute :metadata, MyApp.CustomMetadata, public?: true
 | "Invalid field names found" | Field/arg name with `_1`/`?` | Add mapping in `typescript` block |
 | "Invalid field names in map/keyword/tuple" | Map constraint invalid | Create custom type with callback |
 | "Invalid metadata field name" | Metadata name invalid | Add `metadata_field_names` |
+| "not_found" / "NotFound" | Get action found no record | Add `not_found_error?: false` or check data exists |
+| "Missing required getBy field" | get_by field not provided | Add missing field to `getBy: { field: value }` |
 
 ## Configuration Reference
 
@@ -268,6 +288,7 @@ config :ash_typescript,
   generate_phx_channel_rpc_actions: false,
   warn_on_missing_rpc_config: true,
   warn_on_non_rpc_references: true,
+  not_found_error?: true,  # Global default for get actions (true = error, false = null)
   import_into_generated: [
     %{import_name: "CustomTypes", file: "./customTypes"}
   ],
