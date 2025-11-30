@@ -56,6 +56,7 @@ defmodule AshTypescript.Rpc.Pipeline do
            validate_required_parameters_for_action_type(
              normalized_params,
              action,
+             rpc_action,
              validation_mode?
            ),
          requested_fields <-
@@ -67,6 +68,7 @@ defmodule AshTypescript.Rpc.Pipeline do
              requested_fields
            ),
          {:ok, input} <- parse_action_input(normalized_params, action, resource),
+         {:ok, get_by} <- parse_get_by(normalized_params, rpc_action, resource),
          {:ok, pagination} <- parse_pagination(normalized_params) do
       formatted_sort = format_sort_string(normalized_params[:sort], input_formatter)
 
@@ -148,6 +150,7 @@ defmodule AshTypescript.Rpc.Pipeline do
           extraction_template: template,
           input: input,
           primary_key: normalized_params[:primary_key],
+          get_by: get_by,
           filter: normalized_params[:filter],
           sort: formatted_sort,
           pagination: pagination,
@@ -317,7 +320,9 @@ defmodule AshTypescript.Rpc.Pipeline do
 
             {domain, resource, rpc_action} ->
               action = Ash.Resource.Info.action(resource, rpc_action.action)
-              {:ok, {domain, resource, action, rpc_action}}
+              # Augment action with RPC settings (get?, get_by)
+              augmented_action = augment_action_with_rpc_settings(action, rpc_action, resource)
+              {:ok, {domain, resource, augmented_action, rpc_action}}
           end
         end
 
@@ -364,20 +369,33 @@ defmodule AshTypescript.Rpc.Pipeline do
     end)
   end
 
+  defp augment_action_with_rpc_settings(action, rpc_action, _resource) do
+    rpc_get? = Map.get(rpc_action, :get?, false)
+    rpc_get_by = Map.get(rpc_action, :get_by) || []
+
+    cond do
+      # get? just constrains the action to return a single record via Ash.read_one
+      rpc_get? ->
+        Map.put(action, :get?, true)
+
+      # get_by stores the fields for filter building at runtime
+      rpc_get_by != [] ->
+        action
+        |> Map.put(:get?, true)
+        |> Map.put(:rpc_get_by_fields, rpc_get_by)
+
+      true ->
+        action
+    end
+  end
+
   defp parse_action_input(params, action, resource) do
     raw_input = Map.get(params, :input, %{})
 
     if is_map(raw_input) do
-      raw_input_with_pk =
-        if params[:primary_key] && action.type == :read do
-          Map.put(raw_input, "id", params[:primary_key])
-        else
-          raw_input
-        end
-
       formatter = Rpc.input_field_formatter()
 
-      case InputFormatter.format(raw_input_with_pk, resource, action.name, formatter) do
+      case InputFormatter.format(raw_input, resource, action, formatter) do
         {:ok, parsed_input} ->
           converted_input = convert_keyword_tuple_inputs(parsed_input, resource, action)
           {:ok, converted_input}
@@ -515,6 +533,48 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp convert_map_to_keyword(value, _constraints), do: value
 
+  defp parse_get_by(params, rpc_action, resource) do
+    rpc_get_by = Map.get(rpc_action, :get_by) || []
+
+    if rpc_get_by == [] do
+      {:ok, nil}
+    else
+      raw_get_by = params[:get_by] || %{}
+
+      formatter = Rpc.input_field_formatter()
+      parsed_get_by = FieldFormatter.parse_input_fields(raw_get_by, formatter)
+
+      allowed_fields = MapSet.new(rpc_get_by)
+      provided_fields = parsed_get_by |> Map.keys() |> MapSet.new()
+
+      missing_fields = MapSet.difference(allowed_fields, provided_fields) |> MapSet.to_list()
+      extra_fields = MapSet.difference(provided_fields, allowed_fields) |> MapSet.to_list()
+
+      cond do
+        not Enum.empty?(extra_fields) ->
+          {:error, {:unexpected_get_by_fields, extra_fields, rpc_get_by}}
+
+        not Enum.empty?(missing_fields) ->
+          {:error, {:missing_get_by_fields, missing_fields}}
+
+        true ->
+          validated_get_by =
+            Enum.reduce(rpc_get_by, %{}, fn field, acc ->
+              value = Map.get(parsed_get_by, field)
+              attr = Ash.Resource.Info.attribute(resource, field)
+
+              if attr do
+                Map.put(acc, field, value)
+              else
+                acc
+              end
+            end)
+
+          {:ok, validated_get_by}
+      end
+    end
+  end
+
   defp parse_pagination(params) do
     case params[:page] do
       nil ->
@@ -532,24 +592,40 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp execute_read_action(%Request{} = request, opts) do
     if Map.get(request.action, :get?, false) do
+      # For get actions, use Ash.read_one
+      # If get_by is specified, apply it as a filter
       query =
         request.resource
         |> Ash.Query.for_read(request.action.name, request.input, opts)
-        |> Ash.Query.select(request.select)
-        |> Ash.Query.load(request.load)
+        |> apply_select_and_load(request)
+        |> apply_get_by_filter(request.get_by)
 
-      Ash.read_one(query, not_found_error?: true)
+      not_found_error? = get_not_found_error_setting(request.rpc_action)
+
+      case Ash.read_one(query) do
+        {:ok, nil} when not_found_error? ->
+          {:error, Ash.Error.Query.NotFound.exception(resource: request.resource)}
+
+        result ->
+          result
+      end
     else
       query =
         request.resource
         |> Ash.Query.for_read(request.action.name, request.input, opts)
-        |> Ash.Query.select(request.select)
-        |> Ash.Query.load(request.load)
+        |> apply_select_and_load(request)
         |> apply_filter(request.filter)
         |> apply_sort(request.sort)
         |> apply_pagination(request.pagination)
 
       Ash.read(query)
+    end
+  end
+
+  defp get_not_found_error_setting(rpc_action) do
+    case Map.get(rpc_action, :not_found_error?) do
+      nil -> AshTypescript.Rpc.not_found_error?()
+      value -> value
     end
   end
 
@@ -696,6 +772,13 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp apply_filter(query, nil), do: query
   defp apply_filter(query, filter), do: Ash.Query.filter_input(query, filter)
+
+  defp apply_get_by_filter(query, nil), do: query
+
+  defp apply_get_by_filter(query, get_by) when is_map(get_by) do
+    filter = Enum.map(get_by, fn {field, value} -> {field, value} end)
+    Ash.Query.do_filter(query, filter)
+  end
 
   defp apply_sort(query, nil), do: query
   defp apply_sort(query, sort), do: Ash.Query.sort_input(query, sort)
@@ -844,7 +927,7 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp validate_required_parameters_for_action_type(params, action, validation_mode?) do
+  defp validate_required_parameters_for_action_type(params, action, _rpc_action, validation_mode?) do
     needs_fields =
       if validation_mode? do
         false
@@ -868,24 +951,26 @@ defmodule AshTypescript.Rpc.Pipeline do
         end
       end
 
-    if needs_fields do
-      fields = params[:fields]
+    validate_fields_if_needed(params, needs_fields)
+  end
 
-      cond do
-        is_nil(fields) ->
-          {:error, {:missing_required_parameter, :fields}}
+  defp validate_fields_if_needed(_params, false), do: :ok
 
-        not is_list(fields) ->
-          {:error, {:invalid_fields_type, fields}}
+  defp validate_fields_if_needed(params, true) do
+    fields = params[:fields]
 
-        Enum.empty?(fields) ->
-          {:error, {:empty_fields_array, fields}}
+    cond do
+      is_nil(fields) ->
+        {:error, {:missing_required_parameter, :fields}}
 
-        true ->
-          :ok
-      end
-    else
-      :ok
+      not is_list(fields) ->
+        {:error, {:invalid_fields_type, fields}}
+
+      Enum.empty?(fields) ->
+        {:error, {:empty_fields_array, fields}}
+
+      true ->
+        :ok
     end
   end
 
@@ -909,8 +994,7 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  # Helper to apply select and load to a query
-  # Only applies them if they contain actual values (not empty lists)
+  # Only applies select/load if they contain actual values (not empty lists)
   # Empty lists can cause issues with embedded resource loading
   defp apply_select_and_load(query, request) do
     query =

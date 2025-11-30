@@ -30,28 +30,39 @@ defmodule AshTypescript.Rpc.InputFormatter do
   ## Parameters
   - `data`: The input data from the client
   - `resource`: The Ash resource module
-  - `action_name`: The name of the action being performed
+  - `action_name_or_action`: The name of the action or the action struct itself
   - `formatter`: The field formatter to use for conversion
 
   ## Returns
   The formatted data with client field names converted to internal atom keys,
   except for untyped map keys which are preserved exactly.
   """
-  def format(data, resource, action_name, formatter) do
-    {:ok, format_data(data, resource, action_name, formatter)}
+  def format(data, resource, action_name_or_action, formatter) do
+    {:ok, format_data(data, resource, action_name_or_action, formatter)}
   catch
     :throw, error ->
       {:error, error}
   end
 
-  defp format_data(data, resource, action_name, formatter) do
+  # Helper to get action from name or struct
+  defp get_action(resource, action_name_or_action) when is_atom(action_name_or_action) do
+    Ash.Resource.Info.action(resource, action_name_or_action)
+  end
+
+  defp get_action(_resource, %{} = action), do: action
+
+  # Helper to get action name
+  defp get_action_name(action_name) when is_atom(action_name), do: action_name
+  defp get_action_name(%{name: name}), do: name
+
+  defp format_data(data, resource, action_name_or_action, formatter) do
     case data do
       map when is_map(map) and not is_struct(map) ->
-        format_map(map, resource, action_name, formatter)
+        format_map(map, resource, action_name_or_action, formatter)
 
       list when is_list(list) ->
         Enum.map(list, fn item ->
-          format_data(item, resource, action_name, formatter)
+          format_data(item, resource, action_name_or_action, formatter)
         end)
 
       other ->
@@ -59,20 +70,23 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end
   end
 
-  defp format_map(map, resource, action_name, formatter) do
+  defp format_map(map, resource, action_name_or_action, formatter) do
+    action = get_action(resource, action_name_or_action)
+    action_name = get_action_name(action_name_or_action)
+
     Enum.into(map, %{}, fn {key, value} ->
       internal_key = FieldFormatter.parse_input_field(key, formatter)
-      original_key = get_original_field_or_argument_name(resource, action_name, internal_key)
 
-      {type, constraints} = get_input_field_type(resource, action_name, original_key)
+      original_key =
+        get_original_field_or_argument_name(resource, action, action_name, internal_key)
+
+      {type, constraints} = get_input_field_type(resource, action, action_name, original_key)
       formatted_value = format_value(value, type, constraints, resource, formatter)
       {original_key, formatted_value}
     end)
   end
 
-  defp get_original_field_or_argument_name(resource, action_name, mapped_key) do
-    action = Ash.Resource.Info.action(resource, action_name)
-
+  defp get_original_field_or_argument_name(resource, action, action_name, mapped_key) do
     original_arg_name =
       AshTypescript.Resource.Info.get_original_argument_name(
         resource,
@@ -115,8 +129,8 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end
   end
 
-  defp get_input_field_type(resource, action_name, field_key) do
-    case get_action_argument(resource, action_name, field_key) do
+  defp get_input_field_type(resource, action, action_name, field_key) do
+    case get_action_argument(action, field_key) do
       nil ->
         case get_accepted_attribute(resource, action_name, field_key) do
           nil -> {nil, []}
@@ -128,11 +142,8 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end
   end
 
-  defp get_action_argument(resource, action_name, field_key) do
-    case Ash.Resource.Info.action(resource, action_name) do
-      nil -> nil
-      action -> Enum.find(action.arguments, &(&1.name == field_key))
-    end
+  defp get_action_argument(action, field_key) do
+    Enum.find(action.arguments, &(&1.name == field_key))
   end
 
   defp get_accepted_attribute(resource, action_name, field_key) do

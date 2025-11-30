@@ -379,6 +379,40 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
+      {:missing_get_by_fields, missing_fields} ->
+        field_names = Enum.map_join(missing_fields, ", ", &to_string/1)
+
+        %{
+          type: "missing_required_input",
+          message: "Required getBy fields are missing: %{fields}",
+          short_message: "Missing required getBy fields",
+          vars: %{fields: field_names},
+          path: [:get_by],
+          fields: Enum.map(missing_fields, &to_string/1),
+          details: %{
+            suggestion: "Provide values for all required getBy fields",
+            hint: @stale_generated_file_hint
+          }
+        }
+
+      {:unexpected_get_by_fields, extra_fields, allowed_fields} ->
+        extra_field_names = Enum.map_join(extra_fields, ", ", &to_string/1)
+        allowed_field_names = Enum.map_join(allowed_fields, ", ", &to_string/1)
+
+        %{
+          type: "unexpected_get_by_fields",
+          message: "Unexpected getBy fields: %{extra_fields}. Allowed fields: %{allowed_fields}",
+          short_message: "Unexpected getBy fields",
+          vars: %{extra_fields: extra_field_names, allowed_fields: allowed_field_names},
+          path: [:get_by],
+          fields: Enum.map(extra_fields, &to_string/1),
+          details: %{
+            allowed_fields: allowed_fields,
+            suggestion: "Only provide the allowed getBy fields: %{allowed_fields}",
+            hint: @stale_generated_file_hint
+          }
+        }
+
       {:empty_fields_array, _fields} ->
         %{
           type: "empty_fields_array",
