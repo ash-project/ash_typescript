@@ -18,6 +18,16 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :list_todos, :read
       rpc_action :get_todo, :get_by_id
       rpc_action :get_todo_by_id, :get_by_id
+
+      # Test get? option - retrieves single todo by primary key
+      rpc_action :get_single_todo, :read, get?: true
+
+      # Test get? with not_found_error?: false - returns null instead of error
+      rpc_action :get_single_todo_nullable, :read, get?: true, not_found_error?: false
+
+      # Test get_by with multiple fields - retrieves single todo by user_id and status
+      rpc_action :get_todo_by_user_and_status, :read, get_by: [:user_id, :status]
+
       rpc_action :create_todo, :create
       rpc_action :update_todo, :update
       rpc_action :complete_todo, :complete
@@ -64,6 +74,15 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :create_user, :create
       rpc_action :update_user, :update
       rpc_action :destroy_user, :destroy
+
+      # Test get_by option - retrieves single user by email
+      rpc_action :get_user_by_email, :read, get_by: [:email]
+
+      # Test get_by with not_found_error?: false - returns null instead of error
+      rpc_action :get_user_by_email_nullable, :read, get_by: [:email], not_found_error?: false
+
+      # Test get_by with explicit not_found_error?: true (same as default)
+      rpc_action :get_user_by_email_error, :read, get_by: [:email], not_found_error?: true
 
       typed_query :list_users_with_invalid_arg, :read_with_invalid_arg do
         ts_fields_const_name "ListUsersWithInvalidArg"
