@@ -11,6 +11,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.9.0](https://github.com/ash-project/ash_typescript/compare/v0.8.0...v0.9.0) (2025-11-30)
+
+
+
+
+### Features:
+
+* codegen: generate TypeScript types for get? and get_by actions by [@Torkan](https://github.com/Torkan)
+
+* rpc: add compile-time verification for get options by [@Torkan](https://github.com/Torkan)
+
+* rpc: implement get? and get_by runtime execution by [@Torkan](https://github.com/Torkan)
+
+* rpc: add get?, get_by, and not_found_error? DSL options by [@Torkan](https://github.com/Torkan)
+
 ## [v0.9.0](https://github.com/ash-project/ash_typescript/compare/v0.8.4...v0.9.0) (2025-11-30)
 
 
