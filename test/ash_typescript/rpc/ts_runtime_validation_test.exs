@@ -38,7 +38,8 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
     "unionCalculationSyntax.ts",
     "argsWithFieldConstraints.ts",
     "get.ts",
-    "getBy.ts"
+    "getBy.ts",
+    "structArguments.ts"
   ]
 
   describe "TypeScript shouldPass runtime validation" do

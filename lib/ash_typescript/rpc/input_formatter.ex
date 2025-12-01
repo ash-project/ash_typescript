@@ -117,6 +117,34 @@ defmodule AshTypescript.Rpc.InputFormatter do
           embedded_callback
         )
 
+      {:array, inner_type} when inner_type in [Ash.Type.Struct, :struct] ->
+        items_constraints = Keyword.get(constraints, :items, [])
+        instance_of = Keyword.get(items_constraints, :instance_of)
+
+        if instance_of && Ash.Resource.Info.resource?(instance_of) && is_list(data) do
+          Enum.map(data, fn item ->
+            if is_map(item) && not is_struct(item) do
+              formatted_item = format_data(item, instance_of, :create, formatter)
+              cast_map_to_struct(formatted_item, instance_of)
+            else
+              item
+            end
+          end)
+        else
+          FormatterCore.format_value(data, type, constraints, resource, formatter, :input)
+        end
+
+      struct_type when struct_type in [Ash.Type.Struct, :struct] ->
+        instance_of = Keyword.get(constraints, :instance_of)
+
+        if instance_of && Ash.Resource.Info.resource?(instance_of) && is_map(data) &&
+             not is_struct(data) do
+          formatted_data = format_data(data, instance_of, :create, formatter)
+          cast_map_to_struct(formatted_data, instance_of)
+        else
+          FormatterCore.format_value(data, type, constraints, resource, formatter, :input)
+        end
+
       module when is_atom(module) ->
         if Ash.Resource.Info.resource?(module) do
           format_data(data, module, :create, formatter)
@@ -127,6 +155,19 @@ defmodule AshTypescript.Rpc.InputFormatter do
       _ ->
         FormatterCore.format_value(data, type, constraints, resource, formatter, :input)
     end
+  end
+
+  # Casts a map to a struct, preserving only keys that exist as struct fields
+  defp cast_map_to_struct(map, struct_module) when is_map(map) and is_atom(struct_module) do
+    struct_keys = struct_module.__struct__() |> Map.keys() |> MapSet.new()
+
+    # Filter to only include keys that are valid struct fields
+    valid_attrs =
+      map
+      |> Enum.filter(fn {key, _value} -> MapSet.member?(struct_keys, key) end)
+      |> Enum.into(%{})
+
+    struct(struct_module, valid_attrs)
   end
 
   defp get_input_field_type(resource, action, action_name, field_key) do

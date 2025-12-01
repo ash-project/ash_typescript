@@ -689,5 +689,77 @@ defmodule AshTypescript.Test.Todo do
     read :list_high_priority do
       filter expr(priority in [:high, :urgent])
     end
+
+    action :assign_to_user, :map do
+      constraints fields: [
+                    assignee_id: [type: :uuid, allow_nil?: false],
+                    assignee_name: [type: :string, allow_nil?: false],
+                    reason: [type: :string, allow_nil?: true]
+                  ]
+
+      argument :assignee, :struct do
+        constraints instance_of: AshTypescript.Test.User
+        allow_nil? false
+      end
+
+      argument :reason, :string do
+        allow_nil? true
+      end
+
+      run fn input, _context ->
+        assignee = input.arguments.assignee
+        reason = Map.get(input.arguments, :reason)
+
+        # Verify the assignee is actually a User struct
+        unless is_struct(assignee, AshTypescript.Test.User) do
+          raise "Expected assignee to be a User struct, got: #{inspect(assignee)}"
+        end
+
+        # Return assignment info
+        {:ok,
+         %{
+           assignee_id: assignee.id,
+           assignee_name: assignee.name,
+           reason: reason
+         }}
+      end
+    end
+
+    # Action with an array of resource structs as argument
+    action :assign_to_users, {:array, :map} do
+      constraints items: [
+                    fields: [
+                      assignee_id: [type: :uuid, allow_nil?: false],
+                      assignee_name: [type: :string, allow_nil?: false]
+                    ]
+                  ]
+
+      argument :assignees, {:array, :struct} do
+        constraints items: [instance_of: AshTypescript.Test.User]
+        allow_nil? false
+      end
+
+      run fn input, _context ->
+        assignees = input.arguments.assignees
+
+        # Verify all assignees are User structs
+        Enum.each(assignees, fn assignee ->
+          unless is_struct(assignee, AshTypescript.Test.User) do
+            raise "Expected assignee to be a User struct, got: #{inspect(assignee)}"
+          end
+        end)
+
+        # Return assignment info for each assignee
+        results =
+          Enum.map(assignees, fn assignee ->
+            %{
+              assignee_id: assignee.id,
+              assignee_name: assignee.name
+            }
+          end)
+
+        {:ok, results}
+      end
+    end
   end
 end

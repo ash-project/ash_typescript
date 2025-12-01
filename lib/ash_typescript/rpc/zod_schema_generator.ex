@@ -348,17 +348,20 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   end
 
   @doc """
-  Generates Zod schemas for embedded resources.
+  Generates Zod schemas for resources that need input validation.
+
+  This includes embedded resources and resources used as struct arguments in RPC actions.
   """
-  def generate_zod_schemas_for_embedded_resources(embedded_resources) do
-    if AshTypescript.Rpc.generate_zod_schemas?() and embedded_resources != [] do
+  def generate_zod_schemas_for_resources(resources) do
+    if AshTypescript.Rpc.generate_zod_schemas?() and resources != [] do
       schemas =
-        embedded_resources
-        |> Enum.map_join("\n\n", &generate_zod_schema_for_embedded_resource/1)
+        resources
+        |> Enum.uniq()
+        |> Enum.map_join("\n\n", &generate_zod_schema_for_resource/1)
 
       """
       // ============================
-      // Zod Schemas for Embedded Resources
+      // Zod Schemas for Input Resources
       // ============================
 
       #{schemas}
@@ -369,9 +372,31 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   end
 
   @doc """
+  Generates Zod schemas for embedded resources.
+
+  Deprecated: Use generate_zod_schemas_for_resources/1 instead.
+  """
+  def generate_zod_schemas_for_embedded_resources(embedded_resources) do
+    generate_zod_schemas_for_resources(embedded_resources)
+  end
+
+  @doc """
+  Generates a Zod schema for a single resource.
+  """
+  def generate_zod_schema_for_resource(resource) do
+    generate_zod_schema_impl(resource)
+  end
+
+  @doc """
   Generates a Zod schema for a single embedded resource.
+
+  Deprecated: Use generate_zod_schema_for_resource/1 instead.
   """
   def generate_zod_schema_for_embedded_resource(resource) do
+    generate_zod_schema_for_resource(resource)
+  end
+
+  defp generate_zod_schema_impl(resource) do
     resource_name = CodegenHelpers.build_resource_type_name(resource)
     suffix = AshTypescript.Rpc.zod_schema_suffix()
     schema_name = "#{resource_name}#{suffix}"

@@ -372,6 +372,80 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
   end
 
   @doc """
+  Finds all Ash resources used as struct arguments in RPC actions.
+
+  Scans all RPC actions for arguments with type `:struct` or `Ash.Type.Struct`
+  that have an `instance_of` constraint pointing to an Ash resource.
+
+  ## Parameters
+
+    * `otp_app` - The OTP application name
+
+  ## Returns
+
+  A list of unique Ash resource modules used as struct arguments in RPC actions.
+
+  ## Examples
+
+      iex> TypeDiscovery.find_struct_argument_resources(:my_app)
+      [MyApp.TimeSlot, MyApp.Appointment]
+  """
+  def find_struct_argument_resources(otp_app) do
+    otp_app
+    |> Ash.Info.domains()
+    |> Enum.flat_map(fn domain ->
+      AshTypescript.Rpc.Info.typescript_rpc(domain)
+      |> Enum.flat_map(fn %{resource: resource, rpc_actions: rpc_actions} ->
+        Enum.flat_map(rpc_actions, fn %{action: action_name} ->
+          action = Ash.Resource.Info.action(resource, action_name)
+          find_struct_resources_in_arguments(action.arguments)
+        end)
+      end)
+    end)
+    |> Enum.uniq()
+  end
+
+  defp find_struct_resources_in_arguments(arguments) when is_list(arguments) do
+    arguments
+    |> Enum.flat_map(fn arg ->
+      find_struct_resources_in_type(arg.type, arg.constraints || [])
+    end)
+  end
+
+  defp find_struct_resources_in_arguments(_), do: []
+
+  defp find_struct_resources_in_type(type, constraints) do
+    case type do
+      Ash.Type.Struct ->
+        instance_of = Keyword.get(constraints, :instance_of)
+
+        if instance_of && Spark.Dsl.is?(instance_of, Ash.Resource) &&
+             !Introspection.is_embedded_resource?(instance_of) do
+          [instance_of]
+        else
+          []
+        end
+
+      :struct ->
+        instance_of = Keyword.get(constraints, :instance_of)
+
+        if instance_of && Spark.Dsl.is?(instance_of, Ash.Resource) &&
+             !Introspection.is_embedded_resource?(instance_of) do
+          [instance_of]
+        else
+          []
+        end
+
+      {:array, inner_type} ->
+        items_constraints = Keyword.get(constraints, :items, [])
+        find_struct_resources_in_type(inner_type, items_constraints)
+
+      _ ->
+        []
+    end
+  end
+
+  @doc """
   Builds a formatted warning message for resources that may be misconfigured.
 
   Returns a formatted warning string if any issues are found based on configuration settings,

@@ -47,8 +47,32 @@ defmodule AshTypescript.Codegen.TypeMapper do
           resource_name = Helpers.build_resource_type_name(embedded_type)
           "Array<#{resource_name}InputSchema>"
         else
-          inner_ts = get_ts_input_type(%{type: embedded_type, constraints: []})
-          "Array<#{inner_ts}>"
+          items_constraints = Keyword.get(constraints, :items, [])
+
+          if embedded_type == Ash.Type.Struct do
+            instance_of = Keyword.get(items_constraints, :instance_of)
+
+            if instance_of && Spark.Dsl.is?(instance_of, Ash.Resource) do
+              resource_name = Helpers.build_resource_type_name(instance_of)
+              "Array<#{resource_name}InputSchema>"
+            else
+              inner_ts = get_ts_input_type(%{type: embedded_type, constraints: items_constraints})
+              "Array<#{inner_ts}>"
+            end
+          else
+            inner_ts = get_ts_input_type(%{type: embedded_type, constraints: items_constraints})
+            "Array<#{inner_ts}>"
+          end
+        end
+
+      type == Ash.Type.Struct ->
+        instance_of = Keyword.get(constraints, :instance_of)
+
+        if instance_of && Ash.Resource.Info.resource?(instance_of) do
+          resource_name = Helpers.build_resource_type_name(instance_of)
+          "#{resource_name}InputSchema"
+        else
+          get_ts_type(attr)
         end
 
       true ->

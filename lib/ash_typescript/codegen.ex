@@ -32,10 +32,20 @@ defmodule AshTypescript.Codegen do
 
   defdelegate generate_ash_type_aliases(resources, actions, otp_app), to: TypeAliases
 
-  defdelegate generate_all_schemas_for_resources(resources, allowed_resources),
-    to: ResourceSchemas
+  defdelegate generate_all_schemas_for_resources(
+                resources,
+                allowed_resources,
+                resources_needing_input_schema \\ nil
+              ),
+              to: ResourceSchemas
 
-  defdelegate generate_all_schemas_for_resource(resource, allowed_resources), to: ResourceSchemas
+  defdelegate generate_all_schemas_for_resource(
+                resource,
+                allowed_resources,
+                input_schema_resources \\ []
+              ),
+              to: ResourceSchemas
+
   defdelegate generate_unified_resource_schema(resource, allowed_resources), to: ResourceSchemas
   defdelegate generate_input_schema(resource), to: ResourceSchemas
 

@@ -13,22 +13,41 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   @doc """
   Generates all schemas (unified + input) for a list of resources.
+
+  ## Parameters
+
+    * `resources` - List of resources to generate schemas for
+    * `allowed_resources` - List of resources allowed for schema generation (used for filtering)
+    * `resources_needing_input_schema` - Optional list of resources that need InputSchema generated
+      (defaults to embedded resources)
   """
-  def generate_all_schemas_for_resources(resources, allowed_resources) do
+  def generate_all_schemas_for_resources(
+        resources,
+        allowed_resources,
+        resources_needing_input_schema \\ []
+      ) do
     resources
-    |> Enum.map_join("\n\n", &generate_all_schemas_for_resource(&1, allowed_resources))
+    |> Enum.map_join(
+      "\n\n",
+      &generate_all_schemas_for_resource(&1, allowed_resources, resources_needing_input_schema)
+    )
   end
 
   @doc """
   Generates all schemas for a single resource.
-  Includes the unified resource schema and optionally an input schema for embedded resources.
+  Includes the unified resource schema and optionally an input schema for resources
+  that need it (embedded resources or struct argument resources).
   """
-  def generate_all_schemas_for_resource(resource, allowed_resources) do
+  def generate_all_schemas_for_resource(resource, allowed_resources, input_schema_resources \\ []) do
     resource_name = Helpers.build_resource_type_name(resource)
     unified_schema = generate_unified_resource_schema(resource, allowed_resources)
 
+    needs_input_schema =
+      Introspection.is_embedded_resource?(resource) ||
+        resource in input_schema_resources
+
     input_schema =
-      if Introspection.is_embedded_resource?(resource) do
+      if needs_input_schema do
         generate_input_schema(resource)
       else
         ""

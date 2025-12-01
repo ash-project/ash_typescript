@@ -39,6 +39,7 @@ import "./shouldPass/argsWithFieldConstraints";
 import "./shouldPass/inputOptionality";
 import "./shouldPass/get";
 import "./shouldPass/getBy";
+import "./shouldPass/structArguments";
 import "./rpcHooks";
 
 // Import Zod schema validation tests
