@@ -32,6 +32,10 @@ defmodule AshTypescript.Resource.Info do
   Gets the original invalid field name for a mapped field name.
   Returns the field name that was mapped to the given valid name, or the same field name if no mapping exists.
 
+  This function handles the case where the incoming field name has been converted to snake_case
+  by the field formatter. It compares both the exact value and the snake_case version of
+  each mapped value to find a match.
+
   ## Examples
 
       iex> AshTypescript.Resource.Info.get_original_field_name(MyApp.User, :address_line1)
@@ -39,13 +43,31 @@ defmodule AshTypescript.Resource.Info do
 
       iex> AshTypescript.Resource.Info.get_original_field_name(MyApp.User, :normal_field)
       nil
+
+      # Also handles snake_case converted camelCase mapped names
+      iex> AshTypescript.Resource.Info.get_original_field_name(MyApp.User, :available_for_purchase)
+      :available_for_purchase?  # When mapping is available_for_purchase?: :availableForPurchase
   """
   def get_original_field_name(resource, mapped_field_name) do
     mapped_names = __MODULE__.typescript_field_names!(resource)
+    mapped_field_name_string = to_string(mapped_field_name)
 
+    # First try exact match
     case Enum.find(mapped_names, fn {_original, mapped} -> mapped == mapped_field_name end) do
-      {original, _mapped} -> original
-      nil -> mapped_field_name
+      {original, _mapped} ->
+        original
+
+      nil ->
+        # If no exact match, try matching the snake_case version of each mapped value
+        # This handles the case where the field formatter converted "availableForPurchase"
+        # to "available_for_purchase" before the lookup
+        case Enum.find(mapped_names, fn {_original, mapped} ->
+               AshTypescript.Helpers.camel_to_snake_case(to_string(mapped)) ==
+                 mapped_field_name_string
+             end) do
+          {original, _mapped} -> original
+          nil -> mapped_field_name
+        end
     end
   end
 

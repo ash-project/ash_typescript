@@ -215,6 +215,81 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
     end
   end
 
+  describe "calculation field name mapping" do
+    test "calculation with question mark suffix uses mapped field name in field selection (snake_case mapping)", %{conn: conn} do
+      # The User resource has:
+      # - calculation :is_active?, :boolean, expr(true)
+      # - field_names is_active?: :is_active
+      #
+      # This test verifies that when requesting the mapped TypeScript name "isActive"
+      # in the fields array, it correctly maps back to the Elixir calculation "is_active?"
+      #
+      # Note: This test passes because the mapped name :is_active converts to "isActive" in camelCase
+      # and back to "is_active" in snake_case, which matches the mapping value.
+
+      # Create a user first
+      _user =
+        User
+        |> Ash.Changeset.for_create(:create, %{
+          name: "Test User",
+          email: "test@example.com"
+        })
+        |> Ash.create!(tenant: "test_tenant")
+
+      # Request the calculation using the mapped TypeScript name
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_users",
+          "resource" => "User",
+          # "isActive" should map back to :is_active? calculation
+          "fields" => ["id", "name", "isActive"]
+        })
+
+      assert %{"success" => true, "data" => [found_user]} = result
+      assert found_user["name"] == "Test User"
+      # The calculation should be returned with the mapped TypeScript name
+      assert found_user["isActive"] == true
+      refute Map.has_key?(found_user, "is_active?")
+    end
+
+    test "calculation with question mark suffix uses mapped field name in field selection (camelCase mapping)", %{conn: conn} do
+      # The User resource has:
+      # - calculation :available_for_purchase?, :boolean, expr(true)
+      # - field_names available_for_purchase?: :availableForPurchase
+      #
+      # This test verifies the fix for the bug where the mapping works for output (Elixir → TypeScript)
+      # but failed for input field selection (TypeScript → Elixir) when the mapped name
+      # is camelCase and differs from the snake_case conversion of the TypeScript name.
+      #
+      # The fix: get_original_field_name now also compares the snake_case version of
+      # each mapped value, so "available_for_purchase" correctly matches :availableForPurchase.
+
+      # Create a user first
+      _user =
+        User
+        |> Ash.Changeset.for_create(:create, %{
+          name: "Test User CamelCase",
+          email: "test_camel@example.com"
+        })
+        |> Ash.create!(tenant: "test_tenant")
+
+      # Request the calculation using the mapped TypeScript name
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_users",
+          "resource" => "User",
+          # "availableForPurchase" should map back to :available_for_purchase? calculation
+          "fields" => ["id", "name", "availableForPurchase"]
+        })
+
+      assert %{"success" => true, "data" => [found_user]} = result
+      assert found_user["name"] == "Test User CamelCase"
+      # The calculation should be returned with the mapped TypeScript name
+      assert found_user["availableForPurchase"] == true
+      refute Map.has_key?(found_user, "available_for_purchase?")
+    end
+  end
+
   describe "error cases" do
     test "unmapped field names still work", %{conn: conn} do
       # Test that normal field names without mapping still work

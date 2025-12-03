@@ -170,7 +170,39 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
     Validator.check_for_duplicate_fields(fields, path)
 
     Enum.reduce(fields, {[], [], []}, fn field, {select, load, template} ->
-      field = if is_binary(field), do: String.to_existing_atom(field), else: field
+      # Convert string field names to atoms, handling mapped field names
+      # by first trying get_original_field_name which may return an atom
+      field =
+        case field do
+          field when is_binary(field) ->
+            # First check if this is a mapped field name by trying get_original_field_name
+            # with the string. If it returns an atom different from the input, use that.
+            original = AshTypescript.Resource.Info.get_original_field_name(resource, field)
+
+            if is_atom(original) do
+              original
+            else
+              # Try to convert to existing atom
+              try do
+                String.to_existing_atom(field)
+              rescue
+                ArgumentError -> field
+              end
+            end
+
+          field when is_atom(field) ->
+            # Also check for mapped field names for atoms
+            original = AshTypescript.Resource.Info.get_original_field_name(resource, field)
+
+            if is_atom(original) and original != field do
+              original
+            else
+              field
+            end
+
+          field ->
+            field
+        end
 
       case field do
         field_name when is_atom(field_name) ->
@@ -189,6 +221,10 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldProcessor do
 
         %{} = field_map ->
           process_field_map(resource, field_map, path, select, load, template)
+
+        # String fields that couldn't be converted to atoms are unknown fields
+        field_name when is_binary(field_name) ->
+          throw({:unknown_field, field_name, resource, path})
       end
     end)
   end

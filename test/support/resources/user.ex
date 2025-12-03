@@ -14,7 +14,11 @@ defmodule AshTypescript.Test.User do
 
   typescript do
     type_name "User"
-    field_names address_line_1: :address_line1, is_active?: :is_active
+
+    field_names address_line_1: :address_line1,
+                is_active?: :is_active,
+                available_for_purchase?: :availableForPurchase
+
     argument_names read_with_invalid_arg: [is_active?: :is_active]
   end
 
@@ -101,6 +105,10 @@ defmodule AshTypescript.Test.User do
     end
 
     calculate :is_active?, :boolean, expr(true) do
+      public? true
+    end
+
+    calculate :available_for_purchase?, :boolean, expr(true) do
       public? true
     end
   end

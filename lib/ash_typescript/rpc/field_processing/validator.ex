@@ -73,12 +73,9 @@ defmodule AshTypescript.Rpc.FieldProcessing.Validator do
             [field_name]
 
           field_name when is_binary(field_name) ->
-            try do
-              [String.to_existing_atom(field_name)]
-            rescue
-              _ ->
-                throw({:invalid_field_type, field_name, path})
-            end
+            # String field names are valid - they will be converted to atoms later
+            # We just need to use a consistent key for duplicate detection
+            [field_name]
 
           %{} = field_map ->
             Map.keys(field_map)
