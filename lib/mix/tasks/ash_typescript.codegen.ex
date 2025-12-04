@@ -92,9 +92,7 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
         end
 
       {:error, error_message} ->
-        IO.puts(:stderr, "\nTypeScript generation failed due to verifier errors:\n")
-        IO.puts(:stderr, error_message)
-        System.halt(1)
+        raise Ash.Error.Framework.PendingCodegen, diff: error_message
     end
   end
 end
