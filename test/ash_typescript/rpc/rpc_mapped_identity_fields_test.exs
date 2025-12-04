@@ -16,6 +16,14 @@ defmodule AshTypescript.Rpc.RpcMappedIdentityFieldsTest do
   alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
+  setup_all do
+    # Generate the TypeScript code programmatically
+    {:ok, generated_content} =
+      AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
+    {:ok, generated: generated_content}
+  end
+
   describe "identity with mapped field names - runtime" do
     setup do
       conn = TestHelpers.build_rpc_conn()
@@ -91,18 +99,18 @@ defmodule AshTypescript.Rpc.RpcMappedIdentityFieldsTest do
   end
 
   describe "TypeScript codegen generates correct identity types" do
-    test "update_subscription_by_user_status has identity with mapped field names" do
-      generated = File.read!("test/ts/generated.ts")
-
+    test "update_subscription_by_user_status has identity with mapped field names", %{
+      generated: generated
+    } do
       # Identity should use the TypeScript field names (userId, isActive)
       # not the Elixir names (user_id, is_active?)
       assert generated =~
                ~r/function updateSubscriptionByUserStatus.*identity: \{ userId: UUID; isActive: boolean \};/s
     end
 
-    test "destroy_subscription_by_user_status has identity with mapped field names" do
-      generated = File.read!("test/ts/generated.ts")
-
+    test "destroy_subscription_by_user_status has identity with mapped field names", %{
+      generated: generated
+    } do
       assert generated =~
                ~r/function destroySubscriptionByUserStatus.*identity: \{ userId: UUID; isActive: boolean \};/s
     end

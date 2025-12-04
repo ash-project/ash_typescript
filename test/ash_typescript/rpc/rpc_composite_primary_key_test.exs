@@ -17,42 +17,50 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
   alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
-  describe "composite primary key TypeScript generation" do
-    test "generates object type for composite primary key in update function" do
-      generated = File.read!("test/ts/generated.ts")
+  setup_all do
+    # Generate the TypeScript code programmatically
+    {:ok, generated_content} =
+      AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
 
+    {:ok, generated: generated_content}
+  end
+
+  describe "composite primary key TypeScript generation" do
+    test "generates object type for composite primary key in update function", %{
+      generated: generated
+    } do
       # Regular update function should have typed identity
       assert generated =~
                ~r/export async function updateTenantSetting.*\n.*config: \{\n\s+identity: \{ tenantId: UUID; settingKey: string \}/s
     end
 
-    test "generates union types for composite primary key in validation function" do
-      generated = File.read!("test/ts/generated.ts")
-
+    test "generates union types for composite primary key in validation function", %{
+      generated: generated
+    } do
       # Validation function should accept original type OR string for each field
       assert generated =~
                ~r/export async function validateUpdateTenantSetting.*\n.*config: \{\n\s+identity: \{ tenantId: UUID \| string; settingKey: string \}/s
     end
 
-    test "generates object type for composite primary key in destroy function" do
-      generated = File.read!("test/ts/generated.ts")
-
+    test "generates object type for composite primary key in destroy function", %{
+      generated: generated
+    } do
       # Destroy function should have typed identity
       assert generated =~
                ~r/export async function destroyTenantSetting.*\n.*config: \{\n\s+identity: \{ tenantId: UUID; settingKey: string \}/s
     end
 
-    test "generates union types for composite primary key in destroy validation function" do
-      generated = File.read!("test/ts/generated.ts")
-
+    test "generates union types for composite primary key in destroy validation function", %{
+      generated: generated
+    } do
       # Destroy validation function should accept original type OR string for each field
       assert generated =~
                ~r/export async function validateDestroyTenantSetting.*\n.*config: \{\n\s+identity: \{ tenantId: UUID \| string; settingKey: string \}/s
     end
 
-    test "generates object type for composite primary key in channel function" do
-      generated = File.read!("test/ts/generated.ts")
-
+    test "generates object type for composite primary key in channel function", %{
+      generated: generated
+    } do
       # Channel function should have typed identity
       assert generated =~
                ~r/export async function updateTenantSettingChannel.*config: \{\n\s+channel: Channel;\n\s+identity: \{ tenantId: UUID; settingKey: string \}/s

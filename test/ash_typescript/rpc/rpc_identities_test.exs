@@ -17,6 +17,14 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
   alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
+  setup_all do
+    # Generate the TypeScript code programmatically
+    {:ok, generated_content} =
+      AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
+    {:ok, generated: generated_content}
+  end
+
   describe "identity-based update actions" do
     setup do
       conn = TestHelpers.build_rpc_conn()
@@ -281,31 +289,23 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
   end
 
   describe "TypeScript codegen generates correct types" do
-    test "update_user has identity: UUID" do
-      generated = File.read!("test/ts/generated.ts")
-
+    test "update_user has identity: UUID", %{generated: generated} do
       # Primary key only should have direct UUID type
       assert generated =~ ~r/function updateUser.*identity: UUID;/s
     end
 
-    test "update_user_by_identity has identity union type" do
-      generated = File.read!("test/ts/generated.ts")
-
+    test "update_user_by_identity has identity union type", %{generated: generated} do
       # Multiple identities should have union type
       assert generated =~
                ~r/function updateUserByIdentity.*identity: UUID \| \{ email: string \};/s
     end
 
-    test "update_user_by_email has identity: { email: string }" do
-      generated = File.read!("test/ts/generated.ts")
-
+    test "update_user_by_email has identity: { email: string }", %{generated: generated} do
       # Email-only identity should be wrapped object
       assert generated =~ ~r/function updateUserByEmail.*identity: \{ email: string \};/s
     end
 
-    test "update_me has no identity field" do
-      generated = File.read!("test/ts/generated.ts")
-
+    test "update_me has no identity field", %{generated: generated} do
       # Actor-scoped actions should not have identity field
       # Find the updateMe function config type
       if match = Regex.run(~r/function updateMe[^{]+\{([^}]+)\}/, generated) do
