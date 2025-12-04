@@ -48,8 +48,8 @@ defmodule AshTypescript.Rpc.NewErrorTest do
 
       assert error["type"] == "invalid_attribute"
       assert error["message"] == "is invalid"
-      # Fields come as atoms from Ash
-      assert :title in error["fields"]
+      # Field names are formatted for client
+      assert "title" in error["fields"]
     end
 
     test "missing required field returns required error" do
@@ -70,7 +70,8 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       [error | _] = result["errors"]
 
       assert error["type"] == "required"
-      assert :title in error["fields"]
+      # Field names are formatted for client
+      assert "title" in error["fields"]
     end
 
     test "non-existent action returns action_not_found" do
@@ -111,7 +112,8 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       [error | _] = result["errors"]
 
       assert error["type"] == "invalid_attribute"
-      assert :priority in error["fields"]
+      # Field names are formatted for client
+      assert "priority" in error["fields"]
     end
 
     test "missing fields parameter returns proper error" do

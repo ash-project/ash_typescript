@@ -170,7 +170,8 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
       # Should have a message from Exception.message/1
       assert is_binary(result.message)
       assert result.type == "required"
-      assert result.fields == [:email]
+      # Field names are formatted for client
+      assert result.fields == ["email"]
     end
 
     test "processes multiple errors" do

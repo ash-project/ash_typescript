@@ -34,15 +34,16 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       assert is_list(result["errors"])
       assert length(result["errors"]) > 0
 
-      title_error = Enum.find(result["errors"], &(:title in &1["fields"]))
+      # Field names are formatted for client (camelCase)
+      title_error = Enum.find(result["errors"], &("title" in &1["fields"]))
       assert title_error != nil
 
       # Assert on error structure - missing required fields show as invalid_attribute
       assert title_error["type"] == "invalid_attribute"
       assert title_error["message"] == "is required"
       assert is_map(title_error["vars"])
-      assert title_error["vars"]["field"] == :title
-      assert :title in title_error["fields"]
+      assert title_error["vars"]["field"] == "title"
+      assert "title" in title_error["fields"]
       assert is_list(title_error["path"])
       assert Map.has_key?(title_error, "shortMessage")
     end
@@ -63,16 +64,16 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       assert result["success"] == false
       assert is_list(result["errors"])
 
-      # Find the user_id required error
-      user_id_error = Enum.find(result["errors"], &(:user_id in &1["fields"]))
+      # Find the user_id required error - field names are formatted (userId in camelCase)
+      user_id_error = Enum.find(result["errors"], &("userId" in &1["fields"]))
       assert user_id_error != nil
 
       # Assert on error structure - missing required fields show as invalid_attribute
       assert user_id_error["type"] == "invalid_attribute"
       assert user_id_error["message"] == "is required"
       assert is_map(user_id_error["vars"])
-      assert user_id_error["vars"]["field"] == :user_id
-      assert :user_id in user_id_error["fields"]
+      assert user_id_error["vars"]["field"] == "userId"
+      assert "userId" in user_id_error["fields"]
       assert is_list(user_id_error["path"])
       assert Map.has_key?(user_id_error, "shortMessage")
     end
@@ -93,9 +94,9 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       assert is_list(result["errors"])
       assert length(result["errors"]) >= 2
 
-      # Check that we have required errors for both fields
-      title_error = Enum.find(result["errors"], &(:title in &1["fields"]))
-      user_id_error = Enum.find(result["errors"], &(:user_id in &1["fields"]))
+      # Check that we have required errors for both fields - field names are formatted
+      title_error = Enum.find(result["errors"], &("title" in &1["fields"]))
+      user_id_error = Enum.find(result["errors"], &("userId" in &1["fields"]))
 
       assert title_error != nil
       assert user_id_error != nil
@@ -126,16 +127,16 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       assert result["success"] == false
       assert is_list(result["errors"])
 
-      # Find the title error
-      title_error = Enum.find(result["errors"], &(:title in &1["fields"]))
+      # Find the title error - field names are formatted
+      title_error = Enum.find(result["errors"], &("title" in &1["fields"]))
       assert title_error != nil
 
       # Assert on error structure
       assert title_error["type"] == "invalid_attribute"
       assert title_error["message"] == "is invalid"
       assert is_map(title_error["vars"])
-      assert title_error["vars"]["field"] == :title
-      assert :title in title_error["fields"]
+      assert title_error["vars"]["field"] == "title"
+      assert "title" in title_error["fields"]
       assert is_list(title_error["path"])
       assert Map.has_key?(title_error, "shortMessage")
     end
@@ -157,16 +158,16 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       assert result["success"] == false
       assert is_list(result["errors"])
 
-      # Find the user_id error
-      user_id_error = Enum.find(result["errors"], &(:user_id in &1["fields"]))
+      # Find the user_id error - field names are formatted (userId in camelCase)
+      user_id_error = Enum.find(result["errors"], &("userId" in &1["fields"]))
       assert user_id_error != nil
 
       # Assert on error structure
       assert user_id_error["type"] == "invalid_attribute"
       assert user_id_error["message"] == "is invalid"
       assert is_map(user_id_error["vars"])
-      assert user_id_error["vars"]["field"] == :user_id
-      assert :user_id in user_id_error["fields"]
+      assert user_id_error["vars"]["field"] == "userId"
+      assert "userId" in user_id_error["fields"]
       assert is_list(user_id_error["path"])
       assert Map.has_key?(user_id_error, "shortMessage")
     end
@@ -191,16 +192,16 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       assert result["success"] == false
       assert is_list(result["errors"])
 
-      # Find the priority error
-      priority_error = Enum.find(result["errors"], &(:priority in &1["fields"]))
+      # Find the priority error - field names are formatted
+      priority_error = Enum.find(result["errors"], &("priority" in &1["fields"]))
       assert priority_error != nil
 
       # Assert on error structure
       assert priority_error["type"] == "invalid_attribute"
       assert priority_error["message"] == "is invalid"
       assert is_map(priority_error["vars"])
-      assert priority_error["vars"]["field"] == :priority
-      assert :priority in priority_error["fields"]
+      assert priority_error["vars"]["field"] == "priority"
+      assert "priority" in priority_error["fields"]
       assert is_list(priority_error["path"])
       assert Map.has_key?(priority_error, "shortMessage")
     end
@@ -223,11 +224,12 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       [error | _] = result["errors"]
 
       # Assert on error structure - arguments use invalid_argument type
+      # Field names are formatted (priorityFilter in camelCase)
       assert error["type"] == "invalid_argument"
       assert error["message"] == "is invalid"
       assert is_map(error["vars"])
-      assert error["vars"]["field"] == :priority_filter
-      assert :priority_filter in error["fields"]
+      assert error["vars"]["field"] == "priorityFilter"
+      assert "priorityFilter" in error["fields"]
       assert is_list(error["path"])
       assert error["path"] == []
       assert Map.has_key?(error, "shortMessage")
@@ -300,12 +302,13 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
         })
 
       assert result["success"] == false
-      title_error = Enum.find(result["errors"], &(:title in &1["fields"]))
+      # Field names are formatted
+      title_error = Enum.find(result["errors"], &("title" in &1["fields"]))
       assert title_error != nil
 
-      # The vars map should contain the field name
+      # The vars map should contain the field name (formatted)
       assert Map.has_key?(title_error["vars"], "field")
-      assert title_error["vars"]["field"] == :title
+      assert title_error["vars"]["field"] == "title"
     end
 
     test "error messages are non-empty strings" do

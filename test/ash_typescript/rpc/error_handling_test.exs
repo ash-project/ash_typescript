@@ -111,7 +111,8 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       # Now uses the protocol which extracts the error code
       assert response.type == "invalid_attribute"
       assert is_binary(response.message)
-      assert response.fields == [:title]
+      # Field names are formatted for client
+      assert response.fields == ["title"]
       # Path comes from the inner error, not the wrapper
       assert response.path == []
     end
