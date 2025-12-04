@@ -455,6 +455,44 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
+      # === IDENTITY VALIDATION ERRORS ===
+
+      {:invalid_identity, %{provided_keys: provided_keys, expected_keys: expected_keys}} ->
+        # Keys are already formatted for client display by the pipeline
+        provided_keys_str = Enum.join(provided_keys, ", ")
+        expected_keys_str = Enum.join(expected_keys, ", ")
+
+        %{
+          type: "invalid_identity",
+          message:
+            "Identity fields do not match any configured identity. Provided: [%{provided_keys}], expected: [%{expected_keys}]",
+          short_message: "Invalid identity",
+          vars: %{provided_keys: provided_keys_str, expected_keys: expected_keys_str},
+          path: [:identity],
+          fields: [],
+          details: %{
+            provided_keys: provided_keys,
+            expected_keys: expected_keys,
+            suggestion:
+              "Provide all required fields for one of the configured identities: #{expected_keys_str}",
+            hint: @stale_generated_file_hint
+          }
+        }
+
+      {:invalid_identity, %{message: message}} ->
+        %{
+          type: "invalid_identity",
+          message: message,
+          short_message: "Invalid identity",
+          vars: %{},
+          path: [:identity],
+          fields: [],
+          details: %{
+            suggestion: "Check the configured identities for this action",
+            hint: @stale_generated_file_hint
+          }
+        }
+
       # === ASH FRAMEWORK ERRORS ===
 
       # Any exception or Ash error - convert to Ash error class and process

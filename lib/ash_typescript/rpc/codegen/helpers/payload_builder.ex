@@ -61,9 +61,9 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
       end
 
     payload_fields =
-      if context.requires_primary_key do
+      if context.identities != [] do
         payload_fields ++
-          ["#{format_output_field(:primary_key)}: config.#{format_output_field(:primary_key)}"]
+          ["#{format_output_field(:identity)}: config.#{format_output_field(:identity)}"]
       else
         payload_fields
       end

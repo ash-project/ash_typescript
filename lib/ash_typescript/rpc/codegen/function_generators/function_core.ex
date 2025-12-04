@@ -106,9 +106,9 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore do
   Validation functions are simpler - they don't have field selection, pagination, etc.
   They just validate input and return validation errors.
   """
-  def build_validation_function_shape(resource, action, rpc_action_name, _opts \\ []) do
+  def build_validation_function_shape(resource, action, rpc_action, rpc_action_name, _opts \\ []) do
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
-    context = ConfigBuilder.get_action_context(resource, action)
+    context = ConfigBuilder.get_action_context(resource, action, rpc_action)
 
     %{
       resource: resource,

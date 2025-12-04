@@ -149,7 +149,7 @@ defmodule AshTypescript.Rpc.Pipeline do
           load: load,
           extraction_template: template,
           input: input,
-          primary_key: normalized_params[:primary_key],
+          identity: normalized_params[:identity],
           get_by: get_by,
           filter: normalized_params[:filter],
           sort: formatted_sort,
@@ -638,106 +638,114 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp execute_update_action(%Request{} = request, opts) do
-    filter = primary_key_filter(request.resource, request.primary_key)
     read_action = request.rpc_action.read_action
+    identities = Map.get(request.rpc_action, :identities, [:_primary_key])
 
-    query =
+    base_query =
       request.resource
-      |> Ash.Query.do_filter(filter)
       |> Ash.Query.set_tenant(opts[:tenant])
       |> Ash.Query.set_context(opts[:context] || %{})
-      |> Ash.Query.limit(1)
 
-    bulk_opts = [
-      return_errors?: true,
-      notify?: true,
-      strategy: [:atomic, :stream, :atomic_batches],
-      allow_stream_with: :full_read,
-      authorize_changeset_with: authorize_bulk_with(request.resource),
-      return_records?: true,
-      tenant: opts[:tenant],
-      context: opts[:context] || %{},
-      actor: opts[:actor],
-      domain: request.domain,
-      select: request.select,
-      load: request.load
-    ]
+    with {:ok, query_with_identity} <-
+           maybe_apply_identity_filter(base_query, request.identity, identities) do
+      query = Ash.Query.limit(query_with_identity, 1)
 
-    bulk_opts =
-      if read_action do
-        Keyword.put(bulk_opts, :read_action, read_action)
-      else
-        bulk_opts
+      bulk_opts = [
+        return_errors?: true,
+        notify?: true,
+        strategy: [:atomic, :stream, :atomic_batches],
+        allow_stream_with: :full_read,
+        authorize_changeset_with: authorize_bulk_with(request.resource),
+        return_records?: true,
+        tenant: opts[:tenant],
+        context: opts[:context] || %{},
+        actor: opts[:actor],
+        domain: request.domain,
+        select: request.select,
+        load: request.load
+      ]
+
+      bulk_opts =
+        if read_action do
+          Keyword.put(bulk_opts, :read_action, read_action)
+        else
+          bulk_opts
+        end
+
+      result =
+        query
+        |> Ash.bulk_update(request.action.name, request.input, bulk_opts)
+
+      case result do
+        %Ash.BulkResult{status: :success, records: [record]} ->
+          {:ok, record}
+
+        %Ash.BulkResult{status: :success, records: []} ->
+          {:error, Ash.Error.Query.NotFound.exception(resource: request.resource)}
+
+        %Ash.BulkResult{errors: errors} when errors != [] ->
+          {:error, errors}
+
+        other ->
+          {:error, other}
       end
-
-    result =
-      query
-      |> Ash.bulk_update(request.action.name, request.input, bulk_opts)
-
-    case result do
-      %Ash.BulkResult{status: :success, records: [record]} ->
-        {:ok, record}
-
-      %Ash.BulkResult{status: :success, records: []} ->
-        {:error, Ash.Error.Query.NotFound.exception(resource: request.resource)}
-
-      %Ash.BulkResult{errors: errors} when errors != [] ->
-        {:error, errors}
-
-      other ->
-        {:error, other}
     end
   end
 
   defp execute_destroy_action(%Request{} = request, opts) do
-    filter = primary_key_filter(request.resource, request.primary_key)
     read_action = request.rpc_action.read_action
+    identities = Map.get(request.rpc_action, :identities, [:_primary_key])
 
-    query =
+    base_query =
       request.resource
-      |> Ash.Query.do_filter(filter)
       |> Ash.Query.set_tenant(opts[:tenant])
       |> Ash.Query.set_context(opts[:context] || %{})
-      |> Ash.Query.limit(1)
-      |> apply_select_and_load(request)
 
-    bulk_opts = [
-      return_errors?: true,
-      notify?: true,
-      strategy: [:atomic, :stream, :atomic_batches],
-      allow_stream_with: :full_read,
-      authorize_changeset_with: authorize_bulk_with(request.resource),
-      return_records?: true,
-      tenant: opts[:tenant],
-      context: opts[:context] || %{},
-      actor: opts[:actor],
-      domain: request.domain
-    ]
+    with {:ok, query_with_identity} <-
+           maybe_apply_identity_filter(base_query, request.identity, identities) do
+      query =
+        query_with_identity
+        |> Ash.Query.limit(1)
+        |> apply_select_and_load(request)
 
-    bulk_opts =
-      if read_action do
-        Keyword.put(bulk_opts, :read_action, read_action)
-      else
-        bulk_opts
+      bulk_opts = [
+        return_errors?: true,
+        notify?: true,
+        strategy: [:atomic, :stream, :atomic_batches],
+        allow_stream_with: :full_read,
+        authorize_changeset_with: authorize_bulk_with(request.resource),
+        return_records?: true,
+        tenant: opts[:tenant],
+        context: opts[:context] || %{},
+        actor: opts[:actor],
+        domain: request.domain
+      ]
+
+      bulk_opts =
+        if read_action do
+          Keyword.put(bulk_opts, :read_action, read_action)
+        else
+          bulk_opts
+        end
+
+      result =
+        query
+        |> Ash.bulk_destroy(request.action.name, request.input, bulk_opts)
+
+      case result do
+        %Ash.BulkResult{status: :success, records: [record]} ->
+          {:ok, record}
+
+        %Ash.BulkResult{status: :success, records: []} ->
+          # If no records returned but operation succeeded, return empty map
+          {:ok, %{}}
+
+        %Ash.BulkResult{errors: errors} when errors != [] ->
+          {:error, errors}
+
+        other ->
+          {:error, other}
       end
-
-    result =
-      query
-      |> Ash.bulk_destroy(request.action.name, request.input, bulk_opts)
-
-    case result do
-      %Ash.BulkResult{status: :success, records: [record]} ->
-        {:ok, record}
-
-      %Ash.BulkResult{status: :success, records: []} ->
-        # If no records returned but operation succeeded, return empty map
-        {:ok, %{}}
-
-      %Ash.BulkResult{errors: errors} when errors != [] ->
-        {:error, errors}
-
-      other ->
-        {:error, other}
     end
   end
 
@@ -984,6 +992,171 @@ defmodule AshTypescript.Rpc.Pipeline do
     else
       [{List.first(primary_key_fields), primary_key_value}]
     end
+  end
+
+  # No identities configured - no filter needed (actor-scoped actions)
+  defp maybe_apply_identity_filter(query, _identity, []), do: {:ok, query}
+
+  # Identity provided - build filter based on which identity type was passed
+  defp maybe_apply_identity_filter(query, identity, identities) when is_map(identity) do
+    resource = query.resource
+
+    case build_identity_filter(resource, identity, identities) do
+      {:ok, filter} ->
+        {:ok, Ash.Query.do_filter(query, filter)}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp maybe_apply_identity_filter(query, identity, identities) when not is_nil(identity) do
+    resource = query.resource
+
+    case build_identity_filter(resource, identity, identities) do
+      {:ok, filter} ->
+        {:ok, Ash.Query.do_filter(query, filter)}
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  defp maybe_apply_identity_filter(query, _identity, _identities), do: {:ok, query}
+
+  defp build_identity_filter(resource, identity, identities) when is_map(identity) do
+    # Parse the identity input - for named identities, it's an object with field names
+    # e.g., { email: "foo@bar.com" } or { tenantId: "123", email: "foo@bar.com" }
+    #
+    # We need to:
+    # 1. Apply input formatter (e.g., camelCase → snake_case)
+    # 2. Apply reverse field_names mapping (e.g., addressLine1 → address_line_1)
+    formatter = Rpc.input_field_formatter()
+    parsed_identity = parse_identity_input(resource, identity, formatter)
+
+    # Try to match against configured identities by checking if all required keys are present
+    result =
+      Enum.find_value(identities, fn
+        :_primary_key ->
+          primary_key_attrs = Ash.Resource.Info.primary_key(resource)
+
+          if length(primary_key_attrs) > 1 &&
+               Enum.all?(primary_key_attrs, &Map.has_key?(parsed_identity, &1)) do
+            {:ok, primary_key_filter(resource, parsed_identity)}
+          else
+            nil
+          end
+
+        identity_name ->
+          identity_info = Ash.Resource.Info.identity(resource, identity_name)
+
+          if identity_info && Enum.all?(identity_info.keys, &Map.has_key?(parsed_identity, &1)) do
+            {:ok, build_named_identity_filter(identity_info, parsed_identity)}
+          else
+            nil
+          end
+      end)
+
+    case result do
+      {:ok, filter} ->
+        {:ok, filter}
+
+      nil ->
+        # No configured identity matched the provided keys
+        # Format keys for client-facing error message
+        output_formatter = Rpc.output_field_formatter()
+
+        provided_keys =
+          parsed_identity
+          |> Map.keys()
+          |> Enum.map(&format_key_for_client(&1, output_formatter))
+
+        expected_keys =
+          resource
+          |> get_expected_identity_keys(identities)
+          |> Enum.map(&format_internal_key_for_client(resource, &1, output_formatter))
+
+        {:error,
+         {:invalid_identity,
+          %{
+            provided_keys: provided_keys,
+            expected_keys: expected_keys,
+            identities: identities
+          }}}
+    end
+  end
+
+  # Primary key passed directly (non-composite) or as object (composite)
+  defp build_identity_filter(resource, identity, identities) when not is_nil(identity) do
+    if :_primary_key in identities do
+      {:ok, primary_key_filter(resource, identity)}
+    else
+      {:error,
+       {:invalid_identity,
+        %{
+          message: "Primary key identity not allowed for this action",
+          identities: identities
+        }}}
+    end
+  end
+
+  defp build_identity_filter(_resource, _identity, _identities), do: {:ok, []}
+
+  defp get_expected_identity_keys(resource, identities) do
+    Enum.flat_map(identities, fn
+      :_primary_key ->
+        Ash.Resource.Info.primary_key(resource)
+
+      identity_name ->
+        case Ash.Resource.Info.identity(resource, identity_name) do
+          nil -> []
+          identity -> identity.keys
+        end
+    end)
+    |> Enum.uniq()
+  end
+
+  # Format a key from parsed identity for client-facing error message
+  defp format_key_for_client(key, formatter) when is_atom(key) do
+    key
+    |> to_string()
+    |> FieldFormatter.format_field(formatter)
+  end
+
+  defp format_key_for_client(key, formatter) when is_binary(key) do
+    FieldFormatter.format_field(key, formatter)
+  end
+
+  # Format an internal Elixir field name for client-facing error message
+  # Applies field_names mapping first, then output formatter
+  defp format_internal_key_for_client(resource, internal_key, formatter) do
+    # Get the mapped TypeScript name from field_names (e.g., :is_active? -> :is_active)
+    mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, internal_key)
+
+    # Apply output formatter (e.g., :is_active -> "isActive")
+    mapped_name
+    |> to_string()
+    |> FieldFormatter.format_field(formatter)
+  end
+
+  # Parses identity input by applying input formatter and reverse field_names mapping
+  defp parse_identity_input(resource, identity, formatter) when is_map(identity) do
+    Enum.into(identity, %{}, fn {key, value} ->
+      # First apply input formatter (e.g., camelCase → snake_case)
+      formatted_key = FieldFormatter.parse_input_field(key, formatter)
+
+      # Then apply reverse field_names mapping to get internal Elixir name
+      internal_key = AshTypescript.Resource.Info.get_original_field_name(resource, formatted_key)
+
+      {internal_key, value}
+    end)
+  end
+
+  defp build_named_identity_filter(identity, parsed_identity) when is_map(parsed_identity) do
+    # Build filter from the identity's keys using values from parsed_identity
+    Enum.map(identity.keys, fn key ->
+      {key, Map.get(parsed_identity, key) || Map.get(parsed_identity, Atom.to_string(key))}
+    end)
   end
 
   defp authorize_bulk_with(resource) do

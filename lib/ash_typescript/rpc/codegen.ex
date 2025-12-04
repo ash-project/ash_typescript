@@ -258,6 +258,7 @@ defmodule AshTypescript.Rpc.Codegen do
         HttpRenderer.render_validation_function(
           resource,
           action,
+          rpc_action,
           rpc_action_name
         )
       else
@@ -279,7 +280,7 @@ defmodule AshTypescript.Rpc.Codegen do
     channel_validation_function =
       if AshTypescript.Rpc.generate_validation_functions?() and
            AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
-        ChannelRenderer.render_validation_function(resource, action, rpc_action_name)
+        ChannelRenderer.render_validation_function(resource, action, rpc_action, rpc_action_name)
       else
         ""
       end

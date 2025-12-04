@@ -20,6 +20,7 @@ defmodule AshTypescript.Rpc do
       :get?,
       :get_by,
       :not_found_error?,
+      :identities,
       __spark_metadata__: nil
     ]
   end
@@ -142,6 +143,12 @@ defmodule AshTypescript.Rpc do
         doc:
           "When true (default from global config), returns an error if no record is found. When false, returns null. Only applies to get actions (get?, get_by, or action.get?). If not specified, uses the global config `config :ash_typescript, not_found_error?: true`.",
         default: nil
+      ],
+      identities: [
+        type: {:list, :atom},
+        doc:
+          "List of identities that can be used to look up records for update/destroy actions. Use `:_primary_key` for the primary key, or identity names like `:email`. Defaults to `[:_primary_key]`. Use `[]` for actor-scoped actions that don't need a lookup key.",
+        default: [:_primary_key]
       ]
     ],
     args: [:name, :action]
@@ -208,6 +215,7 @@ defmodule AshTypescript.Rpc do
       AshTypescript.Rpc.VerifyRpc,
       AshTypescript.Rpc.Verifiers.VerifyMetadataFieldNames,
       AshTypescript.Rpc.Verifiers.VerifyTypedQueryFields,
+      AshTypescript.Rpc.Verifiers.VerifyIdentities,
       AshTypescript.Rpc.VerifyRpcWarnings
     ]
 
@@ -454,7 +462,7 @@ defmodule AshTypescript.Rpc do
         validate_read_action(request, input, opts)
 
       action_type when action_type in [:update, :destroy] ->
-        case Ash.get(resource, request.primary_key, opts) do
+        case Ash.get(resource, request.identity, opts) do
           {:ok, record} ->
             perform_form_validation(record, action.name, input, opts, request)
 

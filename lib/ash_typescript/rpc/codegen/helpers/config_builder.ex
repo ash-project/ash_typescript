@@ -16,7 +16,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
   @doc """
-  Gets the action context - a map of booleans indicating what features the action supports.
+  Gets the action context - a map of values indicating what features the action supports.
 
   Note: The action should be augmented with RPC settings (get?, get_by) before calling this.
   This is done in the codegen module via `augment_action_with_rpc_settings/3`.
@@ -25,13 +25,13 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
 
     * `resource` - The Ash resource
     * `action` - The Ash action (possibly augmented with RPC settings)
-    * `rpc_action` - Optional. The RPC action configuration (used for get? primary key requirement)
+    * `rpc_action` - The RPC action configuration
 
   ## Returns
 
   A map with the following keys:
   - `:requires_tenant` - Whether the action requires a tenant parameter
-  - `:requires_primary_key` - Whether the action requires a primary key (update/destroy)
+  - `:identities` - List of identity atoms for record lookup (update/destroy actions)
   - `:supports_pagination` - Whether the action supports pagination (list reads)
   - `:supports_filtering` - Whether the action supports filtering (list reads)
   - `:action_input_type` - Whether the input is :none, :required, or :optional
@@ -39,32 +39,34 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
 
   ## Examples
 
-      iex> get_action_context(MyResource, read_action)
+      iex> get_action_context(MyResource, read_action, rpc_action)
       %{
         requires_tenant: true,
-        requires_primary_key: false,
+        identities: [],
         supports_pagination: true,
         supports_filtering: true,
         action_input_type: :required,
         is_get_action: false
       }
   """
-  def get_action_context(resource, action, rpc_action \\ nil) do
+  def get_action_context(resource, action, rpc_action) do
     # Check both Ash's native get? and RPC's get?/get_by options
     ash_get? = action.type == :read and Map.get(action, :get?, false)
+    rpc_get? = Map.get(rpc_action, :get?, false)
+    rpc_get_by = (Map.get(rpc_action, :get_by) || []) != []
 
-    is_get_action =
-      if rpc_action do
-        rpc_get? = Map.get(rpc_action, :get?, false)
-        rpc_get_by = (Map.get(rpc_action, :get_by) || []) != []
-        ash_get? or rpc_get? or rpc_get_by
+    is_get_action = ash_get? or rpc_get? or rpc_get_by
+
+    identities =
+      if action.type in [:update, :destroy] do
+        Map.get(rpc_action, :identities, [:_primary_key])
       else
-        ash_get?
+        []
       end
 
     %{
       requires_tenant: AshTypescript.Rpc.requires_tenant_parameter?(resource),
-      requires_primary_key: action.type in [:update, :destroy],
+      identities: identities,
       supports_pagination:
         action.type == :read and not is_get_action and
           ActionIntrospection.action_supports_pagination?(action),
@@ -134,57 +136,127 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   end
 
   @doc """
-  Builds the primary key configuration field for the TypeScript config type.
+  Builds the identity configuration field for the TypeScript config type.
+
+  Generates a union type for all supported identities (primary key and/or named identities).
 
   ## Parameters
 
     * `resource` - The Ash resource
+    * `identities` - List of identity atoms (e.g., `[:_primary_key, :email]`)
     * `opts` - Options keyword list:
-      - `:simple_type` - If true, always use `string` type (for validation functions)
+      - `:validation_function?` - If true, each field type becomes `Type | string` to accept
+        either the typed value or a string representation (for validation functions)
 
   ## Returns
 
-  A list containing one TypeScript field definition string for the primary key.
+  A list containing one TypeScript field definition string for the identity.
 
   ## Examples
 
-      # Single primary key attribute
-      ["  primaryKey: string;"]
+      # Single primary key (non-composite)
+      ["  identity: UUID;"]
+
+      # Single primary key for validation function
+      ["  identity: UUID | string;"]
+
+      # Primary key and email identity (identity uses email field)
+      ["  identity: UUID | { email: string };"]
 
       # Composite primary key
-      ["  primaryKey: {", "    id: number;", "    tenantId: string;", "  };"]
+      ["  identity: { id: UUID; tenantId: string };"]
+
+      # Composite primary key for validation function
+      ["  identity: { id: UUID | string; tenantId: string };"]
   """
-  def build_primary_key_config_field(resource, opts) do
+  def build_identity_config_field(resource, identities, opts) do
+    validation_function? = Keyword.get(opts, :validation_function?, false)
+
+    identity_types =
+      Enum.map(identities, fn identity ->
+        build_single_identity_type(resource, identity, validation_function?)
+      end)
+
+    formatted_identity = format_output_field(:identity)
+    union_type = Enum.join(identity_types, " | ")
+
+    ["  #{formatted_identity}: #{union_type};"]
+  end
+
+  defp build_single_identity_type(resource, :_primary_key, validation_function?) do
     primary_key_attrs = Ash.Resource.Info.primary_key(resource)
-    simple_type = Keyword.get(opts, :simple_type, false)
 
-    if simple_type do
-      # For validation functions - always use string type
-      formatted_primary_key = format_output_field(:primary_key)
-      ["  #{formatted_primary_key}: string;"]
-    else
-      # For execution functions - use proper typing
-      if Enum.count(primary_key_attrs) == 1 do
-        attr_name = Enum.at(primary_key_attrs, 0)
-        attr = Ash.Resource.Info.attribute(resource, attr_name)
-        formatted_primary_key = format_output_field(:primary_key)
-        ["  #{formatted_primary_key}: #{get_ts_type(attr)};"]
+    if Enum.count(primary_key_attrs) == 1 do
+      attr_name = Enum.at(primary_key_attrs, 0)
+      attr = Ash.Resource.Info.attribute(resource, attr_name)
+      base_type = get_ts_type(attr)
+
+      if validation_function? do
+        maybe_add_string_union(base_type)
       else
-        formatted_primary_key = format_output_field(:primary_key)
-
-        [
-          "  #{formatted_primary_key}: {"
-        ] ++
-          Enum.map(primary_key_attrs, fn attr_name ->
-            attr = Ash.Resource.Info.attribute(resource, attr_name)
-            formatted_attr_name = format_output_field(attr.name)
-            "    #{formatted_attr_name}: #{get_ts_type(attr)};"
-          end) ++
-          [
-            "  };"
-          ]
+        base_type
       end
+    else
+      # Composite primary key - always use object format
+      field_types =
+        Enum.map_join(primary_key_attrs, "; ", fn attr_name ->
+          attr = Ash.Resource.Info.attribute(resource, attr_name)
+          formatted_attr_name = get_formatted_field_name(resource, attr.name)
+          base_type = get_ts_type(attr)
+
+          type =
+            if validation_function? do
+              maybe_add_string_union(base_type)
+            else
+              base_type
+            end
+
+          "#{formatted_attr_name}: #{type}"
+        end)
+
+      "{ #{field_types} }"
     end
+  end
+
+  defp build_single_identity_type(resource, identity_name, validation_function?) do
+    identity = Ash.Resource.Info.identity(resource, identity_name)
+
+    if identity do
+      # Use identity field names directly (e.g., { email: string } not { uniqueEmail: string })
+      field_types =
+        Enum.map_join(identity.keys, "; ", fn key ->
+          formatted_key = get_formatted_field_name(resource, key)
+          attr = Ash.Resource.Info.attribute(resource, key)
+          base_type = get_ts_type(attr)
+
+          type =
+            if validation_function? do
+              maybe_add_string_union(base_type)
+            else
+              base_type
+            end
+
+          "#{formatted_key}: #{type}"
+        end)
+
+      "{ #{field_types} }"
+    else
+      "{ /* Identity #{identity_name} not found */ never }"
+    end
+  end
+
+  # Adds "| string" to a type, unless the type is already "string"
+  defp maybe_add_string_union("string"), do: "string"
+  defp maybe_add_string_union(type), do: "#{type} | string"
+
+  # Gets the formatted field name, applying field_names mappings and output formatter
+  defp get_formatted_field_name(resource, field_name) do
+    mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
+
+    AshTypescript.FieldFormatter.format_field(
+      mapped_name,
+      AshTypescript.Rpc.output_field_formatter()
+    )
   end
 
   @doc """
@@ -199,7 +271,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
     * `context` - The action context from `get_action_context/2`
     * `opts` - Options keyword list:
       - `:rpc_action_name` - The snake_case name of the RPC action
-      - `:simple_primary_key` - If true, use string type for primary key
+      - `:validation_function?` - If true, identity types accept `Type | string`
       - `:is_validation` - If true, this is for a validation function
       - `:is_channel` - If true, this is for a channel function
 
@@ -213,7 +285,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   """
   def build_common_config_fields(resource, _action, context, opts) do
     rpc_action_name_pascal = snake_to_pascal_case(opts[:rpc_action_name] || "action")
-    simple_primary_key = Keyword.get(opts, :simple_primary_key, false)
+    validation_function? = Keyword.get(opts, :validation_function?, false)
     is_validation = Keyword.get(opts, :is_validation, false)
     is_channel = Keyword.get(opts, :is_channel, false)
 
@@ -227,8 +299,11 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
       end
 
     config_fields =
-      if context.requires_primary_key do
-        config_fields ++ build_primary_key_config_field(resource, simple_type: simple_primary_key)
+      if context.identities != [] do
+        config_fields ++
+          build_identity_config_field(resource, context.identities,
+            validation_function?: validation_function?
+          )
       else
         config_fields
       end

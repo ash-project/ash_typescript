@@ -79,13 +79,14 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
   @doc """
   Renders an HTTP validation function.
   """
-  def render_validation_function(resource, action, rpc_action_name) do
+  def render_validation_function(resource, action, rpc_action, rpc_action_name) do
     alias AshTypescript.Rpc.Codegen.Helpers.{ConfigBuilder, PayloadBuilder}
 
     shape =
       FunctionCore.build_validation_function_shape(
         resource,
         action,
+        rpc_action,
         rpc_action_name
       )
 
@@ -98,7 +99,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
     config_fields =
       ConfigBuilder.build_common_config_fields(resource, action, shape.context,
         rpc_action_name: rpc_action_name,
-        simple_primary_key: true,
+        validation_function?: true,
         is_validation: true
       )
 
