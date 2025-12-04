@@ -30,15 +30,14 @@ defmodule AshTypescript.Rpc.Errors do
   def to_errors(errors, domain \\ nil, resource \\ nil, action \\ nil, context \\ %{})
 
   def to_errors(errors, domain, resource, action, context) do
-    # First ensure we have an Ash error class
     ash_error = Ash.Error.to_error_class(errors)
 
-    # Then process the errors
     ash_error
     |> unwrap_errors()
     |> Enum.map(&process_single_error(&1, domain, resource, action, context))
     |> List.flatten()
     |> Enum.reject(&is_nil/1)
+    |> Enum.map(&format_error_field_names(&1, resource))
   end
 
   @doc """
@@ -46,7 +45,6 @@ defmodule AshTypescript.Rpc.Errors do
   """
   @spec unwrap_errors(term()) :: list(term())
   def unwrap_errors(%{errors: errors}) when is_list(errors) do
-    # Recursively unwrap nested errors
     Enum.flat_map(errors, &unwrap_errors/1)
   end
 
@@ -59,7 +57,6 @@ defmodule AshTypescript.Rpc.Errors do
   end
 
   def unwrap_errors(error) do
-    # Single error - return as list
     [error]
   end
 
@@ -93,7 +90,6 @@ defmodule AshTypescript.Rpc.Errors do
               fallback_error_response(error, false)
           end
         else
-          # No protocol implementation - use fallback
           handle_unimplemented_error(error, false)
         end
       end
@@ -239,4 +235,64 @@ defmodule AshTypescript.Rpc.Errors do
       path: []
     }
   end
+
+  # Formats field names in error structures for client consumption.
+  # Applies resource-level field_names mappings (if resource is known) and output formatter.
+  defp format_error_field_names(error, resource) when is_map(error) do
+    formatter = AshTypescript.Rpc.output_field_formatter()
+
+    error
+    |> format_fields_array(resource, formatter)
+    |> format_path_array(formatter)
+    |> format_vars_field(resource, formatter)
+  end
+
+  defp format_error_field_names(error, _resource), do: error
+
+  defp format_fields_array(%{fields: fields} = error, resource, formatter)
+       when is_list(fields) do
+    formatted_fields =
+      Enum.map(fields, fn field ->
+        AshTypescript.FieldFormatter.format_field_for_client(field, resource, formatter)
+      end)
+
+    %{error | fields: formatted_fields}
+  end
+
+  defp format_fields_array(error, _resource, _formatter), do: error
+
+  defp format_path_array(%{path: path} = error, formatter) when is_list(path) do
+    # Path segments use simple formatting (no resource-level mappings)
+    formatted_path =
+      Enum.map(path, fn
+        segment when is_atom(segment) ->
+          AshTypescript.FieldFormatter.format_field_name(to_string(segment), formatter)
+
+        segment when is_binary(segment) ->
+          AshTypescript.FieldFormatter.format_field_name(segment, formatter)
+
+        other ->
+          other
+      end)
+
+    %{error | path: formatted_path}
+  end
+
+  defp format_path_array(error, _formatter), do: error
+
+  defp format_vars_field(%{vars: vars} = error, resource, formatter) when is_map(vars) do
+    formatted_vars =
+      Enum.into(vars, %{}, fn
+        {:field, field} ->
+          {:field,
+           AshTypescript.FieldFormatter.format_field_for_client(field, resource, formatter)}
+
+        other ->
+          other
+      end)
+
+    %{error | vars: formatted_vars}
+  end
+
+  defp format_vars_field(error, _resource, _formatter), do: error
 end

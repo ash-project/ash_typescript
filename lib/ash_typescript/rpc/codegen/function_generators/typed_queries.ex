@@ -169,7 +169,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
     mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, atom)
     # Then apply the formatter (camelCase, etc.)
     formatter = AshTypescript.Rpc.output_field_formatter()
-    AshTypescript.FieldFormatter.format_field(mapped_name, formatter)
+    AshTypescript.FieldFormatter.format_field_name(mapped_name, formatter)
   end
 
   defp format_args_map(args, resource) do

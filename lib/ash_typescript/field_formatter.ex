@@ -12,19 +12,41 @@ defmodule AshTypescript.FieldFormatter do
   import AshTypescript.Helpers
 
   @doc """
-  Formats a field name using the configured formatter.
+  Formats a field name for client output, optionally applying resource-level
+  field_names mapping before the output formatter.
+
+  Use this when formatting field names for client consumption where the field
+  might have a custom TypeScript name via the `field_names` DSL option.
 
   ## Examples
 
-      iex> AshTypescript.FieldFormatter.format_field(:user_name, :camel_case)
+      iex> AshTypescript.FieldFormatter.format_field_for_client(:user_name, nil, :camel_case)
       "userName"
 
-      iex> AshTypescript.FieldFormatter.format_field(:user_name, :snake_case)
-      "user_name"
+      iex> AshTypescript.FieldFormatter.format_field_for_client("already_string", nil, :camel_case)
+      "alreadyString"
+
+  When a resource is provided with `field_names` mappings (e.g., `:is_active?` → `:is_active`),
+  the mapping is applied before formatting.
   """
-  def format_field(field_name, formatter) when is_atom(field_name) or is_binary(field_name) do
-    format_field_name(field_name, formatter)
+  def format_field_for_client(field, resource \\ nil, formatter)
+
+  def format_field_for_client(field, resource, formatter) when is_atom(field) do
+    mapped_name =
+      if resource do
+        AshTypescript.Resource.Info.get_mapped_field_name(resource, field)
+      else
+        field
+      end
+
+    format_field_name(mapped_name, formatter)
   end
+
+  def format_field_for_client(field, _resource, formatter) when is_binary(field) do
+    format_field_name(field, formatter)
+  end
+
+  def format_field_for_client(other, _resource, _formatter), do: other
 
   @doc """
   Parses input field names from client format to internal format.
@@ -116,8 +138,21 @@ defmodule AshTypescript.FieldFormatter do
     end
   end
 
-  # Private helper for formatting field names
-  defp format_field_name(field_name, formatter) do
+  @doc """
+  Formats a field name using the configured formatter.
+
+  ## Examples
+
+      iex> AshTypescript.FieldFormatter.format_field_name(:user_name, :camel_case)
+      "userName"
+
+      iex> AshTypescript.FieldFormatter.format_field_name(:user_name, :snake_case)
+      "user_name"
+
+      iex> AshTypescript.FieldFormatter.format_field_name("user_name", :pascal_case)
+      "UserName"
+  """
+  def format_field_name(field_name, formatter) do
     string_field = to_string(field_name)
 
     case formatter do

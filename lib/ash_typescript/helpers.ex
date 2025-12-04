@@ -82,7 +82,7 @@ defmodule AshTypescript.Helpers do
   Formats a field name using the configured output field formatter for RPC.
   """
   def format_output_field(field_name) do
-    AshTypescript.FieldFormatter.format_field(
+    AshTypescript.FieldFormatter.format_field_name(
       field_name,
       AshTypescript.Rpc.output_field_formatter()
     )

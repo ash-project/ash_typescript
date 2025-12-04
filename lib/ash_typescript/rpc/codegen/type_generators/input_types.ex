@@ -53,7 +53,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                   )
 
                 formatted_arg_name =
-                  AshTypescript.FieldFormatter.format_field(
+                  AshTypescript.FieldFormatter.format_field_name(
                     mapped_name,
                     AshTypescript.Rpc.output_field_formatter()
                   )
@@ -83,7 +83,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                     AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
 
                   formatted_field_name =
-                    AshTypescript.FieldFormatter.format_field(
+                    AshTypescript.FieldFormatter.format_field_name(
                       mapped_name,
                       AshTypescript.Rpc.output_field_formatter()
                     )
@@ -103,7 +103,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                     )
 
                   formatted_arg_name =
-                    AshTypescript.FieldFormatter.format_field(
+                    AshTypescript.FieldFormatter.format_field_name(
                       mapped_name,
                       AshTypescript.Rpc.output_field_formatter()
                     )
@@ -129,7 +129,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                     AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
 
                   formatted_field_name =
-                    AshTypescript.FieldFormatter.format_field(
+                    AshTypescript.FieldFormatter.format_field_name(
                       mapped_name,
                       AshTypescript.Rpc.output_field_formatter()
                     )
@@ -149,7 +149,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                     )
 
                   formatted_arg_name =
-                    AshTypescript.FieldFormatter.format_field(
+                    AshTypescript.FieldFormatter.format_field_name(
                       mapped_name,
                       AshTypescript.Rpc.output_field_formatter()
                     )
@@ -177,7 +177,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                   )
 
                 formatted_arg_name =
-                  AshTypescript.FieldFormatter.format_field(
+                  AshTypescript.FieldFormatter.format_field_name(
                     mapped_name,
                     AshTypescript.Rpc.output_field_formatter()
                   )

@@ -218,7 +218,7 @@ defmodule AshTypescript.Rpc.FormatterCore do
                 )
               end
 
-            formatted_member_name = FieldFormatter.format_field(member_name, formatter)
+            formatted_member_name = FieldFormatter.format_field_name(member_name, formatter)
             %{formatted_member_name => formatted_member_value}
 
           nil ->
@@ -269,7 +269,7 @@ defmodule AshTypescript.Rpc.FormatterCore do
         output_key =
           case direction do
             :input -> internal_key
-            :output -> FieldFormatter.format_field(internal_key, formatter)
+            :output -> FieldFormatter.format_field_name(internal_key, formatter)
           end
 
         {output_key, formatted_value}
@@ -345,7 +345,7 @@ defmodule AshTypescript.Rpc.FormatterCore do
 
     member_names =
       Enum.map(union_types, fn {name, _} ->
-        FieldFormatter.format_field(to_string(name), output_formatter)
+        FieldFormatter.format_field_name(to_string(name), output_formatter)
       end)
 
     matching_members =
@@ -366,7 +366,7 @@ defmodule AshTypescript.Rpc.FormatterCore do
       multiple_members ->
         found_keys =
           Enum.map(multiple_members, fn {name, _} ->
-            FieldFormatter.format_field(to_string(name), output_formatter)
+            FieldFormatter.format_field_name(to_string(name), output_formatter)
           end)
 
         {:error, {:invalid_union_input, :multiple_member_keys, found_keys, member_names}}
@@ -420,7 +420,7 @@ defmodule AshTypescript.Rpc.FormatterCore do
 
         if tag_field && Map.has_key?(member_data, tag_field) do
           tag_value = Map.get(member_data, tag_field)
-          formatted_tag_field = FieldFormatter.format_field(tag_field, formatter)
+          formatted_tag_field = FieldFormatter.format_field_name(tag_field, formatter)
 
           member_data
           |> Map.delete(tag_field)
@@ -438,7 +438,7 @@ defmodule AshTypescript.Rpc.FormatterCore do
 
   defp stringify_map_keys(map, formatter) when is_map(map) do
     Enum.into(map, %{}, fn {internal_key, value} ->
-      string_key = FieldFormatter.format_field(internal_key, formatter)
+      string_key = FieldFormatter.format_field_name(internal_key, formatter)
 
       formatted_value =
         case value do

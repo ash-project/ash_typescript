@@ -27,7 +27,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
       )
 
     function_name =
-      AshTypescript.FieldFormatter.format_field(
+      AshTypescript.FieldFormatter.format_field_name(
         rpc_action_name,
         AshTypescript.Rpc.output_field_formatter()
       )
@@ -91,7 +91,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
       )
 
     function_name =
-      AshTypescript.FieldFormatter.format_field(
+      AshTypescript.FieldFormatter.format_field_name(
         "validate_#{rpc_action_name}",
         AshTypescript.Rpc.output_field_formatter()
       )

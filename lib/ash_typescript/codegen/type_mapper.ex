@@ -96,7 +96,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
           end
 
         formatted_field_name =
-          AshTypescript.FieldFormatter.format_field(
+          AshTypescript.FieldFormatter.format_field_name(
             mapped_field_name,
             AshTypescript.Rpc.output_field_formatter()
           )
@@ -296,7 +296,9 @@ defmodule AshTypescript.Codegen.TypeMapper do
           else
             field_name
           end
-          |> AshTypescript.FieldFormatter.format_field(AshTypescript.Rpc.output_field_formatter())
+          |> AshTypescript.FieldFormatter.format_field_name(
+            AshTypescript.Rpc.output_field_formatter()
+          )
 
         allow_nil = Keyword.get(field_config, :allow_nil?, true)
         optional = if allow_nil, do: " | null", else: ""
@@ -315,7 +317,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
             else
               field_name
             end
-            |> AshTypescript.FieldFormatter.format_field(
+            |> AshTypescript.FieldFormatter.format_field_name(
               AshTypescript.Rpc.output_field_formatter()
             )
 
@@ -337,7 +339,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
       types
       |> Enum.map_join("; ", fn {type_name, type_config} ->
         formatted_name =
-          AshTypescript.FieldFormatter.format_field(
+          AshTypescript.FieldFormatter.format_field_name(
             type_name,
             AshTypescript.Rpc.output_field_formatter()
           )
@@ -393,7 +395,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
       types
       |> Enum.map_join(" | ", fn {type_name, type_config} ->
         formatted_name =
-          AshTypescript.FieldFormatter.format_field(
+          AshTypescript.FieldFormatter.format_field_name(
             type_name,
             AshTypescript.Rpc.output_field_formatter()
           )
@@ -464,7 +466,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
         " | ",
         fn field_name ->
           formatted =
-            AshTypescript.FieldFormatter.format_field(
+            AshTypescript.FieldFormatter.format_field_name(
               field_name,
               AshTypescript.Rpc.output_field_formatter()
             )
@@ -519,7 +521,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
     else
       %Ash.Resource.Attribute{} = attr ->
         formatted_field =
-          AshTypescript.FieldFormatter.format_field(
+          AshTypescript.FieldFormatter.format_field_name(
             field,
             AshTypescript.Rpc.output_field_formatter()
           )
@@ -532,7 +534,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
       %Ash.Resource.Calculation{} = calc ->
         formatted_field =
-          AshTypescript.FieldFormatter.format_field(
+          AshTypescript.FieldFormatter.format_field_name(
             field,
             AshTypescript.Rpc.output_field_formatter()
           )
@@ -561,7 +563,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
           end
 
         formatted_field =
-          AshTypescript.FieldFormatter.format_field(
+          AshTypescript.FieldFormatter.format_field_name(
             field,
             AshTypescript.Rpc.output_field_formatter()
           )

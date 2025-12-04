@@ -138,7 +138,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, field.name)
 
         formatted_name =
-          AshTypescript.FieldFormatter.format_field(
+          AshTypescript.FieldFormatter.format_field_name(
             mapped_name,
             AshTypescript.Rpc.output_field_formatter()
           )
@@ -172,7 +172,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
                   AshTypescript.Resource.Info.get_mapped_field_name(resource, field.name)
 
                 formatted_name =
-                  AshTypescript.FieldFormatter.format_field(
+                  AshTypescript.FieldFormatter.format_field_name(
                     mapped_name,
                     AshTypescript.Rpc.output_field_formatter()
                   )
@@ -209,7 +209,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
                       AshTypescript.Resource.Info.get_mapped_field_name(resource, field.name)
 
                     formatted_name =
-                      AshTypescript.FieldFormatter.format_field(
+                      AshTypescript.FieldFormatter.format_field_name(
                         mapped_name,
                         AshTypescript.Rpc.output_field_formatter()
                       )
@@ -340,7 +340,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
             end
 
           formatted =
-            AshTypescript.FieldFormatter.format_field(
+            AshTypescript.FieldFormatter.format_field_name(
               mapped_name,
               AshTypescript.Rpc.output_field_formatter()
             )
@@ -355,7 +355,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, rel.name)
 
     formatted_name =
-      AshTypescript.FieldFormatter.format_field(
+      AshTypescript.FieldFormatter.format_field_name(
         mapped_name,
         AshTypescript.Rpc.output_field_formatter()
       )
@@ -392,7 +392,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr.name)
 
     formatted_name =
-      AshTypescript.FieldFormatter.format_field(
+      AshTypescript.FieldFormatter.format_field_name(
         mapped_name,
         AshTypescript.Rpc.output_field_formatter()
       )
@@ -429,7 +429,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, calc.name)
 
     formatted_name =
-      AshTypescript.FieldFormatter.format_field(
+      AshTypescript.FieldFormatter.format_field_name(
         mapped_name,
         AshTypescript.Rpc.output_field_formatter()
       )
@@ -452,7 +452,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr.name)
 
     formatted_name =
-      AshTypescript.FieldFormatter.format_field(
+      AshTypescript.FieldFormatter.format_field_name(
         mapped_name,
         AshTypescript.Rpc.output_field_formatter()
       )
@@ -480,7 +480,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr.name)
 
     formatted_name =
-      AshTypescript.FieldFormatter.format_field(
+      AshTypescript.FieldFormatter.format_field_name(
         mapped_name,
         AshTypescript.Rpc.output_field_formatter()
       )
@@ -518,7 +518,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
           end
 
         formatted =
-          AshTypescript.FieldFormatter.format_field(
+          AshTypescript.FieldFormatter.format_field_name(
             mapped_field_name,
             AshTypescript.Rpc.output_field_formatter()
           )
@@ -540,7 +540,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
           end
 
         formatted_field =
-          AshTypescript.FieldFormatter.format_field(
+          AshTypescript.FieldFormatter.format_field_name(
             mapped_field_name,
             AshTypescript.Rpc.output_field_formatter()
           )
@@ -685,7 +685,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         arguments
         |> Enum.map_join("; ", fn arg ->
           formatted_name =
-            AshTypescript.FieldFormatter.format_field(
+            AshTypescript.FieldFormatter.format_field_name(
               arg.name,
               AshTypescript.Rpc.output_field_formatter()
             )
@@ -734,7 +734,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       union_types
       |> Enum.map_join("; ", fn {name, config} ->
         formatted_name =
-          AshTypescript.FieldFormatter.format_field(
+          AshTypescript.FieldFormatter.format_field_name(
             name,
             AshTypescript.Rpc.output_field_formatter()
           )
@@ -777,7 +777,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr.name)
 
         formatted_name =
-          AshTypescript.FieldFormatter.format_field(
+          AshTypescript.FieldFormatter.format_field_name(
             mapped_name,
             AshTypescript.Rpc.output_field_formatter()
           )

@@ -10,7 +10,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
 
   # Helper to format field with output formatter
   defp format_field(field_name) do
-    AshTypescript.FieldFormatter.format_field(field_name, formatter())
+    AshTypescript.FieldFormatter.format_field_name(field_name, formatter())
   end
 
   # Get formatter (called at runtime, not compile time)

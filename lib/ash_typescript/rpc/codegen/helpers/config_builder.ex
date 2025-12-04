@@ -253,7 +253,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   defp get_formatted_field_name(resource, field_name) do
     mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
 
-    AshTypescript.FieldFormatter.format_field(
+    AshTypescript.FieldFormatter.format_field_name(
       mapped_name,
       AshTypescript.Rpc.output_field_formatter()
     )

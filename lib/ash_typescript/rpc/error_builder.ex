@@ -382,7 +382,8 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
         }
 
       {:missing_get_by_fields, missing_fields} ->
-        field_names = Enum.map_join(missing_fields, ", ", &to_string/1)
+        # Field names are already formatted by the pipeline
+        field_names = Enum.join(missing_fields, ", ")
 
         %{
           type: "missing_required_input",
@@ -390,7 +391,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           short_message: "Missing required getBy fields",
           vars: %{fields: field_names},
           path: [:get_by],
-          fields: Enum.map(missing_fields, &to_string/1),
+          fields: missing_fields,
           details: %{
             suggestion: "Provide values for all required getBy fields",
             hint: @stale_generated_file_hint
@@ -398,8 +399,9 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
         }
 
       {:unexpected_get_by_fields, extra_fields, allowed_fields} ->
-        extra_field_names = Enum.map_join(extra_fields, ", ", &to_string/1)
-        allowed_field_names = Enum.map_join(allowed_fields, ", ", &to_string/1)
+        # Field names are already formatted by the pipeline
+        extra_field_names = Enum.join(extra_fields, ", ")
+        allowed_field_names = Enum.join(allowed_fields, ", ")
 
         %{
           type: "unexpected_get_by_fields",
@@ -407,7 +409,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           short_message: "Unexpected getBy fields",
           vars: %{extra_fields: extra_field_names, allowed_fields: allowed_field_names},
           path: [:get_by],
-          fields: Enum.map(extra_fields, &to_string/1),
+          fields: extra_fields,
           details: %{
             allowed_fields: allowed_fields,
             suggestion: "Only provide the allowed getBy fields: %{allowed_fields}",
@@ -511,7 +513,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
         formatted_path = format_path(path)
 
         formatted_field =
-          AshTypescript.FieldFormatter.format_field(
+          AshTypescript.FieldFormatter.format_field_name(
             to_string(field_name),
             AshTypescript.Rpc.output_field_formatter()
           )
@@ -569,7 +571,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
     formatter = AshTypescript.Rpc.output_field_formatter()
 
     Enum.map(path, fn field ->
-      AshTypescript.FieldFormatter.format_field(to_string(field), formatter)
+      AshTypescript.FieldFormatter.format_field_name(to_string(field), formatter)
     end)
   end
 
@@ -579,7 +581,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
 
   defp format_field_name(field_name) when is_binary(field_name) do
     formatter = AshTypescript.Rpc.output_field_formatter()
-    AshTypescript.FieldFormatter.format_field(field_name, formatter)
+    AshTypescript.FieldFormatter.format_field_name(field_name, formatter)
   end
 
   defp build_complete_field_path(path, field_name) when is_list(path) do

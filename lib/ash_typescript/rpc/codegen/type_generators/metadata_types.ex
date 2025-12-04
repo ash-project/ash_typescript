@@ -104,7 +104,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes do
             AshTypescript.Rpc.Info.get_mapped_metadata_field_name(rpc_action, metadata_field.name)
 
           formatted_name =
-            AshTypescript.FieldFormatter.format_field(
+            AshTypescript.FieldFormatter.format_field_name(
               mapped_name,
               AshTypescript.Rpc.output_field_formatter()
             )

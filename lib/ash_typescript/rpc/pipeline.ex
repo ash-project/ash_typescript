@@ -320,7 +320,6 @@ defmodule AshTypescript.Rpc.Pipeline do
 
             {domain, resource, rpc_action} ->
               action = Ash.Resource.Info.action(resource, rpc_action.action)
-              # Augment action with RPC settings (get?, get_by)
               augmented_action = augment_action_with_rpc_settings(action, rpc_action, resource)
               {:ok, {domain, resource, augmented_action, rpc_action}}
           end
@@ -542,6 +541,7 @@ defmodule AshTypescript.Rpc.Pipeline do
       raw_get_by = params[:get_by] || %{}
 
       formatter = Rpc.input_field_formatter()
+      output_formatter = Rpc.output_field_formatter()
       parsed_get_by = FieldFormatter.parse_input_fields(raw_get_by, formatter)
 
       allowed_fields = MapSet.new(rpc_get_by)
@@ -552,10 +552,25 @@ defmodule AshTypescript.Rpc.Pipeline do
 
       cond do
         not Enum.empty?(extra_fields) ->
-          {:error, {:unexpected_get_by_fields, extra_fields, rpc_get_by}}
+          formatted_extra =
+            Enum.map(extra_fields, &FieldFormatter.format_field_name(&1, output_formatter))
+
+          formatted_allowed =
+            Enum.map(
+              rpc_get_by,
+              &FieldFormatter.format_field_for_client(&1, resource, output_formatter)
+            )
+
+          {:error, {:unexpected_get_by_fields, formatted_extra, formatted_allowed}}
 
         not Enum.empty?(missing_fields) ->
-          {:error, {:missing_get_by_fields, missing_fields}}
+          formatted_missing =
+            Enum.map(
+              missing_fields,
+              &FieldFormatter.format_field_for_client(&1, resource, output_formatter)
+            )
+
+          {:error, {:missing_get_by_fields, formatted_missing}}
 
         true ->
           validated_get_by =
@@ -737,7 +752,6 @@ defmodule AshTypescript.Rpc.Pipeline do
           {:ok, record}
 
         %Ash.BulkResult{status: :success, records: []} ->
-          # If no records returned but operation succeeded, return empty map
           {:ok, %{}}
 
         %Ash.BulkResult{errors: errors} when errors != [] ->
@@ -856,10 +870,10 @@ defmodule AshTypescript.Rpc.Pipeline do
           formatted_key =
             case key do
               atom when is_atom(atom) ->
-                FieldFormatter.format_field(to_string(atom), formatter)
+                FieldFormatter.format_field_name(to_string(atom), formatter)
 
               string when is_binary(string) ->
-                FieldFormatter.format_field(string, formatter)
+                FieldFormatter.format_field_name(string, formatter)
 
               other ->
                 other
@@ -894,8 +908,8 @@ defmodule AshTypescript.Rpc.Pipeline do
       )
 
     base_response = %{
-      FieldFormatter.format_field("success", formatter) => true,
-      FieldFormatter.format_field("data", formatter) => formatted_data
+      FieldFormatter.format_field_name("success", formatter) => true,
+      FieldFormatter.format_field_name("data", formatter) => formatted_data
     }
 
     case metadata do
@@ -907,7 +921,7 @@ defmodule AshTypescript.Rpc.Pipeline do
 
         Map.put(
           base_response,
-          FieldFormatter.format_field("metadata", formatter),
+          FieldFormatter.format_field_name("metadata", formatter),
           formatted_metadata
         )
     end
@@ -917,14 +931,14 @@ defmodule AshTypescript.Rpc.Pipeline do
     formatted_errors = Enum.map(errors, &format_field_names(&1, formatter))
 
     %{
-      FieldFormatter.format_field("success", formatter) => false,
-      FieldFormatter.format_field("errors", formatter) => formatted_errors
+      FieldFormatter.format_field_name("success", formatter) => false,
+      FieldFormatter.format_field_name("errors", formatter) => formatted_errors
     }
   end
 
   defp format_output_data(%{success: true}, formatter, _request) do
     %{
-      FieldFormatter.format_field("success", formatter) => true
+      FieldFormatter.format_field_name("success", formatter) => true
     }
   end
 
@@ -994,10 +1008,8 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  # No identities configured - no filter needed (actor-scoped actions)
   defp maybe_apply_identity_filter(query, _identity, []), do: {:ok, query}
 
-  # Identity provided - build filter based on which identity type was passed
   defp maybe_apply_identity_filter(query, identity, identities) when is_map(identity) do
     resource = query.resource
 
@@ -1062,19 +1074,17 @@ defmodule AshTypescript.Rpc.Pipeline do
         {:ok, filter}
 
       nil ->
-        # No configured identity matched the provided keys
-        # Format keys for client-facing error message
         output_formatter = Rpc.output_field_formatter()
 
         provided_keys =
           parsed_identity
           |> Map.keys()
-          |> Enum.map(&format_key_for_client(&1, output_formatter))
+          |> Enum.map(&FieldFormatter.format_field_name(&1, output_formatter))
 
         expected_keys =
           resource
           |> get_expected_identity_keys(identities)
-          |> Enum.map(&format_internal_key_for_client(resource, &1, output_formatter))
+          |> Enum.map(&FieldFormatter.format_field_for_client(&1, resource, output_formatter))
 
         {:error,
          {:invalid_identity,
@@ -1116,29 +1126,6 @@ defmodule AshTypescript.Rpc.Pipeline do
     |> Enum.uniq()
   end
 
-  # Format a key from parsed identity for client-facing error message
-  defp format_key_for_client(key, formatter) when is_atom(key) do
-    key
-    |> to_string()
-    |> FieldFormatter.format_field(formatter)
-  end
-
-  defp format_key_for_client(key, formatter) when is_binary(key) do
-    FieldFormatter.format_field(key, formatter)
-  end
-
-  # Format an internal Elixir field name for client-facing error message
-  # Applies field_names mapping first, then output formatter
-  defp format_internal_key_for_client(resource, internal_key, formatter) do
-    # Get the mapped TypeScript name from field_names (e.g., :is_active? -> :is_active)
-    mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, internal_key)
-
-    # Apply output formatter (e.g., :is_active -> "isActive")
-    mapped_name
-    |> to_string()
-    |> FieldFormatter.format_field(formatter)
-  end
-
   # Parses identity input by applying input formatter and reverse field_names mapping
   defp parse_identity_input(resource, identity, formatter) when is_map(identity) do
     Enum.into(identity, %{}, fn {key, value} ->
@@ -1167,8 +1154,6 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  # Only applies select/load if they contain actual values (not empty lists)
-  # Empty lists can cause issues with embedded resource loading
   defp apply_select_and_load(query, request) do
     query =
       if request.select && request.select != [] do

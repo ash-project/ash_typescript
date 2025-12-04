@@ -73,7 +73,7 @@ defmodule AshTypescript.Rpc.OutputFormatter do
             format_value(value, type, constraints, resource, formatter)
         end
 
-      output_key = FieldFormatter.format_field(internal_key, formatter)
+      output_key = FieldFormatter.format_field_name(internal_key, formatter)
       {output_key, formatted_value}
     end)
   end
@@ -82,7 +82,7 @@ defmodule AshTypescript.Rpc.OutputFormatter do
     Enum.into(map, %{}, fn {internal_key, value} ->
       {type, constraints} = get_output_field_type(resource, internal_key)
       formatted_value = format_value(value, type, constraints, resource, formatter)
-      output_key = FieldFormatter.format_field(internal_key, formatter)
+      output_key = FieldFormatter.format_field_name(internal_key, formatter)
 
       {output_key, formatted_value}
     end)

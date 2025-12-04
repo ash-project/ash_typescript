@@ -124,7 +124,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
         mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr.name)
 
         formatted_name =
-          AshTypescript.FieldFormatter.format_field(
+          AshTypescript.FieldFormatter.format_field_name(
             mapped_name,
             AshTypescript.Rpc.output_field_formatter()
           )
@@ -227,7 +227,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
         union_types
         |> Enum.map_join("; ", fn {type_name, type_config} ->
           formatted_name =
-            AshTypescript.FieldFormatter.format_field(
+            AshTypescript.FieldFormatter.format_field_name(
               type_name,
               AshTypescript.Rpc.output_field_formatter()
             )
@@ -258,7 +258,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
               )
 
             formatted_arg_name =
-              AshTypescript.FieldFormatter.format_field(
+              AshTypescript.FieldFormatter.format_field_name(
                 mapped_name,
                 AshTypescript.Rpc.output_field_formatter()
               )
@@ -278,7 +278,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
                 AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
 
               formatted_field_name =
-                AshTypescript.FieldFormatter.format_field(
+                AshTypescript.FieldFormatter.format_field_name(
                   mapped_name,
                   AshTypescript.Rpc.output_field_formatter()
                 )
@@ -297,7 +297,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
                 )
 
               formatted_arg_name =
-                AshTypescript.FieldFormatter.format_field(
+                AshTypescript.FieldFormatter.format_field_name(
                   mapped_name,
                   AshTypescript.Rpc.output_field_formatter()
                 )
@@ -334,7 +334,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
           end
 
         formatted_name =
-          AshTypescript.FieldFormatter.format_field(
+          AshTypescript.FieldFormatter.format_field_name(
             mapped_name,
             AshTypescript.Rpc.output_field_formatter()
           )

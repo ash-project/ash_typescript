@@ -27,7 +27,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
       )
 
     function_name =
-      AshTypescript.FieldFormatter.format_field(
+      AshTypescript.FieldFormatter.format_field_name(
         "#{rpc_action_name}_channel",
         AshTypescript.Rpc.output_field_formatter()
       )
@@ -86,7 +86,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
       )
 
     function_name =
-      AshTypescript.FieldFormatter.format_field(
+      AshTypescript.FieldFormatter.format_field_name(
         "validate_#{rpc_action_name}_channel",
         AshTypescript.Rpc.output_field_formatter()
       )

@@ -52,12 +52,12 @@ defmodule AshTypescript.Rpc.FieldProcessing.Utilities do
 
     case all_parts do
       [single] ->
-        AshTypescript.FieldFormatter.format_field(single, formatter)
+        AshTypescript.FieldFormatter.format_field_name(single, formatter)
 
       [first | rest] ->
-        formatted_first = AshTypescript.FieldFormatter.format_field(first, formatter)
+        formatted_first = AshTypescript.FieldFormatter.format_field_name(first, formatter)
 
-        "#{formatted_first}.#{Enum.map_join(rest, ".", fn field -> AshTypescript.FieldFormatter.format_field(field, formatter) end)}"
+        "#{formatted_first}.#{Enum.map_join(rest, ".", fn field -> AshTypescript.FieldFormatter.format_field_name(field, formatter) end)}"
     end
   end
 

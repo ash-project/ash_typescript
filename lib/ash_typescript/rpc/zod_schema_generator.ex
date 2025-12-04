@@ -17,7 +17,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   import AshTypescript.Helpers
 
   defp format_field(field_name) do
-    AshTypescript.FieldFormatter.format_field(field_name, formatter())
+    AshTypescript.FieldFormatter.format_field_name(field_name, formatter())
   end
 
   defp formatter do

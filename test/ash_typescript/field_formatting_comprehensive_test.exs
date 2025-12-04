@@ -53,56 +53,56 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
     {:ok, conn: conn}
   end
 
-  describe "Core FieldFormatter functionality - format_field/2 with built-in formatters" do
+  describe "Core FieldFormatter functionality - format_field_name/2 with built-in formatters" do
     test "formats fields with :camel_case" do
-      assert FieldFormatter.format_field(:user_name, :camel_case) == "userName"
-      assert FieldFormatter.format_field("user_name", :camel_case) == "userName"
-      assert FieldFormatter.format_field(:email_address, :camel_case) == "emailAddress"
-      assert FieldFormatter.format_field("created_at", :camel_case) == "createdAt"
+      assert FieldFormatter.format_field_name(:user_name, :camel_case) == "userName"
+      assert FieldFormatter.format_field_name("user_name", :camel_case) == "userName"
+      assert FieldFormatter.format_field_name(:email_address, :camel_case) == "emailAddress"
+      assert FieldFormatter.format_field_name("created_at", :camel_case) == "createdAt"
     end
 
     test "formats fields with :pascal_case" do
-      assert FieldFormatter.format_field(:user_name, :pascal_case) == "UserName"
-      assert FieldFormatter.format_field("user_name", :pascal_case) == "UserName"
-      assert FieldFormatter.format_field(:email_address, :pascal_case) == "EmailAddress"
-      assert FieldFormatter.format_field("created_at", :pascal_case) == "CreatedAt"
+      assert FieldFormatter.format_field_name(:user_name, :pascal_case) == "UserName"
+      assert FieldFormatter.format_field_name("user_name", :pascal_case) == "UserName"
+      assert FieldFormatter.format_field_name(:email_address, :pascal_case) == "EmailAddress"
+      assert FieldFormatter.format_field_name("created_at", :pascal_case) == "CreatedAt"
     end
 
     test "formats fields with :snake_case" do
-      assert FieldFormatter.format_field(:user_name, :snake_case) == "user_name"
-      assert FieldFormatter.format_field("user_name", :snake_case) == "user_name"
-      assert FieldFormatter.format_field(:email_address, :snake_case) == "email_address"
-      assert FieldFormatter.format_field("created_at", :snake_case) == "created_at"
+      assert FieldFormatter.format_field_name(:user_name, :snake_case) == "user_name"
+      assert FieldFormatter.format_field_name("user_name", :snake_case) == "user_name"
+      assert FieldFormatter.format_field_name(:email_address, :snake_case) == "email_address"
+      assert FieldFormatter.format_field_name("created_at", :snake_case) == "created_at"
     end
 
     test "handles single word fields" do
-      assert FieldFormatter.format_field(:name, :camel_case) == "name"
-      assert FieldFormatter.format_field(:email, :pascal_case) == "Email"
-      assert FieldFormatter.format_field(:title, :snake_case) == "title"
+      assert FieldFormatter.format_field_name(:name, :camel_case) == "name"
+      assert FieldFormatter.format_field_name(:email, :pascal_case) == "Email"
+      assert FieldFormatter.format_field_name(:title, :snake_case) == "title"
     end
 
     test "handles empty fields" do
-      assert FieldFormatter.format_field("", :camel_case) == ""
-      assert FieldFormatter.format_field("", :pascal_case) == ""
-      assert FieldFormatter.format_field("", :snake_case) == ""
+      assert FieldFormatter.format_field_name("", :camel_case) == ""
+      assert FieldFormatter.format_field_name("", :pascal_case) == ""
+      assert FieldFormatter.format_field_name("", :snake_case) == ""
     end
   end
 
-  describe "Core FieldFormatter functionality - format_field/2 with custom formatters" do
+  describe "Core FieldFormatter functionality - format_field_name/2 with custom formatters" do
     test "formats fields with {module, function}" do
-      assert FieldFormatter.format_field(:user_name, {Formatters, :custom_format}) ==
+      assert FieldFormatter.format_field_name(:user_name, {Formatters, :custom_format}) ==
                "custom_user_name"
 
-      assert FieldFormatter.format_field("email", {Formatters, :uppercase_format}) == "EMAIL"
+      assert FieldFormatter.format_field_name("email", {Formatters, :uppercase_format}) == "EMAIL"
     end
 
     test "formats fields with {module, function, extra_args}" do
-      assert FieldFormatter.format_field(
+      assert FieldFormatter.format_field_name(
                :user_name,
                {Formatters, :custom_format_with_suffix, ["test"]}
              ) == "user_name_test"
 
-      assert FieldFormatter.format_field(
+      assert FieldFormatter.format_field_name(
                "email",
                {Formatters, :custom_format_with_multiple_args, ["prefix", "suffix"]}
              ) == "prefix_email_suffix"
@@ -110,13 +110,13 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
 
     test "raises error for unsupported formatter" do
       assert_raise ArgumentError, "Unsupported formatter: :invalid_formatter", fn ->
-        FieldFormatter.format_field(:user_name, :invalid_formatter)
+        FieldFormatter.format_field_name(:user_name, :invalid_formatter)
       end
     end
 
     test "raises error when custom formatter function fails" do
       assert_raise RuntimeError, "Custom formatter error", fn ->
-        FieldFormatter.format_field(:user_name, {Formatters, :error_format})
+        FieldFormatter.format_field_name(:user_name, {Formatters, :error_format})
       end
     end
   end
