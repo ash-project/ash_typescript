@@ -11,6 +11,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.10.1](https://github.com/ash-project/ash_typescript/compare/v0.10.0...v0.10.1) (2025-12-04)
+
+
+
+
+### Bug Fixes:
+
+* rpc: consolidate field formatting and format error field names for by [@Torkan](https://github.com/Torkan)
+
+* rpc: flatten multiple error responses by removing nested wrapper by [@Torkan](https://github.com/Torkan)
+
+* test: generate TypeScript inline instead of reading from file by [@Torkan](https://github.com/Torkan)
+
 ## [v0.10.0](https://github.com/ash-project/ash_typescript/compare/v0.9.1...v0.10.0) (2025-12-04)
 
 ### Breaking Changes:
