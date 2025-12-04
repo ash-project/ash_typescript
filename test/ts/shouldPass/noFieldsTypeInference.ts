@@ -62,7 +62,7 @@ if (createUserWithFieldsInferred.success) {
 
 // Test 4: Update actions should have the same behavior
 export const updateUserNoFieldsInferred = await updateUser({
-  primaryKey: "user-id",
+  identity: "user-id",
   input: {
     name: "Updated Name",
   },

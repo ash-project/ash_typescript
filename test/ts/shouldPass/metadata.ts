@@ -121,7 +121,7 @@ if (createWithMetadata.success) {
 
 // Test 6: Update action with metadata - must explicitly request metadata fields
 export const updateWithMetadata = await updateTask({
-  primaryKey: "some-task-id",
+  identity: "some-task-id",
   input: {
     title: "Updated task",
   },
@@ -143,7 +143,7 @@ if (updateWithMetadata.success) {
 
 // Test 7: Update action with arguments and metadata
 export const markCompletedWithMetadata = await markCompletedTask({
-  primaryKey: "some-task-id",
+  identity: "some-task-id",
   input: {
     isCompleted: true, // Note: mapped from completed? to isCompleted
   },
@@ -167,7 +167,7 @@ if (markCompletedWithMetadata.success) {
 
 // Test 8: Destroy action with metadata - must explicitly request metadata fields
 export const destroyWithMetadata = await destroyTask({
-  primaryKey: "some-task-id",
+  identity: "some-task-id",
   metadataFields: ["someString"],
 });
 

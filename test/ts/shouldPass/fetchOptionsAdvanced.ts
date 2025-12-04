@@ -189,7 +189,7 @@ const jsonApiCustomFetch = async (
 };
 
 export const jsonApiRequest = await updateTodo({
-  primaryKey: "todo-456",
+  identity: "todo-456",
   input: {
     title: "Updated via JSON API",
     completed: true

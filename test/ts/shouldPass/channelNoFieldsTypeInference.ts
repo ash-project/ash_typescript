@@ -72,7 +72,7 @@ createUserChannel({
 // Test 4: Update channel operations should have the same behavior
 updateUserChannel({
   channel: mockChannel,
-  primaryKey: "user-id",
+  identity: "user-id",
   input: {
     name: "Updated Name",
   },
@@ -89,7 +89,7 @@ updateUserChannel({
 // Test 5: Update with explicit empty array
 updateUserChannel({
   channel: mockChannel,
-  primaryKey: "user-id",
+  identity: "user-id",
   input: {
     name: "Updated Name",
   },
@@ -105,7 +105,7 @@ updateUserChannel({
 // Test 6: Update with specific fields
 updateUserChannel({
   channel: mockChannel,
-  primaryKey: "user-id",
+  identity: "user-id",
   input: {
     name: "Updated Name",
   },

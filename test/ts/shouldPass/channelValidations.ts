@@ -71,7 +71,7 @@ validateCreateTodoChannel({
 // Test 4: Validation with optional input parameters
 validateUpdateTodoChannel({
   channel: mockChannel,
-  primaryKey: "todo-validation-update",
+  identity: "todo-validation-update",
   input: {
     title: "Updated Validation Title",
     // Other optional fields omitted
@@ -88,7 +88,7 @@ validateUpdateTodoChannel({
 // Test 5: Validation with no input parameters
 validateDestroyTodoChannel({
   channel: mockChannel,
-  primaryKey: "todo-validation-destroy",
+  identity: "todo-validation-destroy",
   resultHandler: (result) => {
     if (result.success) {
       console.log("Destroy validation passed");

@@ -71,20 +71,20 @@ const updateInputWithSomeOptional: UpdateArticleWithRequiredHeroImageAltInput =
 
 export const updateWithOnlyRequired =
   await updateArticleWithRequiredHeroImageAlt({
-    primaryKey: "article-123",
+    identity: "article-123",
     input: updateInputWithOnlyRequired,
     fields: ["id", "heroImageAlt"],
   });
 
 export const updateWithAllFields = await updateArticleWithRequiredHeroImageAlt({
-  primaryKey: "article-456",
+  identity: "article-456",
   input: updateInputWithAllFields,
   fields: ["id", "heroImageUrl", "heroImageAlt", "summary", "body"],
 });
 
 export const updateWithSomeOptional =
   await updateArticleWithRequiredHeroImageAlt({
-    primaryKey: "article-789",
+    identity: "article-789",
     input: updateInputWithSomeOptional,
     fields: ["id", "heroImageAlt", "summary"],
   });

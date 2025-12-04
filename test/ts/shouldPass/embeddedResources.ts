@@ -67,7 +67,7 @@ if (createWithEmbedded.success) {
 
 // Test 10: Update Todo with embedded resource input
 export const updateWithEmbedded = await updateTodo({
-  primaryKey: "123e4567-e89b-12d3-a456-426614174000",
+  identity: "123e4567-e89b-12d3-a456-426614174000",
   input: {
     title: "Updated Project Task",
     metadata: minimalMetadata,

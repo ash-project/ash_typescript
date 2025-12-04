@@ -59,7 +59,7 @@ async function updateTodoWithTiming() {
   };
 
   const result = await updateTodo({
-    primaryKey: "todo-id-123",
+    identity: "todo-id-123",
     fields: ["id", "title", "description"],
     input: {
       title: "Updated Title",
@@ -73,7 +73,7 @@ async function updateTodoWithTiming() {
 // Example 4: RPC action without hook context (hooks still run for global behavior)
 async function destroyTodoWithoutContext() {
   const result = await destroyTodo({
-    primaryKey: "todo-id-456",
+    identity: "todo-id-456",
   });
 
   return result;
@@ -104,7 +104,7 @@ async function validateUpdateTodoNormal() {
   };
 
   const result = await validateUpdateTodo({
-    primaryKey: "update-todo-validation",
+    identity: "update-todo-validation",
     input: {
       title: "Updated Test Todo",
     },

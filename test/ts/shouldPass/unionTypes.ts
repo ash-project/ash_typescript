@@ -423,7 +423,7 @@ if (todoWithUnionCalculation.success && todoWithUnionCalculation.data) {
 
 // Test 9: Update todo with union content
 export const updatedUnionTodo = await updateTodo({
-  primaryKey: "123e4567-e89b-12d3-a456-426614174000",
+  identity: "123e4567-e89b-12d3-a456-426614174000",
   input: {
     title: "Updated Union Todo",
     content: {

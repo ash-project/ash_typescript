@@ -132,7 +132,7 @@ export const searchTodosWithCustomFetch = await listTodos({
 
 // Test 7: Update operation with custom fetch
 export const updateTodoWithCustomFetch = await updateTodo({
-  primaryKey: "todo-123",
+  identity: "todo-123",
   input: { title: "Updated Todo Title" },
   fields: ["id", "title", "createdAt"],
   customFetch: mockEnhancedFetch,

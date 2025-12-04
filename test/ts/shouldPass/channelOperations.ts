@@ -98,7 +98,7 @@ createTodoChannel({
 // Test 4: Channel-based update operation
 updateTodoChannel({
   channel: mockChannel,
-  primaryKey: "todo-123",
+  identity: "todo-123",
   input: {
     title: "Updated Channel Todo",
     completed: true,
@@ -139,7 +139,7 @@ updateTodoChannel({
 // Test 5: Channel-based destroy operation
 destroyTodoChannel({
   channel: mockChannel,
-  primaryKey: "todo-to-delete",
+  identity: "todo-to-delete",
   resultHandler: (result) => {
     if (result.success) {
       console.log("Todo deleted successfully");

@@ -103,8 +103,8 @@ createTodo({
   fields: ["id", "title"],
 });
 
-// Test 8: Missing required primaryKey for update
-// @ts-expect-error - primaryKey is required for updateTodo
+// Test 8: Missing required identity for update
+// @ts-expect-error - identity is required for updateTodo
 updateTodo({
   input: {
     title: "Updated title",
@@ -112,14 +112,14 @@ updateTodo({
   fields: ["id", "title"],
 });
 
-// Test 9: Missing required primaryKey for destroy
-// @ts-expect-error - primaryKey is required for destroyTodo
+// Test 9: Missing required identity for destroy
+// @ts-expect-error - identity is required for destroyTodo
 destroyTodo({});
 
-// Test 10: Invalid field selection in destroy (destroy typically doesn't return data)
+// Test 10: Invalid extra properties in destroy
 destroyTodo({
-  primaryKey: "todo-123",
-  // @ts-expect-error - fields should not be valid for destroy operations
+  identity: "todo-123",
+  // @ts-expect-error - "fields" should not be valid for destroy operations
   fields: ["id", "title"],
 });
 

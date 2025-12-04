@@ -18,7 +18,7 @@ async function testUntypedMapArguments() {
 
   // Test basic untyped map data
   const basicResult = await updateTodoWithUntypedData({
-    primaryKey: todoId,
+    identity: todoId,
     input: {
       additionalData: {
         stringValue: "test",
@@ -33,7 +33,7 @@ async function testUntypedMapArguments() {
 
   // Test nested structures
   const nestedResult = await updateTodoWithUntypedData({
-    primaryKey: todoId,
+    identity: todoId,
     input: {
       additionalData: {
         nested: {
@@ -56,7 +56,7 @@ async function testUntypedMapArguments() {
 
   // Test with optional metadata_update omitted
   const withoutMetadataResult = await updateTodoWithUntypedData({
-    primaryKey: todoId,
+    identity: todoId,
     input: {
       additionalData: {
         simpleKey: "simpleValue"
@@ -82,7 +82,7 @@ function testUntypedMapChannelOperations(channel: Channel) {
 
   updateTodoWithUntypedDataChannel({
     channel,
-    primaryKey: todoId,
+    identity: todoId,
     input: {
       additionalData: {
         channelData: "test",
@@ -156,7 +156,7 @@ async function testDirectCustomDataUpdate() {
   const todoId = "550e8400-e29b-41d4-a716-446655440000";
 
   const updateResult = await updateTodo({
-    primaryKey: todoId,
+    identity: todoId,
     input: {
       title: "Updated Todo with Custom Data",
       customData: {

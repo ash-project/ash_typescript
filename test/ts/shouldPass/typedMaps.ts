@@ -181,7 +181,7 @@ if (createTodoWithTypedMap.success && createTodoWithTypedMap.data) {
 
 // Test 5: Update todo with typed map changes
 export const updateTodoWithTypedMap = await updateTodo({
-  primaryKey: "123e4567-e89b-12d3-a456-426614174000",
+  identity: "123e4567-e89b-12d3-a456-426614174000",
   input: {
     title: "Updated Todo with Modified Settings",
     metadata: {

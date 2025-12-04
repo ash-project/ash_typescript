@@ -40,6 +40,8 @@ import "./shouldPass/inputOptionality";
 import "./shouldPass/get";
 import "./shouldPass/getBy";
 import "./shouldPass/structArguments";
+import "./shouldPass/identities";
+import "./shouldPass/compositePrimaryKey";
 import "./rpcHooks";
 
 // Import Zod schema validation tests

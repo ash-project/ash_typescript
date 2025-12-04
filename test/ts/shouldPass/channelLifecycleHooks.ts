@@ -78,7 +78,7 @@ function updateTodoWithChannelTracking() {
 
   updateTodoChannel({
     channel: mockChannel,
-    primaryKey: "todo-id-123",
+    identity: "todo-id-123",
     fields: ["id", "title", "description"],
     input: {
       title: "Updated via Channel",
@@ -97,7 +97,7 @@ function updateTodoWithChannelTracking() {
 function destroyTodoWithoutChannelContext() {
   destroyTodoChannel({
     channel: mockChannel,
-    primaryKey: "todo-id-456",
+    identity: "todo-id-456",
     resultHandler: (result) => {
       console.log("Todo destroyed:", result);
     },
@@ -137,7 +137,7 @@ function validateUpdateTodoViaChannelNormal() {
 
   validateUpdateTodoChannel({
     channel: mockChannel,
-    primaryKey: "update-todo-validation",
+    identity: "update-todo-validation",
     input: {
       title: "Updated Test Todo",
     },
@@ -275,7 +275,7 @@ function updateTodoWithPerformanceTracking() {
 
   updateTodoChannel({
     channel: mockChannel,
-    primaryKey: "todo-perf-123",
+    identity: "todo-perf-123",
     fields: ["id", "title"],
     input: {
       title: "Performance Tracked Update",

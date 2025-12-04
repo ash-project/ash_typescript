@@ -61,7 +61,7 @@ createTodoChannel({
 // Test 4: Invalid input parameters
 updateTodoChannel({
   channel: mockChannel,
-  primaryKey: "todo-123",
+  identity: "todo-123",
   input: {
     title: "Updated Title",
     // @ts-expect-error - "invalidInputField" should not be valid
@@ -153,11 +153,11 @@ getTodoChannel({
   timeoutHandler: () => console.error("Timeout"),
 });
 
-// Test 10: Invalid destroy operation without required primaryKey
-// @ts-expect-error - primaryKey is required for destroy operation
+// Test 10: Invalid destroy operation without required identity
+// @ts-expect-error - identity is required for destroy operation
 destroyTodoChannel({
   channel: mockChannel,
-  // primaryKey: "required-id"
+  // identity: "required-id"
   resultHandler: (result) => console.log(result),
   errorHandler: (error) => console.error("Error:", error),
   timeoutHandler: () => console.error("Timeout"),

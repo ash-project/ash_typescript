@@ -97,7 +97,7 @@ if (createTodoWithFields.success) {
 
 // Test 6: Update user without fields parameter
 export const updateUserNoFields = await updateUser({
-  primaryKey: "user-id-123",
+  identity: "user-id-123",
   input: {
     name: "Updated Name",
   },
@@ -110,7 +110,7 @@ if (updateUserNoFields.success) {
 
 // Test 7: Update user with fields parameter
 export const updateUserWithFields = await updateUser({
-  primaryKey: "user-id-456",
+  identity: "user-id-456",
   input: {
     name: "Another Updated Name",
   },
@@ -127,7 +127,7 @@ if (updateUserWithFields.success) {
 
 // Test 8: Update todo without fields
 export const updateTodoNoFields = await updateTodo({
-  primaryKey: "todo-id-789",
+  identity: "todo-id-789",
   input: {
     title: "Updated Todo Title",
   },
@@ -139,7 +139,7 @@ if (updateTodoNoFields.success) {
 
 // Test 9: Update todo with fields
 export const updateTodoWithFields = await updateTodo({
-  primaryKey: "todo-id-101",
+  identity: "todo-id-101",
   input: {
     title: "Updated Todo",
     completed: true,
