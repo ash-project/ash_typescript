@@ -251,6 +251,7 @@ mix credo --strict                   # Linting
 | "Union input must be a map" | Direct value for union input | Wrap in map: `{member_name: value}` |
 | "Union input map contains multiple member keys" | Multiple union members in input | Provide exactly one member key |
 | "Union input map does not contain any valid member key" | Invalid or missing member key | Use valid member name from union definition |
+| Test reads stale generated.ts | Test uses `File.read!("test/ts/generated.ts")` | Use `AshTypescript.Rpc.Codegen.generate_typescript_types/1` in `setup_all` |
 
 ## RPC Resource Warnings
 

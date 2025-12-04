@@ -139,6 +139,57 @@ diff -u test/ts/generated_before.ts test/ts/generated.ts
 
 **Use regex for structure validation, not String.contains?**
 
+## Asserting on Generated TypeScript in Elixir Tests
+
+**CRITICAL: Never read from `test/ts/generated.ts` in tests.** This file may be stale or out of sync with the current codebase. Instead, generate the TypeScript programmatically and assert on the resulting string.
+
+### Correct Pattern
+
+```elixir
+defmodule AshTypescript.Rpc.MyFeatureTest do
+  use ExUnit.Case, async: true
+
+  setup_all do
+    # Generate TypeScript programmatically - this ensures fresh output
+    {:ok, generated_content} =
+      AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
+    {:ok, generated: generated_content}
+  end
+
+  describe "TypeScript codegen" do
+    test "generates correct type for my feature", %{generated: generated} do
+      # Assert on the generated string
+      assert generated =~ ~r/function myAction.*input: MyInput/s
+    end
+  end
+end
+```
+
+### Why This Matters
+
+1. **Test Isolation**: Tests don't depend on external file state
+2. **Reproducibility**: Tests always use freshly generated output
+3. **CI Reliability**: No need to ensure `generated.ts` is up-to-date before running tests
+4. **Accurate Results**: Assertions reflect current codegen behavior, not cached output
+
+### Anti-Pattern (Do NOT Do This)
+
+```elixir
+# BAD - Reading from file that may be stale
+test "my feature generates correctly" do
+  generated = File.read!("test/ts/generated.ts")  # WRONG!
+  assert generated =~ "myFunction"
+end
+```
+
+### Reference Examples
+
+See these test files for the correct pattern:
+- `test/ash_typescript/rpc/rpc_function_generation_mapped_fields_test.exs`
+- `test/ash_typescript/rpc/rpc_identities_test.exs`
+- `test/ash_typescript/rpc/rpc_composite_primary_key_test.exs`
+
 ## Testing Unconstrained Maps
 
 When testing actions with unconstrained map inputs or outputs, follow these specific patterns:
