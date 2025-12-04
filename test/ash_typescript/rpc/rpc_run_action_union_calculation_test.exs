@@ -210,9 +210,20 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionCalculationTest do
     setup do
       conn = TestHelpers.build_rpc_conn()
 
-      # Create users
-      user1 = TestHelpers.create_test_user(conn, name: "Author 1", fields: ["id"])
-      user2 = TestHelpers.create_test_user(conn, name: "Author 2", fields: ["id"])
+      # Create users with unique emails
+      user1 =
+        TestHelpers.create_test_user(conn,
+          name: "Author 1",
+          email: "author1@example.com",
+          fields: ["id"]
+        )
+
+      user2 =
+        TestHelpers.create_test_user(conn,
+          name: "Author 2",
+          email: "author2@example.com",
+          fields: ["id"]
+        )
 
       # Create multiple content items
       content1 =

@@ -249,11 +249,15 @@ defmodule AshTypescript.Test.TsActionCallExtractor do
     quote_object_keys_recursive(rest, acc <> char, in_string, false)
   end
 
-  # Remove TypeScript 'as const' assertions.
+  # Remove TypeScript type assertions (as Type).
   #
-  # Example: ["id", "title"] as const -> ["id", "title"]
+  # Examples:
+  # - ["id", "title"] as const -> ["id", "title"]
+  # - "user-uuid" as UUID -> "user-uuid"
+  # - value as SomeType -> value
   defp remove_as_const(string) do
     string
-    |> String.replace(~r/\s+as\s+const/, "")
+    # Remove 'as Type' assertions where Type is an identifier (const, UUID, string, etc.)
+    |> String.replace(~r/\s+as\s+[A-Za-z_][A-Za-z0-9_]*/, "")
   end
 end

@@ -22,6 +22,10 @@ defmodule AshTypescript.Test.User do
     private? true
   end
 
+  identities do
+    identity :unique_email, [:email], pre_check_with: AshTypescript.Test.Domain
+  end
+
   attributes do
     uuid_primary_key :id
 
@@ -84,8 +88,22 @@ defmodule AshTypescript.Test.User do
       accept [:name, :is_super_admin, :address_line_1]
     end
 
+    update :update_me do
+      description "Update the authenticated user's own information. Actor-scoped action."
+      accept [:name, :address_line_1]
+      require_atomic? false
+      # This filter scopes the action to only update the actor's own record
+      filter expr(id == ^actor(:id))
+    end
+
     destroy :destroy do
       accept []
+    end
+
+    destroy :destroy_me do
+      description "Delete the authenticated user's own account. Actor-scoped action."
+      require_atomic? false
+      filter expr(id == ^actor(:id))
     end
   end
 

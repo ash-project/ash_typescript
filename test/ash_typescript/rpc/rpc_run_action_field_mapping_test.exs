@@ -130,7 +130,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
     end
 
     test "validation endpoint accepts mapped argument names", %{conn: conn} do
-      # Create a task first since validation of update actions requires a primary_key
+      # Create a task first since validation of update actions requires an identity
       task =
         Task
         |> Ash.Changeset.for_create(:create, %{title: "Validation Test"})
@@ -141,7 +141,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
         Rpc.validate_action(:ash_typescript, conn, %{
           "action" => "mark_completed_task",
           "resource" => "Task",
-          "primary_key" => task.id,
+          "identity" => task.id,
           "input" => %{
             "isCompleted" => true
           }

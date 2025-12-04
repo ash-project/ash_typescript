@@ -123,7 +123,7 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
         |> Enum.at(0)
 
       assert update_function_section =~ "input: UpdateTaskInput;"
-      assert update_function_section =~ "primaryKey: UUID;"
+      assert update_function_section =~ "identity: UUID;"
     end
 
     test "action function sends correct payload structure", %{generated: generated} do

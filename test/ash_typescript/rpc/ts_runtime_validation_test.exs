@@ -39,7 +39,9 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
     "argsWithFieldConstraints.ts",
     "get.ts",
     "getBy.ts",
-    "structArguments.ts"
+    "structArguments.ts",
+    "identities.ts",
+    "compositePrimaryKey.ts"
   ]
 
   describe "TypeScript shouldPass runtime validation" do
@@ -101,7 +103,55 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
           "fields" => ["id", "title"]
         })
 
-      %{conn: conn, user: user, todo: todo, task: task, content: content}
+      # Create test subscription for identity with mapped field names tests
+      %{"success" => true, "data" => subscription} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_subscription",
+          "input" => %{
+            "userId" => user["id"],
+            "plan" => "premium",
+            "isActive" => true,
+            "isTrial" => false
+          },
+          "fields" => ["id", "userId", "plan", "isActive", "isTrial"]
+        })
+
+      # Create test tenant settings for composite primary key tests
+      tenant_id = Ash.UUID.generate()
+
+      %{"success" => true, "data" => tenant_setting} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_tenant_setting",
+          "input" => %{
+            "tenantId" => tenant_id,
+            "settingKey" => "theme",
+            "value" => "dark"
+          },
+          "fields" => ["tenantId", "settingKey", "value"]
+        })
+
+      # Create a second setting for destroy tests (uses different key)
+      %{"success" => true, "data" => tenant_setting_to_destroy} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_tenant_setting",
+          "input" => %{
+            "tenantId" => tenant_id,
+            "settingKey" => "language",
+            "value" => "en"
+          },
+          "fields" => ["tenantId", "settingKey", "value"]
+        })
+
+      %{
+        conn: conn,
+        user: user,
+        todo: todo,
+        task: task,
+        content: content,
+        subscription: subscription,
+        tenant_setting: tenant_setting,
+        tenant_setting_to_destroy: tenant_setting_to_destroy
+      }
     end
 
     for file <- @test_files do
@@ -110,7 +160,10 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
         user: user,
         todo: todo,
         task: task,
-        content: content
+        content: content,
+        subscription: subscription,
+        tenant_setting: tenant_setting,
+        tenant_setting_to_destroy: tenant_setting_to_destroy
       } do
         file_path = Path.join(@ts_dir, unquote(file))
         file_content = File.read!(file_path)
@@ -132,7 +185,7 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
               "input" => config["input"] || %{},
               "fields" => config["fields"] || []
             }
-            |> maybe_add_primary_key(config)
+            |> maybe_add_identity(config)
             |> maybe_add_metadata_fields(config)
             |> maybe_add_get_by(config)
 
@@ -164,19 +217,53 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
                 |> put_in(["getBy", "status"], "pending")
 
               action_name == "update_todo" ->
-                Map.put(request, "primaryKey", todo["id"])
+                Map.put(request, "identity", todo["id"])
 
               action_name == "update_task" ->
-                Map.put(request, "primaryKey", task["id"])
+                Map.put(request, "identity", task["id"])
 
               action_name == "mark_completed_task" ->
-                Map.put(request, "primaryKey", task["id"])
+                Map.put(request, "identity", task["id"])
 
               action_name == "destroy_task" ->
-                Map.put(request, "primaryKey", task["id"])
+                Map.put(request, "identity", task["id"])
 
               action_name == "update_user" ->
-                Map.put(request, "primaryKey", user["id"])
+                Map.put(request, "identity", user["id"])
+
+              # Identity-based update actions
+              action_name == "update_user_by_identity" ->
+                # Can use either primary key or email - use email for testing
+                Map.put(request, "identity", %{"email" => user["email"]})
+
+              action_name == "update_user_by_email" ->
+                Map.put(request, "identity", %{"email" => user["email"]})
+
+              # Subscription identity-based actions with mapped field names
+              action_name == "update_subscription_by_user_status" ->
+                Map.put(request, "identity", %{
+                  "userId" => subscription["userId"],
+                  "isActive" => subscription["isActive"]
+                })
+
+              action_name == "destroy_subscription_by_user_status" ->
+                Map.put(request, "identity", %{
+                  "userId" => subscription["userId"],
+                  "isActive" => subscription["isActive"]
+                })
+
+              # Composite primary key actions
+              action_name == "update_tenant_setting" ->
+                Map.put(request, "identity", %{
+                  "tenantId" => tenant_setting["tenantId"],
+                  "settingKey" => tenant_setting["settingKey"]
+                })
+
+              action_name == "destroy_tenant_setting" ->
+                Map.put(request, "identity", %{
+                  "tenantId" => tenant_setting_to_destroy["tenantId"],
+                  "settingKey" => tenant_setting_to_destroy["settingKey"]
+                })
 
               action_name == "get_content" ->
                 put_in(request["input"]["id"], content["id"])
@@ -191,6 +278,13 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
                     req
                   end
                 end)
+
+              # Use unique emails for create_user actions to avoid unique constraint violations
+              action_name == "create_user" ->
+                unique_suffix = :erlang.unique_integer([:positive])
+                existing_email = get_in(request, ["input", "email"]) || "test@example.com"
+                unique_email = String.replace(existing_email, "@", "#{unique_suffix}@")
+                put_in(request, ["input", "email"], unique_email)
 
               true ->
                 request
@@ -235,9 +329,9 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
 
   # Helper functions
 
-  defp maybe_add_primary_key(request, config) do
-    if config["primaryKey"] do
-      Map.put(request, "primaryKey", config["primaryKey"])
+  defp maybe_add_identity(request, config) do
+    if config["identity"] do
+      Map.put(request, "identity", config["identity"])
     else
       request
     end

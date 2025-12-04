@@ -117,7 +117,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
         load: [],
         extraction_template: %{},
         input: %{},
-        primary_key: nil,
+        identity: nil,
         filter: nil,
         sort: nil,
         pagination: nil

@@ -86,6 +86,16 @@ defmodule AshTypescript.Test.Domain do
       # Test get_by with explicit not_found_error?: true (same as default)
       rpc_action :get_user_by_email_error, :read, get_by: [:email], not_found_error?: true
 
+      # Test identities: [] for actor-scoped update/destroy actions (no identity required)
+      rpc_action :update_me, :update_me, identities: []
+      rpc_action :destroy_me, :destroy_me, identities: []
+
+      # Test identities with multiple options (primary key and email identity)
+      rpc_action :update_user_by_identity, :update, identities: [:_primary_key, :unique_email]
+
+      # Test identities with only email identity (no primary key)
+      rpc_action :update_user_by_email, :update, identities: [:unique_email]
+
       typed_query :list_users_with_invalid_arg, :read_with_invalid_arg do
         ts_fields_const_name "ListUsersWithInvalidArg"
         ts_result_type_name "ListUsersWithInvalidArgResult"
@@ -177,6 +187,29 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :update_article_with_required_hero_image_alt,
                  :update_with_required_hero_image_alt
     end
+
+    resource AshTypescript.Test.Subscription do
+      rpc_action :list_subscriptions, :read
+      rpc_action :create_subscription, :create
+      rpc_action :update_subscription, :update
+      rpc_action :destroy_subscription, :destroy
+
+      # Test identity using fields with field_names mappings (is_active? -> isActive)
+      # This tests that identity input/output correctly applies field name formatting
+      rpc_action :update_subscription_by_user_status, :update, identities: [:by_user_and_status]
+
+      rpc_action :update_subscription_by_identity, :update,
+        identities: [:_primary_key, :by_user_and_status]
+
+      rpc_action :destroy_subscription_by_user_status, :destroy, identities: [:by_user_and_status]
+    end
+
+    resource AshTypescript.Test.TenantSetting do
+      rpc_action :list_tenant_settings, :read
+      rpc_action :create_tenant_setting, :create
+      rpc_action :update_tenant_setting, :update
+      rpc_action :destroy_tenant_setting, :destroy
+    end
   end
 
   resources do
@@ -194,5 +227,7 @@ defmodule AshTypescript.Test.Domain do
     resource AshTypescript.Test.MapFieldResource
     resource AshTypescript.Test.Content
     resource AshTypescript.Test.Article
+    resource AshTypescript.Test.Subscription
+    resource AshTypescript.Test.TenantSetting
   end
 end
