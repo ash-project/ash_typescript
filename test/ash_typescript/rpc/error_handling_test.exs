@@ -101,7 +101,12 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
         path: [:data, :attributes]
       }
 
-      response = ErrorBuilder.build_error_response(ash_error)
+      result = ErrorBuilder.build_error_response(ash_error)
+
+      # Ash errors always return a list
+      assert is_list(result)
+      assert length(result) == 1
+      [response] = result
 
       # Now uses the protocol which extracts the error code
       assert response.type == "invalid_attribute"
@@ -114,7 +119,12 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     test "generic ash error fallback" do
       ash_error = %{unexpected: "error format"}
 
-      response = ErrorBuilder.build_error_response(ash_error)
+      result = ErrorBuilder.build_error_response(ash_error)
+
+      # Ash errors always return a list
+      assert is_list(result)
+      assert length(result) == 1
+      [response] = result
 
       # Now converts to Ash error class (UnknownError) and uses its protocol implementation
       assert response.type == "unknown_error"

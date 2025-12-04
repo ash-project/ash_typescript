@@ -426,7 +426,10 @@ defmodule AshTypescript.Rpc do
       Pipeline.format_output(%{success: true, data: processed_result}, parsed_request)
     else
       {:error, reason} ->
-        %{success: false, errors: [ErrorBuilder.build_error_response(reason)]}
+        error_response = ErrorBuilder.build_error_response(reason)
+        errors = if is_list(error_response), do: error_response, else: [error_response]
+
+        %{success: false, errors: errors}
         |> Pipeline.format_output()
     end
   end
@@ -444,7 +447,10 @@ defmodule AshTypescript.Rpc do
         |> Pipeline.format_output(parsed_request)
 
       {:error, reason} ->
-        %{success: false, errors: [ErrorBuilder.build_error_response(reason)]}
+        error_response = ErrorBuilder.build_error_response(reason)
+        errors = if is_list(error_response), do: error_response, else: [error_response]
+
+        %{success: false, errors: errors}
         |> Pipeline.format_output()
     end
   end

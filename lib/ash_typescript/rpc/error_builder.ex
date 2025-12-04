@@ -21,8 +21,10 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
   with clear messages and debugging context.
 
   For Ash framework errors, uses the new Error protocol for standardized extraction.
+
+  Returns either a single error map or a list of error maps (for Ash errors with multiple sub-errors).
   """
-  @spec build_error_response(term()) :: map()
+  @spec build_error_response(term()) :: map() | list(map())
   def build_error_response(error) do
     case error do
       # Action discovery errors
@@ -497,16 +499,10 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
 
       # Any exception or Ash error - convert to Ash error class and process
       error when is_exception(error) or is_map(error) ->
-        # Always convert to Ash error class first
         ash_error = Ash.Error.to_error_class(error)
 
-        # Process through the new error system
-        transformed = Errors.to_errors(ash_error)
-
-        case transformed do
-          [single_error] -> single_error
-          multiple -> %{type: "multiple_errors", errors: multiple}
-        end
+        # Returns list directly - caller handles both single and multiple errors
+        Errors.to_errors(ash_error)
 
       # === FALLBACK ERROR HANDLERS ===
 

@@ -248,9 +248,14 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
 
       result = AshTypescript.Rpc.ErrorBuilder.build_error_response(ash_error)
 
+      # Ash errors always return a list, even for single errors
+      assert is_list(result)
+      assert length(result) == 1
+      [error] = result
+
       # Should have been processed through the protocol
-      assert result.type == "not_found"
-      assert is_binary(result.message)
+      assert error.type == "not_found"
+      assert is_binary(error.message)
     end
 
     test "ErrorBuilder handles wrapped Ash errors" do
@@ -265,9 +270,14 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
 
       result = AshTypescript.Rpc.ErrorBuilder.build_error_response(wrapped)
 
+      # Ash errors always return a list
+      assert is_list(result)
+      assert length(result) == 1
+      [error] = result
+
       # Should unwrap and process the inner error
-      assert result.type == "required"
-      assert is_binary(result.message)
+      assert error.type == "required"
+      assert is_binary(error.message)
     end
 
     test "ErrorBuilder handles multiple errors" do
@@ -281,9 +291,10 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
 
       result = AshTypescript.Rpc.ErrorBuilder.build_error_response(errors)
 
-      assert result.type == "multiple_errors"
-      assert is_list(result.errors)
-      assert length(result.errors) == 2
+      # Should return a list of errors directly, not wrapped in multiple_errors
+      assert is_list(result)
+      assert length(result) == 2
+      assert Enum.all?(result, &is_map/1)
     end
   end
 end
