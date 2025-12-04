@@ -202,15 +202,15 @@ if (newTodo.success) {
 
 ## Update Operations
 
-Update existing records using a **separate primary key parameter**:
+Update existing records using a **separate identity parameter**:
 
 ```typescript
 import { updateTodo } from './ash_rpc';
 
-// Update existing todo (primary key separate from input)
+// Update existing todo (identity separate from input)
 const updatedTodo = await updateTodo({
   fields: ["id", "title", "priority", "updatedAt"],
-  primaryKey: "todo-123",  // Primary key as separate parameter
+  identity: "todo-123",  // Identity as separate parameter
   input: {
     title: "Updated: Learn AshTypescript",
     priority: "urgent"
@@ -226,18 +226,38 @@ if (updatedTodo.success) {
 }
 ```
 
-**Important**: The `primaryKey` parameter is separate from the `input` object. This ensures that the primary key cannot be accidentally modified.
+**Important**: The `identity` parameter is separate from the `input` object. This ensures that the identity fields cannot be accidentally modified.
+
+### Update with Named Identities
+
+You can configure update actions to use named identities instead of (or in addition to) the primary key:
+
+```elixir
+# Elixir configuration
+rpc_action :update_user_by_email, :update, identities: [:email]
+```
+
+```typescript
+// Update by email identity (must be wrapped in object)
+const updated = await updateUserByEmail({
+  identity: { email: "user@example.com" },
+  input: { name: "New Name" },
+  fields: ["id", "name"]
+});
+```
+
+See [Identity Lookups](../topics/identities.md) for detailed documentation on identity configuration.
 
 ## Delete Operations
 
-Delete records using the **primary key parameter**:
+Delete records using the **identity parameter**:
 
 ```typescript
 import { destroyTodo } from './ash_rpc';
 
-// Delete todo (primary key separate from input)
+// Delete todo by primary key (default)
 const deletedTodo = await destroyTodo({
-  primaryKey: "todo-123"    // Primary key as separate parameter
+  identity: "todo-123"
 });
 
 if (deletedTodo.success) {
@@ -245,6 +265,22 @@ if (deletedTodo.success) {
 } else {
   console.error("Failed to delete:", deletedTodo.errors);
 }
+```
+
+### Delete with Named Identities
+
+Like update actions, destroy actions can use named identities:
+
+```elixir
+# Elixir configuration
+rpc_action :destroy_user_by_email, :destroy, identities: [:email]
+```
+
+```typescript
+// Delete by email identity
+await destroyUserByEmail({
+  identity: { email: "user@example.com" }
+});
 ```
 
 ## Error Handling
@@ -511,7 +547,7 @@ if (getResult.success) {
 // 3. Update the todo
 const updateResult = await updateTodo({
   fields: ["id", "title", "priority", "updatedAt"],
-  primaryKey: todoId,
+  identity: todoId,
   input: {
     title: "Mastered AshTypescript CRUD",
     priority: "completed"
@@ -536,7 +572,7 @@ if (listResult.success) {
 
 // 5. Delete the todo
 const deleteResult = await destroyTodo({
-  primaryKey: todoId,
+  identity: todoId,
   headers
 });
 
@@ -547,6 +583,7 @@ if (deleteResult.success) {
 
 ## Next Steps
 
+- Learn about [Identity Lookups](../topics/identities.md) for flexible record identification
 - Learn about [Phoenix Channel-based RPC actions](../topics/phoenix-channels.md) for real-time communication
 - Explore [field selection patterns](field-selection.md) for complex queries
 - Review [error handling strategies](error-handling.md) for production applications

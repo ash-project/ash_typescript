@@ -21,6 +21,72 @@ Generate type-safe TypeScript clients directly from your Elixir Ash resources, e
 
 ## 🚨 Breaking Changes
 
+### 0.10.0 - `primaryKey` Renamed to `identity`
+
+The `primaryKey` field in update and destroy actions has been renamed to `identity`. This field now supports both primary key values and named identities for record lookup.
+
+**Elixir Configuration:**
+
+```elixir
+typescript_rpc do
+  resource MyApp.Accounts.User do
+    # Default: uses primary key (identities: [:_primary_key])
+    rpc_action :update_user, :update
+
+    # Named identity only (e.g., lookup by email)
+    rpc_action :update_user_by_email, :update, identities: [:unique_email]
+
+    # Multiple identities (primary key OR email)
+    rpc_action :update_user_by_identity, :update, identities: [:_primary_key, :unique_email]
+
+    # Actor-scoped actions (no identity required - uses actor from context)
+    rpc_action :update_me, :update_me, identities: []
+  end
+end
+```
+
+**TypeScript Usage:**
+
+```typescript
+// ❌ Before (0.9.x) - used primaryKey
+const updated = await updateUser({
+  primaryKey: "user-123",
+  input: { firstName: "Updated" },
+  fields: ["id", "title"]
+});
+
+// ✅ After (0.10.0+) - uses identity
+const updated = await updateTodo({
+  identity: "todo-123",
+  input: { firstName: "Updated" },
+  fields: ["id", "title"]
+});
+
+// ✅ New: Named identities (e.g., lookup by email)
+const updated = await updateUserByEmail({
+  identity: { email: "user@example.com" },
+  input: { firstName: "New Name" },
+  fields: ["id", "name"]
+});
+
+const updated = await updateUserByIdentity({
+  identity: { email: "user@example.com" }, // Identity is typed as string | {email: string}
+  input: { firstName: "New Name" },
+  fields: ["id", "name"]
+});
+
+// ✅ Actor-scoped actions (no identity parameter needed)
+const updated = await updateMe({
+  input: { firstName: "My New Name" },
+  fields: ["id", "name"]
+});
+```
+
+**Migration:**
+1. Replace all `primaryKey` usages with `identity` in your TypeScript code
+2. The value format remains the same for primary key lookups, but now other identities are also supported
+3. For actor-scoped actions where the action already does things like `filter expr(id == ^actor.id)`, add `identities: []` to the `rpc_action` configuration in order to not require any identities.
+
 ### 0.9.0 - Get Action Not Found Behavior
 
 Get actions (`get?`, `get_by`, or Ash actions with `get?: true`) now return an error by default when no record is found:

@@ -28,7 +28,10 @@ SPDX-License-Identifier: MIT
 | **Sort String** | `\"-field1,field2\"` | Dash prefix = descending |
 | **CSRF Headers** | `buildCSRFHeaders()` | Phoenix CSRF protection |
 | **Input Args** | `input: { argName: value }` | Action arguments |
-| **Update/Destroy** | `primaryKey: \"id-123\"` | Primary key separate from input |
+| **Update/Destroy** | `identity: \"id-123\"` | Record lookup (primary key or identity) |
+| **Identities Config** | `identities: [:_primary_key, :email]` | Allowed lookup methods |
+| **Identity Object** | `identity: { email: \"a@b.com\" }` | Named identity lookup |
+| **Actor-Scoped** | `identities: []` | No identity (uses actor) |
 | **Custom Fetch** | `customFetch: myFetchFn` | Replace native fetch |
 | **Channel Function** | `actionNameChannel({ channel, resultHandler, ... })` | Phoenix channel-based RPC |
 | **Validation Config** | `generate_validation_functions: true` | Enable validation generation |
@@ -46,8 +49,8 @@ SPDX-License-Identifier: MIT
 
 ## Action Feature Matrix
 
-| Action Type | Fields | Filter | Page | Sort | Input | PrimaryKey |
-|-------------|--------|--------|------|------|-------|------------|
+| Action Type | Fields | Filter | Page | Sort | Input | Identity |
+|-------------|--------|--------|------|------|-------|----------|
 | **read** | ✓ | ✓ | ✓ | ✓ | ✓ | - |
 | **read (get?/get_by)** | ✓ | - | - | - | ✓ | - |
 | **create** | ✓ | - | - | - | ✓ | - |
@@ -91,6 +94,46 @@ const user = await getByEmail({ getBy: { email: "a@b.com" }, fields: ["id"] });
 // not_found_error?: false → user.data is User | null (not error)
 ```
 
+### Identity Lookups (Update/Destroy)
+
+```elixir
+# Default: primary key only
+rpc_action :update_user, :update                           # identity: UUID
+
+# Multiple identities
+rpc_action :update_by_identity, :update,
+  identities: [:_primary_key, :email]                      # identity: UUID | { email: string }
+
+# Named identity only
+rpc_action :update_by_email, :update,
+  identities: [:email]                                     # identity: { email: string }
+
+# Composite identity (uses field_names mapping)
+rpc_action :update_subscription, :update,
+  identities: [:by_user_and_status]                        # identity: { userId: UUID, isActive: boolean }
+
+# Actor-scoped (no identity required)
+rpc_action :update_me, :update, identities: []             # No identity param
+```
+
+```typescript
+// Primary key - direct value
+await updateUser({ identity: "uuid-123", input: {...}, fields: [...] });
+
+// Multiple identities - can use either
+await updateByIdentity({ identity: "uuid-123", ...});
+await updateByIdentity({ identity: { email: "a@b.com" }, ...});
+
+// Named identity only - must wrap in object
+await updateByEmail({ identity: { email: "a@b.com" }, ...});
+
+// Composite identity - object with all fields
+await updateSubscription({ identity: { userId: "uuid", isActive: true }, ...});
+
+// Actor-scoped - no identity needed
+await updateMe({ input: { name: "New Name" }, fields: ["id"] });
+```
+
 ### TypeScript Usage Examples
 
 ```typescript
@@ -112,9 +155,9 @@ const newTodo = await createTodo({
   headers: buildCSRFHeaders()
 });
 
-// Update requires primaryKey
+// Update requires identity
 const updated = await updateTodo({
-  primaryKey: "todo-123",
+  identity: "todo-123",
   input: { title: "Updated" },
   fields: ["id", "title"]
 });
@@ -253,6 +296,9 @@ attribute :metadata, MyApp.CustomMetadata, public?: true
 | Invalid map constraint field names | Create `Ash.Type.NewType` with `typescript_field_names/0` |
 | Invalid metadata field names | Add `metadata_field_names` to `rpc_action` |
 | Metadata field conflicts with resource field | Rename or use different mapped name |
+| Using `primaryKey` instead of `identity` | Renamed: use `identity` parameter |
+| Identity not found for update/destroy | Check `identities` config matches resource identities |
+| Wrong identity field names | Named identities require `{ fieldName: value }` format |
 
 ## Error Message Quick Reference
 
@@ -273,6 +319,9 @@ attribute :metadata, MyApp.CustomMetadata, public?: true
 | "Invalid metadata field name" | Metadata name invalid | Add `metadata_field_names` |
 | "not_found" / "NotFound" | Get action found no record | Add `not_found_error?: false` or check data exists |
 | "Missing required getBy field" | get_by field not provided | Add missing field to `getBy: { field: value }` |
+| "Invalid identity" | Wrong identity format | Check identity field names; use `{ field: value }` for named identities |
+| "Identity not found on resource" | `identities` references non-existent identity | Use valid identity name or `:_primary_key` |
+| "Resource has no primary key" | `:_primary_key` used but none defined | Define primary key or use named identity |
 
 ## Configuration Reference
 

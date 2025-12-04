@@ -109,6 +109,7 @@ valid resource attributes. Returns a single result or null.
 | [`get?`](#typescript_rpc-resource-rpc_action-get?){: #typescript_rpc-resource-rpc_action-get? } | `boolean` | `false` | When true, retrieves a single resource by primary key. Returns single result or null. |
 | [`get_by`](#typescript_rpc-resource-rpc_action-get_by){: #typescript_rpc-resource-rpc_action-get_by } | `list(atom)` | `[]` | Retrieves a single resource by the specified fields (must be resource attributes). Returns single result or null. |
 | [`not_found_error?`](#typescript_rpc-resource-rpc_action-not_found_error?){: #typescript_rpc-resource-rpc_action-not_found_error? } | `true \| false \| nil` |  | When true (default from global config), returns an error if no record is found. When false, returns null. Only applies to get actions (get?, get_by, or action.get?). If not specified, uses the global config `config :ash_typescript, not_found_error?: true`. |
+| [`identities`](#typescript_rpc-resource-rpc_action-identities){: #typescript_rpc-resource-rpc_action-identities } | `list(atom)` | `[:_primary_key]` | List of identities that can be used to look up records for update/destroy actions. Use `:_primary_key` for the primary key, or identity names like `:email`. Defaults to `[:_primary_key]`. Use `[]` for actor-scoped actions that don't need a lookup key. |
 
 
 

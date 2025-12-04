@@ -153,7 +153,7 @@ import { updateTodo, buildCSRFHeaders } from './ash_rpc';
 
 const result = await updateTodo({
   fields: ["id", "title"],
-  primaryKey: "todo-123",
+  identity: "todo-123",
   input: { title: "Updated Title" },
   headers: buildCSRFHeaders()
 });

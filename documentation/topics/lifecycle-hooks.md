@@ -218,7 +218,7 @@ The exported `ActionConfig` interface includes all available configuration field
 export interface ActionConfig {
   // Request data
   input?: Record<string, any>;
-  primaryKey?: any;
+  identity?: any;
   fields?: Array<string | Record<string, any>>; // Field selection
   filter?: Record<string, any>; // Filter options (for reads)
   sort?: string; // Sort options
@@ -917,7 +917,7 @@ export interface ActionChannelConfig {
 
   // Request parameters (varies by action)
   input?: Record<string, any>;
-  primaryKey?: any;
+  identity?: any;
   fields?: Array<string | Record<string, any>>;
   filter?: Record<string, any>;
   sort?: string;
