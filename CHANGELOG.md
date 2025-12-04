@@ -11,6 +11,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.10.0](https://github.com/ash-project/ash_typescript/compare/v0.9.1...v0.10.0) (2025-12-04)
+
+### Breaking Changes:
+
+`primaryKey` input field for update & destroy rpc actions are now replaced by the more flexible `identities`-field
+
+
+### Features:
+
+* identities: add compile-time identity verification by [@Torkan](https://github.com/Torkan)
+
+* identities: add identity-based record lookup for update/destroy actions by [@Torkan](https://github.com/Torkan)
+
+### Bug Fixes:
+
+* codegen: raise error instead of System.halt on generation failure by [@Torkan](https://github.com/Torkan)
+
 ## [v0.9.1](https://github.com/ash-project/ash_typescript/compare/v0.9.0...v0.9.1) (2025-12-01)
 
 
