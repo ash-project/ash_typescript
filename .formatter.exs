@@ -10,6 +10,7 @@ spark_locals_without_parens = [
   fields: 1,
   get?: 1,
   get_by: 1,
+  identities: 1,
   metadata_field_names: 1,
   not_found_error?: 1,
   read_action: 1,
