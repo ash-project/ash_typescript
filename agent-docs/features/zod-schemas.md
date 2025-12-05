@@ -35,13 +35,13 @@ Ash.Type.Atom with constraints -> "z.enum([...])"
 - Handles accepted fields + arguments based on action type
 - Produces `z.object({...})` definitions
 
-**Embedded Resource Schemas**: `generate_zod_schemas_for_embedded_resources/1`
-- Creates validation schemas for embedded resources
+**Resource Schemas**: `generate_zod_schemas_for_resources/1`
+- Creates validation schemas for resources (including embedded)
 - Uses same type mapping as main resource schemas
 - Integrates with embedded resource discovery
 
-**Individual Embedded Schema**: `generate_zod_schema_for_embedded_resource/1`
-- Generates schema for single embedded resource
+**Individual Resource Schema**: `generate_zod_schema_for_resource/1`
+- Generates schema for single resource
 - Maps all public attributes to Zod fields
 - Handles optional fields with `.optional()`
 

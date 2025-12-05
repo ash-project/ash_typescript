@@ -27,7 +27,7 @@ defmodule AshTypescript.Resource.TypescriptFieldNamesCodegenTest do
       resource = AshTypescript.Test.MapFieldResource
 
       zod_code =
-        AshTypescript.Rpc.ZodSchemaGenerator.generate_zod_schema_for_embedded_resource(resource)
+        AshTypescript.Rpc.ZodSchemaGenerator.generate_zod_schema_for_resource(resource)
 
       # Check that mapped field names are used in the generated Zod schemas
       assert zod_code =~ "field1: z.string()"

@@ -374,28 +374,10 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   end
 
   @doc """
-  Generates Zod schemas for embedded resources.
-
-  Deprecated: Use generate_zod_schemas_for_resources/1 instead.
-  """
-  def generate_zod_schemas_for_embedded_resources(embedded_resources) do
-    generate_zod_schemas_for_resources(embedded_resources)
-  end
-
-  @doc """
   Generates a Zod schema for a single resource.
   """
   def generate_zod_schema_for_resource(resource) do
     generate_zod_schema_impl(resource)
-  end
-
-  @doc """
-  Generates a Zod schema for a single embedded resource.
-
-  Deprecated: Use generate_zod_schema_for_resource/1 instead.
-  """
-  def generate_zod_schema_for_embedded_resource(resource) do
-    generate_zod_schema_for_resource(resource)
   end
 
   defp generate_zod_schema_impl(resource) do
