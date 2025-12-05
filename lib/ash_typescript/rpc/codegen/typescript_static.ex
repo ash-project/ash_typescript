@@ -468,14 +468,14 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
 
     export type SuccessDataFunc<T extends (...args: any[]) => Promise<any>> = Extract<
       Awaited<ReturnType<T>>,
-      { success: true }
-    >["data"];
+      { #{formatted_success_field()}: true }
+    >["#{formatted_data_field()}"];
 
 
     export type ErrorData<T extends (...args: any[]) => Promise<any>> = Extract<
       Awaited<ReturnType<T>>,
-      { success: false }
-    >["errors"];
+      { #{formatted_success_field()}: false }
+    >["#{formatted_errors_field()}"];
 
     /**
      * Represents an error from an unsuccessful RPC call.
@@ -484,30 +484,30 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
      *
      * @example
      * const error: AshRpcError = {
-     *   type: "invalid_changes",
-     *   message: "Invalid value for field %{field}",
-     *   shortMessage: "Invalid changes",
-     *   vars: { field: "email" },
-     *   fields: ["email"],
-     *   path: ["user", "email"],
-     *   details: { suggestion: "Provide a valid email address" }
+     *   #{formatted_error_type_field()}: "invalid_changes",
+     *   #{formatted_error_message_field()}: "Invalid value for field %{field}",
+     *   #{formatted_error_short_message_field()}: "Invalid changes",
+     *   #{formatted_error_vars_field()}: { field: "email" },
+     *   #{formatted_error_fields_field()}: ["email"],
+     *   #{formatted_error_path_field()}: ["user", "email"],
+     *   #{formatted_error_details_field()}: { suggestion: "Provide a valid email address" }
      * }
      */
     export type AshRpcError = {
       /** Machine-readable error type (e.g., "invalid_changes", "not_found") */
-      type: string;
+      #{formatted_error_type_field()}: string;
       /** Full error message (may contain template variables like %{key}) */
-      message: string;
+      #{formatted_error_message_field()}: string;
       /** Concise version of the message */
-      shortMessage: string;
+      #{formatted_error_short_message_field()}: string;
       /** Variables to interpolate into the message template */
-      vars: Record<string, any>;
+      #{formatted_error_vars_field()}: Record<string, any>;
       /** List of affected field names (for field-level errors) */
-      fields: string[];
+      #{formatted_error_fields_field()}: string[];
       /** Path to the error location in the data structure */
-      path: string[];
+      #{formatted_error_path_field()}: string[];
       /** Optional map with extra details (e.g., suggestions, hints) */
-      details?: Record<string, any>;
+      #{formatted_error_details_field()}?: Record<string, any>;
     }
 
     /**
@@ -518,26 +518,26 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
      *
      * @example
      * // Successful validation
-     * const result: ValidationResult = { success: true };
+     * const result: ValidationResult = { #{formatted_success_field()}: true };
      *
      * // Failed validation
      * const result: ValidationResult = {
-     *   success: false,
-     *   errors: [
+     *   #{formatted_success_field()}: false,
+     *   #{formatted_errors_field()}: [
      *     {
-     *       type: "required",
-     *       message: "is required",
-     *       shortMessage: "Required field",
-     *       vars: { field: "email" },
-     *       fields: ["email"],
-     *       path: []
+     *       #{formatted_error_type_field()}: "required",
+     *       #{formatted_error_message_field()}: "is required",
+     *       #{formatted_error_short_message_field()}: "Required field",
+     *       #{formatted_error_vars_field()}: { field: "email" },
+     *       #{formatted_error_fields_field()}: ["email"],
+     *       #{formatted_error_path_field()}: []
      *     }
      *   ]
      * };
      */
     export type ValidationResult =
-      | { #{format_output_field(:success)}: true }
-      | { #{format_output_field(:success)}: false; #{format_output_field(:errors)}: AshRpcError[]; };
+      | { #{formatted_success_field()}: true }
+      | { #{formatted_success_field()}: false; #{formatted_errors_field()}: AshRpcError[]; };
 
 
 
@@ -629,18 +629,18 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
          */
         export interface ValidationConfig {
           // Request data
-          input?: Record<string, any>;
+          #{formatted_input_field()}?: Record<string, any>;
 
           // HTTP customization
-          headers?: Record<string, string>;
-          fetchOptions?: RequestInit;
-          customFetch?: (
+          #{formatted_headers_field()}?: Record<string, string>;
+          #{formatted_fetch_options_field()}?: RequestInit;
+          #{formatted_custom_fetch_field()}?: (
             input: RequestInfo | URL,
             init?: RequestInit,
           ) => Promise<Response>;
 
           // Hook context
-          hookCtx?: #{validation_hook_context_type};
+          #{formatted_hook_ctx_field()}?: #{validation_hook_context_type};
         }
         """
       else
@@ -656,38 +656,38 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
          */
         export interface ActionChannelConfig {
           // Request data
-          input?: Record<string, any>;
-          primaryKey?: any;
-          fields?: ReadonlyArray<string | Record<string, any>>;
-          filter?: Record<string, any>;
-          sort?: string;
-          page?:
+          #{formatted_input_field()}?: Record<string, any>;
+          #{formatted_identity_field()}?: any;
+          #{formatted_fields_field()}?: ReadonlyArray<string | Record<string, any>>;
+          #{formatted_filter_field()}?: Record<string, any>;
+          #{formatted_sort_field()}?: string;
+          #{formatted_page_field()}?:
             | {
-                limit?: number;
-                offset?: number;
-                count?: boolean;
+                #{formatted_limit_field()}?: number;
+                #{formatted_offset_field()}?: number;
+                #{formatted_count_field()}?: boolean;
               }
             | {
-                limit?: number;
-                after?: string;
-                before?: string;
+                #{formatted_limit_field()}?: number;
+                #{formatted_after_field()}?: string;
+                #{formatted_before_field()}?: string;
               };
 
           // Metadata
-          metadataFields?: ReadonlyArray<string>;
+          #{formatted_metadata_fields_field()}?: ReadonlyArray<string>;
 
           // Channel-specific
-          channel: any; // Phoenix Channel
-          resultHandler: (result: any) => void;
-          errorHandler?: (error: any) => void;
-          timeoutHandler?: () => void;
-          timeout?: number;
+          #{formatted_channel_field()}: any; // Phoenix Channel
+          #{formatted_result_handler_field()}: (result: any) => void;
+          #{formatted_error_handler_field()}?: (error: any) => void;
+          #{formatted_timeout_handler_field()}?: () => void;
+          #{formatted_timeout_field()}?: number;
 
           // Multitenancy
-          tenant?: string;
+          #{formatted_tenant_field()}?: string;
 
           // Hook context
-          hookCtx?: #{action_channel_hook_context_type};
+          #{formatted_hook_ctx_field()}?: #{action_channel_hook_context_type};
         }
         """
       else
@@ -704,21 +704,21 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
          */
         export interface ValidationChannelConfig {
           // Request data
-          input?: Record<string, any>;
-          primaryKey?: any;
+          #{formatted_input_field()}?: Record<string, any>;
+          #{formatted_identity_field()}?: any;
 
           // Channel-specific
-          channel: any; // Phoenix Channel
-          resultHandler: (result: any) => void;
-          errorHandler?: (error: any) => void;
-          timeoutHandler?: () => void;
-          timeout?: number;
+          #{formatted_channel_field()}: any; // Phoenix Channel
+          #{formatted_result_handler_field()}: (result: any) => void;
+          #{formatted_error_handler_field()}?: (error: any) => void;
+          #{formatted_timeout_handler_field()}?: () => void;
+          #{formatted_timeout_field()}?: number;
 
           // Multitenancy
-          tenant?: string;
+          #{formatted_tenant_field()}?: string;
 
           // Hook context
-          hookCtx?: #{validation_channel_hook_context_type};
+          #{formatted_hook_ctx_field()}?: #{validation_channel_hook_context_type};
         }
         """
       else
@@ -733,41 +733,41 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
      */
     export interface ActionConfig {
       // Request data
-      input?: Record<string, any>;
-      primaryKey?: any;
-      fields?: Array<string | Record<string, any>>; // Field selection
-      filter?: Record<string, any>; // Filter options (for reads)
-      sort?: string; // Sort options
-      page?:
+      #{formatted_input_field()}?: Record<string, any>;
+      #{formatted_identity_field()}?: any;
+      #{formatted_fields_field()}?: Array<string | Record<string, any>>; // Field selection
+      #{formatted_filter_field()}?: Record<string, any>; // Filter options (for reads)
+      #{formatted_sort_field()}?: string; // Sort options
+      #{formatted_page_field()}?:
         | {
             // Offset-based pagination
-            limit?: number;
-            offset?: number;
-            count?: boolean;
+            #{formatted_limit_field()}?: number;
+            #{formatted_offset_field()}?: number;
+            #{formatted_count_field()}?: boolean;
           }
         | {
             // Keyset pagination
-            limit?: number;
-            after?: string;
-            before?: string;
+            #{formatted_limit_field()}?: number;
+            #{formatted_after_field()}?: string;
+            #{formatted_before_field()}?: string;
           };
 
       // Metadata
-      metadataFields?: ReadonlyArray<string>;
+      #{formatted_metadata_fields_field()}?: ReadonlyArray<string>;
 
       // HTTP customization
-      headers?: Record<string, string>; // Custom headers
-      fetchOptions?: RequestInit; // Fetch options (signal, cache, etc.)
-      customFetch?: (
+      #{formatted_headers_field()}?: Record<string, string>; // Custom headers
+      #{formatted_fetch_options_field()}?: RequestInit; // Fetch options (signal, cache, etc.)
+      #{formatted_custom_fetch_field()}?: (
         input: RequestInfo | URL,
         init?: RequestInit,
       ) => Promise<Response>;
 
       // Multitenancy
-      tenant?: string; // Tenant parameter
+      #{formatted_tenant_field()}?: string; // Tenant parameter
 
       // Hook context
-      hookCtx?: #{action_hook_context_type};
+      #{formatted_hook_ctx_field()}?: #{action_hook_context_type};
     }
     #{validation_config_interface}
     #{action_channel_config_interface}
@@ -871,6 +871,10 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
         ""
       end
 
+    headers_field = formatted_headers_field()
+    custom_fetch_field = formatted_custom_fetch_field()
+    fetch_options_field = formatted_fetch_options_field()
+
     """
     /**
      * Internal helper function for making #{description}s
@@ -884,14 +888,14 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
     #{before_hook_code}
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        ...config.headers,
-        ...processedConfig.headers,
+        ...config.#{headers_field},
+        ...processedConfig.#{headers_field},
       };
 
-      const fetchFunction = config.customFetch || processedConfig.customFetch || fetch;
+      const fetchFunction = config.#{custom_fetch_field} || processedConfig.#{custom_fetch_field} || fetch;
       const fetchOptions: RequestInit = {
-        ...config.fetchOptions,
-        ...processedConfig.fetchOptions,
+        ...config.#{fetch_options_field},
+        ...processedConfig.#{fetch_options_field},
         method: "POST",
         headers,
         body: JSON.stringify(payload),
@@ -1000,6 +1004,10 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
         ""
       end
 
+    result_handler_field = formatted_result_handler_field()
+    error_handler_field = formatted_error_handler_field()
+    timeout_handler_field = formatted_timeout_handler_field()
+
     """
     /**
      * Internal helper function for making #{description} requests
@@ -1019,12 +1027,12 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
         .push("#{event}", payload, effectiveTimeout)
         .receive("ok", async (result: T) => {
     #{after_ok_hook_code}
-          config.resultHandler(result);
+          config.#{result_handler_field}(result);
         })
         .receive("error", async (error: any) => {
     #{after_error_hook_code}
-          (config.errorHandler
-            ? config.errorHandler
+          (config.#{error_handler_field}
+            ? config.#{error_handler_field}
             : (error: any) => {
                 console.error(
                   \`An error occurred while running action \${payload.action}:\`,
@@ -1034,8 +1042,8 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
         })
         .receive("timeout", async () => {
     #{after_timeout_hook_code}
-          (config.timeoutHandler
-            ? config.timeoutHandler
+          (config.#{timeout_handler_field}
+            ? config.#{timeout_handler_field}
             : () => {
                 console.error(\`Timeout occurred while running action \${payload.action}\`);
               })();
