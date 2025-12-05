@@ -103,6 +103,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
     |> Enum.uniq()
     |> Enum.map(&generate_ash_type_alias/1)
     |> Enum.reject(&(&1 == ""))
+    |> Enum.sort()
     |> Enum.join("\n")
   end
 
