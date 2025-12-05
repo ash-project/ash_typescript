@@ -237,7 +237,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       # Step 5: Update the todo
       update_params = %{
         "action" => "update_todo",
-        "primaryKey" => todo_id,
+        "identity" => todo_id,
         "input" => %{
           "status" => "ongoing",
           "description" => "Updated description"
@@ -283,7 +283,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       # Destroy the todo - now requires fields parameter with at least one field
       destroy_params = %{
         "action" => "destroy_todo",
-        "primaryKey" => todo_id,
+        "identity" => todo_id,
         "fields" => ["id"]
       }
 
@@ -1171,7 +1171,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       metadata_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_todo",
-          "primaryKey" => data["id"],
+          "identity" => data["id"],
           "input" => %{
             "metadata" => %{
               "category" => "testing",
@@ -1358,7 +1358,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       # Add metadata and complex data to the todo
       Rpc.run_action(:ash_typescript, conn, %{
         "action" => "update_todo",
-        "primaryKey" => todo_id,
+        "identity" => todo_id,
         "input" => %{
           "description" => "Complex scenario with all features",
           "due_date" => Date.add(Date.utc_today(), 5) |> Date.to_string(),

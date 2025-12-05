@@ -180,7 +180,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       result =
         Rpc.validate_action(:ash_typescript, conn, %{
           "action" => "update_todo",
-          "primaryKey" => "550e8400-e29b-41d4-a716-446655440000",
+          "identity" => "550e8400-e29b-41d4-a716-446655440000",
           "input" => %{"title" => "Updated"}
         })
 

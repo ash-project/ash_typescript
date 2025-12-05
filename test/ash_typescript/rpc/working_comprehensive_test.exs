@@ -187,7 +187,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       update_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_todo",
-          "primaryKey" => todo_id,
+          "identity" => todo_id,
           "input" => %{
             "status" => "ongoing",
             "description" => "Updated description"
@@ -213,7 +213,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       destroy_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "destroy_todo",
-          "primaryKey" => todo["id"]
+          "identity" => todo["id"]
         })
 
       assert destroy_result["success"] == true
@@ -224,7 +224,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       get_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "primaryKey" => todo["id"],
+          "identity" => todo["id"],
           "fields" => ["id"]
         })
 

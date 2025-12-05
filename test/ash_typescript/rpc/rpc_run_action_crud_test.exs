@@ -200,7 +200,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_todo",
-          "primaryKey" => todo["id"],
+          "identity" => todo["id"],
           "input" => %{
             "title" => "Updated Title",
             "completed" => true

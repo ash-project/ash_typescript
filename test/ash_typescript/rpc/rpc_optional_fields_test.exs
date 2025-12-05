@@ -76,7 +76,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_user",
-          "primaryKey" => user_id,
+          "identity" => user_id,
           "input" => %{
             "name" => "Updated Name"
           }
@@ -102,7 +102,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_user",
-          "primaryKey" => user_id,
+          "identity" => user_id,
           "input" => %{
             "name" => "Updated Name"
           },
@@ -129,7 +129,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_user",
-          "primaryKey" => user_id,
+          "identity" => user_id,
           "input" => %{
             "name" => "Updated Name"
           },

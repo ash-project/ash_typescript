@@ -279,7 +279,7 @@ defmodule AshTypescript.Test.TsActionCallExtractorTest do
     test "extracts multiple calls from same file" do
       ts_code = """
       export const call1 = await createTodo({fields: ["id"]});
-      export const call2 = await updateTodo({primaryKey: "123", fields: ["id"]});
+      export const call2 = await updateTodo({identity: "123", fields: ["id"]});
       export const call3 = await listTodos({fields: ["id", "title"]});
       """
 
@@ -306,10 +306,10 @@ defmodule AshTypescript.Test.TsActionCallExtractorTest do
       assert call.config["metadataFields"] == ["someString", "someNumber"]
     end
 
-    test "handles primaryKey parameter" do
+    test "handles identity parameter" do
       ts_code = """
       await updateTodo({
-        primaryKey: "todo-123",
+        identity: "todo-123",
         input: {title: "Updated"},
         fields: ["id", "title"]
       });
@@ -318,7 +318,7 @@ defmodule AshTypescript.Test.TsActionCallExtractorTest do
       result = TsActionCallExtractor.extract_calls(ts_code)
 
       assert [call] = result
-      assert call.config["primaryKey"] == "todo-123"
+      assert call.config["identity"] == "todo-123"
       assert call.config["input"]["title"] == "Updated"
     end
 
@@ -396,7 +396,7 @@ defmodule AshTypescript.Test.TsActionCallExtractorTest do
     test "extracts all await calls" do
       ts_code = """
       const result1 = await createTodo({fields: ["id"]});
-      await updateTodo({primaryKey: "123", fields: ["id"]});
+      await updateTodo({identity: "123", fields: ["id"]});
       """
 
       result = TsActionCallExtractor.extract_calls(ts_code)

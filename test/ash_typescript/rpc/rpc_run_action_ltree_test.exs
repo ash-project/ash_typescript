@@ -84,7 +84,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_todo",
-          "primaryKey" => todo["id"],
+          "identity" => todo["id"],
           "input" => %{
             "hierarchy" => "updated.complex.hierarchical.path.to.item"
           },
@@ -125,7 +125,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_todo",
-          "primaryKey" => todo["id"],
+          "identity" => todo["id"],
           "input" => %{
             "hierarchy" => nil
           },
@@ -450,7 +450,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_todo",
-          "primaryKey" => todo["id"],
+          "identity" => todo["id"],
           "input" => %{
             "hierarchy" => ["updated", "flexible", "as", "array"],
             "strictHierarchy" => ["updated", "strict", "hierarchy"]

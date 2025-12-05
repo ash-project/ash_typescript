@@ -369,7 +369,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
 
       params = %{
         "action" => "update_task_metadata_all",
-        "primaryKey" => task.id,
+        "identity" => task.id,
         "input" => %{"title" => "Updated"},
         "fields" => ["id", "title"]
       }
@@ -393,7 +393,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
 
       params = %{
         "action" => "update_task_metadata_false",
-        "primaryKey" => task.id,
+        "identity" => task.id,
         "input" => %{"title" => "Updated"},
         "fields" => ["id", "title"]
       }
@@ -415,7 +415,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
 
       params = %{
         "action" => "update_task_metadata_empty",
-        "primaryKey" => task.id,
+        "identity" => task.id,
         "input" => %{"title" => "Updated"},
         "fields" => ["id", "title"]
       }
@@ -437,7 +437,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
 
       params = %{
         "action" => "update_task_metadata_one",
-        "primaryKey" => task.id,
+        "identity" => task.id,
         "input" => %{"title" => "Updated"},
         "fields" => ["id", "title"]
       }
@@ -461,7 +461,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
 
       params = %{
         "action" => "update_task_metadata_two",
-        "primaryKey" => task.id,
+        "identity" => task.id,
         "input" => %{"title" => "Updated"},
         "fields" => ["id", "title"]
       }
@@ -485,7 +485,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
 
       params = %{
         "action" => "destroy_task_metadata_all",
-        "primaryKey" => task.id
+        "identity" => task.id
       }
 
       conn = %Plug.Conn{}
@@ -507,7 +507,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
 
       params = %{
         "action" => "destroy_task_metadata_false",
-        "primaryKey" => task.id
+        "identity" => task.id
       }
 
       conn = %Plug.Conn{}
@@ -527,7 +527,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
 
       params = %{
         "action" => "destroy_task_metadata_empty",
-        "primaryKey" => task.id
+        "identity" => task.id
       }
 
       conn = %Plug.Conn{}
@@ -547,7 +547,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
 
       params = %{
         "action" => "destroy_task_metadata_one",
-        "primaryKey" => task.id
+        "identity" => task.id
       }
 
       conn = %Plug.Conn{}
@@ -569,7 +569,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
 
       params = %{
         "action" => "destroy_task_metadata_two",
-        "primaryKey" => task.id
+        "identity" => task.id
       }
 
       conn = %Plug.Conn{}

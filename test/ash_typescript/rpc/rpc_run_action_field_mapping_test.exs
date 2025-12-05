@@ -90,7 +90,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "mark_completed_task",
           "resource" => "Task",
-          "primaryKey" => task.id,
+          "identity" => task.id,
           "input" => %{
             # TypeScript mapped name
             "isCompleted" => true

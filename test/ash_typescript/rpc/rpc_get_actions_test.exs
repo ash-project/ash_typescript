@@ -130,7 +130,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       # Delete the existing todo first, then create one with metadata
       Rpc.run_action(:ash_typescript, conn, %{
         "action" => "destroy_todo",
-        "primaryKey" => todo["id"]
+        "identity" => todo["id"]
       })
 
       # Create todo with metadata
@@ -195,7 +195,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       Enum.each(todos, fn todo ->
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "destroy_todo",
-          "primaryKey" => todo["id"]
+          "identity" => todo["id"]
         })
       end)
 
@@ -887,7 +887,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       Enum.each(todos, fn todo ->
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "destroy_todo",
-          "primaryKey" => todo["id"]
+          "identity" => todo["id"]
         })
       end)
 

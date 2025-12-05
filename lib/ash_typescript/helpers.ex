@@ -129,4 +129,33 @@ defmodule AshTypescript.Helpers do
   Helper function for pagination page field name.
   """
   def formatted_page_field, do: format_output_field(:page)
+
+  @doc """
+  Helper functions for commonly used config interface field names.
+  These ensure consistency across all RPC config-related type generation.
+  """
+  # Common config fields
+  def formatted_input_field, do: format_output_field(:input)
+  def formatted_identity_field, do: format_output_field(:identity)
+  def formatted_filter_field, do: format_output_field(:filter)
+  def formatted_sort_field, do: format_output_field(:sort)
+  def formatted_count_field, do: format_output_field(:count)
+  def formatted_metadata_fields_field, do: format_output_field(:metadata_fields)
+  def formatted_headers_field, do: format_output_field(:headers)
+  def formatted_fetch_options_field, do: format_output_field(:fetch_options)
+  def formatted_custom_fetch_field, do: format_output_field(:custom_fetch)
+  def formatted_tenant_field, do: format_output_field(:tenant)
+  def formatted_hook_ctx_field, do: format_output_field(:hook_ctx)
+
+  # Channel-specific config fields
+  def formatted_channel_field, do: format_output_field(:channel)
+  def formatted_result_handler_field, do: format_output_field(:result_handler)
+  def formatted_error_handler_field, do: format_output_field(:error_handler)
+  def formatted_timeout_handler_field, do: format_output_field(:timeout_handler)
+  def formatted_timeout_field, do: format_output_field(:timeout)
+
+  # Response fields
+  def formatted_success_field, do: format_output_field(:success)
+  def formatted_errors_field, do: format_output_field(:errors)
+  def formatted_data_field, do: format_output_field(:data)
 end

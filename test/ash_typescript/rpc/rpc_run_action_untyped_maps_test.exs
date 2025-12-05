@@ -59,7 +59,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUntypedMapsTest do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_todo_with_untyped_data",
-          "primaryKey" => todo["id"],
+          "identity" => todo["id"],
           "input" => %{
             "additionalData" => additional_data,
             "metadataUpdate" => metadata_update
@@ -103,7 +103,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUntypedMapsTest do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_todo_with_untyped_data",
-          "primaryKey" => todo["id"],
+          "identity" => todo["id"],
           "input" => %{
             "additionalData" => additional_data,
             "metadataUpdate" => nil
@@ -138,7 +138,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUntypedMapsTest do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_todo_with_untyped_data",
-          "primaryKey" => todo_without_data["id"],
+          "identity" => todo_without_data["id"],
           "input" => %{
             "additionalData" => additional_data
           },
@@ -180,7 +180,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUntypedMapsTest do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_todo_with_untyped_data",
-          "primaryKey" => todo["id"],
+          "identity" => todo["id"],
           "input" => %{
             "additionalData" => complex_data
           },
@@ -213,7 +213,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUntypedMapsTest do
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_todo",
-          "primaryKey" => todo["id"],
+          "identity" => todo["id"],
           "input" => %{
             "title" => "Updated Todo with Custom Data",
             "customData" => new_custom_data

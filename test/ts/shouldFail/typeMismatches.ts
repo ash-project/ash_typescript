@@ -158,10 +158,10 @@ export const createTodoTypeMismatch = await createTodo({
   fields: ["id", "title"],
 });
 
-// Test 10: Wrong type for primaryKey in updates
-export const wrongPrimaryKeyType = await getTodo({
-  // @ts-expect-error - primaryKey is not a valid parameter for getTodo
-  primaryKey: 42,
+// Test 10: Wrong type for identity in updates
+export const wrongIdentityType = await getTodo({
+  // @ts-expect-error - identity is not a valid parameter for getTodo
+  identity: 42,
   fields: ["id", "title"],
 });
 
