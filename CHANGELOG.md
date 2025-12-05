@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.10.2](https://github.com/ash-project/ash_typescript/compare/v0.10.1...v0.10.2) (2025-12-05)
+
+
+
+
+### Bug Fixes:
+
+* codegen: use field formatters for generated TypeScript config interfaces & rename hardcoded primaryKey fields to identity [@Torkan](https://github.com/Torkan)
+
 ## [v0.10.1](https://github.com/ash-project/ash_typescript/compare/v0.10.0...v0.10.1) (2025-12-04)
 
 
