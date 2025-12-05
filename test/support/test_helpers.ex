@@ -52,7 +52,7 @@ defmodule AshTypescript.Test.TestHelpers do
         [
           name: "Test User",
           email: "test@example.com",
-          fields: ["id"],
+          fields: ["id", "name", "email"],
           via_rpc: true
         ],
         opts

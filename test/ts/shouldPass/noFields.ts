@@ -110,7 +110,7 @@ if (updateUserNoFields.success) {
 
 // Test 7: Update user with fields parameter
 export const updateUserWithFields = await updateUser({
-  identity: "user-id-456",
+  identity: "17b3279e-d1f1-11f0-993d-4ea1aae63366",
   input: {
     name: "Another Updated Name",
   },

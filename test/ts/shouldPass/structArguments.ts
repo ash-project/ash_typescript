@@ -19,7 +19,7 @@ import {
 export const assignSingleUser = await assignToUserTodo({
   input: {
     assignee: {
-      id: "user-id-123",
+      id: "17b3279e-d1f1-11f0-993d-4ea1aae63366",
       name: "Test User",
       email: "test@example.com",
     },
@@ -39,7 +39,7 @@ if (assignSingleUser.success) {
 export const assignWithoutReason = await assignToUserTodo({
   input: {
     assignee: {
-      id: "user-id-456",
+      id: "17b3279e-d1f1-11f0-993d-4ea1aae63366",
       name: "Another User",
       email: "another@example.com",
     },
@@ -59,12 +59,12 @@ export const assignMultipleUsers = await assignToUsersTodo({
   input: {
     assignees: [
       {
-        id: "user-id-1",
+        id: "17b3279e-d1f1-11f0-993d-4ea1aae63367",
         name: "User One",
         email: "one@example.com",
       },
       {
-        id: "user-id-2",
+        id: "17b3279e-d1f1-11f0-993d-4ea1aae63366",
         name: "User Two",
         email: "two@example.com",
       },

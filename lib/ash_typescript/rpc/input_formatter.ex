@@ -157,17 +157,16 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end
   end
 
-  # Casts a map to a struct, preserving only keys that exist as struct fields
   defp cast_map_to_struct(map, struct_module) when is_map(map) and is_atom(struct_module) do
-    struct_keys = struct_module.__struct__() |> Map.keys() |> MapSet.new()
-
-    # Filter to only include keys that are valid struct fields
-    valid_attrs =
-      map
-      |> Enum.filter(fn {key, _value} -> MapSet.member?(struct_keys, key) end)
-      |> Enum.into(%{})
-
-    struct(struct_module, valid_attrs)
+    with {:ok, casted} <-
+           Ash.Type.cast_input(Ash.Type.Struct, map, instance_of: struct_module),
+         {:ok, constrained} <-
+           Ash.Type.apply_constraints(Ash.Type.Struct, casted, instance_of: struct_module) do
+      constrained
+    else
+      {:error, error} -> throw(error)
+      :error -> throw("is invalid")
+    end
   end
 
   defp get_input_field_type(resource, action, action_name, field_key) do
