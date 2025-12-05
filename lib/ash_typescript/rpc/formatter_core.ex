@@ -67,15 +67,9 @@ defmodule AshTypescript.Rpc.FormatterCore do
         end
 
       Ash.Type.Struct when direction == :output ->
-        # Only OutputFormatter handles Ash.Type.Struct specially
-        instance_of = Keyword.get(constraints, :instance_of)
-
-        if instance_of && Ash.Resource.Info.resource?(instance_of) && is_map(data) &&
-             not is_struct(data) do
-          data
-        else
-          data
-        end
+        # Ash.Type.Struct values are returned as-is
+        # Embedded resources are handled by the caller (ResultProcessor)
+        data
 
       module when is_atom(module) ->
         if is_custom_type_with_map_storage?(module) && is_map(data) && not is_struct(data) do
