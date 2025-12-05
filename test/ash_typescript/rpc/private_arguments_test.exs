@@ -154,7 +154,9 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
 
     test "update action private argument is excluded from Zod schema" do
       action = Ash.Resource.Info.action(OrgTodo, :set_priority)
-      zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "set_priority_org_todo")
+
+      zod_schema =
+        ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "set_priority_org_todo")
 
       # Private argument should NOT be in the schema
       refute zod_schema =~ "bypassValidation",
