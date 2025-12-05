@@ -115,6 +115,12 @@ defmodule AshTypescript.Test.OrgTodo do
         constraints one_of: [:low, :medium, :high, :urgent]
       end
 
+      # Private argument for internal use - should NOT appear in TypeScript
+      argument :internal_audit_mode, :boolean do
+        public? false
+        default false
+      end
+
       filter expr(
                if is_nil(^arg(:filter_completed)) do
                  true
@@ -143,6 +149,12 @@ defmodule AshTypescript.Test.OrgTodo do
 
       argument :user_id, :uuid do
         allow_nil? false
+      end
+
+      # Private argument for internal tracking - should NOT appear in TypeScript
+      argument :internal_tracking_id, :string do
+        public? false
+        default nil
       end
 
       argument :number_of_employees, :integer do
@@ -273,6 +285,12 @@ defmodule AshTypescript.Test.OrgTodo do
         constraints one_of: [:low, :medium, :high, :urgent]
       end
 
+      # Private argument for internal use - should NOT appear in TypeScript
+      argument :bypass_validation, :boolean do
+        public? false
+        default false
+      end
+
       change set_attribute(:priority, arg(:priority))
     end
 
@@ -309,6 +327,12 @@ defmodule AshTypescript.Test.OrgTodo do
 
       argument :query, :string, allow_nil?: false
       argument :include_completed, :boolean, default: true
+
+      # Private argument for internal use - should NOT appear in TypeScript
+      argument :debug_mode, :boolean do
+        public? false
+        default false
+      end
 
       run fn _input, _context ->
         # This would normally search todos, but for testing we'll return empty

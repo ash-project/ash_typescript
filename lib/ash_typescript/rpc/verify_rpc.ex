@@ -305,6 +305,7 @@ defmodule AshTypescript.Rpc.VerifyRpc do
         if action do
           argument_errors =
             action.arguments
+            |> Enum.reject(&(!&1.public?))
             |> Enum.filter(fn arg ->
               mapped_name =
                 AshTypescript.Resource.Info.get_mapped_argument_name(
@@ -357,6 +358,7 @@ defmodule AshTypescript.Rpc.VerifyRpc do
 
         if action do
           action.arguments
+          |> Enum.reject(&(!&1.public?))
           |> Enum.filter(fn arg ->
             if AshTypescript.Resource.Info.typescript_resource?(resource) do
               # Check if the mapped name is still invalid

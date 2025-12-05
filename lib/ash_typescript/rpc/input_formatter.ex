@@ -94,7 +94,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
         mapped_key
       )
 
-    if Enum.any?(action.arguments, &(&1.name == original_arg_name)) do
+    if Enum.any?(action.arguments, &(&1.public? && &1.name == original_arg_name)) do
       original_arg_name
     else
       AshTypescript.Resource.Info.get_original_field_name(resource, mapped_key)
@@ -184,7 +184,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
   end
 
   defp get_action_argument(action, field_key) do
-    Enum.find(action.arguments, &(&1.name == field_key))
+    Enum.find(action.arguments, &(&1.public? && &1.name == field_key))
   end
 
   defp get_accepted_attribute(resource, action_name, field_key) do

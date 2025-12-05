@@ -398,7 +398,7 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
       |> Enum.flat_map(fn %{resource: resource, rpc_actions: rpc_actions} ->
         Enum.flat_map(rpc_actions, fn %{action: action_name} ->
           action = Ash.Resource.Info.action(resource, action_name)
-          find_struct_resources_in_arguments(action.arguments)
+          find_struct_resources_in_arguments(Enum.filter(action.arguments, & &1.public?))
         end)
       end)
     end)
@@ -411,8 +411,6 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
       find_struct_resources_in_type(arg.type, arg.constraints || [])
     end)
   end
-
-  defp find_struct_resources_in_arguments(_), do: []
 
   defp find_struct_resources_in_type(type, constraints) do
     case type do

@@ -168,10 +168,12 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       # Get the actual argument constraints from the resource
       action = Ash.Resource.Info.action(OrgTodo, :create)
 
-      number_arg = Enum.find(action.arguments, &(&1.name == :number_of_employees))
+      number_arg =
+        Enum.find(action.arguments, &(&1.public? && &1.name == :number_of_employees))
+
       assert number_arg.constraints == [min: 1, max: 1000]
 
-      string_arg = Enum.find(action.arguments, &(&1.name == :some_string))
+      string_arg = Enum.find(action.arguments, &(&1.public? && &1.name == :some_string))
 
       assert string_arg.constraints == [
                min_length: 1,

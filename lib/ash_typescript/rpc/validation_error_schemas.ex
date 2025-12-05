@@ -246,7 +246,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   defp generate_rpc_action_error_fields(resource, action) do
     cond do
       action.type in [:read, :action] ->
-        arguments = action.arguments
+        arguments = Enum.filter(action.arguments, & &1.public?)
 
         if arguments != [] do
           Enum.map(arguments, fn arg ->
@@ -269,7 +269,9 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
         end
 
       action.type in [:create, :update, :destroy] ->
-        if action.accept != [] || action.arguments != [] do
+        arguments = Enum.filter(action.arguments, & &1.public?)
+
+        if action.accept != [] || arguments != [] do
           accept_field_defs =
             Enum.map(action.accept, fn field_name ->
               attr = Ash.Resource.Info.attribute(resource, field_name)
@@ -288,7 +290,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
             end)
 
           argument_field_defs =
-            Enum.map(action.arguments, fn arg ->
+            Enum.map(arguments, fn arg ->
               mapped_name =
                 AshTypescript.Resource.Info.get_mapped_argument_name(
                   resource,
