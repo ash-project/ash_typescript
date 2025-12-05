@@ -115,9 +115,6 @@ defmodule AshTypescript.Helpers do
   def formatted_error_path_field, do: format_output_field(:path)
   def formatted_error_details_field, do: format_output_field(:details)
 
-  # Legacy alias - deprecated, use formatted_error_path_field instead
-  def formatted_error_field_path_field, do: format_output_field(:path)
-
   @doc """
   Helper functions for commonly used calculation and field selection field names.
   These ensure consistency across all args/fields-related type generation.

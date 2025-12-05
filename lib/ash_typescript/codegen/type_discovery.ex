@@ -24,7 +24,7 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
 
   - `scan_rpc_resources/1` - Finds all Ash resources referenced by RPC resources
   - `find_embedded_resources/1` - Filters for embedded resources only
-  - `find_typed_struct_modules/1` - Finds all TypedStruct modules in resources
+  - `find_field_constrained_types/1` - Finds all field-constrained types in resources
   - `get_rpc_resources/1` - Gets RPC-configured resources from domains
 
   ## Validation & Warnings
@@ -49,7 +49,7 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
 
       # Get all types that need TypeScript definitions
       all_resources = TypeDiscovery.scan_rpc_resources(:my_app)
-      typed_structs = TypeDiscovery.find_typed_struct_modules(all_resources)
+      field_constrained_types = TypeDiscovery.find_field_constrained_types(all_resources)
 
       # Get non-RPC resources with paths showing where they're referenced
       TypeDiscovery.find_non_rpc_referenced_resources_with_paths(:my_app)
@@ -163,18 +163,6 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
     resources
     |> Enum.flat_map(&extract_field_constrained_types_from_resource/1)
     |> Enum.uniq_by(fn type_info -> type_info.instance_of end)
-  end
-
-  @doc """
-  Deprecated: Use find_field_constrained_types/1 instead.
-
-  This function is kept for backward compatibility.
-  """
-  def find_typed_struct_modules(resources) do
-    resources
-    |> find_field_constrained_types()
-    |> Enum.map(fn type_info -> type_info.instance_of end)
-    |> Enum.filter(& &1)
   end
 
   @doc """
