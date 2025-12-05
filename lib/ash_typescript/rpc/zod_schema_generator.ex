@@ -280,7 +280,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   def generate_zod_schema(resource, action, rpc_action_name) do
     if ActionIntrospection.action_input_type(resource, action) != :none do
       suffix = AshTypescript.Rpc.zod_schema_suffix()
-      schema_name = format_output_field("#{rpc_action_name}_#{suffix}")
+      schema_name = format_output_field("#{rpc_action_name}#{suffix}")
 
       zod_field_defs =
         case action.type do
