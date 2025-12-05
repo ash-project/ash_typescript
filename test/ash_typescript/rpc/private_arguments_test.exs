@@ -20,8 +20,8 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
   """
   use ExUnit.Case, async: true
 
-  alias AshTypescript.Rpc.ZodSchemaGenerator
   alias AshTypescript.Rpc.ValidationErrorSchemas
+  alias AshTypescript.Rpc.ZodSchemaGenerator
   alias AshTypescript.Test.OrgTodo
 
   setup_all do

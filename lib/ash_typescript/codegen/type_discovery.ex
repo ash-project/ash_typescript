@@ -412,8 +412,6 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
     end)
   end
 
-  defp find_struct_resources_in_arguments(_), do: []
-
   defp find_struct_resources_in_type(type, constraints) do
     case type do
       Ash.Type.Struct ->
