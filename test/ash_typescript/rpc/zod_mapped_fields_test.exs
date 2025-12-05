@@ -41,7 +41,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "create_task")
 
       # Should have proper Zod object structure
-      assert zod_schema =~ "export const createTaskZodschema = z.object({"
+      assert zod_schema =~ "export const createTaskZodSchema = z.object({"
       assert zod_schema =~ "});"
     end
   end

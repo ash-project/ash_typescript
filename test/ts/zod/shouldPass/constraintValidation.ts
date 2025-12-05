@@ -8,7 +8,7 @@
 import { z } from "zod";
 import {
   createOrgTodo,
-  createOrgTodoZodschema,
+  createOrgTodoZodSchema,
   AshTypescriptTestTodoContentLinkContentZodSchema,
 } from "../../generated";
 
@@ -43,7 +43,7 @@ export function testIntegerMinConstraint() {
     numberOfEmployees: 1, // Exactly at minimum (min: 1)
   };
 
-  const validated = createOrgTodoZodschema.parse(validData);
+  const validated = createOrgTodoZodSchema.parse(validData);
   console.log("Integer min constraint passed:", validated.numberOfEmployees);
   return validated;
 }
@@ -55,7 +55,7 @@ export function testIntegerMaxConstraint() {
     numberOfEmployees: 1000, // Exactly at maximum (max: 1000)
   };
 
-  const validated = createOrgTodoZodschema.parse(validData);
+  const validated = createOrgTodoZodSchema.parse(validData);
   console.log("Integer max constraint passed:", validated.numberOfEmployees);
   return validated;
 }
@@ -67,7 +67,7 @@ export function testIntegerMidRangeConstraint() {
     numberOfEmployees: 500, // Mid-range value
   };
 
-  const validated = createOrgTodoZodschema.parse(validData);
+  const validated = createOrgTodoZodSchema.parse(validData);
   return validated;
 }
 
@@ -78,7 +78,7 @@ export function testStringMinLengthConstraint() {
     someString: "a", // Exactly at minimum (min_length: 1)
   };
 
-  const validated = createOrgTodoZodschema.parse(validData);
+  const validated = createOrgTodoZodSchema.parse(validData);
   console.log("String min length constraint passed:", validated.someString);
   return validated;
 }
@@ -90,7 +90,7 @@ export function testStringMaxLengthConstraint() {
     someString: "a".repeat(100), // Exactly at maximum (max_length: 100)
   };
 
-  const validated = createOrgTodoZodschema.parse(validData);
+  const validated = createOrgTodoZodSchema.parse(validData);
   console.log("String max length constraint passed, length:", validated.someString.length);
   return validated;
 }
@@ -102,7 +102,7 @@ export function testStringMidRangeLengthConstraint() {
     someString: "This is a valid string with moderate length",
   };
 
-  const validated = createOrgTodoZodschema.parse(validData);
+  const validated = createOrgTodoZodSchema.parse(validData);
   return validated;
 }
 
@@ -147,7 +147,7 @@ export function testAllConstraintsTogether() {
     tags: ["work", "urgent"],
   };
 
-  const validated = createOrgTodoZodschema.parse(validData);
+  const validated = createOrgTodoZodSchema.parse(validData);
   console.log("All constraints passed:", {
     employees: validated.numberOfEmployees,
     stringLength: validated.someString.length,
@@ -162,7 +162,7 @@ export function testSafeParsingWithConstraints() {
     numberOfEmployees: 50,
   };
 
-  const result = createOrgTodoZodschema.safeParse(validData);
+  const result = createOrgTodoZodSchema.safeParse(validData);
 
   if (result.success) {
     console.log("Safe parse succeeded with constraints:", result.data);
@@ -173,10 +173,10 @@ export function testSafeParsingWithConstraints() {
 }
 
 // Test 11: Type inference with constraints
-export type CreateOrgTodoInput = z.infer<typeof createOrgTodoZodschema>;
+export type CreateOrgTodoInput = z.infer<typeof createOrgTodoZodSchema>;
 
 export function validateWithConstraints(input: unknown): CreateOrgTodoInput {
-  return createOrgTodoZodschema.parse(input);
+  return createOrgTodoZodSchema.parse(input);
 }
 
 // Test 12: Constraint validation in function context
@@ -201,7 +201,7 @@ export function testOptionalConstrainedField() {
     description: "Valid description",
   };
 
-  const validated = createOrgTodoZodschema.parse(validData);
+  const validated = createOrgTodoZodSchema.parse(validData);
   return validated;
 }
 
@@ -216,7 +216,7 @@ export function testValidEmails() {
 
   for (const email of validEmails) {
     const validData = { ...createValidBaseData(), email };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All valid emails passed!");
@@ -234,7 +234,7 @@ export function testValidPhoneNumbers() {
 
   for (const phone of validPhones) {
     const validData = { ...createValidBaseData(), phoneNumber: phone };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All valid phone numbers passed!");
@@ -253,7 +253,7 @@ export function testValidHexColors() {
 
   for (const color of validColors) {
     const validData = { ...createValidBaseData(), hexColor: color };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All valid hex colors passed!");
@@ -272,7 +272,7 @@ export function testValidSlugs() {
 
   for (const slug of validSlugs) {
     const validData = { ...createValidBaseData(), slug };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All valid slugs passed!");
@@ -291,7 +291,7 @@ export function testValidVersions() {
 
   for (const version of validVersions) {
     const validData = { ...createValidBaseData(), version };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All valid versions passed!");
@@ -309,7 +309,7 @@ export function testCaseInsensitiveCodes() {
 
   for (const code of validCodes) {
     const validData = { ...createValidBaseData(), caseInsensitiveCode: code };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All case-insensitive codes passed!");
@@ -321,7 +321,7 @@ export function testOptionalUrlOmitted() {
   const validData = createValidBaseData();
   // optionalUrl is not provided
 
-  const validated = createOrgTodoZodschema.parse(validData);
+  const validated = createOrgTodoZodSchema.parse(validData);
   console.log("Optional URL field successfully omitted");
   return validated;
 }
@@ -337,7 +337,7 @@ export function testOptionalUrlProvided() {
 
   for (const url of validUrls) {
     const validData = { ...createValidBaseData(), optionalUrl: url };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All optional URLs passed!");
@@ -355,7 +355,7 @@ export function testFloatPriceValid() {
 
   for (const price of validPrices) {
     const validData = { ...createValidBaseData(), price };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All valid prices passed!");
@@ -373,7 +373,7 @@ export function testFloatTemperatureValid() {
 
   for (const temperature of validTemperatures) {
     const validData = { ...createValidBaseData(), temperature };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All valid temperatures passed!");
@@ -392,7 +392,7 @@ export function testFloatPercentageValid() {
 
   for (const percentage of validPercentages) {
     const validData = { ...createValidBaseData(), percentage };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All valid percentages passed!");
@@ -403,7 +403,7 @@ export function testFloatPercentageValid() {
 export function testOptionalFloatOmitted() {
   const validData = createValidBaseData();
   // optionalRating is not provided
-  const validated = createOrgTodoZodschema.parse(validData);
+  const validated = createOrgTodoZodSchema.parse(validData);
   console.log("Optional rating successfully omitted");
   return validated;
 }
@@ -419,7 +419,7 @@ export function testOptionalFloatProvided() {
 
   for (const rating of validRatings) {
     const validData = { ...createValidBaseData(), optionalRating: rating };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All optional ratings passed!");
@@ -437,7 +437,7 @@ export function testFloatPrecision() {
 
   for (const testCase of testCases) {
     const validData = { ...createValidBaseData(), ...testCase };
-    const validated = createOrgTodoZodschema.parse(validData);
+    const validated = createOrgTodoZodSchema.parse(validData);
     // Zod preserves the float values
     if ('price' in testCase) {
       console.log(`Price precision: ${validated.price}`);
@@ -458,7 +458,7 @@ export function testCiStringUsernameValid() {
 
   for (const username of validUsernames) {
     const validData = { ...createValidBaseData(), username };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All valid usernames passed!");
@@ -476,7 +476,7 @@ export function testCiStringCompanyNameValid() {
 
   for (const companyName of validCompanyNames) {
     const validData = { ...createValidBaseData(), companyName };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All valid company names passed!");
@@ -494,7 +494,7 @@ export function testCiStringCountryCodeValid() {
 
   for (const countryCode of validCountryCodes) {
     const validData = { ...createValidBaseData(), countryCode };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All valid country codes passed!");
@@ -505,7 +505,7 @@ export function testCiStringCountryCodeValid() {
 export function testOptionalCiStringOmitted() {
   const validData = createValidBaseData();
   // optionalNickname is not provided
-  const validated = createOrgTodoZodschema.parse(validData);
+  const validated = createOrgTodoZodSchema.parse(validData);
   console.log("Optional nickname successfully omitted");
   return validated;
 }
@@ -520,7 +520,7 @@ export function testOptionalCiStringProvided() {
 
   for (const nickname of validNicknames) {
     const validData = { ...createValidBaseData(), optionalNickname: nickname };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All optional nicknames passed!");
@@ -537,7 +537,7 @@ export function testCiStringCaseVariations() {
 
   for (const testCase of testCases) {
     const validData = { ...createValidBaseData(), ...testCase };
-    createOrgTodoZodschema.parse(validData);
+    createOrgTodoZodSchema.parse(validData);
   }
 
   console.log("All case variations passed!");

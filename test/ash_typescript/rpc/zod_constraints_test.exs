@@ -125,7 +125,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # Should generate valid schema
-      assert zod_schema =~ "export const createOrgTodoZodschema = z.object({"
+      assert zod_schema =~ "export const createOrgTodoZodSchema = z.object({"
       assert zod_schema =~ "});"
     end
   end
@@ -136,7 +136,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # Basic structure checks
-      assert zod_schema =~ "export const createOrgTodoZodschema = z.object({"
+      assert zod_schema =~ "export const createOrgTodoZodSchema = z.object({"
       assert zod_schema =~ "});"
 
       # Each field should end with comma
