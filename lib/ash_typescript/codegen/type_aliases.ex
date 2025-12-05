@@ -70,6 +70,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
       Enum.reduce(actions, resource_types, fn action, types ->
         types =
           action.arguments
+          |> Enum.filter(& &1.public?)
           |> Enum.reduce(types, fn argument, types ->
             if Ash.Type.ash_type?(argument.type) do
               MapSet.put(types, argument.type)

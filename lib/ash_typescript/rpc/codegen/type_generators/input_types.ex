@@ -39,7 +39,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
       input_field_defs =
         case action.type do
           :read ->
-            arguments = action.arguments
+            arguments = Enum.filter(action.arguments, & &1.public?)
 
             if arguments != [] do
               Enum.map(arguments, fn arg ->
@@ -66,7 +66,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
 
           :create ->
             accepts = Ash.Resource.Info.action(resource, action.name).accept || []
-            arguments = action.arguments
+            arguments = Enum.filter(action.arguments, & &1.public?)
 
             if accepts != [] || arguments != [] do
               accept_field_defs =
@@ -117,7 +117,9 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
             end
 
           action_type when action_type in [:update, :destroy] ->
-            if action.accept != [] || action.arguments != [] do
+            arguments = Enum.filter(action.arguments, & &1.public?)
+
+            if action.accept != [] || arguments != [] do
               accept_field_defs =
                 Enum.map(action.accept, fn field_name ->
                   attr = Ash.Resource.Info.attribute(resource, field_name)
@@ -137,8 +139,10 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                   {formatted_field_name, field_type, optional}
                 end)
 
+              arguments = Enum.filter(action.arguments, & &1.public?)
+
               argument_field_defs =
-                Enum.map(action.arguments, fn arg ->
+                Enum.map(arguments, fn arg ->
                   optional = arg.allow_nil? || arg.default != nil
 
                   mapped_name =
@@ -163,7 +167,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
             end
 
           :action ->
-            arguments = action.arguments
+            arguments = Enum.filter(action.arguments, & &1.public?)
 
             if arguments != [] do
               Enum.map(arguments, fn arg ->

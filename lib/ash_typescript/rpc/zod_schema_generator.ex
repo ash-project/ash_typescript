@@ -285,7 +285,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
       zod_field_defs =
         case action.type do
           :read ->
-            arguments = action.arguments
+            arguments = Enum.filter(action.arguments, & &1.public?)
 
             if arguments != [] do
               Enum.map(arguments, &process_argument_field(resource, action, &1))
@@ -295,7 +295,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
 
           :create ->
             accepts = Ash.Resource.Info.action(resource, action.name).accept || []
-            arguments = action.arguments
+            arguments = Enum.filter(action.arguments, & &1.public?)
 
             if accepts != [] || arguments != [] do
               accept_field_defs = Enum.map(accepts, &process_accept_field(resource, &1, action))
@@ -309,13 +309,15 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
             end
 
           action_type when action_type in [:update, :destroy] ->
-            if action.accept != [] || action.arguments != [] do
+            arguments = Enum.filter(action.arguments, & &1.public?)
+
+            if action.accept != [] || arguments != [] do
               # Pass action to check require_attributes for optionality
               accept_field_defs =
                 Enum.map(action.accept, &process_accept_field(resource, &1, action))
 
               argument_field_defs =
-                Enum.map(action.arguments, &process_argument_field(resource, action, &1))
+                Enum.map(arguments, &process_argument_field(resource, action, &1))
 
               accept_field_defs ++ argument_field_defs
             else
@@ -323,7 +325,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
             end
 
           :action ->
-            arguments = action.arguments
+            arguments = Enum.filter(action.arguments, & &1.public?)
 
             if arguments != [] do
               Enum.map(arguments, &process_argument_field(resource, action, &1))

@@ -34,7 +34,7 @@ defmodule AshTypescript.Codegen.Helpers do
   Simple calculations are treated like regular fields in the schema.
   """
   def is_simple_calculation(%Ash.Resource.Calculation{} = calc) do
-    has_arguments = length(calc.arguments) > 0
+    has_arguments = !Enum.empty?(calc.arguments)
     has_complex_return_type = is_complex_return_type(calc.type, calc.constraints)
 
     not has_arguments and not has_complex_return_type

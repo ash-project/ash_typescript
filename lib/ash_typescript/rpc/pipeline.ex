@@ -466,7 +466,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp find_action_argument_type(field_atom, action) do
-    case Enum.find(action.arguments, &(&1.name == field_atom)) do
+    case Enum.find(action.arguments, &(&1.public? && &1.name == field_atom)) do
       %{type: Ash.Type.Tuple, constraints: constraints} ->
         {:tuple, constraints}
 

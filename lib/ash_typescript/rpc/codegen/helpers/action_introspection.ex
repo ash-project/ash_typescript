@@ -111,13 +111,14 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
       |> Enum.filter(&is_atom/1)
       |> Enum.map(fn input ->
         Enum.find(action.arguments, fn argument ->
-          argument.name == input
+          argument.public? &&
+            argument.name == input
         end) || Ash.Resource.Info.attribute(resource, input)
       end)
       |> Enum.uniq_by(& &1.name)
 
     # Get all action arguments (includes dynamically added ones from RPC get_by)
-    all_arguments = action.arguments || []
+    all_arguments = Enum.filter(action.arguments, & &1.public?) || []
 
     # Combine: DSL inputs + any arguments not already in DSL inputs
     dsl_input_names = Enum.map(dsl_inputs, & &1.name)
