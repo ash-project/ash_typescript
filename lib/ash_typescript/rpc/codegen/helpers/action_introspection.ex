@@ -115,6 +115,8 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
             argument.name == input
         end) || Ash.Resource.Info.attribute(resource, input)
       end)
+      # Filter out nil values if arg is private and no attribute has that name
+      |> Enum.reject(&is_nil/1)
       |> Enum.uniq_by(& &1.name)
 
     # Get all action arguments (includes dynamically added ones from RPC get_by)
