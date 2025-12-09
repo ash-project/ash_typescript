@@ -21,6 +21,61 @@ Generate type-safe TypeScript clients directly from your Elixir Ash resources, e
 
 ## 🚨 Breaking Changes
 
+### 0.11.0 - Field Name Mappings Must Be Strings
+
+The `field_names`, `argument_names`, and `metadata_field_names` DSL options now require string values instead of atoms. Additionally, the string value is used as the literal exposed field name without any additional formatting applied.
+
+**Elixir Configuration:**
+
+```elixir
+# ❌ Before (0.10.x) - atoms with automatic formatting
+typescript do
+  field_names id_1: :id1, is_active?: :isActive
+end
+
+# ✅ After (0.11.0+) - strings used literally
+typescript do
+  field_names id_1: "id1", is_active?: "isActive"
+end
+```
+
+**Custom Types with `typescript_field_names/0` Callback:**
+
+For custom Ash types (e.g., `Ash.Type.NewType` wrapping maps or keyword lists), implement the `typescript_field_names/0` callback to map invalid TypeScript field names:
+
+```elixir
+defmodule MyApp.Types.CustomData do
+  use Ash.Type.NewType,
+    subtype_of: :map,
+    constraints: [
+      fields: [
+        field_1: [type: :string],
+        is_valid?: [type: :boolean]
+      ]
+    ]
+
+  # ❌ Before (0.10.x) - atoms
+  def typescript_field_names do
+    %{field_1: :field1, is_valid?: :isValid}
+  end
+
+  # ✅ After (0.11.0+) - strings used literally
+  def typescript_field_names do
+    %{field_1: "field1", is_valid?: "isValid"}
+  end
+end
+```
+
+**Key Changes:**
+- All mapped names must be strings (atoms will raise an error)
+- The string value is the exact name exposed to TypeScript (no camelCase conversion or other formatting)
+- This applies to `field_names`, `argument_names`, `metadata_field_names` DSL options, and the `typescript_field_names/0` callback
+
+**Migration:**
+1. Convert all atom values to strings in your field name mappings
+2. Update any `typescript_field_names/0` callbacks in custom types to return string values
+3. Ensure the string values are exactly what you want exposed to TypeScript (apply any formatting manually)
+
 ### 0.10.0 - `primaryKey` Renamed to `identity`
 
 The `primaryKey` field in update and destroy actions has been renamed to `identity`. This field now supports both primary key values and named identities for record lookup.
