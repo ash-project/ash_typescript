@@ -210,6 +210,13 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :update_tenant_setting, :update
       rpc_action :destroy_tenant_setting, :destroy
     end
+
+    # Test resource for nested map field formatting bugs
+    resource AshTypescript.Test.NestedMapResource do
+      rpc_action :list_users_map, :list_users_map
+      rpc_action :get_metrics, :get_metrics
+      rpc_action :get_nested_stats, :get_nested_stats
+    end
   end
 
   resources do
@@ -229,5 +236,6 @@ defmodule AshTypescript.Test.Domain do
     resource AshTypescript.Test.Article
     resource AshTypescript.Test.Subscription
     resource AshTypescript.Test.TenantSetting
+    resource AshTypescript.Test.NestedMapResource
   end
 end
