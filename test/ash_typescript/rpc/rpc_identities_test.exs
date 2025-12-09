@@ -190,6 +190,62 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
       assert "emai" in error["details"]["providedKeys"]
     end
 
+    test "update action without identity when identity is required returns missing_identity error",
+         %{
+           conn: conn
+         } do
+      # update_user has identities: [:_primary_key] by default, so identity is required
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "update_user",
+          "input" => %{"name" => "Should Fail Without Identity"},
+          "fields" => ["id", "name"]
+        })
+
+      assert %{"success" => false, "errors" => [error]} = result
+      assert error["type"] == "missing_identity"
+      assert error["shortMessage"] == "Missing identity"
+      # For simple primary key (single field), the message is clearer
+      assert error["message"] =~ "Identity is required"
+      assert error["message"] =~ "id"
+
+      # Details should show what identity fields are expected
+      assert is_map(error["details"])
+      assert is_list(error["details"]["expectedKeys"])
+    end
+
+    test "update action with empty map identity returns missing_identity error", %{conn: conn} do
+      # Passing an empty map should also trigger missing_identity
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "update_user_by_email",
+          "identity" => %{},
+          "input" => %{"name" => "Should Fail"},
+          "fields" => ["id", "name"]
+        })
+
+      # With empty identity map, it should return invalid_identity since
+      # the identity was provided but doesn't match any configured identity
+      assert %{"success" => false, "errors" => [error]} = result
+      assert error["type"] in ["missing_identity", "invalid_identity"]
+    end
+
+    test "destroy action without identity when identity is required returns missing_identity error",
+         %{
+           conn: conn
+         } do
+      # destroy_user likely has identities: [:_primary_key] by default
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "destroy_user",
+          "fields" => ["id"]
+        })
+
+      assert %{"success" => false, "errors" => [error]} = result
+      assert error["type"] == "missing_identity"
+      assert error["shortMessage"] == "Missing identity"
+    end
+
     test "invalid_identity error applies field_names mapping for client-facing names", %{
       conn: conn,
       user: user

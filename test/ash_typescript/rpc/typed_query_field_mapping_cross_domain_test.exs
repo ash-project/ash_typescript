@@ -20,7 +20,7 @@ defmodule AshTypescript.Rpc.TypedQueryFieldMappingCrossDomainTest do
 
   describe "typed query field name mapping across domains" do
     test "field mappings are applied in typed queries from first domain" do
-      # The User resource has field_names mapping: address_line_1: :address_line1
+      # The User resource has field_names mapping: address_line_1: "addressLine1"
       # The first domain (AshTypescript.Test.Domain) has a typed query for User
       # in test/support/domain.ex that includes various fields
 

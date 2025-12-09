@@ -6,175 +6,44 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  describe "atomize_requested_fields/1" do
-    setup do
-      # Store original configuration
-      original_input_field_formatter =
-        Application.get_env(:ash_typescript, :input_field_formatter)
-
-      on_exit(fn ->
-        # Restore original configuration
-        if original_input_field_formatter do
-          Application.put_env(
-            :ash_typescript,
-            :input_field_formatter,
-            original_input_field_formatter
-          )
-        else
-          Application.delete_env(:ash_typescript, :input_field_formatter)
-        end
-      end)
-
-      {:ok, original_input_field_formatter: original_input_field_formatter}
-    end
-
-    test "atomizes simple string fields with snake_case formatter" do
-      Application.put_env(:ash_typescript, :input_field_formatter, :snake_case)
-
-      result = RequestedFieldsProcessor.atomize_requested_fields(["id", "title", "is_overdue"])
-
-      assert result == [:id, :title, :is_overdue]
-    end
-
-    test "atomizes simple string fields with camelCase formatter" do
-      Application.put_env(:ash_typescript, :input_field_formatter, :camel_case)
-
+  describe "atomize_requested_fields/2" do
+    test "preserves string fields without resource context" do
+      # Without resource context, strings are preserved for FieldSelector to handle
       result = RequestedFieldsProcessor.atomize_requested_fields(["id", "title", "isOverdue"])
-
-      assert result == [:id, :title, :is_overdue]
+      assert result == ["id", "title", "isOverdue"]
     end
 
     test "passes through atom fields unchanged" do
-      Application.put_env(:ash_typescript, :input_field_formatter, :snake_case)
-
       result = RequestedFieldsProcessor.atomize_requested_fields([:id, :title, :is_overdue])
-
       assert result == [:id, :title, :is_overdue]
     end
 
-    test "atomizes map keys in relationship fields with snake_case formatter" do
-      Application.put_env(:ash_typescript, :input_field_formatter, :snake_case)
-
-      result =
-        RequestedFieldsProcessor.atomize_requested_fields([
-          "id",
-          "title",
-          %{"user" => ["id", "name"]},
-          %{"metadata" => ["category"]}
-        ])
-
-      assert result == [
-               :id,
-               :title,
-               %{user: [:id, :name]},
-               %{metadata: [:category]}
-             ]
-    end
-
-    test "atomizes map keys in relationship fields with camelCase formatter" do
-      Application.put_env(:ash_typescript, :input_field_formatter, :camel_case)
-
-      result =
-        RequestedFieldsProcessor.atomize_requested_fields([
-          "id",
-          "title",
-          %{"user" => ["id", "name"]},
-          %{"createdBy" => ["id", "userName"]}
-        ])
-
-      assert result == [
-               :id,
-               :title,
-               %{user: [:id, :name]},
-               %{created_by: [:id, :user_name]}
-             ]
-    end
-
-    test "handles complex calculation with arguments format" do
-      Application.put_env(:ash_typescript, :input_field_formatter, :snake_case)
-
-      result =
-        RequestedFieldsProcessor.atomize_requested_fields([
-          "id",
-          "title",
-          %{"self" => %{"args" => %{"prefix" => "test"}}}
-        ])
-
-      assert result == [
-               :id,
-               :title,
-               %{self: %{args: %{prefix: "test"}}}
-             ]
-    end
-
-    test "handles complex calculation with arguments and fields format" do
-      Application.put_env(:ash_typescript, :input_field_formatter, :camel_case)
-
-      result =
-        RequestedFieldsProcessor.atomize_requested_fields([
-          "id",
-          "title",
-          %{
-            "selfWithFields" => %{
-              "args" => %{"prefix" => "test"},
-              "fields" => ["id", "createdAt"]
-            }
-          }
-        ])
-
-      assert result == [
-               :id,
-               :title,
-               %{self_with_fields: %{args: %{prefix: "test"}, fields: [:id, :created_at]}}
-             ]
-    end
-
-    test "handles mixed atom and string keys in maps" do
-      Application.put_env(:ash_typescript, :input_field_formatter, :camel_case)
-
+    test "preserves nested structures without resource context" do
       result =
         RequestedFieldsProcessor.atomize_requested_fields([
           "id",
           %{"user" => ["id", "name"]},
-          # Already atom key
-          %{metadata: ["category"]}
+          %{"calc" => %{"args" => %{"count" => 5}, "fields" => ["value"]}}
         ])
 
+      # Map keys and nested values are all preserved as-is
       assert result == [
-               :id,
-               %{user: [:id, :name]},
-               %{metadata: [:category]}
+               "id",
+               %{"user" => ["id", "name"]},
+               %{"calc" => %{"args" => %{"count" => 5}, "fields" => ["value"]}}
              ]
     end
 
-    test "handles nested maps recursively" do
-      Application.put_env(:ash_typescript, :input_field_formatter, :camel_case)
-
+    test "applies field_names DSL mapping when resource is provided" do
+      # User resource has field_names mapping: is_active? => "isActive"
       result =
-        RequestedFieldsProcessor.atomize_requested_fields([
-          "id",
-          %{"deeplyNested" => %{"nestedField" => %{"innerField" => "value"}}}
-        ])
+        RequestedFieldsProcessor.atomize_requested_fields(
+          ["id", "isActive"],
+          AshTypescript.Test.User
+        )
 
-      assert result == [
-               :id,
-               %{deeply_nested: %{nested_field: %{inner_field: "value"}}}
-             ]
-    end
-
-    test "preserves primitive values in nested structures" do
-      Application.put_env(:ash_typescript, :input_field_formatter, :snake_case)
-
-      result =
-        RequestedFieldsProcessor.atomize_requested_fields([
-          "id",
-          %{"calc" => %{"args" => %{"count" => 5, "active" => true, "ratio" => 0.5}}}
-        ])
-
-      assert result == [
-               :id,
-               %{calc: %{args: %{count: 5, active: true, ratio: 0.5}}}
-             ]
+      # "isActive" should be mapped to :is_active? via the DSL
+      assert result == ["id", :is_active?]
     end
   end
 
@@ -275,8 +144,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
         )
 
       assert error ==
-               {:invalid_field_selection, :primitive_type, {:ash_type, Ash.Type.UUID, []}, [:id],
-                []}
+               {:invalid_field_selection, :primitive_type, Ash.Type.UUID, [:id], []}
     end
 
     test "processes fields for array of structs correctly" do

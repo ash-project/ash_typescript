@@ -31,7 +31,7 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
     } do
       # Regular update function should have typed identity
       assert generated =~
-               ~r/export async function updateTenantSetting.*\n.*config: \{\n\s+identity: \{ tenantId: UUID; settingKey: string \}/s
+               ~r/export async function updateTenantSetting.*\n\s+config: \{\n\s*identity: \{ tenantId: UUID; settingKey: string \}/s
     end
 
     test "generates union types for composite primary key in validation function", %{
@@ -39,7 +39,7 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
     } do
       # Validation function should accept original type OR string for each field
       assert generated =~
-               ~r/export async function validateUpdateTenantSetting.*\n.*config: \{\n\s+identity: \{ tenantId: UUID \| string; settingKey: string \}/s
+               ~r/export async function validateUpdateTenantSetting.*\n\s+config: \{\n\s*identity: \{ tenantId: UUID \| string; settingKey: string \}/s
     end
 
     test "generates object type for composite primary key in destroy function", %{
@@ -47,7 +47,7 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
     } do
       # Destroy function should have typed identity
       assert generated =~
-               ~r/export async function destroyTenantSetting.*\n.*config: \{\n\s+identity: \{ tenantId: UUID; settingKey: string \}/s
+               ~r/export async function destroyTenantSetting.*\n\s+config: \{\n\s*identity: \{ tenantId: UUID; settingKey: string \}/s
     end
 
     test "generates union types for composite primary key in destroy validation function", %{
@@ -55,7 +55,7 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
     } do
       # Destroy validation function should accept original type OR string for each field
       assert generated =~
-               ~r/export async function validateDestroyTenantSetting.*\n.*config: \{\n\s+identity: \{ tenantId: UUID \| string; settingKey: string \}/s
+               ~r/export async function validateDestroyTenantSetting.*\n\s+config: \{\n\s*identity: \{ tenantId: UUID \| string; settingKey: string \}/s
     end
 
     test "generates object type for composite primary key in channel function", %{

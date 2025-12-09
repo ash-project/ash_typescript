@@ -85,7 +85,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
       params = %{
         "action" => "list_todos",
         "fields" => ["id", "title"],
-        "input" => %{"userId" => "123"},
+        "input" => %{"filterCompleted" => true},
         "filter" => %{"status" => "active"},
         "sort" => "title"
       }
@@ -99,8 +99,8 @@ defmodule AshTypescript.Rpc.PipelineTest do
       assert request.action.name == :read
       assert request.select == [:id, :title]
       assert request.load == []
-      # Formatted from camelCase
-      assert request.input == %{user_id: "123"}
+      # Formatted from camelCase - only known arguments are converted
+      assert request.input == %{filter_completed: true}
       assert request.filter == %{status: "active"}
       assert request.sort == "title"
     end

@@ -65,7 +65,7 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
 
   describe "field name mapping" do
     test "create action with mapped field names", %{conn: conn} do
-      # The User resource has field_names mapping: address_line_1: :address_line1
+      # The User resource has field_names mapping: address_line_1: "addressLine1"
       # So the TypeScript client will send "addressLine1" but Elixir expects "address_line_1"
 
       result =
@@ -106,7 +106,7 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_user",
           "resource" => "User",
-          "primary_key" => user.id,
+          "identity" => user.id,
           "input" => %{
             "name" => "Jane Smith",
             # TypeScript mapped name

@@ -118,7 +118,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "mark_completed_task",
           "resource" => "Task",
-          "primary_key" => task.id,
+          "identity" => task.id,
           "input" => %{
             "isCompleted" => false
           },
@@ -165,7 +165,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "mark_completed_task",
           "resource" => "Task",
-          "primary_key" => task.id,
+          "identity" => task.id,
           "input" => %{
             # Mapped argument name
             "isCompleted" => true
@@ -264,7 +264,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "mark_completed_task",
           "resource" => "Task",
-          "primary_key" => task.id,
+          "identity" => task.id,
           "input" => %{
             "isCompleted" => true
           },

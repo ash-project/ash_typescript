@@ -124,8 +124,8 @@ defmodule AshTypescript.Rpc.IntegrationTest do
         "action" => "list_todos",
         # camelCase input
         "fields" => ["id", "createdAt", "isOverdue"],
-        # camelCase input
-        "input" => %{"userId" => "123", "searchTerm" => "test"}
+        # camelCase input - using valid action arguments
+        "input" => %{"filterCompleted" => true, "priorityFilter" => "high"}
       }
 
       conn = %Plug.Conn{}
@@ -140,11 +140,11 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       # Converted from isOverdue (calculation)
       assert :is_overdue in request.load
 
-      # Input should be converted to snake_case
-      # Converted from userId
-      assert request.input[:user_id] == "123"
-      # Converted from searchTerm
-      assert request.input[:search_term] == "test"
+      # Input should be converted to snake_case (known arguments only)
+      # Converted from filterCompleted
+      assert request.input[:filter_completed] == true
+      # Converted from priorityFilter
+      assert request.input[:priority_filter] == "high"
     end
 
     test "output formatting converts back to camelCase" do

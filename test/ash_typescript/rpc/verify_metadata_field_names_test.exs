@@ -284,7 +284,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         typescript do
           type_name "TestResourceWithMappedFieldConflict"
 
-          field_names internal_name: :externalName
+          field_names internal_name: "externalName"
         end
 
         attributes do
@@ -552,7 +552,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
           resource TestResourceWithMappedMetadata do
             rpc_action :read_data, :read_with_metadata,
               show_metadata: [:field_1, :is_valid?],
-              metadata_field_names: [field_1: :field1, is_valid?: :isValid]
+              metadata_field_names: [field_1: "field1", is_valid?: "isValid"]
           end
         end
 
@@ -601,7 +601,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
             # Mapping meta_title to title conflicts with the attribute
             rpc_action :read_data, :read_with_metadata,
               show_metadata: [:meta_title],
-              metadata_field_names: [meta_title: :title]
+              metadata_field_names: [meta_title: "title"]
           end
         end
 
@@ -652,7 +652,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
             # Mapping to an invalid name should still fail
             rpc_action :read_data, :read_with_metadata,
               show_metadata: [:field_a],
-              metadata_field_names: [field_a: :field_1]
+              metadata_field_names: [field_a: "field_1"]
           end
         end
 
