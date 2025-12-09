@@ -94,7 +94,7 @@ defmodule AshTypescript.Rpc do
 
     Metadata field naming: Use `metadata_field_names` to map invalid metadata field names
     (e.g., `field_1`, `is_valid?`) to valid TypeScript identifiers.
-    Example: `metadata_field_names [field_1: :field1, is_valid?: :isValid]`
+    Example: `metadata_field_names [field_1: "field1", is_valid?: "isValid"]`
 
     Get options:
     - `get?` - When true, retrieves a single resource by primary key. Requires primary key
@@ -122,8 +122,8 @@ defmodule AshTypescript.Rpc do
         default: nil
       ],
       metadata_field_names: [
-        type: {:list, {:tuple, [:atom, :atom]}},
-        doc: "Map metadata field names to valid TypeScript identifiers",
+        type: {:list, {:tuple, [:atom, :string]}},
+        doc: "Map metadata field names to valid TypeScript identifiers (string values)",
         default: []
       ],
       get?: [
@@ -216,6 +216,8 @@ defmodule AshTypescript.Rpc do
       AshTypescript.Rpc.Verifiers.VerifyMetadataFieldNames,
       AshTypescript.Rpc.Verifiers.VerifyTypedQueryFields,
       AshTypescript.Rpc.Verifiers.VerifyIdentities,
+      AshTypescript.Rpc.Verifiers.VerifyActionTypes,
+      AshTypescript.Rpc.Verifiers.VerifyUniqueInputFieldNames,
       AshTypescript.Rpc.VerifyRpcWarnings
     ]
 

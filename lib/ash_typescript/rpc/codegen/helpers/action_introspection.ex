@@ -10,7 +10,17 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   - Pagination support (offset, keyset, required, countable)
   - Input requirements
   - Return type field selectability
+
+  The return type analysis uses a type-driven classification pattern with
+  `classify_return_type/2` for consistent handling of all type variants.
   """
+
+  # Container types that can have field constraints for field selection
+  @field_constrained_types [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple]
+
+  # ─────────────────────────────────────────────────────────────────
+  # Pagination Helpers
+  # ─────────────────────────────────────────────────────────────────
 
   @doc """
   Returns true if the action supports pagination.
@@ -110,7 +120,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
     # Get accepted attributes (for create/update/destroy actions)
     accepted_attributes =
       (Map.get(action, :accept) || [])
-      |> Enum.map(&Ash.Resource.Info.public_attribute(resource, &1))
+      |> Enum.map(&Ash.Resource.Info.attribute(resource, &1))
       |> Enum.reject(&is_nil/1)
 
     inputs = public_arguments ++ accepted_attributes
@@ -157,66 +167,87 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
     end
   end
 
+  # ─────────────────────────────────────────────────────────────────
+  # Return Type Classification
+  # ─────────────────────────────────────────────────────────────────
+
   defp check_action_returns(action) do
-    case action.returns do
-      {:array, Ash.Type.Struct} ->
-        items_constraints = Keyword.get(action.constraints || [], :items, [])
+    {base_type, constraints, is_array} = unwrap_return_type(action)
 
-        if Keyword.has_key?(items_constraints, :instance_of) do
-          {:ok, :array_of_resource, Keyword.get(items_constraints, :instance_of)}
+    case classify_return_type(base_type, constraints) do
+      {:resource, module} ->
+        if is_array do
+          {:ok, :array_of_resource, module}
         else
-          {:error, :no_instance_of_defined}
+          {:ok, :resource, module}
         end
 
-      Ash.Type.Struct ->
-        constraints = action.constraints || []
-
-        if Keyword.has_key?(constraints, :instance_of) do
-          {:ok, :resource, Keyword.get(constraints, :instance_of)}
+      {:typed_map, fields} ->
+        if is_array do
+          {:ok, :array_of_typed_map, fields}
         else
-          {:error, :no_instance_of_defined}
+          {:ok, :typed_map, fields}
         end
 
-      {:array, map_like} when map_like in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Keyword] ->
-        items_constraints = Keyword.get(action.constraints || [], :items, [])
-
-        if Keyword.has_key?(items_constraints, :fields) do
-          {:ok, :array_of_typed_map, Keyword.get(items_constraints, :fields)}
-        else
-          {:error, :no_fields_defined}
-        end
-
-      {:array, module} when is_atom(module) ->
-        constraints = action.constraints || []
-        items_constraints = Keyword.get(constraints, :items, [])
-
-        if has_field_constraints?(items_constraints) do
-          fields = Keyword.get(items_constraints, :fields, [])
+      {:typed_struct, {module, fields}} ->
+        if is_array do
           {:ok, :array_of_typed_struct, {module, fields}}
         else
-          {:error, :not_field_selectable_type}
-        end
-
-      map_like when map_like in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Keyword] ->
-        constraints = action.constraints || []
-
-        if Keyword.has_key?(constraints, :fields) do
-          {:ok, :typed_map, Keyword.get(constraints, :fields)}
-        else
-          {:ok, :unconstrained_map, nil}
-        end
-
-      module when is_atom(module) ->
-        constraints = action.constraints || []
-
-        if has_field_constraints?(constraints) do
-          fields = Keyword.get(constraints, :fields, [])
           {:ok, :typed_struct, {module, fields}}
-        else
-          {:error, :not_field_selectable_type}
         end
 
-      _ ->
+      :unconstrained_map ->
+        {:ok, :unconstrained_map, nil}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # Unwraps array wrapper from return type, returning {base_type, constraints, is_array}
+  defp unwrap_return_type(action) do
+    case action.returns do
+      {:array, inner_type} ->
+        inner_constraints = Keyword.get(action.constraints || [], :items, [])
+        {inner_type, inner_constraints, true}
+
+      type ->
+        {type, action.constraints || [], false}
+    end
+  end
+
+  # Classifies a return type into a category for field selectability
+  @spec classify_return_type(atom() | tuple(), keyword()) ::
+          {:resource, module()}
+          | {:typed_map, keyword()}
+          | {:typed_struct, {module(), keyword()}}
+          | :unconstrained_map
+          | {:error, atom()}
+  defp classify_return_type(type, constraints) do
+    cond do
+      # Ash.Type.Struct with instance_of - represents a resource
+      type == Ash.Type.Struct and Keyword.has_key?(constraints, :instance_of) ->
+        {:resource, Keyword.get(constraints, :instance_of)}
+
+      # Ash.Type.Struct without instance_of - error
+      type == Ash.Type.Struct ->
+        {:error, :no_instance_of_defined}
+
+      # Container types with field constraints (Map, Keyword, Tuple)
+      type in @field_constrained_types and Keyword.has_key?(constraints, :fields) ->
+        {:typed_map, Keyword.get(constraints, :fields)}
+
+      # Container types without field constraints - unconstrained map
+      type in @field_constrained_types ->
+        :unconstrained_map
+
+      # Module with field constraints (TypedStruct pattern - requires both fields and instance_of)
+      is_atom(type) and has_field_constraints?(constraints) ->
+        fields = Keyword.get(constraints, :fields, [])
+        {:typed_struct, {type, fields}}
+
+      # Not field-selectable
+      true ->
         {:error, :not_field_selectable_type}
     end
   end

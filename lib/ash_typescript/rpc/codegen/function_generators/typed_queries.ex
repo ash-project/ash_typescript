@@ -58,7 +58,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
   def generate_typed_query_type_and_const(resource, action, typed_query, _all_resources) do
     resource_name = build_resource_type_name(resource)
 
-    atomized_fields = RequestedFieldsProcessor.atomize_requested_fields(typed_query.fields)
+    atomized_fields =
+      RequestedFieldsProcessor.atomize_requested_fields(typed_query.fields, resource)
 
     case RequestedFieldsProcessor.process(resource, action.name, atomized_fields) do
       {:ok, {_select, _load, _template}} ->
@@ -165,11 +166,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
   defp format_field_item(field, _resource), do: inspect(field)
 
   defp format_field_name(atom, resource) do
-    # First apply the resource-specific field name mapping
-    mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, atom)
-    # Then apply the formatter (camelCase, etc.)
     formatter = AshTypescript.Rpc.output_field_formatter()
-    AshTypescript.FieldFormatter.format_field_name(mapped_name, formatter)
+    AshTypescript.FieldFormatter.format_field_for_client(atom, resource, formatter)
   end
 
   defp format_args_map(args, resource) do

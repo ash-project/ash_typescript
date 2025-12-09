@@ -54,18 +54,15 @@ defmodule AshTypescript.Rpc.Verifiers.VerifyTypedQueryFields do
         | errors
       ]
     else
-      # Atomize the fields first
       try do
-        atomized_fields = RequestedFieldsProcessor.atomize_requested_fields(typed_query.fields)
+        atomized_fields =
+          RequestedFieldsProcessor.atomize_requested_fields(typed_query.fields, resource)
 
-        # Use RequestedFieldsProcessor to validate the fields
         case RequestedFieldsProcessor.process(resource, typed_query.action, atomized_fields) do
           {:ok, _result} ->
-            # Fields are valid
             errors
 
           {:error, error_tuple} ->
-            # Fields are invalid - add to errors
             [
               {:invalid_fields, typed_query.name, typed_query.action, resource, error_tuple}
               | errors
@@ -73,7 +70,6 @@ defmodule AshTypescript.Rpc.Verifiers.VerifyTypedQueryFields do
         end
       rescue
         e ->
-          # If atomization fails, it means there are invalid field names
           [
             {:atomization_failed, typed_query.name, typed_query.action, Exception.message(e)}
             | errors
