@@ -18,9 +18,9 @@ defmodule AshTypescript.Test.CustomMetadata do
 
   def typescript_field_names do
     [
-      field_1: :field1,
-      is_active?: :isActive,
-      line_2: :line2
+      field_1: "field1",
+      is_active?: "isActive",
+      line_2: "line2"
     ]
   end
 end

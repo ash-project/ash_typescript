@@ -21,7 +21,14 @@ defmodule AshTypescript.Test.SummaryCalculation do
         view_count: 42,
         edit_count: 7,
         completion_time_seconds: 1800,
-        difficulty_rating: 3.5
+        difficulty_rating: 3.5,
+        all_completed?: false,
+        performance_metrics: %{
+          focus_time_seconds: 900,
+          interruption_count: 3,
+          efficiency_score: 0.85,
+          task_complexity: "medium"
+        }
       }
     end)
   end

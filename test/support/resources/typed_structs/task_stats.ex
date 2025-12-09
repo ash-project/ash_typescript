@@ -11,8 +11,8 @@ defmodule AshTypescript.Test.TaskStats do
 
   def typescript_field_names do
     [
-      completed?: :completed,
-      is_urgent?: :is_urgent
+      completed?: "completed",
+      is_urgent?: "isUrgent"
     ]
   end
 

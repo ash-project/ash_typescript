@@ -14,8 +14,8 @@ defmodule AshTypescript.Test.User do
 
   typescript do
     type_name "User"
-    field_names address_line_1: :address_line1, is_active?: :is_active
-    argument_names read_with_invalid_arg: [is_active?: :is_active]
+    field_names address_line_1: "addressLine1", is_active?: "isActive"
+    argument_names read_with_invalid_arg: [is_active?: "isActive"]
   end
 
   ets do

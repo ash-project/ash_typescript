@@ -19,7 +19,7 @@ defmodule AshTypescript.Test.Subscription do
   typescript do
     type_name "Subscription"
     # Map fields with invalid TypeScript characters
-    field_names is_active?: :is_active, is_trial?: :is_trial
+    field_names is_active?: "isActive", is_trial?: "isTrial"
   end
 
   ets do

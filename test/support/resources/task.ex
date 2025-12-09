@@ -23,8 +23,8 @@ defmodule AshTypescript.Test.Task do
 
   typescript do
     type_name "Task"
-    field_names archived?: :is_archived
-    argument_names mark_completed: [is_task_completed_now?: :is_completed]
+    field_names archived?: "isArchived"
+    argument_names mark_completed: [is_task_completed_now?: "isCompleted"]
   end
 
   attributes do
