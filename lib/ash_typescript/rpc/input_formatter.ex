@@ -8,17 +8,18 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   This module handles the conversion of client-provided field names and values
   to the internal representation expected by Ash actions. It focuses specifically
-  on action arguments and accepted attributes, preserving untyped map keys exactly
-  as received while formatting typed field names.
+  on action arguments and accepted attributes, then delegates to ValueFormatter
+  for recursive type-aware formatting of nested values.
 
   Key responsibilities:
   - Convert client field names to internal atom keys (e.g., "userId" -> :user_id)
   - Preserve untyped map keys exactly as received
-  - Handle nested structures within input data
+  - Handle nested structures within input data via ValueFormatter
   - Work only with action arguments and accepted attributes (simplified scope)
   """
 
-  alias AshTypescript.{FieldFormatter, Rpc.FormatterCore}
+  alias AshTypescript.{FieldFormatter, Rpc.ValueFormatter}
+  alias AshTypescript.Resource.Info, as: ResourceInfo
 
   @doc """
   Formats input data from client format to internal format.
@@ -51,10 +52,6 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   defp get_action(_resource, %{} = action), do: action
 
-  # Helper to get action name
-  defp get_action_name(action_name) when is_atom(action_name), do: action_name
-  defp get_action_name(%{name: name}), do: name
-
   defp format_data(data, resource, action_name_or_action, formatter) do
     case data do
       map when is_map(map) and not is_struct(map) ->
@@ -72,50 +69,101 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   defp format_map(map, resource, action_name_or_action, formatter) do
     action = get_action(resource, action_name_or_action)
-    action_name = get_action_name(action_name_or_action)
+
+    # Build the expected keys map once for this action
+    expected_keys = build_expected_keys_map(resource, action, formatter)
 
     Enum.into(map, %{}, fn {key, value} ->
-      internal_key = FieldFormatter.parse_input_field(key, formatter)
+      case Map.get(expected_keys, key) do
+        nil ->
+          {key, value}
 
-      original_key =
-        get_original_field_or_argument_name(resource, action, action_name, internal_key)
-
-      {type, constraints} = get_input_field_type(resource, action, action_name, original_key)
-      formatted_value = format_value(value, type, constraints, resource, formatter)
-      {original_key, formatted_value}
+        internal_key ->
+          {type, constraints} = get_input_field_type(action, resource, internal_key)
+          formatted_value = format_value(value, type, constraints, formatter)
+          {internal_key, formatted_value}
+      end
     end)
   end
 
-  defp get_original_field_or_argument_name(resource, action, action_name, mapped_key) do
-    original_arg_name =
-      AshTypescript.Resource.Info.get_original_argument_name(
-        resource,
-        action_name,
-        mapped_key
-      )
+  @doc """
+  Builds a map of expected client field names to internal Elixir field names.
 
-    if Enum.any?(action.arguments, &(&1.public? && &1.name == original_arg_name)) do
-      original_arg_name
-    else
-      AshTypescript.Resource.Info.get_original_field_name(resource, mapped_key)
-    end
+  This map is used to correctly parse incoming input data by looking up the
+  exact client name that codegen would have generated, rather than blindly
+  applying formatter transformations.
+
+  ## Parameters
+  - `resource`: The Ash resource module
+  - `action`: The action struct
+  - `formatter`: The field formatter configuration
+
+  ## Returns
+  A map where keys are client field names (strings) and values are internal
+  Elixir field names (atoms).
+
+  ## Example
+      %{
+        "userName" => :user_name,
+        "isActive" => :is_active?,
+        "addressLine1" => :address_line_1
+      }
+  """
+  def build_expected_keys_map(resource, action, _input_formatter) do
+    output_formatter = AshTypescript.Rpc.output_field_formatter()
+    argument_keys = build_argument_keys(resource, action, output_formatter)
+    attribute_keys = build_attribute_keys(resource, action, output_formatter)
+    Map.merge(attribute_keys, argument_keys)
   end
 
-  defp format_value(data, type, constraints, resource, formatter) do
-    case type do
-      Ash.Type.Union ->
-        embedded_callback = fn data, module, _direction ->
-          format_data(data, module, :create, formatter)
+  defp build_argument_keys(resource, action, output_formatter) do
+    action.arguments
+    |> Enum.filter(& &1.public?)
+    |> Enum.into(%{}, fn arg ->
+      mapped = ResourceInfo.get_mapped_argument_name(resource, action.name, arg.name)
+
+      client_name =
+        cond do
+          is_binary(mapped) -> mapped
+          mapped == arg.name -> FieldFormatter.format_field_name(arg.name, output_formatter)
+          true -> FieldFormatter.format_field_name(mapped, output_formatter)
         end
 
-        FormatterCore.format_union(
-          data,
-          constraints,
-          resource,
-          formatter,
-          :input,
-          embedded_callback
-        )
+      {client_name, arg.name}
+    end)
+  end
+
+  defp build_attribute_keys(resource, action, output_formatter) do
+    accept_list = Map.get(action, :accept) || []
+
+    accept_list
+    |> Enum.map(&Ash.Resource.Info.attribute(resource, &1))
+    |> Enum.reject(&is_nil/1)
+    |> Enum.into(%{}, fn attr ->
+      client_name =
+        case ResourceInfo.get_mapped_field_name(resource, attr.name) do
+          mapped when is_binary(mapped) -> mapped
+          nil -> FieldFormatter.format_field_name(attr.name, output_formatter)
+        end
+
+      {client_name, attr.name}
+    end)
+  end
+
+  defp format_value(data, type, constraints, formatter) do
+    case type do
+      struct_type when struct_type in [Ash.Type.Struct, :struct] ->
+        instance_of = Keyword.get(constraints, :instance_of)
+
+        if instance_of && Ash.Resource.Info.resource?(instance_of) && is_map(data) &&
+             not is_struct(data) do
+          formatted_data =
+            ValueFormatter.format(data, instance_of, constraints, formatter, :input)
+
+          cast_map_to_struct(formatted_data, instance_of)
+        else
+          ValueFormatter.format(data, type, constraints, formatter, :input)
+        end
 
       {:array, inner_type} when inner_type in [Ash.Type.Struct, :struct] ->
         items_constraints = Keyword.get(constraints, :items, [])
@@ -124,36 +172,20 @@ defmodule AshTypescript.Rpc.InputFormatter do
         if instance_of && Ash.Resource.Info.resource?(instance_of) && is_list(data) do
           Enum.map(data, fn item ->
             if is_map(item) && not is_struct(item) do
-              formatted_item = format_data(item, instance_of, :create, formatter)
+              formatted_item =
+                ValueFormatter.format(item, instance_of, items_constraints, formatter, :input)
+
               cast_map_to_struct(formatted_item, instance_of)
             else
               item
             end
           end)
         else
-          FormatterCore.format_value(data, type, constraints, resource, formatter, :input)
-        end
-
-      struct_type when struct_type in [Ash.Type.Struct, :struct] ->
-        instance_of = Keyword.get(constraints, :instance_of)
-
-        if instance_of && Ash.Resource.Info.resource?(instance_of) && is_map(data) &&
-             not is_struct(data) do
-          formatted_data = format_data(data, instance_of, :create, formatter)
-          cast_map_to_struct(formatted_data, instance_of)
-        else
-          FormatterCore.format_value(data, type, constraints, resource, formatter, :input)
-        end
-
-      module when is_atom(module) ->
-        if Ash.Resource.Info.resource?(module) do
-          format_data(data, module, :create, formatter)
-        else
-          FormatterCore.format_value(data, type, constraints, resource, formatter, :input)
+          ValueFormatter.format(data, type, constraints, formatter, :input)
         end
 
       _ ->
-        FormatterCore.format_value(data, type, constraints, resource, formatter, :input)
+        ValueFormatter.format(data, type, constraints, formatter, :input)
     end
   end
 
@@ -169,10 +201,10 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end
   end
 
-  defp get_input_field_type(resource, action, action_name, field_key) do
+  defp get_input_field_type(action, resource, field_key) do
     case get_action_argument(action, field_key) do
       nil ->
-        case get_accepted_attribute(resource, action_name, field_key) do
+        case get_accepted_attribute(action, resource, field_key) do
           nil -> {nil, []}
           attr -> {attr.type, attr.constraints}
         end
@@ -186,19 +218,13 @@ defmodule AshTypescript.Rpc.InputFormatter do
     Enum.find(action.arguments, &(&1.public? && &1.name == field_key))
   end
 
-  defp get_accepted_attribute(resource, action_name, field_key) do
-    case Ash.Resource.Info.action(resource, action_name) do
-      nil ->
-        nil
+  defp get_accepted_attribute(action, resource, field_key) do
+    accept = Map.get(action, :accept, [])
 
-      action ->
-        accept = Map.get(action, :accept, [])
-
-        if field_key in accept do
-          Ash.Resource.Info.attribute(resource, field_key)
-        else
-          nil
-        end
+    if field_key in accept do
+      Ash.Resource.Info.attribute(resource, field_key)
+    else
+      nil
     end
   end
 end

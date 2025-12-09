@@ -8,8 +8,8 @@ defmodule AshTypescript.Rpc.OutputFormatter do
 
   This module handles the conversion of Ash result data to client-expected format.
   It works with the full resource schema including attributes, relationships,
-  calculations, and aggregates, preserving untyped map keys exactly as stored
-  while formatting typed field names for client consumption.
+  calculations, and aggregates, then delegates to ValueFormatter for recursive
+  type-aware formatting of nested values.
 
   Key responsibilities:
   - Convert internal atom keys to client field names (e.g., :user_id -> "userId")
@@ -19,7 +19,7 @@ defmodule AshTypescript.Rpc.OutputFormatter do
   - Handle pagination structures and result data
   """
 
-  alias AshTypescript.{FieldFormatter, Rpc.FormatterCore}
+  alias AshTypescript.{FieldFormatter, Rpc.ValueFormatter, TypeSystem.ResourceFields}
 
   @doc """
   Formats output data from internal format to client format.
@@ -60,7 +60,7 @@ defmodule AshTypescript.Rpc.OutputFormatter do
   defp format_map(%{type: maybe_offset_type} = map, resource, action_name, formatter)
        when maybe_offset_type in [:offset, :keyset] do
     Enum.into(map, %{}, fn {internal_key, value} ->
-      {type, constraints} = get_output_field_type(resource, internal_key)
+      {type, constraints} = ResourceFields.get_public_field_type_info(resource, internal_key)
 
       formatted_value =
         case internal_key do
@@ -70,7 +70,7 @@ defmodule AshTypescript.Rpc.OutputFormatter do
             end)
 
           _ ->
-            format_value(value, type, constraints, resource, formatter)
+            format_value(value, type, constraints, formatter)
         end
 
       output_key = FieldFormatter.format_field_name(internal_key, formatter)
@@ -80,62 +80,15 @@ defmodule AshTypescript.Rpc.OutputFormatter do
 
   defp format_map(map, resource, _action_name, formatter) do
     Enum.into(map, %{}, fn {internal_key, value} ->
-      {type, constraints} = get_output_field_type(resource, internal_key)
-      formatted_value = format_value(value, type, constraints, resource, formatter)
-      output_key = FieldFormatter.format_field_name(internal_key, formatter)
+      {type, constraints} = ResourceFields.get_public_field_type_info(resource, internal_key)
+      formatted_value = format_value(value, type, constraints, formatter)
+      output_key = FieldFormatter.format_field_for_client(internal_key, resource, formatter)
 
       {output_key, formatted_value}
     end)
   end
 
-  defp format_value(data, type, constraints, resource, formatter) do
-    case type do
-      Ash.Type.Union ->
-        embedded_callback = fn data, module, _direction ->
-          format_data(data, module, :read, formatter)
-        end
-
-        FormatterCore.format_union(
-          data,
-          constraints,
-          resource,
-          formatter,
-          :output,
-          embedded_callback
-        )
-
-      Ash.Type.Struct ->
-        instance_of = Keyword.get(constraints, :instance_of)
-
-        if instance_of && Ash.Resource.Info.resource?(instance_of) && is_map(data) &&
-             not is_struct(data) do
-          format_data(data, instance_of, :read, formatter)
-        else
-          FormatterCore.format_value(data, type, constraints, resource, formatter, :output)
-        end
-
-      module when is_atom(module) ->
-        if Ash.Resource.Info.resource?(module) do
-          format_data(data, module, :read, formatter)
-        else
-          FormatterCore.format_value(data, type, constraints, resource, formatter, :output)
-        end
-
-      _ ->
-        FormatterCore.format_value(data, type, constraints, resource, formatter, :output)
-    end
-  end
-
-  defp get_output_field_type(resource, field_key) do
-    with nil <- Ash.Resource.Info.public_attribute(resource, field_key),
-         nil <- Ash.Resource.Info.public_calculation(resource, field_key),
-         nil <- Ash.Resource.Info.public_aggregate(resource, field_key) do
-      case Ash.Resource.Info.public_relationship(resource, field_key) do
-        nil -> {nil, []}
-        rel -> {rel.destination, []}
-      end
-    else
-      field -> {field.type, field.constraints || []}
-    end
+  defp format_value(data, type, constraints, formatter) do
+    ValueFormatter.format(data, type, constraints, formatter, :output)
   end
 end
