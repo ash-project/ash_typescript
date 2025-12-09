@@ -11,6 +11,34 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.11.0](https://github.com/ash-project/ash_typescript/compare/v0.10.2...v0.11.0) (2025-12-09)
+
+### Breaking changes:
+
+* All field mapping dsls and callbacks now require strings instead of atoms.
+* Fields requested from calculations without arguments no longer need to be wrapped in `{fields: [...]}`
+
+
+### Features:
+
+* add VerifyActionTypes and VerifyUniqueInputFieldNames verifiers by [@Torkan](https://github.com/Torkan)
+
+* add ResourceFields helper and extend Introspection by [@Torkan](https://github.com/Torkan)
+
+* add FieldSelector for unified type-driven field selection by [@Torkan](https://github.com/Torkan)
+
+* add ValueFormatter for unified type-aware value formatting by [@Torkan](https://github.com/Torkan)
+
+### Bug Fixes:
+
+* remove underscore in Zod schema name generation by [@Torkan](https://github.com/Torkan)
+
+* cast struct inputs fully using Ash.Type by [@zachdaniel](https://github.com/zachdaniel)
+
+* handle private arguments in action_inputs lookup by [@Torkan](https://github.com/Torkan)
+
+* don't include private arguments in typescript codegen by [@zachdaniel](https://github.com/zachdaniel)
+
 ## [v0.10.2](https://github.com/ash-project/ash_typescript/compare/v0.10.1...v0.10.2) (2025-12-05)
 
 
