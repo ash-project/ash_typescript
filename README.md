@@ -21,6 +21,38 @@ Generate type-safe TypeScript clients directly from your Elixir Ash resources, e
 
 ## 🚨 Breaking Changes
 
+### 0.11.0 - Simplified Calculation Field Selection
+
+Calculations without arguments no longer require the `{fields: [...]}` wrapper syntax. You can now select them directly as strings, just like regular attributes.
+
+**TypeScript Usage:**
+
+```typescript
+// ❌ Before (0.10.x) - fields-key was always required for all calculations
+const todos = await listTodos({
+  fields: ["id", "title", { someCalcField: { fields: ["field1", "field2"] } }]
+});
+
+// ✅ After (0.11.0+) - fields-key no longer needed for calculations without args
+const todos = await listTodos({
+  fields: ["id", "title", {someCalcField: ["field1", "field2"]}]  // fullName is a calculation
+});
+
+// ✅ Calculations WITH arguments still use object syntax
+const todos = await listTodos({
+  fields: ["id", "title", { distanceFrom: { args: { lat: 40.7, lng: -74.0 }, fields: ["miles"] } }]
+});
+```
+
+**Key Changes:**
+- This simplifies the most common calculation usage patterns
+- Calculations with arguments continue to require the object syntax with `args`
+
+**Migration:**
+1. Simplify calculation selections that don't require arguments from `{ calcName: { fields: [...] } }` to just `"{calcName: [...]}"`
+2. Keep the object syntax for calculations that need arguments
+
+
 ### 0.11.0 - Field Name Mappings Must Be Strings
 
 The `field_names`, `argument_names`, and `metadata_field_names` DSL options now require string values instead of atoms. Additionally, the string value is used as the literal exposed field name without any additional formatting applied.
