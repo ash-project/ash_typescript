@@ -245,12 +245,7 @@ defmodule AshTypescript.Rpc.Pipeline do
             {:ok, ResultProcessor.normalize_primitive(result)}
           else
             resource_for_mapping =
-              if request.action.type == :action and returns_typed_struct?(request.action) do
-                # For TypedStruct returns, use the TypedStruct module for field name mapping
-                get_typed_struct_module(request.action)
-              else
-                request.resource
-              end
+              get_field_mapping_module(request.action, request.resource)
 
             filtered =
               if is_mutation_with_no_fields do
@@ -270,62 +265,30 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp get_typed_struct_module(action) do
-    constraints = action.constraints || []
-
-    case action.returns do
-      {:array, inner_type} ->
-        # First check if inner_type is a direct module with typescript_field_names
-        case get_direct_module_with_mappings(inner_type) do
-          nil ->
-            # Fall back to checking instance_of in items constraints
-            items_constraints = Keyword.get(constraints, :items, [])
-            get_instance_of_with_mappings(items_constraints)
-
-          module ->
-            module
-        end
-
-      single_type ->
-        # First check if return type is a direct module with typescript_field_names
-        case get_direct_module_with_mappings(single_type) do
-          nil ->
-            # Fall back to checking instance_of in constraints
-            get_instance_of_with_mappings(constraints)
-
-          module ->
-            module
-        end
-    end
-  end
-
-  # Check if a type is directly a module with typescript_field_names/0
-  defp get_direct_module_with_mappings(type) when is_atom(type) and not is_nil(type) do
-    if Code.ensure_loaded?(type) and function_exported?(type, :typescript_field_names, 0) do
-      type
+  # Determines the module to use for field name mapping based on action return type
+  # Returns:
+  # - resource module for resource-returning actions
+  # - TypedStruct module for typed_struct returns (if it has typescript_field_names/0)
+  # - nil for typed_map returns (field mapping comes from type constraints)
+  # - request.resource as fallback for CRUD actions
+  defp get_field_mapping_module(action, default_resource) do
+    if action.type != :action do
+      default_resource
     else
-      nil
-    end
-  end
+      case ActionIntrospection.action_returns_field_selectable_type?(action) do
+        {:ok, type, resource_module} when type in [:resource, :array_of_resource] ->
+          resource_module
 
-  defp get_direct_module_with_mappings(_), do: nil
+        {:ok, type, {module, _fields}} when type in [:typed_struct, :array_of_typed_struct] ->
+          if function_exported?(module, :typescript_field_names, 0), do: module, else: nil
 
-  defp get_instance_of_with_mappings(constraints) do
-    if Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of) do
-      instance_of = Keyword.get(constraints, :instance_of)
+        {:ok, type, _fields} when type in [:typed_map, :array_of_typed_map] ->
+          nil
 
-      if function_exported?(instance_of, :typescript_field_names, 0) do
-        instance_of
-      else
-        nil
+        _ ->
+          default_resource
       end
-    else
-      nil
     end
-  end
-
-  defp returns_typed_struct?(action) do
-    get_typed_struct_module(action) != nil
   end
 
   @doc """
@@ -957,24 +920,9 @@ defmodule AshTypescript.Rpc.Pipeline do
         {result_data, Map.get(result, :metadata)}
       end
 
-    # For generic actions with TypedStruct return types, use the return type module
-    # for field name mapping if it has typescript_field_names/0 callback
-    format_module = get_format_module(request)
-
+    # Determine how to format the output based on action return type
     formatted_data =
-      if Ash.Resource.Info.resource?(format_module) do
-        # Regular resource - use OutputFormatter for full resource field mapping
-        OutputFormatter.format(
-          actual_data,
-          format_module,
-          request.action.name,
-          formatter
-        )
-      else
-        # TypedStruct/NewType return type - use ValueFormatter directly with the
-        # action's return type and constraints
-        format_generic_action_output(actual_data, request.action, formatter)
-      end
+      format_action_output(actual_data, request.action, request.resource, formatter)
 
     base_response = %{
       FieldFormatter.format_field_name("success", formatter) => true,
@@ -1011,28 +959,31 @@ defmodule AshTypescript.Rpc.Pipeline do
     }
   end
 
-  # Determines the module to use for field name mapping in output formatting.
-  # For generic actions with TypedStruct return types that have typescript_field_names/0,
-  # use the return type module. Otherwise, use the resource.
-  defp get_format_module(request) do
-    action = request.action
+  # Formats action output based on action return type
+  # - Resource-returning actions use OutputFormatter for full resource field mapping
+  # - Composite types (typed maps, typed structs) use ValueFormatter with type constraints
+  # - Unconstrained maps just get key formatting applied
+  defp format_action_output(data, action, default_resource, formatter) do
+    if action.type != :action do
+      OutputFormatter.format(data, default_resource, action.name, formatter)
+    else
+      case ActionIntrospection.action_returns_field_selectable_type?(action) do
+        {:ok, type, resource_module} when type in [:resource, :array_of_resource] ->
+          OutputFormatter.format(data, resource_module, action.name, formatter)
 
-    case action.type do
-      :action ->
-        # Generic action - check if returns TypedStruct with field mappings
-        case get_typed_struct_module(action) do
-          nil -> request.resource
-          module -> module
-        end
+        {:ok, type, _}
+        when type in [:typed_map, :array_of_typed_map, :typed_struct, :array_of_typed_struct] ->
+          format_generic_action_output(data, action, formatter)
 
-      _ ->
-        # CRUD actions - use the resource
-        request.resource
+        {:ok, :unconstrained_map, _} ->
+          format_field_names(data, formatter)
+
+        _ ->
+          format_generic_action_output(data, action, formatter)
+      end
     end
   end
 
-  # Formats output for generic actions that return TypedStruct/NewType modules
-  # Uses ValueFormatter directly with the action's return type and constraints
   defp format_generic_action_output(data, action, formatter) do
     return_type = action.returns
     constraints = action.constraints || []
