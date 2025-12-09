@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.11.1](https://github.com/ash-project/ash_typescript/compare/v0.11.0...v0.11.1) (2025-12-09)
+
+
+
+
+### Bug Fixes:
+
+* rpc: preserve empty arrays in JSON serialization (fixes #32) by [@Torkan](https://github.com/Torkan)
+
 ## [v0.11.0](https://github.com/ash-project/ash_typescript/compare/v0.10.2...v0.11.0) (2025-12-09)
 
 ### Breaking changes:
