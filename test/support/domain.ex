@@ -138,7 +138,7 @@ defmodule AshTypescript.Test.Domain do
 
       rpc_action :read_tasks_with_mapped_metadata, :read_with_invalid_metadata_names,
         show_metadata: [:meta_1, :is_valid?, :field_2],
-        metadata_field_names: [meta_1: :meta1, is_valid?: :is_valid, field_2: :field2]
+        metadata_field_names: [meta_1: "meta1", is_valid?: "isValid", field_2: "field2"]
 
       rpc_action :read_tasks_with_metadata_all, :read_with_metadata, show_metadata: nil
       rpc_action :read_tasks_with_metadata_false, :read_with_metadata, show_metadata: false
@@ -210,6 +210,20 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :update_tenant_setting, :update
       rpc_action :destroy_tenant_setting, :destroy
     end
+
+    # Input parsing stress test resource - covers all edge cases for input formatting
+    resource AshTypescript.Test.InputParsing.Resource do
+      rpc_action :list_input_parsing, :read
+      rpc_action :get_input_parsing, :get_by_id
+      rpc_action :create_input_parsing, :create
+      rpc_action :create_input_parsing_with_args, :create_with_args
+      rpc_action :update_input_parsing, :update
+      rpc_action :destroy_input_parsing, :destroy
+      rpc_action :search_input_parsing, :search
+      rpc_action :process_data_input_parsing, :process_data
+      # New actions for exhaustive input parsing coverage
+      rpc_action :process_profile_input_parsing, :process_profile
+    end
   end
 
   resources do
@@ -229,5 +243,6 @@ defmodule AshTypescript.Test.Domain do
     resource AshTypescript.Test.Article
     resource AshTypescript.Test.Subscription
     resource AshTypescript.Test.TenantSetting
+    resource AshTypescript.Test.InputParsing.Resource
   end
 end
