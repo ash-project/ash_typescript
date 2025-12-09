@@ -58,7 +58,7 @@ defmodule AshTypescript.Rpc.FieldExtractor do
       is_tuple(data) ->
         convert_tuple_to_map(data, extraction_template)
 
-      is_list(data) and Keyword.keyword?(data) ->
+      is_list(data) and data != [] and Keyword.keyword?(data) ->
         Map.new(data)
 
       is_map(data) and is_struct(data) ->

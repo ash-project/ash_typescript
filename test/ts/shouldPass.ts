@@ -29,6 +29,7 @@ import "./shouldPass/untypedMaps";
 import "./shouldPass/conditionalPagination";
 import "./shouldPass/precisePaginationTypes";
 import "./shouldPass/metadata";
+import "./shouldPass/noArgCalculations";
 import "./shouldPass/genericActionTypedStruct";
 import "./shouldPass/rpcLifecycleHooks";
 import "./shouldPass/noFields";

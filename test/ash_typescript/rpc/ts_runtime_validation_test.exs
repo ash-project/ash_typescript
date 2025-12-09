@@ -21,6 +21,7 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
   @test_files [
     "operations.ts",
     "calculations.ts",
+    "noArgCalculations.ts",
     "relationships.ts",
     "customTypes.ts",
     "keywordTuple.ts",

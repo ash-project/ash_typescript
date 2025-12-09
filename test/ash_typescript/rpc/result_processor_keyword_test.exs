@@ -22,14 +22,10 @@ defmodule AshTypescript.Rpc.ResultProcessorKeywordTest do
       assert result == expected
     end
 
-    test "handles empty keyword list" do
-      keyword_list = []
-
-      result = ResultProcessor.normalize_value_for_json(keyword_list)
-
-      expected = %{}
-
-      assert result == expected
+    test "handles empty list - preserves as array" do
+      empty_list = []
+      result = ResultProcessor.normalize_value_for_json(empty_list)
+      assert result == []
     end
 
     test "handles nested keyword values" do
@@ -100,6 +96,47 @@ defmodule AshTypescript.Rpc.ResultProcessorKeywordTest do
       }
 
       assert result == expected
+    end
+
+    test "preserves empty array nested inside map" do
+      # This is the actual scenario from the bug report - empty arrays in JSONB columns
+      # were being converted to empty objects, breaking frontend expectations.
+      data = %{
+        id: "123",
+        title: "Test",
+        tags: [],
+        metadata: %{items: [], config: %{flags: []}}
+      }
+
+      result = ResultProcessor.normalize_value_for_json(data)
+
+      # Empty arrays must remain as [] not become {}
+      assert result.tags == []
+      assert result.metadata.items == []
+      assert result.metadata.config.flags == []
+    end
+
+    test "preserves empty arrays inside regular arrays" do
+      # Nested empty arrays should also be preserved
+      data = [[], [1, 2], [], [3]]
+
+      result = ResultProcessor.normalize_value_for_json(data)
+
+      assert result == [[], [1, 2], [], [3]]
+    end
+
+    test "processes empty array field in extraction template" do
+      # Ensure empty arrays are preserved when extracting fields
+      data = %{
+        id: "123",
+        items: []
+      }
+
+      extraction_template = [:id, :items]
+
+      result = ResultProcessor.process(data, extraction_template)
+
+      assert result == %{id: "123", items: []}
     end
   end
 end

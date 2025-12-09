@@ -18,7 +18,7 @@ defmodule AshTypescript.Test.TaskMetadata do
 
   typescript do
     type_name "TaskMetadata"
-    field_names created_by?: :created_by, is_public?: :is_public
+    field_names created_by?: "createdBy", is_public?: "isPublic"
   end
 
   attributes do

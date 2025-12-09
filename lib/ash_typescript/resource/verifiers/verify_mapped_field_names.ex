@@ -9,7 +9,8 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMappedFieldNames do
   Ensures that:
   1. All keys in field_names reference existing fields on the resource
   2. All keys in field_names are invalid names (contain _+\\d or ?)
-  3. All values in field_names are valid replacement names
+  3. All values in field_names are strings (the exact client name to use)
+  4. All values are valid TypeScript identifiers
   """
   use Spark.Dsl.Verifier
   alias Spark.Dsl.Verifier
@@ -100,15 +101,25 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMappedFieldNames do
   end
 
   defp validate_replacement_is_valid(errors, replacement_name) do
-    if invalid_name?(replacement_name) do
-      [{:replacement_invalid, replacement_name} | errors]
-    else
-      errors
+    cond do
+      not is_binary(replacement_name) ->
+        [{:replacement_not_string, replacement_name} | errors]
+
+      not valid_typescript_identifier?(replacement_name) ->
+        [{:replacement_invalid_identifier, replacement_name} | errors]
+
+      true ->
+        errors
     end
   end
 
   defp invalid_name?(name) do
     Regex.match?(~r/_+\d|\?/, to_string(name))
+  end
+
+  defp valid_typescript_identifier?(name) when is_binary(name) do
+    # Valid TypeScript identifier: starts with letter/underscore/$, followed by letters/digits/underscores/$
+    Regex.match?(~r/^[a-zA-Z_$][a-zA-Z0-9_$]*$/, name)
   end
 
   defp format_validation_errors(errors) do
@@ -117,14 +128,15 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMappedFieldNames do
     {:error,
      Spark.Error.DslError.exception(
        message: """
-       Invalid mapped_field_names configuration found:
+       Invalid field_names configuration found:
 
        #{message_parts}
 
        Requirements:
        - Keys must reference existing fields on the resource
        - Keys must be invalid names (containing _+digits or ?)
-       - Values must be valid replacement names (no _+digits or ?)
+       - Values must be strings representing the exact TypeScript client name
+       - Values must be valid TypeScript identifiers (e.g., "isActive", "addressLine1")
        """
      )}
   end
@@ -137,7 +149,11 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMappedFieldNames do
     "- Field #{field_name} is already a valid name and doesn't need mapping"
   end
 
-  defp format_error_part({:replacement_invalid, replacement_name}) do
-    "- Replacement name #{replacement_name} is invalid (contains _+digits or ?)"
+  defp format_error_part({:replacement_not_string, replacement_name}) do
+    "- Replacement name #{inspect(replacement_name)} must be a string, not an atom. Use \"#{replacement_name}\" instead of :#{replacement_name}"
+  end
+
+  defp format_error_part({:replacement_invalid_identifier, replacement_name}) do
+    "- Replacement name \"#{replacement_name}\" is not a valid TypeScript identifier"
   end
 end

@@ -34,6 +34,8 @@ defmodule AshTypescript.VerifierChecker do
     extensions
     |> Enum.filter(&(&1 in ash_typescript_extensions))
     |> Enum.flat_map(fn extension ->
+      Code.ensure_loaded!(extension)
+
       if function_exported?(extension, :verifiers, 0) do
         extension.verifiers()
       else

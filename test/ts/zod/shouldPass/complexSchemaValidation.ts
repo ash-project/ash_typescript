@@ -8,7 +8,7 @@
 import { z } from "zod";
 import {
   createTodo,
-  createTodoZodschema,
+  createTodoZodSchema,
   TodoMetadataZodSchema,
 } from "../../generated";
 
@@ -63,7 +63,7 @@ export function testComplexTodoCreation() {
     },
   };
 
-  const validated = createTodoZodschema.parse(complexTodoData);
+  const validated = createTodoZodSchema.parse(complexTodoData);
   return validated;
 }
 
@@ -76,7 +76,7 @@ export function testComplexTodoCreation() {
 
 // Test 5: Schema validation with transforms and defaults
 export function testSchemaWithTransforms() {
-  const transformedSchema = createTodoZodschema
+  const transformedSchema = createTodoZodSchema
     .omit({ userId: true })
     .extend({
       userId: z.string().default("default-user"),
@@ -115,7 +115,7 @@ export function testNestedObjectValidation() {
     },
   };
 
-  const validated = createTodoZodschema.parse(nestedData);
+  const validated = createTodoZodSchema.parse(nestedData);
   return validated;
 }
 
@@ -131,7 +131,7 @@ export function testArrayFieldValidation() {
     ],
   };
 
-  const validated = createTodoZodschema.parse(dataWithArrays);
+  const validated = createTodoZodSchema.parse(dataWithArrays);
   return validated;
 }
 
@@ -146,13 +146,13 @@ export function testDateTimeValidation() {
     reminderTime: "2024-12-30T10:00:00Z",
   };
 
-  const validated = createTodoZodschema.parse(dateTimeData);
+  const validated = createTodoZodSchema.parse(dateTimeData);
   return validated;
 }
 
 // Test 9: Conditional validation with refinements
 export function testConditionalValidation() {
-  const refinedSchema = createTodoZodschema.refine(
+  const refinedSchema = createTodoZodSchema.refine(
     (data: any) => {
       if (data.priority === "urgent") {
         return data.dueDate !== undefined;

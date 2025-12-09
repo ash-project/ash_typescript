@@ -192,7 +192,7 @@ defmodule MyApp.Subscription do
 
   typescript do
     type_name "Subscription"
-    field_names [is_active?: :isActive, user_id: :userId]
+    field_names [is_active?: "isActive", user_id: "userId"]
   end
 
   identities do

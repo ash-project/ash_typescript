@@ -7,12 +7,9 @@
 
 import { z } from "zod";
 import {
-  createTodo,
-  listTodos,
-  getTodo,
-  createTodoZodschema,
-  listTodosZodschema,
-  getTodoZodschema,
+  createTodoZodSchema,
+  listTodosZodSchema,
+  getTodoZodSchema,
 } from "../../generated";
 
 // Test 1: Basic schema validation with createTodo input
@@ -25,7 +22,7 @@ export function testCreateTodoValidation() {
   };
 
   // Schema should validate successfully
-  const validatedData = createTodoZodschema.parse(validCreateData);
+  const validatedData = createTodoZodSchema.parse(validCreateData);
   console.log("Create todo validation passed:", validatedData);
 
   return validatedData;
@@ -38,7 +35,7 @@ export function testListTodosValidation() {
     priorityFilter: "high",
   };
 
-  const validatedListData = listTodosZodschema.parse(validListData);
+  const validatedListData = listTodosZodSchema.parse(validListData);
   console.log("List todos validation passed:", validatedListData);
 
   return validatedListData;
@@ -51,15 +48,15 @@ export function testMinimalValidation() {
     userId: "user-id-123",
   };
 
-  const validated = createTodoZodschema.parse(minimalCreateData);
+  const validated = createTodoZodSchema.parse(minimalCreateData);
   return validated;
 }
 
 // Test 4: Get todo input validation (should work with empty input)
 export function testGetTodoValidation() {
   const emptyInput = {};
-  const validatedInput = getTodoZodschema.parse(emptyInput);
-  
+  const validatedInput = getTodoZodSchema.parse(emptyInput);
+
   return validatedInput;
 }
 
@@ -76,22 +73,22 @@ export function testFullValidation() {
     dueDate: "2024-12-31",
   };
 
-  const validated = createTodoZodschema.parse(fullCreateData);
+  const validated = createTodoZodSchema.parse(fullCreateData);
   return validated;
 }
 
 // Test 6: Type inference from schemas
-export type CreateTodoInput = z.infer<typeof createTodoZodschema>;
-export type ListTodosInput = z.infer<typeof listTodosZodschema>;
-export type GetTodoInput = z.infer<typeof getTodoZodschema>;
+export type CreateTodoInput = z.infer<typeof createTodoZodSchema>;
+export type ListTodosInput = z.infer<typeof listTodosZodSchema>;
+export type GetTodoInput = z.infer<typeof getTodoZodSchema>;
 
 // Test 7: Schema validation in function context
 export function validateCreateInput(input: unknown): CreateTodoInput {
-  return createTodoZodschema.parse(input);
+  return createTodoZodSchema.parse(input);
 }
 
 export function validateListInput(input: unknown): ListTodosInput {
-  return listTodosZodschema.parse(input);
+  return listTodosZodSchema.parse(input);
 }
 
 // Test 8: Safe parsing that doesn't throw
@@ -101,8 +98,8 @@ export function testSafeParsing() {
     userId: "user-123",
   };
 
-  const result = createTodoZodschema.safeParse(validData);
-  
+  const result = createTodoZodSchema.safeParse(validData);
+
   if (result.success) {
     const data: CreateTodoInput = result.data;
     return data;
@@ -113,9 +110,9 @@ export function testSafeParsing() {
 
 // Test 9: Schema refinement and custom validation
 export function testSchemaRefinement() {
-  const schema = createTodoZodschema.refine(
+  const schema = createTodoZodSchema.refine(
     (data: any) => data.title.length > 0,
-    { message: "Title cannot be empty" }
+    { message: "Title cannot be empty" },
   );
 
   const validData = {
@@ -128,7 +125,7 @@ export function testSchemaRefinement() {
 
 // Test 10: Schema transformation
 export function testSchemaTransformation() {
-  const transformedSchema = createTodoZodschema.transform((data: any) => ({
+  const transformedSchema = createTodoZodSchema.transform((data: any) => ({
     ...data,
     title: data.title.trim(),
     priority: data.priority || "medium",

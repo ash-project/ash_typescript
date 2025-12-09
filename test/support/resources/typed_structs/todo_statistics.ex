@@ -9,7 +9,7 @@ defmodule AshTypescript.Test.TodoStatistics do
   use Ash.TypedStruct
 
   def typescript_field_names do
-    [all_completed?: :all_completed]
+    [all_completed?: "allCompleted"]
   end
 
   typed_struct do

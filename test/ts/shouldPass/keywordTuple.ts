@@ -34,19 +34,31 @@ async function testKeywordTupleFieldSelection() {
     const notifyBool: boolean = notify;
   }
 
-  // Test 3: Test the new tuple action (currently no field selection support)
-  const tupleResult = await getCoordinatesInfoTodo({});
-  
+  // Test 3: Test the new tuple action with field selection
+  const tupleResult = await getCoordinatesInfoTodo({
+    fields: ["latitude", "longitude", "altitude"],
+  });
+
   if (tupleResult.success) {
     const { latitude, longitude, altitude } = tupleResult.data;
-    
+
     // Type assertions to verify correct types
     const latNum: number = latitude;
     const lngNum: number = longitude;
     const altNum: number | null = altitude;
-    
-    // Note: Tuple actions don't currently support field selection in the generated TS,
-    // they return the full tuple structure
+  }
+
+  // Test 3b: Test tuple action with partial field selection
+  const tuplePartial = await getCoordinatesInfoTodo({
+    fields: ["latitude", "longitude"],
+  });
+
+  if (tuplePartial.success) {
+    const { latitude, longitude } = tuplePartial.data;
+
+    // Type assertions to verify correct types
+    const latNum: number = latitude;
+    const lngNum: number = longitude;
   }
 
   // Test 4: Try to request keyword field without field selection - should fail

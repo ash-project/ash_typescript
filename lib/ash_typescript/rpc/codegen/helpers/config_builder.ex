@@ -251,10 +251,9 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
 
   # Gets the formatted field name, applying field_names mappings and output formatter
   defp get_formatted_field_name(resource, field_name) do
-    mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
-
-    AshTypescript.FieldFormatter.format_field_name(
-      mapped_name,
+    AshTypescript.FieldFormatter.format_field_for_client(
+      field_name,
+      resource,
       AshTypescript.Rpc.output_field_formatter()
     )
   end

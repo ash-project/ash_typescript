@@ -27,7 +27,6 @@ defmodule AshTypescript.Codegen do
   alias AshTypescript.TypeSystem.Introspection
 
   defdelegate find_embedded_resources(otp_app), to: TypeDiscovery
-  defdelegate find_typed_struct_modules(resources), to: TypeDiscovery
   defdelegate find_field_constrained_types(resources), to: TypeDiscovery
 
   defdelegate generate_ash_type_aliases(resources, actions, otp_app), to: TypeAliases

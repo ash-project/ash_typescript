@@ -94,8 +94,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
         )
 
       assert error ==
-               {:invalid_field_selection, :primitive_type, {:ash_type, Ash.Type.UUID, []}, [:id],
-                []}
+               {:invalid_field_selection, :primitive_type, Ash.Type.UUID, [:id], []}
     end
 
     test "processes fields for array of structs" do

@@ -22,8 +22,8 @@ Define TypeScript settings for this resource
 | Name | Type | Default | Docs |
 |------|------|---------|------|
 | [`type_name`](#typescript-type_name){: #typescript-type_name .spark-required} | `String.t` |  | The name of the TypeScript type for the resource |
-| [`field_names`](#typescript-field_names){: #typescript-field_names } | `keyword` | `[]` | A keyword list mapping invalid field names to valid alternatives (e.g., [address_line_1: :address_line1]) |
-| [`argument_names`](#typescript-argument_names){: #typescript-argument_names } | `keyword` | `[]` | A keyword list mapping invalid argument names to valid alternatives per action (e.g., [read_with_invalid_arg: [is_active?: :is_active]]) |
+| [`field_names`](#typescript-field_names){: #typescript-field_names } | `keyword` | `[]` | A keyword list mapping Elixir field names to TypeScript client names. Use strings for the client names - no additional formatting is applied. (e.g., [is_active?: "isActive", address_line_1: "addressLine1"]) |
+| [`argument_names`](#typescript-argument_names){: #typescript-argument_names } | `keyword` | `[]` | A keyword list mapping Elixir argument names to TypeScript client names per action. Use strings for the client names - no additional formatting is applied. (e.g., [read_action: [is_active?: "isActive"]]) |
 
 
 

@@ -8,12 +8,10 @@ defmodule AshTypescript.Codegen.FilterTypes do
   """
   alias AshTypescript.Codegen.{Helpers, TypeMapper}
 
-  # Helper to format field with output formatter
   defp format_field(field_name) do
     AshTypescript.FieldFormatter.format_field_name(field_name, formatter())
   end
 
-  # Get formatter (called at runtime, not compile time)
   defp formatter do
     AshTypescript.Rpc.output_field_formatter()
   end
@@ -97,11 +95,13 @@ defmodule AshTypescript.Codegen.FilterTypes do
     # Generate specific filter operations based on the attribute type
     operations = get_applicable_operations(attribute.type, base_type)
 
-    # Apply field name mapping before formatting
-    mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attribute.name)
-
-    # Format field name using output formatter
-    formatted_name = format_field(mapped_name)
+    # Format field name with mapping applied
+    formatted_name =
+      AshTypescript.FieldFormatter.format_field_for_client(
+        attribute.name,
+        resource,
+        AshTypescript.Rpc.output_field_formatter()
+      )
 
     """
       #{formatted_name}?: {
@@ -121,11 +121,13 @@ defmodule AshTypescript.Codegen.FilterTypes do
     base_type = TypeMapper.get_ts_type(%{type: :integer}, nil)
     operations = get_applicable_operations(:integer, base_type)
 
-    # Apply field name mapping before formatting
-    mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, name)
-
-    # Format field name using output formatter
-    formatted_name = format_field(mapped_name)
+    # Format field name with mapping applied
+    formatted_name =
+      AshTypescript.FieldFormatter.format_field_for_client(
+        name,
+        resource,
+        AshTypescript.Rpc.output_field_formatter()
+      )
 
     """
       #{formatted_name}?: {

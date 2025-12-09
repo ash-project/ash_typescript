@@ -16,6 +16,70 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
 
   import AshTypescript.Helpers
 
+  # ─────────────────────────────────────────────────────────────────
+  # Type Constants
+  # ─────────────────────────────────────────────────────────────────
+
+  # Aggregate kind atoms -> Zod schemas
+  @aggregate_zod_types %{
+    :count => "z.number().int()",
+    :sum => "z.number()",
+    :exists => "z.boolean()",
+    :avg => "z.number()",
+    :min => "z.any()",
+    :max => "z.any()",
+    :first => "z.any()",
+    :last => "z.any()",
+    :list => "z.array(z.any())",
+    :custom => "z.any()",
+    :integer => "z.number().int()"
+  }
+
+  # Simple primitive types (no constraint handling needed)
+  # Note: Ash.Type.Atom is NOT here - it needs constraint handling for one_of
+  @simple_primitives %{
+    Ash.Type.Boolean => "z.boolean()",
+    Ash.Type.UUID => "z.uuid()",
+    Ash.Type.UUIDv7 => "z.uuid()",
+    Ash.Type.Date => "z.iso.date()",
+    Ash.Type.Time => "z.string().time()",
+    Ash.Type.TimeUsec => "z.string().time()",
+    Ash.Type.UtcDatetime => "z.iso.datetime()",
+    Ash.Type.UtcDatetimeUsec => "z.iso.datetime()",
+    Ash.Type.DateTime => "z.iso.datetime()",
+    Ash.Type.NaiveDatetime => "z.iso.datetime()",
+    Ash.Type.Duration => "z.string()",
+    Ash.Type.DurationName => "z.string()",
+    Ash.Type.Decimal => "z.string()",
+    Ash.Type.Binary => "z.string()",
+    Ash.Type.UrlEncodedBinary => "z.string()",
+    Ash.Type.File => "z.any()",
+    Ash.Type.Function => "z.function()",
+    Ash.Type.Term => "z.any()",
+    Ash.Type.Vector => "z.array(z.number())",
+    Ash.Type.Module => "z.string()"
+  }
+
+  # Atom symbol primitives (used as type keys in structs)
+  @atom_primitives %{
+    :map => "z.record(z.string(), z.any())",
+    :sum => "z.number()",
+    :count => "z.number().int()"
+  }
+
+  # Third-party type mappings
+  @third_party_types %{
+    AshDoubleEntry.ULID => "z.string()",
+    AshMoney.Types.Money => "z.object({})"
+  }
+
+  # Typed container types that share similar handling
+  @typed_containers [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple, Ash.Type.Struct]
+
+  # ─────────────────────────────────────────────────────────────────
+  # Private Helpers
+  # ─────────────────────────────────────────────────────────────────
+
   defp format_field(field_name) do
     AshTypescript.FieldFormatter.format_field_name(field_name, formatter())
   end
@@ -26,15 +90,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
 
   defp process_argument_field(resource, action, arg) do
     optional = arg.allow_nil? || arg.default != nil
-
-    mapped_name =
-      AshTypescript.Resource.Info.get_mapped_argument_name(
-        resource,
-        action.name,
-        arg.name
-      )
-
-    formatted_name = format_field(mapped_name)
+    formatted_name = format_argument_for_client(resource, action.name, arg.name)
     zod_type = get_zod_type(arg)
     zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
 
@@ -51,38 +107,153 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
         field_name in action.allow_nil_input || attr.allow_nil? || attr.default != nil
       end
 
-    mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
-    formatted_name = format_field(mapped_name)
+    formatted_name =
+      AshTypescript.FieldFormatter.format_field_for_client(
+        field_name,
+        resource,
+        AshTypescript.Rpc.output_field_formatter()
+      )
+
     zod_type = get_zod_type(attr)
     zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
 
     {formatted_name, zod_type}
   end
 
+  # Helper to format argument name for client output
+  defp format_argument_for_client(resource, action_name, arg_name) do
+    mapped = AshTypescript.Resource.Info.get_mapped_argument_name(resource, action_name, arg_name)
+
+    cond do
+      is_binary(mapped) -> mapped
+      mapped == arg_name -> format_field(arg_name)
+      true -> format_field(mapped)
+    end
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Core Dispatcher
+  # ─────────────────────────────────────────────────────────────────
+
   @doc """
-  Maps Ash types to Zod schema constructors.
-  Mirrors the pattern of get_ts_type/2 but generates Zod validation schemas.
+  Maps an Ash type to a Zod schema string using unified type-driven dispatch.
+
+  ## Parameters
+  - `type` - The Ash type (atom, tuple, or module)
+  - `constraints` - Type constraints (keyword list)
+
+  ## Returns
+  A Zod schema string (e.g., "z.string().min(1)")
   """
-  def get_zod_type(type_and_constraints, context \\ nil)
+  @spec map_zod_type(atom() | tuple(), keyword()) :: String.t()
+  def map_zod_type(type, constraints \\ [])
 
-  def get_zod_type(:count, _), do: "z.number().int()"
-  def get_zod_type(:sum, _), do: "z.number()"
-  def get_zod_type(:exists, _), do: "z.boolean()"
-  def get_zod_type(:avg, _), do: "z.number()"
-  def get_zod_type(:min, _), do: "z.any()"
-  def get_zod_type(:max, _), do: "z.any()"
-  def get_zod_type(:first, _), do: "z.any()"
-  def get_zod_type(:last, _), do: "z.any()"
-  def get_zod_type(:list, _), do: "z.array(z.any())"
-  def get_zod_type(:custom, _), do: "z.any()"
-  def get_zod_type(:integer, _), do: "z.number().int()"
+  # Handle nil type
+  def map_zod_type(nil, _constraints), do: "z.null()"
 
-  def get_zod_type(%{type: nil}, _), do: "z.null()"
-  def get_zod_type(%{type: :sum}, _), do: "z.number()"
-  def get_zod_type(%{type: :count}, _), do: "z.number().int()"
-  def get_zod_type(%{type: :map}, _), do: "z.record(z.string(), z.any())"
+  def map_zod_type(type, constraints) do
+    # Unwrap NewTypes first to get the underlying type
+    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
 
-  def get_zod_type(%{type: Ash.Type.Atom, constraints: constraints}, _) when constraints != [] do
+    cond do
+      # Aggregate atoms (fast path) - e.g., :count, :sum from aggregates
+      is_atom(type) and Map.has_key?(@aggregate_zod_types, type) ->
+        Map.get(@aggregate_zod_types, type)
+
+      # Atom symbol primitives - e.g., :map, :sum when used as type keys
+      is_atom(type) and Map.has_key?(@atom_primitives, type) ->
+        Map.get(@atom_primitives, type)
+
+      # Arrays - recurse for inner type
+      match?({:array, _}, type) ->
+        {:array, inner_type} = type
+        inner_constraints = Keyword.get(constraints, :items, [])
+        inner_zod = map_zod_type(inner_type, inner_constraints)
+        "z.array(#{inner_zod})"
+
+      # Simple primitives (no constraint handling needed)
+      Map.has_key?(@simple_primitives, unwrapped_type) ->
+        Map.get(@simple_primitives, unwrapped_type)
+
+      # Third-party types
+      Map.has_key?(@third_party_types, unwrapped_type) ->
+        Map.get(@third_party_types, unwrapped_type)
+
+      # String types with potential constraints
+      unwrapped_type in [Ash.Type.String, Ash.Type.CiString] ->
+        map_string_type(full_constraints)
+
+      # Number types with potential constraints
+      unwrapped_type == Ash.Type.Integer ->
+        map_integer_type(full_constraints)
+
+      unwrapped_type == Ash.Type.Float ->
+        map_float_type(full_constraints)
+
+      # Ash.Type.Atom with potential one_of constraint
+      unwrapped_type == Ash.Type.Atom ->
+        map_atom_type(full_constraints)
+
+      # Typed containers (Map, Keyword, Tuple, Struct)
+      unwrapped_type in @typed_containers ->
+        map_typed_container(unwrapped_type, full_constraints)
+
+      # Union type
+      unwrapped_type == Ash.Type.Union ->
+        map_union_type(full_constraints)
+
+      # AshPostgres.Ltree (special handling)
+      unwrapped_type == AshPostgres.Ltree ->
+        map_ltree_type(full_constraints)
+
+      # Embedded resource
+      Introspection.is_embedded_resource?(unwrapped_type) ->
+        map_resource_type(unwrapped_type)
+
+      # Enum type
+      Spark.implements_behaviour?(unwrapped_type, Ash.Type.Enum) ->
+        map_enum_type(unwrapped_type)
+
+      # Custom type with typescript_type_name
+      is_custom_type?(unwrapped_type) ->
+        "z.string()"
+
+      # Fallback
+      true ->
+        "z.any()"
+    end
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Type-Specific Handlers
+  # ─────────────────────────────────────────────────────────────────
+
+  defp map_string_type(constraints) do
+    if constraints == [] do
+      "z.string()"
+    else
+      # Note: allow_nil? handling is done at the field level, not here
+      build_string_zod_with_constraints(constraints, false)
+    end
+  end
+
+  defp map_integer_type(constraints) do
+    if constraints == [] do
+      "z.number().int()"
+    else
+      build_integer_zod_with_constraints(constraints)
+    end
+  end
+
+  defp map_float_type(constraints) do
+    if constraints == [] do
+      "z.number()"
+    else
+      build_float_zod_with_constraints(constraints)
+    end
+  end
+
+  defp map_atom_type(constraints) do
     case Keyword.get(constraints, :one_of) do
       nil ->
         "z.string()"
@@ -93,184 +264,104 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
     end
   end
 
-  def get_zod_type(%{type: Ash.Type.Atom}, _), do: "z.string()"
-
-  def get_zod_type(%{type: Ash.Type.String, constraints: constraints, allow_nil?: false}, _)
-      when constraints != [] do
-    build_string_zod_with_constraints(constraints, true)
-  end
-
-  def get_zod_type(%{type: Ash.Type.String, constraints: constraints}, _)
-      when constraints != [] do
-    build_string_zod_with_constraints(constraints, false)
-  end
-
-  def get_zod_type(%{type: Ash.Type.String, allow_nil?: false}, _), do: "z.string().min(1)"
-  def get_zod_type(%{type: Ash.Type.String}, _), do: "z.string()"
-
-  def get_zod_type(%{type: Ash.Type.CiString, constraints: constraints, allow_nil?: false}, _)
-      when constraints != [] do
-    build_string_zod_with_constraints(constraints, true)
-  end
-
-  def get_zod_type(%{type: Ash.Type.CiString, constraints: constraints}, _)
-      when constraints != [] do
-    build_string_zod_with_constraints(constraints, false)
-  end
-
-  def get_zod_type(%{type: Ash.Type.CiString, allow_nil?: false}, _), do: "z.string().min(1)"
-  def get_zod_type(%{type: Ash.Type.CiString}, _), do: "z.string()"
-
-  def get_zod_type(%{type: Ash.Type.Integer, constraints: constraints}, _)
-      when constraints != [] do
-    build_integer_zod_with_constraints(constraints)
-  end
-
-  def get_zod_type(%{type: Ash.Type.Integer}, _), do: "z.number().int()"
-
-  def get_zod_type(%{type: Ash.Type.Float, constraints: constraints}, _)
-      when constraints != [] do
-    build_float_zod_with_constraints(constraints)
-  end
-
-  def get_zod_type(%{type: Ash.Type.Float}, _), do: "z.number()"
-  def get_zod_type(%{type: Ash.Type.Decimal}, _), do: "z.string()"
-  def get_zod_type(%{type: Ash.Type.Boolean}, _), do: "z.boolean()"
-  def get_zod_type(%{type: Ash.Type.UUID}, _), do: "z.uuid()"
-  def get_zod_type(%{type: Ash.Type.UUIDv7}, _), do: "z.uuid()"
-
-  def get_zod_type(%{type: Ash.Type.Date}, _), do: "z.iso.date()"
-  def get_zod_type(%{type: Ash.Type.Time}, _), do: "z.string().time()"
-  def get_zod_type(%{type: Ash.Type.TimeUsec}, _), do: "z.string().time()"
-  def get_zod_type(%{type: Ash.Type.UtcDatetime}, _), do: "z.iso.datetime()"
-  def get_zod_type(%{type: Ash.Type.UtcDatetimeUsec}, _), do: "z.iso.datetime()"
-  def get_zod_type(%{type: Ash.Type.DateTime}, _), do: "z.iso.datetime()"
-  def get_zod_type(%{type: Ash.Type.NaiveDatetime}, _), do: "z.iso.datetime()"
-  def get_zod_type(%{type: Ash.Type.Duration}, _), do: "z.string()"
-  def get_zod_type(%{type: Ash.Type.DurationName}, _), do: "z.string()"
-
-  def get_zod_type(%{type: Ash.Type.Binary}, _), do: "z.string()"
-  def get_zod_type(%{type: Ash.Type.UrlEncodedBinary}, _), do: "z.string()"
-  def get_zod_type(%{type: Ash.Type.File}, _), do: "z.any()"
-  def get_zod_type(%{type: Ash.Type.Function}, _), do: "z.function()"
-  def get_zod_type(%{type: Ash.Type.Term}, _), do: "z.any()"
-  def get_zod_type(%{type: Ash.Type.Vector}, _), do: "z.array(z.number())"
-  def get_zod_type(%{type: Ash.Type.Module}, _), do: "z.string()"
-
-  def get_zod_type(%{type: Ash.Type.Map, constraints: constraints}, context)
-      when constraints != [] do
-    case Keyword.get(constraints, :fields) do
-      nil ->
-        "z.record(z.string(), z.any())"
-
-      fields ->
-        field_name_mappings = get_field_name_mappings(constraints)
-        build_zod_object_type(fields, context, field_name_mappings)
-    end
-  end
-
-  def get_zod_type(%{type: Ash.Type.Map}, _), do: "z.record(z.string(), z.any())"
-
-  def get_zod_type(%{type: Ash.Type.Keyword, constraints: constraints}, context)
-      when constraints != [] do
-    case Keyword.get(constraints, :fields) do
-      nil ->
-        "z.record(z.string(), z.any())"
-
-      fields ->
-        field_name_mappings = get_field_name_mappings(constraints)
-        build_zod_object_type(fields, context, field_name_mappings)
-    end
-  end
-
-  def get_zod_type(%{type: Ash.Type.Keyword}, _), do: "z.record(z.string(), z.any())"
-
-  def get_zod_type(%{type: Ash.Type.Tuple, constraints: constraints}, context) do
-    case Keyword.get(constraints, :fields) do
-      nil ->
-        "z.record(z.string(), z.any())"
-
-      fields ->
-        field_name_mappings = get_field_name_mappings(constraints)
-        build_zod_object_type(fields, context, field_name_mappings)
-    end
-  end
-
-  def get_zod_type(%{type: Ash.Type.Struct, constraints: constraints}, context) do
-    instance_of = Keyword.get(constraints, :instance_of)
+  defp map_typed_container(type, constraints) do
     fields = Keyword.get(constraints, :fields)
+    instance_of = Keyword.get(constraints, :instance_of)
 
     cond do
+      # Has field constraints - build object schema
       fields != nil ->
         field_name_mappings = get_field_name_mappings(constraints)
-        build_zod_object_type(fields, context, field_name_mappings)
+        build_zod_object_type(fields, nil, field_name_mappings)
 
-      instance_of != nil ->
-        if Spark.Dsl.is?(instance_of, Ash.Resource) do
-          resource_name = CodegenHelpers.build_resource_type_name(instance_of)
-          suffix = AshTypescript.Rpc.zod_schema_suffix()
-          "#{resource_name}#{suffix}"
-        else
-          "z.object({})"
-        end
+      # Ash.Type.Struct with instance_of pointing to resource
+      type == Ash.Type.Struct and instance_of != nil and Spark.Dsl.is?(instance_of, Ash.Resource) ->
+        map_resource_type(instance_of)
 
+      # Ash.Type.Struct with non-resource instance_of
+      type == Ash.Type.Struct and instance_of != nil ->
+        "z.object({})"
+
+      # Fallback to record type
       true ->
         "z.record(z.string(), z.any())"
     end
   end
 
-  def get_zod_type(%{type: Ash.Type.Union, constraints: constraints}, context) do
+  defp map_resource_type(resource) do
+    resource_name = CodegenHelpers.build_resource_type_name(resource)
+    suffix = AshTypescript.Rpc.zod_schema_suffix()
+    "#{resource_name}#{suffix}"
+  end
+
+  defp map_enum_type(type) do
+    enum_values = Enum.map_join(type.values(), ", ", &"\"#{to_string(&1)}\"")
+    "z.enum([#{enum_values}])"
+  rescue
+    _ -> "z.string()"
+  end
+
+  defp map_union_type(constraints) do
     case Keyword.get(constraints, :types) do
       nil -> "z.any()"
-      types -> build_zod_union_type(types, context)
+      types -> build_zod_union_type(types, nil)
     end
   end
 
-  def get_zod_type(%{type: {:array, inner_type}, constraints: constraints}, context) do
-    inner_constraints = constraints[:items] || []
-    inner_zod_type = get_zod_type(%{type: inner_type, constraints: inner_constraints}, context)
-    "z.array(#{inner_zod_type})"
-  end
-
-  def get_zod_type(%{type: AshDoubleEntry.ULID}, _), do: "z.string()"
-
-  def get_zod_type(%{type: AshPostgres.Ltree, constraints: constraints}, _) do
-    escape = Keyword.get(constraints, :escape?, false)
-
-    if escape do
+  defp map_ltree_type(constraints) do
+    if Keyword.get(constraints, :escape?, false) do
       "z.array(z.string())"
     else
       "z.union([z.string(), z.array(z.string())])"
     end
   end
 
-  def get_zod_type(%{type: AshPostgres.Ltree}, _),
-    do: "z.union([z.string(), z.array(z.string())])"
+  # ─────────────────────────────────────────────────────────────────
+  # Public API
+  # ─────────────────────────────────────────────────────────────────
 
-  def get_zod_type(%{type: AshMoney.Types.Money}, _), do: "z.object({})"
+  @doc """
+  Maps Ash types to Zod schema constructors.
+  Backward compatible wrapper around map_zod_type/2.
+  """
+  def get_zod_type(type_and_constraints, context \\ nil)
 
-  def get_zod_type(%{type: type, constraints: constraints} = attr, context) do
-    cond do
-      is_custom_type?(type) ->
-        "z.string()"
+  # Handle bare atoms (aggregate kinds) - use map lookup for fast path
+  def get_zod_type(kind, _context) when is_atom(kind) and not is_nil(kind) do
+    Map.get(@aggregate_zod_types, kind, "z.any()")
+  end
 
-      Introspection.is_embedded_resource?(type) ->
-        resource_name = CodegenHelpers.build_resource_type_name(type)
-        suffix = AshTypescript.Rpc.zod_schema_suffix()
-        "#{resource_name}#{suffix}"
+  # Handle maps with type/constraints - delegate to unified dispatcher
+  def get_zod_type(%{type: type, constraints: constraints} = attr, _context) do
+    allow_nil? = Map.get(attr, :allow_nil?, true)
+    map_zod_type_with_allow_nil(type, constraints || [], allow_nil?)
+  end
 
-      Ash.Type.NewType.new_type?(type) ->
-        {unwrapped_type, unwrapped_constraints} =
-          Introspection.unwrap_new_type(type, constraints)
+  # Handle maps with type but no constraints
+  def get_zod_type(%{type: type} = attr, _context) do
+    allow_nil? = Map.get(attr, :allow_nil?, true)
+    map_zod_type_with_allow_nil(type, [], allow_nil?)
+  end
 
-        get_zod_type(%{attr | type: unwrapped_type, constraints: unwrapped_constraints}, context)
+  # Helper that wraps map_zod_type and handles allow_nil? for string types
+  defp map_zod_type_with_allow_nil(type, constraints, allow_nil?) do
+    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
 
-      Spark.implements_behaviour?(type, Ash.Type.Enum) ->
-        enum_values = Enum.map_join(type.values(), ", ", &"\"#{to_string(&1)}\"")
-        "z.enum([#{enum_values}])"
+    # For string types, pass require_non_empty to get correct ordering of constraints
+    if unwrapped_type in [Ash.Type.String, Ash.Type.CiString] do
+      require_non_empty = not allow_nil?
 
-      true ->
-        "z.any()"
+      if full_constraints == [] do
+        if require_non_empty do
+          "z.string().min(1)"
+        else
+          "z.string()"
+        end
+      else
+        build_string_zod_with_constraints(full_constraints, require_non_empty)
+      end
+    else
+      map_zod_type(type, constraints)
     end
   end
 
@@ -280,7 +371,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   def generate_zod_schema(resource, action, rpc_action_name) do
     if ActionIntrospection.action_input_type(resource, action) != :none do
       suffix = AshTypescript.Rpc.zod_schema_suffix()
-      schema_name = format_output_field("#{rpc_action_name}_#{suffix}")
+      schema_name = format_output_field("#{rpc_action_name}#{suffix}")
 
       zod_field_defs =
         case action.type do
@@ -374,28 +465,10 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   end
 
   @doc """
-  Generates Zod schemas for embedded resources.
-
-  Deprecated: Use generate_zod_schemas_for_resources/1 instead.
-  """
-  def generate_zod_schemas_for_embedded_resources(embedded_resources) do
-    generate_zod_schemas_for_resources(embedded_resources)
-  end
-
-  @doc """
   Generates a Zod schema for a single resource.
   """
   def generate_zod_schema_for_resource(resource) do
     generate_zod_schema_impl(resource)
-  end
-
-  @doc """
-  Generates a Zod schema for a single embedded resource.
-
-  Deprecated: Use generate_zod_schema_for_resource/1 instead.
-  """
-  def generate_zod_schema_for_embedded_resource(resource) do
-    generate_zod_schema_for_resource(resource)
   end
 
   defp generate_zod_schema_impl(resource) do
@@ -407,9 +480,12 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
       resource
       |> Ash.Resource.Info.public_attributes()
       |> Enum.map_join("\n", fn attr ->
-        mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr.name)
-
-        formatted_name = format_field(mapped_name)
+        formatted_name =
+          AshTypescript.FieldFormatter.format_field_for_client(
+            attr.name,
+            resource,
+            AshTypescript.Rpc.output_field_formatter()
+          )
 
         zod_type = get_zod_type(attr)
 
@@ -495,12 +571,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
     end
   end
 
-  defp is_custom_type?(type) do
-    is_atom(type) and
-      Code.ensure_loaded?(type) and
-      function_exported?(type, :typescript_type_name, 0) and
-      Spark.implements_behaviour?(type, Ash.Type)
-  end
+  defp is_custom_type?(type), do: Introspection.is_custom_type?(type)
 
   defp build_integer_zod_with_constraints(constraints) do
     base = "z.number().int()"

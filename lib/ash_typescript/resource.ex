@@ -21,13 +21,17 @@ defmodule AshTypescript.Resource do
       field_names: [
         type: :keyword_list,
         doc:
-          "A keyword list mapping invalid field names to valid alternatives (e.g., [address_line_1: :address_line1])",
+          "A keyword list mapping Elixir field names to TypeScript client names. " <>
+            "Use strings for the client names - no additional formatting is applied. " <>
+            "(e.g., [is_active?: \"isActive\", address_line_1: \"addressLine1\"])",
         default: []
       ],
       argument_names: [
         type: :keyword_list,
         doc:
-          "A keyword list mapping invalid argument names to valid alternatives per action (e.g., [read_with_invalid_arg: [is_active?: :is_active]])",
+          "A keyword list mapping Elixir argument names to TypeScript client names per action. " <>
+            "Use strings for the client names - no additional formatting is applied. " <>
+            "(e.g., [read_action: [is_active?: \"isActive\"]])",
         default: []
       ]
     ]

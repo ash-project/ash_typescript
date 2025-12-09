@@ -201,6 +201,33 @@ if (todo.success) {
 }
 ```
 
+### Calculations Returning Complex Types
+
+For calculations that return complex types (unions, embedded resources, etc.) but don't accept arguments, use the simple nested syntax - the same as relationships:
+
+```typescript
+// Calculation returning a union type (no args required)
+const todo = await getTodo({
+  fields: [
+    "id",
+    "title",
+    {
+      // Simple nested syntax - just like a relationship
+      relatedItem: ["article", { article: ["id", "title"] }]
+    }
+  ],
+  input: { id: "todo-123" }
+});
+
+if (todo.success) {
+  if (todo.data.relatedItem?.article) {
+    console.log("Article:", todo.data.relatedItem.article.title);
+  }
+}
+```
+
+**Note**: The `{ args: {...}, fields: [...] }` syntax is only required when the calculation accepts arguments. If the calculation has no arguments, use the simpler nested syntax shown above.
+
 ### Calculations with Arguments
 
 Pass arguments to calculation fields:

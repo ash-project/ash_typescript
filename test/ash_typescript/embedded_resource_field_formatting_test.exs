@@ -65,11 +65,15 @@ defmodule AshTypescript.EmbeddedResourceFieldFormattingTest do
       assert String.contains?(typescript_output, "IsExternal?: boolean")
       assert String.contains?(typescript_output, "LastCheckedAt?: UtcDateTime")
 
-      # Test that we're NOT using hardcoded camelCase formatting
+      # Test that embedded resource fields are NOT using hardcoded camelCase formatting
+      # Note: We check for specific patterns to avoid false matches with argument_names DSL mappings
+      # (which correctly use explicit string values like "isUrgent" as-is)
       refute String.contains?(typescript_output, "priorityScore?: number")
       refute String.contains?(typescript_output, "externalReference?: string")
       refute String.contains?(typescript_output, "estimatedHours?: number")
-      refute String.contains?(typescript_output, "isUrgent?: boolean")
+      # Note: isUrgent may appear in argument types due to argument_names DSL mapping,
+      # but the embedded resource field :is_urgent should be IsUrgent in PascalCase
+      # We verify IsUrgent exists (line 52) rather than refuting isUrgent everywhere
       refute String.contains?(typescript_output, "createdAt?: UtcDateTime")
       refute String.contains?(typescript_output, "customFields?: Record<string, any>")
       refute String.contains?(typescript_output, "wordCount?: number")
@@ -140,13 +144,16 @@ defmodule AshTypescript.EmbeddedResourceFieldFormattingTest do
       assert String.contains?(typescript_output, "DisplayTitle")
       assert String.contains?(typescript_output, "IsAccessible")
 
-      # Test that we're NOT using hardcoded camelCase
+      # Test that we're NOT using hardcoded camelCase for embedded resource calculations
+      # Note: Some camelCase versions may appear in other resources with explicit field_names DSL mappings
+      # (e.g., InputParsing/TextContent has field_names is_formatted?: "isFormatted")
+      # We verify the PascalCase versions exist (lines 134-145) rather than globally refuting camelCase
       refute String.contains?(typescript_output, "displayCategory")
       refute String.contains?(typescript_output, "adjustedPriority")
       refute String.contains?(typescript_output, "isOverdue")
       refute String.contains?(typescript_output, "formattedSummary")
       refute String.contains?(typescript_output, "displayText")
-      refute String.contains?(typescript_output, "isFormatted")
+      # isFormatted may appear in InputParsing/TextContent due to field_names DSL mapping
       refute String.contains?(typescript_output, "displayTitle")
       refute String.contains?(typescript_output, "isAccessible")
     end

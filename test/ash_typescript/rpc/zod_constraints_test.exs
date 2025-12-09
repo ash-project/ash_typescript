@@ -125,7 +125,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # Should generate valid schema
-      assert zod_schema =~ "export const createOrgTodoZodschema = z.object({"
+      assert zod_schema =~ "export const createOrgTodoZodSchema = z.object({"
       assert zod_schema =~ "});"
     end
   end
@@ -136,7 +136,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # Basic structure checks
-      assert zod_schema =~ "export const createOrgTodoZodschema = z.object({"
+      assert zod_schema =~ "export const createOrgTodoZodSchema = z.object({"
       assert zod_schema =~ "});"
 
       # Each field should end with comma
@@ -317,7 +317,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     test "simple regex patterns are converted to JavaScript" do
       # LinkContent has a simple URL regex: ~r/^https?:\/\//
       embedded_resource = AshTypescript.Test.TodoContent.LinkContent
-      zod_schema = ZodSchemaGenerator.generate_zod_schema_for_embedded_resource(embedded_resource)
+      zod_schema = ZodSchemaGenerator.generate_zod_schema_for_resource(embedded_resource)
 
       # Should include the regex constraint with escaped forward slashes
       # The pattern ^https?:\/ becomes ^https?:\\/\\/ in JavaScript
@@ -392,7 +392,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       # but we verify the simple URL pattern works and document the safety mechanism
 
       embedded_resource = AshTypescript.Test.TodoContent.LinkContent
-      zod_schema = ZodSchemaGenerator.generate_zod_schema_for_embedded_resource(embedded_resource)
+      zod_schema = ZodSchemaGenerator.generate_zod_schema_for_resource(embedded_resource)
 
       # The simple URL regex should be included
       assert zod_schema =~ ".regex("

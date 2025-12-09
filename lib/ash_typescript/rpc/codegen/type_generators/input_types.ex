@@ -45,18 +45,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
 
-                mapped_name =
-                  AshTypescript.Resource.Info.get_mapped_argument_name(
-                    resource,
-                    action.name,
-                    arg.name
-                  )
-
                 formatted_arg_name =
-                  AshTypescript.FieldFormatter.format_field_name(
-                    mapped_name,
-                    AshTypescript.Rpc.output_field_formatter()
-                  )
+                  format_argument_name_for_client(resource, action.name, arg.name)
 
                 {formatted_arg_name, get_ts_input_type(arg), optional}
               end)
@@ -79,12 +69,10 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                   base_type = AshTypescript.Codegen.get_ts_input_type(attr)
                   field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
 
-                  mapped_name =
-                    AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
-
                   formatted_field_name =
-                    AshTypescript.FieldFormatter.format_field_name(
-                      mapped_name,
+                    AshTypescript.FieldFormatter.format_field_for_client(
+                      field_name,
+                      resource,
                       AshTypescript.Rpc.output_field_formatter()
                     )
 
@@ -95,18 +83,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                 Enum.map(arguments, fn arg ->
                   optional = arg.allow_nil? || arg.default != nil
 
-                  mapped_name =
-                    AshTypescript.Resource.Info.get_mapped_argument_name(
-                      resource,
-                      action.name,
-                      arg.name
-                    )
-
                   formatted_arg_name =
-                    AshTypescript.FieldFormatter.format_field_name(
-                      mapped_name,
-                      AshTypescript.Rpc.output_field_formatter()
-                    )
+                    format_argument_name_for_client(resource, action.name, arg.name)
 
                   {formatted_arg_name, get_ts_input_type(arg), optional}
                 end)
@@ -127,12 +105,10 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                   base_type = AshTypescript.Codegen.get_ts_input_type(attr)
                   field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
 
-                  mapped_name =
-                    AshTypescript.Resource.Info.get_mapped_field_name(resource, field_name)
-
                   formatted_field_name =
-                    AshTypescript.FieldFormatter.format_field_name(
-                      mapped_name,
+                    AshTypescript.FieldFormatter.format_field_for_client(
+                      field_name,
+                      resource,
                       AshTypescript.Rpc.output_field_formatter()
                     )
 
@@ -145,18 +121,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                 Enum.map(arguments, fn arg ->
                   optional = arg.allow_nil? || arg.default != nil
 
-                  mapped_name =
-                    AshTypescript.Resource.Info.get_mapped_argument_name(
-                      resource,
-                      action.name,
-                      arg.name
-                    )
-
                   formatted_arg_name =
-                    AshTypescript.FieldFormatter.format_field_name(
-                      mapped_name,
-                      AshTypescript.Rpc.output_field_formatter()
-                    )
+                    format_argument_name_for_client(resource, action.name, arg.name)
 
                   {formatted_arg_name, get_ts_input_type(arg), optional}
                 end)
@@ -173,18 +139,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
               Enum.map(arguments, fn arg ->
                 optional = arg.allow_nil? || arg.default != nil
 
-                mapped_name =
-                  AshTypescript.Resource.Info.get_mapped_argument_name(
-                    resource,
-                    action.name,
-                    arg.name
-                  )
-
                 formatted_arg_name =
-                  AshTypescript.FieldFormatter.format_field_name(
-                    mapped_name,
-                    AshTypescript.Rpc.output_field_formatter()
-                  )
+                  format_argument_name_for_client(resource, action.name, arg.name)
 
                 {formatted_arg_name, get_ts_input_type(arg), optional}
               end)
@@ -205,6 +161,29 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
       """
     else
       ""
+    end
+  end
+
+  # Helper to format argument name for client output
+  # If mapped, use the string directly; otherwise apply formatter
+  defp format_argument_name_for_client(resource, action_name, arg_name) do
+    mapped = AshTypescript.Resource.Info.get_mapped_argument_name(resource, action_name, arg_name)
+
+    cond do
+      is_binary(mapped) ->
+        mapped
+
+      mapped == arg_name ->
+        AshTypescript.FieldFormatter.format_field_name(
+          arg_name,
+          AshTypescript.Rpc.output_field_formatter()
+        )
+
+      true ->
+        AshTypescript.FieldFormatter.format_field_name(
+          mapped,
+          AshTypescript.Rpc.output_field_formatter()
+        )
     end
   end
 end

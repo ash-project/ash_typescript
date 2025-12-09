@@ -46,7 +46,7 @@ defmodule MyApp.User do
 
   typescript do
     type_name "User"
-    field_names address_line_1: :address_line1
+    field_names address_line_1: "addressLine1"
   end
 
   attributes do
@@ -74,10 +74,10 @@ type User = {
 ```elixir
 typescript do
   field_names [
-    address_line_1: :address_line1,      # Attribute
-    related_items_1: :related_items1,    # Relationship
-    computed_value_2: :computed_value2,  # Calculation
-    total_count_3: :total_count3         # Aggregate
+    address_line_1: "addressLine1",      # Attribute
+    related_items_1: "relatedItems1",    # Relationship
+    computed_value_2: "computedValue2",  # Calculation
+    total_count_3: "totalCount3"         # Aggregate
   ]
 end
 ```
@@ -115,10 +115,10 @@ Map invalid action argument names per action:
 typescript do
   type_name "User"
   argument_names [
-    read_with_filter: [is_active?: :is_active],
+    read_with_filter: [is_active?: "isActive"],
     search_users: [
-      query_string_1: :query_string1,
-      is_verified?: :is_verified
+      query_string_1: "queryString1",
+      is_verified?: "isVerified"
     ]
   ]
 end
@@ -196,12 +196,11 @@ defmodule MyApp.CustomMetadata do
       ]
     ]
 
-  @impl true
   def typescript_field_names do
     [
-      field_1: :field1,
-      is_active?: :isActive,
-      line_2: :line2
+      field_1: "field1",
+      is_active?: "isActive",
+      line_2: "line2"
     ]
   end
 end
@@ -256,9 +255,9 @@ defmodule MyApp.NestedConfig do
 
   def typescript_field_names do
     [
-      setting_1: :setting1,
-      option_1: :option1,   # Nested field
-      value_2: :value2      # Nested field
+      setting_1: "setting1",
+      option_1: "option1",   # Nested field
+      value_2: "value2"      # Nested field
     ]
   end
 end
@@ -357,16 +356,17 @@ Field/argument mapping affects:
 
 ### RPC Pipeline
 
-Mapping is handled in the RPC pipeline:
+Mapping is handled in the RPC pipeline via the unified `ValueFormatter`:
 
-1. **Input Formatting** (`lib/ash_typescript/rpc/formatter_core.ex`)
-   - Core formatting logic shared between input and output formatters
-   - Maps TypeScript field/argument names → Elixir names (via `input_formatter.ex` wrapper)
+1. **Input Formatting** (`lib/ash_typescript/rpc/input_formatter.ex`)
+   - Delegates to `ValueFormatter.format/5` with direction `:input`
+   - Maps TypeScript field/argument names → Elixir names
    - Applies before Ash action execution
 
-2. **Result Processing** (`lib/ash_typescript/rpc/result_processor.ex`)
-   - Maps Elixir field names → TypeScript names (via `formatter_core.ex`)
-   - Applies to output data
+2. **Output Formatting** (`lib/ash_typescript/rpc/output_formatter.ex`)
+   - Delegates to `ValueFormatter.format/5` with direction `:output`
+   - Maps Elixir field names → TypeScript names
+   - Applies after result processing
 
 3. **Validation Errors** (`lib/ash_typescript/rpc/validation_error_schemas.ex`)
    - Error messages use mapped field names
@@ -434,10 +434,10 @@ mix test                             # Run all Elixir tests
 ```elixir
 typescript do
   field_names [
-    address_line_1: :address_line1,
-    address_line_2: :address_line2,
-    phone_number_1: :phone_number1,
-    is_verified?: :is_verified
+    address_line_1: "addressLine1",
+    address_line_2: "addressLine2",
+    phone_number_1: "phoneNumber1",
+    is_verified?: "isVerified"
   ]
 end
 ```
@@ -448,12 +448,12 @@ end
 typescript do
   argument_names [
     read_action: [
-      filter_value_1: :filter_value1,
-      is_active?: :is_active
+      filter_value_1: "filterValue1",
+      is_active?: "isActive"
     ],
     search_action: [
-      query_string_1: :query_string1,
-      limit_to_10?: :limit_to_10
+      query_string_1: "queryString1",
+      limit_to_10?: "limitTo10"
     ]
   ]
 end
@@ -475,9 +475,9 @@ defmodule MyApp.Address do
 
   def typescript_field_names do
     [
-      line_1: :line1,
-      line_2: :line2,
-      zip_code_5: :zip_code5
+      line_1: "line1",
+      line_2: "line2",
+      zip_code_5: "zipCode5"
     ]
   end
 end
@@ -493,9 +493,9 @@ end
 | `lib/ash_typescript/resource/verifiers/verify_map_field_names.ex` | Composite type constraint verification |
 | `lib/ash_typescript/codegen/resource_schemas.ex` | Resource schema generation with mapped names |
 | `lib/ash_typescript/codegen/type_mapper.ex` | TypeScript type mapping |
-| `lib/ash_typescript/rpc/formatter_core.ex` | Core formatting logic (shared between input/output) |
-| `lib/ash_typescript/rpc/input_formatter.ex` | Input mapping wrapper (TS → Elixir) |
-| `lib/ash_typescript/rpc/result_processor.ex` | Output mapping (Elixir → TS) |
+| `lib/ash_typescript/rpc/value_formatter.ex` | Unified type-aware formatting (input/output) |
+| `lib/ash_typescript/rpc/input_formatter.ex` | Input formatting (TS → Elixir, delegates to ValueFormatter) |
+| `lib/ash_typescript/rpc/output_formatter.ex` | Output formatting (Elixir → TS, delegates to ValueFormatter) |
 | `lib/ash_typescript/rpc/zod_schema_generator.ex` | Zod schema with mapped names |
 | `test/ash_typescript/rpc/rpc_field_argument_mapping_test.exs` | End-to-end mapping tests |
 | `test/support/resources/user.ex` | Example resource with mappings |
@@ -556,7 +556,7 @@ end
 # After (passes verification)
 typescript do
   type_name "User"
-  field_names address_line_1: :address_line1
+  field_names address_line_1: "addressLine1"
 end
 
 attributes do
@@ -584,13 +584,13 @@ const user = await createUser({
 
 **Problem**: Added field mapping but still get verifier errors
 
-**Solution**: Ensure mapping is in correct format:
+**Solution**: Ensure mapping is in correct format (values must be strings):
 ```elixir
-# Wrong - missing atom colon on key
-field_names address_line_1: :address_line1  # String key
+# Wrong - atom value instead of string
+field_names address_line_1: :address_line1
 
-# Correct
-field_names address_line_1: :address_line1  # Atom key
+# Correct - string value
+field_names address_line_1: "addressLine1"
 ```
 
 ### Mapped Names Still Invalid
@@ -600,10 +600,10 @@ field_names address_line_1: :address_line1  # Atom key
 **Solution**: Ensure replacement doesn't contain invalid patterns:
 ```elixir
 # Wrong - replacement still has underscore before digit
-field_names address_line_1: :address_line_1_new
+field_names address_line_1: "address_line_1_new"
 
 # Correct
-field_names address_line_1: :address_line1
+field_names address_line_1: "addressLine1"
 ```
 
 ### TypeScript Compilation Fails

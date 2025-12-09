@@ -497,6 +497,36 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
+      {:missing_identity, %{expected_keys: expected_keys, identities: identities}} ->
+        expected_keys_str = Enum.join(expected_keys, ", ")
+
+        # Check if the only identity is _primary_key with a single field
+        # In this case, provide a simpler, clearer message
+        {message, suggestion} =
+          case {identities, expected_keys} do
+            {[:_primary_key], [single_key]} ->
+              {"Identity is required. Provide the #{single_key} value directly.",
+               "Pass the #{single_key} value directly as the identity field (e.g., identity: \"your-#{single_key}-here\")"}
+
+            _ ->
+              {"Identity is required but not provided. Expected one of: [%{expected_keys}]",
+               "Provide identity fields for one of the configured identities: #{expected_keys_str}"}
+          end
+
+        %{
+          type: "missing_identity",
+          message: message,
+          short_message: "Missing identity",
+          vars: %{expected_keys: expected_keys_str},
+          path: [:identity],
+          fields: [],
+          details: %{
+            expected_keys: expected_keys,
+            suggestion: suggestion,
+            hint: @stale_generated_file_hint
+          }
+        }
+
       # === ASH FRAMEWORK ERRORS ===
 
       # Any exception or Ash error - convert to Ash error class and process

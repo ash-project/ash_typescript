@@ -16,9 +16,7 @@ const result = await getContent({
     "thumbnailAlt",
     "publishedAt",
     {
-      item: {
-        fields: [{ article: ["id", "heroImageAlt"] }],
-      },
+      item: [{ article: ["id", "heroImageAlt"] }],
     },
   ],
 });

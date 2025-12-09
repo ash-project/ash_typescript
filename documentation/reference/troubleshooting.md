@@ -76,12 +76,12 @@ defmodule MyApp.Task do
 
   typescript do
     field_names [
-      field_1: :field1,
-      is_active?: :isActive
+      field_1: "field1",
+      is_active?: "isActive"
     ]
 
     argument_names [
-      some_action: [field_2: :field2]
+      some_action: [field_2: "field2"]
     ]
   end
 end
@@ -106,8 +106,8 @@ defmodule MyApp.Types.CustomMap do
 
   def typescript_field_names do
     [
-      field_1: :field1,
-      is_valid?: :isValid
+      field_1: "field1",
+      is_valid?: "isValid"
     ]
   end
 end
@@ -129,8 +129,8 @@ defmodule MyApp.Domain do
     resource MyApp.Task do
       rpc_action :read_tasks, :read do
         metadata_field_names [
-          field_1: :field1,
-          is_cached?: :isCached
+          field_1: "field1",
+          is_cached?: "isCached"
         ]
       end
     end

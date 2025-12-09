@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 import {
-  createOrgTodoZodschema,
+  createOrgTodoZodSchema,
   AshTypescriptTestTodoContentLinkContentZodSchema,
 } from "../../generated";
 
@@ -44,7 +44,7 @@ export function testIntegerBelowMin() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -63,7 +63,7 @@ export function testIntegerAboveMax() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -82,7 +82,7 @@ export function testIntegerNegative() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -104,7 +104,7 @@ export function testStringEmpty() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -123,7 +123,7 @@ export function testStringTooLong() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -142,7 +142,7 @@ export function testStringWayTooLong() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -203,7 +203,7 @@ export function testMultipleConstraintViolations() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -232,7 +232,7 @@ export function testSafeParseConstraintViolation() {
     numberOfEmployees: 2000, // Above max: 1000
   };
 
-  const result = createOrgTodoZodschema.safeParse(invalidData);
+  const result = createOrgTodoZodSchema.safeParse(invalidData);
 
   if (!result.success) {
     console.log("Safe parse correctly failed:", result.error.issues);
@@ -250,7 +250,7 @@ export function testIntegerFloatingPoint() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     // Note: Zod .int() will fail on floating point numbers
     throw new Error("Should have failed validation");
   } catch (error) {
@@ -277,7 +277,7 @@ export function testBoundaryViolations() {
   const errors: Record<string, any>[] = [];
 
   try {
-    createOrgTodoZodschema.parse(justBelowMin);
+    createOrgTodoZodSchema.parse(justBelowMin);
     throw new Error("Should have failed for below min");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -286,7 +286,7 @@ export function testBoundaryViolations() {
   }
 
   try {
-    createOrgTodoZodschema.parse(justAboveMax);
+    createOrgTodoZodSchema.parse(justAboveMax);
     throw new Error("Should have failed for above max");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -304,7 +304,7 @@ export function testRequiredFieldMissing() {
   // numberOfEmployees is missing (required)
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -333,7 +333,7 @@ export function testInvalidEmailNoAt() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -362,7 +362,7 @@ export function testInvalidEmailNoDomain() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -394,7 +394,7 @@ export function testInvalidPhoneStartsWithZero() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -423,7 +423,7 @@ export function testInvalidPhoneTooShort() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -452,7 +452,7 @@ export function testInvalidHexColorLength() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -484,7 +484,7 @@ export function testInvalidHexColorNoHash() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -513,7 +513,7 @@ export function testInvalidSlugUppercase() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -542,7 +542,7 @@ export function testInvalidSlugStartsWithHyphen() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -574,7 +574,7 @@ export function testInvalidVersionMissingPatch() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -603,7 +603,7 @@ export function testInvalidVersionWithLetters() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -632,7 +632,7 @@ export function testInvalidCodeWrongFormat() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -662,7 +662,7 @@ export function testInvalidOptionalUrlWrongProtocol() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -678,7 +678,7 @@ export function testFloatPriceBelowMin() {
   const invalidData = { ...createValidBaseData(), price: -0.01 }; // Below min: 0.0
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -694,7 +694,7 @@ export function testFloatPriceAboveMax() {
   const invalidData = { ...createValidBaseData(), price: 1000000.0 }; // Above max: 999999.99
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -710,7 +710,7 @@ export function testFloatTemperatureAtGtBoundary() {
   const invalidData = { ...createValidBaseData(), temperature: -273.15 }; // At greater_than boundary (exclusive)
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -729,7 +729,7 @@ export function testFloatTemperatureAtLtBoundary() {
   const invalidData = { ...createValidBaseData(), temperature: 1000000.0 }; // At less_than boundary (exclusive)
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -748,7 +748,7 @@ export function testFloatPercentageBelowMin() {
   const invalidData = { ...createValidBaseData(), percentage: -0.1 }; // Below min: 0.0
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -764,7 +764,7 @@ export function testFloatPercentageAboveMax() {
   const invalidData = { ...createValidBaseData(), percentage: 100.01 }; // Above max: 100.0
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -780,7 +780,7 @@ export function testOptionalFloatInvalid() {
   const invalidData = { ...createValidBaseData(), optionalRating: 5.5 }; // Above max: 5.0
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -801,7 +801,7 @@ export function testMultipleFloatViolations() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -831,7 +831,7 @@ export function testCiStringUsernameTooShort() {
   const invalidData = { ...createValidBaseData(), username: "ab" }; // Below min: 3
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -847,7 +847,7 @@ export function testCiStringUsernameTooLong() {
   const invalidData = { ...createValidBaseData(), username: "a".repeat(21) }; // Above max: 20
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -863,7 +863,7 @@ export function testCiStringCompanyNameInvalidChars() {
   const invalidData = { ...createValidBaseData(), companyName: "Acme@Corp!" }; // Contains @ and !
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -882,7 +882,7 @@ export function testCiStringCompanyNameTooShort() {
   const invalidData = { ...createValidBaseData(), companyName: "A" }; // Below min: 2
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -898,7 +898,7 @@ export function testCiStringCountryCodeWrongLength() {
   const invalidData = { ...createValidBaseData(), countryCode: "USA" }; // 3 characters instead of 2
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -917,7 +917,7 @@ export function testCiStringCountryCodeWithNumber() {
   const invalidData = { ...createValidBaseData(), countryCode: "U1" }; // Contains number
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -933,7 +933,7 @@ export function testOptionalCiStringInvalid() {
   const invalidData = { ...createValidBaseData(), optionalNickname: "a" }; // Below min: 2
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -957,7 +957,7 @@ export function testMultipleCiStringViolations() {
   };
 
   try {
-    createOrgTodoZodschema.parse(invalidData);
+    createOrgTodoZodSchema.parse(invalidData);
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {

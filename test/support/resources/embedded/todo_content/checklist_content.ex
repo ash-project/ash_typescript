@@ -13,7 +13,7 @@ defmodule AshTypescript.Test.TodoContent.ChecklistContent do
 
   typescript do
     type_name "TodoContentChecklist"
-    field_names is_active?: :is_active
+    field_names is_active?: "isActive"
   end
 
   attributes do

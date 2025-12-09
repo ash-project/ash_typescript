@@ -1028,4 +1028,266 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       end
     end
   end
+
+  describe "calculations without arguments returning complex types" do
+    setup do
+      conn = TestHelpers.build_rpc_conn()
+
+      # Create a user for relationship testing
+      %{"success" => true, "data" => user} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_user",
+          "input" => %{
+            "name" => "Summary User",
+            "email" => "summary@example.com"
+          },
+          "fields" => ["id", "name"]
+        })
+
+      # Create a todo for testing the summary calculation
+      %{"success" => true, "data" => todo} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_todo",
+          "input" => %{
+            "title" => "Summary Calculation Todo",
+            "description" => "A todo for testing summary calculations",
+            "userId" => user["id"]
+          },
+          "fields" => ["id", "title"]
+        })
+
+      %{conn: conn, user: user, todo: todo}
+    end
+
+    test "processes no-argument calculation with basic field selection", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_todos",
+          "fields" => [
+            "id",
+            "title",
+            %{"summary" => ["viewCount", "editCount"]}
+          ]
+        })
+
+      assert result["success"] == true
+      assert is_list(result["data"])
+
+      # Find our test todo
+      test_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] == "Summary Calculation Todo"
+        end)
+
+      assert test_todo != nil
+      assert Map.has_key?(test_todo, "id")
+      assert Map.has_key?(test_todo, "title")
+      assert Map.has_key?(test_todo, "summary")
+
+      # Verify the summary calculation result has selected fields
+      summary_result = test_todo["summary"]
+      assert Map.has_key?(summary_result, "viewCount")
+      assert Map.has_key?(summary_result, "editCount")
+      assert summary_result["viewCount"] == 42
+      assert summary_result["editCount"] == 7
+
+      # Should not have other fields since we didn't select them
+      refute Map.has_key?(summary_result, "completionTimeSeconds")
+      refute Map.has_key?(summary_result, "difficultyRating")
+      refute Map.has_key?(summary_result, "performanceMetrics")
+    end
+
+    test "processes no-argument calculation with nested map field selection", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_todos",
+          "fields" => [
+            "id",
+            %{
+              "summary" => [
+                "viewCount",
+                %{"performanceMetrics" => ["focusTimeSeconds", "efficiencyScore"]}
+              ]
+            }
+          ]
+        })
+
+      assert result["success"] == true
+      assert is_list(result["data"])
+
+      # Find our test todo
+      test_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "summary") && todo["summary"] != nil
+        end)
+
+      assert test_todo != nil
+      assert Map.has_key?(test_todo, "summary")
+
+      summary_result = test_todo["summary"]
+      assert Map.has_key?(summary_result, "viewCount")
+      assert summary_result["viewCount"] == 42
+
+      # Verify nested performanceMetrics with selected fields
+      assert Map.has_key?(summary_result, "performanceMetrics")
+      perf_metrics = summary_result["performanceMetrics"]
+      assert Map.has_key?(perf_metrics, "focusTimeSeconds")
+      assert Map.has_key?(perf_metrics, "efficiencyScore")
+      assert perf_metrics["focusTimeSeconds"] == 900
+      assert perf_metrics["efficiencyScore"] == 0.85
+
+      # Should not have other nested fields
+      refute Map.has_key?(perf_metrics, "interruptionCount")
+      refute Map.has_key?(perf_metrics, "taskComplexity")
+    end
+
+    test "processes no-argument calculation selecting all available fields", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_todos",
+          "fields" => [
+            "id",
+            %{
+              "summary" => [
+                "viewCount",
+                "editCount",
+                "completionTimeSeconds",
+                "difficultyRating",
+                "allCompleted",
+                %{
+                  "performanceMetrics" => [
+                    "focusTimeSeconds",
+                    "interruptionCount",
+                    "efficiencyScore",
+                    "taskComplexity"
+                  ]
+                }
+              ]
+            }
+          ]
+        })
+
+      assert result["success"] == true
+      assert is_list(result["data"])
+
+      test_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "summary") && todo["summary"] != nil
+        end)
+
+      assert test_todo != nil
+      summary_result = test_todo["summary"]
+
+      # Verify all fields are present
+      assert summary_result["viewCount"] == 42
+      assert summary_result["editCount"] == 7
+      assert summary_result["completionTimeSeconds"] == 1800
+      assert summary_result["difficultyRating"] == 3.5
+      assert summary_result["allCompleted"] == false
+
+      perf_metrics = summary_result["performanceMetrics"]
+      assert perf_metrics["focusTimeSeconds"] == 900
+      assert perf_metrics["interruptionCount"] == 3
+      assert perf_metrics["efficiencyScore"] == 0.85
+      assert perf_metrics["taskComplexity"] == "medium"
+    end
+
+    test "returns error when requesting no-argument complex calculation as simple atom", %{
+      conn: conn
+    } do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_todos",
+          "fields" => [
+            "id",
+            # summary returns a complex type, must use field selection
+            "summary"
+          ]
+        })
+
+      assert result["success"] == false
+      assert is_list(result["errors"])
+      [error | _] = result["errors"]
+      assert error["type"] == "requires_field_selection"
+      assert List.first(error["fields"]) == "summary"
+    end
+
+    test "returns error for invalid field in no-argument calculation field selection", %{
+      conn: conn
+    } do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_todos",
+          "fields" => [
+            %{"summary" => ["viewCount", "nonExistentField"]}
+          ]
+        })
+
+      assert result["success"] == false
+      assert is_list(result["errors"])
+      [error | _] = result["errors"]
+      assert error["type"] == "unknown_field"
+      assert List.first(error["fields"]) == "summary.nonExistentField"
+    end
+
+    test "returns error for invalid nested field in no-argument calculation", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_todos",
+          "fields" => [
+            %{
+              "summary" => [
+                %{"performanceMetrics" => ["focusTimeSeconds", "invalidField"]}
+              ]
+            }
+          ]
+        })
+
+      assert result["success"] == false
+      assert is_list(result["errors"])
+      [error | _] = result["errors"]
+      # Map fields use a different error type than resource fields
+      assert error["type"] == "unknown_map_field"
+      assert List.first(error["fields"]) == "summary.performanceMetrics.invalidField"
+    end
+
+    test "processes no-argument calculation alongside with-argument calculation", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_todos",
+          "fields" => [
+            "id",
+            # No-argument calculation with field selection
+            %{"summary" => ["viewCount", "editCount"]},
+            # With-argument calculation with field selection
+            %{
+              "self" => %{
+                "args" => %{"prefix" => "test"},
+                "fields" => ["title", "completed"]
+              }
+            }
+          ]
+        })
+
+      assert result["success"] == true
+      assert is_list(result["data"])
+
+      test_todo =
+        Enum.find(result["data"], fn todo ->
+          Map.has_key?(todo, "summary") && todo["summary"] != nil
+        end)
+
+      assert test_todo != nil
+
+      # Verify no-argument calculation
+      summary_result = test_todo["summary"]
+      assert summary_result["viewCount"] == 42
+      assert summary_result["editCount"] == 7
+
+      # Verify with-argument calculation
+      self_result = test_todo["self"]
+      assert Map.has_key?(self_result, "title")
+      assert Map.has_key?(self_result, "completed")
+    end
+  end
 end

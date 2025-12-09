@@ -70,11 +70,16 @@ The RPC system uses a clean four-stage pipeline architecture focused on performa
 
 **Key Operations**:
 - Apply output field formatter (camelCase by default)
-- Convert field names recursively through the result
+- Convert field names recursively through the result via `ValueFormatter`
 - Preserve special structures (DateTime, structs, etc.)
 - Build final response structure
 
 **Returns**: Formatted response ready for JSON serialization
+
+**Formatting Flow**:
+1. `OutputFormatter.format/4` handles top-level data
+2. For each field, delegates to `ValueFormatter.format/5` for type-aware recursive formatting
+3. Field names are converted according to formatter configuration and DSL mappings
 
 ## Request Data Structure
 
@@ -100,7 +105,7 @@ defstruct [
 
 ## Field Processing Integration
 
-Field processing is handled by the `RequestedFieldsProcessor` module (entry point/delegator) in Stage 1 (parse_request). The actual implementation is modularized across 11 specialized files in `lib/ash_typescript/rpc/field_processing/`:
+Field processing is handled by the `RequestedFieldsProcessor` module (entry point/delegator) in Stage 1 (parse_request). The implementation uses a **type-driven recursive dispatch pattern** in `FieldSelector`, mirroring the architecture of `ValueFormatter`.
 
 ```elixir
 {:ok, {select, load, template}} = RequestedFieldsProcessor.process(
@@ -112,34 +117,42 @@ Field processing is handled by the `RequestedFieldsProcessor` module (entry poin
 ```
 
 **Processing Flow**:
-1. **Atomizer** - Converts client field names to atoms
-2. **Validator** - Validates field selections
-3. **FieldClassifier** - Determines field types and return types
-4. **FieldProcessor** - Orchestrates processing and routes to type processors
-5. **Type Processors** - Specialized handling for each type family
+1. **Atomizer** - Converts client field names to atoms using formatter and `field_names` DSL
+2. **FieldSelector** - Type-driven dispatch based on `{type, constraints}`:
+   - Ash Resources → `select_resource_fields/3`
+   - TypedStruct/NewType → `select_typed_struct_fields/3`
+   - Typed Map/Struct → `select_typed_map_fields/4`
+   - Tuple → `select_tuple_fields/3`
+   - Union → `select_union_fields/4`
+   - Array → Recurse with inner type
+   - Primitive → Validate no fields requested
 
-### Field Classification
+### Type-Driven Field Selection
 
-**Critical**: Order matters for dual-nature fields (embedded resources are both attributes AND loadable).
+The `FieldSelector` uses a unified type-driven approach where each type is self-describing via `{type, constraints}`. No separate classification step is needed.
 
 ```elixir
-def classify_field(resource, field_name, _path) do
+def select_fields(type, constraints, requested_fields, path) do
+  {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+
   cond do
-    attribute = Ash.Resource.Info.public_attribute(resource, field_name) ->  # FIRST
-      # Further classify the attribute type (simple, embedded resource, etc.)
-      classify_ash_type(attribute.type, attribute, false)
+    match?({:array, _}, type) ->
+      # Arrays - recurse into inner type
+      select_fields(inner_type, inner_constraints, requested_fields, path)
 
-    Ash.Resource.Info.public_relationship(resource, field_name) ->  # SECOND
-      :relationship
+    Ash.Resource.Info.resource?(unwrapped_type) ->
+      # Ash Resources (regular or embedded)
+      select_resource_fields(unwrapped_type, requested_fields, path)
 
-    calculation = Ash.Resource.Info.public_calculation(resource, field_name) ->  # THIRD
-      # Further classify calculation type (simple, complex, with args)
-      classify_calculation_type(calculation)
+    unwrapped_type == Ash.Type.Union ->
+      select_union_fields(full_constraints, requested_fields, path, error_type)
 
-    true -> :unknown
+    # ... other type handlers
   end
 end
 ```
+
+For resource fields, the selector checks attributes → relationships → calculations → aggregates in order.
 
 ### Unified Field Format
 
@@ -148,6 +161,31 @@ end
 ```elixir
 # All calculations, relationships, and fields specified in single array
 fields: ["id", "title", {"relationship": ["field"]}, {"calculation": {"args": {...}}}]
+```
+
+### Calculation Syntax Rules
+
+Calculations are classified into three categories based on whether they accept arguments:
+
+1. **`:calculation_with_args`** - Has any arguments defined
+   - **Requires** `{ calc: { args: {...}, fields: [...] } }` syntax
+   - Even if args have defaults, the `args` key is required
+
+2. **`:calculation_complex`** - No args, but returns complex type (union, embedded, etc.)
+   - Can use simple nested syntax: `{ calc: ["field1", ...] }`
+   - Same syntax as relationships
+
+3. **`:calculation`** - No args, returns primitive type
+   - Just use as a string: `"calcName"`
+
+```elixir
+# Classification logic in get_resource_field_info:
+category =
+  cond do
+    has_any_arguments?(calc) -> :calculation_with_args
+    requires_nested_selection?(calc.type, constraints) -> :calculation_complex
+    true -> :calculation
+  end
 ```
 
 ### Dual-Nature Processing
@@ -349,18 +387,124 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 ```
 
 
+## ValueFormatter: Unified Value Formatting
+
+The `ValueFormatter` module (`lib/ash_typescript/rpc/value_formatter.ex`) provides unified type-aware formatting for both input and output data. It is the core engine that handles recursive field name conversion throughout nested data structures.
+
+### Design Principles
+
+**Key Insight**: Every composite value can be modeled as `{value, type, constraints}`. The type itself provides all context needed for formatting - no external "resource" parameter is required because each type is self-describing.
+
+| When `type` is... | Field types come from... | Field mappings come from... |
+|-------------------|--------------------------|----------------------------|
+| Ash Resource | `Ash.Resource.Info.attribute(type, field)` | `field_names` DSL on the resource |
+| NewType/TypedStruct | `constraints[:fields]` | `constraints[:instance_of].typescript_field_names()` |
+| `Ash.Type.Map` | `constraints[:fields]` | Formatter only (no explicit mappings) |
+| `Ash.Type.Union` | `constraints[:types][member][:type]` | Member-specific |
+
+### API
+
+```elixir
+@spec format(value, type, constraints, formatter, direction) :: formatted_value
+  when direction: :input | :output
+
+# Example usage
+ValueFormatter.format(
+  %{user_id: "123", color_palette: %{primary: "#fff"}},
+  MyApp.Todo,
+  [],
+  :camel_case,
+  :output
+)
+# => %{"userId" => "123", "colorPalette" => %{"primary" => "#fff"}}
+```
+
+### Type Categories Handled
+
+| Category | Detection | Processing |
+|----------|-----------|------------|
+| **Ash Resource** | `Ash.Resource.Info.resource?(type)` | Formats each field using resource schema, respects `field_names` DSL |
+| **Ash.Type.Struct with resource** | `instance_of` is an Ash resource | Same as Ash Resource |
+| **TypedStruct/NewType** | `instance_of` has `typescript_field_names/0` | Uses callback for field mappings |
+| **Ash.Type.Map/Struct with fields** | Has `fields` constraints | Formats using field specs |
+| **Ash.Type.Tuple/Keyword** | Type match | Formats using field specs |
+| **Ash.Type.Union** | Type match | Identifies member, formats recursively |
+| **Custom type with map storage** | `Ash.Type.storage_type(module) == :map` | Stringifies all keys |
+| **Arrays** | `{:array, inner_type}` | Formats each element with inner type |
+
+### How It Integrates
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        RPC Pipeline                             │
+├─────────────────────────────────────────────────────────────────┤
+│  Stage 1: Parse Request                                         │
+│     └─> InputFormatter.format/4                                 │
+│            └─> ValueFormatter.format(value, type, constraints,  │
+│                                      formatter, :input)         │
+├─────────────────────────────────────────────────────────────────┤
+│  Stage 4: Format Output                                         │
+│     └─> OutputFormatter.format/4                                │
+│            └─> ValueFormatter.format(value, type, constraints,  │
+│                                      formatter, :output)        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Recursive Type Resolution
+
+When processing nested values, `ValueFormatter` automatically determines the correct type context:
+
+```elixir
+# For Ash Resources:
+defp get_resource_field_type(resource, field_name) do
+  # Checks: attribute -> calculation -> relationship -> aggregate
+  # Returns {type, constraints} for recursive formatting
+end
+
+# For relationships, handles cardinality:
+# - :many (has_many, many_to_many) -> {:array, destination}
+# - :one (belongs_to, has_one) -> destination
+```
+
+### Example: Deep Nesting
+
+```elixir
+# Input data with nested structures
+input = %{
+  "userId" => "123",
+  "metadata" => %{                    # Embedded resource
+    "createdBy" => "admin",
+    "tags" => ["urgent"],
+    "stats" => %{                     # TypedStruct with field mappings
+      "totalCount1" => 5              # Maps to :total_count_1
+    }
+  },
+  "content" => %{                     # Union type
+    "text" => %{                      # Union member
+      "body" => "Hello"
+    }
+  }
+}
+
+# ValueFormatter traverses each level:
+# 1. Top-level: Todo resource -> formats userId, metadata, content
+# 2. metadata: TodoMetadata embedded resource -> formats fields
+# 3. stats: TaskStats TypedStruct -> uses typescript_field_names/0
+# 4. content: Union -> identifies member, formats recursively
+```
+
 ## Key Files
 
 - `lib/ash_typescript/rpc/pipeline.ex` - Four-stage orchestration
 - `lib/ash_typescript/rpc/requested_fields_processor.ex` - Field processing entry point (delegator)
-- `lib/ash_typescript/rpc/field_processing/` - Modular field processing subsystem:
-  - `atomizer.ex` - Field name atomization
-  - `validator.ex` - Field validation
-  - `field_classifier.ex` - Type classification
-  - `field_processor.ex` - Core orchestration
-  - `utilities.ex` - Shared helpers
-  - `type_processors/*.ex` - 6 specialized type processors
+- `lib/ash_typescript/rpc/field_processing/` - Type-driven field processing:
+  - `atomizer.ex` - Client→internal field name conversion
+  - `field_selector.ex` - **Unified type-driven field selection** (mirrors `ValueFormatter` pattern)
+  - `field_selector/validation.ex` - Field validation helpers
 - `lib/ash_typescript/rpc/result_processor.ex` - Template-based result extraction
+- `lib/ash_typescript/rpc/value_formatter.ex` - **Unified type-aware value formatting**
+- `lib/ash_typescript/rpc/input_formatter.ex` - Input formatting (delegates to ValueFormatter)
+- `lib/ash_typescript/rpc/output_formatter.ex` - Output formatting (delegates to ValueFormatter)
 - `lib/ash_typescript/rpc/request.ex` - Request data structure
 - `lib/ash_typescript/rpc/error_builder.ex` - Comprehensive error handling
 
