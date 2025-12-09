@@ -95,7 +95,9 @@ end
 - `lib/ash_typescript/codegen/type_mapper.ex` - TypeScript type mapping
 - `lib/ash_typescript/codegen/type_aliases.ex` - Ash type alias generation
 - `lib/ash_typescript/type_system/introspection.ex` - Type introspection and classification
+- `lib/ash_typescript/type_system/resource_fields.ex` - Resource field lookup utilities
 - `lib/ash_typescript/rpc/codegen.ex` - TypeScript utility types and RPC client generation
+- `lib/ash_typescript/rpc/value_formatter.ex` - Unified type-aware value formatting
 - Generated schemas use metadata patterns for efficient inference
 
 ## Testing
@@ -109,6 +111,24 @@ Test type inference at multiple levels:
 ## Custom Types Integration
 
 **See also**: [Field and Argument Name Mapping](./field-argument-name-mapping.md) for mapping invalid field names in custom types using the `typescript_field_names/0` callback.
+
+### TypedStruct and NewType Field Name Mapping
+
+Types implementing `typescript_field_names/0` can map internal field names to TypeScript-compatible names:
+
+```elixir
+defmodule MyApp.CustomMetadata do
+  use Ash.Type.NewType,
+    subtype_of: :map,
+    constraints: [fields: [field_1: [type: :string]]]
+
+  def typescript_field_names do
+    [field_1: "field1"]  # Values must be strings
+  end
+end
+```
+
+**Note**: The callback returns a keyword list where values are **strings** (not atoms). The system uses these mappings for both codegen and runtime formatting.
 
 ### Custom Type Detection
 

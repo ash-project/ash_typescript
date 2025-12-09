@@ -8,6 +8,20 @@ SPDX-License-Identifier: MIT
 
 Key architectural decisions and their reasoning for AI assistant context.
 
+## 2025-12-08: Field Processing and Formatting Architecture Simplification
+
+**Change**: Unified type-driven dispatch pattern for field processing and value formatting
+**Why**: Simplify the 11-module field processing system to a cleaner 3-module architecture; eliminate formatter_core.ex duplication
+**Impact**:
+- Field processing: 11 modules → 3 modules (`Atomizer`, `FieldSelector`, `FieldSelector.Validation`)
+- Value formatting: Merged `formatter_core.ex` into unified `ValueFormatter` with direction parameter
+- Both `FieldSelector` and `ValueFormatter` now use identical `{type, constraints}` dispatch pattern
+**Key Changes**:
+- Deleted: `formatter_core.ex`, `field_classifier.ex`, `field_processor.ex`, `validator.ex`, `utilities.ex`, 6 type processors
+- Created: `value_formatter.ex` (unified formatting), `field_selector.ex` (unified field selection)
+- `InputFormatter` and `OutputFormatter` now delegate to `ValueFormatter.format/5` with `:input`/`:output` direction
+**Benefits**: Single dispatch pattern across codebase, easier to reason about, fewer files to maintain
+
 ## 2025-11-07: Comprehensive Codebase Refactoring
 
 **Change**: Major refactoring to eliminate code duplication and improve organization
@@ -22,10 +36,10 @@ Key architectural decisions and their reasoning for AI assistant context.
 **Key Modules Created**:
 - `lib/ash_typescript/type_system/introspection.ex` - Centralized type introspection
 - `lib/ash_typescript/codegen/` - 5 focused modules (embedded_scanner, type_aliases, type_mapper, resource_schemas, helpers) + filter_types
-- `lib/ash_typescript/rpc/formatter_core.ex` - Shared formatting logic
-- `lib/ash_typescript/rpc/field_processing/` - 11 specialized modules (atomizer, validator, field_classifier, field_processor, utilities, 6 type processors)
+- `lib/ash_typescript/rpc/value_formatter.ex` - Unified type-aware value formatting
+- `lib/ash_typescript/rpc/field_processing/` - 3 specialized modules (atomizer, field_selector, field_selector/validation)
 - `lib/ash_typescript/resource/verifiers/` - Organized verifier modules
-**Benefits**: Single source of truth, better separation of concerns, improved maintainability, zero breaking changes, no files over 874 lines
+**Benefits**: Single source of truth, better separation of concerns, improved maintainability, zero breaking changes
 
 ## 2025-09-16: Phoenix Channel RPC Actions
 

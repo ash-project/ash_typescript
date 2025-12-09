@@ -203,9 +203,9 @@ defmodule MyApp.Domain do
       rpc_action :read_with_metadata, :read_with_metadata,
         show_metadata: [:field_1, :is_cached?, :metric_2],
         metadata_field_names: [
-          field_1: :field1,
-          is_cached?: :isCached,
-          metric_2: :metric2
+          field_1: "field1",
+          is_cached?: "isCached",
+          metric_2: "metric2"
         ]
     end
   end

@@ -80,7 +80,7 @@ or provide a list of atoms to expose specific fields.
 
 Metadata field naming: Use `metadata_field_names` to map invalid metadata field names
 (e.g., `field_1`, `is_valid?`) to valid TypeScript identifiers.
-Example: `metadata_field_names [field_1: :field1, is_valid?: :isValid]`
+Example: `metadata_field_names [field_1: "field1", is_valid?: "isValid"]`
 
 Get options:
 - `get?` - When true, retrieves a single resource by primary key. Requires primary key
@@ -105,7 +105,7 @@ valid resource attributes. Returns a single result or null.
 |------|------|---------|------|
 | [`read_action`](#typescript_rpc-resource-rpc_action-read_action){: #typescript_rpc-resource-rpc_action-read_action } | `atom` |  | The read action to use for update and destroy operations when finding records |
 | [`show_metadata`](#typescript_rpc-resource-rpc_action-show_metadata){: #typescript_rpc-resource-rpc_action-show_metadata } | `nil \| boolean \| list(atom)` |  | Which metadata fields to expose (nil=all, false/[]=none, list=specific fields) |
-| [`metadata_field_names`](#typescript_rpc-resource-rpc_action-metadata_field_names){: #typescript_rpc-resource-rpc_action-metadata_field_names } | `list({atom, atom})` | `[]` | Map metadata field names to valid TypeScript identifiers |
+| [`metadata_field_names`](#typescript_rpc-resource-rpc_action-metadata_field_names){: #typescript_rpc-resource-rpc_action-metadata_field_names } | `list({atom, String.t})` | `[]` | Map metadata field names to valid TypeScript identifiers (string values) |
 | [`get?`](#typescript_rpc-resource-rpc_action-get?){: #typescript_rpc-resource-rpc_action-get? } | `boolean` | `false` | When true, retrieves a single resource by primary key. Returns single result or null. |
 | [`get_by`](#typescript_rpc-resource-rpc_action-get_by){: #typescript_rpc-resource-rpc_action-get_by } | `list(atom)` | `[]` | Retrieves a single resource by the specified fields (must be resource attributes). Returns single result or null. |
 | [`not_found_error?`](#typescript_rpc-resource-rpc_action-not_found_error?){: #typescript_rpc-resource-rpc_action-not_found_error? } | `true \| false \| nil` |  | When true (default from global config), returns an error if no record is found. When false, returns null. Only applies to get actions (get?, get_by, or action.get?). If not specified, uses the global config `config :ash_typescript, not_found_error?: true`. |

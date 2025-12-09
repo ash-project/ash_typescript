@@ -23,7 +23,8 @@ SPDX-License-Identifier: MIT
 | **Basic Call** | `functionName({ fields: [...], headers: {...} })` | `listTodos({ fields: ["id", "title"] })` |
 | **Field Selection** | `[\"field1\", {\"nested\": [\"field2\"]}]` | Relationships in objects |
 | **Union Fields** | `{ unionField: [\"member1\", {\"member2\": [...]}] }` | Selective union member access |
-| **Calculation Args** | `{ calc: { args: {...}, fields: [...] } }` | Complex calculations |
+| **Calculation (no args)** | `{ calc: [\"field1\", ...] }` | Calculations without arguments |
+| **Calculation (with args)** | `{ calc: { args: {...}, fields: [...] } }` | Calculations with arguments |
 | **Filter Syntax** | `{ field: { eq: value } }` | Always use operator objects |
 | **Sort String** | `\"-field1,field2\"` | Dash prefix = descending |
 | **CSRF Headers** | `buildCSRFHeaders()` | Phoenix CSRF protection |
@@ -36,16 +37,17 @@ SPDX-License-Identifier: MIT
 | **Channel Function** | `actionNameChannel({ channel, resultHandler, ... })` | Phoenix channel-based RPC |
 | **Validation Config** | `generate_validation_functions: true` | Enable validation generation |
 | **Channel Config** | `generate_phx_channel_rpc_actions: true` | Enable channel functions |
-| **Field Name Mapping** | `field_names [field_1: :field1]` | Map invalid field names |
-| **Argument Mapping** | `argument_names [action: [arg_1: :arg1]]` | Map invalid argument names |
+| **Field Name Mapping** | `field_names [field_1: "field1"]` | Map invalid field names |
+| **Argument Mapping** | `argument_names [action: [arg_1: "arg1"]]` | Map invalid argument names |
 | **Metadata Config** | `show_metadata: [:field1, :field2]` | Control metadata exposure |
-| **Metadata Mapping** | `metadata_field_names: [field_1: :field1]` | Map metadata field names |
+| **Metadata Mapping** | `metadata_field_names: [field_1: "field1"]` | Map metadata field names |
 | **Get Action** | `rpc_action :get_todo, :read, get?: true` | Single record via Ash.read_one |
 | **Get By Fields** | `rpc_action :get_by_email, :read, get_by: [:email]` | Single record by specific fields |
 | **Not Found Error** | `not_found_error?: false` | Return null instead of error |
 | **Metadata Selection (Read)** | `metadataFields: [\"field1\"]` | Select metadata (merged into records) |
 | **Metadata Access (Mutations)** | `result.metadata.field1` | Access metadata (separate field) |
 | **Type Overrides** | `type_mapping_overrides: [{Module, \"TSType\"}]` | Map dependency types |
+| **Custom Type Mapping** | `def typescript_field_names, do: [...]` | Map fields in NewType/TypedStruct |
 
 ## Action Feature Matrix
 
@@ -167,7 +169,12 @@ const content = await getTodo({
   fields: ["id", { content: ["note", { text: ["text", "wordCount"] }] }]
 });
 
-// Complex calculation with args
+// Calculation WITHOUT args - use simple nested syntax
+const item = await getTodo({
+  fields: ["id", { relatedItem: ["article", { article: ["id", "title"] }] }]
+});
+
+// Calculation WITH args - must use { args: {...}, fields: [...] } syntax
 const calc = await getTodo({
   fields: ["id", { self: { args: { prefix: "my_" }, fields: ["id", "title"] } }]
 });
@@ -193,7 +200,7 @@ const todos = await listTodos({
 ```elixir
 rpc_action :read_data, :read_with_metadata,
   show_metadata: [:field_1, :is_cached?],
-  metadata_field_names: [field_1: :field1, is_cached?: :isCached]
+  metadata_field_names: [field_1: "field1", is_cached?: "isCached"]
 ```
 
 **Read actions (merged into records):**
@@ -242,8 +249,8 @@ defmodule MyApp.User do
 
   typescript do
     type_name "User"
-    field_names [address_line_1: :address_line1, is_active?: :is_active]
-    argument_names [search: [filter_value_1: :filter_value1]]
+    field_names [address_line_1: "addressLine1", is_active?: "isActive"]
+    argument_names [search: [filter_value_1: "filterValue1"]]
   end
 
   attributes do
@@ -270,13 +277,31 @@ defmodule MyApp.CustomMetadata do
     subtype_of: :map,
     constraints: [fields: [field_1: [type: :string], is_active?: [type: :boolean]]]
 
-  @impl true
   def typescript_field_names do
-    [field_1: :field1, is_active?: :isActive]
+    [field_1: "field1", is_active?: "isActive"]
   end
 end
 
 attribute :metadata, MyApp.CustomMetadata, public?: true
+```
+
+### TypedStruct Field Mapping
+
+```elixir
+# For TypedStructs with invalid field names, use typescript_field_names/0 callback
+defmodule MyApp.TaskStats do
+  use Ash.TypedStruct
+
+  def typescript_field_names do
+    [completed?: "completed", is_urgent?: "isUrgent"]
+  end
+
+  typed_struct do
+    field :total_count, :integer
+    field :completed?, :boolean
+    field :is_urgent?, :boolean
+  end
+end
 ```
 
 ## Common Gotchas (Quick Fix)
@@ -293,7 +318,10 @@ attribute :metadata, MyApp.CustomMetadata, public?: true
 | Filter syntax: `{ completed: false }` | Use operators: `{ completed: { eq: false } }` |
 | Missing `tenant` for multitenant resource | Add `tenant: "org-123"` |
 | Invalid field name `field_1` or `is_active?` | Add `field_names` or `argument_names` mapping |
+| Invalid field in action return/argument type | Add `typescript_field_names/0` callback to the type |
+| Duplicate input field names | Use `field_names` or `argument_names` to give unique names |
 | Invalid map constraint field names | Create `Ash.Type.NewType` with `typescript_field_names/0` |
+| Invalid TypedStruct field names | Add `typescript_field_names/0` callback to the module |
 | Invalid metadata field names | Add `metadata_field_names` to `rpc_action` |
 | Metadata field conflicts with resource field | Rename or use different mapped name |
 | Using `primaryKey` instead of `identity` | Renamed: use `identity` parameter |
@@ -315,6 +343,9 @@ attribute :metadata, MyApp.CustomMetadata, public?: true
 | "functionNameChannel is not defined" | Channel generation disabled | Set `generate_phx_channel_rpc_actions: true` |
 | "validateFunctionName is not defined" | Validation disabled | Set `generate_validation_functions: true` |
 | "Invalid field names found" | Field/arg name with `_1`/`?` | Add mapping in `typescript` block |
+| "Invalid field names in action return types" | Return type has invalid field names | Add `typescript_field_names/0` callback to return type |
+| "Invalid field names in argument" | Argument type has invalid field names | Add `typescript_field_names/0` callback to argument type |
+| "Duplicate input field name" | Two fields map to same client name | Use `field_names` or `argument_names` DSL |
 | "Invalid field names in map/keyword/tuple" | Map constraint invalid | Create custom type with callback |
 | "Invalid metadata field name" | Metadata name invalid | Add `metadata_field_names` |
 | "not_found" / "NotFound" | Get action found no record | Add `not_found_error?: false` or check data exists |

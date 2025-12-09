@@ -570,9 +570,9 @@ defmodule MyApp.User do
     type_name "User"
     # Map invalid field names to valid TypeScript identifiers
     field_names [
-      address_line_1: :address_line1,
-      address_line_2: :address_line2,
-      is_active?: :is_active
+      address_line_1: "addressLine1",
+      address_line_2: "addressLine2",
+      is_active?: "isActive"
     ]
   end
 
@@ -613,8 +613,8 @@ Map invalid action argument names using the `argument_names` option:
 typescript do
   type_name "Todo"
   argument_names [
-    search: [query_string_1: :query_string1],
-    filter_todos: [is_completed?: :is_completed]
+    search: [query_string_1: "queryString1"],
+    filter_todos: [is_completed?: "isCompleted"]
   ]
 end
 
@@ -660,12 +660,11 @@ defmodule MyApp.CustomMetadata do
       ]
     ]
 
-  @impl true
   def typescript_field_names do
     [
-      field_1: :field1,
-      is_active?: :isActive,
-      line_2: :line2
+      field_1: "field1",
+      is_active?: "isActive",
+      line_2: "line2"
     ]
   end
 end
