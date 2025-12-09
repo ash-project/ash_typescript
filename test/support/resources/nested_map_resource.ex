@@ -35,15 +35,17 @@ defmodule AshTypescript.Test.NestedMapResource do
                     results: [
                       type: {:array, :map},
                       constraints: [
-                        fields: [
-                          id: [type: :string],
-                          email: [type: :string],
-                          first_name: [type: :string, allow_nil?: true],
-                          last_name: [type: :string, allow_nil?: true],
-                          phone: [type: :string, allow_nil?: true],
-                          is_admin: [type: :boolean, allow_nil?: true],
-                          confirmed_at: [type: :utc_datetime_usec, allow_nil?: true],
-                          inserted_at: [type: :utc_datetime_usec]
+                        items: [
+                          fields: [
+                            id: [type: :string],
+                            email: [type: :string],
+                            first_name: [type: :string, allow_nil?: true],
+                            last_name: [type: :string, allow_nil?: true],
+                            phone: [type: :string, allow_nil?: true],
+                            is_admin: [type: :boolean, allow_nil?: true],
+                            confirmed_at: [type: :utc_datetime_usec, allow_nil?: true],
+                            inserted_at: [type: :utc_datetime_usec]
+                          ]
                         ]
                       ]
                     ],
