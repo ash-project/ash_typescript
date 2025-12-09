@@ -454,7 +454,8 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   end
 
   defp extract_typed_map_value(value, constraints, template) when is_list(value) do
-    if Keyword.keyword?(value) do
+    # Empty lists should remain as arrays - Keyword.keyword?([]) returns true in Elixir
+    if value != [] and Keyword.keyword?(value) do
       normalized = Map.new(value)
       extract_typed_map_value(normalized, constraints, template)
     else
@@ -549,7 +550,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         end)
 
       is_list(value) ->
-        if Keyword.keyword?(value) do
+        # Empty lists should remain as empty arrays, not become empty objects.
+        # Keyword.keyword?([]) returns true in Elixir, but an empty array in JSON
+        # is distinctly different from an empty object.
+        if value != [] and Keyword.keyword?(value) do
           Enum.reduce(value, %{}, fn {key, val}, acc ->
             string_key = to_string(key)
             Map.put(acc, string_key, normalize_primitive(val))
@@ -677,7 +681,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           {Ash.Type.Union, []}
         end
 
-      is_list(data) && Keyword.keyword?(data) ->
+      is_list(data) && data != [] && Keyword.keyword?(data) ->
         {Ash.Type.Keyword, []}
 
       is_tuple(data) ->
