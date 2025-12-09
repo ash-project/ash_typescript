@@ -21,31 +21,49 @@ defmodule AshTypescript.Resource.Info do
   end
 
   @doc """
-  Gets the mapped name for a field, or returns the original name if no mapping exists.
-  """
-  def get_mapped_field_name(resource, field_name) do
-    mapped_names = __MODULE__.typescript_field_names!(resource)
-    Keyword.get(mapped_names, field_name, field_name)
-  end
+  Gets the mapped TypeScript client name for a field, or returns nil if no mapping exists.
 
-  @doc """
-  Gets the original invalid field name for a mapped field name.
-  Returns the field name that was mapped to the given valid name, or the same field name if no mapping exists.
+  The mapped value is always a string representing the exact TypeScript client name.
 
   ## Examples
 
-      iex> AshTypescript.Resource.Info.get_original_field_name(MyApp.User, :address_line1)
-      :address_line_1
+      iex> AshTypescript.Resource.Info.get_mapped_field_name(MyApp.User, :is_active?)
+      "isActive"
 
-      iex> AshTypescript.Resource.Info.get_original_field_name(MyApp.User, :normal_field)
+      iex> AshTypescript.Resource.Info.get_mapped_field_name(MyApp.User, :normal_field)
       nil
   """
-  def get_original_field_name(resource, mapped_field_name) do
+  def get_mapped_field_name(resource, field_name) do
+    mapped_names = __MODULE__.typescript_field_names!(resource)
+    Keyword.get(mapped_names, field_name)
+  end
+
+  @doc """
+  Gets the original Elixir field name for a TypeScript client field name.
+
+  The client_field_name should be a string like "isActive".
+  Returns the original Elixir atom like :is_active?, or the input if no mapping exists.
+
+  ## Examples
+
+      iex> AshTypescript.Resource.Info.get_original_field_name(MyApp.User, "isActive")
+      :is_active?
+
+      iex> AshTypescript.Resource.Info.get_original_field_name(MyApp.User, "normalField")
+      "normalField"
+  """
+  def get_original_field_name(resource, client_field_name) do
     mapped_names = __MODULE__.typescript_field_names!(resource)
 
-    case Enum.find(mapped_names, fn {_original, mapped} -> mapped == mapped_field_name end) do
+    # client_field_name can be a string (from client) or atom (from atomized field selection)
+    client_name_str =
+      if is_atom(client_field_name),
+        do: Atom.to_string(client_field_name),
+        else: client_field_name
+
+    case Enum.find(mapped_names, fn {_original, mapped} -> mapped == client_name_str end) do
       {original, _mapped} -> original
-      nil -> mapped_field_name
+      nil -> client_field_name
     end
   end
 
