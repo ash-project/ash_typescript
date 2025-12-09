@@ -13,17 +13,14 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
 
   ## Architecture
 
-  This module serves as the main entry point and delegates to specialized submodules:
+  This module serves as the main entry point and delegates to `FieldSelector`,
+  which uses a unified type-driven recursive dispatch pattern (similar to `ValueFormatter`).
 
-  - `Atomizer` - Converts client field names to internal atoms
-  - `FieldClassifier` - Classifies fields and determines return types
-  - `FieldProcessor` - Core orchestration of field processing
-  - `Validator` - Validates field selections
-  - `Utilities` - Helper functions for paths, templates, etc.
-  - `TypeProcessors.*` - Specialized processors for complex types (unions, calculations, etc.)
+  The key insight is that each type is self-describing via `{type, constraints}`,
+  so no separate classification step is needed.
   """
 
-  alias AshTypescript.Rpc.FieldProcessing.{Atomizer, FieldProcessor}
+  alias AshTypescript.Rpc.FieldProcessing.{Atomizer, FieldSelector}
 
   @doc """
   Atomizes requested fields by converting standalone strings to atoms and map keys to atoms.
@@ -31,9 +28,13 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
   Uses the configured input field formatter to properly parse field names from client format
   to internal format before converting to atoms.
 
+  When a resource is provided, field_names DSL mappings are checked first to handle
+  custom client→internal field name mappings.
+
   ## Parameters
 
   - `requested_fields` - List of strings/atoms or maps for relationships
+  - `resource` - Optional resource module for field_names DSL lookup
 
   ## Examples
 
@@ -43,7 +44,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
       iex> atomize_requested_fields([%{"self" => %{"args" => %{"prefix" => "test"}}}])
       [%{self: %{args: %{prefix: "test"}}}]
   """
-  defdelegate atomize_requested_fields(requested_fields), to: Atomizer
+  defdelegate atomize_requested_fields(requested_fields, resource \\ nil), to: Atomizer
 
   @doc """
   Processes requested fields for a given resource and action.
@@ -64,5 +65,5 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
       iex> process(MyApp.Todo, :read, [%{user: [:invalid_field]}])
       {:error, %{type: :invalid_field, field: "user.invalidField"}}
   """
-  defdelegate process(resource, action_name, requested_fields), to: FieldProcessor
+  defdelegate process(resource, action_name, requested_fields), to: FieldSelector
 end
