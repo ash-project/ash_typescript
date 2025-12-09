@@ -28,10 +28,8 @@ defmodule AshTypescript.Codegen.TypeAliases do
           resource
           |> Ash.Resource.Info.public_calculations()
           |> Enum.reduce(types, fn calc, types ->
-            # Add the calculation's return type
             types = MapSet.put(types, calc.type)
 
-            # Also add types from calculation arguments
             Enum.reduce(calc.arguments, types, fn arg, types ->
               if Ash.Type.ash_type?(arg.type) do
                 MapSet.put(types, arg.type)
@@ -172,12 +170,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
     end
   end
 
-  defp is_custom_type?(type) do
-    is_atom(type) and
-      Code.ensure_loaded?(type) and
-      function_exported?(type, :typescript_type_name, 0) and
-      Spark.implements_behaviour?(type, Ash.Type)
-  end
+  defp is_custom_type?(type), do: Introspection.is_custom_type?(type)
 
   defp get_type_mapping_override(type) when is_atom(type) do
     type_mapping_overrides = AshTypescript.type_mapping_overrides()

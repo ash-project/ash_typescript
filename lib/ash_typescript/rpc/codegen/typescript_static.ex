@@ -274,8 +274,10 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
             : NonNullable<ReturnType> extends TypedSchema
               ? { #{formatted_fields_field()}: UnifiedFieldSelection<NonNullable<ReturnType>>[] }
               : never
-          : T[K] extends { __type: "TypedMap"; __primitiveFields: infer PrimitiveFields }
-            ? PrimitiveFields[]
+          : T[K] extends { __type: "TypedMap" }
+            ? NonNullable<T[K]> extends TypedSchema
+              ? UnifiedFieldSelection<NonNullable<T[K]>>[]
+              : never
             : T[K] extends { __type: "Union"; __primitiveFields: infer PrimitiveFields }
               ? T[K] extends { __array: true }
                 ? (PrimitiveFields | {
@@ -286,7 +288,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
                         : never;
                   })[]
                 : (PrimitiveFields | {
-                    [UnionKey in keyof Omit<T[K], "__type" | "__primitiveFields">]?: T[K][UnionKey] extends TypedSchema
+                    [UnionKey in keyof Omit<T[K], "__type" | "__primitiveFields">]?: T[K][UnionKey] extends { __type: "TypedMap"; __primitiveFields: any }
                       ? T[K][UnionKey]["__primitiveFields"][]
                       : T[K][UnionKey] extends TypedSchema
                         ? UnifiedFieldSelection<T[K][UnionKey]>[]
@@ -340,10 +342,24 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
                         ? Array<
                             UnionToIntersection<
                               {
-                                [FieldIndex in keyof Field[K]]: Field[K][FieldIndex] extends TypedMapFields
-                                  ? Field[K][FieldIndex] extends keyof NonNullable<T[K]>
-                                    ? { [P in Field[K][FieldIndex]]: NonNullable<T[K]>[P] }
-                                    : never
+                                [FieldIndex in keyof Field[K]]: Field[K][FieldIndex] extends infer E
+                                  ? E extends TypedMapFields
+                                    ? E extends keyof NonNullable<T[K]>
+                                      ? { [P in E]: NonNullable<T[K]>[P] }
+                                      : never
+                                    : E extends Record<string, any>
+                                      ? {
+                                          [NestedKey in keyof E]: NestedKey extends keyof NonNullable<T[K]>
+                                            ? NonNullable<NonNullable<T[K]>[NestedKey]> extends TypedSchema
+                                              ? null extends NonNullable<T[K]>[NestedKey]
+                                                ? InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]> | null
+                                                : InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]>
+                                              : never
+                                            : never;
+                                        }
+                                      : E extends keyof NonNullable<T[K]>
+                                        ? { [P in E]: NonNullable<T[K]>[P] }
+                                        : never
                                   : never;
                               }[number]
                             >
@@ -351,10 +367,24 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
                         : Array<
                             UnionToIntersection<
                               {
-                                [FieldIndex in keyof Field[K]]: Field[K][FieldIndex] extends TypedMapFields
-                                  ? Field[K][FieldIndex] extends keyof NonNullable<T[K]>
-                                    ? { [P in Field[K][FieldIndex]]: NonNullable<T[K]>[P] }
-                                    : never
+                                [FieldIndex in keyof Field[K]]: Field[K][FieldIndex] extends infer E
+                                  ? E extends TypedMapFields
+                                    ? E extends keyof NonNullable<T[K]>
+                                      ? { [P in E]: NonNullable<T[K]>[P] }
+                                      : never
+                                    : E extends Record<string, any>
+                                      ? {
+                                          [NestedKey in keyof E]: NestedKey extends keyof NonNullable<T[K]>
+                                            ? NonNullable<NonNullable<T[K]>[NestedKey]> extends TypedSchema
+                                              ? null extends NonNullable<T[K]>[NestedKey]
+                                                ? InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]> | null
+                                                : InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]>
+                                              : never
+                                            : never;
+                                        }
+                                      : E extends keyof NonNullable<T[K]>
+                                        ? { [P in E]: NonNullable<T[K]>[P] }
+                                        : never
                                   : never;
                               }[number]
                             >
@@ -364,19 +394,47 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
                       ? null extends T[K]
                         ? UnionToIntersection<
                             {
-                              [FieldIndex in keyof Field[K]]: Field[K][FieldIndex] extends TypedMapFields
-                                ? Field[K][FieldIndex] extends keyof NonNullable<T[K]>
-                                  ? { [P in Field[K][FieldIndex]]: NonNullable<T[K]>[P] }
-                                  : never
+                              [FieldIndex in keyof Field[K]]: Field[K][FieldIndex] extends infer E
+                                ? E extends TypedMapFields
+                                  ? E extends keyof NonNullable<T[K]>
+                                    ? { [P in E]: NonNullable<T[K]>[P] }
+                                    : never
+                                  : E extends Record<string, any>
+                                    ? {
+                                        [NestedKey in keyof E]: NestedKey extends keyof NonNullable<T[K]>
+                                          ? NonNullable<NonNullable<T[K]>[NestedKey]> extends TypedSchema
+                                            ? null extends NonNullable<T[K]>[NestedKey]
+                                              ? InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]> | null
+                                              : InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]>
+                                            : never
+                                          : never;
+                                      }
+                                    : E extends keyof NonNullable<T[K]>
+                                      ? { [P in E]: NonNullable<T[K]>[P] }
+                                      : never
                                 : never;
                             }[number]
                           > | null
                         : UnionToIntersection<
                             {
-                              [FieldIndex in keyof Field[K]]: Field[K][FieldIndex] extends TypedMapFields
-                                ? Field[K][FieldIndex] extends keyof T[K]
-                                  ? { [P in Field[K][FieldIndex]]: T[K][P] }
-                                  : never
+                              [FieldIndex in keyof Field[K]]: Field[K][FieldIndex] extends infer E
+                                ? E extends TypedMapFields
+                                  ? E extends keyof T[K]
+                                    ? { [P in E]: T[K][P] }
+                                    : never
+                                  : E extends Record<string, any>
+                                    ? {
+                                        [NestedKey in keyof E]: NestedKey extends keyof NonNullable<T[K]>
+                                          ? NonNullable<NonNullable<T[K]>[NestedKey]> extends TypedSchema
+                                            ? null extends NonNullable<T[K]>[NestedKey]
+                                              ? InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]> | null
+                                              : InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]>
+                                            : never
+                                          : never;
+                                      }
+                                    : E extends keyof NonNullable<T[K]>
+                                      ? { [P in E]: NonNullable<T[K]>[P] }
+                                      : never
                                 : never;
                             }[number]
                           >
