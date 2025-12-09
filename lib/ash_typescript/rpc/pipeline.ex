@@ -16,7 +16,8 @@ defmodule AshTypescript.Rpc.Pipeline do
     OutputFormatter,
     Request,
     RequestedFieldsProcessor,
-    ResultProcessor
+    ResultProcessor,
+    ValueFormatter
   }
 
   alias AshTypescript.{FieldFormatter, Rpc}
@@ -35,8 +36,15 @@ defmodule AshTypescript.Rpc.Pipeline do
     input_formatter = Rpc.input_field_formatter()
 
     {input_data, other_params} = Map.pop(params, "input", %{})
-    normalized_other_params = FieldFormatter.parse_input_fields(other_params, input_formatter)
-    normalized_params = Map.put(normalized_other_params, :input, input_data)
+    {identity, params_without_identity} = Map.pop(other_params, "identity")
+
+    normalized_other_params =
+      FieldFormatter.parse_input_fields(params_without_identity, input_formatter)
+
+    normalized_params =
+      normalized_other_params
+      |> Map.put(:input, input_data)
+      |> Map.put(:identity, identity)
 
     {actor, tenant, context} =
       case conn_or_socket do
@@ -60,12 +68,16 @@ defmodule AshTypescript.Rpc.Pipeline do
              validation_mode?
            ),
          requested_fields <-
-           RequestedFieldsProcessor.atomize_requested_fields(normalized_params[:fields] || []),
+           RequestedFieldsProcessor.atomize_requested_fields(
+             normalized_params[:fields] || [],
+             resource
+           ),
          {:ok, {select, load, template}} <-
-           RequestedFieldsProcessor.process(
+           process_fields_unless_validation_mode(
              resource,
              action.name,
-             requested_fields
+             requested_fields,
+             validation_mode?
            ),
          {:ok, input} <- parse_action_input(normalized_params, action, resource),
          {:ok, get_by} <- parse_get_by(normalized_params, rpc_action, resource),
@@ -93,21 +105,30 @@ defmodule AshTypescript.Rpc.Pipeline do
               requested_fields =
                 Enum.map(fields, fn
                   field when is_binary(field) ->
-                    internal_name = FieldFormatter.parse_input_field(field, input_formatter)
+                    # First try to reverse map the original client field name
+                    # This handles cases like "meta1" → :meta_1 where the mapping is exact
+                    original =
+                      AshTypescript.Rpc.Info.get_original_metadata_field_name(rpc_action, field)
 
-                    case internal_name do
-                      atom when is_atom(atom) ->
-                        atom
+                    if is_atom(original) && original != field do
+                      original
+                    else
+                      internal_name = FieldFormatter.parse_input_field(field, input_formatter)
 
-                      string when is_binary(string) ->
-                        try do
-                          String.to_existing_atom(string)
-                        rescue
-                          ArgumentError -> nil
-                        end
+                      case internal_name do
+                        atom when is_atom(atom) ->
+                          atom
 
-                      _ ->
-                        nil
+                        string when is_binary(string) ->
+                          try do
+                            String.to_existing_atom(string)
+                          rescue
+                            ArgumentError -> nil
+                          end
+
+                        _ ->
+                          nil
+                      end
                     end
 
                   field when is_atom(field) ->
@@ -117,9 +138,6 @@ defmodule AshTypescript.Rpc.Pipeline do
                     nil
                 end)
                 |> Enum.reject(&is_nil/1)
-                |> Enum.map(fn field ->
-                  AshTypescript.Rpc.Info.get_original_metadata_field_name(rpc_action, field)
-                end)
 
               Enum.filter(requested_fields, fn field ->
                 field in exposed_metadata_fields
@@ -214,12 +232,17 @@ defmodule AshTypescript.Rpc.Pipeline do
         {:error, error}
 
       result when is_list(result) or is_map(result) or is_tuple(result) ->
-        if request.extraction_template == [] and request.action.type in [:create, :update] and
-             Enum.empty?(request.show_metadata) do
+        # For mutations with no field selection, use empty data
+        # (metadata can still be added on top)
+        is_mutation_with_no_fields =
+          request.extraction_template == [] and
+            request.action.type in [:create, :update, :destroy]
+
+        if is_mutation_with_no_fields and Enum.empty?(request.show_metadata) do
           {:ok, %{}}
         else
           if unconstrained_map_action?(request.action) do
-            {:ok, ResultProcessor.normalize_value_for_json(result)}
+            {:ok, ResultProcessor.normalize_primitive(result)}
           else
             resource_for_mapping =
               if request.action.type == :action and returns_typed_struct?(request.action) do
@@ -230,7 +253,11 @@ defmodule AshTypescript.Rpc.Pipeline do
               end
 
             filtered =
-              ResultProcessor.process(result, request.extraction_template, resource_for_mapping)
+              if is_mutation_with_no_fields do
+                %{}
+              else
+                ResultProcessor.process(result, request.extraction_template, resource_for_mapping)
+              end
 
             filtered_with_metadata = add_metadata(filtered, result, request)
 
@@ -239,7 +266,7 @@ defmodule AshTypescript.Rpc.Pipeline do
         end
 
       primitive_value ->
-        {:ok, ResultProcessor.normalize_value_for_json(primitive_value)}
+        {:ok, ResultProcessor.normalize_primitive(primitive_value)}
     end
   end
 
@@ -247,14 +274,41 @@ defmodule AshTypescript.Rpc.Pipeline do
     constraints = action.constraints || []
 
     case action.returns do
-      {:array, _module} ->
-        items_constraints = Keyword.get(constraints, :items, [])
-        get_instance_of_with_mappings(items_constraints)
+      {:array, inner_type} ->
+        # First check if inner_type is a direct module with typescript_field_names
+        case get_direct_module_with_mappings(inner_type) do
+          nil ->
+            # Fall back to checking instance_of in items constraints
+            items_constraints = Keyword.get(constraints, :items, [])
+            get_instance_of_with_mappings(items_constraints)
 
-      _single_type ->
-        get_instance_of_with_mappings(constraints)
+          module ->
+            module
+        end
+
+      single_type ->
+        # First check if return type is a direct module with typescript_field_names
+        case get_direct_module_with_mappings(single_type) do
+          nil ->
+            # Fall back to checking instance_of in constraints
+            get_instance_of_with_mappings(constraints)
+
+          module ->
+            module
+        end
     end
   end
+
+  # Check if a type is directly a module with typescript_field_names/0
+  defp get_direct_module_with_mappings(type) when is_atom(type) and not is_nil(type) do
+    if Code.ensure_loaded?(type) and function_exported?(type, :typescript_field_names, 0) do
+      type
+    else
+      nil
+    end
+  end
+
+  defp get_direct_module_with_mappings(_), do: nil
 
   defp get_instance_of_with_mappings(constraints) do
     if Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of) do
@@ -373,11 +427,9 @@ defmodule AshTypescript.Rpc.Pipeline do
     rpc_get_by = Map.get(rpc_action, :get_by) || []
 
     cond do
-      # get? just constrains the action to return a single record via Ash.read_one
       rpc_get? ->
         Map.put(action, :get?, true)
 
-      # get_by stores the fields for filter building at runtime
       rpc_get_by != [] ->
         action
         |> Map.put(:get?, true)
@@ -447,18 +499,11 @@ defmodule AshTypescript.Rpc.Pipeline do
       attribute = Ash.Resource.Info.attribute(resource, field_atom)
 
       case attribute do
-        %{type: Ash.Type.Tuple, constraints: constraints} ->
-          {:tuple, constraints}
-
-        %{type: Ash.Type.Keyword, constraints: constraints} ->
-          {:keyword, constraints}
+        %{type: type, constraints: constraints} ->
+          classify_tuple_or_keyword_type(type, constraints)
 
         _ ->
-          case find_action_argument_type(field_atom, action) do
-            {:tuple, constraints} -> {:tuple, constraints}
-            {:keyword, constraints} -> {:keyword, constraints}
-            _ -> :other
-          end
+          find_action_argument_type(field_atom, action)
       end
     else
       :other
@@ -467,11 +512,26 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp find_action_argument_type(field_atom, action) do
     case Enum.find(action.arguments, &(&1.public? && &1.name == field_atom)) do
-      %{type: Ash.Type.Tuple, constraints: constraints} ->
-        {:tuple, constraints}
+      %{type: type, constraints: constraints} ->
+        classify_tuple_or_keyword_type(type, constraints)
 
-      %{type: Ash.Type.Keyword, constraints: constraints} ->
-        {:keyword, constraints}
+      _ ->
+        :other
+    end
+  end
+
+  # Classifies a type as tuple, keyword, or other, handling NewTypes
+  defp classify_tuple_or_keyword_type(type, constraints) do
+    # Unwrap NewType to get the underlying type
+    {unwrapped_type, full_constraints} =
+      AshTypescript.TypeSystem.Introspection.unwrap_new_type(type, constraints)
+
+    case unwrapped_type do
+      Ash.Type.Tuple ->
+        {:tuple, full_constraints}
+
+      Ash.Type.Keyword ->
+        {:keyword, full_constraints}
 
       _ ->
         :other
@@ -607,8 +667,6 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp execute_read_action(%Request{} = request, opts) do
     if Map.get(request.action, :get?, false) do
-      # For get actions, use Ash.read_one
-      # If get_by is specified, apply it as a filter
       query =
         request.resource
         |> Ash.Query.for_read(request.action.name, request.input, opts)
@@ -899,13 +957,24 @@ defmodule AshTypescript.Rpc.Pipeline do
         {result_data, Map.get(result, :metadata)}
       end
 
+    # For generic actions with TypedStruct return types, use the return type module
+    # for field name mapping if it has typescript_field_names/0 callback
+    format_module = get_format_module(request)
+
     formatted_data =
-      OutputFormatter.format(
-        actual_data,
-        request.resource,
-        request.action.name,
-        formatter
-      )
+      if Ash.Resource.Info.resource?(format_module) do
+        # Regular resource - use OutputFormatter for full resource field mapping
+        OutputFormatter.format(
+          actual_data,
+          format_module,
+          request.action.name,
+          formatter
+        )
+      else
+        # TypedStruct/NewType return type - use ValueFormatter directly with the
+        # action's return type and constraints
+        format_generic_action_output(actual_data, request.action, formatter)
+      end
 
     base_response = %{
       FieldFormatter.format_field_name("success", formatter) => true,
@@ -942,6 +1011,35 @@ defmodule AshTypescript.Rpc.Pipeline do
     }
   end
 
+  # Determines the module to use for field name mapping in output formatting.
+  # For generic actions with TypedStruct return types that have typescript_field_names/0,
+  # use the return type module. Otherwise, use the resource.
+  defp get_format_module(request) do
+    action = request.action
+
+    case action.type do
+      :action ->
+        # Generic action - check if returns TypedStruct with field mappings
+        case get_typed_struct_module(action) do
+          nil -> request.resource
+          module -> module
+        end
+
+      _ ->
+        # CRUD actions - use the resource
+        request.resource
+    end
+  end
+
+  # Formats output for generic actions that return TypedStruct/NewType modules
+  # Uses ValueFormatter directly with the action's return type and constraints
+  defp format_generic_action_output(data, action, formatter) do
+    return_type = action.returns
+    constraints = action.constraints || []
+
+    ValueFormatter.format(data, return_type, constraints, formatter, :output)
+  end
+
   defp unconstrained_map_action?(action) do
     case ActionIntrospection.action_returns_field_selectable_type?(action) do
       {:ok, :unconstrained_map, _} -> true
@@ -974,6 +1072,25 @@ defmodule AshTypescript.Rpc.Pipeline do
       end
 
     validate_fields_if_needed(params, needs_fields)
+  end
+
+  # In validation mode with no fields, skip field processing and return empty result
+  defp process_fields_unless_validation_mode(
+         _resource,
+         _action_name,
+         [],
+         true = _validation_mode?
+       ) do
+    {:ok, {[], [], []}}
+  end
+
+  defp process_fields_unless_validation_mode(
+         resource,
+         action_name,
+         requested_fields,
+         _validation_mode?
+       ) do
+    RequestedFieldsProcessor.process(resource, action_name, requested_fields)
   end
 
   defp validate_fields_if_needed(_params, false), do: :ok
@@ -1032,6 +1149,24 @@ defmodule AshTypescript.Rpc.Pipeline do
       {:error, _} = error ->
         error
     end
+  end
+
+  # Identity is nil but identities list is not empty - this means identity is required but missing
+  defp maybe_apply_identity_filter(query, nil, identities) when identities != [] do
+    resource = query.resource
+    output_formatter = Rpc.output_field_formatter()
+
+    expected_keys =
+      resource
+      |> get_expected_identity_keys(identities)
+      |> Enum.map(&FieldFormatter.format_field_for_client(&1, resource, output_formatter))
+
+    {:error,
+     {:missing_identity,
+      %{
+        expected_keys: expected_keys,
+        identities: identities
+      }}}
   end
 
   defp maybe_apply_identity_filter(query, _identity, _identities), do: {:ok, query}
@@ -1126,14 +1261,21 @@ defmodule AshTypescript.Rpc.Pipeline do
     |> Enum.uniq()
   end
 
-  # Parses identity input by applying input formatter and reverse field_names mapping
+  # Parses identity input by applying reverse field_names mapping or input formatter
   defp parse_identity_input(resource, identity, formatter) when is_map(identity) do
     Enum.into(identity, %{}, fn {key, value} ->
-      # First apply input formatter (e.g., camelCase → snake_case)
-      formatted_key = FieldFormatter.parse_input_field(key, formatter)
+      # First try to reverse map the original client key directly
+      # This handles cases like "isActive" → :is_active? where the mapping is exact
+      original_key = AshTypescript.Resource.Info.get_original_field_name(resource, key)
 
-      # Then apply reverse field_names mapping to get internal Elixir name
-      internal_key = AshTypescript.Resource.Info.get_original_field_name(resource, formatted_key)
+      internal_key =
+        if original_key != key do
+          # Found a direct mapping (e.g., "isActive" → :is_active?)
+          original_key
+        else
+          # No direct mapping - fall back to formatter-based parsing
+          FieldFormatter.parse_input_field(key, formatter)
+        end
 
       {internal_key, value}
     end)
