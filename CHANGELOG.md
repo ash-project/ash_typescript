@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.11.2](https://github.com/ash-project/ash_typescript/compare/v0.11.1...v0.11.2) (2025-12-09)
+
+
+
+
+### Bug Fixes:
+
+* rpc: simplify field mapping module selection with ActionIntrospection by [@Torkan](https://github.com/Torkan)
+
 ## [v0.11.1](https://github.com/ash-project/ash_typescript/compare/v0.11.0...v0.11.1) (2025-12-09)
 
 
