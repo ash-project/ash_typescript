@@ -55,6 +55,7 @@ defmodule AshTypescript.TypeSystem.Introspection do
       Ash.Type.DateTime,
       Ash.Type.NaiveDatetime,
       Ash.Type.UtcDatetime,
+      Ash.Type.Duration,
       Ash.Type.Atom,
       Ash.Type.UUID,
       Ash.Type.Binary

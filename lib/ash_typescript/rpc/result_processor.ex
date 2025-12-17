@@ -525,6 +525,9 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       match?(%NaiveDateTime{}, value) ->
         NaiveDateTime.to_iso8601(value)
 
+      match?(%Duration{}, value) ->
+        Duration.to_iso8601(value)
+
       match?(%Decimal{}, value) ->
         Decimal.to_string(value)
 

@@ -57,6 +57,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
     :naive_datetime => "NaiveDateTime",
     :utc_datetime => "UtcDateTime",
     :utc_datetime_usec => "UtcDateTimeUsec",
+    :duration => "Duration",
     :binary => "Binary",
     :map => nil,
     :sum => "number",

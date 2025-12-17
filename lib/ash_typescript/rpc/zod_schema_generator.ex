@@ -48,7 +48,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
     Ash.Type.UtcDatetimeUsec => "z.iso.datetime()",
     Ash.Type.DateTime => "z.iso.datetime()",
     Ash.Type.NaiveDatetime => "z.iso.datetime()",
-    Ash.Type.Duration => "z.string()",
+    Ash.Type.Duration => "z.iso.duration()",
     Ash.Type.DurationName => "z.string()",
     Ash.Type.Decimal => "z.string()",
     Ash.Type.Binary => "z.string()",

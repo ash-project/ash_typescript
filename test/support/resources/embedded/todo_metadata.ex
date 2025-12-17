@@ -49,6 +49,7 @@ defmodule AshTypescript.Test.TodoMetadata do
     attribute :deadline, :date, public?: true
     attribute :created_at, :utc_datetime, public?: true, default: &DateTime.utc_now/0
     attribute :reminder_time, :naive_datetime, public?: true
+    attribute :estimated_duration, :duration, public?: true
 
     # Collection types
     attribute :tags, {:array, :string}, public?: true, default: []
