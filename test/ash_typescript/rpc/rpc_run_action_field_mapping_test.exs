@@ -314,7 +314,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
       # Should fail validation due to missing required argument
       assert %{"success" => false, "errors" => errors} = result
       assert is_list(errors)
-      assert length(errors) > 0
+      assert errors != []
     end
   end
 end

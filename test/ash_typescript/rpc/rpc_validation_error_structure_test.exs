@@ -32,7 +32,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
 
       assert result["success"] == false
       assert is_list(result["errors"])
-      assert length(result["errors"]) > 0
+      assert result["errors"] != []
 
       # Field names are formatted for client (camelCase)
       title_error = Enum.find(result["errors"], &("title" in &1["fields"]))
@@ -256,7 +256,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
 
       assert result["success"] == false
       assert is_list(result["errors"])
-      assert length(result["errors"]) > 0
+      assert result["errors"] != []
 
       # Every error should have the required structure
       for error <- result["errors"] do

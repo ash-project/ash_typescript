@@ -101,7 +101,7 @@ defmodule AshTypescript.Rpc.Pipeline do
       show_metadata =
         if metadata_enabled? do
           case metadata_fields_param do
-            fields when is_list(fields) and length(fields) > 0 ->
+            fields when is_list(fields) and fields != [] ->
               requested_fields =
                 Enum.map(fields, fn
                   field when is_binary(field) ->

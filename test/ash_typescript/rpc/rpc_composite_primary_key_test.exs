@@ -149,7 +149,7 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
         })
 
       assert %{"success" => false, "errors" => errors} = result
-      assert length(errors) > 0
+      assert errors != []
     end
 
     test "returns not found error when composite identity doesn't match", %{conn: conn} do

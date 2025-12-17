@@ -1315,7 +1315,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       assert result["success"] == false
       assert is_list(result["errors"])
-      assert length(result["errors"]) > 0
+      assert result["errors"] != []
 
       first_error = List.first(result["errors"])
       assert first_error["type"] == "invalid_pagination"

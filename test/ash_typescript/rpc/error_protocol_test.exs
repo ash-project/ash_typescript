@@ -196,7 +196,7 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
       results = Errors.to_errors(error)
 
       assert is_list(results)
-      assert length(results) > 0
+      assert results != []
     end
   end
 

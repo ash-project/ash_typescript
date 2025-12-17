@@ -326,7 +326,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       assert is_map(result["data"])
       assert result["data"]["name"] == "Alice Smith"
       assert is_list(result["data"]["todos"])
-      assert length(result["data"]["todos"]) > 0
+      assert result["data"]["todos"] != []
       assert hd(result["data"]["todos"])["title"] == "Alice's Todo"
     end
 

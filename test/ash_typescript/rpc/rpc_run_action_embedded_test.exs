@@ -388,7 +388,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       history_todo =
         Enum.find(result["data"], fn todo ->
           Map.has_key?(todo, "metadataHistory") && todo["metadataHistory"] &&
-            is_list(todo["metadataHistory"]) && length(todo["metadataHistory"]) > 0
+            is_list(todo["metadataHistory"]) && todo["metadataHistory"] != []
         end)
 
       assert history_todo != nil

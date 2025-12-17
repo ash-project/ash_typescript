@@ -112,7 +112,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
       assert Map.has_key?(result, "success")
 
       if not result["success"] do
-        assert length(result["errors"]) > 0, "Should have at least one error"
+        assert result["errors"] != [], "Should have at least one error"
         [error | _] = result["errors"]
         assert error["type"] == "not_found"
       end

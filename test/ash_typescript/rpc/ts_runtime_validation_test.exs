@@ -171,7 +171,7 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
 
         calls = TsActionCallExtractor.extract_calls(file_content)
 
-        assert length(calls) > 0,
+        assert calls != [],
                "Expected to extract at least one call from #{unquote(file)}"
 
         # Execute each extracted call
@@ -311,7 +311,7 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
           if config["metadataFields"] && result["data"] do
             data_to_check =
               cond do
-                is_list(result["data"]) && length(result["data"]) > 0 -> hd(result["data"])
+                is_list(result["data"]) && result["data"] != [] -> hd(result["data"])
                 is_map(result["data"]) -> result["data"]
                 true -> nil
               end
@@ -357,7 +357,7 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
   # Verify requested fields are present in response
   defp assert_has_requested_fields(data, fields) when is_list(data) do
     # For list results, check first item if present
-    if length(data) > 0 do
+    if data != [] do
       assert_has_requested_fields(hd(data), fields)
     end
   end

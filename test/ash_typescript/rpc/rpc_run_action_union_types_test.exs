@@ -473,7 +473,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
           Map.has_key?(todo, "content") && todo["content"]
         end)
 
-      assert length(todos_with_content) > 0
+      assert todos_with_content != []
 
       # Check that each todo has only one union member type
       Enum.each(todos_with_content, fn todo ->
@@ -635,7 +635,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
       file_todo =
         Enum.find(result["data"], fn todo ->
           Map.has_key?(todo, "attachments") && todo["attachments"] &&
-            is_list(todo["attachments"]) && length(todo["attachments"]) > 0 &&
+            is_list(todo["attachments"]) && todo["attachments"] != [] &&
             Enum.any?(todo["attachments"], fn attachment ->
               Map.has_key?(attachment, "file")
             end)
@@ -680,7 +680,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
       image_todo =
         Enum.find(result["data"], fn todo ->
           Map.has_key?(todo, "attachments") && todo["attachments"] &&
-            is_list(todo["attachments"]) && length(todo["attachments"]) > 0 &&
+            is_list(todo["attachments"]) && todo["attachments"] != [] &&
             Enum.any?(todo["attachments"], fn attachment ->
               Map.has_key?(attachment, "image")
             end)
@@ -724,7 +724,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
       url_todo =
         Enum.find(result["data"], fn todo ->
           Map.has_key?(todo, "attachments") && todo["attachments"] &&
-            is_list(todo["attachments"]) && length(todo["attachments"]) > 0 &&
+            is_list(todo["attachments"]) && todo["attachments"] != [] &&
             Enum.any?(todo["attachments"], fn attachment ->
               Map.has_key?(attachment, "url")
             end)
@@ -771,10 +771,10 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
       todos_with_attachments =
         Enum.filter(result["data"], fn todo ->
           Map.has_key?(todo, "attachments") && todo["attachments"] &&
-            is_list(todo["attachments"]) && length(todo["attachments"]) > 0
+            is_list(todo["attachments"]) && todo["attachments"] != []
         end)
 
-      assert length(todos_with_attachments) > 0
+      assert todos_with_attachments != []
 
       # Each attachment should have only one union member
       Enum.each(todos_with_attachments, fn todo ->
@@ -817,7 +817,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
       todos_with_attachments =
         Enum.filter(result["data"], fn todo ->
           Map.has_key?(todo, "attachments") && todo["attachments"] &&
-            is_list(todo["attachments"]) && length(todo["attachments"]) > 0
+            is_list(todo["attachments"]) && todo["attachments"] != []
         end)
 
       Enum.each(todos_with_attachments, fn todo ->
@@ -1172,7 +1172,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
       assert Map.has_key?(complex_todo, "attachments")
       attachments = complex_todo["attachments"]
       assert is_list(attachments)
-      assert length(attachments) > 0
+      assert attachments != []
     end
 
     test "processes union types with calculations and aggregates", %{conn: conn} do
@@ -2129,7 +2129,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
       file_todo =
         Enum.find(result["data"], fn todo ->
           Map.has_key?(todo, "attachments") && todo["attachments"] &&
-            is_list(todo["attachments"]) && length(todo["attachments"]) > 0 &&
+            is_list(todo["attachments"]) && todo["attachments"] != [] &&
             Enum.any?(todo["attachments"], fn attachment ->
               Map.has_key?(attachment, "file")
             end)

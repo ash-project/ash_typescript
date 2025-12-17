@@ -463,7 +463,7 @@ defmodule AshTypescript.Codegen.TypeDiscoveryTest do
 
       # Each resource should have at least one path
       Enum.each(result, fn {_resource, paths} ->
-        assert length(paths) > 0, "Each resource should have at least one reference path"
+        assert paths != [], "Each resource should have at least one reference path"
       end)
     end
 
@@ -493,7 +493,7 @@ defmodule AshTypescript.Codegen.TypeDiscoveryTest do
       {results, _visited} = TypeDiscovery.scan_rpc_resource(AshTypescript.Test.Todo)
 
       # Should have found resources with paths
-      assert length(results) > 0
+      assert results != []
 
       # All results should be {resource, path} tuples
       Enum.each(results, fn result ->
@@ -522,7 +522,7 @@ defmodule AshTypescript.Codegen.TypeDiscoveryTest do
           resource == AshTypescript.Test.TodoMetadata
         end)
 
-      assert length(metadata_results) > 0
+      assert metadata_results != []
 
       # At least one path should go through the :metadata attribute
       has_metadata_attr_path =
@@ -543,7 +543,7 @@ defmodule AshTypescript.Codegen.TypeDiscoveryTest do
           resource == AshTypescript.Test.TodoContent.TextContent
         end)
 
-      assert length(text_content_results) > 0
+      assert text_content_results != []
 
       # At least one path should include union member marker
       has_union_path =
@@ -565,7 +565,7 @@ defmodule AshTypescript.Codegen.TypeDiscoveryTest do
           resource == AshTypescript.Test.TodoMetadata
         end)
 
-      assert length(metadata_results) > 0
+      assert metadata_results != []
 
       # At least one path should include array_items marker
       has_array_path =

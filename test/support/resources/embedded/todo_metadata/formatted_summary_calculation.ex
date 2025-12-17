@@ -123,7 +123,7 @@ defmodule AshTypescript.Test.TodoMetadata.FormattedSummaryCalculation do
 
     # Tags
     parts =
-      if length(record.tags || []) > 0 do
+      if (record.tags || []) != [] do
         ["Tags: #{Enum.join(record.tags, ", ")}" | parts]
       else
         parts
@@ -158,7 +158,7 @@ defmodule AshTypescript.Test.TodoMetadata.FormattedSummaryCalculation do
       end
 
     data_with_tags =
-      if length(record.tags || []) > 0 do
+      if (record.tags || []) != [] do
         Map.put(data_with_deadline, :tags, record.tags)
       else
         data_with_deadline

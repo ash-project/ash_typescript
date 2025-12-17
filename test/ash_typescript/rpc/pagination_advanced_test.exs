@@ -330,8 +330,8 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
       end)
 
       # At least some todos should have comments
-      todos_with_comments = Enum.filter(todo_list, fn todo -> length(todo["comments"]) > 0 end)
-      assert length(todos_with_comments) > 0, "Some todos should have comments loaded"
+      todos_with_comments = Enum.filter(todo_list, fn todo -> todo["comments"] != [] end)
+      assert todos_with_comments != [], "Some todos should have comments loaded"
 
       # Verify comment structure
       for todo <- todos_with_comments do
@@ -488,7 +488,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
       assert second_titles == Enum.sort(second_titles), "Second page should be sorted"
 
       # Last item of first page should be <= first item of second page
-      if length(first_titles) > 0 and length(second_titles) > 0 do
+      if first_titles != [] and second_titles != [] do
         last_first = List.last(first_titles)
         first_second = List.first(second_titles)
         assert last_first <= first_second, "Sort order should be maintained across pages"
