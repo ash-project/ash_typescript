@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.11.3](https://github.com/ash-project/ash_typescript/compare/v0.11.2...v0.11.3) (2025-12-17)
+
+
+
+
+### Bug Fixes:
+
+* types: add Duration struct support with ISO 8601 serialization by [@Torkan](https://github.com/Torkan)
+
 ## [v0.11.2](https://github.com/ash-project/ash_typescript/compare/v0.11.1...v0.11.2) (2025-12-09)
 
 
