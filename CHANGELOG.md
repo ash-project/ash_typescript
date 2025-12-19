@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.11.4](https://github.com/ash-project/ash_typescript/compare/v0.11.3...v0.11.4) (2025-12-19)
+
+
+
+
+### Bug Fixes:
+
+* install: use find_module to locate router for custom module names by [@Torkan](https://github.com/Torkan)
+
 ## [v0.11.3](https://github.com/ash-project/ash_typescript/compare/v0.11.2...v0.11.3) (2025-12-17)
 
 
