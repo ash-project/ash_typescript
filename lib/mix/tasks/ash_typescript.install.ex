@@ -108,45 +108,52 @@ if Code.ensure_loaded?(Igniter) do
       validate_endpoint = Application.get_env(:ash_typescript, :validate_endpoint)
 
       {igniter, router_module} = Igniter.Libs.Phoenix.select_router(igniter)
-      router_path = Igniter.Project.Module.proper_location(igniter, router_module)
 
-      igniter = Igniter.include_existing_file(igniter, router_path)
-      router_file = Map.get(igniter.rewrite.sources, router_path)
-      router_content = router_file.content
-      run_route_exists = String.contains?(router_content, "AshTypescriptRpcController, :run")
+      case Igniter.Project.Module.find_module(igniter, router_module) do
+        {:ok, {igniter, source, _zipper}} ->
+          router_content = Rewrite.Source.get(source, :content)
+          run_route_exists = String.contains?(router_content, "AshTypescriptRpcController, :run")
 
-      validate_route_exists =
-        String.contains?(router_content, "AshTypescriptRpcController, :validate")
+          validate_route_exists =
+            String.contains?(router_content, "AshTypescriptRpcController, :validate")
 
-      routes_to_add = []
+          routes_to_add = []
 
-      routes_to_add =
-        if run_route_exists do
-          routes_to_add
-        else
-          ["  post \"#{run_endpoint}\", AshTypescriptRpcController, :run" | routes_to_add]
-        end
+          routes_to_add =
+            if run_route_exists do
+              routes_to_add
+            else
+              ["  post \"#{run_endpoint}\", AshTypescriptRpcController, :run" | routes_to_add]
+            end
 
-      routes_to_add =
-        if validate_route_exists do
-          routes_to_add
-        else
-          [
-            "  post \"#{validate_endpoint}\", AshTypescriptRpcController, :validate"
-            | routes_to_add
-          ]
-        end
+          routes_to_add =
+            if validate_route_exists do
+              routes_to_add
+            else
+              [
+                "  post \"#{validate_endpoint}\", AshTypescriptRpcController, :validate"
+                | routes_to_add
+              ]
+            end
 
-      if routes_to_add != [] do
-        routes_string = Enum.join(Enum.reverse(routes_to_add), "\n") <> "\n"
+          if routes_to_add != [] do
+            routes_string = Enum.join(Enum.reverse(routes_to_add), "\n") <> "\n"
 
-        igniter
-        |> Igniter.Libs.Phoenix.append_to_scope("/", routes_string,
-          arg2: web_module,
-          placement: :after
-        )
-      else
-        igniter
+            igniter
+            |> Igniter.Libs.Phoenix.append_to_scope("/", routes_string,
+              arg2: web_module,
+              placement: :after
+            )
+          else
+            igniter
+          end
+
+        {:error, igniter} ->
+          Igniter.add_warning(
+            igniter,
+            "Could not find router module #{inspect(router_module)}. " <>
+              "Please manually add RPC routes to your router."
+          )
       end
     end
 
@@ -672,23 +679,30 @@ if Code.ensure_loaded?(Igniter) do
 
     defp add_page_index_route(igniter, web_module) do
       {igniter, router_module} = Igniter.Libs.Phoenix.select_router(igniter)
-      router_path = Igniter.Project.Module.proper_location(igniter, router_module)
-      igniter = Igniter.include_existing_file(igniter, router_path)
-      router_file = Map.get(igniter.rewrite.sources, router_path)
-      router_content = router_file.content
 
-      route_exists = String.contains?(router_content, "get \"/ash-typescript\"")
+      case Igniter.Project.Module.find_module(igniter, router_module) do
+        {:ok, {igniter, source, _zipper}} ->
+          router_content = Rewrite.Source.get(source, :content)
+          route_exists = String.contains?(router_content, "get \"/ash-typescript\"")
 
-      if route_exists do
-        igniter
-      else
-        route_string = "  get \"/ash-typescript\", PageController, :index"
+          if route_exists do
+            igniter
+          else
+            route_string = "  get \"/ash-typescript\", PageController, :index"
 
-        igniter
-        |> Igniter.Libs.Phoenix.append_to_scope("/", route_string,
-          arg2: web_module,
-          placement: :after
-        )
+            igniter
+            |> Igniter.Libs.Phoenix.append_to_scope("/", route_string,
+              arg2: web_module,
+              placement: :after
+            )
+          end
+
+        {:error, igniter} ->
+          Igniter.add_warning(
+            igniter,
+            "Could not find router module #{inspect(router_module)}. " <>
+              "Please manually add the /ash-typescript route to your router."
+          )
       end
     end
 
