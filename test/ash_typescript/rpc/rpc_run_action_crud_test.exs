@@ -220,6 +220,41 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
       refute Map.has_key?(updated_todo, "description")
       refute Map.has_key?(updated_todo, "priority")
     end
+
+    test "updates non-nil attribute to nil", %{conn: conn, user: user} do
+      # Create a todo with a description (non-nil)
+      %{"success" => true, "data" => todo_with_desc} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_todo",
+          "input" => %{
+            "title" => "Todo with Description",
+            "description" => "This is a description",
+            "userId" => user["id"]
+          },
+          "fields" => ["id", "title", "description"]
+        })
+
+      assert todo_with_desc["description"] == "This is a description"
+
+      # Update the todo setting description to nil
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "update_todo",
+          "identity" => todo_with_desc["id"],
+          "input" => %{
+            "description" => nil
+          },
+          "fields" => ["id", "title", "description"]
+        })
+
+      assert result["success"] == true
+      updated_todo = result["data"]
+
+      # Verify the description is now nil
+      assert updated_todo["id"] == todo_with_desc["id"]
+      assert updated_todo["title"] == "Todo with Description"
+      assert updated_todo["description"] == nil
+    end
   end
 
   describe "field validation for CRUD actions" do
