@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.11.5](https://github.com/ash-project/ash_typescript/compare/v0.11.4...v0.11.5) (2026-01-08)
+
+
+
+
+### Bug Fixes:
+
+* codegen: discover embedded resources used as direct action arguments by [@Torkan](https://github.com/Torkan)
+
 ## [v0.11.4](https://github.com/ash-project/ash_typescript/compare/v0.11.3...v0.11.4) (2025-12-19)
 
 
