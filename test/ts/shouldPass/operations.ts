@@ -177,7 +177,7 @@ if (getStatisticsTodoResult.success) {
 
 // Test 9: Get single todo with basic fields
 export const getTodoBasic = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: ["id", "title", "description", "completed", "status", "priority"],
 });
 
@@ -195,7 +195,7 @@ if (getTodoBasic.success) {
 
 // Test 10: Get todo with relationships
 export const getTodoWithRelations = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     "title",
@@ -222,7 +222,7 @@ if (getTodoWithRelations.success) {
 
 // Test 11: Get todo with self calculation
 export const getTodoWithSelf = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     "title",

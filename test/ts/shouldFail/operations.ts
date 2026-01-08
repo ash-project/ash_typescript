@@ -37,7 +37,7 @@ createTodo({
 
 // Test 3: Invalid nested field access
 getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -125,7 +125,7 @@ destroyTodo({
 
 // Test 11: Invalid nested calculation structure
 getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {

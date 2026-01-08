@@ -11,7 +11,7 @@ import {
 
 // Test 1: Invalid property name instead of fields
 export const invalidPropertyInsteadOfFields = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -26,7 +26,7 @@ export const invalidPropertyInsteadOfFields = await getTodo({
 
 // Test 2: Missing required fields property in calculations
 export const missingFieldsProperty = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -40,7 +40,7 @@ export const missingFieldsProperty = await getTodo({
 
 // Test 3: Invalid nested calculation structure
 export const invalidNestedStructure = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -63,7 +63,7 @@ export const invalidNestedStructure = await getTodo({
 
 // Test 4: Array instead of object for calculation structure
 export const arrayInsteadOfObject = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     // @ts-expect-error - calculation objects should be properly structured, not arrays
@@ -80,7 +80,7 @@ export const arrayInsteadOfObject = await getTodo({
 
 // Test 5: Wrong property name for calculation args
 export const wrongArgsProperty = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -95,7 +95,7 @@ export const wrongArgsProperty = await getTodo({
 
 // Test 6: Wrong structure for relationship in calculation
 export const wrongRelationshipStructure = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -120,7 +120,7 @@ export const wrongRelationshipStructure = await getTodo({
 
 // Test 7: Invalid calculation nesting
 export const invalidCalculationNesting = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -159,7 +159,7 @@ export const invalidCalculationNesting = await getTodo({
 
 // Test 8: Fields as object instead of array
 export const fieldsAsObject = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -177,7 +177,7 @@ export const fieldsAsObject = await getTodo({
 
 // Test 9: Empty calculation object
 export const emptyCalculationObject = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {

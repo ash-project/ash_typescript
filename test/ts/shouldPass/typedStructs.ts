@@ -5,7 +5,7 @@
 import { getTodo } from "../generated";
 
 export const todoWithStatistics = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     "title",

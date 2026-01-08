@@ -221,10 +221,11 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       assert destroy_result["data"] == %{}
 
       # Verify todo is actually deleted - get operations return not found error
+      # For read actions with get_by :id, the id is passed via input, not identity
       get_result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo",
-          "identity" => todo["id"],
+          "input" => %{"id" => todo["id"]},
           "fields" => ["id"]
         })
 

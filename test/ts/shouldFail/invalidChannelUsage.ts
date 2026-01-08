@@ -22,7 +22,7 @@ declare const mockChannel: Channel;
 // @ts-expect-error - resultHandler is required
 getTodoChannel({
   channel: mockChannel,
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: ["id", "title"],
   errorHandler: (error) => console.error("Error:", error),
   timeoutHandler: () => console.error("Timeout"),
@@ -77,7 +77,7 @@ updateTodoChannel({
 // Test 5: Invalid nested field access in channel operations
 getTodoChannel({
   channel: mockChannel,
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -99,7 +99,7 @@ getTodoChannel({
 // Test 6: Wrong handler function signatures
 getTodoChannel({
   channel: mockChannel,
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: ["id", "title"],
   resultHandler: () => console.log("Wrong signature"),
   errorHandler: (error) => console.error("Error:", error),
@@ -146,7 +146,7 @@ listTodosChannel({
 getTodoChannel({
   // @ts-expect-error - channel should be Channel type
   channel: "not-a-channel",
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: ["id"],
   resultHandler: (result) => console.log(result),
   errorHandler: (error) => console.error("Error:", error),
@@ -166,7 +166,7 @@ destroyTodoChannel({
 // Test 11: Invalid validation function usage with extra properties
 validateGetTodoChannel({
   channel: mockChannel,
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   // @ts-expect-error - fields should not be valid for validation functions
   fields: ["id", "title"],
   resultHandler: (result) => console.log(result),

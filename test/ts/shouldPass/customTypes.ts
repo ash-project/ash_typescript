@@ -9,7 +9,7 @@ import { getTodo, createTodo } from "../generated";
 
 // Test 0: Custom type field selection
 export const customTypeTest = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: ["id", "title", "priorityScore"],
 });
 
@@ -21,7 +21,7 @@ if (customTypeTest.success && customTypeTest.data?.priorityScore) {
 
 // Test 0.1: ColorPalette custom type field selection
 export const colorPaletteTest = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: ["id", "title", "colorPalette"],
 });
 

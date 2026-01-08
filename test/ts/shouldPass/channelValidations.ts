@@ -22,7 +22,7 @@ declare const mockChannel: Channel;
 // Test 1: Validation with minimal required fields
 validateGetTodoChannel({
   channel: mockChannel,
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   resultHandler: (result) => {
     if (result.success) {
       console.log("Minimal validation passed");

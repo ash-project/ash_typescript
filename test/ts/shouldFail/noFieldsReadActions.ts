@@ -27,7 +27,7 @@ listTodos({
 // Test 3: Get todo without fields should fail
 // @ts-expect-error - fields is required for read actions
 getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   // Missing fields parameter - should fail
 });
 

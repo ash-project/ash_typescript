@@ -157,7 +157,7 @@ if (
 
 // Test 5: No-argument calculation with get action
 export const getWithNoArgCalc = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     "title",

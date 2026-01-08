@@ -9,7 +9,7 @@ import { getTodo, listTodos, createTodo } from "../generated";
 
 // Test 1: Wrong type assignment from result
 export const wrongTypeAssignment = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     "title",
@@ -104,7 +104,7 @@ if (listWithWrongTypes.success) {
 
 // Test 5: Invalid field access with wrong assumptions
 export const testResultAccess = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: ["id", "title"],
 });
 

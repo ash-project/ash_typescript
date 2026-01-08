@@ -9,7 +9,7 @@ import { getTodo } from "../generated";
 
 // Test 1: Basic nested self calculation with field selection
 export const basicNestedSelf = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     "title",
@@ -61,7 +61,7 @@ if (basicNestedSelf.success && basicNestedSelf.data?.self) {
 
 // Test 2: Deep nesting with different field combinations at each level
 export const deepNestedSelf = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     "description",
@@ -115,7 +115,7 @@ if (deepNestedSelf.success && deepNestedSelf.data?.self?.self?.self) {
 
 // Test 6: Edge case - self calculation with minimal fields
 export const minimalSelf = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -142,7 +142,7 @@ if (minimalSelf.success && minimalSelf.data?.self?.self) {
 
 // Test 8: Verify that different args types work correctly
 export const varyingCalcArgs = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {

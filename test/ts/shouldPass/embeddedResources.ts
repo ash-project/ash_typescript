@@ -99,7 +99,7 @@ if (updateWithEmbedded.success) {
 
 // Test 11: Field selection with embedded resources (NEW ARCHITECTURE)
 export const todoWithSelectedMetadata = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     "title",
@@ -148,7 +148,7 @@ if (todoWithSelectedMetadata.success && todoWithSelectedMetadata.data) {
 
 // Test 12: Complex scenario combining embedded resources with nested calculations (NEW ARCHITECTURE)
 export const complexEmbeddedScenario = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     "title",

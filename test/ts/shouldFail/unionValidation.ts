@@ -24,7 +24,7 @@ export const invalidUnionString = await createTodo({
 
 // Test 2: Invalid union field in getTodo
 export const getWithInvalidUnionString = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     "title",
@@ -62,7 +62,7 @@ export const invalidBothUnionStrings = await createTodo({
 
 // Test 5: Invalid union in calculation
 export const invalidUnionInCalculation = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -81,7 +81,7 @@ export const invalidUnionInCalculation = await getTodo({
 
 // Test 6: Invalid union field with empty object
 export const invalidUnionEmptyObject = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     "title",
@@ -94,7 +94,7 @@ export const invalidUnionEmptyObject = await getTodo({
 
 // Test 7: Invalid union field with wrong object structure
 export const invalidUnionWrongStructure = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     "title",
@@ -109,7 +109,7 @@ export const invalidUnionWrongStructure = await getTodo({
 
 // Test 8: Invalid nested union field syntax in complex structure
 export const invalidNestedUnionSyntax = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -130,7 +130,7 @@ export const invalidNestedUnionSyntax = await getTodo({
 
 // Test 9: Invalid union member field selection
 export const invalidUnionMemberFields = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     "title",
@@ -150,7 +150,7 @@ export const invalidUnionMemberFields = await getTodo({
 
 // Test 10: Invalid array union with wrong member
 export const invalidArrayUnionMember = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     "title",

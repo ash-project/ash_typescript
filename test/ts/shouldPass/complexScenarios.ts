@@ -9,7 +9,7 @@ import { getTodo } from "../generated";
 
 // Test 7: Complex scenario combining multiple patterns
 export const complexScenario = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     "title",

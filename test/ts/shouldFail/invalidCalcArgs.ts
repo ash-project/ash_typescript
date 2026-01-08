@@ -11,7 +11,7 @@ import {
 
 // Test 1: Wrong type for args prefix
 export const wrongCalcArgsType = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -35,7 +35,7 @@ export const wrongCalcArgsType = await getTodo({
 
 // Test 2: Invalid args structure
 export const invalidCalcArgs = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -49,7 +49,7 @@ export const invalidCalcArgs = await getTodo({
 
 // Test 3: Invalid args type entirely
 export const completelyWrongCalcArgs = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -64,7 +64,7 @@ export const completelyWrongCalcArgs = await getTodo({
 
 // Test 4: args as array instead of object
 export const argsAsArray = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -79,7 +79,7 @@ export const argsAsArray = await getTodo({
 
 // Test 5: args as null (should be valid or omitted entirely)
 export const argsAsNull = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -94,7 +94,7 @@ export const argsAsNull = await getTodo({
 
 // Test 6: Missing fields property entirely (this should fail)
 export const missingFieldsProperty = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {

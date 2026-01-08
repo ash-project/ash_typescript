@@ -11,7 +11,7 @@ import {
 
 // Test 1: Invalid field names in calculations
 export const invalidFieldNames = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id", "title",
     {
@@ -41,7 +41,7 @@ export const invalidFieldNames = await getTodo({
 
 // Test 2: Invalid top-level field names
 export const invalidTopLevelFields = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id", 
     "title",
@@ -54,7 +54,7 @@ export const invalidTopLevelFields = await getTodo({
 
 // Test 3: Invalid relationship field names
 export const invalidRelationshipFields = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -78,7 +78,7 @@ export const invalidRelationshipFields = await getTodo({
 
 // Test 4: Invalid nested relationship fields
 export const invalidNestedRelationshipFields = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -95,7 +95,7 @@ export const invalidNestedRelationshipFields = await getTodo({
 
 // Test 5: Invalid deeply nested field access
 export const deepInvalidFields = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
@@ -129,7 +129,7 @@ export const deepInvalidFields = await getTodo({
 
 // Test 6: Invalid fields in relationship within calculation
 export const invalidFieldsInRelationshipWithinCalc = await getTodo({
-  input: {},
+  input: { id: "00000000-0000-0000-0000-000000000001" },
   fields: [
     "id",
     {
