@@ -190,7 +190,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     #{generate_all_schemas_for_resources(all_resources_for_schemas, all_resources_for_schemas, struct_argument_resources)}
 
-    #{ZodSchemaGenerator.generate_zod_schemas_for_resources(embedded_resources ++ struct_argument_resources)}
+    #{ZodSchemaGenerator.generate_zod_schemas_for_resources(Enum.uniq(embedded_resources ++ struct_argument_resources))}
 
     #{generate_filter_types(all_resources_for_schemas, all_resources_for_schemas)}
 

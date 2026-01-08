@@ -401,32 +401,26 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
   end
 
   defp find_struct_resources_in_type(type, constraints) do
-    case type do
-      Ash.Type.Struct ->
+    cond do
+      is_atom(type) && Introspection.is_embedded_resource?(type) ->
+        [type]
+
+      type == Ash.Type.Struct ->
         instance_of = Keyword.get(constraints, :instance_of)
 
-        if instance_of && Spark.Dsl.is?(instance_of, Ash.Resource) &&
-             !Introspection.is_embedded_resource?(instance_of) do
+        if instance_of && Spark.Dsl.is?(instance_of, Ash.Resource) do
           [instance_of]
         else
           []
         end
 
-      :struct ->
-        instance_of = Keyword.get(constraints, :instance_of)
-
-        if instance_of && Spark.Dsl.is?(instance_of, Ash.Resource) &&
-             !Introspection.is_embedded_resource?(instance_of) do
-          [instance_of]
-        else
-          []
-        end
-
-      {:array, inner_type} ->
+      # Array types - recurse into inner type
+      match?({:array, _}, type) ->
+        {:array, inner_type} = type
         items_constraints = Keyword.get(constraints, :items, [])
         find_struct_resources_in_type(inner_type, items_constraints)
 
-      _ ->
+      true ->
         []
     end
   end
