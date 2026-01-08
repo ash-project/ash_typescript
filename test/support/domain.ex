@@ -46,6 +46,9 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :assign_to_user_todo, :assign_to_user
       rpc_action :assign_to_users_todo, :assign_to_users
 
+      rpc_action :process_metadata_todo, :process_metadata
+      rpc_action :process_metadata_batch_todo, :process_metadata_batch
+
       typed_query :list_todos_user_page, :read do
         ts_fields_const_name "listTodosUserPage"
         ts_result_type_name "ListTodosUserPageResult"

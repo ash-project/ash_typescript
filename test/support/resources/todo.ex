@@ -761,5 +761,54 @@ defmodule AshTypescript.Test.Todo do
         {:ok, results}
       end
     end
+
+    action :process_metadata, :map do
+      constraints fields: [
+                    processed: [type: :boolean, allow_nil?: false],
+                    priority: [type: :integer, allow_nil?: true],
+                    source: [type: :string, allow_nil?: false]
+                  ]
+
+      argument :metadata, AshTypescript.Test.TodoMetadata, allow_nil?: false
+
+      argument :options, :map do
+        allow_nil? true
+      end
+
+      run fn input, _context ->
+        metadata = input.arguments.metadata
+
+        {:ok,
+         %{
+           processed: true,
+           priority: Map.get(metadata, :priority_score),
+           source: "direct_embedded_argument"
+         }}
+      end
+    end
+
+    action :process_metadata_batch, {:array, :map} do
+      constraints items: [
+                    fields: [
+                      processed: [type: :boolean, allow_nil?: false],
+                      priority: [type: :integer, allow_nil?: true]
+                    ]
+                  ]
+
+      argument :metadata_items, {:array, AshTypescript.Test.TodoMetadata}, allow_nil?: false
+
+      run fn input, _context ->
+        results =
+          input.arguments.metadata_items
+          |> Enum.map(fn metadata ->
+            %{
+              processed: true,
+              priority: Map.get(metadata, :priority_score)
+            }
+          end)
+
+        {:ok, results}
+      end
+    end
   end
 end
