@@ -44,6 +44,8 @@ SPDX-License-Identifier: MIT
 | **Get Action** | `rpc_action :get_todo, :read, get?: true` | Single record via Ash.read_one |
 | **Get By Fields** | `rpc_action :get_by_email, :read, get_by: [:email]` | Single record by specific fields |
 | **Not Found Error** | `not_found_error?: false` | Return null instead of error |
+| **Disable Filtering** | `rpc_action :list, :read, derive_filter?: false` | Disable filter for read action |
+| **Disable Sorting** | `rpc_action :list, :read, derive_sort?: false` | Disable sort for read action |
 | **Metadata Selection (Read)** | `metadataFields: [\"field1\"]` | Select metadata (merged into records) |
 | **Metadata Access (Mutations)** | `result.metadata.field1` | Access metadata (separate field) |
 | **Type Overrides** | `type_mapping_overrides: [{Module, \"TSType\"}]` | Map dependency types |
@@ -53,12 +55,17 @@ SPDX-License-Identifier: MIT
 
 | Action Type | Fields | Filter | Page | Sort | Input | Identity |
 |-------------|--------|--------|------|------|-------|----------|
-| **read** | ✓ | ✓ | ✓ | ✓ | ✓ | - |
+| **read** | ✓ | ✓* | ✓ | ✓** | ✓ | - |
 | **read (get?/get_by)** | ✓ | - | - | - | ✓ | - |
+| **read (derive_filter?: false)** | ✓ | - | ✓ | ✓ | ✓ | - |
+| **read (derive_sort?: false)** | ✓ | ✓ | ✓ | - | ✓ | - |
 | **create** | ✓ | - | - | - | ✓ | - |
 | **update** | ✓ | - | - | - | ✓ | ✓ |
 | **destroy** | ✓ | - | - | - | ✓ | ✓ |
 | **custom** | ✓ | varies | varies | varies | ✓ | - |
+
+*Filter can be disabled with `derive_filter?: false`
+**Sort can be disabled with `derive_sort?: false`
 
 ## Core Patterns
 

@@ -265,6 +265,45 @@ end
 
 ## Configuration
 
+### RPC Action Options
+
+#### `derive_filter?` Option
+
+Controls whether client-side filtering is enabled for a read action. Defaults to `true`.
+
+```elixir
+rpc_action :list_todos, :read                        # Filter enabled (default)
+rpc_action :list_todos_no_filter, :read, derive_filter?: false  # Filter disabled
+```
+
+**When `derive_filter?: false`**:
+- **Codegen**: `supports_filtering` is set to `false` in action context
+- **TypeScript**: No `filter` field in generated config type
+- **Pipeline**: Filter dropped in Stage 1 (parse_request) - client filter ignored
+- **Sorting**: Still available (`supports_sorting` is independent)
+
+#### `derive_sort?` Option
+
+Controls whether client-side sorting is enabled for a read action. Defaults to `true`.
+
+```elixir
+rpc_action :list_todos, :read                        # Sort enabled (default)
+rpc_action :list_todos_no_sort, :read, derive_sort?: false  # Sort disabled
+rpc_action :list_todos_minimal, :read, derive_filter?: false, derive_sort?: false  # Both disabled
+```
+
+**When `derive_sort?: false`**:
+- **Codegen**: `supports_sorting` is set to `false` in action context
+- **TypeScript**: No `sort` field in generated config type
+- **Pipeline**: Sort dropped in Stage 1 (parse_request) - client sort ignored
+- **Filtering**: Still available (`supports_filtering` is independent)
+
+**Implementation locations for both options**:
+- DSL schema: `lib/ash_typescript/rpc.ex` (RpcAction struct + schema)
+- Action context: `lib/ash_typescript/rpc/codegen/helpers/config_builder.ex:60-81`
+- Config generation: `lib/ash_typescript/rpc/codegen/function_generators/function_core.ex:175-188`
+- Pipeline drop: `lib/ash_typescript/rpc/pipeline.ex:157-161`
+
 ### Field Formatters
 
 Configure input/output field formatting in your config:

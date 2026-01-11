@@ -48,6 +48,8 @@ defmodule MyApp.Domain do
   typescript_rpc do
     resource MyApp.Todo do
       rpc_action :list_todos, :read
+      rpc_action :list_todos_no_filter, :read, derive_filter?: false  # Disable client filtering
+      rpc_action :list_todos_no_sort, :read, derive_sort?: false      # Disable client sorting
     end
   end
 end

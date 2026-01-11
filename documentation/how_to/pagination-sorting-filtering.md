@@ -316,9 +316,111 @@ if (sortedPage.success) {
 }
 ```
 
+### Disabling Sorting
+
+Similar to filtering, you can disable sorting for specific actions using `derive_sort?: false`:
+
+```elixir
+typescript_rpc do
+  resource MyApp.Todo do
+    # Standard read action with full sorting support
+    rpc_action :list_todos, :read
+
+    # Read action without client-side sorting (server controls order)
+    rpc_action :list_ranked_todos, :read, derive_sort?: false
+
+    # Disable both filtering and sorting
+    rpc_action :list_curated_todos, :read, derive_filter?: false, derive_sort?: false
+  end
+end
+```
+
+When `derive_sort?: false` is set:
+- The `sort` parameter is **not included** in the generated TypeScript config type
+- Any sort sent by the client is **silently dropped** (ignored at runtime)
+- **Filtering and pagination remain available** (only sorting is disabled)
+
+```typescript
+// With derive_sort?: false, no sort parameter is available
+const rankedTodos = await listRankedTodos({
+  fields: ["id", "title", "rank"],
+  filter: { status: { eq: "active" } },  // ✓ Still available
+  page: { limit: 20 }                    // ✓ Still available
+  // sort: "-rank"                       // ✗ Not available in TypeScript types
+});
+```
+
+This is useful when:
+- Server-side ranking/ordering logic should not be overridden
+- The action returns results in a specific order that must be preserved
+- You want to simplify the client API by removing sorting options
+
 ## Filtering
 
 Filter results using type-safe filter objects that match your resource's attributes.
+
+### Disabling Filtering
+
+In some cases, you may want to expose a read action without client-side filtering capabilities. For example:
+- Actions that apply server-side filtering logic via action arguments
+- Actions where filtering should be controlled entirely by the backend
+- Simplified endpoints that don't need filter complexity
+
+Use `derive_filter?: false` to disable filtering for a specific RPC action:
+
+```elixir
+typescript_rpc do
+  resource MyApp.Todo do
+    # Standard read action with full filtering support
+    rpc_action :list_todos, :read
+
+    # Read action without client-side filtering
+    rpc_action :list_recent_todos, :read, derive_filter?: false
+  end
+end
+```
+
+When `derive_filter?: false` is set:
+- The `filter` parameter is **not included** in the generated TypeScript config type
+- The filter type for this action is **not generated**
+- Any filter sent by the client is **silently dropped** (ignored at runtime)
+- **Sorting and pagination remain available** (only filtering is disabled)
+
+```typescript
+// With derive_filter?: false, no filter parameter is available
+const todos = await listRecentTodos({
+  fields: ["id", "title"],
+  sort: "-createdAt",      // ✓ Still available
+  page: { limit: 20 }      // ✓ Still available
+  // filter: {...}         // ✗ Not available in TypeScript types
+});
+```
+
+This is useful when your action applies its own filtering logic via action arguments:
+
+```elixir
+# Action applies server-side date filtering
+read :list_recent do
+  argument :days_back, :integer, default: 7
+
+  prepare fn query, _context ->
+    days = Ash.Query.get_argument(query, :days_back)
+    cutoff = Date.utc_today() |> Date.add(-days)
+    Ash.Query.filter(query, inserted_at >= ^cutoff)
+  end
+end
+
+# Expose without client-side filter (use action argument instead)
+rpc_action :list_recent_todos, :list_recent, derive_filter?: false
+```
+
+```typescript
+// Use action argument for filtering instead
+const recentTodos = await listRecentTodos({
+  fields: ["id", "title"],
+  input: { daysBack: 14 }  // Server-side filtering via argument
+});
+```
 
 ### Basic Filters
 
