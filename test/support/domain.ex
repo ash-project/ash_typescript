@@ -39,6 +39,13 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :search_paginated_todos, :search_paginated
       rpc_action :list_recent_todos, :list_recent
       rpc_action :list_high_priority_todos, :list_high_priority
+
+      # Test derive_filter? option - disables filter support for this read action
+      rpc_action :list_todos_no_filter, :read, derive_filter?: false
+      # Test derive_sort? option - disables sort support for this read action
+      rpc_action :list_todos_no_sort, :read, derive_sort?: false
+      # Test both disabled
+      rpc_action :list_todos_no_filter_no_sort, :read, derive_filter?: false, derive_sort?: false
       rpc_action :get_keyword_options_todo, :get_keyword_options
       rpc_action :get_coordinates_info_todo, :get_coordinates_info
       rpc_action :get_custom_data_todo, :get_custom_data
