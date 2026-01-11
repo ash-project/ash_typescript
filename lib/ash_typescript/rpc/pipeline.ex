@@ -154,6 +154,12 @@ defmodule AshTypescript.Rpc.Pipeline do
           []
         end
 
+      # derive_filter? and derive_sort? default to true - when false, drop respective params
+      derive_filter? = Map.get(rpc_action, :derive_filter?, true)
+      derive_sort? = Map.get(rpc_action, :derive_sort?, true)
+      filter = if derive_filter?, do: normalized_params[:filter], else: nil
+      sort = if derive_sort?, do: formatted_sort, else: nil
+
       request =
         Request.new(%{
           domain: domain,
@@ -169,8 +175,8 @@ defmodule AshTypescript.Rpc.Pipeline do
           input: input,
           identity: normalized_params[:identity],
           get_by: get_by,
-          filter: normalized_params[:filter],
-          sort: formatted_sort,
+          filter: filter,
+          sort: sort,
           pagination: pagination,
           show_metadata: show_metadata
         })

@@ -115,7 +115,16 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
       if include_filtering_pagination and context.supports_filtering do
         payload_fields ++
           [
-            "...(config.#{format_output_field(:filter)} && { #{format_output_field(:filter)}: config.#{format_output_field(:filter)} })",
+            "...(config.#{format_output_field(:filter)} && { #{format_output_field(:filter)}: config.#{format_output_field(:filter)} })"
+          ]
+      else
+        payload_fields
+      end
+
+    payload_fields =
+      if include_filtering_pagination and context.supports_sorting do
+        payload_fields ++
+          [
             "...(config.#{format_output_field(:sort)} && { #{format_output_field(:sort)}: config.#{format_output_field(:sort)} })"
           ]
       else

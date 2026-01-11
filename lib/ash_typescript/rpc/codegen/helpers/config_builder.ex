@@ -57,6 +57,10 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
 
     is_get_action = ash_get? or rpc_get? or rpc_get_by
 
+    # derive_filter? and derive_sort? default to true - when false, disables respective support
+    derive_filter? = Map.get(rpc_action, :derive_filter?, true)
+    derive_sort? = Map.get(rpc_action, :derive_sort?, true)
+
     identities =
       if action.type in [:update, :destroy] do
         Map.get(rpc_action, :identities, [:_primary_key])
@@ -70,7 +74,8 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
       supports_pagination:
         action.type == :read and not is_get_action and
           ActionIntrospection.action_supports_pagination?(action),
-      supports_filtering: action.type == :read and not is_get_action,
+      supports_filtering: action.type == :read and not is_get_action and derive_filter?,
+      supports_sorting: action.type == :read and not is_get_action and derive_sort?,
       action_input_type: ActionIntrospection.action_input_type(resource, action),
       is_get_action: is_get_action
     }

@@ -180,7 +180,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore do
         config_fields
       end
 
-    if context.supports_filtering do
+    if context.supports_sorting do
       config_fields ++ ["  #{format_output_field(:sort)}?: string;"]
     else
       config_fields

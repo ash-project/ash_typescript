@@ -21,6 +21,8 @@ defmodule AshTypescript.Rpc do
       :get_by,
       :not_found_error?,
       :identities,
+      :derive_filter?,
+      :derive_sort?,
       __spark_metadata__: nil
     ]
   end
@@ -149,6 +151,18 @@ defmodule AshTypescript.Rpc do
         doc:
           "List of identities that can be used to look up records for update/destroy actions. Use `:_primary_key` for the primary key, or identity names like `:email`. Defaults to `[:_primary_key]`. Use `[]` for actor-scoped actions that don't need a lookup key.",
         default: [:_primary_key]
+      ],
+      derive_filter?: [
+        type: :boolean,
+        doc:
+          "When false, disables filter support for this read action. The filter key will not be included in the generated TypeScript config, the action's filter type won't be generated, and any filter sent by the client will be dropped. Defaults to true.",
+        default: true
+      ],
+      derive_sort?: [
+        type: :boolean,
+        doc:
+          "When false, disables sort support for this read action. The sort key will not be included in the generated TypeScript config, and any sort sent by the client will be dropped. Defaults to true.",
+        default: true
       ]
     ],
     args: [:name, :action]
