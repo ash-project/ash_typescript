@@ -23,6 +23,8 @@ defmodule AshTypescript.Rpc do
       :identities,
       :derive_filter?,
       :derive_sort?,
+      :allow_only_loads,
+      :deny_loads,
       __spark_metadata__: nil
     ]
   end
@@ -163,6 +165,16 @@ defmodule AshTypescript.Rpc do
         doc:
           "When false, disables sort support for this read action. The sort key will not be included in the generated TypeScript config, and any sort sent by the client will be dropped. Defaults to true.",
         default: true
+      ],
+      allow_only_loads: [
+        type: {:list, :any},
+        doc:
+          "Restricts loadable fields to only those specified. Accepts atoms for simple fields or keyword lists for nested fields (e.g., `[:user, comments: [:author]]`). Mutually exclusive with `deny_loads`."
+      ],
+      deny_loads: [
+        type: {:list, :any},
+        doc:
+          "Denies loading of the specified fields. Accepts atoms for simple fields or keyword lists for nested fields (e.g., `[:user, comments: [:author]]`). Mutually exclusive with `allow_only_loads`."
       ]
     ],
     args: [:name, :action]

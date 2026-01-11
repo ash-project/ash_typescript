@@ -154,8 +154,10 @@ defmodule AshTypescript.Rpc.VerifyRpc do
             )}}
 
         action ->
-          case verify_get_options(resource, rpc_action, action) do
-            :ok -> {:cont, acc}
+          with :ok <- verify_get_options(resource, rpc_action, action),
+               :ok <- verify_load_restrictions(rpc_action) do
+            {:cont, acc}
+          else
             error -> {:halt, error}
           end
       end
@@ -214,6 +216,23 @@ defmodule AshTypescript.Rpc.VerifyRpc do
          message:
            "RPC action #{rpc_action.name}: get_by contains invalid fields: #{inspect(invalid_fields)}. These must be valid attribute names on the resource."
        )}
+    end
+  end
+
+  defp verify_load_restrictions(rpc_action) do
+    allow_only_loads = Map.get(rpc_action, :allow_only_loads)
+    deny_loads = Map.get(rpc_action, :deny_loads)
+
+    cond do
+      not is_nil(allow_only_loads) and not is_nil(deny_loads) ->
+        {:error,
+         Spark.Error.DslError.exception(
+           message:
+             "RPC action #{rpc_action.name}: allow_only_loads and deny_loads options are mutually exclusive. Use allow_only_loads to restrict loading to specific fields, or deny_loads to block specific fields."
+         )}
+
+      true ->
+        :ok
     end
   end
 

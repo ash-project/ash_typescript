@@ -431,6 +431,42 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
+      # === LOAD RESTRICTION ERRORS ===
+
+      {:load_not_allowed, disallowed_paths} ->
+        paths_str = Enum.join(disallowed_paths, ", ")
+
+        %{
+          type: "load_not_allowed",
+          message: "Loading the following fields is not allowed: %{fields}",
+          short_message: "Load not allowed",
+          vars: %{fields: paths_str},
+          path: [],
+          fields: disallowed_paths,
+          details: %{
+            disallowed_paths: disallowed_paths,
+            suggestion: "Remove these fields from your request or check allow_only_loads configuration",
+            hint: @stale_generated_file_hint
+          }
+        }
+
+      {:load_denied, denied_paths} ->
+        paths_str = Enum.join(denied_paths, ", ")
+
+        %{
+          type: "load_denied",
+          message: "Loading the following fields is denied: %{fields}",
+          short_message: "Load denied",
+          vars: %{fields: paths_str},
+          path: [],
+          fields: denied_paths,
+          details: %{
+            denied_paths: denied_paths,
+            suggestion: "Remove these fields from your request",
+            hint: @stale_generated_file_hint
+          }
+        }
+
       {:invalid_input_format, invalid_input} ->
         %{
           type: "invalid_input_format",

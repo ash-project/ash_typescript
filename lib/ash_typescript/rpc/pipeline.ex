@@ -79,6 +79,7 @@ defmodule AshTypescript.Rpc.Pipeline do
              requested_fields,
              validation_mode?
            ),
+         :ok <- validate_load_restrictions(load, rpc_action),
          {:ok, input} <- parse_action_input(normalized_params, action, resource),
          {:ok, get_by} <- parse_get_by(normalized_params, rpc_action, resource),
          {:ok, pagination} <- parse_pagination(normalized_params) do
@@ -1349,6 +1350,167 @@ defmodule AshTypescript.Rpc.Pipeline do
         AshTypescript.Rpc.Info.get_mapped_metadata_field_name(rpc_action, metadata_field)
 
       Map.put(acc, mapped_field_name, Map.get(metadata_map, metadata_field))
+    end)
+  end
+
+  # Load restriction validation
+  # Checks that requested loads comply with allow_only_loads or deny_loads restrictions
+
+  defp validate_load_restrictions(load, rpc_action) do
+    allow_only_loads = Map.get(rpc_action, :allow_only_loads)
+    deny_loads = Map.get(rpc_action, :deny_loads)
+
+    cond do
+      not is_nil(allow_only_loads) ->
+        validate_allow_only_loads(load, allow_only_loads)
+
+      not is_nil(deny_loads) ->
+        validate_deny_loads(load, deny_loads)
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_allow_only_loads(load, allow_only_loads) do
+    requested_paths = extract_load_paths(load)
+    allowed_paths = normalize_restriction_paths(allow_only_loads)
+
+    disallowed =
+      Enum.reject(requested_paths, fn path ->
+        path_allowed?(path, allowed_paths)
+      end)
+
+    if Enum.empty?(disallowed) do
+      :ok
+    else
+      {:error, {:load_not_allowed, format_paths_for_error(disallowed)}}
+    end
+  end
+
+  defp validate_deny_loads(load, deny_loads) do
+    requested_paths = extract_load_paths(load)
+    denied_paths = normalize_restriction_paths(deny_loads)
+
+    denied =
+      Enum.filter(requested_paths, fn path ->
+        path_denied?(path, denied_paths)
+      end)
+
+    if Enum.empty?(denied) do
+      :ok
+    else
+      {:error, {:load_denied, format_paths_for_error(denied)}}
+    end
+  end
+
+  # Extract all load paths from the load list
+  # Returns a list of paths, where each path is a list of atoms
+  # Only extracts actual relationship/calculation load paths, not select fields
+  #
+  # Load structure examples:
+  # - [{:user, [:id, :name]}] => [[:user]] - :id/:name are select fields, not loads
+  # - [{:user, [{:todos, [:id]}]}] => [[:user], [:user, :todos]] - :todos is a nested load
+  # - [{:user, [:id, {:todos, [:id]}]}] => [[:user], [:user, :todos]] - mixed select and load
+  defp extract_load_paths(load) when is_list(load) do
+    Enum.flat_map(load, fn item -> extract_single_load_path(item, []) end)
+  end
+
+  defp extract_load_paths(_), do: []
+
+  # Extract paths from a single load item
+  defp extract_single_load_path(field, path) when is_atom(field) do
+    # Simple atom - this is a load at the current path
+    [path ++ [field]]
+  end
+
+  defp extract_single_load_path({field, nested}, path) when is_atom(field) and is_list(nested) do
+    # Tuple with nested list - field is loaded at current path
+    # Check nested items for additional loads (ignore atoms which are select fields)
+    current_path = path ++ [field]
+
+    nested_load_paths =
+      nested
+      |> Enum.filter(&is_tuple/1)
+      |> Enum.flat_map(fn item -> extract_single_load_path(item, current_path) end)
+
+    [current_path | nested_load_paths]
+  end
+
+  defp extract_single_load_path({field, {_args, nested}}, path)
+       when is_atom(field) and is_list(nested) do
+    # Calculation with args and nested loads
+    current_path = path ++ [field]
+
+    nested_load_paths =
+      nested
+      |> Enum.filter(&is_tuple/1)
+      |> Enum.flat_map(fn item -> extract_single_load_path(item, current_path) end)
+
+    [current_path | nested_load_paths]
+  end
+
+  defp extract_single_load_path({field, _args}, path) when is_atom(field) do
+    # Calculation with args but no nested loads (args is a map)
+    [path ++ [field]]
+  end
+
+  defp extract_single_load_path(_, _path), do: []
+
+  # Normalize restriction paths to a list of path lists
+  # For simple atoms: [:user] => [[:user]]
+  # For nested specs: [comments: [:todo]] => [[:comments, :todo]] (NOT [:comments])
+  #
+  # The key distinction:
+  # - deny_loads: [:user] - denies user and all children
+  # - deny_loads: [comments: [:todo]] - only denies comments.todo, NOT comments itself
+  defp normalize_restriction_paths(restrictions) when is_list(restrictions) do
+    Enum.flat_map(restrictions, fn
+      field when is_atom(field) ->
+        # Simple atom - this path itself is restricted
+        [[field]]
+
+      {field, nested} when is_atom(field) and is_list(nested) ->
+        # Nested specification - only the nested paths are restricted
+        # NOT the parent field itself
+        normalize_restriction_paths(nested)
+        |> Enum.map(fn nested_path -> [field | nested_path] end)
+
+      _ ->
+        []
+    end)
+  end
+
+  defp normalize_restriction_paths(_), do: []
+
+  # Check if a path is allowed by the allow_only_loads specification
+  # A path is allowed ONLY if:
+  # 1. It exactly matches an allowed path, OR
+  # 2. It's a prefix of an allowed path (intermediate load needed to reach deeper allowed paths)
+  #
+  # Note: Unlike deny_loads, we do NOT allow children of allowed paths automatically.
+  # If you want to allow user.todos, you must explicitly add [user: [:todos]] to allow_only_loads.
+  defp path_allowed?(path, allowed_paths) do
+    Enum.any?(allowed_paths, fn allowed_path ->
+      # Exact match or path is a prefix (intermediate load)
+      path == allowed_path or List.starts_with?(allowed_path, path)
+    end)
+  end
+
+  # Check if a path is denied by the deny_loads specification
+  # A path is denied if it matches or starts with a denied path
+  defp path_denied?(path, denied_paths) do
+    Enum.any?(denied_paths, fn denied_path ->
+      # Path is denied if:
+      # 1. It exactly matches a denied path, OR
+      # 2. It starts with a denied path (loading something under a denied field)
+      path == denied_path or List.starts_with?(path, denied_path)
+    end)
+  end
+
+  defp format_paths_for_error(paths) do
+    Enum.map(paths, fn path ->
+      Enum.map_join(path, ".", &to_string/1)
     end)
   end
 end
