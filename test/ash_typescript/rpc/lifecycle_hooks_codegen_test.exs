@@ -103,10 +103,10 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
       {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
 
       # Config merging is now done inside executeActionRpcRequest helper
-      # processedConfig (from hook) should come last to take precedence
+      # config (direct) should come last to take precedence over processedConfig (from hook)
       assert typescript =~ "executeActionRpcRequest"
-      assert typescript =~ ~r/\.\.\.config\.headers,\s*\.\.\.processedConfig\.headers,/
-      assert typescript =~ ~r/\.\.\.config\.fetchOptions,\s*\.\.\.processedConfig\.fetchOptions,/
+      assert typescript =~ ~r/\.\.\.processedConfig\.headers,\s*\.\.\.config\.headers,/
+      assert typescript =~ ~r/\.\.\.processedConfig\.fetchOptions,\s*\.\.\.config\.fetchOptions,/
     end
 
     test "includes customFetch with correct precedence" do

@@ -946,14 +946,14 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
     #{before_hook_code}
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        ...config.#{headers_field},
         ...processedConfig.#{headers_field},
+        ...config.#{headers_field},
       };
 
       const fetchFunction = config.#{custom_fetch_field} || processedConfig.#{custom_fetch_field} || fetch;
       const fetchOptions: RequestInit = {
-        ...config.#{fetch_options_field},
         ...processedConfig.#{fetch_options_field},
+        ...config.#{fetch_options_field},
         method: "POST",
         headers,
         body: JSON.stringify(payload),
