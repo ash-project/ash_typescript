@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.11.6](https://github.com/ash-project/ash_typescript/compare/v0.11.5...v0.11.6) (2026-01-13)
+
+
+
+
+### Bug Fixes:
+
+* rpc: prioritize direct headers and fetchOptions over lifecycle hook config by [@Torkan](https://github.com/Torkan)
+
 ## [v0.11.5](https://github.com/ash-project/ash_typescript/compare/v0.11.4...v0.11.5) (2026-01-08)
 
 
