@@ -23,7 +23,8 @@ config :ash_typescript,
   zod_import_path: "zod",
   zod_schema_suffix: "ZodSchema",
   phoenix_import_path: "phoenix",
-  type_mapping_overrides: []
+  type_mapping_overrides: [],
+  generate_action_hashes: false
 
 # Type generation
 # untyped_map_type: "Record<string, any>"  # Default
@@ -75,7 +76,9 @@ if Mix.env() == :test do
     ],
     type_mapping_overrides: [
       {AshTypescript.Test.CustomIdentifier, "string"}
-    ]
+    ],
+    generate_action_hashes: true,
+    enable_rpc_snapshots: true
 
   config :logger, :console, level: :info
 end

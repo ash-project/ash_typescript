@@ -29,3 +29,4 @@ ash_typescript-*.tar
 test/ts/node_modules/
 test/ts/generated.ts
 test/ts/**/*.js
+priv/rpc_action_snapshots
