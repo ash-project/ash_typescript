@@ -21,6 +21,8 @@ defmodule AshTypescript.Rpc do
       :get_by,
       :not_found_error?,
       :identities,
+      :version,
+      :min_version,
       __spark_metadata__: nil
     ]
   end
@@ -149,6 +151,18 @@ defmodule AshTypescript.Rpc do
         doc:
           "List of identities that can be used to look up records for update/destroy actions. Use `:_primary_key` for the primary key, or identity names like `:email`. Defaults to `[:_primary_key]`. Use `[]` for actor-scoped actions that don't need a lookup key.",
         default: [:_primary_key]
+      ],
+      version: [
+        type: :pos_integer,
+        doc:
+          "Current interface version. Bump when any interface change is made (breaking or non-breaking). Used for client/server version skew detection.",
+        default: 1
+      ],
+      min_version: [
+        type: :pos_integer,
+        doc:
+          "Minimum compatible client version. Bump when a breaking change is made. Clients with version < min_version will be rejected.",
+        default: 1
       ]
     ],
     args: [:name, :action]
@@ -211,6 +225,9 @@ defmodule AshTypescript.Rpc do
 
   use Spark.Dsl.Extension,
     sections: [@rpc],
+    # Note: ComputeActionHashes transformer is disabled in favor of snapshot-based versioning.
+    # The code is kept for potential future use. See: AshTypescript.Rpc.Transformers.ComputeActionHashes
+    transformers: [],
     verifiers: [
       AshTypescript.Rpc.VerifyRpc,
       AshTypescript.Rpc.Verifiers.VerifyMetadataFieldNames,
@@ -218,6 +235,7 @@ defmodule AshTypescript.Rpc do
       AshTypescript.Rpc.Verifiers.VerifyIdentities,
       AshTypescript.Rpc.Verifiers.VerifyActionTypes,
       AshTypescript.Rpc.Verifiers.VerifyUniqueInputFieldNames,
+      AshTypescript.Rpc.Verifiers.VerifyVersionConstraints,
       AshTypescript.Rpc.VerifyRpcWarnings
     ]
 
@@ -376,6 +394,58 @@ defmodule AshTypescript.Rpc do
   """
   def phoenix_import_path do
     Application.get_env(:ash_typescript, :phoenix_import_path)
+  end
+
+  @doc """
+  Returns the contract hash for an RPC action (breaking changes only).
+
+  The contract hash changes only when breaking changes are made to the action's
+  interface (required field additions, removals, type changes, mapping changes).
+
+  Returns `nil` if hashing is disabled or the action is not found.
+
+  ## Parameters
+
+  - `domain` - The domain module
+  - `resource` - The resource module
+  - `rpc_action_name` - The RPC action name (atom)
+
+  ## Example
+
+      AshTypescript.Rpc.contract_hash(MyApp.Domain, MyApp.Todo, :list_todos)
+      #=> "a3f8c2d9e1b4f7a0"
+  """
+  @spec contract_hash(module(), module(), atom()) :: String.t() | nil
+  def contract_hash(domain, resource, rpc_action_name) do
+    domain
+    |> Spark.Dsl.Extension.get_persisted(:contract_hashes, %{})
+    |> Map.get({resource, rpc_action_name})
+  end
+
+  @doc """
+  Returns the version hash for an RPC action (all interface changes).
+
+  The version hash changes when any interface changes are made, including
+  non-breaking additions (new optional fields, new relationships, etc.).
+
+  Returns `nil` if hashing is disabled or the action is not found.
+
+  ## Parameters
+
+  - `domain` - The domain module
+  - `resource` - The resource module
+  - `rpc_action_name` - The RPC action name (atom)
+
+  ## Example
+
+      AshTypescript.Rpc.version_hash(MyApp.Domain, MyApp.Todo, :list_todos)
+      #=> "b7e9d1f3a2c8e5b0"
+  """
+  @spec version_hash(module(), module(), atom()) :: String.t() | nil
+  def version_hash(domain, resource, rpc_action_name) do
+    domain
+    |> Spark.Dsl.Extension.get_persisted(:version_hashes, %{})
+    |> Map.get({resource, rpc_action_name})
   end
 
   @doc """
