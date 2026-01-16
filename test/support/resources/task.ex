@@ -129,7 +129,7 @@ defmodule AshTypescript.Test.Task do
     end
 
     update :update do
-      accept [:title, :archived?, :stats]
+      accept [:title, :archived?]
       primary? true
       require_atomic? false
       metadata :some_string, :string, allow_nil?: false

@@ -133,7 +133,7 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :list_tasks, :read
       rpc_action :read_tasks_with_metadata, :read_with_metadata
       rpc_action :create_task, :create
-      rpc_action :update_task, :update
+      rpc_action :update_task, :update, version: 2
       rpc_action :mark_completed_task, :mark_completed
       rpc_action :destroy_task, :destroy
       rpc_action :get_task_stats, :get_task_stats
@@ -157,11 +157,14 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :create_task_metadata_one, :create, show_metadata: [:some_string]
       rpc_action :create_task_metadata_two, :create, show_metadata: [:some_string, :some_number]
 
-      rpc_action :update_task_metadata_all, :update, show_metadata: nil
-      rpc_action :update_task_metadata_false, :update, show_metadata: false
-      rpc_action :update_task_metadata_empty, :update, show_metadata: []
-      rpc_action :update_task_metadata_one, :update, show_metadata: [:some_string]
-      rpc_action :update_task_metadata_two, :update, show_metadata: [:some_string, :some_number]
+      rpc_action :update_task_metadata_all, :update, show_metadata: nil, version: 2
+      rpc_action :update_task_metadata_false, :update, show_metadata: false, version: 2
+      rpc_action :update_task_metadata_empty, :update, show_metadata: [], version: 2
+      rpc_action :update_task_metadata_one, :update, show_metadata: [:some_string], version: 2
+
+      rpc_action :update_task_metadata_two, :update,
+        show_metadata: [:some_string, :some_number],
+        version: 2
 
       rpc_action :destroy_task_metadata_all, :destroy, show_metadata: nil
       rpc_action :destroy_task_metadata_false, :destroy, show_metadata: false
