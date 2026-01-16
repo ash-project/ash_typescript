@@ -325,6 +325,53 @@ defmodule AshTypescript do
   end
 
   @doc """
+  Gets whether action hash generation is enabled for skew protection.
+
+  When enabled, contract and version hashes are computed for each RPC action
+  at compile time and included in generated TypeScript code. These hashes
+  enable client-server skew detection.
+
+  ## Configuration
+
+      # Enable skew protection hash generation
+      config :ash_typescript, generate_action_hashes: true
+
+      # Disable (default)
+      config :ash_typescript, generate_action_hashes: false
+
+  ## Returns
+  A boolean indicating whether to generate action hashes, defaulting to `false`.
+  """
+  def generate_action_hashes? do
+    Application.get_env(:ash_typescript, :generate_action_hashes, false)
+  end
+
+  @doc """
+  Gets whether RPC action snapshots are enabled.
+
+  When enabled, during code generation:
+  1. Snapshots are created for new RPC actions
+  2. Existing snapshots are compared against current code
+  3. If interface changes are detected, codegen fails until version is bumped
+
+  This enforces explicit versioning of RPC action interfaces for skew protection.
+
+  ## Configuration
+
+      # Enable snapshot verification (recommended for production)
+      config :ash_typescript, enable_rpc_snapshots: true
+
+      # Disable snapshot verification (default)
+      config :ash_typescript, enable_rpc_snapshots: false
+
+  ## Returns
+  A boolean indicating whether snapshot verification is enabled, defaulting to `false`.
+  """
+  def enable_rpc_snapshots? do
+    Application.get_env(:ash_typescript, :enable_rpc_snapshots, false)
+  end
+
+  @doc """
   Gets whether to warn about non-RPC resources that are referenced by RPC resources.
 
   When enabled, during code generation, a warning will be displayed for any non-RPC

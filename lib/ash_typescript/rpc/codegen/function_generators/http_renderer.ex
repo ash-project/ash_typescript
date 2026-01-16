@@ -11,7 +11,9 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
   """
 
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.{FunctionCore, TypeBuilders}
+  alias AshTypescript.Rpc.Codegen.HashGenerator
   alias AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder
+  alias AshTypescript.Rpc.Codegen.VersionGenerator
 
   @doc """
   Renders an HTTP execution function (Promise-based).
@@ -49,10 +51,21 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
     {result_type_def, return_type_def, generic_param, function_signature} =
       TypeBuilders.build_result_type(shape, config_type_ref)
 
+    # Include version meta if snapshots are enabled
+    include_version_meta = VersionGenerator.generate_version_entry(rpc_action) != nil
+
+    # Include hash meta if this action has hashes (legacy)
+    domain = Ash.Resource.Info.domain(resource)
+
+    include_hash_meta =
+      HashGenerator.generate_hash_entry(domain, resource, rpc_action.name) != nil
+
     payload_fields =
       PayloadBuilder.build_payload_fields(rpc_action_name, shape.context,
         include_fields: shape.has_fields,
         include_metadata_fields: shape.has_metadata,
+        include_version_meta: include_version_meta,
+        include_hash_meta: include_hash_meta,
         rpc_action: rpc_action
       )
 

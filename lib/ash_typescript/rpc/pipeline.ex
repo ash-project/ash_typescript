@@ -38,8 +38,13 @@ defmodule AshTypescript.Rpc.Pipeline do
     {input_data, other_params} = Map.pop(params, "input", %{})
     {identity, params_without_identity} = Map.pop(other_params, "identity")
 
+    # Extract skew protection meta from request
+    {meta, params_without_meta} = Map.pop(params_without_identity, "meta", %{})
+    client_contract_hash = Map.get(meta, "contractHash")
+    client_version_hash = Map.get(meta, "versionHash")
+
     normalized_other_params =
-      FieldFormatter.parse_input_fields(params_without_identity, input_formatter)
+      FieldFormatter.parse_input_fields(params_without_meta, input_formatter)
 
     normalized_params =
       normalized_other_params
@@ -160,6 +165,7 @@ defmodule AshTypescript.Rpc.Pipeline do
           resource: resource,
           action: action,
           rpc_action: rpc_action,
+          rpc_action_name: rpc_action.name,
           tenant: tenant,
           actor: actor,
           context: context,
@@ -172,7 +178,9 @@ defmodule AshTypescript.Rpc.Pipeline do
           filter: normalized_params[:filter],
           sort: formatted_sort,
           pagination: pagination,
-          show_metadata: show_metadata
+          show_metadata: show_metadata,
+          contract_hash: client_contract_hash,
+          version_hash: client_version_hash
         })
 
       {:ok, request}
@@ -929,6 +937,9 @@ defmodule AshTypescript.Rpc.Pipeline do
       FieldFormatter.format_field_name("data", formatter) => formatted_data
     }
 
+    # Add skew protection meta if enabled
+    base_response = add_skew_meta(base_response, request, formatter)
+
     case metadata do
       nil ->
         base_response
@@ -944,13 +955,16 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp format_output_data(%{success: false, errors: errors}, formatter, _request) do
+  defp format_output_data(%{success: false, errors: errors}, formatter, request) do
     formatted_errors = Enum.map(errors, &format_field_names(&1, formatter))
 
-    %{
+    base_response = %{
       FieldFormatter.format_field_name("success", formatter) => false,
       FieldFormatter.format_field_name("errors", formatter) => formatted_errors
     }
+
+    # Add skew protection meta if enabled
+    add_skew_meta(base_response, request, formatter)
   end
 
   defp format_output_data(%{success: true}, formatter, _request) do
@@ -1344,5 +1358,34 @@ defmodule AshTypescript.Rpc.Pipeline do
 
       Map.put(acc, mapped_field_name, Map.get(metadata_map, metadata_field))
     end)
+  end
+
+  # Adds skew protection meta to response if hash generation is enabled
+  defp add_skew_meta(response, request, formatter) do
+    if AshTypescript.generate_action_hashes?() do
+      # Look up server hashes from persisted domain data
+      server_contract_hash =
+        Rpc.contract_hash(request.domain, request.resource, request.rpc_action_name)
+
+      server_version_hash =
+        Rpc.version_hash(request.domain, request.resource, request.rpc_action_name)
+
+      if server_contract_hash && server_version_hash do
+        skew_meta = %{
+          FieldFormatter.format_field_name("contractHash", formatter) => server_contract_hash,
+          FieldFormatter.format_field_name("contractMismatch", formatter) =>
+            request.contract_hash != nil && request.contract_hash != server_contract_hash,
+          FieldFormatter.format_field_name("versionHash", formatter) => server_version_hash,
+          FieldFormatter.format_field_name("versionMismatch", formatter) =>
+            request.version_hash != nil && request.version_hash != server_version_hash
+        }
+
+        Map.put(response, FieldFormatter.format_field_name("meta", formatter), skew_meta)
+      else
+        response
+      end
+    else
+      response
+    end
   end
 end

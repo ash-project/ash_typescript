@@ -13,6 +13,9 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
 
   import AshTypescript.Helpers
 
+  alias AshTypescript.Rpc.Codegen.HashGenerator
+  alias AshTypescript.Rpc.Codegen.VersionGenerator
+
   @doc """
   Builds payload field definitions for an RPC function.
 
@@ -128,6 +131,30 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
           [
             "...(config.#{formatted_page_field()} && { #{formatted_page_field()}: config.#{formatted_page_field()} })"
           ]
+      else
+        payload_fields
+      end
+
+    # Add meta object with version if snapshots are enabled
+    # (controlled by :include_version_meta opt)
+    payload_fields =
+      if Keyword.get(opts, :include_version_meta, false) do
+        case VersionGenerator.generate_meta_object(rpc_action_name) do
+          nil -> payload_fields
+          meta_object -> payload_fields ++ [meta_object]
+        end
+      else
+        payload_fields
+      end
+
+    # Add meta object with hashes if enabled for this action (legacy)
+    # (controlled by :include_hash_meta opt, which is set based on whether the action has hashes)
+    payload_fields =
+      if Keyword.get(opts, :include_hash_meta, false) do
+        case HashGenerator.generate_meta_object(rpc_action_name) do
+          nil -> payload_fields
+          meta_object -> payload_fields ++ [meta_object]
+        end
       else
         payload_fields
       end

@@ -13,10 +13,13 @@ defmodule AshTypescript.Rpc.Codegen do
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries
+  alias AshTypescript.Rpc.Codegen.HashGenerator
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
   alias AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes
   alias AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes
   alias AshTypescript.Rpc.Codegen.TypescriptStatic
+  alias AshTypescript.Rpc.Codegen.VersionGenerator
+  alias AshTypescript.Rpc.{Snapshot, SnapshotVerifier}
   alias AshTypescript.Rpc.ZodSchemaGenerator
 
   @doc """
@@ -112,31 +115,71 @@ defmodule AshTypescript.Rpc.Codegen do
           message -> IO.warn(message)
         end
 
-        {:ok,
-         generate_full_typescript(
-           resources_and_actions,
-           endpoint_process,
-           endpoint_validate,
-           %{
-             rpc_action_before_request_hook: rpc_action_before_request_hook,
-             rpc_action_after_request_hook: rpc_action_after_request_hook,
-             rpc_validation_before_request_hook: rpc_validation_before_request_hook,
-             rpc_validation_after_request_hook: rpc_validation_after_request_hook,
-             rpc_action_hook_context_type: rpc_action_hook_context_type,
-             rpc_validation_hook_context_type: rpc_validation_hook_context_type,
-             rpc_action_before_channel_push_hook: rpc_action_before_channel_push_hook,
-             rpc_action_after_channel_response_hook: rpc_action_after_channel_response_hook,
-             rpc_validation_before_channel_push_hook: rpc_validation_before_channel_push_hook,
-             rpc_validation_after_channel_response_hook:
-               rpc_validation_after_channel_response_hook,
-             rpc_action_channel_hook_context_type: rpc_action_channel_hook_context_type,
-             rpc_validation_channel_hook_context_type: rpc_validation_channel_hook_context_type
-           },
-           otp_app
-         )}
+        # Verify snapshots if enabled
+        case verify_and_update_snapshots(otp_app, resources_and_actions) do
+          :ok ->
+            {:ok,
+             generate_full_typescript(
+               resources_and_actions,
+               endpoint_process,
+               endpoint_validate,
+               %{
+                 rpc_action_before_request_hook: rpc_action_before_request_hook,
+                 rpc_action_after_request_hook: rpc_action_after_request_hook,
+                 rpc_validation_before_request_hook: rpc_validation_before_request_hook,
+                 rpc_validation_after_request_hook: rpc_validation_after_request_hook,
+                 rpc_action_hook_context_type: rpc_action_hook_context_type,
+                 rpc_validation_hook_context_type: rpc_validation_hook_context_type,
+                 rpc_action_before_channel_push_hook: rpc_action_before_channel_push_hook,
+                 rpc_action_after_channel_response_hook: rpc_action_after_channel_response_hook,
+                 rpc_validation_before_channel_push_hook: rpc_validation_before_channel_push_hook,
+                 rpc_validation_after_channel_response_hook:
+                   rpc_validation_after_channel_response_hook,
+                 rpc_action_channel_hook_context_type: rpc_action_channel_hook_context_type,
+                 rpc_validation_channel_hook_context_type:
+                   rpc_validation_channel_hook_context_type
+               },
+               otp_app
+             )}
+
+          {:error, error_message} ->
+            {:error, error_message}
+        end
 
       {:error, error_message} ->
         {:error, error_message}
+    end
+  end
+
+  defp verify_and_update_snapshots(otp_app, resources_and_actions) do
+    if AshTypescript.enable_rpc_snapshots?() do
+      case SnapshotVerifier.verify_all(otp_app, resources_and_actions) do
+        :ok ->
+          :ok
+
+        {:ok, :new_snapshots, new_snapshots} ->
+          # Save new snapshots
+          Enum.each(new_snapshots, fn snapshot ->
+            case Snapshot.save(otp_app, snapshot) do
+              :ok ->
+                IO.puts(
+                  "Created snapshot for #{snapshot.rpc_action_name} (version: #{snapshot.version})"
+                )
+
+              {:error, reason} ->
+                IO.warn(
+                  "Failed to save snapshot for #{snapshot.rpc_action_name}: #{inspect(reason)}"
+                )
+            end
+          end)
+
+          :ok
+
+        {:error, violations} ->
+          {:error, SnapshotVerifier.format_violations(violations)}
+      end
+    else
+      :ok
     end
   end
 
@@ -209,6 +252,12 @@ defmodule AshTypescript.Rpc.Codegen do
          otp_app,
          _resources
        ) do
+    # Generate actionVersions object (for snapshot-based versioning)
+    action_versions_object = generate_action_versions_object(resources_and_actions)
+
+    # Generate actionHashes object (legacy, disabled by default)
+    action_hashes_object = generate_action_hashes_object(resources_and_actions)
+
     rpc_functions =
       resources_and_actions
       |> Enum.map_join("\n\n", fn resource_and_action ->
@@ -219,9 +268,55 @@ defmodule AshTypescript.Rpc.Codegen do
         )
       end)
 
-    """
-    #{rpc_functions}
-    """
+    # Combine objects and functions
+    objects =
+      [action_versions_object, action_hashes_object]
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.join("\n")
+
+    if objects == "" do
+      """
+      #{rpc_functions}
+      """
+    else
+      """
+      #{objects}
+      #{rpc_functions}
+      """
+    end
+  end
+
+  defp generate_action_versions_object(resources_and_actions) do
+    if AshTypescript.enable_rpc_snapshots?() do
+      entries =
+        resources_and_actions
+        |> Enum.map(fn {_resource, _action, rpc_action} ->
+          VersionGenerator.generate_version_entry(rpc_action)
+        end)
+        |> Enum.reject(&is_nil/1)
+        |> Enum.map(fn {_key, entry} -> entry end)
+
+      VersionGenerator.generate_action_versions_object(entries)
+    else
+      ""
+    end
+  end
+
+  defp generate_action_hashes_object(resources_and_actions) do
+    if AshTypescript.generate_action_hashes?() do
+      entries =
+        resources_and_actions
+        |> Enum.map(fn {resource, _action, rpc_action} ->
+          domain = Ash.Resource.Info.domain(resource)
+          HashGenerator.generate_hash_entry(domain, resource, rpc_action.name)
+        end)
+        |> Enum.reject(&is_nil/1)
+        |> Enum.map(fn {_key, entry} -> entry end)
+
+      HashGenerator.generate_action_hashes_object(entries)
+    else
+      ""
+    end
   end
 
   defp generate_rpc_function(
@@ -310,13 +405,17 @@ defmodule AshTypescript.Rpc.Codegen do
 
     functions_section = Enum.join(function_parts, "\n\n")
 
-    base_types = [input_type] |> Enum.reject(&(&1 == ""))
+    # Build output parts: input_type, zod_schema (if any), result_type, functions
+    # Note: Hash constants are now generated once at the top of the RPC functions section
+    base_parts =
+      [input_type]
+      |> Enum.reject(&(&1 == ""))
 
     output_parts =
       if zod_schema != "" do
-        base_types ++ [zod_schema, result_type, functions_section]
+        base_parts ++ [zod_schema, result_type, functions_section]
       else
-        base_types ++ [result_type, functions_section]
+        base_parts ++ [result_type, functions_section]
       end
 
     Enum.join(output_parts, "\n")

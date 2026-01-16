@@ -597,9 +597,89 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
       | { #{formatted_success_field()}: true }
       | { #{formatted_success_field()}: false; #{formatted_errors_field()}: AshRpcError[]; };
 
-
+    #{generate_skew_meta_types()}
 
     """
+  end
+
+  defp generate_skew_meta_types do
+    if AshTypescript.generate_action_hashes?() do
+      """
+      /**
+       * Metadata for skew protection in RPC responses.
+       *
+       * When action hashes are enabled, this metadata is included in RPC responses
+       * to allow clients to detect when their generated code is out of sync with
+       * the server's schema.
+       *
+       * @example
+       * const meta: SkewMeta = {
+       *   contractHash: "a3f8c2d9e1b4f7a0",
+       *   contractMismatch: false,
+       *   versionHash: "b7e9d1f3a2c8e5b0",
+       *   versionMismatch: true
+       * };
+       */
+      export type SkewMeta = {
+        /** The server's contract hash for this action */
+        contractHash: string;
+        /** True if the client's contract hash doesn't match the server's */
+        contractMismatch: boolean;
+        /** The server's version hash for this action */
+        versionHash: string;
+        /** True if the client's version hash doesn't match the server's */
+        versionMismatch: boolean;
+      };
+
+      /**
+       * Checks if a response has a contract mismatch (breaking change detected).
+       *
+       * Contract mismatches indicate the client's generated code is incompatible
+       * with the server's schema. The client should handle this (e.g., force reload).
+       *
+       * @example
+       * const result = await listTodos({ fields: ["id"] });
+       * if (hasContractMismatch(result)) {
+       *   console.error("Breaking change detected - please refresh");
+       *   window.location.reload();
+       * }
+       */
+      export function hasContractMismatch<T>(response: { meta?: SkewMeta }): boolean {
+        return response.meta?.contractMismatch === true;
+      }
+
+      /**
+       * Checks if a response has a version mismatch (any interface change detected).
+       *
+       * Version mismatches indicate newer features are available on the server,
+       * but the current client code is still compatible.
+       *
+       * @example
+       * const result = await listTodos({ fields: ["id"] });
+       * if (hasVersionMismatch(result)) {
+       *   console.info("Client is outdated but still compatible");
+       * }
+       */
+      export function hasVersionMismatch<T>(response: { meta?: SkewMeta }): boolean {
+        return response.meta?.versionMismatch === true;
+      }
+
+      /**
+       * Checks if a response has any skew (contract or version mismatch).
+       *
+       * @example
+       * const result = await listTodos({ fields: ["id"] });
+       * if (hasAnyMismatch(result)) {
+       *   console.log("Client/server skew detected");
+       * }
+       */
+      export function hasAnyMismatch<T>(response: { meta?: SkewMeta }): boolean {
+        return hasContractMismatch(response) || hasVersionMismatch(response);
+      }
+      """
+    else
+      ""
+    end
   end
 
   @doc """

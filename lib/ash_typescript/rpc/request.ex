@@ -15,6 +15,7 @@ defmodule AshTypescript.Rpc.Request do
           resource: module(),
           action: map(),
           rpc_action: map(),
+          rpc_action_name: atom(),
           tenant: term(),
           actor: term(),
           context: map(),
@@ -27,7 +28,9 @@ defmodule AshTypescript.Rpc.Request do
           filter: map() | nil,
           sort: list() | nil,
           pagination: map() | nil,
-          show_metadata: list(atom())
+          show_metadata: list(atom()),
+          contract_hash: String.t() | nil,
+          version_hash: String.t() | nil
         }
 
   defstruct [
@@ -35,6 +38,7 @@ defmodule AshTypescript.Rpc.Request do
     :resource,
     :action,
     :rpc_action,
+    :rpc_action_name,
     :tenant,
     :actor,
     :context,
@@ -47,6 +51,8 @@ defmodule AshTypescript.Rpc.Request do
     :filter,
     :sort,
     :pagination,
+    :contract_hash,
+    :version_hash,
     show_metadata: []
   ]
 

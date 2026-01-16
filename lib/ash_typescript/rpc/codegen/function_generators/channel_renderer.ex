@@ -11,7 +11,9 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
   """
 
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore
+  alias AshTypescript.Rpc.Codegen.HashGenerator
   alias AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder
+  alias AshTypescript.Rpc.Codegen.VersionGenerator
 
   @doc """
   Renders a Channel execution function (handler-based).
@@ -48,10 +50,21 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
 
+    # Include version meta if snapshots are enabled
+    include_version_meta = VersionGenerator.generate_version_entry(rpc_action) != nil
+
+    # Include hash meta if this action has hashes (legacy)
+    domain = Ash.Resource.Info.domain(resource)
+
+    include_hash_meta =
+      HashGenerator.generate_hash_entry(domain, resource, rpc_action.name) != nil
+
     payload_fields =
       PayloadBuilder.build_payload_fields(rpc_action_name, shape.context,
         include_fields: shape.has_fields,
         include_metadata_fields: shape.has_metadata,
+        include_version_meta: include_version_meta,
+        include_hash_meta: include_hash_meta,
         rpc_action: rpc_action
       )
 
