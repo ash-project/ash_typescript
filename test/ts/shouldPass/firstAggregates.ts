@@ -225,7 +225,7 @@ export const firstAggregateMultipleComplexFieldsSameObject = await getTodo({
         "isUrgent",
         {
           settings: ["notifications", "autoArchive"],
-          advancedSettings: ["theme", { display: ["fontSize"] }, { sync: ["enabled"] }],
+          advancedSettings: ["theme", { display: ["fontSize"], sync: ["enabled"] }],
           priorityInfo: ["simple"],
         },
       ],
