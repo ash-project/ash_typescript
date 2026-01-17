@@ -11,7 +11,7 @@ SPDX-License-Identifier: MIT
 
 **AshTypescript** generates TypeScript types and RPC clients from Ash resources, providing end-to-end type safety between Elixir backends and TypeScript frontends.
 
-**Key Features**: Type generation, RPC client generation, Phoenix channel RPC actions, action metadata support, nested calculations, multitenancy, embedded resources, union types, field/argument/metadata name mapping, configurable RPC warnings
+**Key Features**: Type generation, RPC client generation, Phoenix channel RPC actions, action metadata support, nested calculations, multitenancy, embedded resources, union types, field/argument/metadata name mapping, load restrictions, configurable RPC warnings
 
 ## 🚨 Critical Development Rules
 
@@ -48,8 +48,12 @@ defmodule MyApp.Domain do
   typescript_rpc do
     resource MyApp.Todo do
       rpc_action :list_todos, :read
-      rpc_action :list_todos_no_filter, :read, derive_filter?: false  # Disable client filtering
-      rpc_action :list_todos_no_sort, :read, derive_sort?: false      # Disable client sorting
+      rpc_action :list_todos_no_filter, :read, enable_filter?: false  # Disable client filtering
+      rpc_action :list_todos_no_sort, :read, enable_sort?: false      # Disable client sorting
+      # Load restrictions - control which relationships/calculations clients can load
+      rpc_action :list_todos_limited, :read, allowed_loads: [:user]           # Whitelist
+      rpc_action :list_todos_no_user, :read, denied_loads: [:user]            # Blacklist
+      rpc_action :list_todos_nested, :read, allowed_loads: [comments: [:author]]  # Nested
     end
   end
 end
@@ -193,6 +197,7 @@ mix credo --strict                   # Linting
 | **Field/argument name mapping** | [features/field-argument-name-mapping.md](agent-docs/features/field-argument-name-mapping.md) | `test/ash_typescript/rpc/rpc_field_argument_mapping_test.exs` |
 | **Action metadata** | [features/action-metadata.md](agent-docs/features/action-metadata.md) | `test/ash_typescript/rpc/rpc_metadata_test.exs`, `test/ash_typescript/rpc/verify_metadata_field_names_test.exs` |
 | **RPC pipeline or field processing** | [features/rpc-pipeline.md](agent-docs/features/rpc-pipeline.md) | `test/ash_typescript/rpc/rpc_*_test.exs` |
+| **Load restrictions** | [features/rpc-pipeline.md](agent-docs/features/rpc-pipeline.md) (RPC Action Options) | `test/ash_typescript/rpc/load_restrictions_test.exs` |
 | **Zod validation schemas** | [features/zod-schemas.md](agent-docs/features/zod-schemas.md) | `test/ash_typescript/rpc/rpc_codegen_test.exs` |
 | **Embedded resources** | [features/embedded-resources.md](agent-docs/features/embedded-resources.md) | `test/support/resources/embedded/` |
 | **Union types** | [features/union-systems-core.md](agent-docs/features/union-systems-core.md) | `test/ash_typescript/rpc/rpc_union_*_test.exs` |
@@ -251,6 +256,8 @@ mix credo --strict                   # Linting
 | "Union input map contains multiple member keys" | Multiple union members in input | Provide exactly one member key |
 | "Union input map does not contain any valid member key" | Invalid or missing member key | Use valid member name from union definition |
 | Test reads stale generated.ts | Test uses `File.read!("test/ts/generated.ts")` | Use `AshTypescript.Rpc.Codegen.generate_typescript_types/1` in `setup_all` |
+| "load_not_allowed" error | Requested field not in `allowed_loads` | Add field to `allowed_loads` or remove the option |
+| "load_denied" error | Requested field in `denied_loads` | Remove field from `denied_loads` list |
 
 ## RPC Resource Warnings
 

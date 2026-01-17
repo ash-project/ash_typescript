@@ -304,6 +304,54 @@ rpc_action :list_todos_minimal, :read, enable_filter?: false, enable_sort?: fals
 - Config generation: `lib/ash_typescript/rpc/codegen/function_generators/function_core.ex:175-188`
 - Pipeline drop: `lib/ash_typescript/rpc/pipeline.ex:157-161`
 
+#### `allowed_loads` Option
+
+Restricts loadable fields to only those specified (whitelist approach). Accepts atoms for simple fields or keyword lists for nested fields.
+
+```elixir
+rpc_action :list_todos, :read                                    # All loads allowed (default)
+rpc_action :list_todos_user_only, :read, allowed_loads: [:user]  # Only user relationship
+rpc_action :list_todos_nested, :read, allowed_loads: [:user, comments: [:author]]  # Nested
+```
+
+**When `allowed_loads` is set**:
+- **Validation**: Only specified fields can be loaded
+- **Nested syntax**: `[parent: [:child]]` allows parent but restricts child loading
+- **Pipeline**: Validation in Stage 1 (parse_request) - rejected loads return `{:error, {:load_not_allowed, fields}}`
+- **TypeScript**: No impact on generated types (runtime enforcement only)
+
+#### `denied_loads` Option
+
+Denies loading of the specified fields (blacklist approach). Accepts atoms for simple fields or keyword lists for nested fields.
+
+```elixir
+rpc_action :list_todos, :read                                   # All loads allowed (default)
+rpc_action :list_todos_no_user, :read, denied_loads: [:user]    # Deny user relationship
+rpc_action :list_todos_no_nested, :read, denied_loads: [comments: [:todo]]  # Deny nested
+```
+
+**When `denied_loads` is set**:
+- **Validation**: Specified fields cannot be loaded
+- **Nested syntax**: `[parent: [:child]]` denies child on parent (parent itself allowed)
+- **Pipeline**: Validation in Stage 1 (parse_request) - denied loads return `{:error, {:load_denied, fields}}`
+- **TypeScript**: No impact on generated types (runtime enforcement only)
+
+**Mutual Exclusivity**: `allowed_loads` and `denied_loads` cannot be used together on the same rpc_action. The verifier will raise a compile-time error.
+
+**Key Differences**:
+| Aspect | `allowed_loads` | `denied_loads` |
+|--------|-----------------|----------------|
+| **Approach** | Whitelist | Blacklist |
+| **Default** | Nothing loadable | Everything loadable |
+| **Use case** | Strict security, minimal exposure | Block specific sensitive fields |
+
+**Implementation locations**:
+- DSL schema: `lib/ash_typescript/rpc.ex` (RpcAction struct + schema)
+- Load validation: `lib/ash_typescript/rpc/field_processing/field_selector.ex`
+- Pipeline integration: `lib/ash_typescript/rpc/pipeline.ex`
+- Verifier: `lib/ash_typescript/rpc/verify_rpc.ex`
+- Tests: `test/ash_typescript/rpc/load_restrictions_test.exs`
+
 ### Field Formatters
 
 Configure input/output field formatting in your config:

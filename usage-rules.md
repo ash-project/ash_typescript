@@ -44,8 +44,10 @@ SPDX-License-Identifier: MIT
 | **Get Action** | `rpc_action :get_todo, :read, get?: true` | Single record via Ash.read_one |
 | **Get By Fields** | `rpc_action :get_by_email, :read, get_by: [:email]` | Single record by specific fields |
 | **Not Found Error** | `not_found_error?: false` | Return null instead of error |
-| **Disable Filtering** | `rpc_action :list, :read, derive_filter?: false` | Disable filter for read action |
-| **Disable Sorting** | `rpc_action :list, :read, derive_sort?: false` | Disable sort for read action |
+| **Disable Filtering** | `rpc_action :list, :read, enable_filter?: false` | Disable filter for read action |
+| **Disable Sorting** | `rpc_action :list, :read, enable_sort?: false` | Disable sort for read action |
+| **Allowed Loads** | `allowed_loads: [:user, comments: [:author]]` | Restrict which relationships/calculations can be loaded |
+| **Denied Loads** | `denied_loads: [:user]` | Deny specific relationships/calculations from being loaded |
 | **Metadata Selection (Read)** | `metadataFields: [\"field1\"]` | Select metadata (merged into records) |
 | **Metadata Access (Mutations)** | `result.metadata.field1` | Access metadata (separate field) |
 | **Type Overrides** | `type_mapping_overrides: [{Module, \"TSType\"}]` | Map dependency types |
@@ -57,15 +59,15 @@ SPDX-License-Identifier: MIT
 |-------------|--------|--------|------|------|-------|----------|
 | **read** | ✓ | ✓* | ✓ | ✓** | ✓ | - |
 | **read (get?/get_by)** | ✓ | - | - | - | ✓ | - |
-| **read (derive_filter?: false)** | ✓ | - | ✓ | ✓ | ✓ | - |
-| **read (derive_sort?: false)** | ✓ | ✓ | ✓ | - | ✓ | - |
+| **read (enable_filter?: false)** | ✓ | - | ✓ | ✓ | ✓ | - |
+| **read (enable_sort?: false)** | ✓ | ✓ | ✓ | - | ✓ | - |
 | **create** | ✓ | - | - | - | ✓ | - |
 | **update** | ✓ | - | - | - | ✓ | ✓ |
 | **destroy** | ✓ | - | - | - | ✓ | ✓ |
 | **custom** | ✓ | varies | varies | varies | ✓ | - |
 
-*Filter can be disabled with `derive_filter?: false`
-**Sort can be disabled with `derive_sort?: false`
+*Filter can be disabled with `enable_filter?: false`
+**Sort can be disabled with `enable_sort?: false`
 
 ## Core Patterns
 
@@ -248,6 +250,54 @@ createTodoChannel({
 });
 ```
 
+### Load Restrictions
+
+Control which relationships and calculations clients can load:
+
+```elixir
+typescript_rpc do
+  resource MyApp.Todo do
+    # Only allow loading user relationship
+    rpc_action :list_todos_limited, :read, allowed_loads: [:user]
+
+    # Allow user and specific nested fields on comments
+    rpc_action :list_todos_nested, :read, allowed_loads: [:user, comments: [:author]]
+
+    # Deny loading user relationship (all others allowed)
+    rpc_action :list_todos_no_user, :read, denied_loads: [:user]
+
+    # Deny specific nested field (comments.todo)
+    rpc_action :list_todos_no_nested, :read, denied_loads: [comments: [:todo]]
+  end
+end
+```
+
+**Key behaviors:**
+- `allowed_loads` - Whitelist: only specified fields can be loaded (mutually exclusive with `denied_loads`)
+- `denied_loads` - Blacklist: specified fields cannot be loaded (mutually exclusive with `allowed_loads`)
+- Nested syntax: `[parent: [:child]]` restricts child loading on parent relationship
+- Primitive fields (attributes) are unaffected - restrictions apply only to loadable fields (relationships, calculations, aggregates)
+
+```typescript
+// With allowed_loads: [:user]
+await listTodosLimited({
+  fields: ["id", "title", { user: ["name"] }]  // ✓ user is allowed
+});
+
+await listTodosLimited({
+  fields: ["id", { comments: ["content"] }]  // ✗ Error: comments not in allowed_loads
+});
+
+// With denied_loads: [:user]
+await listTodosNoUser({
+  fields: ["id", { comments: ["content"] }]  // ✓ comments not denied
+});
+
+await listTodosNoUser({
+  fields: ["id", { user: ["name"] }]  // ✗ Error: user is denied
+});
+```
+
 ### Field Name Mapping
 
 ```elixir
@@ -334,6 +384,9 @@ end
 | Using `primaryKey` instead of `identity` | Renamed: use `identity` parameter |
 | Identity not found for update/destroy | Check `identities` config matches resource identities |
 | Wrong identity field names | Named identities require `{ fieldName: value }` format |
+| Load not allowed error | Field not in `allowed_loads` list | Add field to `allowed_loads` or remove restriction |
+| Load denied error | Field in `denied_loads` list | Remove field from `denied_loads` |
+| Both `allowed_loads` and `denied_loads` set | Mutually exclusive options | Use only one restriction type |
 
 ## Error Message Quick Reference
 
@@ -360,6 +413,8 @@ end
 | "Invalid identity" | Wrong identity format | Check identity field names; use `{ field: value }` for named identities |
 | "Identity not found on resource" | `identities` references non-existent identity | Use valid identity name or `:_primary_key` |
 | "Resource has no primary key" | `:_primary_key` used but none defined | Define primary key or use named identity |
+| "load_not_allowed" | Requested field not in `allowed_loads` | Add field to `allowed_loads` list or remove option |
+| "load_denied" | Requested field in `denied_loads` | Remove field from `denied_loads` list |
 
 ## Configuration Reference
 
