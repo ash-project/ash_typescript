@@ -11,6 +11,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.12.0](https://github.com/ash-project/ash_typescript/compare/v0.11.6...v0.12.0) (2026-01-17)
+
+
+
+
+### Features:
+
+* rpc: generate restricted schemas for allowed_loads actions by [@Torkan](https://github.com/Torkan)
+
+* rpc: support first aggregates returning embedded resources and unions by [@Torkan](https://github.com/Torkan)
+
+* rpc: add allowed_loads and denied_loads options for rpc_action by [@Torkan](https://github.com/Torkan)
+
+* rpc: add enable_filter? and enable_sort? options for rpc_action by [@Torkan](https://github.com/Torkan)
+
 ## [v0.11.6](https://github.com/ash-project/ash_typescript/compare/v0.11.5...v0.11.6) (2026-01-13)
 
 

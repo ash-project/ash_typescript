@@ -5,7 +5,7 @@
 defmodule AshTypescript.MixProject do
   use Mix.Project
 
-  @version "0.11.6"
+  @version "0.12.0"
 
   @description """
   Generate type-safe TypeScript clients directly from your Ash resources and actions, ensuring end-to-end type safety between your backend and frontend.
