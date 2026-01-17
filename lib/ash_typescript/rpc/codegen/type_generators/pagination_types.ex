@@ -27,7 +27,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
     * `_resource` - The Ash resource (unused but kept for consistency)
     * `action` - The Ash action
     * `rpc_action_name_pascal` - The PascalCase name of the RPC action
-    * `resource_name` - The TypeScript resource type name
+    * `schema_ref` - The TypeScript resource type name
     * `has_metadata` - Boolean indicating if metadata is enabled
 
   ## Returns
@@ -38,7 +38,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
         _resource,
         action,
         rpc_action_name_pascal,
-        resource_name,
+        schema_ref,
         has_metadata
       ) do
     supports_offset = ActionIntrospection.action_supports_offset_pagination?(action)
@@ -46,19 +46,19 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
 
     cond do
       supports_offset and supports_keyset ->
-        generate_mixed_pagination_result_type(rpc_action_name_pascal, resource_name, has_metadata)
+        generate_mixed_pagination_result_type(rpc_action_name_pascal, schema_ref, has_metadata)
 
       supports_offset ->
         generate_offset_pagination_result_type(
           rpc_action_name_pascal,
-          resource_name,
+          schema_ref,
           has_metadata
         )
 
       supports_keyset ->
         generate_keyset_pagination_result_type(
           rpc_action_name_pascal,
-          resource_name,
+          schema_ref,
           has_metadata
         )
     end
@@ -73,7 +73,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
   - limit: Number of items per page
   - offset: Current offset
   """
-  def generate_offset_pagination_result_type(rpc_action_name_pascal, resource_name, has_metadata) do
+  def generate_offset_pagination_result_type(rpc_action_name_pascal, schema_ref, has_metadata) do
     results_field = formatted_results_field()
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()
@@ -85,7 +85,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
         Fields extends #{rpc_action_name_pascal}Fields,
         MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
       > = {
-        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
+        #{results_field}: Array<InferResult<#{schema_ref}, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
         #{has_more_field}: boolean;
         #{limit_field}: number;
         #{offset_field}: number;
@@ -96,7 +96,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
       export type Infer#{rpc_action_name_pascal}Result<
         Fields extends #{rpc_action_name_pascal}Fields,
       > = {
-        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+        #{results_field}: Array<InferResult<#{schema_ref}, Fields>>;
         #{has_more_field}: boolean;
         #{limit_field}: number;
         #{offset_field}: number;
@@ -117,7 +117,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
   - previousPage: Cursor string for previous page
   - nextPage: Cursor string for next page
   """
-  def generate_keyset_pagination_result_type(rpc_action_name_pascal, resource_name, has_metadata) do
+  def generate_keyset_pagination_result_type(rpc_action_name_pascal, schema_ref, has_metadata) do
     results_field = formatted_results_field()
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()
@@ -132,7 +132,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
         Fields extends #{rpc_action_name_pascal}Fields,
         MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
       > = {
-        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
+        #{results_field}: Array<InferResult<#{schema_ref}, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
         #{has_more_field}: boolean;
         #{limit_field}: number;
         #{after_field}: string | null;
@@ -146,7 +146,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
       export type Infer#{rpc_action_name_pascal}Result<
         Fields extends #{rpc_action_name_pascal}Fields,
       > = {
-        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+        #{results_field}: Array<InferResult<#{schema_ref}, Fields>>;
         #{has_more_field}: boolean;
         #{limit_field}: number;
         #{after_field}: string | null;
@@ -164,7 +164,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
   The result is a union type with a discriminant `type` field that indicates
   whether offset or keyset pagination was used.
   """
-  def generate_mixed_pagination_result_type(rpc_action_name_pascal, resource_name, has_metadata) do
+  def generate_mixed_pagination_result_type(rpc_action_name_pascal, schema_ref, has_metadata) do
     results_field = formatted_results_field()
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()
@@ -182,14 +182,14 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
         Fields extends #{rpc_action_name_pascal}Fields,
         MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
       > = {
-        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
+        #{results_field}: Array<InferResult<#{schema_ref}, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
         #{has_more_field}: boolean;
         #{limit_field}: number;
         #{offset_field}: number;
         #{count_field}?: number | null;
         #{type_field}: "offset";
       } | {
-        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
+        #{results_field}: Array<InferResult<#{schema_ref}, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
         #{has_more_field}: boolean;
         #{limit_field}: number;
         #{after_field}: string | null;
@@ -205,14 +205,14 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
       export type Infer#{rpc_action_name_pascal}Result<
         Fields extends #{rpc_action_name_pascal}Fields,
       > = {
-        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+        #{results_field}: Array<InferResult<#{schema_ref}, Fields>>;
         #{has_more_field}: boolean;
         #{limit_field}: number;
         #{offset_field}: number;
         #{count_field}?: number | null;
         #{type_field}: "offset";
       } | {
-        #{results_field}: Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+        #{results_field}: Array<InferResult<#{schema_ref}, Fields>>;
         #{has_more_field}: boolean;
         #{limit_field}: number;
         #{after_field}: string | null;
@@ -237,7 +237,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
     * `_resource` - The Ash resource (unused but kept for consistency)
     * `action` - The Ash action
     * `rpc_action_name_pascal` - The PascalCase name of the RPC action
-    * `resource_name` - The TypeScript resource type name
+    * `schema_ref` - The TypeScript resource type name
     * `has_metadata` - Boolean indicating if metadata is enabled
 
   ## Returns
@@ -248,7 +248,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
         _resource,
         action,
         rpc_action_name_pascal,
-        resource_name,
+        schema_ref,
         has_metadata
       ) do
     supports_offset = ActionIntrospection.action_supports_offset_pagination?(action)
@@ -256,20 +256,20 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
 
     if has_metadata do
       array_type =
-        "Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>"
+        "Array<InferResult<#{schema_ref}, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>"
 
       cond do
         supports_offset and supports_keyset ->
           offset_type =
             generate_offset_pagination_type_inline(
-              resource_name,
+              schema_ref,
               rpc_action_name_pascal,
               has_metadata
             )
 
           keyset_type =
             generate_keyset_pagination_type_inline(
-              resource_name,
+              schema_ref,
               rpc_action_name_pascal,
               has_metadata
             )
@@ -285,7 +285,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
         supports_offset ->
           offset_type =
             generate_offset_pagination_type_inline(
-              resource_name,
+              schema_ref,
               rpc_action_name_pascal,
               has_metadata
             )
@@ -301,7 +301,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
         supports_keyset ->
           keyset_type =
             generate_keyset_pagination_type_inline(
-              resource_name,
+              schema_ref,
               rpc_action_name_pascal,
               has_metadata
             )
@@ -315,20 +315,20 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
           """
       end
     else
-      array_type = "Array<InferResult<#{resource_name}ResourceSchema, Fields>>"
+      array_type = "Array<InferResult<#{schema_ref}, Fields>>"
 
       cond do
         supports_offset and supports_keyset ->
           offset_type =
             generate_offset_pagination_type_inline(
-              resource_name,
+              schema_ref,
               rpc_action_name_pascal,
               has_metadata
             )
 
           keyset_type =
             generate_keyset_pagination_type_inline(
-              resource_name,
+              schema_ref,
               rpc_action_name_pascal,
               has_metadata
             )
@@ -343,7 +343,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
         supports_offset ->
           offset_type =
             generate_offset_pagination_type_inline(
-              resource_name,
+              schema_ref,
               rpc_action_name_pascal,
               has_metadata
             )
@@ -358,7 +358,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
         supports_keyset ->
           keyset_type =
             generate_keyset_pagination_type_inline(
-              resource_name,
+              schema_ref,
               rpc_action_name_pascal,
               has_metadata
             )
@@ -378,7 +378,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
 
   Used within conditional pagination types.
   """
-  def generate_offset_pagination_type_inline(resource_name, rpc_action_name_pascal, has_metadata) do
+  def generate_offset_pagination_type_inline(schema_ref, rpc_action_name_pascal, has_metadata) do
     results_field = formatted_results_field()
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()
@@ -388,9 +388,9 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
 
     result_array_type =
       if has_metadata do
-        "Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>"
+        "Array<InferResult<#{schema_ref}, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>"
       else
-        "Array<InferResult<#{resource_name}ResourceSchema, Fields>>"
+        "Array<InferResult<#{schema_ref}, Fields>>"
       end
 
     """
@@ -411,7 +411,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
 
   Used within conditional pagination types.
   """
-  def generate_keyset_pagination_type_inline(resource_name, rpc_action_name_pascal, has_metadata) do
+  def generate_keyset_pagination_type_inline(schema_ref, rpc_action_name_pascal, has_metadata) do
     results_field = formatted_results_field()
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()
@@ -424,9 +424,9 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
 
     result_array_type =
       if has_metadata do
-        "Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>"
+        "Array<InferResult<#{schema_ref}, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>"
       else
-        "Array<InferResult<#{resource_name}ResourceSchema, Fields>>"
+        "Array<InferResult<#{schema_ref}, Fields>>"
       end
 
     """

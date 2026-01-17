@@ -19,6 +19,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes
   alias AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes
+  alias AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema
 
   @doc """
   Generates the TypeScript result type for an RPC action.
@@ -41,8 +42,11 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
   A string containing the TypeScript type definitions for this action's result.
   """
   def generate_result_type(resource, action, rpc_action, rpc_action_name) do
-    resource_name = build_resource_type_name(resource)
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
+
+    # Get restricted schema if load restrictions are configured
+    {schema_def, schema_ref} =
+      RestrictedSchema.get_schema_and_reference(resource, rpc_action, rpc_action_name_pascal)
 
     # Check both Ash's native get? and RPC's get?/get_by options
     ash_get? = action.type == :read and Map.get(action, :get?, false)
@@ -61,6 +65,15 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
 
     null_suffix = if not_found_error?, do: "", else: " | null"
 
+    # Helper to prepend schema definition if it exists
+    prepend_schema_def = fn result ->
+      if schema_def do
+        schema_def <> "\n" <> result
+      else
+        result
+      end
+    end
+
     case {action.type, is_get_action} do
       {:read, true} ->
         metadata_type =
@@ -71,94 +84,100 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
             MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
           )
 
-        if has_metadata do
-          """
-          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
-          #{metadata_type}
-          export type Infer#{rpc_action_name_pascal}Result<
-            Fields extends #{rpc_action_name_pascal}Fields,
-            MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
-          > = (InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>)#{null_suffix};
-          """
-        else
-          """
-          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
-          export type Infer#{rpc_action_name_pascal}Result<
-            Fields extends #{rpc_action_name_pascal}Fields,
-          > = InferResult<#{resource_name}ResourceSchema, Fields>#{null_suffix};
-          """
-        end
-
-      {:read, false} ->
-        if ActionIntrospection.action_supports_pagination?(action) do
-          metadata_type =
-            MetadataTypes.generate_action_metadata_type(
-              action,
-              rpc_action,
-              rpc_action_name_pascal
-            )
-
-          has_metadata =
-            MetadataTypes.metadata_enabled?(
-              MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
-            )
-
-          fields_type = """
-          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
-          #{metadata_type}
-          """
-
-          pagination_type =
-            if ActionIntrospection.action_requires_pagination?(action) do
-              PaginationTypes.generate_pagination_result_type(
-                resource,
-                action,
-                rpc_action_name_pascal,
-                resource_name,
-                has_metadata
-              )
-            else
-              PaginationTypes.generate_conditional_pagination_result_type(
-                resource,
-                action,
-                rpc_action_name_pascal,
-                resource_name,
-                has_metadata
-              )
-            end
-
-          fields_type <> "\n" <> pagination_type
-        else
-          metadata_type =
-            MetadataTypes.generate_action_metadata_type(
-              action,
-              rpc_action,
-              rpc_action_name_pascal
-            )
-
-          has_metadata =
-            MetadataTypes.metadata_enabled?(
-              MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
-            )
-
+        result =
           if has_metadata do
             """
-            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{schema_ref}>[];
             #{metadata_type}
             export type Infer#{rpc_action_name_pascal}Result<
               Fields extends #{rpc_action_name_pascal}Fields,
               MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
-            > = Array<InferResult<#{resource_name}ResourceSchema, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
+            > = (InferResult<#{schema_ref}, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>)#{null_suffix};
             """
           else
             """
-            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
+            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{schema_ref}>[];
             export type Infer#{rpc_action_name_pascal}Result<
               Fields extends #{rpc_action_name_pascal}Fields,
-            > = Array<InferResult<#{resource_name}ResourceSchema, Fields>>;
+            > = InferResult<#{schema_ref}, Fields>#{null_suffix};
             """
           end
-        end
+
+        prepend_schema_def.(result)
+
+      {:read, false} ->
+        result =
+          if ActionIntrospection.action_supports_pagination?(action) do
+            metadata_type =
+              MetadataTypes.generate_action_metadata_type(
+                action,
+                rpc_action,
+                rpc_action_name_pascal
+              )
+
+            has_metadata =
+              MetadataTypes.metadata_enabled?(
+                MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
+              )
+
+            fields_type = """
+            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{schema_ref}>[];
+            #{metadata_type}
+            """
+
+            pagination_type =
+              if ActionIntrospection.action_requires_pagination?(action) do
+                PaginationTypes.generate_pagination_result_type(
+                  resource,
+                  action,
+                  rpc_action_name_pascal,
+                  schema_ref,
+                  has_metadata
+                )
+              else
+                PaginationTypes.generate_conditional_pagination_result_type(
+                  resource,
+                  action,
+                  rpc_action_name_pascal,
+                  schema_ref,
+                  has_metadata
+                )
+              end
+
+            fields_type <> "\n" <> pagination_type
+          else
+            metadata_type =
+              MetadataTypes.generate_action_metadata_type(
+                action,
+                rpc_action,
+                rpc_action_name_pascal
+              )
+
+            has_metadata =
+              MetadataTypes.metadata_enabled?(
+                MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
+              )
+
+            if has_metadata do
+              """
+              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{schema_ref}>[];
+              #{metadata_type}
+              export type Infer#{rpc_action_name_pascal}Result<
+                Fields extends #{rpc_action_name_pascal}Fields,
+                MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
+              > = Array<InferResult<#{schema_ref}, Fields> & Pick<#{rpc_action_name_pascal}Metadata, MetadataFields[number]>>;
+              """
+            else
+              """
+              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{schema_ref}>[];
+              export type Infer#{rpc_action_name_pascal}Result<
+                Fields extends #{rpc_action_name_pascal}Fields,
+              > = Array<InferResult<#{schema_ref}, Fields>>;
+              """
+            end
+          end
+
+        prepend_schema_def.(result)
 
       {action_type, _} when action_type in [:create, :update] ->
         metadata_type =
@@ -169,24 +188,27 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
             MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
           )
 
-        if has_metadata do
-          """
-          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
-          #{metadata_type}
-          export type Infer#{rpc_action_name_pascal}Result<
-            Fields extends #{rpc_action_name_pascal}Fields | undefined,
-            MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
-          > = InferResult<#{resource_name}ResourceSchema, Fields>;
-          """
-        else
-          """
-          export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{resource_name}ResourceSchema>[];
-          #{metadata_type}
-          export type Infer#{rpc_action_name_pascal}Result<
-            Fields extends #{rpc_action_name_pascal}Fields | undefined,
-          > = InferResult<#{resource_name}ResourceSchema, Fields>;
-          """
-        end
+        result =
+          if has_metadata do
+            """
+            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{schema_ref}>[];
+            #{metadata_type}
+            export type Infer#{rpc_action_name_pascal}Result<
+              Fields extends #{rpc_action_name_pascal}Fields | undefined,
+              MetadataFields extends ReadonlyArray<keyof #{rpc_action_name_pascal}Metadata> = []
+            > = InferResult<#{schema_ref}, Fields>;
+            """
+          else
+            """
+            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{schema_ref}>[];
+            #{metadata_type}
+            export type Infer#{rpc_action_name_pascal}Result<
+              Fields extends #{rpc_action_name_pascal}Fields | undefined,
+            > = InferResult<#{schema_ref}, Fields>;
+            """
+          end
+
+        prepend_schema_def.(result)
 
       {:destroy, _} ->
         metadata_type =
