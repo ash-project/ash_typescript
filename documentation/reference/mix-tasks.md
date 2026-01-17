@@ -209,13 +209,25 @@ mix test.codegen
 Add to your `mix.exs`:
 
 ```elixir
+# In your project/0 function, add preferred_envs to cli/0:
+def cli do
+  [
+    preferred_envs: [
+      "test.codegen": :test
+    ]
+  ]
+end
+
+# In your aliases:
 defp aliases do
   [
-    "test.codegen": ["cmd MIX_ENV=test mix ash_typescript.codegen"],
+    "test.codegen": "ash_typescript.codegen",
     # ... other aliases
   ]
 end
 ```
+
+This ensures `mix test.codegen` always runs in the test environment without needing `MIX_ENV=test`.
 
 ## Workflow Integration
 
@@ -331,5 +343,5 @@ chmod 755 assets/js
 ## See Also
 
 - [Configuration Reference](configuration.md) - Configure code generation
-- [Getting Started Tutorial](../tutorials/getting-started.md) - Initial setup guide
+- [Installation](../getting-started/installation.md) - Initial setup guide
 - [Troubleshooting Reference](troubleshooting.md) - Common problems and solutions

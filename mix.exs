@@ -100,26 +100,32 @@ defmodule AshTypescript.MixProject do
         # Home
         {"README.md", title: "Home"},
 
-        # Tutorials
-        "documentation/tutorials/getting-started.md",
-        "documentation/tutorials/react-setup.md",
+        # Getting Started
+        "documentation/getting-started/installation.md",
+        "documentation/getting-started/first-rpc-action.md",
+        "documentation/getting-started/frontend-frameworks.md",
 
-        # How-To Guides
-        "documentation/how_to/basic-crud.md",
-        "documentation/how_to/field-selection.md",
-        "documentation/how_to/error-handling.md",
-        "documentation/how_to/custom-fetch.md",
+        # Guides
+        "documentation/guides/crud-operations.md",
+        "documentation/guides/field-selection.md",
+        "documentation/guides/querying-data.md",
+        "documentation/guides/typed-queries.md",
+        "documentation/guides/error-handling.md",
+        "documentation/guides/form-validation.md",
 
-        # Topics
-        "documentation/topics/lifecycle-hooks.md",
-        "documentation/topics/error-handling.md",
-        "documentation/topics/phoenix-channels.md",
-        "documentation/topics/embedded-resources.md",
-        "documentation/topics/union-types.md",
-        "documentation/topics/multitenancy.md",
-        "documentation/topics/action-metadata.md",
-        "documentation/topics/form-validation.md",
-        "documentation/topics/zod-schemas.md",
+        # Features
+        "documentation/features/rpc-action-options.md",
+        "documentation/features/phoenix-channels.md",
+        "documentation/features/lifecycle-hooks.md",
+        "documentation/features/multitenancy.md",
+        "documentation/features/action-metadata.md",
+
+        # Advanced
+        "documentation/advanced/union-types.md",
+        "documentation/advanced/embedded-resources.md",
+        "documentation/advanced/custom-fetch.md",
+        "documentation/advanced/custom-types.md",
+        "documentation/advanced/field-name-mapping.md",
 
         # Reference
         "documentation/reference/configuration.md",
@@ -136,9 +142,10 @@ defmodule AshTypescript.MixProject do
         "CHANGELOG.md"
       ],
       groups_for_extras: [
-        Tutorials: ~r'documentation/tutorials',
-        "How-To Guides": ~r'documentation/how_to',
-        Topics: ~r'documentation/topics',
+        "Getting Started": ~r'documentation/getting-started',
+        Guides: ~r'documentation/guides',
+        Features: ~r'documentation/features',
+        Advanced: ~r'documentation/advanced',
         Reference: ~r'documentation/reference',
         DSLs: ~r'documentation/dsls',
         "About AshTypescript": [

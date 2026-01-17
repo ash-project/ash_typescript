@@ -347,32 +347,39 @@ const newTodo = await createTodo({
 
 **🎉 That's it!** Your TypeScript frontend now has compile-time type safety for your Elixir backend.
 
-👉 **For complete setup instructions, see the [Getting Started Guide](documentation/tutorials/getting-started.md)**
+👉 **For complete setup instructions, see the [Installation Guide](documentation/getting-started/installation.md)**
 
 ## 📚 Documentation
 
-### Tutorials
+### Getting Started
 
-- **[Getting Started](documentation/tutorials/getting-started.md)** - Complete installation and setup guide
-- **[React Setup](documentation/tutorials/react-setup.md)** - Full Phoenix + React + TypeScript integration
+- **[Installation](documentation/getting-started/installation.md)** - Complete installation and setup guide
+- **[Your First RPC Action](documentation/getting-started/first-rpc-action.md)** - Create your first type-safe API call
+- **[Frontend Frameworks](documentation/getting-started/frontend-frameworks.md)** - React and other framework integrations
 
-### How-To Guides
+### Guides
 
-- **[Basic CRUD Operations](documentation/how_to/basic-crud.md)** - Create, read, update, delete patterns
-- **[Field Selection](documentation/how_to/field-selection.md)** - Advanced field selection and nested relationships
-- **[Error Handling](documentation/how_to/error-handling.md)** - Comprehensive error handling strategies
-- **[Custom Fetch Functions](documentation/how_to/custom-fetch.md)** - Using custom HTTP clients and request options
+- **[CRUD Operations](documentation/guides/crud-operations.md)** - Create, read, update, delete patterns
+- **[Field Selection](documentation/guides/field-selection.md)** - Advanced field selection and nested relationships
+- **[Querying Data](documentation/guides/querying-data.md)** - Pagination, sorting, and filtering
+- **[Error Handling](documentation/guides/error-handling.md)** - Comprehensive error handling strategies
+- **[Form Validation](documentation/guides/form-validation.md)** - Client-side validation with Zod schemas
 
-### Topics
+### Features
 
-- **[Lifecycle Hooks](documentation/topics/lifecycle-hooks.md)** - Inject custom logic (auth, logging, telemetry)
-- **[Phoenix Channels](documentation/topics/phoenix-channels.md)** - Real-time WebSocket-based RPC actions
-- **[Embedded Resources](documentation/topics/embedded-resources.md)** - Working with embedded data structures
-- **[Union Types](documentation/topics/union-types.md)** - Type-safe union type handling
-- **[Multitenancy](documentation/topics/multitenancy.md)** - Multi-tenant application support
-- **[Action Metadata](documentation/topics/action-metadata.md)** - Attach and retrieve action metadata
-- **[Form Validation](documentation/topics/form-validation.md)** - Client-side validation functions
-- **[Zod Schemas](documentation/topics/zod-schemas.md)** - Runtime validation with Zod
+- **[Lifecycle Hooks](documentation/features/lifecycle-hooks.md)** - Inject custom logic (auth, logging, telemetry)
+- **[Phoenix Channels](documentation/features/phoenix-channels.md)** - Real-time WebSocket-based RPC actions
+- **[Multitenancy](documentation/features/multitenancy.md)** - Multi-tenant application support
+- **[Action Metadata](documentation/features/action-metadata.md)** - Attach and retrieve action metadata
+- **[RPC Action Options](documentation/features/rpc-action-options.md)** - Configure action behavior
+
+### Advanced
+
+- **[Union Types](documentation/advanced/union-types.md)** - Type-safe union type handling
+- **[Embedded Resources](documentation/advanced/embedded-resources.md)** - Working with embedded data structures
+- **[Custom Fetch Functions](documentation/advanced/custom-fetch.md)** - Using custom HTTP clients and request options
+- **[Custom Types](documentation/advanced/custom-types.md)** - Create custom types with TypeScript integration
+- **[Field Name Mapping](documentation/advanced/field-name-mapping.md)** - Map invalid field names to TypeScript
 
 ### Reference
 
@@ -433,7 +440,7 @@ Please ensure:
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [MIT.txt](LICENSES/MIT.txt) file for details.
+This project is licensed under the MIT License - see the [LICENSES/MIT.txt](https://github.com/ash-project/ash_typescript/blob/main/LICENSES/MIT.txt) file for details.
 
 ## 🆘 Support
 

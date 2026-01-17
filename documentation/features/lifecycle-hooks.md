@@ -1,6 +1,6 @@
 <!--
 SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
-SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs.contributors>
+SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
 
 SPDX-License-Identifier: MIT
 -->
@@ -947,7 +947,7 @@ export interface ActionChannelConfig {
 - `beforeChannelPush` receives action name and config, returns modified config
 - `afterChannelResponse` receives action name, response type, data, and config
 - Response type distinguishes between three channel outcomes: "ok", "error", "timeout"
-- Original config takes precedence over modified config
+- Return a modified config object from `beforeChannelPush` to change settings
 - Your custom `hookCtx` type is automatically included when you configure context type settings
 
 ### beforeChannelPush Hook
@@ -1322,18 +1322,18 @@ validateCreateTodoChannel({
 
 ### HTTP Hooks
 
-**Config precedence not working:**
+**Custom headers getting lost:**
 ```typescript
-// ❌ Wrong: Original config gets overridden
+// ❌ Wrong: Custom headers get replaced by config.headers
 return {
   headers: { ...config.headers, 'X-Custom': 'value' },
-  ...config
+  ...config  // config.headers completely replaces the headers object above
 };
 
-// ✅ Correct: Original config takes precedence
+// ✅ Correct: Merge custom headers with existing headers
 return {
   ...config,
-  headers: { 'X-Custom': 'value', ...config.headers }
+  headers: { 'X-Custom': 'value', ...config.headers }  // Caller's headers override our defaults
 };
 ```
 
@@ -1377,15 +1377,18 @@ if (ctx?.trackPerformance) {
 
 ### Channel Hooks
 
-**Config precedence not working:**
+**Setting default timeout:**
+
+Both patterns work for setting a default that the caller can override:
+
 ```typescript
-// ❌ Wrong: Original config gets overridden
+// Option 1: Spread overwrites earlier properties
 return {
-  timeout: 10000,
-  ...config
+  timeout: 10000,  // Default
+  ...config        // Caller's timeout (if set) overwrites
 };
 
-// ✅ Correct: Original config takes precedence
+// Option 2: Explicit nullish coalescing
 return {
   ...config,
   timeout: config.timeout ?? 10000
@@ -1434,3 +1437,9 @@ export async function afterChannelResponse(
   }
 }
 ```
+
+## Next Steps
+
+- [Phoenix Channels](phoenix-channels.md) - Set up channel-based RPC
+- [Configuration Reference](../reference/configuration.md) - All hook configuration options
+- [Error Handling](../guides/error-handling.md) - Comprehensive error handling patterns

@@ -33,16 +33,20 @@ This guide covers common issues you may encounter when using AshTypescript and h
 - Endpoint routing issues
 
 **Solutions:**
-- Verify AshPhoenix RPC endpoints are configured in your router:
+- Verify RPC controller and routes are configured:
   ```elixir
-  scope "/api" do
+  # router.ex
+  scope "/rpc", MyAppWeb do
     pipe_through :api
-    ash_phoenix_rpc "/ash_rpc", :ash_typescript
+    post "/run", RpcController, :run
+    post "/validate", RpcController, :validate
   end
   ```
+- Ensure RPC controller exists and calls the `run_action` function from the Rpc module
 - Check that actions are properly exposed in domain RPC configuration
-- Ensure the domain is properly configured with `AshTypescript.Rpc` extension
+- Ensure the domain is properly configured with the Rpc extension
 - Verify action names match between domain configuration and TypeScript calls
+- Check that endpoint paths in config match your router (default: `/rpc/run`, `/rpc/validate`)
 
 ### Type Inference Issues
 
@@ -215,23 +219,23 @@ mix test
 
 ### Lifecycle Hooks
 
-#### Config Precedence Not Working
+#### Custom Headers Getting Lost
 
 **Wrong:**
 ```typescript
-// ❌ Original config gets overridden
+// ❌ Custom headers get replaced by config.headers
 return {
   headers: { ...config.headers, 'X-Custom': 'value' },
-  ...config
+  ...config  // config.headers completely replaces the headers object above
 };
 ```
 
 **Correct:**
 ```typescript
-// ✅ Original config takes precedence
+// ✅ Merge custom headers with existing headers
 return {
   ...config,
-  headers: { 'X-Custom': 'value', ...config.headers }
+  headers: { 'X-Custom': 'value', ...config.headers }  // Caller's headers override our defaults
 };
 ```
 
@@ -288,23 +292,30 @@ if (ctx?.trackPerformance) {
 
 ### Channel Hook Issues
 
-#### Config Precedence Not Working
+#### Setting Default Timeout
 
-**Wrong:**
+Both patterns work for setting a default that the caller can override:
+
 ```typescript
-// ❌ Original config gets overridden
+// Option 1: Spread overwrites earlier properties
 return {
-  timeout: 10000,
-  ...config
+  timeout: 10000,  // Default
+  ...config        // Caller's timeout (if set) overwrites
 };
-```
 
-**Correct:**
-```typescript
-// ✅ Original config takes precedence
+// Option 2: Explicit nullish coalescing
 return {
   ...config,
   timeout: config.timeout ?? 10000
+};
+```
+
+If you want to **force** a timeout that cannot be overridden:
+
+```typescript
+return {
+  ...config,
+  timeout: 10000  // Always 10000, ignores caller's value
 };
 ```
 

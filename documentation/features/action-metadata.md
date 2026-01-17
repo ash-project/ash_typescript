@@ -1,6 +1,6 @@
 <!--
 SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
-SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs.contributors>
+SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
 
 SPDX-License-Identifier: MIT
 -->
@@ -249,18 +249,20 @@ if (result.success) {
 AshTypescript includes compile-time verification that detects invalid metadata field names:
 
 ```
-Invalid metadata field name found in action :read_with_metadata on resource MyApp.Task
+Invalid metadata field names found in show_metadata configuration.
 
-Metadata field 'field_1' contains invalid pattern (underscore before digit).
-Suggested mapping: field_1 → field1
+Invalid metadata field name in RPC action:
+  - RPC action: read_with_metadata (action: read)
+  - Field: field_1
+  - Suggested: field1
+  - Reason: Contains question marks or numbers preceded by underscores
 
-Metadata field 'is_cached?' contains invalid pattern (question mark).
-Suggested mapping: is_cached? → isCached
-
-Use the metadata_field_names option to provide valid TypeScript identifiers.
+Metadata field names must be valid TypeScript identifiers and cannot conflict with resource fields.
 ```
 
-## See Also
+## Next Steps
 
-- [Troubleshooting Guide](/documentation/reference/troubleshooting.md) - Learn about field and argument name mapping
+- [Field Selection](../guides/field-selection.md) - Learn about field selection patterns
+- [RPC Action Options](rpc-action-options.md) - All RPC action configuration options
+- [Troubleshooting](../reference/troubleshooting.md) - Learn about field and argument name mapping
 - [Ash Action Metadata](https://hexdocs.pm/ash/dsl-ash-resource.html#actions-read-metadata) - Learn about Ash metadata in depth

@@ -1,6 +1,6 @@
 <!--
 SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
-SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs.contributors>
+SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
 
 SPDX-License-Identifier: MIT
 -->
@@ -105,7 +105,7 @@ listProjectsChannel({
 
 The tenant is included in the channel message payload and enforced server-side.
 
-## See Also
+## Next Steps
 
 - [Phoenix Channels](phoenix-channels.md) - Learn about channel-based RPC
 - [Configuration Reference](../reference/configuration.md) - View all configuration options

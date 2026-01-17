@@ -1,6 +1,6 @@
 <!--
 SPDX-FileCopyrightText: 2025 Torkild G. Kjevik
-SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs.contributors>
+SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
 
 SPDX-License-Identifier: MIT
 -->
@@ -145,7 +145,7 @@ end
 ```
 
 **Important Notes:**
-- Replace `:my_app` with your actual app's OTP application name (the atom used in `AshTypescript.Rpc.run_action/3`)
+- Replace `:my_app` with your actual app's OTP application name (the first argument to `run_action`)
 - The socket connection should set `socket.assigns.ash_actor` and `socket.assigns.ash_tenant` if your app uses authentication or multitenancy
 
 ## Channel Function Features
@@ -220,3 +220,10 @@ createTodoChannel({
   }
 });
 ```
+
+## Next Steps
+
+- [Lifecycle Hooks](lifecycle-hooks.md) - Add hooks for logging and telemetry
+- [Multitenancy](multitenancy.md) - Tenant support with channels
+- [Error Handling](../guides/error-handling.md) - Comprehensive error handling patterns
+- [Configuration Reference](../reference/configuration.md) - All channel configuration options
