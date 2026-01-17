@@ -704,9 +704,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   end
 
   defp generate_override_fields(overrides) do
-    overrides
-    |> Enum.map(fn {_field_name, override_str} -> "  #{override_str};" end)
-    |> Enum.join("\n")
+    Enum.map_join(overrides, "\n", fn {_field_name, override_str} -> "  #{override_str};" end)
   end
 
   defp partition_restrictions(restrictions) do
@@ -743,9 +741,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   defp format_fields_for_typescript(fields) when fields == [], do: "never"
 
   defp format_fields_for_typescript(fields) do
-    fields
-    |> Enum.map(&"'#{format_output_field(&1)}'")
-    |> Enum.join(" | ")
+    Enum.map_join(fields, " | ", &"'#{format_output_field(&1)}'")
   end
 
   defp format_client_field_name(resource, field_name) do

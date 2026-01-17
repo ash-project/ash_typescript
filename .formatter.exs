@@ -4,7 +4,11 @@
 
 # Used by "mix format"
 spark_locals_without_parens = [
+  allowed_loads: 1,
   argument_names: 1,
+  denied_loads: 1,
+  enable_filter?: 1,
+  enable_sort?: 1,
   error_handler: 1,
   field_names: 1,
   fields: 1,

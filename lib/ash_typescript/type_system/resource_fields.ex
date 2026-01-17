@@ -124,11 +124,11 @@ defmodule AshTypescript.TypeSystem.ResourceFields do
       nil ->
         case Ash.Resource.Info.calculation(dest_resource, agg.field) do
           nil -> {nil, []}
-          calc -> {calc.type, calc.constraints || []}
+          calc -> {calc.type, calc.constraints}
         end
 
       attr ->
-        {attr.type, attr.constraints || []}
+        {attr.type, attr.constraints}
     end
   end
 

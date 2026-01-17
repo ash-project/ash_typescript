@@ -514,7 +514,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       assert is_list(test_todo["comments"])
 
       # Verify nested todo on comments works
-      if length(test_todo["comments"]) > 0 do
+      if test_todo["comments"] != [] do
         comment = List.first(test_todo["comments"])
         assert Map.has_key?(comment, "todo")
         assert comment["todo"]["id"] == todo["id"]
@@ -594,7 +594,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       assert test_todo != nil
       assert is_list(test_todo["comments"])
 
-      if length(test_todo["comments"]) > 0 do
+      if test_todo["comments"] != [] do
         comment = List.first(test_todo["comments"])
         assert Map.has_key?(comment, "id")
         assert Map.has_key?(comment, "content")
@@ -843,7 +843,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       test_todo = Enum.find(results, fn t -> t["title"] == "Nested Paginated Todo" end)
       assert test_todo != nil
 
-      if length(test_todo["comments"]) > 0 do
+      if test_todo["comments"] != [] do
         comment = List.first(test_todo["comments"])
         assert comment["todo"]["id"] == todo["id"]
       end

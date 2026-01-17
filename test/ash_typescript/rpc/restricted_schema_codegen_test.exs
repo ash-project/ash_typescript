@@ -8,7 +8,9 @@ defmodule AshTypescript.Rpc.RestrictedSchemaCodegenTest do
   @moduletag :ash_typescript
 
   setup_all do
-    {:ok, generated_typescript} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+    {:ok, generated_typescript} =
+      AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
     %{generated: generated_typescript}
   end
 
@@ -19,7 +21,8 @@ defmodule AshTypescript.Rpc.RestrictedSchemaCodegenTest do
     end
 
     test "uses restricted schema in Fields type", %{generated: generated} do
-      assert generated =~ ~r/ListTodosDenyUserFields = UnifiedFieldSelection<ListTodosDenyUserSchema>/
+      assert generated =~
+               ~r/ListTodosDenyUserFields = UnifiedFieldSelection<ListTodosDenyUserSchema>/
     end
 
     test "uses restricted schema in InferResult", %{generated: generated} do
@@ -28,19 +31,27 @@ defmodule AshTypescript.Rpc.RestrictedSchemaCodegenTest do
   end
 
   describe "allowed_loads schema generation" do
-    test "generates Omit schema and overrides allowed fields with AttributesOnlySchema", %{generated: generated} do
+    test "generates Omit schema and overrides allowed fields with AttributesOnlySchema", %{
+      generated: generated
+    } do
       # allowed_loads: [:user] omits non-allowed fields AND overrides user with AttributesOnlySchema
       assert generated =~ ~r/type ListTodosAllowOnlyUserSchema = Omit<TodoResourceSchema,/
       # 'comments' should appear since it's not in the allow list
-      assert generated =~ ~r/type ListTodosAllowOnlyUserSchema = Omit<TodoResourceSchema, [^>]*'comments'/
+      assert generated =~
+               ~r/type ListTodosAllowOnlyUserSchema = Omit<TodoResourceSchema, [^>]*'comments'/
+
       # 'user' is also omitted (to be replaced with AttributesOnlySchema override)
-      assert generated =~ ~r/type ListTodosAllowOnlyUserSchema = Omit<TodoResourceSchema, [^>]*'user'/
+      assert generated =~
+               ~r/type ListTodosAllowOnlyUserSchema = Omit<TodoResourceSchema, [^>]*'user'/
+
       # user override uses AttributesOnlySchema (no nested loads allowed)
-      assert generated =~ ~r/user: \{ __type: "Relationship"; __resource: UserAttributesOnlySchema/
+      assert generated =~
+               ~r/user: \{ __type: "Relationship"; __resource: UserAttributesOnlySchema/
     end
 
     test "uses restricted schema in Fields type", %{generated: generated} do
-      assert generated =~ ~r/ListTodosAllowOnlyUserFields = UnifiedFieldSelection<ListTodosAllowOnlyUserSchema>/
+      assert generated =~
+               ~r/ListTodosAllowOnlyUserFields = UnifiedFieldSelection<ListTodosAllowOnlyUserSchema>/
     end
   end
 
@@ -68,20 +79,30 @@ defmodule AshTypescript.Rpc.RestrictedSchemaCodegenTest do
       generated: generated
     } do
       # Comments uses nested schema with todo allowed (via AttributesOnlySchema)
-      assert generated =~ ~r/type ListTodosAllowNestedSchemaComments = Omit<TodoCommentResourceSchema,/
+      assert generated =~
+               ~r/type ListTodosAllowNestedSchemaComments = Omit<TodoCommentResourceSchema,/
+
       # 'todo' is in omit list (to be replaced with AttributesOnlySchema override)
-      assert generated =~ ~r/type ListTodosAllowNestedSchemaComments = Omit<TodoCommentResourceSchema, [^>]*'todo'/
+      assert generated =~
+               ~r/type ListTodosAllowNestedSchemaComments = Omit<TodoCommentResourceSchema, [^>]*'todo'/
+
       # todo override uses AttributesOnlySchema (separate assertion for the override)
-      assert generated =~ ~r/todo: \{ __type: "Relationship"; __resource: TodoAttributesOnlySchema/
+      assert generated =~
+               ~r/todo: \{ __type: "Relationship"; __resource: TodoAttributesOnlySchema/
     end
 
-    test "generates main schema with user and comments using appropriate schemas", %{generated: generated} do
+    test "generates main schema with user and comments using appropriate schemas", %{
+      generated: generated
+    } do
       # Main schema omits both user and comments (to replace with restricted versions)
       assert generated =~ ~r/type ListTodosAllowNestedSchema = Omit<TodoResourceSchema,/
       # 'user' is in omit list (to be replaced with AttributesOnlySchema)
-      assert generated =~ ~r/type ListTodosAllowNestedSchema = Omit<TodoResourceSchema, [^>]*'user'/
+      assert generated =~
+               ~r/type ListTodosAllowNestedSchema = Omit<TodoResourceSchema, [^>]*'user'/
+
       # user override uses AttributesOnlySchema (flat allow = no nested loads)
-      assert generated =~ ~r/user: \{ __type: "Relationship"; __resource: UserAttributesOnlySchema/
+      assert generated =~
+               ~r/user: \{ __type: "Relationship"; __resource: UserAttributesOnlySchema/
     end
   end
 

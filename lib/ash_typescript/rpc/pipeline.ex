@@ -1416,8 +1416,6 @@ defmodule AshTypescript.Rpc.Pipeline do
     Enum.flat_map(load, fn item -> extract_single_load_path(item, []) end)
   end
 
-  defp extract_load_paths(_), do: []
-
   # Extract paths from a single load item
   defp extract_single_load_path(field, path) when is_atom(field) do
     # Simple atom - this is a load at the current path

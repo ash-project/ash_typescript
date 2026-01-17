@@ -223,16 +223,14 @@ defmodule AshTypescript.Rpc.VerifyRpc do
     allowed_loads = Map.get(rpc_action, :allowed_loads)
     denied_loads = Map.get(rpc_action, :denied_loads)
 
-    cond do
-      not is_nil(allowed_loads) and not is_nil(denied_loads) ->
-        {:error,
-         Spark.Error.DslError.exception(
-           message:
-             "RPC action #{rpc_action.name}: allowed_loads and denied_loads options are mutually exclusive. Use allowed_loads to restrict loading to specific fields, or denied_loads to block specific fields."
-         )}
-
-      true ->
-        :ok
+    if not is_nil(allowed_loads) and not is_nil(denied_loads) do
+      {:error,
+       Spark.Error.DslError.exception(
+         message:
+           "RPC action #{rpc_action.name}: allowed_loads and denied_loads options are mutually exclusive. Use allowed_loads to restrict loading to specific fields, or denied_loads to block specific fields."
+       )}
+    else
+      :ok
     end
   end
 
