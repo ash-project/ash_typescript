@@ -40,21 +40,21 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :list_recent_todos, :list_recent
       rpc_action :list_high_priority_todos, :list_high_priority
 
-      # Test derive_filter? option - disables filter support for this read action
-      rpc_action :list_todos_no_filter, :read, derive_filter?: false
-      # Test derive_sort? option - disables sort support for this read action
-      rpc_action :list_todos_no_sort, :read, derive_sort?: false
+      # Test enable_filter? option - disables filter support for this read action
+      rpc_action :list_todos_no_filter, :read, enable_filter?: false
+      # Test enable_sort? option - disables sort support for this read action
+      rpc_action :list_todos_no_sort, :read, enable_sort?: false
       # Test both disabled
-      rpc_action :list_todos_no_filter_no_sort, :read, derive_filter?: false, derive_sort?: false
+      rpc_action :list_todos_no_filter_no_sort, :read, enable_filter?: false, enable_sort?: false
 
-      # Test allow_only_loads - only allow loading user and comments
-      rpc_action :list_todos_allow_only_user, :read, allow_only_loads: [:user]
-      # Test allow_only_loads with nested fields
-      rpc_action :list_todos_allow_nested, :read, allow_only_loads: [:user, comments: [:todo]]
-      # Test deny_loads - deny loading specific fields
-      rpc_action :list_todos_deny_user, :read, deny_loads: [:user]
-      # Test deny_loads with nested fields
-      rpc_action :list_todos_deny_nested, :read, deny_loads: [comments: [:todo]]
+      # Test allowed_loads - only allow loading user and comments
+      rpc_action :list_todos_allow_only_user, :read, allowed_loads: [:user]
+      # Test allowed_loads with nested fields
+      rpc_action :list_todos_allow_nested, :read, allowed_loads: [:user, comments: [:todo]]
+      # Test denied_loads - deny loading specific fields
+      rpc_action :list_todos_deny_user, :read, denied_loads: [:user]
+      # Test denied_loads with nested fields
+      rpc_action :list_todos_deny_nested, :read, denied_loads: [comments: [:todo]]
       rpc_action :get_keyword_options_todo, :get_keyword_options
       rpc_action :get_coordinates_info_todo, :get_coordinates_info
       rpc_action :get_custom_data_todo, :get_custom_data

@@ -21,10 +21,10 @@ defmodule AshTypescript.Rpc do
       :get_by,
       :not_found_error?,
       :identities,
-      :derive_filter?,
-      :derive_sort?,
-      :allow_only_loads,
-      :deny_loads,
+      :enable_filter?,
+      :enable_sort?,
+      :allowed_loads,
+      :denied_loads,
       __spark_metadata__: nil
     ]
   end
@@ -154,27 +154,27 @@ defmodule AshTypescript.Rpc do
           "List of identities that can be used to look up records for update/destroy actions. Use `:_primary_key` for the primary key, or identity names like `:email`. Defaults to `[:_primary_key]`. Use `[]` for actor-scoped actions that don't need a lookup key.",
         default: [:_primary_key]
       ],
-      derive_filter?: [
+      enable_filter?: [
         type: :boolean,
         doc:
           "When false, disables filter support for this read action. The filter key will not be included in the generated TypeScript config, the action's filter type won't be generated, and any filter sent by the client will be dropped. Defaults to true.",
         default: true
       ],
-      derive_sort?: [
+      enable_sort?: [
         type: :boolean,
         doc:
           "When false, disables sort support for this read action. The sort key will not be included in the generated TypeScript config, and any sort sent by the client will be dropped. Defaults to true.",
         default: true
       ],
-      allow_only_loads: [
+      allowed_loads: [
         type: {:list, :any},
         doc:
-          "Restricts loadable fields to only those specified. Accepts atoms for simple fields or keyword lists for nested fields (e.g., `[:user, comments: [:author]]`). Mutually exclusive with `deny_loads`."
+          "Restricts loadable fields to only those specified. Accepts atoms for simple fields or keyword lists for nested fields (e.g., `[:user, comments: [:author]]`). Mutually exclusive with `denied_loads`."
       ],
-      deny_loads: [
+      denied_loads: [
         type: {:list, :any},
         doc:
-          "Denies loading of the specified fields. Accepts atoms for simple fields or keyword lists for nested fields (e.g., `[:user, comments: [:author]]`). Mutually exclusive with `allow_only_loads`."
+          "Denies loading of the specified fields. Accepts atoms for simple fields or keyword lists for nested fields (e.g., `[:user, comments: [:author]]`). Mutually exclusive with `allowed_loads`."
       ]
     ],
     args: [:name, :action]

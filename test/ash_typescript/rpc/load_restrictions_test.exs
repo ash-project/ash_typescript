@@ -9,7 +9,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
   @moduletag :ash_typescript
 
-  describe "allow_only_loads option - pipeline behavior" do
+  describe "allowed_loads option - pipeline behavior" do
     test "allows loading fields that are in the allow list" do
       params = %{
         "action" => "list_todos_allow_only_user",
@@ -78,7 +78,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
     end
   end
 
-  describe "deny_loads option - pipeline behavior" do
+  describe "denied_loads option - pipeline behavior" do
     test "allows loading fields that are not in the deny list" do
       params = %{
         "action" => "list_todos_deny_user",
@@ -180,12 +180,12 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
   describe "mutual exclusivity - verifier" do
     # This test verifies that the DSL properly prevents both options from being set
     # The actual verification happens at compile time via the verifier
-    test "compiles successfully when only allow_only_loads is set" do
+    test "compiles successfully when only allowed_loads is set" do
       # This is tested implicitly by the domain compiling
       assert true
     end
 
-    test "compiles successfully when only deny_loads is set" do
+    test "compiles successfully when only denied_loads is set" do
       # This is tested implicitly by the domain compiling
       assert true
     end

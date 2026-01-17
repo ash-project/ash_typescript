@@ -445,7 +445,7 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           fields: disallowed_paths,
           details: %{
             disallowed_paths: disallowed_paths,
-            suggestion: "Remove these fields from your request or check allow_only_loads configuration",
+            suggestion: "Remove these fields from your request or check allowed_loads configuration",
             hint: @stale_generated_file_hint
           }
         }

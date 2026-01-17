@@ -267,32 +267,32 @@ end
 
 ### RPC Action Options
 
-#### `derive_filter?` Option
+#### `enable_filter?` Option
 
 Controls whether client-side filtering is enabled for a read action. Defaults to `true`.
 
 ```elixir
 rpc_action :list_todos, :read                        # Filter enabled (default)
-rpc_action :list_todos_no_filter, :read, derive_filter?: false  # Filter disabled
+rpc_action :list_todos_no_filter, :read, enable_filter?: false  # Filter disabled
 ```
 
-**When `derive_filter?: false`**:
+**When `enable_filter?: false`**:
 - **Codegen**: `supports_filtering` is set to `false` in action context
 - **TypeScript**: No `filter` field in generated config type
 - **Pipeline**: Filter dropped in Stage 1 (parse_request) - client filter ignored
 - **Sorting**: Still available (`supports_sorting` is independent)
 
-#### `derive_sort?` Option
+#### `enable_sort?` Option
 
 Controls whether client-side sorting is enabled for a read action. Defaults to `true`.
 
 ```elixir
 rpc_action :list_todos, :read                        # Sort enabled (default)
-rpc_action :list_todos_no_sort, :read, derive_sort?: false  # Sort disabled
-rpc_action :list_todos_minimal, :read, derive_filter?: false, derive_sort?: false  # Both disabled
+rpc_action :list_todos_no_sort, :read, enable_sort?: false  # Sort disabled
+rpc_action :list_todos_minimal, :read, enable_filter?: false, enable_sort?: false  # Both disabled
 ```
 
-**When `derive_sort?: false`**:
+**When `enable_sort?: false`**:
 - **Codegen**: `supports_sorting` is set to `false` in action context
 - **TypeScript**: No `sort` field in generated config type
 - **Pipeline**: Sort dropped in Stage 1 (parse_request) - client sort ignored

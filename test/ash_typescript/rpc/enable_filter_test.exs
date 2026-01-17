@@ -2,16 +2,16 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Rpc.DeriveFilterTest do
+defmodule AshTypescript.Rpc.EnableFilterTest do
   use ExUnit.Case
 
   alias AshTypescript.Rpc.Pipeline
 
   @moduletag :ash_typescript
 
-  describe "derive_filter? option - pipeline behavior" do
-    test "filter is dropped when derive_filter? is false" do
-      # Try to send a filter to an action with derive_filter?: false
+  describe "enable_filter? option - pipeline behavior" do
+    test "filter is dropped when enable_filter? is false" do
+      # Try to send a filter to an action with enable_filter?: false
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"],
@@ -26,7 +26,7 @@ defmodule AshTypescript.Rpc.DeriveFilterTest do
       assert request.filter == nil
     end
 
-    test "filter is preserved when derive_filter? is true (default)" do
+    test "filter is preserved when enable_filter? is true (default)" do
       params = %{
         "action" => "list_todos",
         "fields" => ["id", "title"],
@@ -41,8 +41,8 @@ defmodule AshTypescript.Rpc.DeriveFilterTest do
       assert request.filter == %{status: %{eq: "active"}}
     end
 
-    test "sort is not affected by derive_filter?" do
-      # Sort should still work even with derive_filter?: false
+    test "sort is not affected by enable_filter?" do
+      # Sort should still work even with enable_filter?: false
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"],
@@ -60,13 +60,13 @@ defmodule AshTypescript.Rpc.DeriveFilterTest do
     end
   end
 
-  describe "derive_filter? option - TypeScript codegen" do
+  describe "enable_filter? option - TypeScript codegen" do
     setup do
       {:ok, ts_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
       {:ok, ts_output: ts_output}
     end
 
-    test "action with derive_filter?: false does not have filter field but has sort field", %{
+    test "action with enable_filter?: false does not have filter field but has sort field", %{
       ts_output: ts_output
     } do
       # Find the ListTodosNoFilterConfig type
@@ -82,13 +82,13 @@ defmodule AshTypescript.Rpc.DeriveFilterTest do
 
       # Should not have filter field
       refute config_body =~ "filter?:", "Config should not have filter field"
-      # Should still have sort field (sort is independent of derive_filter?)
+      # Should still have sort field (sort is independent of enable_filter?)
       assert config_body =~ "sort?:", "Config should have sort field"
       # Should have fields field
       assert config_body =~ "fields:", "Config should have fields field"
     end
 
-    test "action with derive_filter?: true (default) has filter field in config", %{
+    test "action with enable_filter?: true (default) has filter field in config", %{
       ts_output: ts_output
     } do
       # Find the ListTodosConfig type
@@ -108,8 +108,8 @@ defmodule AshTypescript.Rpc.DeriveFilterTest do
     end
   end
 
-  describe "derive_filter? - pagination independence" do
-    test "pagination works with derive_filter?: false" do
+  describe "enable_filter? - pagination independence" do
+    test "pagination works with enable_filter?: false" do
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"],
@@ -127,8 +127,8 @@ defmodule AshTypescript.Rpc.DeriveFilterTest do
     end
   end
 
-  describe "derive_filter? - edge cases" do
-    test "nil filter is handled correctly when derive_filter?: false" do
+  describe "enable_filter? - edge cases" do
+    test "nil filter is handled correctly when enable_filter?: false" do
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"]
@@ -141,7 +141,7 @@ defmodule AshTypescript.Rpc.DeriveFilterTest do
       assert request.filter == nil
     end
 
-    test "complex nested filter is dropped when derive_filter?: false" do
+    test "complex nested filter is dropped when enable_filter?: false" do
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"],
@@ -161,7 +161,7 @@ defmodule AshTypescript.Rpc.DeriveFilterTest do
       assert request.filter == nil
     end
 
-    test "empty map filter is dropped when derive_filter?: false" do
+    test "empty map filter is dropped when enable_filter?: false" do
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"],
@@ -175,13 +175,13 @@ defmodule AshTypescript.Rpc.DeriveFilterTest do
     end
   end
 
-  describe "derive_filter? - TypeScript function body generation" do
+  describe "enable_filter? - TypeScript function body generation" do
     setup do
       {:ok, ts_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
       {:ok, ts_output: ts_output}
     end
 
-    test "function with derive_filter?: false doesn't include filter in payload", %{
+    test "function with enable_filter?: false doesn't include filter in payload", %{
       ts_output: ts_output
     } do
       # Find the listTodosNoFilter function implementation
@@ -200,7 +200,7 @@ defmodule AshTypescript.Rpc.DeriveFilterTest do
       assert function_body =~ "config.sort", "Function body should reference config.sort"
     end
 
-    test "action with derive_filter?: false still has pagination in config", %{
+    test "action with enable_filter?: false still has pagination in config", %{
       ts_output: ts_output
     } do
       config_match =
@@ -217,13 +217,13 @@ defmodule AshTypescript.Rpc.DeriveFilterTest do
     end
   end
 
-  describe "derive_filter? - channel function generation" do
+  describe "enable_filter? - channel function generation" do
     setup do
       {:ok, ts_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
       {:ok, ts_output: ts_output}
     end
 
-    test "channel function with derive_filter?: false doesn't have filter in config", %{
+    test "channel function with enable_filter?: false doesn't have filter in config", %{
       ts_output: ts_output
     } do
       assert ts_output =~ "listTodosNoFilterChannel",
@@ -244,8 +244,8 @@ defmodule AshTypescript.Rpc.DeriveFilterTest do
     end
   end
 
-  describe "derive_filter? - input preservation" do
-    test "action input is preserved when derive_filter?: false" do
+  describe "enable_filter? - input preservation" do
+    test "action input is preserved when enable_filter?: false" do
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"],
@@ -264,7 +264,7 @@ defmodule AshTypescript.Rpc.DeriveFilterTest do
     end
   end
 
-  describe "derive_filter? - combinations with sort and pagination" do
+  describe "enable_filter? - combinations with sort and pagination" do
     test "sort only (filter disabled) with pagination" do
       params = %{
         "action" => "list_todos_no_filter",

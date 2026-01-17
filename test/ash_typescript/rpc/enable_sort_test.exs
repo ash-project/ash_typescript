@@ -2,15 +2,15 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Rpc.DeriveSortTest do
+defmodule AshTypescript.Rpc.EnableSortTest do
   use ExUnit.Case
 
   alias AshTypescript.Rpc.Pipeline
 
   @moduletag :ash_typescript
 
-  describe "derive_sort? option - pipeline behavior" do
-    test "sort is dropped when derive_sort? is false" do
+  describe "enable_sort? option - pipeline behavior" do
+    test "sort is dropped when enable_sort? is false" do
       params = %{
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"],
@@ -25,7 +25,7 @@ defmodule AshTypescript.Rpc.DeriveSortTest do
       assert request.sort == nil
     end
 
-    test "sort is preserved when derive_sort? is true (default)" do
+    test "sort is preserved when enable_sort? is true (default)" do
       params = %{
         "action" => "list_todos",
         "fields" => ["id", "title"],
@@ -40,8 +40,8 @@ defmodule AshTypescript.Rpc.DeriveSortTest do
       assert request.sort == "-created_at"
     end
 
-    test "filter is not affected by derive_sort?" do
-      # Filter should still work even with derive_sort?: false
+    test "filter is not affected by enable_sort?" do
+      # Filter should still work even with enable_sort?: false
       params = %{
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"],
@@ -58,7 +58,7 @@ defmodule AshTypescript.Rpc.DeriveSortTest do
       assert request.filter == %{status: %{eq: "active"}}
     end
 
-    test "both filter and sort are dropped when both derive options are false" do
+    test "both filter and sort are dropped when both enable options are false" do
       params = %{
         "action" => "list_todos_no_filter_no_sort",
         "fields" => ["id", "title"],
@@ -76,13 +76,13 @@ defmodule AshTypescript.Rpc.DeriveSortTest do
     end
   end
 
-  describe "derive_sort? option - TypeScript codegen" do
+  describe "enable_sort? option - TypeScript codegen" do
     setup do
       {:ok, ts_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
       {:ok, ts_output: ts_output}
     end
 
-    test "action with derive_sort?: false does not have sort field but has filter field", %{
+    test "action with enable_sort?: false does not have sort field but has filter field", %{
       ts_output: ts_output
     } do
       config_match =
@@ -96,13 +96,13 @@ defmodule AshTypescript.Rpc.DeriveSortTest do
 
       # Should not have sort field
       refute config_body =~ "sort?:", "Config should not have sort field"
-      # Should still have filter field (filter is independent of derive_sort?)
+      # Should still have filter field (filter is independent of enable_sort?)
       assert config_body =~ "filter?:", "Config should have filter field"
       # Should have fields field
       assert config_body =~ "fields:", "Config should have fields field"
     end
 
-    test "action with both derive_filter?: false and derive_sort?: false has neither", %{
+    test "action with both enable_filter?: false and enable_sort?: false has neither", %{
       ts_output: ts_output
     } do
       config_match =
@@ -122,8 +122,8 @@ defmodule AshTypescript.Rpc.DeriveSortTest do
     end
   end
 
-  describe "derive_sort? - pagination independence" do
-    test "pagination works with derive_sort?: false" do
+  describe "enable_sort? - pagination independence" do
+    test "pagination works with enable_sort?: false" do
       params = %{
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"],
@@ -140,7 +140,7 @@ defmodule AshTypescript.Rpc.DeriveSortTest do
       assert request.sort == nil
     end
 
-    test "pagination works with both derive_filter?: false and derive_sort?: false" do
+    test "pagination works with both enable_filter?: false and enable_sort?: false" do
       params = %{
         "action" => "list_todos_no_filter_no_sort",
         "fields" => ["id", "title"],
@@ -159,8 +159,8 @@ defmodule AshTypescript.Rpc.DeriveSortTest do
     end
   end
 
-  describe "derive_sort? - edge cases" do
-    test "nil sort is handled correctly when derive_sort?: false" do
+  describe "enable_sort? - edge cases" do
+    test "nil sort is handled correctly when enable_sort?: false" do
       params = %{
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"]
@@ -173,7 +173,7 @@ defmodule AshTypescript.Rpc.DeriveSortTest do
       assert request.sort == nil
     end
 
-    test "complex multi-field sort is dropped when derive_sort?: false" do
+    test "complex multi-field sort is dropped when enable_sort?: false" do
       params = %{
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"],
@@ -188,7 +188,7 @@ defmodule AshTypescript.Rpc.DeriveSortTest do
       assert request.sort == nil
     end
 
-    test "empty string sort is dropped when derive_sort?: false" do
+    test "empty string sort is dropped when enable_sort?: false" do
       params = %{
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"],
@@ -202,13 +202,13 @@ defmodule AshTypescript.Rpc.DeriveSortTest do
     end
   end
 
-  describe "derive_sort? - TypeScript function body generation" do
+  describe "enable_sort? - TypeScript function body generation" do
     setup do
       {:ok, ts_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
       {:ok, ts_output: ts_output}
     end
 
-    test "function with derive_sort?: false doesn't include sort in payload", %{
+    test "function with enable_sort?: false doesn't include sort in payload", %{
       ts_output: ts_output
     } do
       # Find the listTodosNoSort function implementation
@@ -250,7 +250,7 @@ defmodule AshTypescript.Rpc.DeriveSortTest do
       assert function_body =~ "config.page", "Function body should reference config.page"
     end
 
-    test "action with derive_sort?: false still has pagination in config", %{
+    test "action with enable_sort?: false still has pagination in config", %{
       ts_output: ts_output
     } do
       config_match =
@@ -267,13 +267,13 @@ defmodule AshTypescript.Rpc.DeriveSortTest do
     end
   end
 
-  describe "derive_sort? - channel function generation" do
+  describe "enable_sort? - channel function generation" do
     setup do
       {:ok, ts_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
       {:ok, ts_output: ts_output}
     end
 
-    test "channel function with derive_sort?: false doesn't have sort in config", %{
+    test "channel function with enable_sort?: false doesn't have sort in config", %{
       ts_output: ts_output
     } do
       # Find the channel config type for listTodosNoSort
@@ -298,8 +298,8 @@ defmodule AshTypescript.Rpc.DeriveSortTest do
     end
   end
 
-  describe "derive_sort? - input preservation" do
-    test "action input is preserved when derive_sort?: false" do
+  describe "enable_sort? - input preservation" do
+    test "action input is preserved when enable_sort?: false" do
       params = %{
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"],
@@ -318,7 +318,7 @@ defmodule AshTypescript.Rpc.DeriveSortTest do
     end
   end
 
-  describe "derive_sort? - combinations with filter and pagination" do
+  describe "enable_sort? - combinations with filter and pagination" do
     test "filter only (sort disabled) with pagination" do
       params = %{
         "action" => "list_todos_no_sort",

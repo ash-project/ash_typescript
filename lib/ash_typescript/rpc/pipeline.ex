@@ -155,11 +155,11 @@ defmodule AshTypescript.Rpc.Pipeline do
           []
         end
 
-      # derive_filter? and derive_sort? default to true - when false, drop respective params
-      derive_filter? = Map.get(rpc_action, :derive_filter?, true)
-      derive_sort? = Map.get(rpc_action, :derive_sort?, true)
-      filter = if derive_filter?, do: normalized_params[:filter], else: nil
-      sort = if derive_sort?, do: formatted_sort, else: nil
+      # enable_filter? and enable_sort? default to true - when false, drop respective params
+      enable_filter? = Map.get(rpc_action, :enable_filter?, true)
+      enable_sort? = Map.get(rpc_action, :enable_sort?, true)
+      filter = if enable_filter?, do: normalized_params[:filter], else: nil
+      sort = if enable_sort?, do: formatted_sort, else: nil
 
       request =
         Request.new(%{
@@ -1354,27 +1354,27 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   # Load restriction validation
-  # Checks that requested loads comply with allow_only_loads or deny_loads restrictions
+  # Checks that requested loads comply with allowed_loads or denied_loads restrictions
 
   defp validate_load_restrictions(load, rpc_action) do
-    allow_only_loads = Map.get(rpc_action, :allow_only_loads)
-    deny_loads = Map.get(rpc_action, :deny_loads)
+    allowed_loads = Map.get(rpc_action, :allowed_loads)
+    denied_loads = Map.get(rpc_action, :denied_loads)
 
     cond do
-      not is_nil(allow_only_loads) ->
-        validate_allow_only_loads(load, allow_only_loads)
+      not is_nil(allowed_loads) ->
+        validate_allowed_loads(load, allowed_loads)
 
-      not is_nil(deny_loads) ->
-        validate_deny_loads(load, deny_loads)
+      not is_nil(denied_loads) ->
+        validate_denied_loads(load, denied_loads)
 
       true ->
         :ok
     end
   end
 
-  defp validate_allow_only_loads(load, allow_only_loads) do
+  defp validate_allowed_loads(load, allowed_loads) do
     requested_paths = extract_load_paths(load)
-    allowed_paths = normalize_restriction_paths(allow_only_loads)
+    allowed_paths = normalize_restriction_paths(allowed_loads)
 
     disallowed =
       Enum.reject(requested_paths, fn path ->
@@ -1388,9 +1388,9 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp validate_deny_loads(load, deny_loads) do
+  defp validate_denied_loads(load, denied_loads) do
     requested_paths = extract_load_paths(load)
-    denied_paths = normalize_restriction_paths(deny_loads)
+    denied_paths = normalize_restriction_paths(denied_loads)
 
     denied =
       Enum.filter(requested_paths, fn path ->
@@ -1462,8 +1462,8 @@ defmodule AshTypescript.Rpc.Pipeline do
   # For nested specs: [comments: [:todo]] => [[:comments, :todo]] (NOT [:comments])
   #
   # The key distinction:
-  # - deny_loads: [:user] - denies user and all children
-  # - deny_loads: [comments: [:todo]] - only denies comments.todo, NOT comments itself
+  # - denied_loads: [:user] - denies user and all children
+  # - denied_loads: [comments: [:todo]] - only denies comments.todo, NOT comments itself
   defp normalize_restriction_paths(restrictions) when is_list(restrictions) do
     Enum.flat_map(restrictions, fn
       field when is_atom(field) ->
@@ -1483,13 +1483,13 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp normalize_restriction_paths(_), do: []
 
-  # Check if a path is allowed by the allow_only_loads specification
+  # Check if a path is allowed by the allowed_loads specification
   # A path is allowed ONLY if:
   # 1. It exactly matches an allowed path, OR
   # 2. It's a prefix of an allowed path (intermediate load needed to reach deeper allowed paths)
   #
-  # Note: Unlike deny_loads, we do NOT allow children of allowed paths automatically.
-  # If you want to allow user.todos, you must explicitly add [user: [:todos]] to allow_only_loads.
+  # Note: Unlike denied_loads, we do NOT allow children of allowed paths automatically.
+  # If you want to allow user.todos, you must explicitly add [user: [:todos]] to allowed_loads.
   defp path_allowed?(path, allowed_paths) do
     Enum.any?(allowed_paths, fn allowed_path ->
       # Exact match or path is a prefix (intermediate load)
@@ -1497,7 +1497,7 @@ defmodule AshTypescript.Rpc.Pipeline do
     end)
   end
 
-  # Check if a path is denied by the deny_loads specification
+  # Check if a path is denied by the denied_loads specification
   # A path is denied if it matches or starts with a denied path
   defp path_denied?(path, denied_paths) do
     Enum.any?(denied_paths, fn denied_path ->
