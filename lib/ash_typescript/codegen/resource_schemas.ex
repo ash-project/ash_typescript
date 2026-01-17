@@ -164,9 +164,10 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     resource_name = Helpers.build_resource_type_name(resource)
     unified_schema = generate_unified_resource_schema(resource, allowed_resources)
 
+    is_embedded = Introspection.is_embedded_resource?(resource)
+
     needs_input_schema =
-      Introspection.is_embedded_resource?(resource) ||
-        resource in input_schema_resources
+      is_embedded || resource in input_schema_resources
 
     input_schema =
       if needs_input_schema do
@@ -175,12 +176,16 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         ""
       end
 
+    # Generate AttributesOnlySchema for all resources
+    # Used by first aggregates and load restrictions (allowed_loads with flat allows)
+    attributes_only_schema = generate_attributes_only_schema(resource, allowed_resources)
+
     base_schemas = """
     // #{resource_name} Schema
     #{unified_schema}
     """
 
-    [base_schemas, input_schema]
+    [base_schemas, attributes_only_schema, input_schema]
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n\n")
   end
@@ -282,6 +287,183 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     """
   end
 
+  @doc """
+  Generates an attributes-only schema for a resource.
+
+  This schema only includes attributes (no calculations, relationships, or aggregates).
+  It's used for first aggregates where nested field selection is possible but limited
+  to fields that don't require loading.
+
+  For embedded resource attributes, recursively references their AttributesOnlySchema.
+  """
+  def generate_attributes_only_schema(resource, allowed_resources) do
+    resource_name = Helpers.build_resource_type_name(resource)
+
+    attributes =
+      resource
+      |> Ash.Resource.Info.public_attributes()
+
+    {complex_attrs, primitive_attrs} =
+      Enum.split_with(attributes, fn attr ->
+        is_complex_attr?(attr)
+      end)
+
+    primitive_fields_union =
+      generate_primitive_fields_union(Enum.map(primitive_attrs, & &1.name), resource)
+
+    metadata_schema_fields = [
+      "  __type: \"Resource\";",
+      "  __primitiveFields: #{primitive_fields_union};"
+    ]
+
+    all_field_lines =
+      primitive_attrs
+      |> Enum.map(fn field ->
+        formatted_name = format_client_field_name(resource, field.name)
+        type_str = TypeMapper.get_ts_type(field)
+
+        if allow_nil?(field) do
+          "  #{formatted_name}: #{type_str} | null;"
+        else
+          "  #{formatted_name}: #{type_str};"
+        end
+      end)
+      |> Enum.concat(
+        Enum.map(complex_attrs, fn attr ->
+          generate_attributes_only_complex_field(resource, attr, allowed_resources)
+        end)
+      )
+      |> Enum.filter(& &1)
+      |> then(&Enum.concat(metadata_schema_fields, &1))
+      |> Enum.join("\n")
+
+    """
+    export type #{resource_name}AttributesOnlySchema = {
+    #{all_field_lines}
+    };
+    """
+  end
+
+  defp generate_attributes_only_complex_field(resource, attr, allowed_resources) do
+    formatted_name = format_client_field_name(resource, attr.name)
+    category = classify_field(attr)
+
+    case category do
+      :embedded ->
+        {unwrapped_type, unwrapped_constraints} =
+          Introspection.unwrap_new_type(attr.type, attr.constraints || [])
+
+        actual_attr = %{attr | type: unwrapped_type, constraints: unwrapped_constraints}
+
+        if embedded_resource_allowed?(actual_attr, allowed_resources) do
+          embedded_resource = get_embedded_resource_from_attr(actual_attr)
+          embedded_resource_name = Helpers.build_resource_type_name(embedded_resource)
+          is_array = match?({:array, _}, attr.type)
+
+          resource_type =
+            if is_array do
+              "#{embedded_resource_name}AttributesOnlySchema"
+            else
+              if allow_nil?(attr) do
+                "#{embedded_resource_name}AttributesOnlySchema | null"
+              else
+                "#{embedded_resource_name}AttributesOnlySchema"
+              end
+            end
+
+          metadata =
+            if is_array do
+              "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
+            else
+              "{ __type: \"Relationship\"; __resource: #{resource_type}; }"
+            end
+
+          "  #{formatted_name}: #{metadata};"
+        else
+          nil
+        end
+
+      :union ->
+        {_unwrapped_type, unwrapped_constraints} =
+          Introspection.unwrap_new_type(attr.type, attr.constraints || [])
+
+        union_types = Keyword.get(unwrapped_constraints, :types, [])
+        type_str = build_attributes_only_union_type(union_types, allowed_resources)
+        is_array = match?({:array, _}, attr.type)
+
+        final_type =
+          if is_array do
+            inner_content = String.slice(type_str, 1..-2//1)
+            "{ __array: true; #{inner_content} }"
+          else
+            type_str
+          end
+
+        if allow_nil?(attr) do
+          "  #{formatted_name}: #{final_type} | null;"
+        else
+          "  #{formatted_name}: #{final_type};"
+        end
+
+      _ ->
+        type_str = TypeMapper.get_ts_type(attr)
+
+        if allow_nil?(attr) do
+          "  #{formatted_name}: #{type_str} | null;"
+        else
+          "  #{formatted_name}: #{type_str};"
+        end
+    end
+  end
+
+  defp build_attributes_only_union_type(types, allowed_resources) do
+    primitive_fields =
+      types
+      |> Enum.filter(fn {_name, config} ->
+        type = Keyword.get(config, :type)
+        constraints = Keyword.get(config, :constraints, [])
+        TypeMapper.is_primitive_union_member?(type, constraints)
+      end)
+      |> Enum.map(fn {name, _} -> name end)
+
+    primitive_union = TypeMapper.generate_primitive_fields_union(primitive_fields)
+
+    member_properties =
+      types
+      |> Enum.map_join("; ", fn {type_name, type_config} ->
+        formatted_name =
+          AshTypescript.FieldFormatter.format_field_name(
+            type_name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        member_type = Keyword.get(type_config, :type)
+        member_constraints = Keyword.get(type_config, :constraints, [])
+
+        ts_type =
+          cond do
+            Introspection.is_embedded_resource?(member_type) and member_type in allowed_resources ->
+              resource_name = Helpers.build_resource_type_name(member_type)
+              "#{resource_name}AttributesOnlySchema"
+
+            is_atom(member_type) and Ash.Resource.Info.resource?(member_type) and
+                member_type in allowed_resources ->
+              resource_name = Helpers.build_resource_type_name(member_type)
+              "#{resource_name}AttributesOnlySchema"
+
+            true ->
+              TypeMapper.map_type(member_type, member_constraints, :output)
+          end
+
+        "#{formatted_name}?: #{ts_type}"
+      end)
+
+    case member_properties do
+      "" -> "{ __type: \"Union\"; __primitiveFields: #{primitive_union}; }"
+      properties -> "{ __type: \"Union\"; __primitiveFields: #{primitive_union}; #{properties}; }"
+    end
+  end
+
   defp allow_nil?(%{include_nil?: include_nil?}) do
     include_nil?
   end
@@ -304,13 +486,10 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   end
 
   defp is_complex_attr?(attr) do
-    # Uses the unified classifier - anything not :primitive is complex
     classify_field(attr) != :primitive
   end
 
-  # Generates a field definition for complex fields using the unified classifier
   defp generate_complex_field_definition(resource, field, allowed_resources) do
-    # Check for custom type_name first (takes precedence)
     if type_str = type_name(field) do
       formatted_name = format_client_field_name(resource, field.name)
 
@@ -320,53 +499,138 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         "  #{formatted_name}: #{type_str};"
       end
     else
-      # Use the unified classifier for dispatch
-      category = classify_field(field)
-
-      case category do
-        :relationship ->
-          relationship_field_definition(resource, field)
-
-        :calculation ->
-          complex_calculation_definition(resource, field)
-
-        :embedded ->
-          # Need to unwrap for embedded_resource_allowed? check
-          {unwrapped_type, unwrapped_constraints} =
-            Introspection.unwrap_new_type(field.type, field.constraints || [])
-
-          actual_field = %{field | type: unwrapped_type, constraints: unwrapped_constraints}
-
-          if embedded_resource_allowed?(actual_field, allowed_resources) do
-            embedded_field_definition(resource, actual_field)
-          else
-            nil
-          end
-
-        :union ->
-          {unwrapped_type, unwrapped_constraints} =
-            Introspection.unwrap_new_type(field.type, field.constraints || [])
-
-          actual_field = %{field | type: unwrapped_type, constraints: unwrapped_constraints}
-          complex_type_field_definition(resource, actual_field)
-
-        :typed_map ->
-          complex_type_field_definition(resource, field)
-
-        :typed_struct ->
-          complex_type_field_definition(resource, field)
-
-        :primitive ->
-          # Fallback to TypeMapper for primitives that ended up here
-          formatted_name = format_client_field_name(resource, field.name)
-          type_str = TypeMapper.get_ts_type(field)
-
-          if allow_nil?(field) do
-            "  #{formatted_name}: #{type_str} | null;"
-          else
-            "  #{formatted_name}: #{type_str};"
-          end
+      # Aggregates returning complex types don't support nested field selection in Ash,
+      # so we generate a simpler type without __type: "Relationship" metadata
+      if is_aggregate?(field) do
+        generate_aggregate_complex_field_definition(resource, field, allowed_resources)
+      else
+        generate_non_aggregate_complex_field_definition(resource, field, allowed_resources)
       end
+    end
+  end
+
+  defp is_aggregate?(%Ash.Resource.Aggregate{}), do: true
+  defp is_aggregate?(_), do: false
+
+  # Aggregates support nested field selection but only for attributes (not calculations/relationships)
+  # Use AttributesOnlySchema with __type: "Relationship" metadata to enable field selection
+  defp generate_aggregate_complex_field_definition(resource, field, allowed_resources) do
+    category = classify_field(field)
+    formatted_name = format_client_field_name(resource, field.name)
+
+    case category do
+      :embedded ->
+        {unwrapped_type, unwrapped_constraints} =
+          Introspection.unwrap_new_type(field.type, field.constraints || [])
+
+        actual_field = %{field | type: unwrapped_type, constraints: unwrapped_constraints}
+
+        if embedded_resource_allowed?(actual_field, allowed_resources) do
+          embedded_resource = get_embedded_resource_from_attr(actual_field)
+          embedded_resource_name = Helpers.build_resource_type_name(embedded_resource)
+          is_array = match?({:array, _}, field.type)
+
+          resource_type =
+            if is_array do
+              "#{embedded_resource_name}AttributesOnlySchema"
+            else
+              if allow_nil?(field) do
+                "#{embedded_resource_name}AttributesOnlySchema | null"
+              else
+                "#{embedded_resource_name}AttributesOnlySchema"
+              end
+            end
+
+          metadata =
+            if is_array do
+              "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
+            else
+              "{ __type: \"Relationship\"; __resource: #{resource_type}; }"
+            end
+
+          "  #{formatted_name}: #{metadata};"
+        else
+          nil
+        end
+
+      :union ->
+        {_unwrapped_type, unwrapped_constraints} =
+          Introspection.unwrap_new_type(field.type, field.constraints || [])
+
+        union_types = Keyword.get(unwrapped_constraints, :types, [])
+        type_str = build_attributes_only_union_type(union_types, allowed_resources)
+        is_array = match?({:array, _}, field.type)
+
+        final_type =
+          if is_array do
+            inner_content = String.slice(type_str, 1..-2//1)
+            "{ __array: true; #{inner_content} }"
+          else
+            type_str
+          end
+
+        if allow_nil?(field) do
+          "  #{formatted_name}: #{final_type} | null;"
+        else
+          "  #{formatted_name}: #{final_type};"
+        end
+
+      _ ->
+        type_str = TypeMapper.get_ts_type(field)
+
+        if allow_nil?(field) do
+          "  #{formatted_name}: #{type_str} | null;"
+        else
+          "  #{formatted_name}: #{type_str};"
+        end
+    end
+  end
+
+  defp generate_non_aggregate_complex_field_definition(resource, field, allowed_resources) do
+    category = classify_field(field)
+
+    case category do
+      :relationship ->
+        relationship_field_definition(resource, field)
+
+      :calculation ->
+        complex_calculation_definition(resource, field)
+
+      :embedded ->
+        {unwrapped_type, unwrapped_constraints} =
+          Introspection.unwrap_new_type(field.type, field.constraints || [])
+
+        actual_field = %{field | type: unwrapped_type, constraints: unwrapped_constraints}
+
+        if embedded_resource_allowed?(actual_field, allowed_resources) do
+          embedded_field_definition(resource, actual_field)
+        else
+          nil
+        end
+
+      :union ->
+        {unwrapped_type, unwrapped_constraints} =
+          Introspection.unwrap_new_type(field.type, field.constraints || [])
+
+        actual_field = %{field | type: unwrapped_type, constraints: unwrapped_constraints}
+        complex_type_field_definition(resource, actual_field)
+
+      :typed_map ->
+        complex_type_field_definition(resource, field)
+
+      :typed_struct ->
+        complex_type_field_definition(resource, field)
+
+      :primitive ->
+        # Fallback to TypeMapper for primitives that ended up here
+        formatted_name = format_client_field_name(resource, field.name)
+        type_str = TypeMapper.get_ts_type(field)
+
+        if allow_nil?(field) do
+          "  #{formatted_name}: #{type_str} | null;"
+        else
+          "  #{formatted_name}: #{type_str};"
+        end
     end
   end
 
@@ -426,7 +690,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
           "#{embedded_resource_name}ResourceSchema"
 
         _ ->
-          if attr.allow_nil? do
+          if allow_nil?(attr) do
             "#{embedded_resource_name}ResourceSchema | null"
           else
             "#{embedded_resource_name}ResourceSchema"
@@ -487,7 +751,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         inner_ts_type
       end
 
-    if attr.allow_nil? do
+    if allow_nil?(attr) do
       "  #{formatted_name}: #{final_type} | null;"
     else
       "  #{formatted_name}: #{final_type};"

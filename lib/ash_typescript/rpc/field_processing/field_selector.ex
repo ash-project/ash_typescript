@@ -33,6 +33,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   alias AshTypescript.Resource.Info, as: ResourceInfo
   alias AshTypescript.Rpc.FieldProcessing.FieldSelector.Validation
   alias AshTypescript.TypeSystem.Introspection
+  alias AshTypescript.TypeSystem.ResourceFields
 
   @type select_result :: {select :: [atom()], load :: [term()], template :: [term()]}
 
@@ -275,7 +276,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       throw({:invalid_calculation_args, internal_name, path})
     end
 
-    if category == :aggregate do
+    # Aggregates that don't return complex types don't support nested field selection
+    if category == :aggregate && !requires_nested_selection?(field_type, field_constraints) do
       throw({:invalid_field_selection, internal_name, :aggregate, path})
     end
 
@@ -291,8 +293,11 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       throw({:field_does_not_support_nesting, internal_name, path})
     end
 
-    # For union attributes, nested_fields can be a map (member selection)
-    if category == :union_attribute do
+    # For union types (attributes or aggregates), nested_fields can be a map (member selection)
+    {unwrapped_type, _} = Introspection.unwrap_new_type(field_type, field_constraints)
+    is_union_type = unwrapped_type == Ash.Type.Union
+
+    if category == :union_attribute || is_union_type do
       if is_list(nested_fields) && nested_fields == [] do
         throw({:requires_field_selection, :union, internal_name, path})
       end
@@ -339,8 +344,9 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
 
       :aggregate ->
-        load_spec = build_load_spec(internal_name, nested_select, nested_load)
-        {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
+        # Aggregates don't support nested loads - just load the aggregate itself
+        # The template will handle extracting nested fields from the result
+        {select, load ++ [internal_name], template ++ [{internal_name, nested_template}]}
 
       :calculation_with_args ->
         throw({:invalid_calculation_args, internal_name, path})
@@ -457,7 +463,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         {calc.type, constraints, category}
 
       agg = Ash.Resource.Info.public_aggregate(resource, field_name) ->
-        {agg.type, agg.constraints || [], :aggregate}
+        {type, constraints} = ResourceFields.resolve_aggregate_type_info(resource, agg)
+        {type, constraints, :aggregate}
 
       true ->
         throw({:unknown_field, field_name, resource, path})

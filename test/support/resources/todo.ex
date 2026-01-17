@@ -318,6 +318,19 @@ defmodule AshTypescript.Test.Todo do
     max :max_weighted_score, :comments, :weighted_score do
       public? true
     end
+
+    # First aggregates that return complex types for testing
+    # First aggregate returning an embedded resource
+    first :first_comment_metadata, :comments, :comment_metadata do
+      public? true
+      sort created_at: :desc
+    end
+
+    # First aggregate returning a union type
+    first :first_comment_author_info, :comments, :author_info do
+      public? true
+      sort created_at: :desc
+    end
   end
 
   calculations do

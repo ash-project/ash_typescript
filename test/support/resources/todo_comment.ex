@@ -43,6 +43,30 @@ defmodule AshTypescript.Test.TodoComment do
       public? true
     end
 
+    # Embedded resource attribute for testing first aggregates with embedded types
+    attribute :comment_metadata, AshTypescript.Test.TodoMetadata do
+      public? true
+    end
+
+    # Union attribute with both embedded resource and regular Ash resource members
+    # for testing first aggregates with union types
+    attribute :author_info, :union do
+      public? true
+
+      constraints types: [
+                    # Embedded resource member
+                    metadata: [
+                      type: AshTypescript.Test.TodoMetadata,
+                      tag: :info_type,
+                      tag_value: "metadata"
+                    ],
+                    # Simple type member
+                    anonymous: [
+                      type: :string
+                    ]
+                  ]
+    end
+
     create_timestamp :created_at
     update_timestamp :updated_at
   end
@@ -70,7 +94,7 @@ defmodule AshTypescript.Test.TodoComment do
     defaults [:read, :destroy]
 
     create :create do
-      accept [:content, :author_name, :rating, :is_helpful]
+      accept [:content, :author_name, :rating, :is_helpful, :comment_metadata, :author_info]
 
       argument :user_id, :uuid do
         allow_nil? false
@@ -87,7 +111,8 @@ defmodule AshTypescript.Test.TodoComment do
     end
 
     update :update do
-      accept [:content, :author_name, :rating, :is_helpful]
+      require_atomic? false
+      accept [:content, :author_name, :rating, :is_helpful, :comment_metadata, :author_info]
     end
   end
 end

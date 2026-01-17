@@ -622,7 +622,10 @@ defmodule AshTypescript.Codegen.TypeMapper do
     |> Enum.map(fn {name, _} -> name end)
   end
 
-  defp generate_primitive_fields_union(fields) do
+  @doc """
+  Generates a TypeScript union of primitive field names.
+  """
+  def generate_primitive_fields_union(fields) do
     if Enum.empty?(fields) do
       "never"
     else

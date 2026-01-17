@@ -66,6 +66,54 @@ defmodule AshTypescript.Test.TodoMetadata do
         ]
       ]
 
+    # Deeply nested TypedMap (TypedMap with nested TypedMap)
+    attribute :advanced_settings, :map,
+      public?: true,
+      constraints: [
+        fields: [
+          theme: [type: :string, allow_nil?: false],
+          display: [
+            type: :map,
+            constraints: [
+              fields: [
+                font_size: [type: :integer],
+                color_scheme: [type: :string],
+                compact_mode: [type: :boolean]
+              ]
+            ]
+          ],
+          sync: [
+            type: :map,
+            constraints: [
+              fields: [
+                enabled: [type: :boolean],
+                interval_minutes: [type: :integer],
+                last_sync: [type: :utc_datetime]
+              ]
+            ]
+          ]
+        ]
+      ]
+
+    # Union type attribute for stress testing
+    attribute :priority_info, :union,
+      public?: true,
+      constraints: [
+        types: [
+          simple: [type: :string],
+          detailed: [
+            type: :map,
+            constraints: [
+              fields: [
+                level: [type: :integer, allow_nil?: false],
+                reason: [type: :string],
+                assigned_by: [type: :string]
+              ]
+            ]
+          ]
+        ]
+      ]
+
     # UUID types
     attribute :creator_id, :uuid, public?: true
     attribute :project_id, :uuid, public?: true

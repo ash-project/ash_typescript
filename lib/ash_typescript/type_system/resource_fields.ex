@@ -48,7 +48,7 @@ defmodule AshTypescript.TypeSystem.ResourceFields do
         {type, []}
 
       agg = Ash.Resource.Info.aggregate(resource, field_name) ->
-        {agg.type, agg.constraints || []}
+        resolve_aggregate_type_info(resource, agg)
 
       true ->
         {nil, []}
@@ -71,19 +71,71 @@ defmodule AshTypescript.TypeSystem.ResourceFields do
   """
   @spec get_public_field_type_info(module(), atom()) :: {atom() | tuple() | nil, keyword()}
   def get_public_field_type_info(resource, field_name) do
-    with nil <- Ash.Resource.Info.public_attribute(resource, field_name),
-         nil <- Ash.Resource.Info.public_calculation(resource, field_name),
-         nil <- Ash.Resource.Info.public_aggregate(resource, field_name) do
-      case Ash.Resource.Info.public_relationship(resource, field_name) do
-        nil ->
-          {nil, []}
+    cond do
+      attr = Ash.Resource.Info.public_attribute(resource, field_name) ->
+        {attr.type, attr.constraints || []}
 
-        rel ->
-          type = if rel.cardinality == :many, do: {:array, rel.destination}, else: rel.destination
-          {type, []}
-      end
-    else
-      field -> {field.type, field.constraints || []}
+      calc = Ash.Resource.Info.public_calculation(resource, field_name) ->
+        {calc.type, calc.constraints || []}
+
+      agg = Ash.Resource.Info.public_aggregate(resource, field_name) ->
+        resolve_aggregate_type_info(resource, agg)
+
+      rel = Ash.Resource.Info.public_relationship(resource, field_name) ->
+        type = if rel.cardinality == :many, do: {:array, rel.destination}, else: rel.destination
+        {type, []}
+
+      true ->
+        {nil, []}
+    end
+  end
+
+  @doc """
+  Resolves aggregate type info including constraints.
+
+  For `first` aggregates with nil type, we need to look up the field on
+  the destination resource to get the actual type and constraints.
+
+  ## Examples
+
+      iex> agg = Ash.Resource.Info.aggregate(MyApp.User, :first_todo_title)
+      iex> resolve_aggregate_type_info(MyApp.User, agg)
+      {Ash.Type.String, []}
+  """
+  @spec resolve_aggregate_type_info(module(), Ash.Resource.Aggregate.t()) ::
+          {atom() | tuple() | nil, keyword()}
+  def resolve_aggregate_type_info(_resource, %{type: type, constraints: constraints})
+      when not is_nil(type) do
+    {type, constraints || []}
+  end
+
+  def resolve_aggregate_type_info(resource, %{kind: :first} = agg) do
+    [first_rel | rest_path] = agg.relationship_path
+    rel = Ash.Resource.Info.relationship(resource, first_rel)
+
+    dest_resource =
+      Enum.reduce(rest_path, rel.destination, fn rel_name, current_resource ->
+        rel = Ash.Resource.Info.relationship(current_resource, rel_name)
+        rel.destination
+      end)
+
+    # Get the field from the destination resource - can be attribute or calculation
+    case Ash.Resource.Info.attribute(dest_resource, agg.field) do
+      nil ->
+        case Ash.Resource.Info.calculation(dest_resource, agg.field) do
+          nil -> {nil, []}
+          calc -> {calc.type, calc.constraints || []}
+        end
+
+      attr ->
+        {attr.type, attr.constraints || []}
+    end
+  end
+
+  def resolve_aggregate_type_info(resource, agg) do
+    case Ash.Resource.Info.aggregate_type(resource, agg) do
+      {:ok, agg_type} -> {agg_type, []}
+      _ -> {agg.type, agg.constraints || []}
     end
   end
 
@@ -105,8 +157,7 @@ defmodule AshTypescript.TypeSystem.ResourceFields do
         {nil, []}
 
       agg ->
-        resolved_type = Ash.Resource.Info.aggregate_type(resource, agg)
-        {resolved_type, []}
+        resolve_aggregate_type_info(resource, agg)
     end
   end
 end

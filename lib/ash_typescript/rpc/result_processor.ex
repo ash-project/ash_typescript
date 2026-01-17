@@ -104,17 +104,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   def get_field_type_info(resource, field_name) when is_atom(resource) do
     cond do
-      # For Ash resources, check all field types
+      # For Ash resources, delegate to ResourceFields which handles all field types
+      # including proper aggregate type resolution
       Ash.Resource.Info.resource?(resource) ->
-        # Use resolved aggregate type for aggregates
-        case Ash.Resource.Info.aggregate(resource, field_name) do
-          nil ->
-            ResourceFields.get_field_type_info(resource, field_name)
-
-          agg ->
-            agg_type = Ash.Resource.Info.aggregate_type(resource, agg)
-            {agg_type, []}
-        end
+        ResourceFields.get_field_type_info(resource, field_name)
 
       # For modules with typescript_field_names (TypedStruct wrappers)
       Code.ensure_loaded?(resource) && function_exported?(resource, :typescript_field_names, 0) ->
