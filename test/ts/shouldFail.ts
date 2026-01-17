@@ -18,6 +18,8 @@ import "./shouldFail/invalidChannelUsage";
 import "./shouldFail/operations";
 import "./shouldFail/wrongPaginationTypes";
 import "./shouldFail/noFieldsReadActions";
+import "./shouldFail/loadRestrictions";
+import "./shouldFail/firstAggregates";
 
 // Import Zod schema validation failure tests
 import "./zod/shouldFail/invalidZodUsage";

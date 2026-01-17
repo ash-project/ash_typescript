@@ -43,6 +43,8 @@ import "./shouldPass/getBy";
 import "./shouldPass/structArguments";
 import "./shouldPass/identities";
 import "./shouldPass/compositePrimaryKey";
+import "./shouldPass/loadRestrictions";
+import "./shouldPass/firstAggregates";
 import "./rpcHooks";
 
 // Import Zod schema validation tests
