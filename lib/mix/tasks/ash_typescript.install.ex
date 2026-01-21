@@ -29,6 +29,7 @@ if Code.ensure_loaded?(Igniter) do
       web_module = Igniter.Libs.Phoenix.web_module(igniter)
       framework = Keyword.get(igniter.args.options, :framework, nil)
       bundler = Keyword.get(igniter.args.options, :bundler, "esbuild")
+      use_bun = Keyword.get(igniter.args.options, :bun, false)
 
       # Validate framework parameter
       igniter = validate_framework(igniter, framework)
@@ -42,10 +43,7 @@ if Code.ensure_loaded?(Igniter) do
       igniter =
         if bundler == "vite" do
           install_args =
-            if(Keyword.get(igniter.args.options, :bun, false),
-              do: ["--yes", "--bun"],
-              else: ["--yes"]
-            )
+            if use_bun, do: ["--yes", "--bun"], else: ["--yes"]
 
           Igniter.Util.Install.install(
             [{:phoenix_vite, "~> 0.4.0"}],
@@ -76,7 +74,7 @@ if Code.ensure_loaded?(Igniter) do
           |> create_package_json(bundler)
           |> create_react_index()
           |> update_tsconfig()
-          |> setup_react_bundler(app_name, bundler)
+          |> setup_react_bundler(app_name, bundler, use_bun)
           |> create_or_update_page_controller(web_module)
           |> create_index_template(web_module)
           |> add_page_index_route(web_module)
@@ -85,14 +83,13 @@ if Code.ensure_loaded?(Igniter) do
         end
 
       igniter
-      |> Igniter.add_task("assets.setup")
       |> add_next_steps_notice(framework)
     end
 
-    defp setup_react_bundler(igniter, app_name, "esbuild"),
-      do: update_esbuild_config(igniter, app_name)
+    defp setup_react_bundler(igniter, app_name, "esbuild", use_bun),
+      do: update_esbuild_config(igniter, app_name, use_bun)
 
-    defp setup_react_bundler(igniter, _app_name, "vite"), do: igniter
+    defp setup_react_bundler(igniter, _app_name, "vite", _use_bun), do: igniter
 
     defp validate_framework(igniter, framework) do
       case framework do
@@ -318,10 +315,10 @@ if Code.ensure_loaded?(Igniter) do
         content = source.content
 
         react_dev_deps =
-        """
-        "@types/react": "^19.1.13",
-        "@types/react-dom": "^19.1.9"
-        """
+          """
+          "@types/react": "^19.1.13",
+          "@types/react-dom": "^19.1.9"
+          """
 
         react_deps =
           """
@@ -666,8 +663,14 @@ if Code.ensure_loaded?(Igniter) do
       end)
     end
 
-    defp update_esbuild_config(igniter, app_name) do
+    defp update_esbuild_config(igniter, app_name, use_bun) do
+      npm_install_task =
+        if use_bun, do: "ash_typescript.npm_install --bun", else: "ash_typescript.npm_install"
+
       igniter
+      |> Igniter.Project.TaskAliases.add_alias("assets.setup", npm_install_task,
+        if_exists: :append
+      )
       |> Igniter.update_elixir_file("config/config.exs", fn zipper ->
         is_esbuild_node = fn
           {:config, _, [{:__block__, _, [:esbuild]} | _rest]} -> true
@@ -874,7 +877,7 @@ if Code.ensure_loaded?(Igniter) do
 
       igniter =
         if framework == "react" do
-          Igniter.add_task(igniter, "ash_typescript.npm_install")
+          Igniter.add_task(igniter, "assets.setup")
         else
           igniter
         end
