@@ -17,8 +17,9 @@ if Code.ensure_loaded?(Igniter) do
       %Igniter.Mix.Task.Info{
         group: :ash,
         installs: [],
-        schema: [framework: :string],
-        defaults: [framework: nil]
+        schema: [framework: :string, bundler: :string, bun: :boolean],
+        defaults: [framework: nil, bundler: "esbuild", bun: false],
+        composes: []
       }
     end
 
@@ -27,10 +28,38 @@ if Code.ensure_loaded?(Igniter) do
       app_name = Igniter.Project.Application.app_name(igniter)
       web_module = Igniter.Libs.Phoenix.web_module(igniter)
       framework = Keyword.get(igniter.args.options, :framework, nil)
+      bundler = Keyword.get(igniter.args.options, :bundler, "esbuild")
 
       # Validate framework parameter
       igniter = validate_framework(igniter, framework)
+      # Validate bundler
+      igniter = validate_bundler(igniter, bundler)
 
+      # Store of args for use after fresh igniter
+      args = igniter.args
+      framework_value = framework
+
+      igniter =
+        if bundler == "vite" do
+          install_args =
+            if(Keyword.get(igniter.args.options, :bun, false),
+              do: ["--yes", "--bun"],
+              else: ["--yes"]
+            )
+
+          Igniter.Util.Install.install(
+            [{:phoenix_vite, "~> 0.4.0"}],
+            install_args,
+            igniter
+          )
+
+          Igniter.new()
+          |> Map.put(:args, args)
+        else
+          igniter
+        end
+
+      framework = framework_value
       react_enabled = framework == "react"
 
       igniter =
@@ -44,10 +73,10 @@ if Code.ensure_loaded?(Igniter) do
       igniter =
         if react_enabled do
           igniter
-          |> create_package_json()
+          |> create_package_json(bundler)
           |> create_react_index()
           |> update_tsconfig()
-          |> update_esbuild_config(app_name)
+          |> setup_react_bundler(app_name, bundler)
           |> create_or_update_page_controller(web_module)
           |> create_index_template(web_module)
           |> add_page_index_route(web_module)
@@ -56,8 +85,14 @@ if Code.ensure_loaded?(Igniter) do
         end
 
       igniter
+      |> Igniter.add_task("assets.setup")
       |> add_next_steps_notice(framework)
     end
+
+    defp setup_react_bundler(igniter, app_name, "esbuild"),
+      do: update_esbuild_config(igniter, app_name)
+
+    defp setup_react_bundler(igniter, _app_name, "vite"), do: igniter
 
     defp validate_framework(igniter, framework) do
       case framework do
@@ -71,6 +106,25 @@ if Code.ensure_loaded?(Igniter) do
           Igniter.add_issue(
             igniter,
             "Invalid framework '#{invalid_framework}'. Currently supported frameworks: react"
+          )
+      end
+    end
+
+    defp validate_bundler(igniter, bundler) do
+      case bundler do
+        nil ->
+          igniter
+
+        "vite" ->
+          igniter
+
+        "esbuild" ->
+          igniter
+
+        invalid_bundler ->
+          Igniter.add_issue(
+            igniter,
+            "Invalid bundler #{invalid_bundler}. Currently supported bundlers: vite, esbuild"
           )
       end
     end
@@ -233,7 +287,11 @@ if Code.ensure_loaded?(Igniter) do
       )
     end
 
-    defp create_package_json(igniter) do
+    defp create_package_json(igniter, "vite") do
+      update_package_json_with_react(igniter)
+    end
+
+    defp create_package_json(igniter, _bundler) do
       package_json_content = """
       {
         "devDependencies": {
@@ -253,6 +311,78 @@ if Code.ensure_loaded?(Igniter) do
       igniter
       |> Igniter.create_new_file("assets/package.json", package_json_content, on_exists: :warning)
     end
+
+    defp update_package_json_with_react(igniter) do
+      igniter
+      |> Igniter.update_file("assets/package.json", fn source ->
+        content = source.content
+
+        react_dev_deps =
+        """
+        "@types/react": "^19.1.13",
+        "@types/react-dom": "^19.1.9"
+        """
+
+        react_deps =
+          """
+          "@tanstack/react-query": "^5.89.0",
+          "@tanstack/react-table": "^8.21.3",
+          "@tanstack/react-virtual": "^3.13.12",
+          "react": "^19.1.1",
+          "react-dom": "^19.1.1"
+          """
+
+        updated_content =
+          content
+          |> merge_json_deps("devDependencies", react_dev_deps)
+          |> merge_json_deps("dependencies", react_deps)
+
+        Rewrite.Source.update(source, :content, updated_content)
+      end)
+    end
+
+    defp merge_json_deps(content, section, new_deps) do
+      section_start = "\"#{section}\""
+
+      cond do
+        String.contains?(content, section_start) ->
+          # Section exists, extract its content and merge React deps
+          [before, rest] = String.split(content, section_start, parts: 2)
+
+          # Skip ": {" and find matching closing brace
+          [_colon, rest_after_colon] = String.split(rest, "{", parts: 2)
+          {inner_content, after_section} = extract_balanced(rest_after_colon, 1, "")
+
+          # Merge React deps
+          merged_inner =
+            if String.trim(inner_content) == "",
+              do: new_deps,
+              else: inner_content <> ", " <> new_deps
+
+          before <> section_start <> ": {" <> merged_inner <> "}" <> after_section
+
+        true ->
+          # Section doesn't exist, append it to object
+          content
+          |> String.replace(~s({}), ~s({ "#{section}": {#{new_deps}}, ))
+      end
+    end
+
+    defp extract_balanced("", 0, acc), do: {acc, ""}
+
+    defp extract_balanced("", _depth, acc), do: {acc, ""}
+
+    defp extract_balanced("{" <> rest, depth, acc),
+      do: extract_balanced(rest, depth + 1, acc <> "{")
+
+    defp extract_balanced("}" <> rest, 1, acc),
+      do: {acc, rest}
+
+    defp extract_balanced("}" <> rest, depth, acc),
+      do: extract_balanced(rest, depth - 1, acc <> "}")
+
+    defp extract_balanced(<<c::utf8, rest::binary>>, depth, acc),
+      do: extract_balanced(rest, depth, acc <> <<c::utf8>>)
 
     defp create_react_index(igniter) do
       react_index_content = """
