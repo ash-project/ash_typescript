@@ -38,7 +38,6 @@ if Code.ensure_loaded?(Igniter) do
 
       # Store of args for use after fresh igniter
       args = igniter.args
-      framework_value = framework
 
       igniter =
         if bundler == "vite" do
@@ -62,8 +61,6 @@ if Code.ensure_loaded?(Igniter) do
           igniter
         end
 
-      framework = framework_value
-
       igniter =
         igniter
         |> Igniter.Project.IgniterConfig.add_extension(Igniter.Extensions.Phoenix)
@@ -74,41 +71,19 @@ if Code.ensure_loaded?(Igniter) do
 
       igniter =
         case framework do
-          "react" ->
+          nil ->
             igniter
-            |> create_package_json(bundler, "react")
-            |> create_react_index()
-            |> update_tsconfig("react")
-            |> setup_framework_bundler(app_name, bundler, use_bun, "react")
-            |> add_framework_import_to_app_js(bundler, "react")
-            |> create_or_update_page_controller(web_module)
-            |> create_index_template(web_module, bundler, "react")
-            |> add_page_index_route(web_module)
 
-          "vue" ->
+          framework ->
             igniter
-            |> create_package_json(bundler, "vue")
-            |> create_vue_index()
-            |> update_tsconfig("vue")
-            |> setup_framework_bundler(app_name, bundler, use_bun, "vue")
-            |> add_framework_import_to_app_js(bundler, "vue")
-            |> create_or_update_page_controller(web_module)
-            |> create_index_template(web_module, bundler, "vue")
+            |> create_package_json(bundler, framework)
+            |> create_index_page(framework)
+            |> update_tsconfig(framework)
+            |> setup_framework_bundler(app_name, bundler, use_bun, framework)
+            |> create_spa_root_layout(web_module, bundler, framework)
+            |> create_or_update_page_controller(web_module, bundler)
+            |> create_index_template(web_module, bundler, framework)
             |> add_page_index_route(web_module)
-
-          "svelte" ->
-            igniter
-            |> create_package_json(bundler, "svelte")
-            |> create_svelte_index()
-            |> update_tsconfig("svelte")
-            |> setup_framework_bundler(app_name, bundler, use_bun, "svelte")
-            |> add_framework_import_to_app_js(bundler, "svelte")
-            |> create_or_update_page_controller(web_module)
-            |> create_index_template(web_module, bundler, "svelte")
-            |> add_page_index_route(web_module)
-
-          _ ->
-            igniter
         end
 
       igniter
@@ -140,36 +115,6 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp setup_framework_bundler(igniter, _app_name, "vite", _use_bun, _framework), do: igniter
-
-    # Add import for framework entry point to app.js
-    # This allows the framework to be loaded via the existing root.html.heex assets loading
-    defp add_framework_import_to_app_js(igniter, "vite", framework) do
-      entry_file =
-        case framework do
-          "react" -> "./index.tsx"
-          _ -> "./index.ts"
-        end
-
-      igniter
-      |> Igniter.update_file("assets/js/app.js", fn source ->
-        content = source.content
-
-        if String.contains?(content, entry_file) do
-          # Import already exists
-          source
-        else
-          # Add import at the end of the file
-          updated_content =
-            String.trim_trailing(content) <>
-              "\n\n// Load framework entry point\nimport \"#{entry_file}\";\n"
-
-          Rewrite.Source.update(source, :content, updated_content)
-        end
-      end)
-    end
-
-    # For esbuild, we don't need to add import since index.js is loaded separately
-    defp add_framework_import_to_app_js(igniter, _bundler, _framework), do: igniter
 
     defp validate_framework(igniter, framework) do
       case framework do
@@ -460,6 +405,23 @@ if Code.ensure_loaded?(Igniter) do
       }
     end
 
+    defp get_framework_deps("react", "vite") do
+      %{
+        dependencies: %{
+          "@tanstack/react-query" => "^5.89.0",
+          "@tanstack/react-table" => "^8.21.3",
+          "@tanstack/react-virtual" => "^3.13.12",
+          "react" => "^19.1.1",
+          "react-dom" => "^19.1.1"
+        },
+        dev_dependencies: %{
+          "@types/react" => "^19.1.13",
+          "@types/react-dom" => "^19.1.9",
+          "@vitejs/plugin-react" => "^4.5.0"
+        }
+      }
+    end
+
     defp get_framework_deps("react", _bundler) do
       %{
         dependencies: %{
@@ -576,7 +538,7 @@ if Code.ensure_loaded?(Igniter) do
     defp extract_balanced(<<c::utf8, rest::binary>>, depth, acc),
       do: extract_balanced(rest, depth, acc <> <<c::utf8>>)
 
-    defp create_react_index(igniter) do
+    defp create_index_page(igniter, "react") do
       react_index_content = """
       import React, { useEffect } from "react";
       import { createRoot } from "react-dom/client";
@@ -811,7 +773,7 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.create_new_file("assets/js/index.tsx", react_index_content, on_exists: :warning)
     end
 
-    defp create_vue_index(igniter) do
+    defp create_index_page(igniter, "vue") do
       # Create the Vue SFC component
       vue_component = ~S"""
       <script setup lang="ts">
@@ -995,7 +957,7 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.create_new_file("assets/js/index.ts", vue_index_content, on_exists: :warning)
     end
 
-    defp create_svelte_index(igniter) do
+    defp create_index_page(igniter, "svelte") do
       # Create the Svelte component
       svelte_component = ~S"""
       <script lang="ts">
@@ -1545,6 +1507,11 @@ if Code.ensure_loaded?(Igniter) do
               ~s|plugins: [|,
               ~s|plugins: [\n    vue(),|
             )
+            # Add js/index.ts to vite input for production builds
+            |> String.replace(
+              ~s|input: ["js/app.js"|,
+              ~s|input: ["js/index.ts", "js/app.js"|
+            )
 
           Rewrite.Source.update(source, :content, updated_content)
         end
@@ -1568,17 +1535,210 @@ if Code.ensure_loaded?(Igniter) do
               ~s|plugins: [|,
               ~s|plugins: [\n    svelte(),|
             )
+            # Add js/index.ts to vite input for production builds
+            |> String.replace(
+              ~s|input: ["js/app.js"|,
+              ~s|input: ["js/index.ts", "js/app.js"|
+            )
 
           Rewrite.Source.update(source, :content, updated_content)
         end
       end)
     end
 
-    # React doesn't need any vite config changes - esbuild handles JSX natively
-    # and the framework entry is imported via app.js
-    defp update_vite_config_with_framework(igniter, "react"), do: igniter
+    defp update_vite_config_with_framework(igniter, "react") do
+      Igniter.update_file(igniter, "assets/vite.config.mjs", fn source ->
+        content = source.content
 
-    defp create_or_update_page_controller(igniter, web_module) do
+        if String.contains?(content, "@vitejs/plugin-react") do
+          source
+        else
+          updated_content =
+            content
+            |> String.replace(
+              ~s|import { defineConfig } from 'vite'|,
+              ~s|import { defineConfig } from 'vite'\nimport react from '@vitejs/plugin-react'|
+            )
+            |> String.replace(
+              ~s|plugins: [|,
+              ~s|plugins: [\n    react(),|
+            )
+            # Add js/index.tsx to vite input for production builds
+            |> String.replace(
+              ~s|input: ["js/app.js"|,
+              ~s|input: ["js/index.tsx", "js/app.js"|
+            )
+
+          Rewrite.Source.update(source, :content, updated_content)
+        end
+      end)
+    end
+
+    # Create spa_root.html.heex layout for vite + react (includes React Refresh preamble)
+    defp create_spa_root_layout(igniter, web_module, "vite", "react") do
+      app_name = Igniter.Project.Application.app_name(igniter)
+      clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
+      web_path = Macro.underscore(clean_web_module)
+      layout_path = "lib/#{web_path}/components/layouts/spa_root.html.heex"
+
+      # Use String.replace to insert dynamic values after creating the template
+      layout_content =
+        """
+        <!DOCTYPE html>
+        <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <.live_title default="AshTypescript">Page</.live_title>
+            <link
+              href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
+              rel="stylesheet"
+            />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js">
+            </script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js">
+            </script>
+            <%= if PhoenixVite.Components.has_vite_watcher?(__WEB_MODULE__.Endpoint) do %>
+              <script type="module">
+                import RefreshRuntime from "http://localhost:5173/@react-refresh";
+                RefreshRuntime.injectIntoGlobalHook(window);
+                window.$RefreshReg$ = () => {};
+                window.$RefreshSig$ = () => (type) => type;
+                window.__vite_plugin_react_preamble_installed__ = true;
+              </script>
+            <% end %>
+            <PhoenixVite.Components.assets
+              names={["js/index.js", "css/app.css"]}
+              manifest={{:__APP_NAME__, "priv/static/.vite/manifest.json"}}
+              dev_server={PhoenixVite.Components.has_vite_watcher?(__WEB_MODULE__.Endpoint)}
+              to_url={fn p -> static_url(@conn, p) end}
+            />
+          </head>
+          <body>
+            {@inner_content}
+          </body>
+        </html>
+        """
+        |> String.replace("__WEB_MODULE__", clean_web_module)
+        |> String.replace("__APP_NAME__", to_string(app_name))
+
+      igniter
+      |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
+    end
+
+    # Create spa_root.html.heex layout for vite + vue/svelte (no React Refresh needed)
+    defp create_spa_root_layout(igniter, web_module, "vite", _framework) do
+      app_name = Igniter.Project.Application.app_name(igniter)
+      clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
+      web_path = Macro.underscore(clean_web_module)
+      layout_path = "lib/#{web_path}/components/layouts/spa_root.html.heex"
+
+      layout_content =
+        """
+        <!DOCTYPE html>
+        <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <.live_title default="AshTypescript">Page</.live_title>
+            <link
+              href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
+              rel="stylesheet"
+            />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js">
+            </script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js">
+            </script>
+            <PhoenixVite.Components.assets
+              names={["js/index.js", "css/app.css"]}
+              manifest={{:__APP_NAME__, "priv/static/.vite/manifest.json"}}
+              dev_server={PhoenixVite.Components.has_vite_watcher?(__WEB_MODULE__.Endpoint)}
+              to_url={fn p -> static_url(@conn, p) end}
+            />
+          </head>
+          <body>
+            {@inner_content}
+          </body>
+        </html>
+        """
+        |> String.replace("__WEB_MODULE__", clean_web_module)
+        |> String.replace("__APP_NAME__", to_string(app_name))
+
+      igniter
+      |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
+    end
+
+    # For esbuild, no separate layout needed (uses existing root layout)
+    defp create_spa_root_layout(igniter, _web_module, _bundler, _framework), do: igniter
+
+    # For vite, use put_root_layout to use spa_root layout
+    defp create_or_update_page_controller(igniter, web_module, "vite") do
+      clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
+
+      controller_path =
+        clean_web_module
+        |> String.replace_suffix("Web", "")
+        |> Macro.underscore()
+
+      page_controller_path = "lib/#{controller_path}_web/controllers/page_controller.ex"
+
+      page_controller_content = """
+      defmodule #{clean_web_module}.PageController do
+        use #{clean_web_module}, :controller
+
+        def index(conn, _params) do
+          conn
+          |> put_root_layout(html: {#{clean_web_module}.Layouts, :spa_root})
+          |> render(:index)
+        end
+      end
+      """
+
+      case Igniter.exists?(igniter, page_controller_path) do
+        false ->
+          igniter
+          |> Igniter.create_new_file(page_controller_path, page_controller_content)
+
+        true ->
+          igniter
+          |> Igniter.update_elixir_file(page_controller_path, fn zipper ->
+            case Igniter.Code.Common.move_to(zipper, &function_named?(&1, :index, 2)) do
+              {:ok, _zipper} ->
+                zipper
+
+              :error ->
+                case Igniter.Code.Module.move_to_defmodule(zipper) do
+                  {:ok, zipper} ->
+                    case Igniter.Code.Common.move_to_do_block(zipper) do
+                      {:ok, zipper} ->
+                        index_function_code =
+                          quote do
+                            def index(conn, _params) do
+                              conn
+                              |> put_root_layout(
+                                html:
+                                  {unquote(Module.concat([clean_web_module, Layouts])), :spa_root}
+                              )
+                              |> render(:index)
+                            end
+                          end
+
+                        Igniter.Code.Common.add_code(zipper, index_function_code)
+
+                      :error ->
+                        zipper
+                    end
+
+                  :error ->
+                    zipper
+                end
+            end
+          end)
+      end
+    end
+
+    # For esbuild, use simple render without layout change
+    defp create_or_update_page_controller(igniter, web_module, _bundler) do
       clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
 
       controller_path =
@@ -1641,13 +1801,9 @@ if Code.ensure_loaded?(Igniter) do
       web_path = Macro.underscore(clean_web_module)
       index_template_path = "lib/#{web_path}/controllers/page_html/index.html.heex"
 
-      # For vite, the framework entry point is imported via app.js,
-      # which is already loaded in root.html.heex via PhoenixVite.Components.assets.
-      # We just need the mount point and Prism for syntax highlighting.
+      # For vite, assets are loaded via spa_root.html.heex layout
+      # This template just needs the app mount point
       index_template_content = """
-      <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
       <div id="app"></div>
       """
 
@@ -1711,7 +1867,7 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
-    defp add_next_steps_notice(igniter, framework, _bundler) do
+    defp add_next_steps_notice(igniter, framework, bundler) do
       base_notice = """
       AshTypescript has been successfully installed!
 
@@ -1724,7 +1880,30 @@ if Code.ensure_loaded?(Igniter) do
       Documentation: https://hexdocs.pm/ash_typescript
       """
 
-      framework_notice = fn name ->
+      framework_notice_vite = fn name ->
+        """
+        AshTypescript with #{name} + Vite has been successfully installed!
+
+        Your Phoenix + #{name} + TypeScript + Vite setup is ready!
+
+        Files created:
+        - spa_root.html.heex: Layout for SPA pages (loads index.js + app.css)
+        - PageController: Uses put_root_layout to switch to spa_root layout
+
+        The root.html.heex layout loads app.js + app.css for LiveView pages.
+        The spa_root.html.heex layout loads index.js + app.css for SPA pages.
+
+        Next Steps:
+        1. Configure your domain with the AshTypescript.Rpc extension
+        2. Add typescript_rpc configurations for your resources
+        3. Start your Phoenix server: mix phx.server
+        4. Check out http://localhost:4000/ash-typescript for how to get started!
+
+        Documentation: https://hexdocs.pm/ash_typescript
+        """
+      end
+
+      framework_notice_esbuild = fn name ->
         """
         AshTypescript with #{name} has been successfully installed!
 
@@ -1741,10 +1920,13 @@ if Code.ensure_loaded?(Igniter) do
       end
 
       notice =
-        case framework do
-          "react" -> framework_notice.("React")
-          "vue" -> framework_notice.("Vue")
-          "svelte" -> framework_notice.("Svelte")
+        case {framework, bundler} do
+          {"react", "vite"} -> framework_notice_vite.("React")
+          {"vue", "vite"} -> framework_notice_vite.("Vue")
+          {"svelte", "vite"} -> framework_notice_vite.("Svelte")
+          {"react", _} -> framework_notice_esbuild.("React")
+          {"vue", _} -> framework_notice_esbuild.("Vue")
+          {"svelte", _} -> framework_notice_esbuild.("Svelte")
           _ -> base_notice
         end
 
