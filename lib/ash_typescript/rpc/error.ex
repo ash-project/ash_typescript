@@ -236,7 +236,7 @@ end
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Unknown.UnknownError do
   def to_error(error) do
     %{
-      message: Exception.message(error),
+      message: "Something went wrong",
       short_message: "Unknown error",
       vars: Map.new(error.vars || []),
       type: "unknown_error",
