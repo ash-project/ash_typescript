@@ -57,7 +57,12 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
         payload_fields ++
           ["#{format_output_field(:tenant)}: config.#{format_output_field(:tenant)}"]
       else
-        payload_fields
+        tenant_field = format_output_field(:tenant)
+
+        payload_fields ++
+          [
+            "...(config.#{tenant_field} !== undefined && { #{tenant_field}: config.#{tenant_field} })"
+          ]
       end
 
     payload_fields =

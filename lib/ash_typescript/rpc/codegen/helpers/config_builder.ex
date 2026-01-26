@@ -299,7 +299,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
       if context.requires_tenant do
         config_fields ++ ["  #{format_output_field(:tenant)}: string;"]
       else
-        config_fields
+        config_fields ++ ["  #{format_output_field(:tenant)}?: string;"]
       end
 
     config_fields =
