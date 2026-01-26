@@ -11,6 +11,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.12.1](https://github.com/ash-project/ash_typescript/compare/v0.12.0...v0.12.1) (2026-01-26)
+
+
+
+
+### Bug Fixes:
+
+* typed-queries: use satisfies for type-safe field constants by [@Torkan](https://github.com/Torkan)
+
+* rpc: make tenant optional for non-multitenancy resources by [@Torkan](https://github.com/Torkan)
+
+* don't expose exception messages for unknown errors by [@zachdaniel](https://github.com/zachdaniel)
+
 ## [v0.12.0](https://github.com/ash-project/ash_typescript/compare/v0.11.6...v0.12.0) (2026-01-17)
 
 
