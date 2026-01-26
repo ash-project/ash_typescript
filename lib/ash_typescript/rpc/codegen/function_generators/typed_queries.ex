@@ -20,9 +20,9 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
 
   Returns an empty string if no typed queries are defined.
   """
-  def generate_typed_queries_section([], _all_resources), do: ""
+  def generate_typed_queries_section([], _rpc_resources_and_actions, _all_resources), do: ""
 
-  def generate_typed_queries_section(typed_queries, all_resources) do
+  def generate_typed_queries_section(typed_queries, rpc_resources_and_actions, all_resources) do
     queries_by_resource =
       Enum.group_by(typed_queries, fn {resource, _action, _query} -> resource end)
 
@@ -32,7 +32,13 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
 
         query_types_and_consts =
           Enum.map(queries, fn {resource, action, typed_query} ->
-            generate_typed_query_type_and_const(resource, action, typed_query, all_resources)
+            generate_typed_query_type_and_const(
+              resource,
+              action,
+              typed_query,
+              rpc_resources_and_actions,
+              all_resources
+            )
           end)
 
         """
@@ -55,7 +61,13 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
   @doc """
   Generates a single typed query type and const declaration.
   """
-  def generate_typed_query_type_and_const(resource, action, typed_query, _all_resources) do
+  def generate_typed_query_type_and_const(
+        resource,
+        action,
+        typed_query,
+        rpc_resources_and_actions,
+        _all_resources
+      ) do
     resource_name = build_resource_type_name(resource)
 
     atomized_fields =
@@ -80,12 +92,22 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
 
         const_fields = format_typed_query_fields_const_for_typescript(atomized_fields, resource)
 
+        fields_type = find_matching_rpc_fields_type(resource, action, rpc_resources_and_actions)
+
+        # Use `satisfies` to preserve literal types while ensuring type compatibility
+        const_declaration =
+          if fields_type do
+            "export const #{const_name} = #{const_fields} satisfies #{fields_type};"
+          else
+            "export const #{const_name} = #{const_fields};"
+          end
+
         """
         // Type for #{typed_query.name}
         export type #{type_name} = #{result_type};
 
         // Field selection for #{typed_query.name} - use with RPC actions for refetching
-        export const #{const_name} = #{const_fields};
+        #{const_declaration}
         """
 
       {:error, error} ->
@@ -93,7 +115,21 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
     end
   end
 
-  # Private helpers
+  defp find_matching_rpc_fields_type(resource, action, rpc_resources_and_actions) do
+    matching_rpc =
+      Enum.find(rpc_resources_and_actions, fn {rpc_resource, rpc_action, _rpc_action_config} ->
+        rpc_resource == resource && rpc_action.name == action.name
+      end)
+
+    case matching_rpc do
+      {_resource, _action, rpc_action_config} ->
+        rpc_action_name = to_string(rpc_action_config.name)
+        "#{snake_to_pascal_case(rpc_action_name)}Fields"
+
+      nil ->
+        nil
+    end
+  end
 
   defp format_typed_query_fields_const_for_typescript(fields, resource) do
     "[" <> format_fields_const_array(fields, resource) <> "]"
@@ -105,7 +141,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
 
   defp format_fields_const_array(fields, resource) do
     fields
-    |> Enum.map_join(", ", &"#{format_field_item(&1, resource)} as const")
+    |> Enum.map_join(", ", &format_field_item(&1, resource))
   end
 
   defp format_fields_type_array(fields, resource) do

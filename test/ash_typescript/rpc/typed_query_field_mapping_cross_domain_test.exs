@@ -52,8 +52,12 @@ defmodule AshTypescript.Rpc.TypedQueryFieldMappingCrossDomainTest do
       assert typescript =~ "listUsersSecondDomain"
       assert typescript =~ "ListUsersSecondDomainResult"
 
-      # Extract the line with the fields const
-      [fields_line] = Regex.run(~r/export const listUsersSecondDomain = \[.*\];/, typescript)
+      # Extract the line with the fields const (uses satisfies)
+      [fields_line] =
+        Regex.run(
+          ~r/export const listUsersSecondDomain\s*=\s*\[.*\]\s*satisfies\s*\w+;/,
+          typescript
+        )
 
       # It should contain "addressLine1" (mapped) not "address_line_1" (unmapped)
       assert fields_line =~ "addressLine1"
