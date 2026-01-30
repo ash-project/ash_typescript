@@ -764,14 +764,18 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
 
   defp traverse_type_with_visited(type, constraints, current_path, visited)
        when is_list(constraints) do
-    case type do
+    # Unwrap NewTypes first to get the underlying type and merged constraints
+    {unwrapped_type, unwrapped_constraints} =
+      Introspection.unwrap_new_type(type, constraints)
+
+    case unwrapped_type do
       {:array, inner_type} ->
-        items_constraints = Keyword.get(constraints, :items, [])
+        items_constraints = Keyword.get(unwrapped_constraints, :items, [])
         array_path = current_path ++ [:array_items]
         traverse_type_with_visited(inner_type, items_constraints, array_path, visited)
 
       Ash.Type.Struct ->
-        instance_of = Keyword.get(constraints, :instance_of)
+        instance_of = Keyword.get(unwrapped_constraints, :instance_of)
 
         if instance_of && Ash.Resource.Info.resource?(instance_of) do
           resource_path = current_path
@@ -785,7 +789,7 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
         end
 
       Ash.Type.Union ->
-        union_types = Introspection.get_union_types_from_constraints(type, constraints)
+        union_types = Keyword.get(unwrapped_constraints, :types, [])
 
         Enum.reduce(union_types, {[], visited}, fn {type_name, type_config}, {acc, visited} ->
           member_type = Keyword.get(type_config, :type)
@@ -804,7 +808,7 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
         end)
 
       type when type in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] ->
-        fields = Keyword.get(constraints, :fields)
+        fields = Keyword.get(unwrapped_constraints, :fields)
 
         if fields do
           traverse_fields_with_visited(fields, current_path, visited)
@@ -823,7 +827,7 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
             {[{type, resource_path}] ++ nested, new_visited}
 
           Code.ensure_loaded?(type) ->
-            fields = Keyword.get(constraints, :fields)
+            fields = Keyword.get(unwrapped_constraints, :fields)
 
             if fields do
               traverse_fields_with_visited(fields, current_path, visited)
