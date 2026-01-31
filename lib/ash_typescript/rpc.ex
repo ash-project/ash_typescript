@@ -14,6 +14,10 @@ defmodule AshTypescript.Rpc do
     defstruct [
       :name,
       :action,
+      :namespace,
+      :description,
+      :deprecated,
+      :see,
       :read_action,
       :show_metadata,
       :metadata_field_names,
@@ -36,7 +40,7 @@ defmodule AshTypescript.Rpc do
     Contains the resource module and lists of configured RPC actions
     and typed queries for that resource.
     """
-    defstruct [:resource, rpc_actions: [], typed_queries: [], __spark_metadata__: nil]
+    defstruct [:resource, :namespace, rpc_actions: [], typed_queries: [], __spark_metadata__: nil]
   end
 
   defmodule TypedQuery do
@@ -48,6 +52,7 @@ defmodule AshTypescript.Rpc do
     """
     defstruct [
       :name,
+      :description,
       :ts_result_type_name,
       :ts_fields_const_name,
       :resource,
@@ -68,6 +73,11 @@ defmodule AshTypescript.Rpc do
       name: [
         type: :atom,
         doc: "The name of the RPC-action"
+      ],
+      description: [
+        type: :string,
+        doc: "Description for the JSDoc comment of this typed query.",
+        required: false
       ],
       ts_result_type_name: [
         type: :string,
@@ -114,6 +124,30 @@ defmodule AshTypescript.Rpc do
       action: [
         type: :atom,
         doc: "The resource action to expose"
+      ],
+      namespace: [
+        type: :string,
+        doc:
+          "Namespace for organizing this action into a separate file (becomes the filename). Overrides resource/domain namespace.",
+        required: false
+      ],
+      description: [
+        type: :string,
+        doc:
+          "Custom description for the JSDoc comment. Always shown when set, overrides the action's internal description.",
+        required: false
+      ],
+      deprecated: [
+        type: {:or, [:boolean, :string]},
+        doc:
+          "Mark this action as deprecated. Set to true for a default message, or provide a custom deprecation notice (e.g., \"Use listTodosV2 instead\").",
+        required: false
+      ],
+      see: [
+        type: {:list, :atom},
+        doc:
+          "List of related RPC action names to reference in JSDoc @see tags (e.g., `see: [:list_todos, :create_todo]`).",
+        default: []
       ],
       read_action: [
         type: :atom,
@@ -188,6 +222,11 @@ defmodule AshTypescript.Rpc do
       resource: [
         type: {:spark, Ash.Resource},
         doc: "The resource being configured"
+      ],
+      namespace: [
+        type: :string,
+        doc: "Default namespace (filename) for all actions in this resource.",
+        required: false
       ]
     ],
     args: [:resource],
@@ -228,6 +267,11 @@ defmodule AshTypescript.Rpc do
         type: :boolean,
         default: false,
         doc: "Whether to show detailed information for raised exceptions."
+      ],
+      namespace: [
+        type: :string,
+        doc: "Default namespace (filename) for all resources in this domain.",
+        required: false
       ]
     ],
     entities: [
@@ -394,6 +438,19 @@ defmodule AshTypescript.Rpc do
   end
 
   @doc """
+  Gets the configured manifest file path, or nil if manifest generation is disabled.
+
+  When set to a file path, generates a MANIFEST.md file at that location.
+  When nil (default), manifest generation is disabled.
+
+  Example config:
+      config :ash_typescript, manifest_file: "./test/ts/MANIFEST.md"
+  """
+  def manifest_file do
+    Application.get_env(:ash_typescript, :manifest_file)
+  end
+
+  @doc """
   Gets the Phoenix import path for generated TypeScript.
 
   This determines the import statement used for Phoenix channels in generated TypeScript files.
@@ -402,6 +459,48 @@ defmodule AshTypescript.Rpc do
   """
   def phoenix_import_path do
     Application.get_env(:ash_typescript, :phoenix_import_path)
+  end
+
+  @doc """
+  Determines if namespace file generation is enabled.
+
+  When true, namespaced RPC actions are generated into separate files.
+  When false (default), all RPC functions are in a single file.
+  """
+  def enable_namespace_files? do
+    Application.get_env(:ash_typescript, :enable_namespace_files, false)
+  end
+
+  @doc """
+  Gets the output directory for namespace files.
+
+  When nil, namespace files are written to the same directory as the main output file.
+  """
+  def namespace_output_dir do
+    Application.get_env(:ash_typescript, :namespace_output_dir)
+  end
+
+  @doc """
+  Determines if Ash internals should be included in JSDoc comments.
+
+  When true, JSDoc includes @resource (Elixir module), @internalActionName (Ash action name),
+  and the action's description if present.
+  When false (default), only the default description, @actionType, and @namespace are included.
+  """
+  def add_ash_internals_to_jsdoc? do
+    Application.get_env(:ash_typescript, :add_ash_internals_to_jsdoc, false)
+  end
+
+  @doc """
+  Determines if Ash internals should be included in the manifest file.
+
+  When true, manifest includes resource module paths, internal Ash action names,
+  and the action's description if present.
+  When false (default), only public-facing info is included (rpc_action descriptions,
+  default descriptions).
+  """
+  def add_ash_internals_to_manifest? do
+    Application.get_env(:ash_typescript, :add_ash_internals_to_manifest, false)
   end
 
   @doc """

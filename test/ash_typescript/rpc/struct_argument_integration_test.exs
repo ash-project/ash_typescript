@@ -17,6 +17,11 @@ defmodule AshTypescript.Rpc.StructArgumentIntegrationTest do
   alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
+  setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+    :ok
+  end
+
   describe "assign_to_user action with User struct argument" do
     setup do
       conn = TestHelpers.build_rpc_conn()

@@ -10,6 +10,8 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
   @moduletag :ash_typescript
 
   setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+
     # Save original config
     original_config = [
       rpc_action_before_request_hook:

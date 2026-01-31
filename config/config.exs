@@ -44,7 +44,13 @@ if Mix.env() == :test do
     generate_phx_channel_rpc_actions: true,
     generate_validation_functions: true,
     generate_zod_schemas: true,
+    add_ash_internals_to_jsdoc: true,
+    add_ash_internals_to_manifest: true,
+    manifest_file: "./test/ts/MANIFEST.md",
     output_file: "./test/ts/generated.ts",
+    # Namespace file generation (disabled by default, tested explicitly)
+    enable_namespace_files: false,
+    # namespace_output_dir: "./test/ts/namespace",
     # Lifecycle hooks configuration
     rpc_action_before_request_hook: "RpcHooks.beforeActionRequest",
     rpc_action_after_request_hook: "RpcHooks.afterActionRequest",

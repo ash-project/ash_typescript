@@ -9,6 +9,11 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
   @moduletag :ash_typescript
 
+  setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+    :ok
+  end
+
   describe "enable_filter? option - pipeline behavior" do
     test "filter is dropped when enable_filter? is false" do
       # Try to send a filter to an action with enable_filter?: false

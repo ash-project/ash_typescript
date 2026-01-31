@@ -8,6 +8,11 @@ defmodule AshTypescript.CustomTypesTest do
   alias AshTypescript.Test.Todo.ColorPalette
   alias AshTypescript.Test.Todo.PriorityScore
 
+  setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+    :ok
+  end
+
   describe "custom type detection" do
     test "detects custom types using Ash.Type behaviour" do
       # Test that the system can identify custom types

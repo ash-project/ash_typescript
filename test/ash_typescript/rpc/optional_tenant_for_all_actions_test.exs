@@ -13,6 +13,11 @@ defmodule AshTypescript.Rpc.OptionalTenantForAllActionsTest do
 
   @moduletag :ash_typescript
 
+  setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+    :ok
+  end
+
   describe "optional tenant for all actions - TypeScript codegen" do
     setup do
       {:ok, ts_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)

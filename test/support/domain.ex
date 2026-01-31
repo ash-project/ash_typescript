@@ -15,9 +15,26 @@ defmodule AshTypescript.Test.Domain do
 
   typescript_rpc do
     resource AshTypescript.Test.Todo do
-      rpc_action :list_todos, :read
+      # Test namespace at action level
+      rpc_action :list_todos, :read, namespace: "todos"
       rpc_action :get_todo, :get_by_id
       rpc_action :get_todo_by_id, :get_by_id
+
+      # Test custom rpc_action description (always shown, overrides action description)
+      rpc_action :list_todos_with_custom_description, :read,
+        namespace: "todos",
+        description: "Fetch todos with a custom public description"
+
+      # Test deprecated option with custom message
+      rpc_action :list_todos_deprecated, :read,
+        namespace: "todos",
+        deprecated: "Use listTodosV2 instead"
+
+      # Test deprecated option with boolean true
+      rpc_action :list_todos_deprecated_simple, :read, deprecated: true
+
+      # Test @see tags linking to related actions
+      rpc_action :list_todos_with_see, :read, see: [:create_todo, :get_todo]
 
       # Test get? option - retrieves single todo by primary key
       rpc_action :get_single_todo, :read, get?: true
@@ -66,6 +83,7 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :process_metadata_batch_todo, :process_metadata_batch
 
       typed_query :list_todos_user_page, :read do
+        description "Pre-configured query for the user dashboard page"
         ts_fields_const_name "listTodosUserPage"
         ts_result_type_name "ListTodosUserPageResult"
 
@@ -89,7 +107,8 @@ defmodule AshTypescript.Test.Domain do
     end
 
     resource AshTypescript.Test.User do
-      rpc_action :list_users, :read
+      # Test namespace at action level
+      rpc_action :list_users, :read, namespace: "users"
       rpc_action :read_with_invalid_arg, :read_with_invalid_arg
       rpc_action :get_by_id, :get_by_id
       rpc_action :create_user, :create
@@ -122,12 +141,17 @@ defmodule AshTypescript.Test.Domain do
       end
     end
 
+    # Test resource-level namespace (all actions inherit this unless overridden)
     resource AshTypescript.Test.UserSettings do
+      namespace("settings")
+
       rpc_action :list_user_settings, :read
       rpc_action :get_user_settings, :get_by_user
       rpc_action :create_user_settings, :create
       rpc_action :update_user_settings, :update
       rpc_action :destroy_user_settings, :destroy
+      # Test action-level namespace override (takes precedence over resource namespace)
+      rpc_action :admin_list_user_settings, :read, namespace: "admin"
     end
 
     resource AshTypescript.Test.Post

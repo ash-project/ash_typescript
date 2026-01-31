@@ -105,6 +105,21 @@ defmodule AshTypescript.Rpc.Codegen do
     rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
     domains = Ash.Info.domains(otp_app)
 
+    hook_config = %{
+      rpc_action_before_request_hook: rpc_action_before_request_hook,
+      rpc_action_after_request_hook: rpc_action_after_request_hook,
+      rpc_validation_before_request_hook: rpc_validation_before_request_hook,
+      rpc_validation_after_request_hook: rpc_validation_after_request_hook,
+      rpc_action_hook_context_type: rpc_action_hook_context_type,
+      rpc_validation_hook_context_type: rpc_validation_hook_context_type,
+      rpc_action_before_channel_push_hook: rpc_action_before_channel_push_hook,
+      rpc_action_after_channel_response_hook: rpc_action_after_channel_response_hook,
+      rpc_validation_before_channel_push_hook: rpc_validation_before_channel_push_hook,
+      rpc_validation_after_channel_response_hook: rpc_validation_after_channel_response_hook,
+      rpc_action_channel_hook_context_type: rpc_action_channel_hook_context_type,
+      rpc_validation_channel_hook_context_type: rpc_validation_channel_hook_context_type
+    }
+
     case AshTypescript.VerifierChecker.check_all_verifiers(rpc_resources ++ domains) do
       :ok ->
         case TypeDiscovery.build_rpc_warnings(otp_app) do
@@ -112,32 +127,204 @@ defmodule AshTypescript.Rpc.Codegen do
           message -> IO.warn(message)
         end
 
-        {:ok,
-         generate_full_typescript(
-           resources_and_actions,
-           endpoint_process,
-           endpoint_validate,
-           %{
-             rpc_action_before_request_hook: rpc_action_before_request_hook,
-             rpc_action_after_request_hook: rpc_action_after_request_hook,
-             rpc_validation_before_request_hook: rpc_validation_before_request_hook,
-             rpc_validation_after_request_hook: rpc_validation_after_request_hook,
-             rpc_action_hook_context_type: rpc_action_hook_context_type,
-             rpc_validation_hook_context_type: rpc_validation_hook_context_type,
-             rpc_action_before_channel_push_hook: rpc_action_before_channel_push_hook,
-             rpc_action_after_channel_response_hook: rpc_action_after_channel_response_hook,
-             rpc_validation_before_channel_push_hook: rpc_validation_before_channel_push_hook,
-             rpc_validation_after_channel_response_hook:
-               rpc_validation_after_channel_response_hook,
-             rpc_action_channel_hook_context_type: rpc_action_channel_hook_context_type,
-             rpc_validation_channel_hook_context_type: rpc_validation_channel_hook_context_type
-           },
-           otp_app
-         )}
+        if AshTypescript.Rpc.enable_namespace_files?() do
+          generate_multi_file_output(
+            resources_and_actions,
+            endpoint_process,
+            endpoint_validate,
+            hook_config,
+            otp_app
+          )
+        else
+          {:ok,
+           generate_full_typescript(
+             resources_and_actions,
+             endpoint_process,
+             endpoint_validate,
+             hook_config,
+             otp_app
+           )}
+        end
 
       {:error, error_message} ->
         {:error, error_message}
     end
+  end
+
+  defp generate_multi_file_output(
+         resources_and_actions,
+         endpoint_process,
+         endpoint_validate,
+         hook_config,
+         otp_app
+       ) do
+    # Generate main file with ALL actions (namespaced and non-namespaced)
+    main_content =
+      generate_full_typescript(
+        resources_and_actions,
+        endpoint_process,
+        endpoint_validate,
+        hook_config,
+        otp_app
+      )
+
+    # Group actions by namespace for re-export files
+    grouped = RpcConfigCollector.get_rpc_resources_by_namespace(otp_app)
+
+    # Generate namespace files (simple re-exports from main file)
+    namespace_files =
+      grouped
+      |> Map.delete(nil)
+      |> Map.new(fn {namespace, actions} ->
+        content = generate_namespace_reexport_file(namespace, actions)
+        {namespace, content}
+      end)
+
+    {:ok, %{main: main_content, namespaces: namespace_files}}
+  end
+
+  defp generate_namespace_reexport_file(namespace, actions) do
+    # Compute the relative import path from namespace dir to main file
+    main_file_path = Application.get_env(:ash_typescript, :output_file, "ash_rpc.ts")
+    main_file_name = Path.basename(main_file_path, ".ts")
+    main_file_dir = Path.dirname(main_file_path)
+
+    namespace_dir = AshTypescript.Rpc.namespace_output_dir() || main_file_dir
+
+    main_import_path =
+      if namespace_dir == main_file_dir do
+        "./#{main_file_name}"
+      else
+        "../#{main_file_name}"
+      end
+
+    # Collect all exports for each action in this namespace
+    exports = collect_action_exports(actions)
+
+    # Separate type exports from value exports
+    {type_exports, value_exports} =
+      Enum.split_with(exports, fn {_name, kind} -> kind == :type end)
+
+    type_names = type_exports |> Enum.map(fn {name, _} -> name end) |> Enum.sort()
+    value_names = value_exports |> Enum.map(fn {name, _} -> name end) |> Enum.sort()
+
+    # Build the export statements
+    type_export_line =
+      if type_names != [] do
+        "export type {\n  #{Enum.join(type_names, ",\n  ")}\n} from \"#{main_import_path}\";\n"
+      else
+        ""
+      end
+
+    value_export_line =
+      if value_names != [] do
+        "export {\n  #{Enum.join(value_names, ",\n  ")}\n} from \"#{main_import_path}\";\n"
+      else
+        ""
+      end
+
+    """
+    // Generated by AshTypescript - Namespace: #{namespace}
+    // WARNING: Do not edit this section - it will be overwritten on regeneration
+
+    #{type_export_line}
+    #{value_export_line}
+    #{namespace_custom_code_marker()}
+    """
+    |> String.trim()
+    |> Kernel.<>("\n")
+  end
+
+  @doc """
+  The marker comment used to separate generated code from custom code in namespace files.
+  Content below this marker is preserved when regenerating namespace files.
+  """
+  def namespace_custom_code_marker do
+    "// --- Custom code below this line is preserved on regeneration (do not edit this line) ---"
+  end
+
+  defp collect_action_exports(actions) do
+    actions
+    |> Enum.flat_map(fn {_resource, action, rpc_action, _domain, _res_config} ->
+      collect_exports_for_action(action, rpc_action)
+    end)
+    |> Enum.uniq()
+  end
+
+  defp collect_exports_for_action(action, rpc_action) do
+    rpc_action_name = to_string(rpc_action.name)
+    function_name = Macro.camelize(rpc_action_name)
+
+    function_name =
+      String.downcase(String.first(function_name)) <> String.slice(function_name, 1..-1//1)
+
+    # Base exports for every action
+    exports = [
+      {function_name, :value}
+    ]
+
+    # Add input type if action has arguments
+    exports =
+      if action.arguments != [] do
+        input_type_name = Macro.camelize(rpc_action_name) <> "Input"
+        exports ++ [{input_type_name, :type}]
+      else
+        exports
+      end
+
+    # Add zod schema if enabled and action has arguments
+    exports =
+      if AshTypescript.Rpc.generate_zod_schemas?() and action.arguments != [] do
+        zod_schema_name = function_name <> "ZodSchema"
+        exports ++ [{zod_schema_name, :value}]
+      else
+        exports
+      end
+
+    # Add result types for read actions (Fields, Config, Result, InferResult)
+    exports =
+      if action.type == :read do
+        pascal_name = Macro.camelize(rpc_action_name)
+
+        exports ++
+          [
+            {"#{pascal_name}Fields", :type},
+            {"Infer#{pascal_name}Result", :type},
+            {"#{pascal_name}Config", :type},
+            {"#{pascal_name}Result", :type}
+          ]
+      else
+        # Non-read actions have simpler result types
+        pascal_name = Macro.camelize(rpc_action_name)
+        exports ++ [{"#{pascal_name}Result", :type}]
+      end
+
+    # Add validation function if enabled
+    exports =
+      if AshTypescript.Rpc.generate_validation_functions?() do
+        validate_name = "validate" <> Macro.camelize(rpc_action_name)
+        exports ++ [{validate_name, :value}]
+      else
+        exports
+      end
+
+    # Add channel functions if enabled
+    exports =
+      if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
+        channel_name = function_name <> "Channel"
+        exports = exports ++ [{channel_name, :value}]
+
+        if AshTypescript.Rpc.generate_validation_functions?() do
+          validate_channel_name = "validate" <> Macro.camelize(rpc_action_name) <> "Channel"
+          exports ++ [{validate_channel_name, :value}]
+        else
+          exports
+        end
+      else
+        exports
+      end
+
+    exports
   end
 
   defp generate_full_typescript(
@@ -227,12 +414,21 @@ defmodule AshTypescript.Rpc.Codegen do
   defp generate_rpc_function(
          {resource, action, rpc_action},
          _resources_and_actions,
-         _otp_app
+         otp_app
        ) do
+    # Get namespace from rpc_action if set (for JSDoc @namespace tag)
+    namespace = Map.get(rpc_action, :namespace)
+    generate_rpc_function_with_namespace({resource, action, rpc_action}, namespace, otp_app)
+  end
+
+  defp generate_rpc_function_with_namespace({resource, action, rpc_action}, namespace, _otp_app) do
     rpc_action_name = to_string(rpc_action.name)
 
     # Augment action with RPC settings (get?, get_by) so generators see the full picture
     action = augment_action_with_rpc_settings(action, rpc_action, resource)
+
+    # Options to pass to renderers, including namespace for JSDoc
+    render_opts = if namespace, do: [namespace: namespace], else: []
 
     input_type = InputTypes.generate_input_type(resource, action, rpc_action_name)
 
@@ -250,7 +446,8 @@ defmodule AshTypescript.Rpc.Codegen do
         resource,
         action,
         rpc_action,
-        rpc_action_name
+        rpc_action_name,
+        render_opts
       )
 
     validation_function =
@@ -259,7 +456,8 @@ defmodule AshTypescript.Rpc.Codegen do
           resource,
           action,
           rpc_action,
-          rpc_action_name
+          rpc_action_name,
+          render_opts
         )
       else
         ""
@@ -271,7 +469,8 @@ defmodule AshTypescript.Rpc.Codegen do
           resource,
           action,
           rpc_action,
-          rpc_action_name
+          rpc_action_name,
+          render_opts
         )
       else
         ""
@@ -280,7 +479,13 @@ defmodule AshTypescript.Rpc.Codegen do
     channel_validation_function =
       if AshTypescript.Rpc.generate_validation_functions?() and
            AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
-        ChannelRenderer.render_validation_function(resource, action, rpc_action, rpc_action_name)
+        ChannelRenderer.render_validation_function(
+          resource,
+          action,
+          rpc_action,
+          rpc_action_name,
+          render_opts
+        )
       else
         ""
       end

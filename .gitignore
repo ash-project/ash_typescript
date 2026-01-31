@@ -29,3 +29,7 @@ ash_typescript-*.tar
 test/ts/node_modules/
 test/ts/generated.ts
 test/ts/**/*.js
+test/ts/MANIFEST.md
+test/ts/namespace/
+
+.DS_Store

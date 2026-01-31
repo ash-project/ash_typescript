@@ -14,6 +14,11 @@ defmodule AshTypescript.Rpc.TypedQueryFieldMappingCrossDomainTest do
 
   alias AshTypescript.Test.User
 
+  setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+    :ok
+  end
+
   setup_all do
     :ok
   end

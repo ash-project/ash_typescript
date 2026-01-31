@@ -10,13 +10,16 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
   HTTP function using executeActionRpcRequest.
   """
 
-  alias AshTypescript.Rpc.Codegen.FunctionGenerators.{FunctionCore, TypeBuilders}
+  alias AshTypescript.Rpc.Codegen.FunctionGenerators.{FunctionCore, JsdocGenerator, TypeBuilders}
   alias AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder
 
   @doc """
   Renders an HTTP execution function (Promise-based).
+
+  ## Options
+  - `:namespace` - The resolved namespace for this action (used in JSDoc)
   """
-  def render_execution_function(resource, action, rpc_action, rpc_action_name) do
+  def render_execution_function(resource, action, rpc_action, rpc_action_name, opts \\ []) do
     shape =
       FunctionCore.build_execution_function_shape(
         resource,
@@ -60,9 +63,12 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
 
     generic_part = if generic_param != "", do: "<#{generic_param}>", else: ""
 
+    jsdoc = JsdocGenerator.generate_jsdoc(resource, action, rpc_action, opts)
+
     """
     #{config_type_export}#{result_type_def}
 
+    #{jsdoc}
     export async function #{function_name}#{generic_part}(
       #{function_signature}
     ): Promise<#{return_type_def}> {
@@ -78,8 +84,11 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
 
   @doc """
   Renders an HTTP validation function.
+
+  ## Options
+  - `:namespace` - The resolved namespace for this action (used in JSDoc)
   """
-  def render_validation_function(resource, action, rpc_action, rpc_action_name) do
+  def render_validation_function(resource, action, rpc_action, rpc_action_name, opts \\ []) do
     alias AshTypescript.Rpc.Codegen.Helpers.{ConfigBuilder, PayloadBuilder}
 
     shape =
@@ -121,7 +130,10 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
 
     validation_payload_def = "{\n    #{Enum.join(validation_payload_fields, ",\n    ")}\n  }"
 
+    jsdoc = JsdocGenerator.generate_validation_jsdoc(resource, action, rpc_action, opts)
+
     """
+    #{jsdoc}
     export async function #{function_name}(
       config: #{config_type_def}
     ): Promise<ValidationResult> {

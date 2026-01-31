@@ -13,6 +13,11 @@ defmodule AshTypescript.Rpc.TypedQueryCodegenTest do
 
   @moduletag :ash_typescript
 
+  setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+    :ok
+  end
+
   describe "typed query field constants - TypeScript codegen" do
     setup do
       {:ok, ts_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)

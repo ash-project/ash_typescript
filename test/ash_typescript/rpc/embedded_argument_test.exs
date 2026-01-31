@@ -17,6 +17,11 @@ defmodule AshTypescript.Rpc.EmbeddedArgumentTest do
   alias AshTypescript.Codegen.TypeMapper
   alias AshTypescript.Rpc.Codegen
 
+  setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+    :ok
+  end
+
   setup_all do
     {:ok, generated} = Codegen.generate_typescript_types(:ash_typescript)
     {:ok, generated: generated}

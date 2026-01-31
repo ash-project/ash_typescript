@@ -6,6 +6,11 @@ defmodule AshTypescript.Rpc.EndpointConfigurationTest do
   use ExUnit.Case, async: false
   alias AshTypescript.Rpc.Codegen
 
+  setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+    :ok
+  end
+
   describe "format_endpoint_for_typescript/1" do
     test "formats string endpoint as quoted literal" do
       assert Codegen.format_endpoint_for_typescript("/rpc/run") == "\"/rpc/run\""
