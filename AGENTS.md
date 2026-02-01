@@ -133,6 +133,9 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Resource schema generation** | `lib/ash_typescript/codegen/resource_schemas.ex` |
 | **Filter types generation** | `lib/ash_typescript/codegen/filter_types.ex` |
 | **RPC client generation** | `lib/ash_typescript/rpc/codegen.ex` |
+| **JSDoc comment generation** | `lib/ash_typescript/rpc/codegen/function_generators/jsdoc_generator.ex` |
+| **Manifest generation** | `lib/ash_typescript/rpc/codegen/manifest_generator.ex` |
+| **Namespace resolution** | `lib/ash_typescript/rpc/codegen/rpc_config_collector.ex` |
 | **Pipeline orchestration** | `lib/ash_typescript/rpc/pipeline.ex` |
 | **Field processing (entry point)** | `lib/ash_typescript/rpc/requested_fields_processor.ex` (delegator) |
 | **Field atomization** | `lib/ash_typescript/rpc/field_processing/atomizer.ex` |
@@ -201,6 +204,7 @@ mix credo --strict                   # Linting
 | **Zod validation schemas** | [features/zod-schemas.md](agent-docs/features/zod-schemas.md) | `test/ash_typescript/rpc/rpc_codegen_test.exs` |
 | **Embedded resources** | [features/embedded-resources.md](agent-docs/features/embedded-resources.md) | `test/support/resources/embedded/` |
 | **Union types** | [features/union-systems-core.md](agent-docs/features/union-systems-core.md) | `test/ash_typescript/rpc/rpc_union_*_test.exs` |
+| **Namespaces, JSDoc, Manifest** | [features/developer-experience.md](agent-docs/features/developer-experience.md) | `test/ash_typescript/rpc/namespace_test.exs` |
 | **Development patterns** | [development-workflows.md](agent-docs/development-workflows.md) | N/A |
 
 ## Key Architecture Concepts

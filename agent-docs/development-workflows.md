@@ -87,6 +87,44 @@ Ensure we test both http/fetch and channel functions.
 - **Custom fetch functions**: Client-side HTTP customization via `customFetch` parameter
 - **Request options**: Client-side request customization via `fetchOptions` parameter
 
+## Documentation Files
+
+### usage-rules.md
+
+**Purpose**: Consumed by AI assistants working in projects that use ash_typescript as a dependency. This file is loaded into their context window to help them understand how to use the library.
+
+**Key Principles**:
+- **Compactness is critical** - Every line consumes context window tokens
+- Use tables over prose where possible
+- Use short code snippets, not full examples
+- Avoid redundancy - don't explain the same thing twice
+- Use consistent formatting for quick scanning
+
+**Structure**:
+| Section | Purpose |
+|---------|---------|
+| Quick Reference | One-liners for most critical info |
+| Essential Syntax Table | Pattern → Syntax → Example (scannable) |
+| Action Feature Matrix | Quick lookup table |
+| Core Patterns | Minimal code examples |
+| Common Gotchas | Error → Fix mappings |
+| Error Message Quick Reference | Error text → Solution |
+| Configuration Reference | All config options |
+
+**When updating**:
+1. Prefer adding to existing tables over new sections
+2. Keep code examples minimal (3-10 lines)
+3. Remove outdated patterns when adding new ones
+4. Test that the file remains under ~500 lines
+
+### agent-docs/ (Internal)
+
+Internal documentation for AI assistants working **on** ash_typescript itself (not consumers). Can be more verbose since it's only loaded when needed.
+
+### documentation/ (User-Facing)
+
+HexDocs documentation for end users. Can include full tutorials, explanations, and comprehensive examples.
+
 ## Key Success Factors
 
 1. Always use test environment (`MIX_ENV=test`)
