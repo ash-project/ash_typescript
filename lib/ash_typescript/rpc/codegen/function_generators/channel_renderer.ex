@@ -10,13 +10,16 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
   Channel function using executeActionChannelPush.
   """
 
-  alias AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore
+  alias AshTypescript.Rpc.Codegen.FunctionGenerators.{FunctionCore, JsdocGenerator}
   alias AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder
 
   @doc """
   Renders a Channel execution function (handler-based).
+
+  ## Options
+  - `:namespace` - The resolved namespace for this action (used in JSDoc)
   """
-  def render_execution_function(resource, action, rpc_action, rpc_action_name) do
+  def render_execution_function(resource, action, rpc_action, rpc_action_name, opts \\ []) do
     shape =
       FunctionCore.build_execution_function_shape(
         resource,
@@ -59,7 +62,10 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
 
     result_type_for_handler = build_result_type_for_handler(shape)
 
+    jsdoc = JsdocGenerator.generate_jsdoc(resource, action, rpc_action, opts)
+
     """
+    #{jsdoc}
     export async function #{function_name}#{generic_part}(config: #{config_type_def}) {
       executeActionChannelPush<#{result_type_for_handler}>(
         config.channel,
@@ -73,8 +79,11 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
 
   @doc """
   Renders a Channel validation function.
+
+  ## Options
+  - `:namespace` - The resolved namespace for this action (used in JSDoc)
   """
-  def render_validation_function(resource, action, rpc_action, rpc_action_name) do
+  def render_validation_function(resource, action, rpc_action, rpc_action_name, opts \\ []) do
     alias AshTypescript.Rpc.Codegen.Helpers.{ConfigBuilder, PayloadBuilder}
 
     shape =
@@ -123,7 +132,10 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
 
     payload_def = "{\n    #{Enum.join(payload_fields, ",\n    ")}\n  }"
 
+    jsdoc = JsdocGenerator.generate_validation_jsdoc(resource, action, rpc_action, opts)
+
     """
+    #{jsdoc}
     export async function #{function_name}(config: #{config_type_def}) {
       executeValidationChannelPush<ValidationResult>(
         config.channel,

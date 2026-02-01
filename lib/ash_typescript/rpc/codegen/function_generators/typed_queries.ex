@@ -13,6 +13,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
   import AshTypescript.Codegen
   import AshTypescript.Helpers
 
+  alias AshTypescript.Rpc.Codegen.FunctionGenerators.JsdocGenerator
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
   @doc """
@@ -93,27 +94,23 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
         const_fields = format_typed_query_fields_const_for_typescript(atomized_fields, resource)
 
         fields_type = find_matching_rpc_fields_type(resource, action, rpc_resources_and_actions)
-
-        # Use `satisfies` to preserve literal types while ensuring type compatibility
-        const_declaration =
-          if fields_type do
-            "export const #{const_name} = #{const_fields} satisfies #{fields_type};"
-          else
-            "export const #{const_name} = #{const_fields};"
-          end
+        jsdoc = JsdocGenerator.generate_typed_query_jsdoc(typed_query, resource)
 
         """
-        // Type for #{typed_query.name}
+        #{jsdoc}
         export type #{type_name} = #{result_type};
 
-        // Field selection for #{typed_query.name} - use with RPC actions for refetching
-        #{const_declaration}
+        #{jsdoc}
+        export const #{const_name} = #{const_fields}#{satisfies_clause(fields_type)};
         """
 
       {:error, error} ->
         raise "Error processing typed query #{typed_query.name}: #{inspect(error)}"
     end
   end
+
+  defp satisfies_clause(nil), do: ""
+  defp satisfies_clause(fields_type), do: " satisfies #{fields_type}"
 
   defp find_matching_rpc_fields_type(resource, action, rpc_resources_and_actions) do
     matching_rpc =
