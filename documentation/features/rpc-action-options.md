@@ -456,6 +456,10 @@ See [Action Metadata](action-metadata.md) for details.
 | `identities` | `list(atom)` | `[:_primary_key]` | Allowed identity lookups |
 | `show_metadata` | `list(atom) \| false \| nil` | `nil` | Metadata fields to expose |
 | `metadata_field_names` | `keyword` | `nil` | Metadata field name mappings |
+| `namespace` | `atom \| string` | `nil` | Organize action into namespace |
+| `description` | `string` | `nil` | Custom JSDoc description |
+| `deprecated` | `boolean \| string` | `nil` | Mark as deprecated |
+| `see` | `list(atom)` | `nil` | Related actions for @see tags |
 
 ## Next Steps
 
@@ -463,3 +467,4 @@ See [Action Metadata](action-metadata.md) for details.
 - [CRUD Operations](../guides/crud-operations.md) - Update and destroy patterns
 - [Action Metadata](action-metadata.md) - Exposing metadata to clients
 - [Field Selection](../guides/field-selection.md) - Field selection patterns
+- [Developer Experience](developer-experience.md) - Namespaces, JSDoc, and manifest generation

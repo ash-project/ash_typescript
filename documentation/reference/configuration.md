@@ -56,7 +56,15 @@ config :ash_typescript,
   warn_on_non_rpc_references: true,
 
   # Get action behavior
-  not_found_error?: true
+  not_found_error?: true,
+
+  # Developer experience - JSDoc
+  add_ash_internals_to_jsdoc: false,
+  source_path_prefix: nil,
+
+  # Developer experience - Manifest
+  manifest_file: nil,
+  add_ash_internals_to_manifest: false
 ```
 
 ## Quick Reference
@@ -81,6 +89,10 @@ config :ash_typescript,
 | `warn_on_missing_rpc_config` | `boolean` | `true` | Warn about resources with extension not in RPC config |
 | `warn_on_non_rpc_references` | `boolean` | `true` | Warn about non-RPC resources referenced by RPC resources |
 | `not_found_error?` | `boolean` | `true` | Global default: `true` returns error on not found, `false` returns null |
+| `add_ash_internals_to_jsdoc` | `boolean` | `false` | Show Ash resource/action details in JSDoc |
+| `source_path_prefix` | `string \| nil` | `nil` | Prefix for source file paths (monorepos) |
+| `manifest_file` | `string \| nil` | `nil` | Path to generate Markdown manifest |
+| `add_ash_internals_to_manifest` | `boolean` | `false` | Show Ash details in manifest |
 
 ## Lifecycle Hook Configuration
 
@@ -193,6 +205,7 @@ For in-depth configuration guides, see:
 
 - [Custom Types](../advanced/custom-types.md) - Custom Ash types with TypeScript integration
 - [Field Name Mapping](../advanced/field-name-mapping.md) - Mapping invalid field names
+- [Developer Experience](../features/developer-experience.md) - Namespaces, JSDoc, and manifest generation
 - [Lifecycle Hooks](../features/lifecycle-hooks.md) - HTTP and channel lifecycle hooks
 - [Phoenix Channels](../features/phoenix-channels.md) - Channel-based RPC configuration
 - [Multitenancy](../features/multitenancy.md) - Tenant parameter configuration

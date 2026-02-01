@@ -40,6 +40,7 @@ Keep false in production for security.
 |------|------|---------|------|
 | [`error_handler`](#typescript_rpc-error_handler){: #typescript_rpc-error_handler } | `mfa \| module` | `{AshTypescript.Rpc.DefaultErrorHandler, :handle_error, []}` | An MFA or module that implements error handling for RPC operations. |
 | [`show_raised_errors?`](#typescript_rpc-show_raised_errors?){: #typescript_rpc-show_raised_errors? } | `boolean` | `false` | Whether to show detailed information for raised exceptions. |
+| [`namespace`](#typescript_rpc-namespace){: #typescript_rpc-namespace } | `String.t` |  | Default namespace (filename) for all resources in this domain. |
 
 
 
@@ -63,7 +64,11 @@ Define available RPC-actions for a resource
 | Name | Type | Default | Docs |
 |------|------|---------|------|
 | [`resource`](#typescript_rpc-resource-resource){: #typescript_rpc-resource-resource } | `module` |  | The resource being configured |
+### Options
 
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`namespace`](#typescript_rpc-resource-namespace){: #typescript_rpc-resource-namespace } | `String.t` |  | Default namespace (filename) for all actions in this resource. |
 
 
 ### typescript_rpc.resource.rpc_action
@@ -103,6 +108,10 @@ valid resource attributes. Returns a single result or null.
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
+| [`namespace`](#typescript_rpc-resource-rpc_action-namespace){: #typescript_rpc-resource-rpc_action-namespace } | `String.t` |  | Namespace for organizing this action into a separate file (becomes the filename). Overrides resource/domain namespace. |
+| [`description`](#typescript_rpc-resource-rpc_action-description){: #typescript_rpc-resource-rpc_action-description } | `String.t` |  | Custom description for the JSDoc comment. Always shown when set, overrides the action's internal description. |
+| [`deprecated`](#typescript_rpc-resource-rpc_action-deprecated){: #typescript_rpc-resource-rpc_action-deprecated } | `boolean \| String.t` |  | Mark this action as deprecated. Set to true for a default message, or provide a custom deprecation notice (e.g., "Use listTodosV2 instead"). |
+| [`see`](#typescript_rpc-resource-rpc_action-see){: #typescript_rpc-resource-rpc_action-see } | `list(atom)` | `[]` | List of related RPC action names to reference in JSDoc @see tags (e.g., `see: [:list_todos, :create_todo]`). |
 | [`read_action`](#typescript_rpc-resource-rpc_action-read_action){: #typescript_rpc-resource-rpc_action-read_action } | `atom` |  | The read action to use for update and destroy operations when finding records |
 | [`show_metadata`](#typescript_rpc-resource-rpc_action-show_metadata){: #typescript_rpc-resource-rpc_action-show_metadata } | `nil \| boolean \| list(atom)` |  | Which metadata fields to expose (nil=all, false/[]=none, list=specific fields) |
 | [`metadata_field_names`](#typescript_rpc-resource-rpc_action-metadata_field_names){: #typescript_rpc-resource-rpc_action-metadata_field_names } | `list({atom, String.t})` | `[]` | Map metadata field names to valid TypeScript identifiers (string values) |
@@ -145,6 +154,7 @@ typed_query name, action
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
+| [`description`](#typescript_rpc-resource-typed_query-description){: #typescript_rpc-resource-typed_query-description } | `String.t` |  | Description for the JSDoc comment of this typed query. |
 | [`ts_result_type_name`](#typescript_rpc-resource-typed_query-ts_result_type_name){: #typescript_rpc-resource-typed_query-ts_result_type_name } | `String.t` |  | The name of the TypeScript type for the query result |
 | [`ts_fields_const_name`](#typescript_rpc-resource-typed_query-ts_fields_const_name){: #typescript_rpc-resource-typed_query-ts_fields_const_name } | `String.t` |  | The name of the constant for the fields, that can be reused by the client to re-run the query |
 | [`fields`](#typescript_rpc-resource-typed_query-fields){: #typescript_rpc-resource-typed_query-fields } | `list(any)` |  | The fields to query |

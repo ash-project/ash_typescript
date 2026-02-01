@@ -119,6 +119,7 @@ defmodule AshTypescript.MixProject do
         "documentation/features/lifecycle-hooks.md",
         "documentation/features/multitenancy.md",
         "documentation/features/action-metadata.md",
+        "documentation/features/developer-experience.md",
 
         # Advanced
         "documentation/advanced/union-types.md",
