@@ -178,20 +178,20 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
     // Utility Types
 
     // Resource schema constraint
-    type TypedSchema = {
+    export type TypedSchema = {
       __type: "Resource" | "TypedMap" | "Union";
       __primitiveFields: string;
     };
 
     // Utility type to convert union to intersection
-    type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
+    export type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
       k: infer I,
     ) => void
       ? I
       : never;
 
     // Helper type to infer union field values, avoiding duplication between array and non-array unions
-    type InferUnionFieldValue<
+    export type InferUnionFieldValue<
       UnionSchema extends { __type: "Union"; __primitiveFields: any },
       FieldSelection extends any[],
     > = UnionToIntersection<
@@ -238,21 +238,21 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
       }[number]
     >;
 
-    type HasComplexFields<T extends TypedSchema> = keyof Omit<
+    export type HasComplexFields<T extends TypedSchema> = keyof Omit<
       T,
       "__primitiveFields" | "__type" | T["__primitiveFields"]
     > extends never
       ? false
       : true;
 
-    type ComplexFieldKeys<T extends TypedSchema> = keyof Omit<
+    export type ComplexFieldKeys<T extends TypedSchema> = keyof Omit<
       T,
       "__primitiveFields" | "__type" | T["__primitiveFields"]
     >;
 
-    type LeafFieldSelection<T extends TypedSchema> = T["__primitiveFields"];
+    export type LeafFieldSelection<T extends TypedSchema> = T["__primitiveFields"];
 
-    type ComplexFieldSelection<T extends TypedSchema> = {
+    export type ComplexFieldSelection<T extends TypedSchema> = {
       [K in ComplexFieldKeys<T>]?: T[K] extends {
         __type: "Relationship";
         __resource: infer Resource;
@@ -300,12 +300,12 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
     };
 
     // Main type: Use explicit base case detection to prevent infinite recursion
-    type UnifiedFieldSelection<T extends TypedSchema> =
+    export type UnifiedFieldSelection<T extends TypedSchema> =
       HasComplexFields<T> extends false
         ? LeafFieldSelection<T> // Base case: only primitives, no recursion
         : LeafFieldSelection<T> | ComplexFieldSelection<T>; // Recursive case
 
-    type InferFieldValue<
+    export type InferFieldValue<
       T extends TypedSchema,
       Field,
     > = Field extends T["__primitiveFields"]
@@ -460,7 +460,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
           }
         : never;
 
-    type InferResult<
+    export type InferResult<
       T extends TypedSchema,
       SelectedFields extends UnifiedFieldSelection<T>[] | undefined,
     > = SelectedFields extends undefined
@@ -477,14 +477,14 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
 
     // Pagination conditional types
     // Checks if a page configuration object has any pagination parameters
-    type HasPaginationParams<Page> =
+    export type HasPaginationParams<Page> =
       Page extends { offset: any } ? true :
       Page extends { after: any } ? true :
       Page extends { before: any } ? true :
       false;
 
     // Infer which pagination type is being used from the page config
-    type InferPaginationType<Page> =
+    export type InferPaginationType<Page> =
       Page extends { offset: any } ? "offset" :
       Page extends { after: any } | { before: any } ? "keyset" :
       never;
@@ -493,7 +493,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
     // For single pagination type support (offset-only or keyset-only)
     // @ts-ignore
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    type ConditionalPaginatedResult<
+    export type ConditionalPaginatedResult<
       Page,
       RecordType,
       PaginatedType
@@ -505,7 +505,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
 
     // For actions supporting both offset and keyset pagination
     // Infers the specific pagination type based on which params were passed
-    type ConditionalPaginatedResultMixed<
+    export type ConditionalPaginatedResultMixed<
       Page,
       RecordType,
       OffsetType,
@@ -935,7 +935,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
      * Handles hooks, request configuration, fetch execution, and error handling
      * @param config Configuration matching #{config_type}
      */
-    async function #{function_name}<T>(
+    export async function #{function_name}<T>(
       payload: Record<string, any>,
       config: #{config_type}
     ): Promise<T> {
@@ -1068,7 +1068,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
      * Handles hooks and channel push with receive handlers
      * @param config Configuration matching #{config_type}
      */
-    async function #{function_name}<T>(
+    export async function #{function_name}<T>(
       channel: any,
       payload: Record<string, any>,
       timeout: number | undefined,
