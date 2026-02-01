@@ -11,6 +11,33 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.13.0](https://github.com/ash-project/ash_typescript/compare/v0.12.1...v0.13.0) (2026-02-01)
+
+
+
+
+### Features:
+
+* config: add developer experience configuration options by [@Torkan](https://github.com/Torkan)
+
+* mix: handle multi-file output and manifest generation by [@Torkan](https://github.com/Torkan)
+
+* codegen: add multi-file namespace output support by [@Torkan](https://github.com/Torkan)
+
+* codegen: add markdown manifest generator by [@Torkan](https://github.com/Torkan)
+
+* codegen: add JSDoc generator with configurable tags by [@Torkan](https://github.com/Torkan)
+
+* codegen: add namespace resolution and domain grouping by [@Torkan](https://github.com/Torkan)
+
+* dsl: add namespace, description, deprecated, and see options by [@Torkan](https://github.com/Torkan)
+
+### Bug Fixes:
+
+* codegen: fix TypeScript inference for NewType-wrapped unions by [@Torkan](https://github.com/Torkan)
+
+* codegen: unwrap NewTypes in type discovery to find union members by [@Torkan](https://github.com/Torkan)
+
 ## [v0.12.1](https://github.com/ash-project/ash_typescript/compare/v0.12.0...v0.12.1) (2026-01-26)
 
 
