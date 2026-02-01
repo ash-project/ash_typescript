@@ -9,6 +9,11 @@ defmodule AshTypescript.Rpc.EnableSortTest do
 
   @moduletag :ash_typescript
 
+  setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+    :ok
+  end
+
   describe "enable_sort? option - pipeline behavior" do
     test "sort is dropped when enable_sort? is false" do
       params = %{

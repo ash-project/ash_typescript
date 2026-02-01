@@ -17,6 +17,11 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
   alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
+  setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+    :ok
+  end
+
   setup_all do
     # Generate the TypeScript code programmatically
     {:ok, generated_content} =

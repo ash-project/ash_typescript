@@ -24,6 +24,11 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
   alias AshTypescript.Rpc.ZodSchemaGenerator
   alias AshTypescript.Test.OrgTodo
 
+  setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+    :ok
+  end
+
   setup_all do
     {:ok, generated_content} =
       AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)

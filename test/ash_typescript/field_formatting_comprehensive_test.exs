@@ -14,6 +14,8 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
   doctest AshTypescript.FieldFormatter
 
   setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+
     # Store original configuration
     original_input_field_formatter = Application.get_env(:ash_typescript, :input_field_formatter)
 

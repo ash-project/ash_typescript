@@ -18,6 +18,8 @@ defmodule AshTypescript.AggregateFieldFormattingTest do
   use ExUnit.Case, async: false
 
   setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+
     # Store original configuration
     original_output_field_formatter =
       Application.get_env(:ash_typescript, :output_field_formatter)
@@ -34,6 +36,8 @@ defmodule AshTypescript.AggregateFieldFormattingTest do
         Application.delete_env(:ash_typescript, :output_field_formatter)
       end
     end)
+
+    :ok
   end
 
   describe "Aggregate field formatting with configured formatters" do

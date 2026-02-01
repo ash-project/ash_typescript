@@ -14,6 +14,11 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
   alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
+  setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+    :ok
+  end
+
   describe "get? option - single resource read action" do
     setup do
       conn = TestHelpers.build_rpc_conn()

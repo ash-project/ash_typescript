@@ -18,6 +18,11 @@ defmodule AshTypescript.Codegen.AggregateCalculationSupportTest do
 
   alias AshTypescript.Codegen.FilterTypes
 
+  setup do
+    Application.put_env(:ash_typescript, :enable_namespace_files, false)
+    :ok
+  end
+
   describe "FilterTypes - sum aggregate over calculations" do
     test "generates filter type for sum aggregate over calculation" do
       result = FilterTypes.generate_filter_type(AshTypescript.Test.Todo)
