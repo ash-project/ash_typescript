@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs.contributors>
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
@@ -7,10 +7,10 @@ defmodule AshTypescript.AggregateFieldFormattingTest do
   Regression tests to ensure aggregate field formatting uses configured field formatters
   instead of hardcoded camelCase conversion.
 
-  This prevents regressions where aggregate generation functions accidentally 
+  This prevents regressions where aggregate generation functions accidentally
   revert to hardcoded formatting instead of using the configured :output_field_formatter setting.
 
-  The tests verify that aggregate field names like :comment_count, :helpful_comment_count, 
+  The tests verify that aggregate field names like :comment_count, :helpful_comment_count,
   :latest_comment_content are formatted according to the configured formatter.
   """
 
