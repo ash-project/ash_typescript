@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs.contributors>
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
@@ -7,10 +7,10 @@ defmodule AshTypescript.EmbeddedResourceFieldFormattingTest do
   Regression tests to ensure embedded resource field formatting uses configured field formatters
   instead of hardcoded camelCase conversion.
 
-  This prevents regressions where embedded resource generation functions accidentally 
+  This prevents regressions where embedded resource generation functions accidentally
   revert to hardcoded formatting instead of using the configured :output_field_formatter setting.
 
-  The tests verify that embedded resource field names like :priority_score, :word_count, 
+  The tests verify that embedded resource field names like :priority_score, :word_count,
   :external_reference are formatted according to the configured formatter.
   """
 

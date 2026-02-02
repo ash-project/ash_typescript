@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs.contributors>
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
@@ -7,10 +7,10 @@ defmodule AshTypescript.CalculationFieldFormattingTest do
   Regression tests to ensure calculation field formatting uses configured field formatters
   instead of hardcoded camelCase conversion.
 
-  This prevents regressions where calculation generation functions accidentally 
+  This prevents regressions where calculation generation functions accidentally
   revert to hardcoded formatting instead of using the configured :output_field_formatter setting.
 
-  The tests verify that calculation field names like :is_overdue, :days_until_due, 
+  The tests verify that calculation field names like :is_overdue, :days_until_due,
   :adjusted_priority are formatted according to the configured formatter.
   """
 

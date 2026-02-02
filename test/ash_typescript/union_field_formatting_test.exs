@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs.contributors>
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
 #
 # SPDX-License-Identifier: MIT
 
@@ -7,7 +7,7 @@ defmodule AshTypescript.UnionFieldFormattingTest do
   Regression tests to ensure union field formatting uses configured field formatters
   instead of hardcoded snake_to_camel_case conversion.
 
-  This prevents regressions where union type generation functions (build_union_type 
+  This prevents regressions where union type generation functions (build_union_type
   and build_union_input_type) accidentally revert to hardcoded formatting.
 
   The tests verify that union member names like :priority_value, :mime_type, :alt_text
