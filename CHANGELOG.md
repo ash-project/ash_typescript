@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.13.2](https://github.com/ash-project/ash_typescript/compare/v0.13.1...v0.13.2) (2026-02-04)
+
+
+
+
+### Bug Fixes:
+
+* codegen: use field formatter more consistently by [@Torkan](https://github.com/Torkan)
+
 ## [v0.13.1](https://github.com/ash-project/ash_typescript/compare/v0.13.0...v0.13.1) (2026-02-04)
 
 
