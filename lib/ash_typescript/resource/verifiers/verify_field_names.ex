@@ -45,7 +45,9 @@ defmodule AshTypescript.Resource.Verifiers.VerifyFieldNames do
         (Ash.Resource.Info.public_attributes(resource)
          |> Enum.filter(fn attr ->
            mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, attr.name)
-           invalid_name?(mapped_name)
+
+           # Only validate original name if no mapping exists (mapped names are validated elsewhere)
+           is_nil(mapped_name) and invalid_name?(attr.name)
          end)
          |> Enum.map(fn attr -> {:attribute, attr.name, make_name_better(attr.name)} end))
 
@@ -55,7 +57,9 @@ defmodule AshTypescript.Resource.Verifiers.VerifyFieldNames do
         (Ash.Resource.Info.public_relationships(resource)
          |> Enum.filter(fn rel ->
            mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, rel.name)
-           invalid_name?(mapped_name)
+
+           # Only validate original name if no mapping exists (mapped names are validated elsewhere)
+           is_nil(mapped_name) and invalid_name?(rel.name)
          end)
          |> Enum.map(fn rel -> {:relationship, rel.name, make_name_better(rel.name)} end))
 
@@ -65,7 +69,9 @@ defmodule AshTypescript.Resource.Verifiers.VerifyFieldNames do
         (Ash.Resource.Info.public_calculations(resource)
          |> Enum.filter(fn calc ->
            mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, calc.name)
-           invalid_name?(mapped_name)
+
+           # Only validate original name if no mapping exists (mapped names are validated elsewhere)
+           is_nil(mapped_name) and invalid_name?(calc.name)
          end)
          |> Enum.map(fn calc -> {:calculation, calc.name, make_name_better(calc.name)} end))
 
@@ -75,7 +81,9 @@ defmodule AshTypescript.Resource.Verifiers.VerifyFieldNames do
         (Ash.Resource.Info.public_aggregates(resource)
          |> Enum.filter(fn agg ->
            mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, agg.name)
-           invalid_name?(mapped_name)
+
+           # Only validate original name if no mapping exists (mapped names are validated elsewhere)
+           is_nil(mapped_name) and invalid_name?(agg.name)
          end)
          |> Enum.map(fn agg -> {:aggregate, agg.name, make_name_better(agg.name)} end))
 
@@ -87,6 +95,7 @@ defmodule AshTypescript.Resource.Verifiers.VerifyFieldNames do
 
   defp format_name_validation_errors(errors) do
     message_parts = Enum.map_join(errors, "\n\n", &format_error_part/1)
+    example_parts = Enum.map_join(errors, "\n\n", &format_example_part/1)
 
     {:error,
      Spark.Error.DslError.exception(
@@ -98,6 +107,8 @@ defmodule AshTypescript.Resource.Verifiers.VerifyFieldNames do
 
        Names should use standard camelCase or snake_case patterns without numbered suffixes.
        You can use field_names in the typescript section to provide valid alternatives.
+
+       #{example_parts}
        """
      )}
   end
@@ -109,5 +120,29 @@ defmodule AshTypescript.Resource.Verifiers.VerifyFieldNames do
       end)
 
     "Invalid field names in resource #{resource}:\n#{suggestions}"
+  end
+
+  defp format_example_part({:invalid_resource_fields, resource, fields}) do
+    field_mappings =
+      Enum.map_join(fields, ", ", fn {_type, current, suggested} ->
+        camel_case = to_lower_camel_case(to_string(suggested))
+        "#{current}: \"#{camel_case}\""
+      end)
+
+    module_name = resource |> Module.split() |> List.last()
+
+    """
+    Example for #{module_name}:
+
+        typescript do
+          field_names #{field_mappings}
+        end
+    """
+  end
+
+  defp to_lower_camel_case(string) do
+    string
+    |> Macro.camelize()
+    |> String.replace(~r/^([A-Z])/, fn char -> String.downcase(char) end)
   end
 end
