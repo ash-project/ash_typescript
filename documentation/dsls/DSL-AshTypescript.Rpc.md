@@ -16,7 +16,7 @@ Default error handler: {AshTypescript.Rpc.DefaultErrorHandler, :handle_error, []
 Example:
 ```elixir
 error_handler {MyApp.CustomErrorHandler, :handle_error, []}
-### or
+# or
 error_handler MyApp.CustomErrorHandler
 
 show_raised_errors?:
