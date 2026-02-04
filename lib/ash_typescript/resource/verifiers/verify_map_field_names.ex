@@ -117,10 +117,26 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMapFieldNames do
         []
 
       types ->
-        Enum.flat_map(types, fn {_type_name, type_config} ->
+        Enum.flat_map(types, fn {type_name, type_config} ->
+          # Check if the union member name itself is invalid
+          name_errors =
+            if invalid_name?(type_name) do
+              [
+                {resource, parent_context, {:union_member, type_name},
+                 make_name_better(type_name)}
+              ]
+            else
+              []
+            end
+
+          # Recursively check the member's type constraints
           type = Keyword.get(type_config, :type)
           type_constraints = Keyword.get(type_config, :constraints, [])
-          validate_type_constraints(resource, type, type_constraints, parent_context)
+
+          nested_errors =
+            validate_type_constraints(resource, type, type_constraints, parent_context)
+
+          name_errors ++ nested_errors
         end)
     end
   end
@@ -141,6 +157,12 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMapFieldNames do
   end
 
   defp format_validation_errors(errors) do
+    has_union_errors =
+      Enum.any?(errors, fn {_, _, field_name, _} -> match?({:union_member, _}, field_name) end)
+
+    has_field_errors =
+      Enum.any?(errors, fn {_, _, field_name, _} -> not match?({:union_member, _}, field_name) end)
+
     message_parts =
       errors
       |> Enum.group_by(fn {resource, parent_context, _field_name, _suggested} ->
@@ -148,37 +170,74 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMapFieldNames do
       end)
       |> Enum.map_join("\n\n", &format_error_group/1)
 
+    error_types =
+      cond do
+        has_union_errors and has_field_errors ->
+          "map/keyword/tuple type constraints and union member names"
+
+        has_union_errors ->
+          "union member names"
+
+        true ->
+          "map/keyword/tuple type constraints"
+      end
+
+    fix_instructions =
+      cond do
+        has_union_errors and has_field_errors ->
+          """
+          For map/keyword/tuple fields: Create a custom Ash.Type.NewType and define the
+          `typescript_field_names/0` callback to map invalid field names to valid ones.
+
+          For union member names: Rename the union member to use a valid TypeScript identifier
+          (no question marks or underscores followed by numbers).
+          """
+
+        has_union_errors ->
+          """
+          Rename the union member to use a valid TypeScript identifier
+          (no question marks or underscores followed by numbers).
+
+          For example, change `html_1` to `html1` or `htmlVariant1`.
+          """
+
+        true ->
+          """
+          Create a custom Ash.Type.NewType using map/keyword/tuple as a subtype,
+          and define the `typescript_field_names/0` callback to map invalid field names to valid ones.
+
+          Example:
+
+              defmodule MyApp.MyCustomType do
+                use Ash.Type.NewType, subtype_of: :map, constraints: [
+                  fields: [
+                    field_1: [type: :string],
+                    is_active?: [type: :boolean]
+                  ]
+                ]
+
+                @impl true
+                def typescript_field_names do
+                  [
+                    field_1: :field1,
+                    is_active?: :is_active
+                  ]
+                end
+              end
+
+          Then use this custom type in your resource instead of the base :map type.
+          """
+      end
+
     {:error,
      Spark.Error.DslError.exception(
        message: """
-       Invalid field names found in map/keyword/tuple type constraints.
+       Invalid field names found in #{error_types}.
        These patterns are not allowed in TypeScript generation.
 
        #{message_parts}
 
-       To fix this, create a custom Ash.Type.NewType using map/keyword/tuple as a subtype,
-       and define the `typescript_field_names/0` callback to map invalid field names to valid ones.
-
-       Example:
-
-           defmodule MyApp.MyCustomType do
-             use Ash.Type.NewType, subtype_of: :map, constraints: [
-               fields: [
-                 field_1: [type: :string],
-                 is_active?: [type: :boolean]
-               ]
-             ]
-
-             @impl true
-             def typescript_field_names do
-               [
-                 field_1: :field1,
-                 is_active?: :is_active
-               ]
-             end
-           end
-
-       Then use this custom type in your resource instead of the base :map type.
+       #{fix_instructions}
        """
      )}
   end
@@ -188,7 +247,13 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMapFieldNames do
 
     field_suggestions =
       Enum.map_join(errors, "\n", fn {_resource, _parent_context, field_name, suggested} ->
-        "    - #{field_name} → #{suggested}"
+        case field_name do
+          {:union_member, member_name} ->
+            "    - union member #{member_name} → #{suggested}"
+
+          name ->
+            "    - #{name} → #{suggested}"
+        end
       end)
 
     "Invalid constraint field names in #{parent_type} #{inspect(parent_name)} on resource #{inspect(resource)}:\n#{field_suggestions}"
