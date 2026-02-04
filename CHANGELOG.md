@@ -11,6 +11,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.13.1](https://github.com/ash-project/ash_typescript/compare/v0.13.0...v0.13.1) (2026-02-04)
+
+
+
+
+### Bug Fixes:
+
+* codegen: use Mix.raise for clearer error output by [@Torkan](https://github.com/Torkan)
+
+* verifiers: validate union member names for TypeScript compatibility by [@Torkan](https://github.com/Torkan)
+
+* verifiers: skip field name validation when mapping exists by [@Torkan](https://github.com/Torkan)
+
 ## [v0.13.0](https://github.com/ash-project/ash_typescript/compare/v0.12.1...v0.13.0) (2026-02-01)
 
 
