@@ -10,6 +10,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.JsdocGenerator do
   that describe the action type, resource, internal action name, and namespace.
   """
 
+  alias AshTypescript.Helpers
+
   @doc """
   Generates a JSDoc comment for an RPC function.
 
@@ -202,9 +204,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.JsdocGenerator do
     see_list = Map.get(rpc_action, :see) || []
 
     Enum.map(see_list, fn action_name ->
-      # Convert snake_case atom to camelCase function name
-      function_name = action_name |> Atom.to_string() |> Macro.camelize() |> decapitalize()
-      " * @see #{function_name}"
+      " * @see #{Helpers.format_output_field(action_name)}"
     end)
   end
 
@@ -223,9 +223,6 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.JsdocGenerator do
         [" * @deprecated #{message}"]
     end
   end
-
-  defp decapitalize(<<first::utf8, rest::binary>>), do: String.downcase(<<first::utf8>>) <> rest
-  defp decapitalize(""), do: ""
 
   defp default_description(:read, resource_name), do: "Read #{resource_name} records"
   defp default_description(:create, resource_name), do: "Create a new #{resource_name}"

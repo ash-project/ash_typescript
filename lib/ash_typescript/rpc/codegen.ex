@@ -8,6 +8,7 @@ defmodule AshTypescript.Rpc.Codegen do
   """
   import AshTypescript.Codegen
   import AshTypescript.Codegen.FilterTypes
+  import AshTypescript.Helpers, only: [format_output_field: 1]
 
   alias AshTypescript.Codegen.TypeDiscovery
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer
@@ -253,15 +254,10 @@ defmodule AshTypescript.Rpc.Codegen do
 
   defp collect_exports_for_action(action, rpc_action) do
     rpc_action_name = to_string(rpc_action.name)
-    function_name = Macro.camelize(rpc_action_name)
-
-    function_name =
-      String.downcase(String.first(function_name)) <> String.slice(function_name, 1..-1//1)
+    function_name = format_output_field(rpc_action_name)
 
     # Base exports for every action
-    exports = [
-      {function_name, :value}
-    ]
+    exports = [{function_name, :value}]
 
     # Add input type if action has arguments
     exports =
@@ -275,7 +271,7 @@ defmodule AshTypescript.Rpc.Codegen do
     # Add zod schema if enabled and action has arguments
     exports =
       if AshTypescript.Rpc.generate_zod_schemas?() and action.arguments != [] do
-        zod_schema_name = function_name <> "ZodSchema"
+        zod_schema_name = format_output_field("#{rpc_action_name}_zod_schema")
         exports ++ [{zod_schema_name, :value}]
       else
         exports
@@ -302,29 +298,26 @@ defmodule AshTypescript.Rpc.Codegen do
     # Add validation function if enabled
     exports =
       if AshTypescript.Rpc.generate_validation_functions?() do
-        validate_name = "validate" <> Macro.camelize(rpc_action_name)
+        validate_name = format_output_field("validate_#{rpc_action_name}")
         exports ++ [{validate_name, :value}]
       else
         exports
       end
 
     # Add channel functions if enabled
-    exports =
-      if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
-        channel_name = function_name <> "Channel"
-        exports = exports ++ [{channel_name, :value}]
+    if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
+      channel_name = format_output_field("#{rpc_action_name}_channel")
+      exports = exports ++ [{channel_name, :value}]
 
-        if AshTypescript.Rpc.generate_validation_functions?() do
-          validate_channel_name = "validate" <> Macro.camelize(rpc_action_name) <> "Channel"
-          exports ++ [{validate_channel_name, :value}]
-        else
-          exports
-        end
+      if AshTypescript.Rpc.generate_validation_functions?() do
+        validate_channel_name = format_output_field("validate_#{rpc_action_name}_channel")
+        exports ++ [{validate_channel_name, :value}]
       else
         exports
       end
-
-    exports
+    else
+      exports
+    end
   end
 
   defp generate_full_typescript(

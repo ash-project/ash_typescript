@@ -79,8 +79,14 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
         # Both type and const need to use mapped field names since UserResourceSchema has mapped names
         type_fields = format_typed_query_fields_type_for_typescript(atomized_fields, resource)
 
-        type_name = typed_query.ts_result_type_name
-        const_name = typed_query.ts_fields_const_name
+        # Type names are always PascalCase in TypeScript
+        type_name =
+          typed_query.ts_result_type_name ||
+            "#{snake_to_pascal_case(typed_query.name)}Result"
+
+        # Const names use the configured field formatter
+        const_name =
+          typed_query.ts_fields_const_name || format_output_field(typed_query.name)
 
         is_array = action.type == :read && !action.get?
 

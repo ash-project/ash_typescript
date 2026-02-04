@@ -230,7 +230,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
     test "includes Zod Schema column when zod schemas enabled", %{manifest: manifest} do
       if AshTypescript.Rpc.generate_zod_schemas?() do
         assert manifest =~ "| Zod Schema |"
-        assert manifest =~ ~r/`\w+InputSchema`/
+        assert manifest =~ ~r/`\w+ZodSchema`/
       end
     end
 
@@ -344,10 +344,10 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
       end
     end
 
-    test "zod schema names are PascalCase with InputSchema suffix", %{manifest: manifest} do
+    test "zod schema names use field formatter with ZodSchema suffix", %{manifest: manifest} do
       if AshTypescript.Rpc.generate_zod_schemas?() do
-        assert manifest =~ "`ListTodosInputSchema`"
-        assert manifest =~ "`CreateTodoInputSchema`"
+        assert manifest =~ "`listTodosZodSchema`"
+        assert manifest =~ "`createTodoZodSchema`"
       end
     end
 

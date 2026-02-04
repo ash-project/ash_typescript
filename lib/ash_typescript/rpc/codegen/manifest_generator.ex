@@ -339,26 +339,28 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
          show_channel,
          include_internals?
        ) do
-    function_name = Helpers.snake_to_camel_case(rpc_action.name)
+    rpc_action_name = to_string(rpc_action.name)
+    function_name = Helpers.format_output_field(rpc_action_name)
     action_type = Atom.to_string(action.type)
     action_name = Atom.to_string(rpc_action.action)
     resource_module = inspect(resource)
+
+    validate_name = Helpers.format_output_field("validate_#{rpc_action_name}")
+    zod_schema_name = Helpers.format_output_field("#{rpc_action_name}_zod_schema")
+    channel_name = Helpers.format_output_field("#{rpc_action_name}_channel")
 
     base = "| `#{function_name}` | #{action_type} |"
 
     base
     |> maybe_append(" `#{action_name}` |", include_internals?)
     |> maybe_append(" `#{resource_module}` |", include_internals?)
-    |> maybe_append(
-      " `validate#{Helpers.snake_to_pascal_case(rpc_action.name)}` |",
-      show_validation
-    )
-    |> maybe_append(" `#{Helpers.snake_to_pascal_case(rpc_action.name)}InputSchema` |", show_zod)
-    |> maybe_append(" `#{function_name}Channel` |", show_channel)
+    |> maybe_append(" `#{validate_name}` |", show_validation)
+    |> maybe_append(" `#{zod_schema_name}` |", show_zod)
+    |> maybe_append(" `#{channel_name}` |", show_channel)
   end
 
   defp build_action_details(resource, action, rpc_action, namespace, include_internals?) do
-    function_name = Helpers.snake_to_camel_case(rpc_action.name)
+    function_name = Helpers.format_output_field(rpc_action.name)
     resource_name = resource |> Module.split() |> List.last()
 
     description = get_description(rpc_action, action, resource_name, include_internals?)
@@ -411,16 +413,12 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     else
       refs =
         Enum.map_join(see_list, ", ", fn action_name ->
-          function_name = action_name |> Atom.to_string() |> Macro.camelize() |> decapitalize()
-          "`#{function_name}`"
+          "`#{Helpers.format_output_field(action_name)}`"
         end)
 
       "**See also:** #{refs}"
     end
   end
-
-  defp decapitalize(<<first::utf8, rest::binary>>), do: String.downcase(<<first::utf8>>) <> rest
-  defp decapitalize(""), do: ""
 
   defp default_description(:read, resource_name), do: "Read #{resource_name} records"
   defp default_description(:create, resource_name), do: "Create a new #{resource_name}"
@@ -440,8 +438,9 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
       typed_queries
       |> Enum.map_join("\n", fn typed_query ->
         const_name =
-          typed_query.ts_fields_const_name || Helpers.snake_to_camel_case(typed_query.name)
+          typed_query.ts_fields_const_name || Helpers.format_output_field(typed_query.name)
 
+        # Type names are always PascalCase in TypeScript
         type_name =
           typed_query.ts_result_type_name ||
             "#{Helpers.snake_to_pascal_case(typed_query.name)}Result"
