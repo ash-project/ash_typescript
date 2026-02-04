@@ -76,7 +76,7 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
         handle_single_file_output(output_file, typescript_content, opts, otp_app)
 
       {:error, error_message} ->
-        raise Ash.Error.Framework.PendingCodegen, diff: error_message
+        Mix.raise(error_message)
     end
   end
 
