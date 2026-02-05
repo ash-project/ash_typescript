@@ -209,6 +209,96 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     end
   end
 
+  describe "list error handling (bulk operation errors)" do
+    test "processes a list of Ash errors" do
+      errors = [
+        %Ash.Error.Invalid{
+          class: :invalid,
+          errors: [
+            %Ash.Error.Changes.Required{field: :title}
+          ]
+        },
+        %Ash.Error.Invalid{
+          class: :invalid,
+          errors: [
+            %Ash.Error.Changes.InvalidAttribute{field: :age}
+          ]
+        }
+      ]
+
+      result = ErrorBuilder.build_error_response(errors)
+
+      assert is_list(result)
+      assert length(result) == 2
+      types = Enum.map(result, & &1.type)
+      assert "required" in types
+      assert "invalid_attribute" in types
+    end
+
+    test "processes a list with a single error" do
+      errors = [
+        %Ash.Error.Invalid{
+          class: :invalid,
+          errors: [
+            %Ash.Error.Changes.Required{field: :email}
+          ]
+        }
+      ]
+
+      result = ErrorBuilder.build_error_response(errors)
+
+      assert is_list(result)
+      assert length(result) == 1
+      [error] = result
+      assert error.type == "required"
+      assert error.fields == ["email"]
+    end
+
+    test "flattens nested lists from errors with multiple sub-errors" do
+      errors = [
+        %Ash.Error.Invalid{
+          class: :invalid,
+          errors: [
+            %Ash.Error.Changes.Required{field: :title},
+            %Ash.Error.Changes.InvalidAttribute{field: :age}
+          ]
+        }
+      ]
+
+      result = ErrorBuilder.build_error_response(errors)
+
+      assert is_list(result)
+      assert length(result) == 2
+      types = Enum.map(result, & &1.type)
+      assert "required" in types
+      assert "invalid_attribute" in types
+    end
+
+    test "handles empty list" do
+      result = ErrorBuilder.build_error_response([])
+
+      assert result == []
+    end
+
+    test "handles list with mixed error types" do
+      errors = [
+        %Ash.Error.Invalid{
+          class: :invalid,
+          errors: [%Ash.Error.Changes.Required{field: :title}]
+        },
+        %Ash.Error.Query.NotFound{}
+      ]
+
+      result = ErrorBuilder.build_error_response(errors)
+
+      assert is_list(result)
+      assert length(result) == 2
+      types = Enum.map(result, & &1.type)
+      assert "required" in types
+      assert "not_found" in types
+    end
+  end
+
   describe "end-to-end error handling in pipeline" do
     test "pipeline returns properly structured error responses" do
       params = %{
