@@ -67,56 +67,33 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
 
     # Generate TypeScript types and write to file
     case generate_typescript_types(otp_app, codegen_opts) do
-      {:ok, %{main: main_content, namespaces: namespace_files}} ->
-        # Multi-file output
-        handle_multi_file_output(output_file, main_content, namespace_files, opts)
-
-      {:ok, typescript_content} when is_binary(typescript_content) ->
-        # Single-file output (backwards compatible)
-        handle_single_file_output(output_file, typescript_content, opts, otp_app)
+      {:ok, content} ->
+        handle_output(output_file, content, opts, otp_app)
 
       {:error, error_message} ->
         Mix.raise(error_message)
     end
   end
 
-  defp handle_single_file_output(output_file, typescript_content, opts, otp_app) do
-    current_content =
-      if File.exists?(output_file) do
-        File.read!(output_file)
-      else
-        ""
-      end
+  defp handle_output(output_file, content, opts, otp_app) do
+    all_files = build_all_files(output_file, content)
 
     cond do
       opts[:check] ->
-        if typescript_content != current_content do
-          raise Ash.Error.Framework.PendingCodegen,
-            diff: %{
-              output_file => typescript_content
-            }
-        end
+        check_for_changes(all_files, output_file, content, otp_app)
 
       opts[:dry_run] ->
-        if typescript_content != current_content do
-          IO.puts("##{output_file}:\n\n#{typescript_content}")
-        end
+        print_changes(all_files)
 
       true ->
-        File.write!(output_file, typescript_content)
-
-        if manifest_path = AshTypescript.Rpc.manifest_file() do
-          manifest = ManifestGenerator.generate_manifest(otp_app)
-          File.write!(manifest_path, manifest)
-        end
+        write_files(output_file, content, otp_app)
     end
   end
 
-  defp handle_multi_file_output(output_file, main_content, namespace_files, opts) do
+  defp build_all_files(output_file, %{main: main_content, namespaces: namespace_files}) do
     output_dir = AshTypescript.Rpc.namespace_output_dir() || Path.dirname(output_file)
     marker = AshTypescript.Rpc.Codegen.namespace_custom_code_marker()
 
-    # Build namespace files with preserved custom content
     namespace_files_with_custom =
       Enum.map(namespace_files, fn {namespace, content} ->
         path = Path.join(output_dir, "#{namespace}.ts")
@@ -124,58 +101,69 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
         {path, content_with_custom}
       end)
 
-    # Build all file changes for check/dry-run
-    all_files = [{output_file, main_content}] ++ namespace_files_with_custom
+    [{output_file, main_content}] ++ namespace_files_with_custom
+  end
 
-    cond do
-      opts[:check] ->
-        # Check if any files have changed
-        changes =
-          all_files
-          |> Enum.filter(fn {path, content} ->
-            current = if File.exists?(path), do: File.read!(path), else: ""
-            content != current
-          end)
-          |> Map.new()
+  defp build_all_files(output_file, typescript_content) when is_binary(typescript_content) do
+    [{output_file, typescript_content}]
+  end
 
-        if map_size(changes) > 0 do
-          raise Ash.Error.Framework.PendingCodegen, diff: changes
-        end
+  defp check_for_changes(all_files, output_file, content, otp_app) do
+    changes =
+      all_files
+      |> Enum.filter(fn {path, new_content} ->
+        current = if File.exists?(path), do: File.read!(path), else: ""
+        new_content != current
+      end)
+      |> Map.new()
 
-      opts[:dry_run] ->
-        Enum.each(all_files, fn {path, content} ->
-          current = if File.exists?(path), do: File.read!(path), else: ""
-
-          if content != current do
-            IO.puts("##{path}:\n\n#{content}")
-          end
-        end)
-
-      true ->
-        # Ensure output directory exists
-        File.mkdir_p!(output_dir)
-
-        # Write all files
-        Enum.each(all_files, fn {path, content} ->
-          File.write!(path, content)
-        end)
-
-        if manifest_path = AshTypescript.Rpc.manifest_file() do
-          otp_app = Mix.Project.config()[:app]
-          manifest = ManifestGenerator.generate_manifest(otp_app)
-          File.write!(manifest_path, manifest)
-        end
+    if map_size(changes) > 0 do
+      if Application.get_env(:ash_typescript, :auto_generate_typescript_file, false) do
+        # Auto-generate instead of raising
+        write_files(output_file, content, otp_app)
+      else
+        raise Ash.Error.Framework.PendingCodegen, diff: changes
+      end
     end
   end
 
-  # Preserves custom content below the marker comment when regenerating namespace files
+  defp print_changes(all_files) do
+    Enum.each(all_files, fn {path, content} ->
+      current = if File.exists?(path), do: File.read!(path), else: ""
+
+      if content != current do
+        IO.puts("##{path}:\n\n#{content}")
+      end
+    end)
+  end
+
+  defp write_files(output_file, %{main: main_content, namespaces: namespace_files}, otp_app) do
+    output_dir = AshTypescript.Rpc.namespace_output_dir() || Path.dirname(output_file)
+    marker = AshTypescript.Rpc.Codegen.namespace_custom_code_marker()
+
+    File.mkdir_p!(output_dir)
+    File.write!(output_file, main_content)
+
+    Enum.each(namespace_files, fn {namespace, content} ->
+      path = Path.join(output_dir, "#{namespace}.ts")
+      content_with_custom = maybe_preserve_custom_content(path, content, marker)
+      File.write!(path, content_with_custom)
+    end)
+
+    maybe_generate_manifest(otp_app)
+  end
+
+  defp write_files(output_file, typescript_content, otp_app) when is_binary(typescript_content) do
+    File.write!(output_file, typescript_content)
+    maybe_generate_manifest(otp_app)
+  end
+
   defp maybe_preserve_custom_content(path, new_content, marker) do
     if File.exists?(path) do
       existing_content = File.read!(path)
 
       case String.split(existing_content, marker, parts: 2) do
         [_generated, custom_part] ->
-          # There's custom content after the marker - preserve it
           custom_content = String.trim_leading(custom_part, "\n")
 
           if custom_content != "" do
@@ -185,11 +173,17 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
           end
 
         [_only_generated] ->
-          # No marker found or nothing after it
           new_content
       end
     else
       new_content
+    end
+  end
+
+  defp maybe_generate_manifest(otp_app) do
+    if manifest_path = AshTypescript.Rpc.manifest_file() do
+      manifest = ManifestGenerator.generate_manifest(otp_app)
+      File.write!(manifest_path, manifest)
     end
   end
 end

@@ -325,6 +325,26 @@ defmodule AshTypescript do
   end
 
   @doc """
+  Gets whether TypeScript files should be auto-generated on recompilation.
+
+  When enabled, domains using `AshTypescript.Rpc` will automatically regenerate
+  TypeScript files after recompilation. This requires `output_file` to be configured.
+
+  ## Configuration
+
+      # Enable auto-generation (typically in dev.exs)
+      config :ash_typescript,
+        output_file: "assets/js/ash_rpc.ts",
+        auto_generate_typescript_file: true
+
+  ## Returns
+  A boolean indicating whether to auto-generate TypeScript files, defaulting to `false`.
+  """
+  def auto_generate_typescript_file? do
+    Application.get_env(:ash_typescript, :auto_generate_typescript_file, false)
+  end
+
+  @doc """
   Gets whether to warn about non-RPC resources that are referenced by RPC resources.
 
   When enabled, during code generation, a warning will be displayed for any non-RPC
