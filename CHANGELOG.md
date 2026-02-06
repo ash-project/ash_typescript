@@ -11,6 +11,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.14.0](https://github.com/ash-project/ash_typescript/compare/v0.13.2...v0.14.0) (2026-02-06)
+
+
+
+
+### Features:
+
+* codegen: add `always_regenerate` config to skip diff check by [@Torkan](https://github.com/Torkan)
+
+### Bug Fixes:
+
+* handle list input in ErrorBuilder.build_error_response/1 by Oliver Severin Mulelid-Tynes [(#48)](https://github.com/ash-project/ash_typescript/pull/48)
+
 ## [v0.13.2](https://github.com/ash-project/ash_typescript/compare/v0.13.1...v0.13.2) (2026-02-04)
 
 
