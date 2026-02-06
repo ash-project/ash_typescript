@@ -289,6 +289,13 @@ AshTypescript provides compile-time warnings for potential RPC configuration iss
 
 **Note:** Both warnings can be independently configured. See [Configuration Reference](documentation/reference/configuration.md#rpc-resource-warnings) for details.
 
+## Always Regenerate Mode
+
+When `config :ash_typescript, always_regenerate: true` is set, `mix ash_typescript.codegen --check` writes files directly instead of comparing and raising `Ash.Error.Framework.PendingCodegen`. This is useful in development with `AshPhoenix.Plug.CheckCodegenStatus` to avoid the stale codegen error page and always regenerate files on every request.
+
+**Configuration:** `config :ash_typescript, always_regenerate: true` (default: `false`)
+**Implementation:** `lib/ash_typescript.ex` (`always_regenerate?/0`) + `lib/mix/tasks/ash_typescript.codegen.ex`
+
 ## Testing Workflow
 
 ```bash

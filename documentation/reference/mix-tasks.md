@@ -111,7 +111,7 @@ mix ash_typescript.codegen --dry_run
 | `--output FILE` | `string` | `assets/js/ash_rpc.ts` | Output file path for generated TypeScript |
 | `--run_endpoint PATH` | `string` | `/rpc/run` | RPC run endpoint path |
 | `--validate_endpoint PATH` | `string` | `/rpc/validate` | RPC validate endpoint path |
-| `--check` | `boolean` | `false` | Check if generated code is up to date (exit 1 if not) |
+| `--check` | `boolean` | `false` | Check if generated code is up to date (exit 1 if not). Skipped when `always_regenerate: true` is configured. |
 | `--dry_run` | `boolean` | `false` | Print generated code to stdout without writing file |
 
 #### Generated Content

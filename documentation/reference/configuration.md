@@ -55,6 +55,9 @@ config :ash_typescript,
   warn_on_missing_rpc_config: true,
   warn_on_non_rpc_references: true,
 
+  # Dev codegen behavior
+  always_regenerate: false,
+
   # Get action behavior
   not_found_error?: true,
 
@@ -88,6 +91,7 @@ config :ash_typescript,
 | `untyped_map_type` | `string` | `"Record<string, any>"` | TypeScript type for untyped maps |
 | `warn_on_missing_rpc_config` | `boolean` | `true` | Warn about resources with extension not in RPC config |
 | `warn_on_non_rpc_references` | `boolean` | `true` | Warn about non-RPC resources referenced by RPC resources |
+| `always_regenerate` | `boolean` | `false` | Skip diff check and always write generated files |
 | `not_found_error?` | `boolean` | `true` | Global default: `true` returns error on not found, `false` returns null |
 | `add_ash_internals_to_jsdoc` | `boolean` | `false` | Show Ash resource/action details in JSDoc |
 | `source_path_prefix` | `string \| nil` | `nil` | Prefix for source file paths (monorepos) |
@@ -198,6 +202,17 @@ config :ash_typescript,
   warn_on_missing_rpc_config: false,
   warn_on_non_rpc_references: false
 ```
+
+## Always Regenerate Mode
+
+By default, `mix ash_typescript.codegen --check` compares the generated output against existing files and raises `Ash.Error.Framework.PendingCodegen` if they differ. This is useful for CI but in development—especially when using `AshPhoenix.Plug.CheckCodegenStatus`—you may want to skip the diff check and always write the generated files.
+
+```elixir
+# config/dev.exs
+config :ash_typescript, always_regenerate: true
+```
+
+When enabled, `--check` mode will write files directly instead of comparing, so the `PendingCodegen` error page is never shown during development.
 
 ## Detailed Documentation
 

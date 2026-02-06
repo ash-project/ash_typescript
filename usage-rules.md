@@ -179,6 +179,8 @@ config :ash_typescript,
   # Warnings
   warn_on_missing_rpc_config: true,
   warn_on_non_rpc_references: true,
+  # Dev codegen behavior
+  always_regenerate: false,
   # Imports/Types
   import_into_generated: [%{import_name: "CustomTypes", file: "./customTypes"}],
   type_mapping_overrides: [{MyApp.CustomType, "string"}]
