@@ -346,4 +346,27 @@ defmodule AshTypescript do
   def warn_on_non_rpc_references? do
     Application.get_env(:ash_typescript, :warn_on_non_rpc_references, true)
   end
+
+  @doc """
+  Gets whether to always regenerate TypeScript files, skipping the diff check.
+
+  When enabled, running `mix ash_typescript.codegen --check` will write files
+  directly instead of comparing and raising `Ash.Error.Framework.PendingCodegen`.
+  This is useful in development when used with `AshPhoenix.Plug.CheckCodegenStatus`
+  to always regenerate files on every request without diffing.
+
+  ## Configuration
+
+      # Always regenerate (skip diff check)
+      config :ash_typescript, always_regenerate: true
+
+      # Only regenerate when files differ (default)
+      config :ash_typescript, always_regenerate: false
+
+  ## Returns
+  A boolean indicating whether to always regenerate, defaulting to `false`.
+  """
+  def always_regenerate? do
+    Application.get_env(:ash_typescript, :always_regenerate, false)
+  end
 end

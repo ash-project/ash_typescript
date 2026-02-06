@@ -89,7 +89,7 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
       end
 
     cond do
-      opts[:check] ->
+      opts[:check] && not AshTypescript.always_regenerate?() ->
         if typescript_content != current_content do
           raise Ash.Error.Framework.PendingCodegen,
             diff: %{
@@ -128,7 +128,7 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
     all_files = [{output_file, main_content}] ++ namespace_files_with_custom
 
     cond do
-      opts[:check] ->
+      opts[:check] && not AshTypescript.always_regenerate?() ->
         # Check if any files have changed
         changes =
           all_files
