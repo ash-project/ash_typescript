@@ -564,6 +564,14 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
+      # === LIST OF ERRORS (e.g. from Ash.bulk_update BulkResult) ===
+
+      errors when is_list(errors) ->
+        Enum.flat_map(errors, fn error ->
+          result = build_error_response(error)
+          if is_list(result), do: result, else: [result]
+        end)
+
       # === ASH FRAMEWORK ERRORS ===
 
       # Any exception or Ash error - convert to Ash error class and process
