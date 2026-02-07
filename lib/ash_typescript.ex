@@ -348,19 +348,21 @@ defmodule AshTypescript do
   end
 
   @doc """
-  Gets whether to always regenerate TypeScript files, skipping the diff check.
+  Gets whether to always regenerate TypeScript files instead of raising on pending codegen.
 
-  When enabled, running `mix ash_typescript.codegen --check` will write files
-  directly instead of comparing and raising `Ash.Error.Framework.PendingCodegen`.
-  This is useful in development when used with `AshPhoenix.Plug.CheckCodegenStatus`
-  to always regenerate files on every request without diffing.
+  When enabled, running `mix ash_typescript.codegen --check` will write changed files
+  instead of raising `Ash.Error.Framework.PendingCodegen`. Files are only written when
+  their content has actually changed, avoiding unnecessary writes that would trigger
+  file watchers. This is useful in development when used with
+  `AshPhoenix.Plug.CheckCodegenStatus` to automatically regenerate stale files on
+  every request.
 
   ## Configuration
 
-      # Always regenerate (skip diff check)
+      # Auto-regenerate changed files on --check
       config :ash_typescript, always_regenerate: true
 
-      # Only regenerate when files differ (default)
+      # Only raise on pending codegen (default)
       config :ash_typescript, always_regenerate: false
 
   ## Returns

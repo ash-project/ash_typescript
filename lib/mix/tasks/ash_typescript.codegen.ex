@@ -103,11 +103,13 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
         end
 
       true ->
-        File.write!(output_file, typescript_content)
+        if typescript_content != current_content do
+          File.write!(output_file, typescript_content)
 
-        if manifest_path = AshTypescript.Rpc.manifest_file() do
-          manifest = ManifestGenerator.generate_manifest(otp_app)
-          File.write!(manifest_path, manifest)
+          if manifest_path = AshTypescript.Rpc.manifest_file() do
+            manifest = ManifestGenerator.generate_manifest(otp_app)
+            File.write!(manifest_path, manifest)
+          end
         end
     end
   end
@@ -152,18 +154,24 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
         end)
 
       true ->
-        # Ensure output directory exists
-        File.mkdir_p!(output_dir)
+        changed_files =
+          Enum.filter(all_files, fn {path, content} ->
+            current = if File.exists?(path), do: File.read!(path), else: ""
+            content != current
+          end)
 
-        # Write all files
-        Enum.each(all_files, fn {path, content} ->
-          File.write!(path, content)
-        end)
+        if changed_files != [] do
+          File.mkdir_p!(output_dir)
 
-        if manifest_path = AshTypescript.Rpc.manifest_file() do
-          otp_app = Mix.Project.config()[:app]
-          manifest = ManifestGenerator.generate_manifest(otp_app)
-          File.write!(manifest_path, manifest)
+          Enum.each(changed_files, fn {path, content} ->
+            File.write!(path, content)
+          end)
+
+          if manifest_path = AshTypescript.Rpc.manifest_file() do
+            otp_app = Mix.Project.config()[:app]
+            manifest = ManifestGenerator.generate_manifest(otp_app)
+            File.write!(manifest_path, manifest)
+          end
         end
     end
   end
