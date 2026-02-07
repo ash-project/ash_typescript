@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.14.1](https://github.com/ash-project/ash_typescript/compare/v0.14.0...v0.14.1) (2026-02-07)
+
+
+
+
+### Bug Fixes:
+
+* codegen: skip file writes when generated content is unchanged by [@Torkan](https://github.com/Torkan)
+
 ## [v0.14.0](https://github.com/ash-project/ash_typescript/compare/v0.13.2...v0.14.0) (2026-02-06)
 
 
