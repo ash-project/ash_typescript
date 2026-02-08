@@ -371,4 +371,64 @@ defmodule AshTypescript do
   def always_regenerate? do
     Application.get_env(:ash_typescript, :always_regenerate, false)
   end
+
+  @doc """
+  Gets the configured Phoenix router module.
+
+  Used to introspect actual URL paths for generated controller actions.
+
+  ## Configuration
+
+      config :ash_typescript,
+        router: MyAppWeb.Router
+
+  ## Returns
+  The router module atom, or `nil` if not configured.
+  """
+  def router do
+    Application.get_env(:ash_typescript, :router)
+  end
+
+  @doc """
+  Gets the output file path for generated route helper TypeScript.
+
+  When set, `mix ash_typescript.codegen` generates typed route functions
+  from resources using the `AshTypescript.ControllerResource` extension.
+
+  ## Configuration
+
+      config :ash_typescript,
+        routes_output_file: "assets/js/routes.ts"
+
+  ## Returns
+  A string file path, or `nil` if route generation is disabled.
+  """
+  def routes_output_file do
+    Application.get_env(:ash_typescript, :routes_output_file)
+  end
+
+  @doc """
+  Gets the output field formatter configuration for TypeScript generation.
+
+  This determines how internal Elixir field names are converted for client
+  consumption in generated TypeScript types and API responses.
+  Can be:
+  - Built-in: :camel_case, :pascal_case, :snake_case
+  - Custom: {Module, :function} or {Module, :function, [extra_args]}
+  """
+  def output_field_formatter do
+    Application.get_env(:ash_typescript, :output_field_formatter)
+  end
+
+  @doc """
+  Gets the input field formatter configuration for parsing input parameters.
+
+  This determines how client field names are converted to internal Elixir field names.
+  Can be:
+  - Built-in: :camel_case, :pascal_case, :snake_case
+  - Custom: {Module, :function} or {Module, :function, [extra_args]}
+  """
+  def input_field_formatter do
+    Application.get_env(:ash_typescript, :input_field_formatter)
+  end
 end
