@@ -312,27 +312,16 @@ defmodule AshTypescript.Rpc do
   @doc """
   Gets the input field formatter configuration for parsing input parameters from the client.
 
-  This determines how client field names are converted to internal Elixir field names.
-  Defaults to :camel_case. Can be:
-  - Built-in: :camel_case, :pascal_case, :snake_case
-  - Custom: {Module, :function} or {Module, :function, [extra_args]}
+  Delegates to `AshTypescript.input_field_formatter/0`.
   """
-  def input_field_formatter do
-    Application.get_env(:ash_typescript, :input_field_formatter)
-  end
+  defdelegate input_field_formatter, to: AshTypescript
 
   @doc """
   Gets the output field formatter configuration for TypeScript generation and responses to the client.
 
-  This determines how internal Elixir field names are converted for client consumption in both
-  generated TypeScript types and API responses.
-  Defaults to :camel_case. Can be:
-  - Built-in: :camel_case, :pascal_case, :snake_case
-  - Custom: {Module, :function} or {Module, :function, [extra_args]}
+  Delegates to `AshTypescript.output_field_formatter/0`.
   """
-  def output_field_formatter do
-    Application.get_env(:ash_typescript, :output_field_formatter)
-  end
+  defdelegate output_field_formatter, to: AshTypescript
 
   @doc """
   Determines if Zod schema generation is enabled.
