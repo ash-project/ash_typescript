@@ -65,19 +65,20 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
         AshTypescript.rpc_validation_channel_hook_context_type()
     ]
 
-    # Generate TypeScript types and write to file
-    case generate_typescript_types(otp_app, codegen_opts) do
-      {:ok, %{main: main_content, namespaces: namespace_files}} ->
-        # Multi-file output
-        handle_multi_file_output(output_file, main_content, namespace_files, opts)
+    if output_file do
+      case generate_typescript_types(otp_app, codegen_opts) do
+        {:ok, %{main: main_content, namespaces: namespace_files}} ->
+          handle_multi_file_output(output_file, main_content, namespace_files, opts)
 
-      {:ok, typescript_content} when is_binary(typescript_content) ->
-        # Single-file output (backwards compatible)
-        handle_single_file_output(output_file, typescript_content, opts, otp_app)
+        {:ok, typescript_content} when is_binary(typescript_content) ->
+          handle_single_file_output(output_file, typescript_content, opts, otp_app)
 
-      {:error, error_message} ->
-        Mix.raise(error_message)
+        {:error, error_message} ->
+          Mix.raise(error_message)
+      end
     end
+
+    maybe_generate_controller_resource(otp_app, opts)
   end
 
   defp handle_single_file_output(output_file, typescript_content, opts, otp_app) do
@@ -172,6 +173,49 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
             manifest = ManifestGenerator.generate_manifest(otp_app)
             File.write!(manifest_path, manifest)
           end
+        end
+    end
+  end
+
+  defp maybe_generate_controller_resource(otp_app, opts) do
+    output_file = AshTypescript.routes_output_file()
+
+    if output_file do
+      router = AshTypescript.router()
+
+      content =
+        AshTypescript.ControllerResource.Codegen.generate(otp_app, router: router)
+
+      if content != "" do
+        handle_controller_resource_file_output(output_file, content, opts)
+      end
+    end
+  end
+
+  defp handle_controller_resource_file_output(output_file, content, opts) do
+    current_content =
+      if File.exists?(output_file) do
+        File.read!(output_file)
+      else
+        ""
+      end
+
+    cond do
+      opts[:check] && not AshTypescript.always_regenerate?() ->
+        if content != current_content do
+          raise Ash.Error.Framework.PendingCodegen,
+            diff: %{output_file => content}
+        end
+
+      opts[:dry_run] ->
+        if content != current_content do
+          IO.puts("##{output_file}:\n\n#{content}")
+        end
+
+      true ->
+        if content != current_content do
+          File.mkdir_p!(Path.dirname(output_file))
+          File.write!(output_file, content)
         end
     end
   end
