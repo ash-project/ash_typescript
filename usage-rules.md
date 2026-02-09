@@ -11,6 +11,7 @@ SPDX-License-Identifier: MIT
 
 **Critical**: Add `AshTypescript.Rpc` extension to domain, run `mix ash_typescript.codegen`
 **Authentication**: Use `buildCSRFHeaders()` for Phoenix CSRF protection
+**Controller Routes**: Use `AshTypescript.ControllerResource` for controller-style actions with `conn` access
 **Validation**: Always verify generated TypeScript compiles
 
 ## Essential Syntax Table
@@ -56,6 +57,14 @@ SPDX-License-Identifier: MIT
 | **Channel Function** | `actionNameChannel({channel, resultHandler})` | Phoenix channel RPC |
 | **Validation Fn** | `validateActionName({...})` | Client-side validation |
 | **Type Overrides** | `type_mapping_overrides: [{Module, "TSType"}]` | Map dependency types |
+| **Controller Resource** | `extensions: [AshTypescript.ControllerResource]` | Controller-style routes |
+| **Controller Module** | `controller do module_name MyWeb.Ctrl` | Generated controller module |
+| **Route (GET)** | `route :name, :action, method: :get` | Path helper generation |
+| **Route (mutation)** | `route :name, :action, method: :post` | Typed fetch function |
+| **Route Description** | `route :name, :action, method: :get, description: "..."` | JSDoc on route |
+| **Route Deprecated** | `route :name, :action, method: :get, deprecated: true` | Deprecation notice |
+| **Router Config** | `config :ash_typescript, router: MyWeb.Router` | Path introspection |
+| **Routes Output** | `config :ash_typescript, routes_output_file: "routes.ts"` | Route file path |
 
 ## Action Feature Matrix
 
@@ -132,6 +141,81 @@ rpc_action :read, :read_with_meta,
   metadata_field_names: [meta_1: "meta1"]
 ```
 
+## Controller Resource (Route Helpers)
+
+### When to Use
+
+| Use Case | Extension |
+|----------|-----------|
+| Data operations with field selection, filtering, pagination | `AshTypescript.Rpc` + `AshTypescript.Resource` |
+| Controller actions (Inertia renders, redirects, file downloads) | `AshTypescript.ControllerResource` |
+
+These are **mutually exclusive** — a resource cannot use both.
+
+### Setup
+
+```elixir
+defmodule MyApp.Session do
+  use Ash.Resource,
+    domain: MyApp.Domain,
+    extensions: [AshTypescript.ControllerResource]
+
+  controller do
+    module_name MyAppWeb.SessionController
+
+    route :auth, :auth, method: :get
+    route :login, :login, method: :post
+  end
+
+  actions do
+    action :auth do
+      run fn _input, ctx ->
+        {:ok, render_inertia(ctx.conn, "Auth")}
+      end
+    end
+
+    action :login do
+      argument :code, :string, allow_nil?: false
+      argument :remember_me, :boolean
+
+      run fn input, ctx ->
+        {:ok, Plug.Conn.send_resp(ctx.conn, 200, "OK")}
+      end
+    end
+  end
+end
+```
+
+### Generated TypeScript
+
+```typescript
+// GET → path helper
+export function authPath(): string {
+  return "/auth";
+}
+
+// POST → typed async function
+export type LoginInput = { code: string; rememberMe?: boolean };
+export async function login(
+  input: LoginInput,
+  config?: { headers?: Record<string, string> }
+): Promise<Response> { ... }
+
+// PATCH with path params + input
+export async function updateProvider(
+  path: { provider: string },
+  input: UpdateProviderInput,
+  config?: { headers?: Record<string, string> }
+): Promise<Response> { ... }
+```
+
+### Controller Resource Constraints
+
+- Only generic actions (`:action` type) — no `:read`/`:create`/`:update`/`:destroy`
+- No public attributes, relationships, calculations, or aggregates
+- Actions must return `{:ok, %Plug.Conn{}}` — the action handles the response
+- Multi-mount requires unique `as:` options on scopes for disambiguation
+
 ## Common Gotchas
 
 | Error Pattern | Fix |
@@ -146,6 +230,10 @@ rpc_action :read, :read_with_meta,
 | Identity not found | Check `identities` config; use `{ field: value }` for named |
 | Load not allowed/denied | Check `allowed_loads`/`denied_loads` config |
 | Channel/validation fn undefined | Enable in config |
+| Controller resource 500 error | Action must return `{:ok, %Plug.Conn{}}` |
+| "cannot use both ControllerResource and Resource" | Choose one extension per resource |
+| Routes not generated | Set `router:` and `routes_output_file:` in config |
+| Multi-mount ambiguity error | Add unique `as:` option to each scope |
 
 ## Error Quick Reference
 
@@ -183,7 +271,10 @@ config :ash_typescript,
   always_regenerate: false,
   # Imports/Types
   import_into_generated: [%{import_name: "CustomTypes", file: "./customTypes"}],
-  type_mapping_overrides: [{MyApp.CustomType, "string"}]
+  type_mapping_overrides: [{MyApp.CustomType, "string"}],
+  # Controller Resource (route helpers)
+  router: MyAppWeb.Router,
+  routes_output_file: "assets/js/routes.ts"
 ```
 
 ## Commands
