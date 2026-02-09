@@ -15,5 +15,6 @@ defmodule AshTypescript.Test.ControllerResourceTestRouter do
     post("/auth/login", AshTypescript.Test.SessionController, :login)
     post("/auth/logout", AshTypescript.Test.SessionController, :logout)
     patch("/auth/providers/:provider", AshTypescript.Test.SessionController, :update_provider)
+    post("/echo", AshTypescript.Test.SessionController, :echo_params)
   end
 end
