@@ -11,7 +11,7 @@ SPDX-License-Identifier: MIT
 
 **Critical**: Add `AshTypescript.Rpc` extension to domain, run `mix ash_typescript.codegen`
 **Authentication**: Use `buildCSRFHeaders()` for Phoenix CSRF protection
-**Controller Routes**: Use `AshTypescript.ControllerResource` for controller-style actions with `conn` access
+**Controller Routes**: Use `AshTypescript.TypedController` for controller-style actions with `conn` access
 **Validation**: Always verify generated TypeScript compiles
 
 ## Essential Syntax Table
@@ -57,12 +57,13 @@ SPDX-License-Identifier: MIT
 | **Channel Function** | `actionNameChannel({channel, resultHandler})` | Phoenix channel RPC |
 | **Validation Fn** | `validateActionName({...})` | Client-side validation |
 | **Type Overrides** | `type_mapping_overrides: [{Module, "TSType"}]` | Map dependency types |
-| **Controller Resource** | `extensions: [AshTypescript.ControllerResource]` | Controller-style routes |
-| **Controller Module** | `controller do module_name MyWeb.Ctrl` | Generated controller module |
-| **Route (GET)** | `route :name, :action, method: :get` | Path helper generation |
-| **Route (mutation)** | `route :name, :action, method: :post` | Typed fetch function |
-| **Route Description** | `route :name, :action, method: :get, description: "..."` | JSDoc on route |
-| **Route Deprecated** | `route :name, :action, method: :get, deprecated: true` | Deprecation notice |
+| **Typed Controller** | `use AshTypescript.TypedController` | Controller-style routes |
+| **Controller Module** | `typed_controller do module_name MyWeb.Ctrl` | Generated controller module |
+| **Route** | `route :name do method :get; run fn ... end end` | Route with handler |
+| **Route Argument** | `argument :code, :string, allow_nil?: false` | Colocated in route |
+| **Route Description** | `description "..."` | JSDoc on route (inside do block) |
+| **Route Deprecated** | `deprecated true` | Deprecation notice (inside do block) |
+| **Typed Controllers** | `config :ash_typescript, typed_controllers: [M]` | Module discovery |
 | **Router Config** | `config :ash_typescript, router: MyWeb.Router` | Path introspection |
 | **Routes Output** | `config :ash_typescript, routes_output_file: "routes.ts"` | Route file path |
 
@@ -141,46 +142,34 @@ rpc_action :read, :read_with_meta,
   metadata_field_names: [meta_1: "meta1"]
 ```
 
-## Controller Resource (Route Helpers)
+## Typed Controller (Route Helpers)
 
 ### When to Use
 
 | Use Case | Extension |
 |----------|-----------|
 | Data operations with field selection, filtering, pagination | `AshTypescript.Rpc` + `AshTypescript.Resource` |
-| Controller actions (Inertia renders, redirects, file downloads) | `AshTypescript.ControllerResource` |
-
-These are **mutually exclusive** — a resource cannot use both.
+| Controller actions (Inertia renders, redirects, file downloads) | `AshTypescript.TypedController` |
 
 ### Setup
 
 ```elixir
 defmodule MyApp.Session do
-  use Ash.Resource,
-    domain: MyApp.Domain,
-    extensions: [AshTypescript.ControllerResource]
+  use AshTypescript.TypedController
 
-  controller do
+  typed_controller do
     module_name MyAppWeb.SessionController
 
-    route :auth, :auth, method: :get
-    route :login, :login, method: :post
-  end
-
-  actions do
-    action :auth do
-      run fn _input, ctx ->
-        {:ok, render_inertia(ctx.conn, "Auth")}
-      end
+    route :auth do
+      method :get
+      run fn conn, _params -> render_inertia(conn, "Auth") end
     end
 
-    action :login do
+    route :login do
+      method :post
+      run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
       argument :code, :string, allow_nil?: false
       argument :remember_me, :boolean
-
-      run fn input, ctx ->
-        {:ok, Plug.Conn.send_resp(ctx.conn, 200, "OK")}
-      end
     end
   end
 end
@@ -209,12 +198,11 @@ export async function updateProvider(
 ): Promise<Response> { ... }
 ```
 
-### Controller Resource Constraints
+### Typed Controller Constraints
 
-- Only generic actions (`:action` type) — no `:read`/`:create`/`:update`/`:destroy`
-- No public attributes, relationships, calculations, or aggregates
-- Actions must return `{:ok, %Plug.Conn{}}` — the action handles the response
+- Handlers must return `%Plug.Conn{}` directly — no `{:ok, conn}` wrapping
 - Multi-mount requires unique `as:` options on scopes for disambiguation
+- Not an Ash resource — standalone Spark DSL with colocated arguments
 
 ## Common Gotchas
 
@@ -230,9 +218,8 @@ export async function updateProvider(
 | Identity not found | Check `identities` config; use `{ field: value }` for named |
 | Load not allowed/denied | Check `allowed_loads`/`denied_loads` config |
 | Channel/validation fn undefined | Enable in config |
-| Controller resource 500 error | Action must return `{:ok, %Plug.Conn{}}` |
-| "cannot use both ControllerResource and Resource" | Choose one extension per resource |
-| Routes not generated | Set `router:` and `routes_output_file:` in config |
+| Typed controller 500 error | Handler must return `%Plug.Conn{}` |
+| Routes not generated | Set `typed_controllers:`, `router:`, and `routes_output_file:` in config |
 | Multi-mount ambiguity error | Add unique `as:` option to each scope |
 
 ## Error Quick Reference
@@ -272,7 +259,8 @@ config :ash_typescript,
   # Imports/Types
   import_into_generated: [%{import_name: "CustomTypes", file: "./customTypes"}],
   type_mapping_overrides: [{MyApp.CustomType, "string"}],
-  # Controller Resource (route helpers)
+  # Typed Controller (route helpers)
+  typed_controllers: [MyApp.Session],
   router: MyAppWeb.Router,
   routes_output_file: "assets/js/routes.ts"
 ```
