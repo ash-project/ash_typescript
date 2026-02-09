@@ -62,3 +62,22 @@ export async function updateProvider(path: { provider: string }, input: UpdatePr
     body: JSON.stringify(input),
   });
 }
+
+export type EchoParamsInput = {
+  name: string;
+  count?: number;
+  active?: boolean;
+};
+/**
+ * POST /echo
+ */
+export async function echoParams(input: EchoParamsInput, config?: { headers?: Record<string, string> }): Promise<Response> {
+  return fetch("/echo", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...config?.headers,
+    },
+    body: JSON.stringify(input),
+  });
+}
