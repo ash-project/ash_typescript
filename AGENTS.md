@@ -11,7 +11,7 @@ SPDX-License-Identifier: MIT
 
 **AshTypescript** generates TypeScript types and RPC clients from Ash resources, providing end-to-end type safety between Elixir backends and TypeScript frontends.
 
-**Key Features**: Type generation, RPC client generation, Phoenix channel RPC actions, controller resource route helpers, action metadata support, nested calculations, multitenancy, embedded resources, union types, field/argument/metadata name mapping, load restrictions, configurable RPC warnings
+**Key Features**: Type generation, RPC client generation, Phoenix channel RPC actions, typed controller route helpers, action metadata support, nested calculations, multitenancy, embedded resources, union types, field/argument/metadata name mapping, load restrictions, configurable RPC warnings
 
 ## 🚨 Critical Development Rules
 
@@ -59,28 +59,23 @@ defmodule MyApp.Domain do
 end
 ```
 
-### Controller Resource Configuration
+### Typed Controller Configuration
 ```elixir
 defmodule MyApp.Session do
-  use Ash.Resource,
-    domain: MyApp.Domain,
-    extensions: [AshTypescript.ControllerResource]
+  use AshTypescript.TypedController
 
-  controller do
+  typed_controller do
     module_name MyAppWeb.SessionController
 
-    route :auth, :auth, method: :get
-    route :login, :login, method: :post
-  end
-
-  actions do
-    action :auth do
-      run fn _input, ctx -> {:ok, render_inertia(ctx.conn, "Auth")} end
+    route :auth do
+      method :get
+      run fn conn, _params -> render_inertia(conn, "Auth") end
     end
 
-    action :login do
+    route :login do
+      method :post
+      run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
       argument :code, :string, allow_nil?: false
-      run fn _input, ctx -> {:ok, Plug.Conn.send_resp(ctx.conn, 200, "OK")} end
     end
   end
 end
@@ -173,19 +168,19 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Input formatting** | `lib/ash_typescript/rpc/input_formatter.ex` (delegates to ValueFormatter) |
 | **Output formatting** | `lib/ash_typescript/rpc/output_formatter.ex` (delegates to ValueFormatter) |
 | **Resource verifiers** | `lib/ash_typescript/resource/verifiers/` |
-| **Controller resource DSL** | `lib/ash_typescript/controller_resource.ex` |
-| **Controller request handler** | `lib/ash_typescript/controller_resource/request_handler.ex` |
-| **Controller codegen** | `lib/ash_typescript/controller_resource/codegen.ex` |
-| **Router introspection** | `lib/ash_typescript/controller_resource/codegen/router_introspector.ex` |
-| **Route renderer** | `lib/ash_typescript/controller_resource/codegen/route_renderer.ex` |
-| **Controller verifier** | `lib/ash_typescript/controller_resource/verifiers/verify_controller_resource.ex` |
+| **Typed controller DSL** | `lib/ash_typescript/typed_controller/dsl.ex` |
+| **Typed controller main** | `lib/ash_typescript/typed_controller.ex` |
+| **Controller request handler** | `lib/ash_typescript/typed_controller/request_handler.ex` |
+| **Controller codegen** | `lib/ash_typescript/typed_controller/codegen.ex` |
+| **Router introspection** | `lib/ash_typescript/typed_controller/codegen/router_introspector.ex` |
+| **Route renderer** | `lib/ash_typescript/typed_controller/codegen/route_renderer.ex` |
+| **Controller verifier** | `lib/ash_typescript/typed_controller/verifiers/verify_typed_controller.ex` |
 | **Test domain** | `test/support/domain.ex` |
 | **Primary test resource** | `test/support/resources/todo.ex` |
 | **TypeScript validation** | `test/ts/shouldPass/` & `test/ts/shouldFail/` |
 | **TypeScript call extractor** | `test/support/ts_action_call_extractor.ex` |
-| **Controller resource tests** | `test/ash_typescript/controller_resource/` |
-| **Test controller resource** | `test/support/resources/session.ex` |
-| **Test routes domain** | `test/support/routes_domain.ex` |
+| **Typed controller tests** | `test/ash_typescript/typed_controller/` |
+| **Test typed controller** | `test/support/resources/session.ex` |
 | **Test router** | `test/support/routes_test_router.ex` |
 | **Generated route helpers** | `test/ts/generated_routes.ts` |
 
@@ -243,7 +238,7 @@ mix credo --strict                   # Linting
 | **Embedded resources** | [features/embedded-resources.md](agent-docs/features/embedded-resources.md) | `test/support/resources/embedded/` |
 | **Union types** | [features/union-systems-core.md](agent-docs/features/union-systems-core.md) | `test/ash_typescript/rpc/rpc_union_*_test.exs` |
 | **Namespaces, JSDoc, Manifest** | [features/developer-experience.md](agent-docs/features/developer-experience.md) | `test/ash_typescript/rpc/namespace_test.exs` |
-| **Controller resources & route helpers** | [features/controller-resource.md](agent-docs/features/controller-resource.md) | `test/ash_typescript/controller_resource/` |
+| **Typed controllers & route helpers** | [features/typed-controller.md](agent-docs/features/typed-controller.md) | `test/ash_typescript/typed_controller/` |
 | **Development patterns** | [development-workflows.md](agent-docs/development-workflows.md) | N/A |
 
 ## Key Architecture Concepts
@@ -299,9 +294,9 @@ mix credo --strict                   # Linting
 | "Union input map contains multiple member keys" | Multiple union members in input | Provide exactly one member key |
 | "Union input map does not contain any valid member key" | Invalid or missing member key | Use valid member name from union definition |
 | Test reads stale generated.ts | Test uses `File.read!("test/ts/generated.ts")` | Use `AshTypescript.Rpc.Codegen.generate_typescript_types/1` in `setup_all` |
-| "cannot use both ControllerResource and Resource" | Resource has both extensions | Choose one per resource |
-| Controller 500 error | Action doesn't return `%Plug.Conn{}` | Return `{:ok, %Plug.Conn{}}` from action |
-| Routes not generated | Missing config | Set `router:` and `routes_output_file:` in config |
+| Controller 422 error | Missing required argument or invalid type cast | Check `allow_nil?` and argument types |
+| Controller 500 error | Handler doesn't return `%Plug.Conn{}` | Return `%Plug.Conn{}` from handler |
+| Routes not generated | Missing config | Set `typed_controllers:`, `router:`, and `routes_output_file:` in config |
 | Multi-mount ambiguity | Duplicate mounts without `as:` | Add unique `as:` to each scope |
 | "load_not_allowed" error | Requested field not in `allowed_loads` | Add field to `allowed_loads` or remove the option |
 | "load_denied" error | Requested field in `denied_loads` | Remove field from `denied_loads` list |
@@ -332,18 +327,19 @@ AshTypescript provides compile-time warnings for potential RPC configuration iss
 
 **Note:** Both warnings can be independently configured. See [Configuration Reference](documentation/reference/configuration.md#rpc-resource-warnings) for details.
 
-## Controller Resource Configuration
+## Typed Controller Configuration
 
-When `router` and `routes_output_file` are configured, `mix ash_typescript.codegen` generates typed TypeScript route helpers alongside RPC types.
+When `typed_controllers`, `router`, and `routes_output_file` are configured, `mix ash_typescript.codegen` generates typed TypeScript route helpers alongside RPC types.
 
 **Configuration:**
 ```elixir
 config :ash_typescript,
+  typed_controllers: [MyApp.Session],         # TypedController modules
   router: MyAppWeb.Router,                    # Phoenix router for path introspection
   routes_output_file: "assets/js/routes.ts"   # Output file for route helpers
 ```
 
-**Implementation:** `lib/ash_typescript.ex` (`router/0`, `routes_output_file/0`) + `lib/mix/tasks/ash_typescript.codegen.ex` + `lib/ash_typescript/controller_resource/`
+**Implementation:** `lib/ash_typescript.ex` (`typed_controllers/0`, `router/0`, `routes_output_file/0`) + `lib/mix/tasks/ash_typescript.codegen.ex` + `lib/ash_typescript/typed_controller/`
 
 ## Always Regenerate Mode
 
