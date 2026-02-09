@@ -73,5 +73,16 @@ defmodule AshTypescript.ControllerResource.RequestHandler do
     params
     |> Map.drop(["_format", "action", "controller"])
     |> Map.reject(fn {key, _} -> String.starts_with?(key, "_") end)
+    |> normalize_keys()
   end
+
+  defp normalize_keys(map) when is_map(map) do
+    Map.new(map, fn {key, value} ->
+      {Macro.underscore(key), normalize_value(value)}
+    end)
+  end
+
+  defp normalize_value(value) when is_map(value), do: normalize_keys(value)
+  defp normalize_value(value) when is_list(value), do: Enum.map(value, &normalize_value/1)
+  defp normalize_value(value), do: value
 end
