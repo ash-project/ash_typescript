@@ -389,10 +389,25 @@ defmodule AshTypescript do
   end
 
   @doc """
+  Gets the list of TypedController modules from application configuration.
+
+  ## Configuration
+
+      config :ash_typescript,
+        typed_controllers: [MyApp.Session, MyApp.Admin]
+
+  ## Returns
+  A list of module atoms, or an empty list if not configured.
+  """
+  def typed_controllers do
+    Application.get_env(:ash_typescript, :typed_controllers, [])
+  end
+
+  @doc """
   Gets the output file path for generated route helper TypeScript.
 
   When set, `mix ash_typescript.codegen` generates typed route functions
-  from resources using the `AshTypescript.ControllerResource` extension.
+  from modules using `AshTypescript.TypedController`.
 
   ## Configuration
 

@@ -79,7 +79,7 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
       end
     end
 
-    maybe_generate_controller_resource(otp_app, opts)
+    maybe_generate_typed_controller(opts)
   end
 
   defp handle_single_file_output(output_file, typescript_content, opts, otp_app) do
@@ -178,22 +178,22 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
     end
   end
 
-  defp maybe_generate_controller_resource(otp_app, opts) do
+  defp maybe_generate_typed_controller(opts) do
     output_file = AshTypescript.routes_output_file()
 
     if output_file do
       router = AshTypescript.router()
 
       content =
-        AshTypescript.ControllerResource.Codegen.generate(otp_app, router: router)
+        AshTypescript.TypedController.Codegen.generate(router: router)
 
       if content != "" do
-        handle_controller_resource_file_output(output_file, content, opts)
+        handle_typed_controller_file_output(output_file, content, opts)
       end
     end
   end
 
-  defp handle_controller_resource_file_output(output_file, content, opts) do
+  defp handle_typed_controller_file_output(output_file, content, opts) do
     current_content =
       if File.exists?(output_file) do
         File.read!(output_file)

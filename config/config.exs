@@ -39,9 +39,9 @@ if Mix.env() == :test do
   config :ash_typescript,
     ash_domains: [
       AshTypescript.Test.Domain,
-      AshTypescript.Test.SecondDomain,
-      AshTypescript.Test.ControllerResourceDomain
+      AshTypescript.Test.SecondDomain
     ],
+    typed_controllers: [AshTypescript.Test.Session],
     router: AshTypescript.Test.ControllerResourceTestRouter,
     routes_output_file: "./test/ts/generated_routes.ts",
     generate_phx_channel_rpc_actions: true,
