@@ -14,6 +14,7 @@ defmodule AshTypescript.Rpc.Codegen do
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries
+  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
   alias AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes
   alias AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes
@@ -246,13 +247,13 @@ defmodule AshTypescript.Rpc.Codegen do
 
   defp collect_action_exports(actions) do
     actions
-    |> Enum.flat_map(fn {_resource, action, rpc_action, _domain, _res_config} ->
-      collect_exports_for_action(action, rpc_action)
+    |> Enum.flat_map(fn {resource, action, rpc_action, _domain, _res_config} ->
+      collect_exports_for_action(resource, action, rpc_action)
     end)
     |> Enum.uniq()
   end
 
-  defp collect_exports_for_action(action, rpc_action) do
+  defp collect_exports_for_action(resource, action, rpc_action) do
     rpc_action_name = to_string(rpc_action.name)
     function_name = format_output_field(rpc_action_name)
 
@@ -282,13 +283,22 @@ defmodule AshTypescript.Rpc.Codegen do
       if action.type == :read do
         pascal_name = Macro.camelize(rpc_action_name)
 
-        exports ++
-          [
-            {"#{pascal_name}Fields", :type},
-            {"Infer#{pascal_name}Result", :type},
-            {"#{pascal_name}Config", :type},
-            {"#{pascal_name}Result", :type}
-          ]
+        base_read_exports = [
+          {"#{pascal_name}Fields", :type},
+          {"Infer#{pascal_name}Result", :type},
+          {"#{pascal_name}Result", :type}
+        ]
+
+        # Config type is only generated when the action has optional pagination
+        # (see type_builders.ex build_optional_pagination_config/2)
+        config_export =
+          if has_optional_pagination?(resource, action, rpc_action) do
+            [{"#{pascal_name}Config", :type}]
+          else
+            []
+          end
+
+        exports ++ base_read_exports ++ config_export
       else
         # Non-read actions have simpler result types
         pascal_name = Macro.camelize(rpc_action_name)
@@ -318,6 +328,20 @@ defmodule AshTypescript.Rpc.Codegen do
     else
       exports
     end
+  end
+
+  # Mirrors the is_optional_pagination logic from FunctionCore.build_execution_function_shape/5.
+  # Config type is only emitted when this returns true (see TypeBuilders.build_optional_pagination_config/2).
+  defp has_optional_pagination?(_resource, action, rpc_action) do
+    ash_get? = action.get? || false
+    rpc_get? = Map.get(rpc_action, :get?, false)
+    rpc_get_by = (Map.get(rpc_action, :get_by) || []) != []
+    is_get_action = ash_get? or rpc_get? or rpc_get_by
+
+    action.type == :read and
+      not is_get_action and
+      ActionIntrospection.action_supports_pagination?(action) and
+      not ActionIntrospection.action_requires_pagination?(action)
   end
 
   defp generate_full_typescript(
