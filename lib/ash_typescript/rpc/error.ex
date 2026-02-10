@@ -110,11 +110,10 @@ end
 
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Forbidden.Policy do
   def to_error(error) do
-    # Check if policy breakdown should be shown (would need configuration)
     base = %{
       message: Exception.message(error),
       short_message: "Forbidden",
-      vars: Map.new(error.vars || []),
+      vars: %{},
       type: "forbidden",
       fields: [],
       path: error.path || []

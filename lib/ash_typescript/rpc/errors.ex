@@ -14,6 +14,7 @@ defmodule AshTypescript.Rpc.Errors do
 
   alias AshTypescript.Rpc.DefaultErrorHandler
   alias AshTypescript.Rpc.Error, as: ErrorProtocol
+  alias AshTypescript.Rpc.ResultProcessor
 
   @doc """
   Transforms errors into standardized RPC error responses.
@@ -238,6 +239,7 @@ defmodule AshTypescript.Rpc.Errors do
 
   # Formats field names in error structures for client consumption.
   # Applies resource-level field_names mappings (if resource is known) and output formatter.
+  # Also normalizes values to ensure they are JSON-serializable via ResultProcessor.normalize_value_for_json.
   defp format_error_field_names(error, resource) when is_map(error) do
     formatter = AshTypescript.Rpc.output_field_formatter()
 
@@ -245,6 +247,7 @@ defmodule AshTypescript.Rpc.Errors do
     |> format_fields_array(resource, formatter)
     |> format_path_array(formatter)
     |> format_vars_field(resource, formatter)
+    |> ResultProcessor.normalize_value_for_json()
   end
 
   defp format_error_field_names(error, _resource), do: error
