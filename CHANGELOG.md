@@ -11,6 +11,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.14.2](https://github.com/ash-project/ash_typescript/compare/v0.14.1...v0.14.2) (2026-02-10)
+
+
+
+
+### Bug Fixes:
+
+* rpc: ensure error responses are JSON-serializable by [@Torkan](https://github.com/Torkan)
+
+* codegen: only export Config type for actions with optional pagination by [@Torkan](https://github.com/Torkan)
+
 ## [v0.14.1](https://github.com/ash-project/ash_typescript/compare/v0.14.0...v0.14.1) (2026-02-07)
 
 
