@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.14.3](https://github.com/ash-project/ash_typescript/compare/v0.14.2...v0.14.3) (2026-02-11)
+
+
+
+
+### Bug Fixes:
+
+* codegen: scope always_regenerate to only apply with --dev flag by [@Torkan](https://github.com/Torkan)
+
 ## [v0.14.2](https://github.com/ash-project/ash_typescript/compare/v0.14.1...v0.14.2) (2026-02-10)
 
 
