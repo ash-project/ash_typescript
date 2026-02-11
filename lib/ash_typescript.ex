@@ -350,16 +350,15 @@ defmodule AshTypescript do
   @doc """
   Gets whether to always regenerate TypeScript files instead of raising on pending codegen.
 
-  When enabled, running `mix ash_typescript.codegen --check` will write changed files
-  instead of raising `Ash.Error.Framework.PendingCodegen`. Files are only written when
-  their content has actually changed, avoiding unnecessary writes that would trigger
-  file watchers. This is useful in development when used with
-  `AshPhoenix.Plug.CheckCodegenStatus` to automatically regenerate stale files on
-  every request.
+  When enabled, `--check` will write changed files instead of raising
+  `Ash.Error.Framework.PendingCodegen`, but **only** when the `--dev` flag is also
+  passed. `AshPhoenix.Plug.CheckCodegenStatus` passes `--dev --check` automatically,
+  so this setting takes effect during development requests without affecting CI where
+  `mix ash_typescript.codegen --check` is run without `--dev`.
 
   ## Configuration
 
-      # Auto-regenerate changed files on --check
+      # Auto-regenerate in dev when triggered by CheckCodegenStatus plug
       config :ash_typescript, always_regenerate: true
 
       # Only raise on pending codegen (default)
