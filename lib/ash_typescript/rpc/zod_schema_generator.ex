@@ -450,6 +450,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
       schemas =
         resources
         |> Enum.uniq()
+        |> topological_sort()
         |> Enum.map_join("\n\n", &generate_zod_schema_for_resource/1)
 
       """
@@ -470,6 +471,86 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   def generate_zod_schema_for_resource(resource) do
     generate_zod_schema_impl(resource)
   end
+
+  defp topological_sort(resources) do
+    resource_set = MapSet.new(resources)
+
+    deps_map =
+      Map.new(resources, fn resource ->
+        {resource, find_resource_dependencies(resource, resource_set)}
+      end)
+
+    {sorted, remaining} = kahns_sort(resources, deps_map)
+
+    cycle_resources =
+      resources
+      |> Enum.filter(&MapSet.member?(remaining, &1))
+
+    sorted ++ cycle_resources
+  end
+
+  defp kahns_sort(resources, deps_map) do
+    remaining = MapSet.new(resources)
+    do_kahns_sort([], remaining, deps_map)
+  end
+
+  defp do_kahns_sort(sorted, remaining, deps_map) do
+    ready =
+      remaining
+      |> Enum.filter(fn resource ->
+        deps = Map.get(deps_map, resource, [])
+        Enum.all?(deps, fn dep -> not MapSet.member?(remaining, dep) end)
+      end)
+
+    case ready do
+      [] ->
+        {sorted, remaining}
+
+      _ ->
+        new_remaining = Enum.reduce(ready, remaining, &MapSet.delete(&2, &1))
+        do_kahns_sort(sorted ++ ready, new_remaining, deps_map)
+    end
+  end
+
+  defp find_resource_dependencies(resource, resource_set) do
+    resource
+    |> Ash.Resource.Info.public_attributes()
+    |> Enum.flat_map(fn attr ->
+      extract_resource_deps(attr.type, attr.constraints, resource_set)
+    end)
+    |> Enum.uniq()
+  end
+
+  defp extract_resource_deps({:array, inner_type}, constraints, resource_set) do
+    inner_constraints = Keyword.get(constraints, :items, [])
+    extract_resource_deps(inner_type, inner_constraints, resource_set)
+  end
+
+  defp extract_resource_deps(type, constraints, resource_set)
+       when is_atom(type) and not is_nil(type) do
+    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+
+    cond do
+      Introspection.is_embedded_resource?(unwrapped_type) and
+          MapSet.member?(resource_set, unwrapped_type) ->
+        [unwrapped_type]
+
+      unwrapped_type == Ash.Type.Struct ->
+        instance_of = Keyword.get(full_constraints, :instance_of)
+
+        if instance_of != nil and Spark.Dsl.is?(instance_of, Ash.Resource) and
+             MapSet.member?(resource_set, instance_of) do
+          [instance_of]
+        else
+          []
+        end
+
+      true ->
+        []
+    end
+  end
+
+  defp extract_resource_deps(_type, _constraints, _resource_set), do: []
 
   defp generate_zod_schema_impl(resource) do
     resource_name = CodegenHelpers.build_resource_type_name(resource)
