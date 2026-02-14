@@ -298,4 +298,124 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
       assert Enum.all?(result, &is_map/1)
     end
   end
+
+  describe "Error serialization (JSON safety)" do
+    test "tuples in error data are converted to lists" do
+      error = %Ash.Error.Forbidden.Policy{
+        vars: [],
+        policy_breakdown?: true,
+        policies: [
+          %{
+            check: {Ash.Policy.Check.Static, [result: true]},
+            type: :authorize_if
+          }
+        ]
+      }
+
+      [result] = Errors.to_errors(error)
+
+      assert result.policy_breakdown == [
+               %{
+                 check: ["Elixir.Ash.Policy.Check.Static", %{"result" => true}],
+                 type: "authorize_if"
+               }
+             ]
+    end
+
+    test "charlists in error data are converted to strings" do
+      error = %Ash.Error.Forbidden.Policy{
+        vars: [],
+        policy_breakdown?: true,
+        policies: [
+          %{
+            spark_metadata: %{
+              file: ~c"/some/path/to/file.ex",
+              location: 42
+            }
+          }
+        ]
+      }
+
+      [result] = Errors.to_errors(error)
+
+      assert result.policy_breakdown == [
+               %{
+                 spark_metadata: %{
+                   file: "/some/path/to/file.ex",
+                   location: 42
+                 }
+               }
+             ]
+    end
+
+    test "deeply nested tuples and charlists are serialized recursively" do
+      error = %Ash.Error.Forbidden.Policy{
+        vars: [],
+        policy_breakdown?: true,
+        policies: [
+          %{
+            condition: %{
+              "elixir.SomeCheck" => %{
+                check_opts: {SomeModule, [key: ~c"value"]}
+              }
+            }
+          }
+        ]
+      }
+
+      [result] = Errors.to_errors(error)
+
+      condition = hd(result.policy_breakdown)[:condition]
+      check_opts = condition["elixir.SomeCheck"][:check_opts]
+
+      # Tuple becomes list, module atom becomes string, charlist becomes string
+      assert check_opts == ["Elixir.SomeModule", %{"key" => "value"}]
+    end
+
+    test "policy breakdown without policy_breakdown? flag is excluded" do
+      error = %Ash.Error.Forbidden.Policy{
+        vars: [],
+        policy_breakdown?: false
+      }
+
+      [result] = Errors.to_errors(error)
+
+      refute Map.has_key?(result, :policy_breakdown)
+    end
+
+    test "pids and references in error data are inspected" do
+      pid = self()
+
+      error = %Ash.Error.Forbidden.Policy{
+        vars: [],
+        policy_breakdown?: true,
+        policies: [%{pid: pid}]
+      }
+
+      [result] = Errors.to_errors(error)
+
+      assert result.policy_breakdown == [%{pid: inspect(pid)}]
+    end
+
+    test "entire error can be encoded to JSON" do
+      error = %Ash.Error.Forbidden.Policy{
+        vars: [],
+        policy_breakdown?: true,
+        policies: [
+          %{
+            check: {Ash.Policy.Check.Static, [result: true]},
+            type: :authorize_if,
+            spark_metadata: %{
+              file: ~c"/some/path.ex",
+              location: 42
+            }
+          }
+        ]
+      }
+
+      [result] = Errors.to_errors(error)
+
+      assert {:ok, _json} = Jason.encode(result)
+    end
+  end
 end

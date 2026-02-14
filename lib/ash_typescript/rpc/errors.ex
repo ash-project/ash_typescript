@@ -14,7 +14,6 @@ defmodule AshTypescript.Rpc.Errors do
 
   alias AshTypescript.Rpc.DefaultErrorHandler
   alias AshTypescript.Rpc.Error, as: ErrorProtocol
-  alias AshTypescript.Rpc.ResultProcessor
 
   @doc """
   Transforms errors into standardized RPC error responses.
@@ -239,7 +238,7 @@ defmodule AshTypescript.Rpc.Errors do
 
   # Formats field names in error structures for client consumption.
   # Applies resource-level field_names mappings (if resource is known) and output formatter.
-  # Also normalizes values to ensure they are JSON-serializable via ResultProcessor.normalize_value_for_json.
+  # Also serializes values to ensure they are JSON-safe via serialize_error/1.
   defp format_error_field_names(error, resource) when is_map(error) do
     formatter = AshTypescript.Rpc.output_field_formatter()
 
@@ -247,7 +246,7 @@ defmodule AshTypescript.Rpc.Errors do
     |> format_fields_array(resource, formatter)
     |> format_path_array(formatter)
     |> format_vars_field(resource, formatter)
-    |> ResultProcessor.normalize_value_for_json()
+    |> serialize_error()
   end
 
   defp format_error_field_names(error, _resource), do: error
@@ -298,4 +297,62 @@ defmodule AshTypescript.Rpc.Errors do
   end
 
   defp format_vars_field(error, _resource, _formatter), do: error
+
+  defp serialize_error(nil), do: nil
+
+  defp serialize_error(value) when is_binary(value), do: value
+
+  defp serialize_error(value) when is_number(value), do: value
+
+  defp serialize_error(value) when is_boolean(value), do: value
+
+  defp serialize_error(value) when is_atom(value), do: Atom.to_string(value)
+
+  defp serialize_error(value) when is_tuple(value) do
+    value
+    |> Tuple.to_list()
+    |> Enum.map(&serialize_error/1)
+  end
+
+  defp serialize_error(value) when is_list(value) do
+    cond do
+      value == [] ->
+        []
+
+      Keyword.keyword?(value) ->
+        Enum.into(value, %{}, fn {key, val} ->
+          {to_string(key), serialize_error(val)}
+        end)
+
+      List.ascii_printable?(value) ->
+        List.to_string(value)
+
+      true ->
+        Enum.map(value, &serialize_error/1)
+    end
+  end
+
+  defp serialize_error(%DateTime{} = value), do: DateTime.to_iso8601(value)
+  defp serialize_error(%Date{} = value), do: Date.to_iso8601(value)
+  defp serialize_error(%Time{} = value), do: Time.to_iso8601(value)
+  defp serialize_error(%NaiveDateTime{} = value), do: NaiveDateTime.to_iso8601(value)
+
+  defp serialize_error(value) when is_struct(value) do
+    value
+    |> Map.from_struct()
+    |> serialize_error()
+  end
+
+  defp serialize_error(value) when is_map(value) do
+    Enum.into(value, %{}, fn {key, val} ->
+      {key, serialize_error(val)}
+    end)
+  end
+
+  defp serialize_error(value)
+       when is_pid(value) or is_reference(value) or is_function(value) do
+    inspect(value)
+  end
+
+  defp serialize_error(value), do: value
 end
