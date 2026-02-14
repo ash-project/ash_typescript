@@ -11,6 +11,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.14.4](https://github.com/ash-project/ash_typescript/compare/v0.14.3...v0.14.4) (2026-02-14)
+
+
+
+
+### Bug Fixes:
+
+* rpc: add JSON-safe error serialization for policy breakdowns by [@Torkan](https://github.com/Torkan)
+
+* zod: topologically sort resource schemas to fix declaration order by [@Torkan](https://github.com/Torkan)
+
 ## [v0.14.3](https://github.com/ash-project/ash_typescript/compare/v0.14.2...v0.14.3) (2026-02-11)
 
 
