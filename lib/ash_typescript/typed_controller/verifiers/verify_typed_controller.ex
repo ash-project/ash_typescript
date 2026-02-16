@@ -10,6 +10,7 @@ defmodule AshTypescript.TypedController.Verifiers.VerifyTypedController do
   1. Route names are unique
   2. Each route has a `run` handler
   3. Argument types are valid Ash types
+  4. Route and argument names are valid for TypeScript generation (no `_1`, `?` patterns)
   """
   use Spark.Dsl.Verifier
 
@@ -18,8 +19,9 @@ defmodule AshTypescript.TypedController.Verifiers.VerifyTypedController do
     routes = Spark.Dsl.Verifier.get_entities(dsl, [:typed_controller])
 
     with :ok <- verify_unique_route_names(routes),
-         :ok <- verify_routes_have_handlers(routes) do
-      verify_argument_types(routes)
+         :ok <- verify_routes_have_handlers(routes),
+         :ok <- verify_argument_types(routes) do
+      verify_names_for_typescript(routes)
     end
   end
 
@@ -88,4 +90,48 @@ defmodule AshTypescript.TypedController.Verifiers.VerifyTypedController do
 
   defp resolve_type({type, _constraints}), do: type
   defp resolve_type(type), do: type
+
+  alias AshTypescript.Resource.Verifiers.VerifyFieldNames
+
+  defp verify_names_for_typescript(routes) do
+    invalid_routes =
+      routes
+      |> Enum.filter(&VerifyFieldNames.invalid_name?(&1.name))
+      |> Enum.map(fn route ->
+        {route.name, VerifyFieldNames.make_name_better(route.name)}
+      end)
+
+    invalid_args =
+      routes
+      |> Enum.flat_map(fn route ->
+        route.arguments
+        |> Enum.filter(&VerifyFieldNames.invalid_name?(&1.name))
+        |> Enum.map(fn arg ->
+          {route.name, arg.name, VerifyFieldNames.make_name_better(arg.name)}
+        end)
+      end)
+
+    if invalid_routes == [] and invalid_args == [] do
+      :ok
+    else
+      details =
+        Enum.map(invalid_routes, fn {name, suggested} ->
+          "  - route #{inspect(name)} → consider renaming to :#{suggested}"
+        end) ++
+          Enum.map(invalid_args, fn {route_name, arg_name, suggested} ->
+            "  - route #{inspect(route_name)}, argument #{inspect(arg_name)} → consider renaming to :#{suggested}"
+          end)
+
+      {:error,
+       Spark.Error.DslError.exception(
+         message: """
+         Invalid names for TypeScript generation found.
+         Names containing question marks or numbers preceded by underscores produce \
+         awkward camelCase identifiers.
+
+         #{Enum.join(details, "\n")}
+         """
+       )}
+    end
+  end
 end
