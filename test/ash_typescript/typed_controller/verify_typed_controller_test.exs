@@ -89,4 +89,104 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
       assert function_exported?(controller, :echo_params, 2)
     end
   end
+
+  describe "argument name validation for TypeScript" do
+    @describetag :generates_warnings
+
+    alias AshTypescript.TypedController.Verifiers.VerifyTypedController
+
+    test "rejects argument names with underscore-number patterns" do
+      defmodule ControllerWithUnderscoreArg do
+        use AshTypescript.TypedController
+
+        typed_controller do
+          module_name AshTypescript.Test.UnderscoreArgController
+
+          route :test do
+            method :post
+            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+            argument :line_1, :string
+          end
+        end
+      end
+
+      result = VerifyTypedController.verify(ControllerWithUnderscoreArg.spark_dsl_config())
+
+      assert {:error, %Spark.Error.DslError{message: message}} = result
+      assert message =~ "Invalid names"
+      assert message =~ "line_1"
+    end
+
+    test "rejects route names with underscore-number patterns" do
+      defmodule ControllerWithUnderscoreRoute do
+        use AshTypescript.TypedController
+
+        typed_controller do
+          module_name AshTypescript.Test.UnderscoreRouteController
+
+          route :step_1 do
+            method :get
+            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+          end
+        end
+      end
+
+      result = VerifyTypedController.verify(ControllerWithUnderscoreRoute.spark_dsl_config())
+
+      assert {:error, %Spark.Error.DslError{message: message}} = result
+      assert message =~ "Invalid names"
+      assert message =~ "step_1"
+    end
+
+    test "rejects argument names with question marks" do
+      defmodule ControllerWithQuestionMarkArg do
+        use AshTypescript.TypedController
+
+        typed_controller do
+          module_name AshTypescript.Test.QuestionMarkArgController
+
+          route :test do
+            method :post
+            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+            argument :is_active?, :boolean
+          end
+        end
+      end
+
+      result = VerifyTypedController.verify(ControllerWithQuestionMarkArg.spark_dsl_config())
+
+      assert {:error, %Spark.Error.DslError{message: message}} = result
+      assert message =~ "Invalid names"
+      assert message =~ "is_active?"
+    end
+
+    test "suggests better names in error message" do
+      defmodule ControllerWithSuggestion do
+        use AshTypescript.TypedController
+
+        typed_controller do
+          module_name AshTypescript.Test.SuggestionController
+
+          route :test do
+            method :post
+            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+            argument :address_line_1, :string
+          end
+        end
+      end
+
+      result = VerifyTypedController.verify(ControllerWithSuggestion.spark_dsl_config())
+
+      assert {:error, %Spark.Error.DslError{message: message}} = result
+      assert message =~ "address_line_1"
+      assert message =~ "address_line1"
+    end
+
+    test "accepts valid route and argument names" do
+      result =
+        VerifyTypedController.verify(AshTypescript.Test.Session.spark_dsl_config())
+
+      assert :ok = result
+    end
+  end
 end
