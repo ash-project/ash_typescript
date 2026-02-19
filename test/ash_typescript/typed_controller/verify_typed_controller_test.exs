@@ -22,11 +22,12 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
       routes =
         AshTypescript.TypedController.Info.typed_controller(AshTypescript.Test.Session)
 
-      assert length(routes) == 6
+      assert length(routes) == 7
 
       route_names = Enum.map(routes, & &1.name)
       assert :auth in route_names
       assert :provider_page in route_names
+      assert :search in route_names
       assert :login in route_names
       assert :logout in route_names
       assert :update_provider in route_names
@@ -83,6 +84,7 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
 
       assert function_exported?(controller, :auth, 2)
       assert function_exported?(controller, :provider_page, 2)
+      assert function_exported?(controller, :search, 2)
       assert function_exported?(controller, :login, 2)
       assert function_exported?(controller, :logout, 2)
       assert function_exported?(controller, :update_provider, 2)

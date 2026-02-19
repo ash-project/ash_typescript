@@ -237,6 +237,22 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       assert conn.status == 200
       assert conn.resp_body == "ProviderPage"
     end
+
+    test "search route requires q argument" do
+      conn = call(:search, %{})
+
+      assert conn.status == 422
+      body = json_body(conn)
+      field_names = Enum.map(body["errors"], & &1["field"])
+      assert "q" in field_names
+    end
+
+    test "search route succeeds with required q argument" do
+      conn = call(:search, %{"q" => "test"})
+
+      assert conn.status == 200
+      assert conn.resp_body == "Search"
+    end
   end
 
   describe "handler dispatch" do

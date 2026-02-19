@@ -21,7 +21,7 @@ defmodule AshTypescript.TypedController.RouterIntrospectionTest do
           routes_config()
         )
 
-      assert length(route_infos) == 6
+      assert length(route_infos) == 7
 
       auth = Enum.find(route_infos, &(&1.route.name == :auth))
       assert auth.path == "/auth"
@@ -34,6 +34,12 @@ defmodule AshTypescript.TypedController.RouterIntrospectionTest do
       assert provider_page.method == :get
       assert provider_page.path_params == [:provider]
       assert provider_page.scope_prefix == nil
+
+      search = Enum.find(route_infos, &(&1.route.name == :search))
+      assert search.path == "/search"
+      assert search.method == :get
+      assert search.path_params == []
+      assert search.scope_prefix == nil
 
       login = Enum.find(route_infos, &(&1.route.name == :login))
       assert login.path == "/auth/login"
@@ -56,7 +62,7 @@ defmodule AshTypescript.TypedController.RouterIntrospectionTest do
           routes_config()
         )
 
-      assert length(route_infos) == 12
+      assert length(route_infos) == 14
 
       auth_routes = Enum.filter(route_infos, &(&1.route.name == :auth))
       assert length(auth_routes) == 2

@@ -23,8 +23,8 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   functions that call `fetch` with the correct method and typed input.
   """
   def render(route_info) do
-    if route_info.method in @mutation_methods do
-      render_action_function(route_info)
+    if route_info.method in @mutation_methods and AshTypescript.typed_controller_mode() == :full do
+      render_path_helper(route_info) <> "\n" <> render_action_function(route_info)
     else
       render_path_helper(route_info)
     end
@@ -34,6 +34,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     %{
       route: route,
       path: path,
+      method: method,
       path_params: path_params,
       scope_prefix: scope_prefix
     } = route_info
@@ -42,19 +43,90 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
 
     path_param_args =
       Enum.map(path_params, fn param ->
-        "#{format_output_field(param)}: string"
+        ts_type = get_path_param_type(route, param)
+        "#{format_output_field(param)}: #{ts_type}"
       end)
 
-    params = Enum.join(path_param_args, ", ")
-    url_expr = build_url_template(path, path_params)
+    is_mutation = method in @mutation_methods
+    query_args = if is_mutation, do: [], else: get_query_args(route, path_params)
+
+    {query_param, query_body_lines} = build_query_param_and_body(query_args)
+
+    all_params =
+      path_param_args ++
+        if(query_param, do: [query_param], else: [])
+
+    params = Enum.join(all_params, ", ")
     jsdoc = build_jsdoc(route, path)
 
-    """
-    #{jsdoc}
-    export function #{function_name}(#{params}): string {
-      return #{url_expr};
-    }
-    """
+    if query_args == [] do
+      url_expr = build_url_template(path, path_params)
+
+      """
+      #{jsdoc}
+      export function #{function_name}(#{params}): string {
+        return #{url_expr};
+      }
+      """
+    else
+      url_expr = build_url_template_to_variable(path, path_params)
+      body = Enum.join(query_body_lines, "\n")
+
+      """
+      #{jsdoc}
+      export function #{function_name}(#{params}): string {
+        #{url_expr}
+      #{body}
+        const qs = searchParams.toString();
+        return qs ? `${base}?${qs}` : base;
+      }
+      """
+    end
+  end
+
+  defp get_path_param_type(route, param) do
+    case Enum.find(route.arguments, &(&1.name == param)) do
+      nil -> "string"
+      arg -> get_ts_input_type(%{type: arg.type, constraints: arg.constraints || []})
+    end
+  end
+
+  defp get_query_args(route, path_params) do
+    path_param_set = MapSet.new(path_params)
+
+    route.arguments
+    |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
+  end
+
+  defp build_query_param_and_body([]), do: {nil, []}
+
+  defp build_query_param_and_body(query_args) do
+    any_required = Enum.any?(query_args, fn arg -> !arg.allow_nil? && arg.default == nil end)
+    optional_marker = if any_required, do: "", else: "?"
+
+    fields =
+      Enum.map_join(query_args, "; ", fn arg ->
+        ts_type = get_ts_input_type(%{type: arg.type, constraints: arg.constraints || []})
+        opt = if arg.allow_nil? || arg.default != nil, do: "?", else: ""
+        "#{format_output_field(arg.name)}#{opt}: #{ts_type}"
+      end)
+
+    param = "query#{optional_marker}: { #{fields} }"
+
+    body_lines =
+      ["  const searchParams = new URLSearchParams();"] ++
+        Enum.map(query_args, fn arg ->
+          field = format_output_field(arg.name)
+          required = !arg.allow_nil? && arg.default == nil
+
+          if required do
+            "  searchParams.set(\"#{field}\", String(query.#{field}));"
+          else
+            "  if (query?.#{field} !== undefined) searchParams.set(\"#{field}\", String(query.#{field}));"
+          end
+        end)
+
+    {param, body_lines}
   end
 
   defp render_action_function(route_info) do
@@ -69,7 +141,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     function_name = build_function_name(route.name, scope_prefix, :action)
     method_upper = method |> to_string() |> String.upcase()
 
-    input_fields = build_input_fields(route)
+    input_fields = build_input_fields(route, path_params)
     has_input = input_fields != []
     has_path_params = path_params != []
 
@@ -85,7 +157,8 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
       if has_path_params do
         path_fields =
           Enum.map_join(path_params, ", ", fn param ->
-            "#{format_output_field(param)}: string"
+            ts_type = get_path_param_type(route, param)
+            "#{format_output_field(param)}: #{ts_type}"
           end)
 
         [format_output_field(:path) <> ": { " <> path_fields <> " }"]
@@ -137,8 +210,11 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
       """
   end
 
-  defp build_input_fields(route) do
+  defp build_input_fields(route, path_params) do
+    path_param_set = MapSet.new(path_params)
+
     route.arguments
+    |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
     |> Enum.map(fn arg ->
       optional = arg.allow_nil? || arg.default != nil
       ts_type = get_ts_input_type(%{type: arg.type, constraints: arg.constraints || []})
@@ -190,6 +266,18 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
       end)
 
     "`#{template}`"
+  end
+
+  defp build_url_template_to_variable(nil, _path_params), do: "const base = \"\";"
+  defp build_url_template_to_variable(path, []), do: "const base = \"#{path}\";"
+
+  defp build_url_template_to_variable(path, path_params) do
+    template =
+      Enum.reduce(path_params, path, fn param, acc ->
+        String.replace(acc, ":#{param}", "${#{format_output_field(param)}}")
+      end)
+
+    "const base = `#{template}`;"
   end
 
   defp build_action_url_template(nil, _path_params), do: "\"\""

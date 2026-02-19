@@ -51,6 +51,13 @@ defmodule AshTypescript.TypedController.CodegenTest do
       assert String.contains?(typescript, "export type AppUpdateProviderInput = {")
     end
 
+    test "generates prefixed path helpers for mutation routes", %{typescript: typescript} do
+      assert String.contains?(typescript, "export function adminLoginPath(")
+      assert String.contains?(typescript, "export function appLoginPath(")
+      assert String.contains?(typescript, "export function adminLogoutPath(")
+      assert String.contains?(typescript, "export function appLogoutPath(")
+    end
+
     test "does not generate unprefixed helpers when multi-mounted", %{typescript: typescript} do
       refute Regex.match?(~r/function authPath\(/, typescript)
       refute Regex.match?(~r/function login\(/, typescript)
@@ -78,11 +85,25 @@ defmodule AshTypescript.TypedController.CodegenTest do
       assert String.contains?(typescript, "return \"/auth\"")
     end
 
-    test "generates path helper for provider_page route with path param", %{
+    test "generates path helper for provider_page route with path param and query param", %{
       typescript: typescript
     } do
       assert String.contains?(typescript, "export function providerPagePath(")
       assert String.contains?(typescript, "provider: string")
+      assert String.contains?(typescript, "query?: { tab?: string }")
+    end
+
+    test "generates path helper for search route with required query param", %{
+      typescript: typescript
+    } do
+      assert String.contains?(typescript, "export function searchPath(")
+      assert String.contains?(typescript, "query: { q: string; page?: number }")
+    end
+
+    test "generates URLSearchParams for GET routes with query params", %{typescript: typescript} do
+      assert String.contains?(typescript, "new URLSearchParams()")
+      assert String.contains?(typescript, "searchParams.set(")
+      assert String.contains?(typescript, "searchParams.toString()")
     end
 
     test "GET routes do not generate async functions", %{typescript: typescript} do
@@ -137,13 +158,52 @@ defmodule AshTypescript.TypedController.CodegenTest do
       assert String.contains?(typescript, "POST /auth/login")
       assert String.contains?(typescript, "POST /auth/logout")
     end
+
+    test "generates path helper alongside login action function", %{typescript: typescript} do
+      assert String.contains?(typescript, "export function loginPath(")
+      assert String.contains?(typescript, "return \"/auth/login\"")
+    end
+
+    test "generates path helper alongside logout action function", %{typescript: typescript} do
+      assert String.contains?(typescript, "export function logoutPath(")
+      assert String.contains?(typescript, "return \"/auth/logout\"")
+    end
+  end
+
+  describe "path param validation" do
+    test "raises when path param has no matching DSL argument" do
+      route_info = %{
+        source_module: AshTypescript.Test.Session,
+        controller: AshTypescript.Test.SessionController,
+        route: %{
+          name: :broken,
+          method: :get,
+          arguments: [],
+          run: fn conn, _params -> conn end,
+          description: nil,
+          deprecated: nil
+        },
+        path: "/items/:id",
+        method: :get,
+        path_params: [:id],
+        scope_prefix: nil
+      }
+
+      assert_raise RuntimeError, ~r/don't have matching DSL arguments/, fn ->
+        AshTypescript.TypedController.Codegen.validate_path_param_arguments!([route_info])
+      end
+    end
   end
 
   describe "PATCH route with path params and input" do
-    test "generates typed input type for update_provider action", %{typescript: typescript} do
+    test "generates typed input type for update_provider action excluding path params", %{
+      typescript: typescript
+    } do
       assert String.contains?(typescript, "export type UpdateProviderInput = {")
       assert String.contains?(typescript, "enabled: boolean;")
       assert String.contains?(typescript, "displayName?: string;")
+      # provider is a path param and should not be in the input type
+      refute String.contains?(typescript, "UpdateProviderInput = {\n  provider")
     end
 
     test "generates async function with path and input params", %{typescript: typescript} do
@@ -163,6 +223,61 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
     test "generates JSDoc for PATCH action", %{typescript: typescript} do
       assert String.contains?(typescript, "PATCH /auth/providers/:provider")
+    end
+
+    test "generates path helper alongside PATCH action function", %{typescript: typescript} do
+      assert String.contains?(typescript, "export function updateProviderPath(")
+      assert String.contains?(typescript, "provider: string")
+      assert String.contains?(typescript, "Path helper for /auth/providers/:provider")
+    end
+  end
+
+  describe "typed_controller_mode: :paths_only" do
+    setup do
+      previous = Application.get_env(:ash_typescript, :typed_controller_mode)
+      Application.put_env(:ash_typescript, :typed_controller_mode, :paths_only)
+
+      typescript =
+        AshTypescript.TypedController.Codegen.generate(
+          router: AshTypescript.Test.ControllerResourceTestRouter
+        )
+
+      on_exit(fn ->
+        if previous do
+          Application.put_env(:ash_typescript, :typed_controller_mode, previous)
+        else
+          Application.delete_env(:ash_typescript, :typed_controller_mode)
+        end
+      end)
+
+      %{typescript: typescript}
+    end
+
+    test "generates path helpers for all routes", %{typescript: typescript} do
+      assert String.contains?(typescript, "export function authPath(")
+      assert String.contains?(typescript, "export function providerPagePath(")
+      assert String.contains?(typescript, "export function searchPath(")
+      assert String.contains?(typescript, "export function loginPath(")
+      assert String.contains?(typescript, "export function logoutPath(")
+      assert String.contains?(typescript, "export function updateProviderPath(")
+      assert String.contains?(typescript, "export function echoParamsPath(")
+    end
+
+    test "does not generate async action functions", %{typescript: typescript} do
+      refute String.contains?(typescript, "async function")
+      refute String.contains?(typescript, "fetch(")
+      refute String.contains?(typescript, "Promise<Response>")
+    end
+
+    test "does not generate input types", %{typescript: typescript} do
+      refute String.contains?(typescript, "export type LoginInput")
+      refute String.contains?(typescript, "export type UpdateProviderInput")
+      refute String.contains?(typescript, "export type EchoParamsInput")
+    end
+
+    test "still generates query params for GET routes", %{typescript: typescript} do
+      assert String.contains?(typescript, "query?: { tab?: string }")
+      assert String.contains?(typescript, "query: { q: string; page?: number }")
     end
   end
 end
