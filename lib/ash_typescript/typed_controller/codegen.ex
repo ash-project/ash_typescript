@@ -48,8 +48,46 @@ defmodule AshTypescript.TypedController.Codegen do
           build_route_infos_without_router(routes_config)
         end
 
+      validate_path_param_arguments!(route_infos)
       generate_typescript(route_infos)
     end
+  end
+
+  @doc false
+  def validate_path_param_arguments!(route_infos) do
+    Enum.each(route_infos, fn route_info ->
+      %{route: route, path: path, path_params: path_params} = route_info
+
+      arg_names = MapSet.new(route.arguments, & &1.name)
+
+      missing =
+        Enum.reject(path_params, fn param ->
+          MapSet.member?(arg_names, param)
+        end)
+
+      if missing != [] do
+        missing_str =
+          Enum.map_join(missing, ", ", fn param ->
+            ":#{param}"
+          end)
+
+        suggestions =
+          Enum.map_join(missing, "\n", fn param ->
+            "    argument :#{param}, :string"
+          end)
+
+        raise """
+        Route :#{route.name} has path "#{path}" with path parameters #{missing_str} \
+        that don't have matching DSL arguments.
+
+        Add the missing arguments to the route definition:
+
+        route :#{route.name} do
+        #{suggestions}
+        end
+        """
+      end
+    end)
   end
 
   defp build_route_infos_without_router(routes_config) do
