@@ -14,6 +14,10 @@ export type ColorPaletteValidationErrors = {
   accent?: string[];
 };
 
+export type Percentage = number;
+
+export type PercentageValidationErrors = string[];
+
 export type PriorityScore = number;
 
 export type PriorityScoreValidationErrors = string[];

@@ -6,6 +6,7 @@ defmodule AshTypescript.CustomTypesTest do
   use ExUnit.Case, async: false
   alias AshTypescript.Codegen
   alias AshTypescript.Test.Todo.ColorPalette
+  alias AshTypescript.Test.Todo.Percentage
   alias AshTypescript.Test.Todo.PriorityScore
 
   setup do
@@ -135,6 +136,38 @@ defmodule AshTypescript.CustomTypesTest do
       # Custom types should work in field selection like any other primitive
       # since they are stored as primitive types (integer, string, etc.)
       assert true
+    end
+  end
+
+  describe "NewType with typescript_type_name" do
+    test "NewType wrapping :float is detected as custom type" do
+      assert Ash.Type.NewType.new_type?(Percentage)
+      assert function_exported?(Percentage, :typescript_type_name, 0)
+      assert Percentage.typescript_type_name() == "CustomTypes.Percentage"
+    end
+
+    test "get_ts_type/2 maps NewType with custom name instead of unwrapping" do
+      result = Codegen.get_ts_type(%{type: Percentage, constraints: []})
+      assert result == "CustomTypes.Percentage"
+    end
+
+    test "NewType custom type in array generates proper TypeScript array type" do
+      result = Codegen.get_ts_type(%{type: {:array, Percentage}, constraints: []})
+      assert result == "Array<CustomTypes.Percentage>"
+    end
+
+    test "Todo resource includes percentage with NewType custom type" do
+      schema =
+        Codegen.generate_unified_resource_schema(AshTypescript.Test.Todo, [
+          AshTypescript.Test.Todo
+        ])
+
+      assert schema =~ "percentage: CustomTypes.Percentage | null"
+    end
+
+    test "full generation uses NewType custom type name, not unwrapped float" do
+      {:ok, result} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      assert result =~ "percentage: CustomTypes.Percentage | null"
     end
   end
 

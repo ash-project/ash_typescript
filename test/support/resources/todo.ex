@@ -60,6 +60,10 @@ defmodule AshTypescript.Test.Todo do
       public? true
     end
 
+    attribute :percentage, AshTypescript.Test.Todo.Percentage do
+      public? true
+    end
+
     attribute :tags, {:array, :string} do
       default []
       public? true
