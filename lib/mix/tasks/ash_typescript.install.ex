@@ -96,10 +96,14 @@ if Code.ensure_loaded?(Igniter) do
       igniter
       |> create_esbuild_script(framework)
       |> update_esbuild_config_with_script(app_name, use_bun, framework)
+      |> update_root_layout_for_esbuild()
     end
 
-    defp setup_framework_bundler(igniter, app_name, "esbuild", use_bun, framework),
-      do: update_esbuild_config(igniter, app_name, use_bun, framework)
+    defp setup_framework_bundler(igniter, app_name, "esbuild", use_bun, framework) do
+      igniter
+      |> update_esbuild_config(app_name, use_bun, framework)
+      |> update_root_layout_for_esbuild()
+    end
 
     defp setup_framework_bundler(igniter, _app_name, "vite", _use_bun, framework)
          when framework in ["vue", "svelte"] do
@@ -320,36 +324,29 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp create_package_json(igniter, bundler, framework) do
-      # For esbuild, create package.json with un-vendored deps (like vite does)
-      # but keep phoenix deps as file: references
-      deps = get_framework_deps(framework, bundler)
-
-      package_json_content =
+      # For esbuild, ensure package.json exists with Phoenix deps,
+      # then merge in framework-specific deps
+      base_package_json =
         Jason.encode!(
           %{
-            "dependencies" =>
-              Map.merge(
-                %{
-                  "phoenix" => "file:../deps/phoenix",
-                  "phoenix_html" => "file:../deps/phoenix_html",
-                  "phoenix_live_view" => "file:../deps/phoenix_live_view",
-                  "topbar" => "^3.0.0"
-                },
-                deps.dependencies
-              ),
-            "devDependencies" =>
-              Map.merge(
-                %{
-                  "daisyui" => "^5.0.0"
-                },
-                deps.dev_dependencies
-              )
+            "dependencies" => %{
+              "phoenix" => "file:../deps/phoenix",
+              "phoenix_html" => "file:../deps/phoenix_html",
+              "phoenix_live_view" => "file:../deps/phoenix_live_view",
+              "topbar" => "^3.0.0"
+            },
+            "devDependencies" => %{
+              "daisyui" => "^5.0.0"
+            }
           },
           pretty: true
         )
 
       igniter
-      |> Igniter.create_new_file("assets/package.json", package_json_content, on_exists: :warning)
+      |> Igniter.create_or_update_file("assets/package.json", base_package_json, fn source ->
+        source
+      end)
+      |> update_package_json_with_framework(framework, bundler)
       |> update_vendor_imports()
     end
 
@@ -1257,6 +1254,21 @@ if Code.ensure_loaded?(Igniter) do
                 "--outdir=../priv/static/assets"
               )
 
+            # Add code splitting flags for module support (CSS imported via JS)
+            new_args_string =
+              if String.contains?(new_args_string, "--splitting") do
+                new_args_string
+              else
+                new_args_string <> " --splitting"
+              end
+
+            new_args_string =
+              if String.contains?(new_args_string, "--format=esm") do
+                new_args_string
+              else
+                new_args_string <> " --format=esm"
+              end
+
             new_args_node =
               {{:__block__, block_meta, [:args]},
                {:sigil_w, sigil_meta, [{:<<>>, string_meta, [new_args_string]}, sigil_opts]}}
@@ -1306,8 +1318,9 @@ if Code.ensure_loaded?(Igniter) do
         logLevel: "info",
         loader,
         plugins,
-        nodePaths: ["../deps"],
-        external: ["phoenix-colocated/*"],
+        nodePaths: ["../deps", ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : [])],
+        splitting: true,
+        format: "esm",
       };
 
       if (deploy) {
@@ -1370,10 +1383,11 @@ if Code.ensure_loaded?(Igniter) do
         logLevel: "info",
         loader,
         plugins,
-        nodePaths: ["../deps"],
+        nodePaths: ["../deps", ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : [])],
         mainFields: ["svelte", "browser", "module", "main"],
         conditions: ["svelte", "browser"],
-        external: ["phoenix-colocated/*"],
+        splitting: true,
+        format: "esm",
       };
 
       if (deploy) {
@@ -1404,19 +1418,43 @@ if Code.ensure_loaded?(Igniter) do
       npm_install_task =
         if use_bun, do: "ash_typescript.npm_install --bun", else: "ash_typescript.npm_install"
 
-      # For Vue/Svelte we need to use node to run build.js instead of esbuild directly
+      # For Vue/Svelte we use a custom build.js with esbuild's JS API (needed for plugins).
+      # The vendored esbuild Elixir package is no longer needed since esbuild is installed
+      # via npm instead, so we remove the vendored config and dep to avoid confusion.
       # We need to:
-      # 1. Add esbuild as an npm dependency
-      # 2. Update dev.exs watchers to use node build.js --watch
-      # 3. Update assets.build alias
+      # 1. Add esbuild as an npm dependency (replaces the vendored Elixir esbuild package)
+      # 2. Remove the vendored esbuild config from config.exs
+      # 3. Remove the :esbuild dep from mix.exs
+      # 4. Update dev.exs watchers to use node/bun build.js --watch
+      # 5. Update assets.setup/build/deploy aliases
 
       igniter
+      |> add_esbuild_npm_dep()
+      |> Igniter.Project.Config.remove_application_configuration("config.exs", :esbuild)
+      |> Igniter.Project.Deps.remove_dep(:esbuild)
+      |> remove_esbuild_install_from_assets_setup()
       |> Igniter.Project.TaskAliases.add_alias("assets.setup", npm_install_task,
         if_exists: :append
       )
-      |> add_esbuild_npm_dep()
       |> update_dev_watcher_for_build_script(app_name, use_bun)
       |> update_build_aliases_for_script(use_bun)
+    end
+
+    defp remove_esbuild_install_from_assets_setup(igniter) do
+      Igniter.Project.TaskAliases.modify_existing_alias(igniter, "assets.setup", fn zipper ->
+        Igniter.Code.List.remove_from_list(zipper, fn item_zipper ->
+          case Sourceror.Zipper.node(item_zipper) do
+            {:__block__, _, [str]} when is_binary(str) ->
+              String.contains?(str, "esbuild.install")
+
+            str when is_binary(str) ->
+              String.contains?(str, "esbuild.install")
+
+            _ ->
+              false
+          end
+        end)
+      end)
     end
 
     defp add_esbuild_npm_dep(igniter) do
@@ -1457,7 +1495,10 @@ if Code.ensure_loaded?(Igniter) do
         {:code,
          Sourceror.parse_string!("""
          [
-           #{runner}: ["build.js", "--watch", cd: Path.expand("../assets", __DIR__)]
+           #{runner}: ["build.js", "--watch",
+             cd: Path.expand("../assets", __DIR__),
+             env: %{"NODE_PATH" => Enum.join([Path.expand("../deps", __DIR__), Mix.Project.build_path()], ":")}
+           ]
          ]
          """)},
         updater: fn zipper ->
@@ -1466,7 +1507,10 @@ if Code.ensure_loaded?(Igniter) do
              zipper,
              Sourceror.parse_string!("""
              [
-               #{runner}: ["build.js", "--watch", cd: Path.expand("../assets", __DIR__)]
+               #{runner}: ["build.js", "--watch",
+                 cd: Path.expand("../assets", __DIR__),
+                 env: %{"NODE_PATH" => Enum.join([Path.expand("../deps", __DIR__), Mix.Project.build_path()], ":")}
+               ]
              ]
              """)
            )}
@@ -1668,8 +1712,78 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
     end
 
-    # For esbuild, no separate layout needed (uses existing root layout)
+    # Create spa_root.html.heex layout for esbuild (SPA pages)
+    defp create_spa_root_layout(igniter, web_module, "esbuild", _framework) do
+      clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
+      web_path = Macro.underscore(clean_web_module)
+      layout_path = "lib/#{web_path}/components/layouts/spa_root.html.heex"
+
+      layout_content =
+        """
+        <!DOCTYPE html>
+        <html lang="en">
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <.live_title default="AshTypescript">Page</.live_title>
+            <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
+            <link
+              href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
+              rel="stylesheet"
+            />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js">
+            </script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js">
+            </script>
+          </head>
+          <body>
+            {@inner_content}
+            <script defer phx-track-static type="module" src={~p"/assets/index.js"}>
+            </script>
+          </body>
+        </html>
+        """
+
+      igniter
+      |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
+    end
+
     defp create_spa_root_layout(igniter, _web_module, _bundler, _framework), do: igniter
+
+    # Update root.html.heex for esbuild ESM output
+    # Since esbuild outdir changes from /assets/js to /assets, we need to:
+    # 1. Update the JS path from /assets/js/app.js to /assets/app.js
+    # 2. Change script type from text/javascript to module (for ESM format)
+    defp update_root_layout_for_esbuild(igniter) do
+      web_module = Igniter.Libs.Phoenix.web_module(igniter)
+      clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
+      web_path = Macro.underscore(clean_web_module)
+      root_layout_path = "lib/#{web_path}/components/layouts/root.html.heex"
+
+      igniter
+      |> Igniter.update_file(root_layout_path, fn source ->
+        content = source.content
+
+        updated_content =
+          content
+          # Update JS path: /assets/js/app.js -> /assets/app.js
+          |> String.replace(
+            ~s|src={~p"/assets/js/app.js"}|,
+            ~s|src={~p"/assets/app.js"}|
+          )
+          # Update script type: text/javascript -> module (for ESM)
+          |> String.replace(
+            ~s|type="text/javascript"|,
+            ~s|type="module"|
+          )
+
+        if content == updated_content do
+          source
+        else
+          Rewrite.Source.update(source, :content, updated_content)
+        end
+      end)
+    end
 
     # For vite, use put_root_layout to use spa_root layout
     defp create_or_update_page_controller(igniter, web_module, "vite") do
@@ -1738,6 +1852,72 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     # For esbuild, use simple render without layout change
+    # For esbuild, use put_root_layout to switch to spa_root layout
+    defp create_or_update_page_controller(igniter, web_module, "esbuild") do
+      clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
+
+      controller_path =
+        clean_web_module
+        |> String.replace_suffix("Web", "")
+        |> Macro.underscore()
+
+      page_controller_path = "lib/#{controller_path}_web/controllers/page_controller.ex"
+
+      page_controller_content = """
+      defmodule #{clean_web_module}.PageController do
+        use #{clean_web_module}, :controller
+
+        def index(conn, _params) do
+          conn
+          |> put_root_layout(html: {#{clean_web_module}.Layouts, :spa_root})
+          |> render(:index)
+        end
+      end
+      """
+
+      case Igniter.exists?(igniter, page_controller_path) do
+        false ->
+          igniter
+          |> Igniter.create_new_file(page_controller_path, page_controller_content)
+
+        true ->
+          igniter
+          |> Igniter.update_elixir_file(page_controller_path, fn zipper ->
+            case Igniter.Code.Common.move_to(zipper, &function_named?(&1, :index, 2)) do
+              {:ok, _zipper} ->
+                zipper
+
+              :error ->
+                case Igniter.Code.Module.move_to_defmodule(zipper) do
+                  {:ok, zipper} ->
+                    case Igniter.Code.Common.move_to_do_block(zipper) do
+                      {:ok, zipper} ->
+                        index_function_code =
+                          quote do
+                            def index(conn, _params) do
+                              conn
+                              |> put_root_layout(
+                                html:
+                                  {unquote(Module.concat([clean_web_module, Layouts])), :spa_root}
+                              )
+                              |> render(:index)
+                            end
+                          end
+
+                        Igniter.Code.Common.add_code(zipper, index_function_code)
+
+                      :error ->
+                        zipper
+                    end
+
+                  :error ->
+                    zipper
+                end
+            end
+          end)
+      end
+    end
+
     defp create_or_update_page_controller(igniter, web_module, _bundler) do
       clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
 
@@ -1811,12 +1991,27 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.create_new_file(index_template_path, index_template_content, on_exists: :warning)
     end
 
+    defp create_index_template(igniter, web_module, "esbuild", _framework) do
+      clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
+      web_path = Macro.underscore(clean_web_module)
+      index_template_path = "lib/#{web_path}/controllers/page_html/index.html.heex"
+
+      # For esbuild, assets are loaded via spa_root.html.heex layout
+      # This template just needs the app mount point
+      index_template_content = """
+      <div id="app"></div>
+      """
+
+      igniter
+      |> Igniter.create_new_file(index_template_path, index_template_content, on_exists: :warning)
+    end
+
     defp create_index_template(igniter, web_module, _bundler, _framework) do
       clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
       web_path = Macro.underscore(clean_web_module)
       index_template_path = "lib/#{web_path}/controllers/page_html/index.html.heex"
 
-      # For esbuild, load the script directly
+      # Default template for other bundlers
       index_template_content = """
       <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
       <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
@@ -1905,9 +2100,16 @@ if Code.ensure_loaded?(Igniter) do
 
       framework_notice_esbuild = fn name ->
         """
-        AshTypescript with #{name} has been successfully installed!
+        AshTypescript with #{name} + esbuild has been successfully installed!
 
-        Your Phoenix + #{name} + TypeScript setup is ready!
+        Your Phoenix + #{name} + TypeScript + esbuild setup is ready!
+
+        Files created:
+        - spa_root.html.heex: Layout for SPA pages (loads index.js as ES module)
+        - PageController: Uses put_root_layout to switch to spa_root layout
+
+        The root.html.heex layout loads app.js + app.css for LiveView pages.
+        The spa_root.html.heex layout loads index.js as ES module for SPA pages.
 
         Next Steps:
         1. Configure your domain with the AshTypescript.Rpc extension
