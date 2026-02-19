@@ -9,6 +9,7 @@
   "module": "es2022",
   "scripts": {
     "compileGenerated": "tsc generated.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop -noErrorTruncation",
+    "compileGeneratedRoutes": "tsc generated_routes.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop -noErrorTruncation",
     "compileShouldPass": "tsc shouldPass.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop -noErrorTruncation",
     "compileShouldFail": "tsc shouldFail.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop -noErrorTruncation",
     "testZod": "tsc runZodTests.ts --lib DOM,es2022 --module commonjs --target es2022 --strict --moduleResolution node --esModuleInterop --skipLibCheck && node runZodTests.js"
