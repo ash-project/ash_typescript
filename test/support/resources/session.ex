@@ -10,41 +10,41 @@ defmodule AshTypescript.Test.Session do
   use AshTypescript.TypedController
 
   typed_controller do
-    module_name AshTypescript.Test.SessionController
+    module_name(AshTypescript.Test.SessionController)
 
     route :auth do
-      method :get
+      method(:get)
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Auth") end
     end
 
     route :provider_page do
-      method :get
+      method(:get)
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "ProviderPage") end
       argument :provider, :string
       argument :tab, :string
     end
 
     route :search do
-      method :get
+      method(:get)
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Search") end
       argument :q, :string, allow_nil?: false
       argument :page, :integer
     end
 
     route :login do
-      method :post
+      method(:post)
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "LoggedIn") end
       argument :code, :string, allow_nil?: false
       argument :remember_me, :boolean
     end
 
     route :logout do
-      method :post
+      method(:post)
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "LoggedOut") end
     end
 
     route :update_provider do
-      method :patch
+      method(:patch)
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "ProviderUpdated") end
       argument :provider, :string
       argument :enabled, :boolean, allow_nil?: false
@@ -52,7 +52,7 @@ defmodule AshTypescript.Test.Session do
     end
 
     route :echo_params do
-      method :post
+      method(:post)
 
       run fn conn, params ->
         # Echoes received params as JSON so tests can inspect them
