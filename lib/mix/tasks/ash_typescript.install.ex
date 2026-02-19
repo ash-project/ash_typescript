@@ -112,7 +112,8 @@ if Code.ensure_loaded?(Igniter) do
       |> update_vite_config_with_framework(framework)
     end
 
-    defp setup_framework_bundler(igniter, _app_name, "vite", _use_bun, "react") do
+    defp setup_framework_bundler(igniter, _app_name, "vite", _use_bun, framework)
+         when framework in ["react", "react18"] do
       # Add React entry point to vite config
       igniter
       |> update_vite_config_with_framework("react")
@@ -128,6 +129,9 @@ if Code.ensure_loaded?(Igniter) do
         "react" ->
           igniter
 
+        "react18" ->
+          igniter
+
         "vue" ->
           igniter
 
@@ -137,7 +141,7 @@ if Code.ensure_loaded?(Igniter) do
         invalid_framework ->
           Igniter.add_issue(
             igniter,
-            "Invalid framework '#{invalid_framework}'. Currently supported frameworks: react, vue, svelte"
+            "Invalid framework '#{invalid_framework}'. Currently supported frameworks: react, react18, vue, svelte"
           )
       end
     end
@@ -419,6 +423,23 @@ if Code.ensure_loaded?(Igniter) do
       }
     end
 
+    defp get_framework_deps("react18", "vite") do
+      %{
+        dependencies: %{
+          "@tanstack/react-query" => "^5.89.0",
+          "@tanstack/react-table" => "^8.21.3",
+          "@tanstack/react-virtual" => "^3.13.12",
+          "react" => "^18.3.1",
+          "react-dom" => "^18.3.1"
+        },
+        dev_dependencies: %{
+          "@types/react" => "^18.3.23",
+          "@types/react-dom" => "^18.3.7",
+          "@vitejs/plugin-react" => "^4.5.0"
+        }
+      }
+    end
+
     defp get_framework_deps("react", _bundler) do
       %{
         dependencies: %{
@@ -431,6 +452,22 @@ if Code.ensure_loaded?(Igniter) do
         dev_dependencies: %{
           "@types/react" => "^19.1.13",
           "@types/react-dom" => "^19.1.9"
+        }
+      }
+    end
+
+    defp get_framework_deps("react18", _bundler) do
+      %{
+        dependencies: %{
+          "@tanstack/react-query" => "^5.89.0",
+          "@tanstack/react-table" => "^8.21.3",
+          "@tanstack/react-virtual" => "^3.13.12",
+          "react" => "^18.3.1",
+          "react-dom" => "^18.3.1"
+        },
+        dev_dependencies: %{
+          "@types/react" => "^18.3.23",
+          "@types/react-dom" => "^18.3.7"
         }
       }
     end
@@ -535,6 +572,8 @@ if Code.ensure_loaded?(Igniter) do
     defp extract_balanced(<<c::utf8, rest::binary>>, depth, acc),
       do: extract_balanced(rest, depth, acc <> <<c::utf8>>)
 
+    defp create_index_page(igniter, "react18"), do: create_index_page(igniter, "react")
+
     defp create_index_page(igniter, "react") do
       react_index_content = """
       import React, { useEffect } from "react";
@@ -547,7 +586,7 @@ if Code.ensure_loaded?(Igniter) do
         }
       }
 
-      const AshTypescriptGuide = () => {
+      export default function AshTypescriptGuide() {
         useEffect(() => {
           // Trigger Prism highlighting after component mounts
           if (window.Prism) {
@@ -755,7 +794,7 @@ if Code.ensure_loaded?(Igniter) do
             </div>
           </div>
         );
-      };
+      }
 
       const root = createRoot(document.getElementById("app")!);
 
@@ -1144,7 +1183,9 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.update_file("assets/tsconfig.json", fn source ->
         content = source.content
 
-        needs_jsx = framework == "react" and not String.contains?(content, ~s("jsx":))
+        needs_jsx =
+          framework in ["react", "react18"] and not String.contains?(content, ~s("jsx":))
+
         needs_interop = not String.contains?(content, ~s("esModuleInterop":))
 
         if needs_jsx or needs_interop do
@@ -1282,6 +1323,7 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp get_entry_file("react"), do: "js/index.tsx"
+    defp get_entry_file("react18"), do: "js/index.tsx"
     defp get_entry_file("vue"), do: "js/index.ts"
     defp get_entry_file("svelte"), do: "js/index.ts"
     defp get_entry_file(_), do: "js/index.ts"
@@ -1619,7 +1661,8 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     # Create spa_root.html.heex layout for vite + react (includes React Refresh preamble)
-    defp create_spa_root_layout(igniter, web_module, "vite", "react") do
+    defp create_spa_root_layout(igniter, web_module, "vite", framework)
+         when framework in ["react", "react18"] do
       app_name = Igniter.Project.Application.app_name(igniter)
       clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
       web_path = Macro.underscore(clean_web_module)
@@ -2124,9 +2167,11 @@ if Code.ensure_loaded?(Igniter) do
       notice =
         case {framework, bundler} do
           {"react", "vite"} -> framework_notice_vite.("React")
+          {"react18", "vite"} -> framework_notice_vite.("React 18")
           {"vue", "vite"} -> framework_notice_vite.("Vue")
           {"svelte", "vite"} -> framework_notice_vite.("Svelte")
           {"react", _} -> framework_notice_esbuild.("React")
+          {"react18", _} -> framework_notice_esbuild.("React 18")
           {"vue", _} -> framework_notice_esbuild.("Vue")
           {"svelte", _} -> framework_notice_esbuild.("Svelte")
           _ -> base_notice
@@ -2135,7 +2180,7 @@ if Code.ensure_loaded?(Igniter) do
       # Run assets.setup to install npm dependencies (including framework deps we added)
       # For both esbuild and vite, we need to run this since we add framework deps to package.json
       igniter =
-        if framework in ["react", "vue", "svelte"] do
+        if framework in ["react", "react18", "vue", "svelte"] do
           Igniter.add_task(igniter, "assets.setup")
         else
           igniter
