@@ -16,7 +16,8 @@
     # {:credo, "mix credo --format oneline"},
 
     {:compiler, "mix compile --warnings-as-errors"},
-    {:check_formatter, command: "mix spark.formatter --check"},
+    {:format, "mix format --check-formatted"},
+    {:check_formatter, "mix spark.formatter --check"},
     {:reuse, command: ["pipx", "run", "reuse", "lint", "-q"]},
     {:credo, "mix credo --strict"},
     {:sobelow, "mix sobelow --config"},
