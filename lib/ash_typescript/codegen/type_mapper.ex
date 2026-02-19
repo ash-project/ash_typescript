@@ -150,6 +150,11 @@ defmodule AshTypescript.Codegen.TypeMapper do
       match?({:array, _}, type) ->
         map_array(type, constraints, direction)
 
+      # Custom types with typescript_type_name - check BEFORE unwrapping NewTypes
+      # so that NewTypes with custom type names are respected (issue #52)
+      is_custom_type?(type) ->
+        type.typescript_type_name()
+
       # Primitives - check original type FIRST (before unwrapping) to preserve specific types
       # like UtcDatetimeUsec that would otherwise unwrap to DateTime
       primitive_ts = map_primitive(type, constraints) ->

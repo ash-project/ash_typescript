@@ -152,6 +152,16 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   def map_zod_type(nil, _constraints), do: "z.null()"
 
   def map_zod_type(type, constraints) do
+    # Check custom types BEFORE unwrapping NewTypes so that NewTypes with
+    # typescript_type_name are respected (issue #52)
+    if is_custom_type?(type) do
+      "z.any()"
+    else
+      map_zod_type_inner(type, constraints)
+    end
+  end
+
+  defp map_zod_type_inner(type, constraints) do
     # Unwrap NewTypes first to get the underlying type
     {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
 

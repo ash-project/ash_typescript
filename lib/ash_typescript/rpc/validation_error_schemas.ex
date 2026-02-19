@@ -41,7 +41,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   def map_error_type(nil, _constraints), do: "string[]"
 
   def map_error_type(type, constraints) do
-    # Unwrap NewTypes FIRST (consistent with ValueFormatter pattern)
+    # Unwrap NewTypes for complex type handling (but custom types are checked first)
     {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
 
     cond do
@@ -52,9 +52,10 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
         inner_error = map_error_type(inner_type, inner_constraints)
         "#{inner_error}[]"
 
-      # Custom types with typescript_type_name (check before embedded resource)
-      is_custom_type?(unwrapped_type) ->
-        "#{unwrapped_type.typescript_type_name()}ValidationErrors"
+      # Custom types with typescript_type_name - check original type BEFORE using
+      # unwrapped type, so NewTypes with custom type names are respected (issue #52)
+      is_custom_type?(type) ->
+        "#{type.typescript_type_name()}ValidationErrors"
 
       # Embedded resources
       Introspection.is_embedded_resource?(unwrapped_type) ->
