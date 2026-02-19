@@ -38,7 +38,10 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 ### Bug Fixes:
 
+* codegen: check typescript_type_name before unwrapping NewTypes (#52) by [@Torkan](https://github.com/Torkan)
+
 * prevent policy breakdown leak in Forbidden.Policy error responses by [@Torkan](https://github.com/Torkan)
+
 
 ## [v0.14.4](https://github.com/ash-project/ash_typescript/compare/v0.14.3...v0.14.4) (2026-02-14)
 
