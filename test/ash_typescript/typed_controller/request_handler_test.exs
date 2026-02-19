@@ -292,7 +292,7 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       assert conn.status == 422
       body = json_body(conn)
       assert is_list(body["errors"])
-      assert length(body["errors"]) > 0
+      assert body["errors"] != []
     end
 
     test "each error has field and message keys" do
