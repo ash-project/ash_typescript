@@ -422,6 +422,25 @@ defmodule AshTypescript do
   end
 
   @doc """
+  Gets the typed controller generation mode.
+
+  Controls what TypeScript code is generated for typed controller routes:
+  - `:full` (default) — generates path helpers AND fetch-based action functions for mutation routes
+  - `:paths_only` — generates only path helpers, no fetch action functions
+
+  ## Example
+
+      config :ash_typescript,
+        typed_controller_mode: :paths_only
+
+  ## Returns
+  An atom, either `:full` or `:paths_only`.
+  """
+  def typed_controller_mode do
+    Application.get_env(:ash_typescript, :typed_controller_mode, :full)
+  end
+
+  @doc """
   Gets the output field formatter configuration for TypeScript generation.
 
   This determines how internal Elixir field names are converted for client
