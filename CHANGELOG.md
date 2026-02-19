@@ -11,6 +11,35 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.15.0](https://github.com/ash-project/ash_typescript/compare/v0.14.4...v0.15.0) (2026-02-19)
+
+
+
+
+### Features:
+
+* add typed_controller_mode config for paths_only generation by [@Torkan](https://github.com/Torkan)
+
+* generate query params and typed path helpers for TypedController routes by [@Torkan](https://github.com/Torkan)
+
+* validate that path params have matching DSL arguments by [@Torkan](https://github.com/Torkan)
+
+* typed-controller: validate route and argument names for TypeScript compatibility by [@Torkan](https://github.com/Torkan)
+
+* add TypedController as standalone Spark DSL with argument extraction and type casting by [@Torkan](https://github.com/Torkan)
+
+* controller-resource: normalize camelCase request params to snake_case by [@Torkan](https://github.com/Torkan)
+
+* codegen: integrate controller resource route generation into mix task by [@Torkan](https://github.com/Torkan)
+
+* add TypeScript route codegen with router introspection by [@Torkan](https://github.com/Torkan)
+
+* add ControllerResource DSL extension with controller generation by [@Torkan](https://github.com/Torkan)
+
+### Bug Fixes:
+
+* prevent policy breakdown leak in Forbidden.Policy error responses by [@Torkan](https://github.com/Torkan)
+
 ## [v0.14.4](https://github.com/ash-project/ash_typescript/compare/v0.14.3...v0.14.4) (2026-02-14)
 
 
