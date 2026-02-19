@@ -92,6 +92,94 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
     end
   end
 
+  describe "duplicate route name detection" do
+    @describetag :generates_warnings
+
+    alias AshTypescript.TypedController.Verifiers.VerifyTypedController
+
+    test "rejects duplicate route names" do
+      defmodule ControllerWithDuplicateRoutes do
+        use AshTypescript.TypedController
+
+        typed_controller do
+          module_name AshTypescript.Test.DuplicateRoutesController
+
+          route :login do
+            method :post
+            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+          end
+
+          route :login do
+            method :get
+            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+          end
+        end
+      end
+
+      result = VerifyTypedController.verify(ControllerWithDuplicateRoutes.spark_dsl_config())
+
+      assert {:error, %Spark.Error.DslError{message: message}} = result
+      assert message =~ "Duplicate route names"
+      assert message =~ ":login"
+    end
+  end
+
+  describe "missing route handler detection" do
+    alias AshTypescript.TypedController.Verifiers.VerifyTypedController
+
+    test "rejects routes without handlers" do
+      # Since `run` is required at the DSL schema level, we construct a mock
+      # config with a nil handler to test the verifier's safety net check.
+      route_without_handler = %AshTypescript.TypedController.Dsl.Route{
+        name: :broken,
+        method: :get,
+        run: nil,
+        arguments: []
+      }
+
+      base_config = AshTypescript.Test.Session.spark_dsl_config()
+
+      mock_config =
+        put_in(base_config, [[:typed_controller], :entities], [route_without_handler])
+
+      result = VerifyTypedController.verify(mock_config)
+
+      assert {:error, %Spark.Error.DslError{message: message}} = result
+      assert message =~ "Routes without handlers"
+      assert message =~ ":broken"
+    end
+  end
+
+  describe "argument type validation" do
+    alias AshTypescript.TypedController.Verifiers.VerifyTypedController
+
+    test "rejects arguments with nil type" do
+      # Ash.Type.get_type/1 returns the atom itself for any atom (truthy),
+      # so this check only catches nil types. We use a mock config since
+      # the DSL schema requires a type value.
+      route_with_nil_type = %AshTypescript.TypedController.Dsl.Route{
+        name: :test,
+        method: :post,
+        run: fn _conn, _params -> :ok end,
+        arguments: [
+          %AshTypescript.TypedController.Dsl.RouteArgument{
+            name: :foo,
+            type: nil
+          }
+        ]
+      }
+
+      base_config = AshTypescript.Test.Session.spark_dsl_config()
+      mock_config = put_in(base_config, [[:typed_controller], :entities], [route_with_nil_type])
+
+      result = VerifyTypedController.verify(mock_config)
+
+      assert {:error, %Spark.Error.DslError{message: message}} = result
+      assert message =~ "Invalid argument types"
+      assert message =~ ":foo"
+    end
+  end
+
   describe "argument name validation for TypeScript" do
     @describetag :generates_warnings
 
