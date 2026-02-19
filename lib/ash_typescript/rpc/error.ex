@@ -110,21 +110,21 @@ end
 
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Forbidden.Policy do
   def to_error(error) do
-    base = %{
-      message: Exception.message(error),
+    message =
+      if Application.get_env(:ash_typescript, :policies)[:show_policy_breakdowns?] || false do
+        Ash.Error.Forbidden.Policy.report(error, help_text?: false)
+      else
+        "forbidden"
+      end
+
+    %{
+      message: message,
       short_message: "Forbidden",
-      vars: %{},
+      vars: Map.new(error.vars),
       type: "forbidden",
       fields: [],
       path: error.path || []
     }
-
-    # Optionally include policy details if configured to do so
-    if Map.get(error, :policy_breakdown?) do
-      Map.put(base, :policy_breakdown, Map.get(error, :policies))
-    else
-      base
-    end
   end
 end
 

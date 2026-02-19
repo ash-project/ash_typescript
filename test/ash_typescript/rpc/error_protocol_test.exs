@@ -59,19 +59,86 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
       assert result.fields == [:email]
     end
 
-    test "Forbidden policy error is transformed correctly" do
+    test "Forbidden policy error returns static message by default" do
       error = %Ash.Error.Forbidden.Policy{
-        vars: [],
-        policy_breakdown?: false
+        vars: []
       }
 
       result = Error.to_error(error)
 
-      # Message comes from Exception.message/1
-      assert is_binary(result.message)
+      assert result.message == "forbidden"
       assert result.short_message == "Forbidden"
       assert result.type == "forbidden"
       assert result.fields == []
+    end
+
+    test "Forbidden policy error includes breakdown in message when ash_typescript config enabled" do
+      Application.put_env(:ash_typescript, :policies, show_policy_breakdowns?: true)
+
+      error = Ash.Error.Forbidden.Policy.exception(
+        resource: AshTypescript.Test.Todo,
+        action: :read,
+        policies: [
+          %Ash.Policy.Policy{
+            description: "Only admins can read",
+            condition: [{Ash.Policy.Check.Expression, [expr: true]}],
+            policies: [
+              %Ash.Policy.Check{
+                check: {Ash.Policy.Check.Expression, [expr: {:_actor, :role}]},
+                check_module: Ash.Policy.Check.Expression,
+                check_opts: [expr: {:_actor, :role}],
+                type: :authorize_if
+              }
+            ],
+            bypass?: false,
+            access_type: :strict
+          }
+        ],
+        facts: %{
+          {Ash.Policy.Check.Expression, [expr: true]} => true,
+          {Ash.Policy.Check.Expression, [expr: {:_actor, :role}]} => false
+        },
+        must_pass_strict_check?: false
+      )
+
+      result = Error.to_error(error)
+
+      # Message contains the formatted policy report
+      assert result.message =~ "Only admins can read"
+      assert result.message =~ "Policy Breakdown"
+      # short_message stays static
+      assert result.short_message == "Forbidden"
+    after
+      Application.delete_env(:ash_typescript, :policies)
+    end
+
+    test "Forbidden policy error does not leak breakdown when config disabled" do
+      # Ensure the global Ash config being enabled does NOT leak through
+      Application.put_env(:ash, :policies, show_policy_breakdowns?: true)
+
+      error = Ash.Error.Forbidden.Policy.exception(
+        resource: AshTypescript.Test.Todo,
+        action: :read,
+        policies: [
+          %Ash.Policy.Policy{
+            description: "secret policy",
+            condition: [{Ash.Policy.Check.Expression, [expr: true]}],
+            policies: [],
+            bypass?: false,
+            access_type: :strict
+          }
+        ],
+        facts: %{{Ash.Policy.Check.Expression, [expr: true]} => true},
+        must_pass_strict_check?: false
+      )
+
+      result = Error.to_error(error)
+
+      # Without ash_typescript config, message must be static
+      assert result.message == "forbidden"
+      refute result.message =~ "secret policy"
+    after
+      Application.put_env(:ash, :policies, show_policy_breakdowns?: false)
     end
 
     test "InvalidAttribute error includes field details" do
@@ -299,123 +366,68 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
     end
   end
 
-  describe "Error serialization (JSON safety)" do
-    test "tuples in error data are converted to lists" do
-      error = %Ash.Error.Forbidden.Policy{
-        vars: [],
-        policy_breakdown?: true,
-        policies: [
-          %{
-            check: {Ash.Policy.Check.Static, [result: true]},
-            type: :authorize_if
-          }
-        ]
-      }
+  describe "Policy breakdown in message (via ash_typescript config)" do
+    test "message is static when config not set" do
+      error = %Ash.Error.Forbidden.Policy{vars: []}
 
       [result] = Errors.to_errors(error)
 
-      assert result.policy_breakdown == [
-               %{
-                 check: ["Elixir.Ash.Policy.Check.Static", %{"result" => true}],
-                 type: "authorize_if"
-               }
-             ]
+      assert result.message == "forbidden"
     end
 
-    test "charlists in error data are converted to strings" do
-      error = %Ash.Error.Forbidden.Policy{
-        vars: [],
-        policy_breakdown?: true,
+    test "message contains formatted breakdown when ash_typescript config enabled" do
+      Application.put_env(:ash_typescript, :policies, show_policy_breakdowns?: true)
+
+      error = Ash.Error.Forbidden.Policy.exception(
+        resource: AshTypescript.Test.Todo,
+        action: :read,
         policies: [
-          %{
-            spark_metadata: %{
-              file: ~c"/some/path/to/file.ex",
-              location: 42
-            }
-          }
-        ]
-      }
-
-      [result] = Errors.to_errors(error)
-
-      assert result.policy_breakdown == [
-               %{
-                 spark_metadata: %{
-                   file: "/some/path/to/file.ex",
-                   location: 42
-                 }
-               }
-             ]
-    end
-
-    test "deeply nested tuples and charlists are serialized recursively" do
-      error = %Ash.Error.Forbidden.Policy{
-        vars: [],
-        policy_breakdown?: true,
-        policies: [
-          %{
-            condition: %{
-              "elixir.SomeCheck" => %{
-                check_opts: {SomeModule, [key: ~c"value"]}
+          %Ash.Policy.Policy{
+            description: "Only admins can read",
+            condition: [{Ash.Policy.Check.Expression, [expr: true]}],
+            policies: [
+              %Ash.Policy.Check{
+                check: {Ash.Policy.Check.Expression, [expr: {:_actor, :role}]},
+                check_module: Ash.Policy.Check.Expression,
+                check_opts: [expr: {:_actor, :role}],
+                type: :authorize_if
               }
-            }
+            ],
+            bypass?: false,
+            access_type: :strict
           }
-        ]
-      }
+        ],
+        facts: %{
+          {Ash.Policy.Check.Expression, [expr: true]} => true,
+          {Ash.Policy.Check.Expression, [expr: {:_actor, :role}]} => false
+        },
+        must_pass_strict_check?: false
+      )
 
       [result] = Errors.to_errors(error)
 
-      condition = hd(result.policy_breakdown)[:condition]
-      check_opts = condition["elixir.SomeCheck"][:check_opts]
-
-      # Tuple becomes list, module atom becomes string, charlist becomes string
-      assert check_opts == ["Elixir.SomeModule", %{"key" => "value"}]
+      assert result.message =~ "Only admins can read"
+      assert result.message =~ "Policy Breakdown"
+    after
+      Application.delete_env(:ash_typescript, :policies)
     end
 
-    test "policy breakdown without policy_breakdown? flag is excluded" do
-      error = %Ash.Error.Forbidden.Policy{
-        vars: [],
-        policy_breakdown?: false
-      }
+    test "policy error with breakdown can be encoded to JSON" do
+      Application.put_env(:ash_typescript, :policies, show_policy_breakdowns?: true)
 
-      [result] = Errors.to_errors(error)
-
-      refute Map.has_key?(result, :policy_breakdown)
-    end
-
-    test "pids and references in error data are inspected" do
-      pid = self()
-
-      error = %Ash.Error.Forbidden.Policy{
-        vars: [],
-        policy_breakdown?: true,
-        policies: [%{pid: pid}]
-      }
-
-      [result] = Errors.to_errors(error)
-
-      assert result.policy_breakdown == [%{pid: inspect(pid)}]
-    end
-
-    test "entire error can be encoded to JSON" do
-      error = %Ash.Error.Forbidden.Policy{
-        vars: [],
-        policy_breakdown?: true,
-        policies: [
-          %{
-            check: {Ash.Policy.Check.Static, [result: true]},
-            type: :authorize_if,
-            spark_metadata: %{
-              file: ~c"/some/path.ex",
-              location: 42
-            }
-          }
-        ]
-      }
+      error = Ash.Error.Forbidden.Policy.exception(
+        resource: AshTypescript.Test.Todo,
+        action: :read,
+        policies: [],
+        facts: %{},
+        must_pass_strict_check?: false
+      )
 
       [result] = Errors.to_errors(error)
 
       assert {:ok, _json} = Jason.encode(result)
+    after
+      Application.delete_env(:ash_typescript, :policies)
     end
   end
 end
