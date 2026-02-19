@@ -12,6 +12,7 @@ defmodule AshTypescript.Test.ControllerResourceTestRouter do
   scope "/" do
     get("/auth", AshTypescript.Test.SessionController, :auth)
     get("/auth/providers/:provider", AshTypescript.Test.SessionController, :provider_page)
+    get("/search", AshTypescript.Test.SessionController, :search)
     post("/auth/login", AshTypescript.Test.SessionController, :login)
     post("/auth/logout", AshTypescript.Test.SessionController, :logout)
     patch("/auth/providers/:provider", AshTypescript.Test.SessionController, :update_provider)

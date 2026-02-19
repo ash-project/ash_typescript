@@ -11,6 +11,7 @@ defmodule AshTypescript.Test.ControllerResourceMultiMountRouter do
   scope "/admin", as: :admin do
     get("/auth", AshTypescript.Test.SessionController, :auth)
     get("/auth/providers/:provider", AshTypescript.Test.SessionController, :provider_page)
+    get("/search", AshTypescript.Test.SessionController, :search)
     post("/auth/login", AshTypescript.Test.SessionController, :login)
     post("/auth/logout", AshTypescript.Test.SessionController, :logout)
     patch("/auth/providers/:provider", AshTypescript.Test.SessionController, :update_provider)
@@ -20,6 +21,7 @@ defmodule AshTypescript.Test.ControllerResourceMultiMountRouter do
   scope "/app", as: :app do
     get("/auth", AshTypescript.Test.SessionController, :auth)
     get("/auth/providers/:provider", AshTypescript.Test.SessionController, :provider_page)
+    get("/search", AshTypescript.Test.SessionController, :search)
     post("/auth/login", AshTypescript.Test.SessionController, :login)
     post("/auth/logout", AshTypescript.Test.SessionController, :logout)
     patch("/auth/providers/:provider", AshTypescript.Test.SessionController, :update_provider)

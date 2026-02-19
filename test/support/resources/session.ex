@@ -21,6 +21,14 @@ defmodule AshTypescript.Test.Session do
       method :get
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "ProviderPage") end
       argument :provider, :string
+      argument :tab, :string
+    end
+
+    route :search do
+      method :get
+      run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Search") end
+      argument :q, :string, allow_nil?: false
+      argument :page, :integer
     end
 
     route :login do
@@ -38,6 +46,7 @@ defmodule AshTypescript.Test.Session do
     route :update_provider do
       method :patch
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "ProviderUpdated") end
+      argument :provider, :string
       argument :enabled, :boolean, allow_nil?: false
       argument :display_name, :string
     end
