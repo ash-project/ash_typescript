@@ -75,31 +75,32 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
     test "Forbidden policy error includes breakdown in message when ash_typescript config enabled" do
       Application.put_env(:ash_typescript, :policies, show_policy_breakdowns?: true)
 
-      error = Ash.Error.Forbidden.Policy.exception(
-        resource: AshTypescript.Test.Todo,
-        action: :read,
-        policies: [
-          %Ash.Policy.Policy{
-            description: "Only admins can read",
-            condition: [{Ash.Policy.Check.Expression, [expr: true]}],
-            policies: [
-              %Ash.Policy.Check{
-                check: {Ash.Policy.Check.Expression, [expr: {:_actor, :role}]},
-                check_module: Ash.Policy.Check.Expression,
-                check_opts: [expr: {:_actor, :role}],
-                type: :authorize_if
-              }
-            ],
-            bypass?: false,
-            access_type: :strict
-          }
-        ],
-        facts: %{
-          {Ash.Policy.Check.Expression, [expr: true]} => true,
-          {Ash.Policy.Check.Expression, [expr: {:_actor, :role}]} => false
-        },
-        must_pass_strict_check?: false
-      )
+      error =
+        Ash.Error.Forbidden.Policy.exception(
+          resource: AshTypescript.Test.Todo,
+          action: :read,
+          policies: [
+            %Ash.Policy.Policy{
+              description: "Only admins can read",
+              condition: [{Ash.Policy.Check.Expression, [expr: true]}],
+              policies: [
+                %Ash.Policy.Check{
+                  check: {Ash.Policy.Check.Expression, [expr: {:_actor, :role}]},
+                  check_module: Ash.Policy.Check.Expression,
+                  check_opts: [expr: {:_actor, :role}],
+                  type: :authorize_if
+                }
+              ],
+              bypass?: false,
+              access_type: :strict
+            }
+          ],
+          facts: %{
+            {Ash.Policy.Check.Expression, [expr: true]} => true,
+            {Ash.Policy.Check.Expression, [expr: {:_actor, :role}]} => false
+          },
+          must_pass_strict_check?: false
+        )
 
       result = Error.to_error(error)
 
@@ -116,21 +117,22 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
       # Ensure the global Ash config being enabled does NOT leak through
       Application.put_env(:ash, :policies, show_policy_breakdowns?: true)
 
-      error = Ash.Error.Forbidden.Policy.exception(
-        resource: AshTypescript.Test.Todo,
-        action: :read,
-        policies: [
-          %Ash.Policy.Policy{
-            description: "secret policy",
-            condition: [{Ash.Policy.Check.Expression, [expr: true]}],
-            policies: [],
-            bypass?: false,
-            access_type: :strict
-          }
-        ],
-        facts: %{{Ash.Policy.Check.Expression, [expr: true]} => true},
-        must_pass_strict_check?: false
-      )
+      error =
+        Ash.Error.Forbidden.Policy.exception(
+          resource: AshTypescript.Test.Todo,
+          action: :read,
+          policies: [
+            %Ash.Policy.Policy{
+              description: "secret policy",
+              condition: [{Ash.Policy.Check.Expression, [expr: true]}],
+              policies: [],
+              bypass?: false,
+              access_type: :strict
+            }
+          ],
+          facts: %{{Ash.Policy.Check.Expression, [expr: true]} => true},
+          must_pass_strict_check?: false
+        )
 
       result = Error.to_error(error)
 
@@ -378,31 +380,32 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
     test "message contains formatted breakdown when ash_typescript config enabled" do
       Application.put_env(:ash_typescript, :policies, show_policy_breakdowns?: true)
 
-      error = Ash.Error.Forbidden.Policy.exception(
-        resource: AshTypescript.Test.Todo,
-        action: :read,
-        policies: [
-          %Ash.Policy.Policy{
-            description: "Only admins can read",
-            condition: [{Ash.Policy.Check.Expression, [expr: true]}],
-            policies: [
-              %Ash.Policy.Check{
-                check: {Ash.Policy.Check.Expression, [expr: {:_actor, :role}]},
-                check_module: Ash.Policy.Check.Expression,
-                check_opts: [expr: {:_actor, :role}],
-                type: :authorize_if
-              }
-            ],
-            bypass?: false,
-            access_type: :strict
-          }
-        ],
-        facts: %{
-          {Ash.Policy.Check.Expression, [expr: true]} => true,
-          {Ash.Policy.Check.Expression, [expr: {:_actor, :role}]} => false
-        },
-        must_pass_strict_check?: false
-      )
+      error =
+        Ash.Error.Forbidden.Policy.exception(
+          resource: AshTypescript.Test.Todo,
+          action: :read,
+          policies: [
+            %Ash.Policy.Policy{
+              description: "Only admins can read",
+              condition: [{Ash.Policy.Check.Expression, [expr: true]}],
+              policies: [
+                %Ash.Policy.Check{
+                  check: {Ash.Policy.Check.Expression, [expr: {:_actor, :role}]},
+                  check_module: Ash.Policy.Check.Expression,
+                  check_opts: [expr: {:_actor, :role}],
+                  type: :authorize_if
+                }
+              ],
+              bypass?: false,
+              access_type: :strict
+            }
+          ],
+          facts: %{
+            {Ash.Policy.Check.Expression, [expr: true]} => true,
+            {Ash.Policy.Check.Expression, [expr: {:_actor, :role}]} => false
+          },
+          must_pass_strict_check?: false
+        )
 
       [result] = Errors.to_errors(error)
 
@@ -415,13 +418,14 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
     test "policy error with breakdown can be encoded to JSON" do
       Application.put_env(:ash_typescript, :policies, show_policy_breakdowns?: true)
 
-      error = Ash.Error.Forbidden.Policy.exception(
-        resource: AshTypescript.Test.Todo,
-        action: :read,
-        policies: [],
-        facts: %{},
-        must_pass_strict_check?: false
-      )
+      error =
+        Ash.Error.Forbidden.Policy.exception(
+          resource: AshTypescript.Test.Todo,
+          action: :read,
+          policies: [],
+          facts: %{},
+          must_pass_strict_check?: false
+        )
 
       [result] = Errors.to_errors(error)
 
