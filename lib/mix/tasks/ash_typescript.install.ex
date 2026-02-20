@@ -48,6 +48,16 @@ if Code.ensure_loaded?(Igniter) do
           igniter
         end
 
+      igniter =
+        if use_inertia and framework == "solid" do
+          Igniter.add_issue(
+            igniter,
+            "Solid is not currently supported with --inertia. Use --framework react, react18, vue, or svelte for Inertia, or use Solid without --inertia."
+          )
+        else
+          igniter
+        end
+
       # Store of args for use after fresh igniter
       args = igniter.args
 
@@ -86,6 +96,11 @@ if Code.ensure_loaded?(Igniter) do
           {nil, _} ->
             igniter
 
+          {"solid", true} ->
+            # Solid + Inertia is explicitly unsupported. We add an issue above and
+            # intentionally skip the inertia setup pipeline to avoid runtime crashes.
+            igniter
+
           {framework, true} ->
             # Inertia flow: separate entry point, layout, controller, and routes
             igniter
@@ -121,8 +136,8 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp setup_framework_bundler(igniter, app_name, "esbuild", use_bun, framework)
-         when framework in ["vue", "svelte"] do
-      # Vue and Svelte need custom build scripts with esbuild plugins
+         when framework in ["vue", "svelte", "solid"] do
+      # Vue, Svelte, and Solid need custom build scripts with esbuild plugins
       igniter
       |> create_esbuild_script(framework)
       |> update_esbuild_config_with_script(app_name, use_bun, framework)
@@ -136,8 +151,8 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp setup_framework_bundler(igniter, _app_name, "vite", _use_bun, framework)
-         when framework in ["vue", "svelte"] do
-      # Add vite plugins for Vue/Svelte
+         when framework in ["vue", "svelte", "solid"] do
+      # Add vite plugins for Vue/Svelte/Solid
       igniter
       |> update_vite_config_with_framework(framework)
     end
@@ -168,10 +183,13 @@ if Code.ensure_loaded?(Igniter) do
         "svelte" ->
           igniter
 
+        "solid" ->
+          igniter
+
         invalid_framework ->
           Igniter.add_issue(
             igniter,
-            "Invalid framework '#{invalid_framework}'. Currently supported frameworks: react, react18, vue, svelte"
+            "Invalid framework '#{invalid_framework}'. Currently supported frameworks: react, react18, vue, svelte, solid"
           )
       end
     end
@@ -354,7 +372,11 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp create_package_json(igniter, "vite", framework) do
-      update_package_json_with_framework(igniter, framework, "vite")
+      igniter
+      |> Igniter.create_or_update_file("assets/package.json", "{}\n", fn source ->
+        source
+      end)
+      |> update_package_json_with_framework(framework, "vite")
     end
 
     defp create_package_json(igniter, bundler, framework) do
@@ -430,6 +452,30 @@ if Code.ensure_loaded?(Igniter) do
         },
         dev_dependencies: %{
           "esbuild-svelte" => "^0.9.3"
+        }
+      }
+    end
+
+    defp get_framework_deps("solid", "vite") do
+      %{
+        dependencies: %{
+          "@tanstack/solid-query" => "^5.89.0",
+          "solid-js" => "^1.9.9"
+        },
+        dev_dependencies: %{
+          "vite-plugin-solid" => "^2.11.9"
+        }
+      }
+    end
+
+    defp get_framework_deps("solid", _bundler) do
+      %{
+        dependencies: %{
+          "@tanstack/solid-query" => "^5.89.0",
+          "solid-js" => "^1.9.9"
+        },
+        dev_dependencies: %{
+          "esbuild-plugin-solid" => "^0.6.0"
         }
       }
     end
@@ -644,21 +690,62 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.create_new_file("assets/js/index.ts", svelte_index_content, on_exists: :warning)
     end
 
+    defp create_index_page(igniter, "solid") do
+      page_body = get_solid_page_body()
+
+      solid_index_content = """
+      import { onMount } from "solid-js";
+      import { render } from "solid-js/web";
+
+      declare global {
+        interface Window {
+          Prism: any;
+        }
+      }
+
+      const App = () => {
+        onMount(() => {
+          if (window.Prism) {
+            window.Prism.highlightAll();
+          }
+        });
+
+        return (
+      #{page_body}
+        );
+      };
+
+      render(() => <App />, document.getElementById("app")!);
+      """
+
+      igniter
+      |> Igniter.create_new_file("assets/js/index.tsx", solid_index_content, on_exists: :warning)
+    end
+
     defp update_tsconfig(igniter, framework) do
       igniter
       |> Igniter.update_file("assets/tsconfig.json", fn source ->
         content = source.content
 
-        needs_jsx =
-          framework in ["react", "react18"] and not String.contains?(content, ~s("jsx":))
+        jsx_setting =
+          case framework do
+            f when f in ["react", "react18"] -> "react-jsx"
+            "solid" -> "preserve"
+            _ -> nil
+          end
+
+        needs_jsx = jsx_setting && not String.contains?(content, ~s("jsx":))
+
+        needs_jsx_import_source =
+          framework == "solid" and not String.contains?(content, ~s("jsxImportSource":))
 
         needs_interop = not String.contains?(content, ~s("esModuleInterop":))
 
-        if needs_jsx or needs_interop do
+        if needs_jsx or needs_jsx_import_source or needs_interop do
           updated_content = content
 
           updated_content =
-            if needs_jsx or needs_interop do
+            if needs_jsx or needs_jsx_import_source or needs_interop do
               case Regex.run(~r/"compilerOptions":\s*\{/, updated_content, return: :index) do
                 [{start, length}] ->
                   insertion_point = start + length
@@ -669,7 +756,12 @@ if Code.ensure_loaded?(Igniter) do
 
                   options_to_add =
                     if needs_jsx,
-                      do: [~s(\n    "jsx": "react-jsx",) | options_to_add],
+                      do: [~s(\n    "jsx": "#{jsx_setting}",) | options_to_add],
+                      else: options_to_add
+
+                  options_to_add =
+                    if needs_jsx_import_source,
+                      do: [~s(\n    "jsxImportSource": "solid-js",) | options_to_add],
                       else: options_to_add
 
                   options_to_add =
@@ -790,6 +882,7 @@ if Code.ensure_loaded?(Igniter) do
 
     defp get_entry_file("react"), do: "js/index.tsx"
     defp get_entry_file("react18"), do: "js/index.tsx"
+    defp get_entry_file("solid"), do: "js/index.tsx"
     defp get_entry_file("vue"), do: "js/index.ts"
     defp get_entry_file("svelte"), do: "js/index.ts"
     defp get_entry_file(_), do: "js/index.ts"
@@ -894,6 +987,67 @@ if Code.ensure_loaded?(Igniter) do
         nodePaths: ["../deps", ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : [])],
         mainFields: ["svelte", "browser", "module", "main"],
         conditions: ["svelte", "browser"],
+        splitting: true,
+        format: "esm",
+      };
+
+      if (deploy) {
+        opts = {
+          ...opts,
+          minify: true,
+        };
+      }
+
+      if (watch) {
+        opts = {
+          ...opts,
+          sourcemap: "linked",
+        };
+        esbuild.context(opts).then((ctx) => {
+          ctx.watch();
+        });
+      } else {
+        esbuild.build(opts);
+      }
+      """
+
+      igniter
+      |> Igniter.create_new_file("assets/build.js", build_script, on_exists: :warning)
+    end
+
+    defp create_esbuild_script(igniter, "solid") do
+      build_script = """
+      const esbuild = require("esbuild");
+      const { solidPlugin } = require("esbuild-plugin-solid");
+      const path = require("path");
+
+      const args = process.argv.slice(2);
+      const watch = args.includes("--watch");
+      const deploy = args.includes("--deploy");
+
+      const loader = {
+        ".js": "js",
+        ".ts": "ts",
+        ".tsx": "tsx",
+        ".css": "css",
+        ".json": "json",
+        ".svg": "file",
+        ".png": "file",
+        ".jpg": "file",
+        ".gif": "file",
+      };
+
+      const plugins = [solidPlugin()];
+
+      let opts = {
+        entryPoints: ["js/index.tsx", "js/app.js"],
+        bundle: true,
+        target: "es2020",
+        outdir: "../priv/static/assets",
+        logLevel: "info",
+        loader,
+        plugins,
+        nodePaths: ["../deps", ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : [])],
         splitting: true,
         format: "esm",
       };
@@ -1116,6 +1270,33 @@ if Code.ensure_loaded?(Igniter) do
               ~s|plugins: [\n    react(),|
             )
             # Add js/index.tsx to vite input for production builds
+            |> String.replace(
+              ~s|input: ["js/app.js"|,
+              ~s|input: ["js/index.tsx", "js/app.js"|
+            )
+
+          Rewrite.Source.update(source, :content, updated_content)
+        end
+      end)
+    end
+
+    defp update_vite_config_with_framework(igniter, "solid") do
+      Igniter.update_file(igniter, "assets/vite.config.mjs", fn source ->
+        content = source.content
+
+        if String.contains?(content, "vite-plugin-solid") do
+          source
+        else
+          updated_content =
+            content
+            |> String.replace(
+              ~s|import { defineConfig } from 'vite'|,
+              ~s|import { defineConfig } from 'vite'\nimport solid from 'vite-plugin-solid'|
+            )
+            |> String.replace(
+              ~s|plugins: [|,
+              ~s|plugins: [\n    solid(),|
+            )
             |> String.replace(
               ~s|input: ["js/app.js"|,
               ~s|input: ["js/index.tsx", "js/app.js"|
@@ -2596,6 +2777,12 @@ if Code.ensure_loaded?(Igniter) do
       """
     end
 
+    # Solid page body content (JSX only, no component wrapper)
+    defp get_solid_page_body do
+      get_react_page_body()
+      |> String.replace("className=", "class=")
+    end
+
     # Vue page script and template content
     defp get_vue_page_content do
       script_content = """
@@ -2969,7 +3156,9 @@ if Code.ensure_loaded?(Igniter) do
         if framework in ["react", "react18"], do: "inertia.tsx", else: "inertia.ts"
 
       inertia_page_file =
-        if framework in ["react", "react18"], do: "pages/App.tsx", else: "pages/App.#{framework}"
+        if framework in ["react", "react18"],
+          do: "pages/App.tsx",
+          else: "pages/App.#{framework}"
 
       base_notice = """
       AshTypescript has been successfully installed!
@@ -2990,11 +3179,11 @@ if Code.ensure_loaded?(Igniter) do
         Your Phoenix + #{name} + TypeScript + Vite setup is ready!
 
         Files created:
-        - spa_root.html.heex: Layout for SPA pages (loads index.js + app.css)
+        - spa_root.html.heex: Layout for SPA pages (loads js/index.tsx + app.css)
         - PageController: Uses put_root_layout to switch to spa_root layout
 
         The root.html.heex layout loads app.js + app.css for LiveView pages.
-        The spa_root.html.heex layout loads index.js + app.css for SPA pages.
+        The spa_root.html.heex layout loads js/index.tsx + app.css for SPA pages.
 
         Next Steps:
         1. Configure your domain with the AshTypescript.Rpc extension
@@ -3013,11 +3202,11 @@ if Code.ensure_loaded?(Igniter) do
         Your Phoenix + #{name} + TypeScript + esbuild setup is ready!
 
         Files created:
-        - spa_root.html.heex: Layout for SPA pages (loads index.js as ES module)
+        - spa_root.html.heex: Layout for SPA pages (loads js/index.tsx as ES module)
         - PageController: Uses put_root_layout to switch to spa_root layout
 
         The root.html.heex layout loads app.js + app.css for LiveView pages.
-        The spa_root.html.heex layout loads index.js as ES module for SPA pages.
+        The spa_root.html.heex layout loads js/index.tsx as ES module for SPA pages.
 
         Next Steps:
         1. Configure your domain with the AshTypescript.Rpc extension
@@ -3088,6 +3277,7 @@ if Code.ensure_loaded?(Igniter) do
                 "react18" -> "React 18"
                 "vue" -> "Vue"
                 "svelte" -> "Svelte"
+                "solid" -> "Solid"
                 _ -> "React"
               end
 
@@ -3107,6 +3297,9 @@ if Code.ensure_loaded?(Igniter) do
           {"svelte", "vite", _} ->
             framework_notice_vite.("Svelte")
 
+          {"solid", "vite", _} ->
+            framework_notice_vite.("Solid")
+
           {"react", _, _} ->
             framework_notice_esbuild.("React")
 
@@ -3119,6 +3312,9 @@ if Code.ensure_loaded?(Igniter) do
           {"svelte", _, _} ->
             framework_notice_esbuild.("Svelte")
 
+          {"solid", _, _} ->
+            framework_notice_esbuild.("Solid")
+
           _ ->
             base_notice
         end
@@ -3126,7 +3322,7 @@ if Code.ensure_loaded?(Igniter) do
       # Run assets.setup to install npm dependencies (including framework deps we added)
       # For both esbuild and vite, we need to run this since we add framework deps to package.json
       igniter =
-        if framework in ["react", "react18", "vue", "svelte"] do
+        if framework in ["react", "react18", "vue", "svelte", "solid"] do
           Igniter.add_task(igniter, "assets.setup")
         else
           igniter
