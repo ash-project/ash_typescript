@@ -925,6 +925,7 @@ if Code.ensure_loaded?(Igniter) do
         loader,
         plugins,
         nodePaths: ["../deps", ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : [])],
+        external: ["/fonts/*", "/images/*", "phoenix-colocated/*"],
         splitting: true,
         format: "esm",
       };
@@ -990,6 +991,7 @@ if Code.ensure_loaded?(Igniter) do
         loader,
         plugins,
         nodePaths: ["../deps", ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : [])],
+        external: ["/fonts/*", "/images/*", "phoenix-colocated/*"],
         mainFields: ["svelte", "browser", "module", "main"],
         conditions: ["svelte", "browser"],
         splitting: true,
@@ -1053,6 +1055,7 @@ if Code.ensure_loaded?(Igniter) do
         loader,
         plugins,
         nodePaths: ["../deps", ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : [])],
+        external: ["/fonts/*", "/images/*", "phoenix-colocated/*"],
         splitting: true,
         format: "esm",
       };
