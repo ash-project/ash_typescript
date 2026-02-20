@@ -361,20 +361,18 @@ if Code.ensure_loaded?(Igniter) do
       # For esbuild, ensure package.json exists with Phoenix deps,
       # then merge in framework-specific deps
       base_package_json =
-        Jason.encode!(
-          %{
-            "dependencies" => %{
-              "phoenix" => "file:../deps/phoenix",
-              "phoenix_html" => "file:../deps/phoenix_html",
-              "phoenix_live_view" => "file:../deps/phoenix_live_view",
-              "topbar" => "^3.0.0"
-            },
-            "devDependencies" => %{
-              "daisyui" => "^5.0.0"
-            }
+        %{
+          "dependencies" => %{
+            "phoenix" => "file:../deps/phoenix",
+            "phoenix_html" => "file:../deps/phoenix_html",
+            "phoenix_live_view" => "file:../deps/phoenix_live_view",
+            "topbar" => "^3.0.0"
           },
-          pretty: true
-        )
+          "devDependencies" => %{
+            "daisyui" => "^5.0.0"
+          }
+        }
+        |> encode_pretty_json()
 
       igniter
       |> Igniter.create_or_update_file("assets/package.json", base_package_json, fn source ->
@@ -531,76 +529,39 @@ if Code.ensure_loaded?(Igniter) do
     defp update_package_json_with_framework(igniter, framework, bundler) do
       deps = get_framework_deps(framework, bundler)
 
-      igniter
-      |> Igniter.update_file("assets/package.json", fn source ->
-        content = source.content
-
-        dev_deps_string =
-          deps.dev_dependencies
-          |> Enum.map(fn {k, v} -> ~s|"#{k}": "#{v}"| end)
-          |> Enum.join(",\n")
-
-        deps_string =
-          deps.dependencies
-          |> Enum.map(fn {k, v} -> ~s|"#{k}": "#{v}"| end)
-          |> Enum.join(",\n")
-
-        updated_content =
-          content
-          |> merge_json_deps("devDependencies", dev_deps_string)
-          |> merge_json_deps("dependencies", deps_string)
-
-        Rewrite.Source.update(source, :content, updated_content)
+      update_package_json(igniter, fn package_json ->
+        package_json
+        |> merge_package_section("dependencies", deps.dependencies)
+        |> merge_package_section("devDependencies", deps.dev_dependencies)
       end)
     end
 
-    defp merge_json_deps(content, section, new_deps) do
-      section_start = "\"#{section}\""
+    defp update_package_json(igniter, updater) do
+      Igniter.update_file(igniter, "assets/package.json", fn source ->
+        case Jason.decode(source.content) do
+          {:ok, package_json} ->
+            updated_package_json = updater.(package_json)
 
-      cond do
-        String.contains?(content, section_start) ->
-          # Section exists, extract its content and merge deps
-          [before, rest] = String.split(content, section_start, parts: 2)
-
-          # Skip ": {" and find matching closing brace
-          [_colon, rest_after_colon] = String.split(rest, "{", parts: 2)
-          {inner_content, after_section} = extract_balanced(rest_after_colon, 1, "")
-
-          # Merge deps - trim whitespace and handle proper comma placement
-          trimmed_inner = String.trim(inner_content)
-
-          merged_inner =
-            if trimmed_inner == "" do
-              "\n    " <> new_deps <> "\n  "
+            if updated_package_json == package_json do
+              source
             else
-              # Remove trailing whitespace before the closing brace and add new deps
-              trimmed_inner <> ",\n    " <> new_deps <> "\n  "
+              Rewrite.Source.update(source, :content, encode_pretty_json(updated_package_json))
             end
 
-          before <> section_start <> ": {" <> merged_inner <> "}" <> after_section
-
-        true ->
-          # Section doesn't exist, append it to object
-          content
-          |> String.replace(~s({}), ~s({ "#{section}": {#{new_deps}}, ))
-      end
+          {:error, _error} ->
+            source
+        end
+      end)
     end
 
-    defp extract_balanced("", 0, acc), do: {acc, ""}
+    defp merge_package_section(package_json, section, deps) when is_map(deps) do
+      current_deps = Map.get(package_json, section, %{})
+      Map.put(package_json, section, Map.merge(current_deps, deps))
+    end
 
-    defp extract_balanced("", _depth, acc), do: {acc, ""}
-
-    defp extract_balanced("{" <> rest, depth, acc),
-      do: extract_balanced(rest, depth + 1, acc <> "{")
-
-    defp extract_balanced("}" <> rest, 1, acc),
-      do: {acc, rest}
-
-    defp extract_balanced("}" <> rest, depth, acc),
-      do: extract_balanced(rest, depth - 1, acc <> "}")
-
-    defp extract_balanced(<<c::utf8, rest::binary>>, depth, acc),
-      do: extract_balanced(rest, depth, acc <> <<c::utf8>>)
+    defp encode_pretty_json(data) do
+      Jason.encode!(data, pretty: true) <> "\n"
+    end
 
     defp create_index_page(igniter, "react18"), do: create_index_page(igniter, "react")
 
@@ -618,7 +579,7 @@ if Code.ensure_loaded?(Igniter) do
         }
       }
 
-      export default function AshTypescriptGuide() {
+      export default function App() {
         React.useEffect(() => {
           // Trigger Prism highlighting after component mounts
           if (window.Prism) {
@@ -635,7 +596,7 @@ if Code.ensure_loaded?(Igniter) do
 
       root.render(
         <React.StrictMode>
-          <AshTypescriptGuide />
+          <App />
         </React.StrictMode>,
       );
       """
@@ -1005,16 +966,8 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp add_esbuild_npm_dep(igniter) do
-      Igniter.update_file(igniter, "assets/package.json", fn source ->
-        content = source.content
-
-        # Add esbuild as a devDependency if not already present
-        if String.contains?(content, "\"esbuild\"") do
-          source
-        else
-          updated_content = merge_json_deps(content, "devDependencies", ~s|"esbuild": "^0.24.0"|)
-          Rewrite.Source.update(source, :content, updated_content)
-        end
+      update_package_json(igniter, fn package_json ->
+        merge_package_section(package_json, "devDependencies", %{"esbuild" => "^0.24.0"})
       end)
     end
 
@@ -1173,6 +1126,23 @@ if Code.ensure_loaded?(Igniter) do
       end)
     end
 
+    defp render_install_template(template_name, replacements \\ %{}) do
+      priv_dir =
+        case :code.priv_dir(:ash_typescript) do
+          path when is_list(path) -> to_string(path)
+          {:error, _reason} -> Path.expand("../../../priv", __DIR__)
+        end
+
+      template =
+        priv_dir
+        |> Path.join("templates/install/#{template_name}")
+        |> File.read!()
+
+      Enum.reduce(replacements, template, fn {placeholder, value}, acc ->
+        String.replace(acc, placeholder, value)
+      end)
+    end
+
     # Create spa_root.html.heex layout for vite + react (includes React Refresh preamble)
     defp create_spa_root_layout(igniter, web_module, "vite", framework)
          when framework in ["react", "react18"] do
@@ -1181,46 +1151,11 @@ if Code.ensure_loaded?(Igniter) do
       web_path = Macro.underscore(clean_web_module)
       layout_path = "lib/#{web_path}/components/layouts/spa_root.html.heex"
 
-      # Use String.replace to insert dynamic values after creating the template
       layout_content =
-        """
-        <!DOCTYPE html>
-        <html lang="en">
-          <head>
-            <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <.live_title default="AshTypescript">Page</.live_title>
-            <link
-              href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
-              rel="stylesheet"
-            />
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js">
-            </script>
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js">
-            </script>
-            <%= if PhoenixVite.Components.has_vite_watcher?(__WEB_MODULE__.Endpoint) do %>
-              <script type="module">
-                import RefreshRuntime from "http://localhost:5173/@react-refresh";
-                RefreshRuntime.injectIntoGlobalHook(window);
-                window.$RefreshReg$ = () => {};
-                window.$RefreshSig$ = () => (type) => type;
-                window.__vite_plugin_react_preamble_installed__ = true;
-              </script>
-            <% end %>
-            <PhoenixVite.Components.assets
-              names={["js/index.js", "css/app.css"]}
-              manifest={{:__APP_NAME__, "priv/static/.vite/manifest.json"}}
-              dev_server={PhoenixVite.Components.has_vite_watcher?(__WEB_MODULE__.Endpoint)}
-              to_url={fn p -> static_url(@conn, p) end}
-            />
-          </head>
-          <body>
-            {@inner_content}
-          </body>
-        </html>
-        """
-        |> String.replace("__WEB_MODULE__", clean_web_module)
-        |> String.replace("__APP_NAME__", to_string(app_name))
+        render_install_template("spa_root_vite_react.html.heex", %{
+          "__WEB_MODULE__" => clean_web_module,
+          "__APP_NAME__" => to_string(app_name)
+        })
 
       igniter
       |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
@@ -1234,35 +1169,10 @@ if Code.ensure_loaded?(Igniter) do
       layout_path = "lib/#{web_path}/components/layouts/spa_root.html.heex"
 
       layout_content =
-        """
-        <!DOCTYPE html>
-        <html lang="en">
-          <head>
-            <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <.live_title default="AshTypescript">Page</.live_title>
-            <link
-              href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
-              rel="stylesheet"
-            />
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js">
-            </script>
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js">
-            </script>
-            <PhoenixVite.Components.assets
-              names={["js/index.js", "css/app.css"]}
-              manifest={{:__APP_NAME__, "priv/static/.vite/manifest.json"}}
-              dev_server={PhoenixVite.Components.has_vite_watcher?(__WEB_MODULE__.Endpoint)}
-              to_url={fn p -> static_url(@conn, p) end}
-            />
-          </head>
-          <body>
-            {@inner_content}
-          </body>
-        </html>
-        """
-        |> String.replace("__WEB_MODULE__", clean_web_module)
-        |> String.replace("__APP_NAME__", to_string(app_name))
+        render_install_template("spa_root_vite.html.heex", %{
+          "__WEB_MODULE__" => clean_web_module,
+          "__APP_NAME__" => to_string(app_name)
+        })
 
       igniter
       |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
@@ -1274,31 +1184,7 @@ if Code.ensure_loaded?(Igniter) do
       web_path = Macro.underscore(clean_web_module)
       layout_path = "lib/#{web_path}/components/layouts/spa_root.html.heex"
 
-      layout_content =
-        """
-        <!DOCTYPE html>
-        <html lang="en">
-          <head>
-            <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <.live_title default="AshTypescript">Page</.live_title>
-            <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
-            <link
-              href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
-              rel="stylesheet"
-            />
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js">
-            </script>
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js">
-            </script>
-          </head>
-          <body>
-            {@inner_content}
-            <script defer phx-track-static type="module" src={~p"/assets/index.js"}>
-            </script>
-          </body>
-        </html>
-        """
+      layout_content = render_install_template("spa_root_esbuild.html.heex")
 
       igniter
       |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
@@ -1629,17 +1515,8 @@ if Code.ensure_loaded?(Igniter) do
     defp add_inertia_deps(igniter, framework) do
       inertia_pkg = get_inertia_npm_package(framework)
 
-      Igniter.update_file(igniter, "assets/package.json", fn source ->
-        content = source.content
-
-        if String.contains?(content, inertia_pkg) do
-          source
-        else
-          updated_content =
-            merge_json_deps(content, "dependencies", ~s|"#{inertia_pkg}": "^2.0.0"|)
-
-          Rewrite.Source.update(source, :content, updated_content)
-        end
+      update_package_json(igniter, fn package_json ->
+        merge_package_section(package_json, "dependencies", %{inertia_pkg => "^2.0.0"})
       end)
     end
 
@@ -2145,46 +2022,10 @@ if Code.ensure_loaded?(Igniter) do
       layout_path = "lib/#{web_path}/components/layouts/inertia_root.html.heex"
 
       layout_content =
-        """
-        <!DOCTYPE html>
-        <html lang="en">
-          <head>
-            <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <meta name="csrf-token" content={get_csrf_token()} />
-            <.inertia_title>{assigns[:page_title]}</.inertia_title>
-            <.inertia_head content={@inertia_head} />
-            <link
-              href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
-              rel="stylesheet"
-            />
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js">
-            </script>
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js">
-            </script>
-            <%= if PhoenixVite.Components.has_vite_watcher?(__WEB_MODULE__.Endpoint) do %>
-              <script type="module">
-                import RefreshRuntime from "http://localhost:5173/@react-refresh";
-                RefreshRuntime.injectIntoGlobalHook(window);
-                window.$RefreshReg$ = () => {};
-                window.$RefreshSig$ = () => (type) => type;
-                window.__vite_plugin_react_preamble_installed__ = true;
-              </script>
-            <% end %>
-            <PhoenixVite.Components.assets
-              names={["js/inertia.js", "css/app.css"]}
-              manifest={{:__APP_NAME__, "priv/static/.vite/manifest.json"}}
-              dev_server={PhoenixVite.Components.has_vite_watcher?(__WEB_MODULE__.Endpoint)}
-              to_url={fn p -> static_url(@conn, p) end}
-            />
-          </head>
-          <body>
-            {@inner_content}
-          </body>
-        </html>
-        """
-        |> String.replace("__WEB_MODULE__", clean_web_module)
-        |> String.replace("__APP_NAME__", to_string(app_name))
+        render_install_template("inertia_root_vite_react.html.heex", %{
+          "__WEB_MODULE__" => clean_web_module,
+          "__APP_NAME__" => to_string(app_name)
+        })
 
       igniter
       |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
@@ -2198,37 +2039,10 @@ if Code.ensure_loaded?(Igniter) do
       layout_path = "lib/#{web_path}/components/layouts/inertia_root.html.heex"
 
       layout_content =
-        """
-        <!DOCTYPE html>
-        <html lang="en">
-          <head>
-            <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <meta name="csrf-token" content={get_csrf_token()} />
-            <.inertia_title>{assigns[:page_title]}</.inertia_title>
-            <.inertia_head content={@inertia_head} />
-            <link
-              href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
-              rel="stylesheet"
-            />
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js">
-            </script>
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js">
-            </script>
-            <PhoenixVite.Components.assets
-              names={["js/inertia.js", "css/app.css"]}
-              manifest={{:__APP_NAME__, "priv/static/.vite/manifest.json"}}
-              dev_server={PhoenixVite.Components.has_vite_watcher?(__WEB_MODULE__.Endpoint)}
-              to_url={fn p -> static_url(@conn, p) end}
-            />
-          </head>
-          <body>
-            {@inner_content}
-          </body>
-        </html>
-        """
-        |> String.replace("__WEB_MODULE__", clean_web_module)
-        |> String.replace("__APP_NAME__", to_string(app_name))
+        render_install_template("inertia_root_vite.html.heex", %{
+          "__WEB_MODULE__" => clean_web_module,
+          "__APP_NAME__" => to_string(app_name)
+        })
 
       igniter
       |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
@@ -2240,33 +2054,7 @@ if Code.ensure_loaded?(Igniter) do
       web_path = Macro.underscore(clean_web_module)
       layout_path = "lib/#{web_path}/components/layouts/inertia_root.html.heex"
 
-      layout_content =
-        """
-        <!DOCTYPE html>
-        <html lang="en">
-          <head>
-            <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <meta name="csrf-token" content={get_csrf_token()} />
-            <.inertia_title>{assigns[:page_title]}</.inertia_title>
-            <.inertia_head content={@inertia_head} />
-            <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
-            <link
-              href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
-              rel="stylesheet"
-            />
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js">
-            </script>
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js">
-            </script>
-          </head>
-          <body>
-            {@inner_content}
-            <script defer phx-track-static type="module" src={~p"/assets/inertia.js"}>
-            </script>
-          </body>
-        </html>
-        """
+      layout_content = render_install_template("inertia_root_esbuild.html.heex")
 
       igniter
       |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
@@ -2398,7 +2186,7 @@ if Code.ensure_loaded?(Igniter) do
         }
       }
 
-      export default function AshTypescriptGuide() {
+      export default function App() {
         React.useEffect(() => {
           if (window.Prism) {
             window.Prism.highlightAll();
@@ -2413,7 +2201,7 @@ if Code.ensure_loaded?(Igniter) do
 
       igniter
       |> Igniter.create_new_file(
-        "assets/js/pages/AshTypescriptGuide.tsx",
+        "assets/js/pages/App.tsx",
         component_content,
         on_exists: :warning
       )
@@ -2440,15 +2228,9 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     # Create PageController that uses render_inertia
-    defp create_inertia_page_controller(igniter, web_module, framework) do
+    defp create_inertia_page_controller(igniter, web_module, _framework) do
       clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
-
-      page_name =
-        case framework do
-          "vue" -> "App"
-          "svelte" -> "App"
-          _ -> "AshTypescriptGuide"
-        end
+      page_name = "App"
 
       controller_path =
         clean_web_module
@@ -3183,6 +2965,12 @@ if Code.ensure_loaded?(Igniter) do
     # ---- End Shared Page Content Generators ----
 
     defp add_next_steps_notice(igniter, framework, bundler, use_inertia) do
+      inertia_entry_file =
+        if framework in ["react", "react18"], do: "inertia.tsx", else: "inertia.ts"
+
+      inertia_page_file =
+        if framework in ["react", "react18"], do: "pages/App.tsx", else: "pages/App.#{framework}"
+
       base_notice = """
       AshTypescript has been successfully installed!
 
@@ -3249,8 +3037,8 @@ if Code.ensure_loaded?(Igniter) do
 
         Files created:
         - inertia_root.html.heex: Layout for Inertia pages (loads inertia.js + app.css)
-        - inertia.tsx: Inertia client-side entry point with createInertiaApp()
-        - pages/AshTypescriptGuide.tsx: Getting started guide page
+        - #{inertia_entry_file}: Inertia client-side entry point with createInertiaApp()
+        - #{inertia_page_file}: Getting started guide page
         - PageController: Renders Inertia pages
 
         The root.html.heex layout loads app.js + app.css for LiveView pages.
@@ -3274,8 +3062,8 @@ if Code.ensure_loaded?(Igniter) do
 
         Files created:
         - inertia_root.html.heex: Layout for Inertia pages (loads inertia.js as ES module)
-        - inertia.tsx: Inertia client-side entry point with createInertiaApp()
-        - pages/AshTypescriptGuide.tsx: Getting started guide page
+        - #{inertia_entry_file}: Inertia client-side entry point with createInertiaApp()
+        - #{inertia_page_file}: Getting started guide page
         - PageController: Renders Inertia pages
 
         The root.html.heex layout loads app.js + app.css for LiveView pages.
