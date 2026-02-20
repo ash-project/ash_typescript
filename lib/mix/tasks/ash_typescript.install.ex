@@ -8,6 +8,61 @@ if Code.ensure_loaded?(Igniter) do
 
     @moduledoc """
     #{@shortdoc}
+
+    ## Options
+
+    * `--framework` - The frontend framework to use. Supported values:
+      * `react` - React 19 (default)
+      * `react18` - React 18
+      * `vue` - Vue.js 3
+      * `svelte` - Svelte 5
+      * `solid` - SolidJS
+
+    * `--bundler` - The bundler to use. Supported values:
+      * `esbuild` - Phoenix's built-in esbuild (default)
+      * `vite` - Vite for faster builds and HMR
+
+    * `--bun` - Use Bun instead of npm for package management and script execution.
+      Improves build performance when using the esbuild bundler.
+
+    * `--inertia` - Install with Inertia.js support for SSR.
+      Creates a dedicated entry point (`js/inertia.ts`) and Inertia-specific
+      pipeline. Requires `--framework` to be specified.
+
+    ## Examples
+
+        # Install with React and esbuild (default)
+        mix igniter.install ash_typescript --framework react
+
+        # Install with Vue and Vite
+        mix igniter.install ash_typescript --framework vue --bundler vite
+
+        # Install with React using Bun
+        mix igniter.install ash_typescript --framework react --bun
+
+        # Install with Svelte and Inertia.js
+        mix igniter.install ash_typescript --framework svelte --inertia
+
+    ## Generated Files
+
+    The installer creates the following structure:
+
+    * RPC controller at `lib/my_app_web/controllers/ash_typescript_rpc_controller.ex`
+    * RPC routes in your router
+    * AshTypescript configuration in `config/config.exs`
+    * Framework-specific entry points and components in `assets/js/`
+    * Layouts in `lib/my_app_web/components/layouts/`
+
+    ## Configuration
+
+    The installer adds the following configuration to `config/config.exs`:
+
+        config :ash_typescript,
+          output_file: "assets/js/ash_rpc.ts",
+          run_endpoint: "/rpc/run",
+          validate_endpoint: "/rpc/validate",
+          input_field_formatter: :camel_case,
+          output_field_formatter: :camel_case
     """
 
     use Igniter.Mix.Task
