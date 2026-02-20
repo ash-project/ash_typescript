@@ -99,11 +99,8 @@ if Code.ensure_loaded?(Igniter) do
             |> add_inertia_plug_to_router()
             |> create_inertia_root_layout(web_module, bundler, framework)
             |> create_inertia_entry_point(framework, bundler)
-            |> create_demo_domain(web_module)
-            |> create_demo_todo_resource(web_module)
-            |> register_demo_domain(web_module)
             |> create_inertia_page_component(framework)
-            |> create_inertia_page_controller(web_module)
+            |> create_inertia_page_controller(web_module, framework)
             |> add_inertia_pipeline_and_routes(web_module)
 
           {framework, false} ->
@@ -608,8 +605,10 @@ if Code.ensure_loaded?(Igniter) do
     defp create_index_page(igniter, "react18"), do: create_index_page(igniter, "react")
 
     defp create_index_page(igniter, "react") do
+      page_body = get_react_page_body()
+
       react_index_content = """
-      import React, { useEffect } from "react";
+      import React from "react";
       import { createRoot } from "react-dom/client";
 
       // Declare Prism for TypeScript
@@ -620,7 +619,7 @@ if Code.ensure_loaded?(Igniter) do
       }
 
       export default function AshTypescriptGuide() {
-        useEffect(() => {
+        React.useEffect(() => {
           // Trigger Prism highlighting after component mounts
           if (window.Prism) {
             window.Prism.highlightAll();
@@ -628,204 +627,7 @@ if Code.ensure_loaded?(Igniter) do
         }, []);
 
         return (
-          <div className="min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
-            <div className="max-w-4xl mx-auto p-8">
-              <div className="flex items-center gap-6 mb-12">
-                <img
-                  src="https://raw.githubusercontent.com/ash-project/ash_typescript/main/logos/ash-typescript.png"
-                  alt="AshTypescript Logo"
-                  className="w-20 h-20"
-                />
-                <div>
-                  <h1 className="text-5xl font-bold text-slate-900 mb-2">
-                    AshTypescript
-                  </h1>
-                  <p className="text-xl text-slate-600 font-medium">
-                    Type-safe TypeScript bindings for Ash Framework
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-12">
-                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">
-                      1
-                    </div>
-                    <h2 className="text-2xl font-bold text-slate-900">
-                      Configure RPC in Your Domain
-                    </h2>
-                  </div>
-                  <p className="text-slate-700 mb-6 text-lg leading-relaxed">
-                    Add the AshTypescript.Rpc extension to your domain and configure RPC actions:
-                  </p>
-                  <pre className="rounded-lg overflow-x-auto text-sm border">
-                    <code className="language-elixir">
-      {\`defmodule MyApp.Accounts do
-        use Ash.Domain, extensions: [AshTypescript.Rpc]
-
-        typescript_rpc do
-          resource MyApp.Accounts.User do
-            rpc_action :get_by_email, :get_by_email
-            rpc_action :list_users, :read
-            rpc_action :get_user, :read
-          end
-        end
-
-        resources do
-          resource MyApp.Accounts.User
-        end
-      end\`}
-                    </code>
-                  </pre>
-                </section>
-
-                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">
-                      2
-                    </div>
-                    <h2 className="text-2xl font-bold text-slate-900">
-                      TypeScript Auto-Generation
-                    </h2>
-                  </div>
-                  <p className="text-slate-700 mb-6 text-lg leading-relaxed">
-                    When running the dev server, TypeScript types are automatically generated for you:
-                  </p>
-                  <pre className="rounded-lg text-sm border mb-6">
-                    <code className="language-bash">mix phx.server</code>
-                  </pre>
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-6">
-                    <p className="text-slate-700 text-lg leading-relaxed">
-                      <strong className="text-orange-700">✨ Automatic regeneration:</strong> TypeScript files are automatically regenerated whenever you make changes to your resources or expose new RPC actions. No manual codegen step required during development!
-                    </p>
-                  </div>
-                  <p className="text-slate-600 mb-4">
-                    For production builds or manual generation, you can also run:
-                  </p>
-                  <pre className="rounded-lg text-sm border">
-                    <code className="language-bash">mix ash_typescript.codegen --output "assets/js/ash_generated.ts"</code>
-                  </pre>
-                </section>
-
-                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">
-                      3
-                    </div>
-                    <h2 className="text-2xl font-bold text-slate-900">
-                      Import and Use Generated Functions
-                    </h2>
-                  </div>
-                  <p className="text-slate-700 mb-6 text-lg leading-relaxed">
-                    Import the generated RPC functions in your TypeScript/React code:
-                  </p>
-                  <pre className="rounded-lg overflow-x-auto text-sm border">
-                    <code className="language-typescript">
-      {\`import { getByEmail, listUsers, getUser } from "./ash_generated";
-
-      // Use the typed RPC functions
-      const findUserByEmail = async (email: string) => {
-        try {
-          const result = await getByEmail({ email });
-          if (result.success) {
-            console.log("User found:", result.data);
-            return result.data;
-          } else {
-            console.error("User not found:", result.errors);
-            return null;
-          }
-        } catch (error) {
-          console.error("Network error:", error);
-          return null;
-        }
-      };
-
-      const fetchUsers = async () => {
-        try {
-          const result = await listUsers();
-          if (result.success) {
-            console.log("Users:", result.data);
-          } else {
-            console.error("Failed to fetch users:", result.errors);
-          }
-        } catch (error) {
-          console.error("Network error:", error);
-        }
-      };\`}
-                    </code>
-                  </pre>
-                </section>
-
-                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-8">
-                    Learn More & Examples
-                  </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <a
-                      href="https://hexdocs.pm/ash_typescript"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group"
-                    >
-                      <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
-                        <span className="text-orange-600 font-bold text-xl">📚</span>
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Documentation</h3>
-                        <p className="text-slate-600">Complete API reference and guides on HexDocs</p>
-                      </div>
-                    </a>
-
-                    <a
-                      href="https://github.com/ash-project/ash_typescript"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group"
-                    >
-                      <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
-                        <span className="text-orange-600 font-bold text-xl">🔧</span>
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Source Code</h3>
-                        <p className="text-slate-600">View the source, report issues, and contribute on GitHub</p>
-                      </div>
-                    </a>
-
-                    <a
-                      href="https://github.com/ChristianAlexander/ash_typescript_demo"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group"
-                    >
-                      <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
-                        <span className="text-orange-600 font-bold text-xl">🚀</span>
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Demo App</h3>
-                        <p className="text-slate-600">See AshTypescript with TanStack Query & Table in action</p>
-                        <p className="text-slate-500 text-sm mt-1">by ChristianAlexander</p>
-                      </div>
-                    </a>
-                  </div>
-                </section>
-
-                <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-lg p-8 text-center">
-                  <div className="flex items-center justify-center mb-4">
-                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center">
-                      <span className="text-orange-600 font-bold text-xl">🚀</span>
-                    </div>
-                  </div>
-                  <h3 className="text-2xl font-bold text-white mb-3">
-                    Ready to Get Started?
-                  </h3>
-                  <p className="text-orange-100 text-lg leading-relaxed max-w-2xl mx-auto">
-                    Check your generated RPC functions and start building type-safe interactions between your frontend and Ash resources!
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+      #{page_body}
         );
       }
 
@@ -843,175 +645,9 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp create_index_page(igniter, "vue") do
-      # Create the Vue SFC component
-      vue_component = ~S"""
-      <script setup lang="ts">
-      import { onMounted } from "vue";
+      {script_content, template_content} = get_vue_page_content()
 
-      declare global {
-        interface Window {
-          Prism: any;
-        }
-      }
-
-      onMounted(() => {
-        if (window.Prism) {
-          window.Prism.highlightAll();
-        }
-      });
-
-      const elixirCode = `defmodule MyApp.Accounts do
-        use Ash.Domain, extensions: [AshTypescript.Rpc]
-
-        typescript_rpc do
-          resource MyApp.Accounts.User do
-            rpc_action :get_by_email, :get_by_email
-            rpc_action :list_users, :read
-            rpc_action :get_user, :read
-          end
-        end
-
-        resources do
-          resource MyApp.Accounts.User
-        end
-      end`;
-
-      const typescriptCode = `import { getByEmail, listUsers, getUser } from "./ash_generated";
-
-      // Use the typed RPC functions
-      const findUserByEmail = async (email: string) => {
-        try {
-          const result = await getByEmail({ email });
-          if (result.success) {
-            console.log("User found:", result.data);
-            return result.data;
-          } else {
-            console.error("User not found:", result.errors);
-            return null;
-          }
-        } catch (error) {
-          console.error("Network error:", error);
-          return null;
-        }
-      };
-
-      const fetchUsers = async () => {
-        try {
-          const result = await listUsers();
-          if (result.success) {
-            console.log("Users:", result.data);
-          } else {
-            console.error("Failed to fetch users:", result.errors);
-          }
-        } catch (error) {
-          console.error("Network error:", error);
-        }
-      };`;
-      </script>
-
-      <template>
-        <div class="min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
-          <div class="max-w-4xl mx-auto p-8">
-            <div class="flex items-center gap-6 mb-12">
-              <img
-                src="https://raw.githubusercontent.com/ash-project/ash_typescript/main/logos/ash-typescript.png"
-                alt="AshTypescript Logo"
-                class="w-20 h-20"
-              />
-              <div>
-                <h1 class="text-5xl font-bold text-slate-900 mb-2">AshTypescript</h1>
-                <p class="text-xl text-slate-600 font-medium">
-                  Type-safe TypeScript bindings for Ash Framework
-                </p>
-              </div>
-            </div>
-
-            <div class="space-y-12">
-              <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-                <div class="flex items-center gap-3 mb-6">
-                  <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">1</div>
-                  <h2 class="text-2xl font-bold text-slate-900">Configure RPC in Your Domain</h2>
-                </div>
-                <p class="text-slate-700 mb-6 text-lg leading-relaxed">
-                  Add the AshTypescript.Rpc extension to your domain and configure RPC actions:
-                </p>
-                <pre class="rounded-lg overflow-x-auto text-sm border"><code class="language-elixir">{{ elixirCode }}</code></pre>
-              </section>
-
-              <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-                <div class="flex items-center gap-3 mb-6">
-                  <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">2</div>
-                  <h2 class="text-2xl font-bold text-slate-900">TypeScript Auto-Generation</h2>
-                </div>
-                <p class="text-slate-700 mb-6 text-lg leading-relaxed">
-                  When running the dev server, TypeScript types are automatically generated for you:
-                </p>
-                <pre class="rounded-lg text-sm border mb-6"><code class="language-bash">mix phx.server</code></pre>
-                <div class="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-6">
-                  <p class="text-slate-700 text-lg leading-relaxed">
-                    <strong class="text-orange-700">Automatic regeneration:</strong> TypeScript files are automatically regenerated whenever you make changes to your resources or expose new RPC actions.
-                  </p>
-                </div>
-              </section>
-
-              <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-                <div class="flex items-center gap-3 mb-6">
-                  <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">3</div>
-                  <h2 class="text-2xl font-bold text-slate-900">Import and Use Generated Functions</h2>
-                </div>
-                <p class="text-slate-700 mb-6 text-lg leading-relaxed">
-                  Import the generated RPC functions in your TypeScript/Vue code:
-                </p>
-                <pre class="rounded-lg overflow-x-auto text-sm border"><code class="language-typescript">{{ typescriptCode }}</code></pre>
-              </section>
-
-              <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-                <h2 class="text-2xl font-bold text-slate-900 mb-8">Learn More & Examples</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <a href="https://hexdocs.pm/ash_typescript" target="_blank" rel="noopener noreferrer"
-                     class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
-                    <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
-                      <span class="text-orange-600 font-bold text-xl">Docs</span>
-                    </div>
-                    <div>
-                      <h3 class="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Documentation</h3>
-                      <p class="text-slate-600">Complete API reference and guides on HexDocs</p>
-                    </div>
-                  </a>
-                  <a href="https://github.com/ash-project/ash_typescript" target="_blank" rel="noopener noreferrer"
-                     class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
-                    <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
-                      <span class="text-orange-600 font-bold text-xl">Git</span>
-                    </div>
-                    <div>
-                      <h3 class="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Source Code</h3>
-                      <p class="text-slate-600">View the source, report issues, and contribute on GitHub</p>
-                    </div>
-                  </a>
-                  <a href="https://github.com/ChristianAlexander/ash_typescript_demo" target="_blank" rel="noopener noreferrer"
-                     class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
-                    <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
-                      <span class="text-orange-600 font-bold text-xl">Demo</span>
-                    </div>
-                    <div>
-                      <h3 class="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Demo App</h3>
-                      <p class="text-slate-600">See AshTypescript with TanStack Query & Table in action</p>
-                    </div>
-                  </a>
-                </div>
-              </section>
-
-              <div class="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-lg p-8 text-center">
-                <h3 class="text-2xl font-bold text-white mb-3">Ready to Get Started?</h3>
-                <p class="text-orange-100 text-lg leading-relaxed max-w-2xl mx-auto">
-                  Check your generated RPC functions and start building type-safe interactions between your frontend and Ash resources!
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </template>
-      """
+      vue_component = script_content <> "\n" <> template_content
 
       vue_index_content = """
       import { createApp } from "vue";
@@ -1027,173 +663,9 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp create_index_page(igniter, "svelte") do
-      # Create the Svelte component
-      svelte_component = ~S"""
-      <script lang="ts">
-        import { onMount } from "svelte";
+      {script_content, template_content} = get_svelte_page_content()
 
-        declare global {
-          interface Window {
-            Prism: any;
-          }
-        }
-
-        onMount(() => {
-          if (window.Prism) {
-            window.Prism.highlightAll();
-          }
-        });
-
-        const elixirCode = `defmodule MyApp.Accounts do
-        use Ash.Domain, extensions: [AshTypescript.Rpc]
-
-        typescript_rpc do
-          resource MyApp.Accounts.User do
-            rpc_action :get_by_email, :get_by_email
-            rpc_action :list_users, :read
-            rpc_action :get_user, :read
-          end
-        end
-
-        resources do
-          resource MyApp.Accounts.User
-        end
-      end`;
-
-        const typescriptCode = `import { getByEmail, listUsers, getUser } from "./ash_generated";
-
-      // Use the typed RPC functions
-      const findUserByEmail = async (email: string) => {
-        try {
-          const result = await getByEmail({ email });
-          if (result.success) {
-            console.log("User found:", result.data);
-            return result.data;
-          } else {
-            console.error("User not found:", result.errors);
-            return null;
-          }
-        } catch (error) {
-          console.error("Network error:", error);
-          return null;
-        }
-      };
-
-      const fetchUsers = async () => {
-        try {
-          const result = await listUsers();
-          if (result.success) {
-            console.log("Users:", result.data);
-          } else {
-            console.error("Failed to fetch users:", result.errors);
-          }
-        } catch (error) {
-          console.error("Network error:", error);
-        }
-      };`;
-      </script>
-
-      <div class="min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
-        <div class="max-w-4xl mx-auto p-8">
-          <div class="flex items-center gap-6 mb-12">
-            <img
-              src="https://raw.githubusercontent.com/ash-project/ash_typescript/main/logos/ash-typescript.png"
-              alt="AshTypescript Logo"
-              class="w-20 h-20"
-            />
-            <div>
-              <h1 class="text-5xl font-bold text-slate-900 mb-2">AshTypescript</h1>
-              <p class="text-xl text-slate-600 font-medium">
-                Type-safe TypeScript bindings for Ash Framework
-              </p>
-            </div>
-          </div>
-
-          <div class="space-y-12">
-            <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-              <div class="flex items-center gap-3 mb-6">
-                <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">1</div>
-                <h2 class="text-2xl font-bold text-slate-900">Configure RPC in Your Domain</h2>
-              </div>
-              <p class="text-slate-700 mb-6 text-lg leading-relaxed">
-                Add the AshTypescript.Rpc extension to your domain and configure RPC actions:
-              </p>
-              <pre class="rounded-lg overflow-x-auto text-sm border"><code class="language-elixir">{elixirCode}</code></pre>
-            </section>
-
-            <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-              <div class="flex items-center gap-3 mb-6">
-                <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">2</div>
-                <h2 class="text-2xl font-bold text-slate-900">TypeScript Auto-Generation</h2>
-              </div>
-              <p class="text-slate-700 mb-6 text-lg leading-relaxed">
-                When running the dev server, TypeScript types are automatically generated for you:
-              </p>
-              <pre class="rounded-lg text-sm border mb-6"><code class="language-bash">mix phx.server</code></pre>
-              <div class="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-6">
-                <p class="text-slate-700 text-lg leading-relaxed">
-                  <strong class="text-orange-700">Automatic regeneration:</strong> TypeScript files are automatically regenerated whenever you make changes to your resources or expose new RPC actions.
-                </p>
-              </div>
-            </section>
-
-            <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-              <div class="flex items-center gap-3 mb-6">
-                <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">3</div>
-                <h2 class="text-2xl font-bold text-slate-900">Import and Use Generated Functions</h2>
-              </div>
-              <p class="text-slate-700 mb-6 text-lg leading-relaxed">
-                Import the generated RPC functions in your TypeScript/Svelte code:
-              </p>
-              <pre class="rounded-lg overflow-x-auto text-sm border"><code class="language-typescript">{typescriptCode}</code></pre>
-            </section>
-
-            <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-              <h2 class="text-2xl font-bold text-slate-900 mb-8">Learn More & Examples</h2>
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <a href="https://hexdocs.pm/ash_typescript" target="_blank" rel="noopener noreferrer"
-                   class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
-                  <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
-                    <span class="text-orange-600 font-bold text-xl">Docs</span>
-                  </div>
-                  <div>
-                    <h3 class="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Documentation</h3>
-                    <p class="text-slate-600">Complete API reference and guides on HexDocs</p>
-                  </div>
-                </a>
-                <a href="https://github.com/ash-project/ash_typescript" target="_blank" rel="noopener noreferrer"
-                   class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
-                  <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
-                    <span class="text-orange-600 font-bold text-xl">Git</span>
-                  </div>
-                  <div>
-                    <h3 class="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Source Code</h3>
-                    <p class="text-slate-600">View the source, report issues, and contribute on GitHub</p>
-                  </div>
-                </a>
-                <a href="https://github.com/ChristianAlexander/ash_typescript_demo" target="_blank" rel="noopener noreferrer"
-                   class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
-                  <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
-                    <span class="text-orange-600 font-bold text-xl">Demo</span>
-                  </div>
-                  <div>
-                    <h3 class="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Demo App</h3>
-                    <p class="text-slate-600">See AshTypescript with TanStack Query & Table in action</p>
-                  </div>
-                </a>
-              </div>
-            </section>
-
-            <div class="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-lg p-8 text-center">
-              <h3 class="text-2xl font-bold text-white mb-3">Ready to Get Started?</h3>
-              <p class="text-orange-100 text-lg leading-relaxed max-w-2xl mx-auto">
-                Check your generated RPC functions and start building type-safe interactions between your frontend and Ash resources!
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-      """
+      svelte_component = script_content <> "\n" <> template_content
 
       svelte_index_content = """
       import App from "./App.svelte";
@@ -1512,7 +984,7 @@ if Code.ensure_loaded?(Igniter) do
         if_exists: :append
       )
       |> update_dev_watcher_for_build_script(app_name, use_bun)
-      |> update_build_aliases_for_script(use_bun)
+      |> update_build_aliases_for_script(app_name, use_bun)
     end
 
     defp remove_esbuild_install_from_assets_setup(igniter) do
@@ -1573,7 +1045,8 @@ if Code.ensure_loaded?(Igniter) do
            #{runner}: ["build.js", "--watch",
              cd: Path.expand("../assets", __DIR__),
              env: %{"NODE_PATH" => Enum.join([Path.expand("../deps", __DIR__), Mix.Project.build_path()], ":")}
-           ]
+           ],
+           tailwind: {Tailwind, :install_and_run, [:#{app_name}, ~w(--watch)]}
          ]
          """)},
         updater: fn zipper ->
@@ -1585,7 +1058,8 @@ if Code.ensure_loaded?(Igniter) do
                #{runner}: ["build.js", "--watch",
                  cd: Path.expand("../assets", __DIR__),
                  env: %{"NODE_PATH" => Enum.join([Path.expand("../deps", __DIR__), Mix.Project.build_path()], ":")}
-               ]
+               ],
+               tailwind: {Tailwind, :install_and_run, [:#{app_name}, ~w(--watch)]}
              ]
              """)
            )}
@@ -1593,17 +1067,23 @@ if Code.ensure_loaded?(Igniter) do
       )
     end
 
-    defp update_build_aliases_for_script(igniter, use_bun) do
+    defp update_build_aliases_for_script(igniter, app_name, use_bun) do
       runner = if use_bun, do: "bun", else: "node"
 
       igniter
       |> Igniter.Project.TaskAliases.modify_existing_alias("assets.build", fn zipper ->
-        alias_code = Sourceror.parse_string!(~s|["cmd --cd assets #{runner} build.js"]|)
+        alias_code =
+          Sourceror.parse_string!(
+            ~s|["tailwind #{app_name}", "cmd --cd assets #{runner} build.js"]|
+          )
+
         {:ok, Igniter.Code.Common.replace_code(zipper, alias_code)}
       end)
       |> Igniter.Project.TaskAliases.modify_existing_alias("assets.deploy", fn zipper ->
         alias_code =
-          Sourceror.parse_string!(~s|["cmd --cd assets #{runner} build.js --deploy"]|)
+          Sourceror.parse_string!(
+            ~s|["tailwind #{app_name} --minify", "cmd --cd assets #{runner} build.js --deploy"]|
+          )
 
         {:ok, Igniter.Code.Common.replace_code(zipper, alias_code)}
       end)
@@ -2674,6 +2154,14 @@ if Code.ensure_loaded?(Igniter) do
             <meta name="csrf-token" content={get_csrf_token()} />
             <.inertia_title>{assigns[:page_title]}</.inertia_title>
             <.inertia_head content={@inertia_head} />
+            <link
+              href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
+              rel="stylesheet"
+            />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js">
+            </script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js">
+            </script>
             <%= if PhoenixVite.Components.has_vite_watcher?(__WEB_MODULE__.Endpoint) do %>
               <script type="module">
                 import RefreshRuntime from "http://localhost:5173/@react-refresh";
@@ -2719,6 +2207,14 @@ if Code.ensure_loaded?(Igniter) do
             <meta name="csrf-token" content={get_csrf_token()} />
             <.inertia_title>{assigns[:page_title]}</.inertia_title>
             <.inertia_head content={@inertia_head} />
+            <link
+              href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
+              rel="stylesheet"
+            />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js">
+            </script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js">
+            </script>
             <PhoenixVite.Components.assets
               names={["js/inertia.js", "css/app.css"]}
               manifest={{:__APP_NAME__, "priv/static/.vite/manifest.json"}}
@@ -2755,6 +2251,14 @@ if Code.ensure_loaded?(Igniter) do
             <.inertia_title>{assigns[:page_title]}</.inertia_title>
             <.inertia_head content={@inertia_head} />
             <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
+            <link
+              href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
+              rel="stylesheet"
+            />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js">
+            </script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js">
+            </script>
           </head>
           <body>
             {@inner_content}
@@ -2817,8 +2321,8 @@ if Code.ensure_loaded?(Igniter) do
         if bundler == "vite" do
           """
             resolve: (name) => {
-              const pages = import.meta.glob("./pages/**/*.vue", { eager: true });
-              return pages[`./pages/${name}.vue`];
+              const pages = import.meta.glob("./**/*.vue", { eager: true });
+              return pages[`./${name}.vue`] || pages[`./pages/${name}.vue`];
             },
           """
         else
@@ -2852,8 +2356,8 @@ if Code.ensure_loaded?(Igniter) do
         if bundler == "vite" do
           """
             resolve: (name) => {
-              const pages = import.meta.glob("./pages/**/*.svelte", { eager: true });
-              return pages[`./pages/${name}.svelte`];
+              const pages = import.meta.glob("./**/*.svelte", { eager: true });
+              return pages[`./${name}.svelte`] || pages[`./pages/${name}.svelte`];
             },
           """
         else
@@ -2883,169 +2387,26 @@ if Code.ensure_loaded?(Igniter) do
     # Create demo page component that demonstrates AshTypescript RPC client
     defp create_inertia_page_component(igniter, framework)
          when framework in ["react", "react18"] do
+      page_body = get_react_page_body()
+
       component_content = """
-      import React, { useState, useEffect, useCallback } from "react";
-      import { listTodos, createTodo, destroyTodo, buildCSRFHeaders } from "../ash_rpc";
-      import type { Todo } from "../ash_rpc";
+      import React from "react";
+
+      declare global {
+        interface Window {
+          Prism: any;
+        }
+      }
 
       export default function AshTypescriptGuide() {
-        const [todos, setTodos] = useState<Todo[]>([]);
-        const [newTitle, setNewTitle] = useState("");
-        const [loading, setLoading] = useState(true);
-        const [error, setError] = useState<string | null>(null);
-
-        const headers = buildCSRFHeaders();
-
-        const fetchTodos = useCallback(async () => {
-          setLoading(true);
-          setError(null);
-          try {
-            const result = await listTodos({ fields: ["id", "title"], headers });
-            if (result.success) {
-              setTodos(result.data);
-            } else {
-              setError(result.errors?.map((e: any) => e.message).join(", ") || "Failed to load todos");
-            }
-          } catch (e) {
-            setError("Failed to connect to server");
+        React.useEffect(() => {
+          if (window.Prism) {
+            window.Prism.highlightAll();
           }
-          setLoading(false);
         }, []);
 
-        useEffect(() => { fetchTodos(); }, [fetchTodos]);
-
-        const handleCreate = async (e: React.FormEvent) => {
-          e.preventDefault();
-          if (!newTitle.trim()) return;
-          const result = await createTodo({ input: { title: newTitle.trim() }, fields: ["id", "title"], headers });
-          if (result.success) {
-            setTodos((prev) => [...prev, result.data]);
-            setNewTitle("");
-          }
-        };
-
-        const handleDelete = async (id: string) => {
-          const result = await destroyTodo({ identity: id, headers });
-          if (result.success) {
-            setTodos((prev) => prev.filter((t) => t.id !== id));
-          }
-        };
-
         return (
-          <div className="min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
-            <div className="max-w-4xl mx-auto p-8">
-              <div className="flex items-center gap-6 mb-12">
-                <img
-                  src="https://raw.githubusercontent.com/ash-project/ash_typescript/main/logos/ash-typescript.png"
-                  alt="AshTypescript Logo"
-                  className="w-20 h-20"
-                />
-                <div>
-                  <h1 className="text-5xl font-bold text-slate-900 mb-2">
-                    AshTypescript + Inertia.js
-                  </h1>
-                  <p className="text-xl text-slate-600 font-medium">
-                    Type-safe RPC client for Ash Framework
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-8">
-                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-6">RPC Demo</h2>
-                  <p className="text-slate-600 mb-6">
-                    This page is rendered by <code className="bg-slate-100 px-2 py-1 rounded text-sm font-mono">Inertia.js</code> and
-                    uses the generated <code className="bg-slate-100 px-2 py-1 rounded text-sm font-mono">ash_rpc.ts</code> client
-                    to create, list, and delete todos via type-safe RPC calls.
-                  </p>
-
-                  <form onSubmit={handleCreate} className="flex gap-3 mb-6">
-                    <input
-                      type="text"
-                      value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                      placeholder="Add a todo..."
-                      className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent text-lg"
-                    />
-                    <button
-                      type="submit"
-                      className="px-6 py-3 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors"
-                    >
-                      Add
-                    </button>
-                  </form>
-
-                  {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                      <p className="text-red-700">{error}</p>
-                    </div>
-                  )}
-
-                  {loading ? (
-                    <p className="text-slate-500 text-center py-8">Loading...</p>
-                  ) : todos.length === 0 ? (
-                    <p className="text-slate-400 text-center py-8">No todos yet. Add one above!</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {todos.map((todo) => (
-                        <li
-                          key={todo.id}
-                          className="flex items-center gap-3 p-4 bg-slate-50 rounded-lg group hover:bg-slate-100 transition-colors"
-                        >
-                          <span className="flex-1 text-lg text-slate-800">{todo.title}</span>
-                          <button
-                            onClick={() => handleDelete(todo.id)}
-                            className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all"
-                          >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
-
-                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-4">How It Works</h2>
-                  <p className="text-slate-700 text-lg leading-relaxed mb-4">
-                    This page uses <code className="bg-slate-100 px-1 rounded text-sm font-mono">listTodos</code>,{" "}
-                    <code className="bg-slate-100 px-1 rounded text-sm font-mono">createTodo</code>, and{" "}
-                    <code className="bg-slate-100 px-1 rounded text-sm font-mono">destroyTodo</code> from
-                    the generated <code className="bg-slate-100 px-1 rounded text-sm font-mono">ash_rpc.ts</code> file.
-                    These functions are fully typed and provide end-to-end type safety between
-                    your Ash resources and your frontend.
-                  </p>
-                  <p className="text-slate-700 text-lg leading-relaxed">
-                    LiveView pages continue to work alongside Inertia pages.
-                    Visit <a href="/" className="text-orange-600 underline">the home page</a> to see your LiveView setup.
-                  </p>
-                </section>
-
-                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-                  <h2 className="text-2xl font-bold text-slate-900 mb-8">Learn More</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <a href="https://hexdocs.pm/ash_typescript" target="_blank" rel="noopener noreferrer"
-                       className="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
-                      <h3 className="font-bold text-slate-900 text-lg group-hover:text-orange-600 transition-colors">AshTypescript Docs</h3>
-                      <p className="text-slate-600">Complete API reference and guides</p>
-                    </a>
-                    <a href="https://inertiajs.com" target="_blank" rel="noopener noreferrer"
-                       className="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
-                      <h3 className="font-bold text-slate-900 text-lg group-hover:text-orange-600 transition-colors">Inertia.js Docs</h3>
-                      <p className="text-slate-600">Learn about Inertia.js and its features</p>
-                    </a>
-                    <a href="https://github.com/ash-project/ash_typescript" target="_blank" rel="noopener noreferrer"
-                       className="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
-                      <h3 className="font-bold text-slate-900 text-lg group-hover:text-orange-600 transition-colors">Source Code</h3>
-                      <p className="text-slate-600">View source and contribute on GitHub</p>
-                    </a>
-                  </div>
-                </section>
-              </div>
-            </div>
-          </div>
+      #{page_body}
         );
       }
       """
@@ -3059,340 +2420,35 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp create_inertia_page_component(igniter, "vue") do
-      component_content = ~S"""
-      <script setup lang="ts">
-      import { ref, onMounted } from "vue";
-      import { listTodos, createTodo, destroyTodo, buildCSRFHeaders } from "../ash_rpc";
-      import type { Todo } from "../ash_rpc";
+      {script_content, template_content} = get_vue_page_content()
 
-      const todos = ref<Todo[]>([]);
-      const newTitle = ref("");
-      const loading = ref(true);
-      const error = ref<string | null>(null);
-
-      const headers = buildCSRFHeaders();
-
-      async function fetchTodos() {
-        loading.value = true;
-        error.value = null;
-        try {
-          const result = await listTodos({ fields: ["id", "title"], headers });
-          if (result.success) {
-            todos.value = result.data;
-          } else {
-            error.value = result.errors?.map((e: any) => e.message).join(", ") || "Failed to load todos";
-          }
-        } catch (e) {
-          error.value = "Failed to connect to server";
-        }
-        loading.value = false;
-      }
-
-      onMounted(fetchTodos);
-
-      async function handleCreate() {
-        if (!newTitle.value.trim()) return;
-        const result = await createTodo({ input: { title: newTitle.value.trim() }, fields: ["id", "title"], headers });
-        if (result.success) {
-          todos.value.push(result.data);
-          newTitle.value = "";
-        }
-      }
-
-      async function handleDelete(id: string) {
-        const result = await destroyTodo({ identity: id, headers });
-        if (result.success) {
-          todos.value = todos.value.filter((t) => t.id !== id);
-        }
-      }
-      </script>
-
-      <template>
-        <div class="min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
-          <div class="max-w-4xl mx-auto p-8">
-            <div class="flex items-center gap-6 mb-12">
-              <img
-                src="https://raw.githubusercontent.com/ash-project/ash_typescript/main/logos/ash-typescript.png"
-                alt="AshTypescript Logo"
-                class="w-20 h-20"
-              />
-              <div>
-                <h1 class="text-5xl font-bold text-slate-900 mb-2">AshTypescript + Inertia.js</h1>
-                <p class="text-xl text-slate-600 font-medium">
-                  Type-safe RPC client for Ash Framework
-                </p>
-              </div>
-            </div>
-
-            <div class="space-y-8">
-              <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-                <h2 class="text-2xl font-bold text-slate-900 mb-6">RPC Demo</h2>
-                <p class="text-slate-600 mb-6">
-                  This page is rendered by <code class="bg-slate-100 px-2 py-1 rounded text-sm font-mono">Inertia.js</code> and
-                  uses the generated <code class="bg-slate-100 px-2 py-1 rounded text-sm font-mono">ash_rpc.ts</code> client
-                  to create, list, and delete todos via type-safe RPC calls.
-                </p>
-
-                <form @submit.prevent="handleCreate" class="flex gap-3 mb-6">
-                  <input
-                    v-model="newTitle"
-                    type="text"
-                    placeholder="Add a todo..."
-                    class="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent text-lg"
-                  />
-                  <button
-                    type="submit"
-                    class="px-6 py-3 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors"
-                  >
-                    Add
-                  </button>
-                </form>
-
-                <div v-if="error" class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                  <p class="text-red-700">{{ error }}</p>
-                </div>
-
-                <p v-if="loading" class="text-slate-500 text-center py-8">Loading...</p>
-                <p v-else-if="todos.length === 0" class="text-slate-400 text-center py-8">No todos yet. Add one above!</p>
-                <ul v-else class="space-y-2">
-                  <li
-                    v-for="todo in todos"
-                    :key="todo.id"
-                    class="flex items-center gap-3 p-4 bg-slate-50 rounded-lg group hover:bg-slate-100 transition-colors"
-                  >
-                    <span class="flex-1 text-lg text-slate-800">{{ todo.title }}</span>
-                    <button
-                      @click="handleDelete(todo.id)"
-                      class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all"
-                    >
-                      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </li>
-                </ul>
-              </section>
-
-              <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-                <h2 class="text-2xl font-bold text-slate-900 mb-4">How It Works</h2>
-                <p class="text-slate-700 text-lg leading-relaxed mb-4">
-                  This page uses <code class="bg-slate-100 px-1 rounded text-sm font-mono">listTodos</code>,
-                  <code class="bg-slate-100 px-1 rounded text-sm font-mono">createTodo</code>, and
-                  <code class="bg-slate-100 px-1 rounded text-sm font-mono">destroyTodo</code> from
-                  the generated <code class="bg-slate-100 px-1 rounded text-sm font-mono">ash_rpc.ts</code> file.
-                  These functions are fully typed and provide end-to-end type safety between
-                  your Ash resources and your frontend.
-                </p>
-                <p class="text-slate-700 text-lg leading-relaxed">
-                  LiveView pages continue to work alongside Inertia pages.
-                  Visit <a href="/" class="text-orange-600 underline">the home page</a> to see your LiveView setup.
-                </p>
-              </section>
-
-              <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-                <h2 class="text-2xl font-bold text-slate-900 mb-8">Learn More</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <a href="https://hexdocs.pm/ash_typescript" target="_blank" rel="noopener noreferrer"
-                     class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
-                    <h3 class="font-bold text-slate-900 text-lg group-hover:text-orange-600 transition-colors">AshTypescript Docs</h3>
-                    <p class="text-slate-600">Complete API reference and guides</p>
-                  </a>
-                  <a href="https://inertiajs.com" target="_blank" rel="noopener noreferrer"
-                     class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
-                    <h3 class="font-bold text-slate-900 text-lg group-hover:text-orange-600 transition-colors">Inertia.js Docs</h3>
-                    <p class="text-slate-600">Learn about Inertia.js and its features</p>
-                  </a>
-                  <a href="https://github.com/ash-project/ash_typescript" target="_blank" rel="noopener noreferrer"
-                     class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
-                    <h3 class="font-bold text-slate-900 text-lg group-hover:text-orange-600 transition-colors">Source Code</h3>
-                    <p class="text-slate-600">View source and contribute on GitHub</p>
-                  </a>
-                </div>
-              </section>
-            </div>
-          </div>
-        </div>
-      </template>
-      """
+      vue_component = script_content <> "\n" <> template_content
 
       igniter
-      |> Igniter.create_new_file(
-        "assets/js/pages/AshTypescriptGuide.vue",
-        component_content,
-        on_exists: :warning
-      )
+      |> Igniter.create_new_file("assets/js/pages/App.vue", vue_component, on_exists: :warning)
     end
 
     defp create_inertia_page_component(igniter, "svelte") do
-      component_content = ~S"""
-      <script lang="ts">
-        import { onMount } from "svelte";
-        import { listTodos, createTodo, destroyTodo, buildCSRFHeaders } from "../ash_rpc";
-        import type { Todo } from "../ash_rpc";
+      {script_content, template_content} = get_svelte_page_content()
 
-        let todos: Todo[] = [];
-        let newTitle = "";
-        let loading = true;
-        let error: string | null = null;
-
-        const headers = buildCSRFHeaders();
-
-        async function fetchTodos() {
-          loading = true;
-          error = null;
-          try {
-            const result = await listTodos({ fields: ["id", "title"], headers });
-            if (result.success) {
-              todos = result.data;
-            } else {
-              error = result.errors?.map((e: any) => e.message).join(", ") || "Failed to load todos";
-            }
-          } catch (e) {
-            error = "Failed to connect to server";
-          }
-          loading = false;
-        }
-
-        onMount(fetchTodos);
-
-        async function handleCreate() {
-          if (!newTitle.trim()) return;
-          const result = await createTodo({ input: { title: newTitle.trim() }, fields: ["id", "title"], headers });
-          if (result.success) {
-            todos = [...todos, result.data];
-            newTitle = "";
-          }
-        }
-
-        async function handleDelete(id: string) {
-          const result = await destroyTodo({ identity: id, headers });
-          if (result.success) {
-            todos = todos.filter((t) => t.id !== id);
-          }
-        }
-      </script>
-
-      <div class="min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
-        <div class="max-w-4xl mx-auto p-8">
-          <div class="flex items-center gap-6 mb-12">
-            <img
-              src="https://raw.githubusercontent.com/ash-project/ash_typescript/main/logos/ash-typescript.png"
-              alt="AshTypescript Logo"
-              class="w-20 h-20"
-            />
-            <div>
-              <h1 class="text-5xl font-bold text-slate-900 mb-2">AshTypescript + Inertia.js</h1>
-              <p class="text-xl text-slate-600 font-medium">
-                Type-safe RPC client for Ash Framework
-              </p>
-            </div>
-          </div>
-
-          <div class="space-y-8">
-            <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-              <h2 class="text-2xl font-bold text-slate-900 mb-6">RPC Demo</h2>
-              <p class="text-slate-600 mb-6">
-                This page is rendered by <code class="bg-slate-100 px-2 py-1 rounded text-sm font-mono">Inertia.js</code> and
-                uses the generated <code class="bg-slate-100 px-2 py-1 rounded text-sm font-mono">ash_rpc.ts</code> client
-                to create, list, and delete todos via type-safe RPC calls.
-              </p>
-
-              <form on:submit|preventDefault={handleCreate} class="flex gap-3 mb-6">
-                <input
-                  bind:value={newTitle}
-                  type="text"
-                  placeholder="Add a todo..."
-                  class="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent text-lg"
-                />
-                <button
-                  type="submit"
-                  class="px-6 py-3 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors"
-                >
-                  Add
-                </button>
-              </form>
-
-              {#if error}
-                <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                  <p class="text-red-700">{error}</p>
-                </div>
-              {/if}
-
-              {#if loading}
-                <p class="text-slate-500 text-center py-8">Loading...</p>
-              {:else if todos.length === 0}
-                <p class="text-slate-400 text-center py-8">No todos yet. Add one above!</p>
-              {:else}
-                <ul class="space-y-2">
-                  {#each todos as todo (todo.id)}
-                    <li class="flex items-center gap-3 p-4 bg-slate-50 rounded-lg group hover:bg-slate-100 transition-colors">
-                      <span class="flex-1 text-lg text-slate-800">{todo.title}</span>
-                      <button
-                        on:click={() => handleDelete(todo.id)}
-                        class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all"
-                      >
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </li>
-                  {/each}
-                </ul>
-              {/if}
-            </section>
-
-            <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-              <h2 class="text-2xl font-bold text-slate-900 mb-4">How It Works</h2>
-              <p class="text-slate-700 text-lg leading-relaxed mb-4">
-                This page uses <code class="bg-slate-100 px-1 rounded text-sm font-mono">listTodos</code>,
-                <code class="bg-slate-100 px-1 rounded text-sm font-mono">createTodo</code>, and
-                <code class="bg-slate-100 px-1 rounded text-sm font-mono">destroyTodo</code> from
-                the generated <code class="bg-slate-100 px-1 rounded text-sm font-mono">ash_rpc.ts</code> file.
-                These functions are fully typed and provide end-to-end type safety between
-                your Ash resources and your frontend.
-              </p>
-              <p class="text-slate-700 text-lg leading-relaxed">
-                LiveView pages continue to work alongside Inertia pages.
-                Visit <a href="/" class="text-orange-600 underline">the home page</a> to see your LiveView setup.
-              </p>
-            </section>
-
-            <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-              <h2 class="text-2xl font-bold text-slate-900 mb-8">Learn More</h2>
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <a href="https://hexdocs.pm/ash_typescript" target="_blank" rel="noopener noreferrer"
-                   class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
-                  <h3 class="font-bold text-slate-900 text-lg group-hover:text-orange-600 transition-colors">AshTypescript Docs</h3>
-                  <p class="text-slate-600">Complete API reference and guides</p>
-                </a>
-                <a href="https://inertiajs.com" target="_blank" rel="noopener noreferrer"
-                   class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
-                  <h3 class="font-bold text-slate-900 text-lg group-hover:text-orange-600 transition-colors">Inertia.js Docs</h3>
-                  <p class="text-slate-600">Learn about Inertia.js and its features</p>
-                </a>
-                <a href="https://github.com/ash-project/ash_typescript" target="_blank" rel="noopener noreferrer"
-                   class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
-                  <h3 class="font-bold text-slate-900 text-lg group-hover:text-orange-600 transition-colors">Source Code</h3>
-                  <p class="text-slate-600">View source and contribute on GitHub</p>
-                </a>
-              </div>
-            </section>
-          </div>
-        </div>
-      </div>
-      """
+      svelte_component = script_content <> "\n" <> template_content
 
       igniter
-      |> Igniter.create_new_file(
-        "assets/js/pages/AshTypescriptGuide.svelte",
-        component_content,
+      |> Igniter.create_new_file("assets/js/pages/App.svelte", svelte_component,
         on_exists: :warning
       )
     end
 
     # Create PageController that uses render_inertia
-    defp create_inertia_page_controller(igniter, web_module) do
+    defp create_inertia_page_controller(igniter, web_module, framework) do
       clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
+
+      page_name =
+        case framework do
+          "vue" -> "App"
+          "svelte" -> "App"
+          _ -> "AshTypescriptGuide"
+        end
 
       controller_path =
         clean_web_module
@@ -3406,7 +2462,7 @@ if Code.ensure_loaded?(Igniter) do
         use #{clean_web_module}, :controller
 
         def index(conn, _params) do
-          render_inertia(conn, "AshTypescriptGuide")
+          render_inertia(conn, "#{page_name}")
         end
       end
       """
@@ -3432,7 +2488,7 @@ if Code.ensure_loaded?(Igniter) do
                         index_function_code =
                           quote do
                             def index(conn, _params) do
-                              render_inertia(conn, "AshTypescriptGuide")
+                              render_inertia(conn, unquote(page_name))
                             end
                           end
 
@@ -3548,137 +2604,583 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
-    # ---- Demo Domain & Resource Creation (for Inertia RPC demo) ----
+    # ---- End Inertia.js Support Functions ----
 
-    # Creates a demo Ash domain with AshTypescript.Rpc extension
-    # This domain exposes RPC actions for the demo Todo resource
-    defp create_demo_domain(igniter, web_module) do
-      app_module =
-        web_module
-        |> to_string()
-        |> String.replace_prefix("Elixir.", "")
-        |> String.replace_suffix("Web", "")
+    # ---- Shared Page Content Generators ----
+    # These functions generate the page content that is shared between SPA and Inertia flows.
+    # They return the body content without the component wrapper (mount code for SPA, export for Inertia).
 
-      domain_module = "#{app_module}.Demo"
-      todo_module = "#{app_module}.Demo.Todo"
+    # React page body content (JSX only, no component wrapper)
+    defp get_react_page_body do
+      """
+          <div className="min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
+            <div className="max-w-4xl mx-auto p-8">
+              <div className="flex items-center gap-6 mb-12">
+                <img
+                  src="https://raw.githubusercontent.com/ash-project/ash_typescript/main/logos/ash-typescript.png"
+                  alt="AshTypescript Logo"
+                  className="w-20 h-20"
+                />
+                <div>
+                  <h1 className="text-5xl font-bold text-slate-900 mb-2">
+                    AshTypescript
+                  </h1>
+                  <p className="text-xl text-slate-600 font-medium">
+                    Type-safe TypeScript bindings for Ash Framework
+                  </p>
+                </div>
+              </div>
 
-      domain_content = """
-      defmodule #{domain_module} do
-        use Ash.Domain,
-          otp_app: :#{Igniter.Project.Application.app_name(igniter)},
-          extensions: [AshTypescript.Rpc]
+              <div className="space-y-12">
+                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">
+                      1
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-900">
+                      Configure RPC in Your Domain
+                    </h2>
+                  </div>
+                  <p className="text-slate-700 mb-6 text-lg leading-relaxed">
+                    Add the AshTypescript.Rpc extension to your domain and configure RPC actions:
+                  </p>
+                  <pre className="rounded-lg overflow-x-auto text-sm border">
+                    <code className="language-elixir">
+      {\`defmodule MyApp.Accounts do
+        use Ash.Domain, extensions: [AshTypescript.Rpc]
 
         typescript_rpc do
-          resource #{todo_module} do
-            rpc_action :list_todos, :read
-            rpc_action :create_todo, :create
-            rpc_action :destroy_todo, :destroy
+          resource MyApp.Accounts.User do
+            rpc_action :get_by_email, :get_by_email
+            rpc_action :list_users, :read
+            rpc_action :get_user, :read
           end
         end
 
         resources do
-          resource #{todo_module}
+          resource MyApp.Accounts.User
         end
-      end
+      end\`}
+                    </code>
+                  </pre>
+                </section>
+
+                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">
+                      2
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-900">
+                      TypeScript Auto-Generation
+                    </h2>
+                  </div>
+                  <p className="text-slate-700 mb-6 text-lg leading-relaxed">
+                    When running the dev server, TypeScript types are automatically generated for you:
+                  </p>
+                  <pre className="rounded-lg text-sm border mb-6">
+                    <code className="language-bash">mix phx.server</code>
+                  </pre>
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-6">
+                    <p className="text-slate-700 text-lg leading-relaxed">
+                      <strong className="text-orange-700">✨ Automatic regeneration:</strong> TypeScript files are automatically regenerated whenever you make changes to your resources or expose new RPC actions. No manual codegen step required during development!
+                    </p>
+                  </div>
+                  <p className="text-slate-600 mb-4">
+                    For production builds or manual generation, you can also run:
+                  </p>
+                  <pre className="rounded-lg text-sm border">
+                    <code className="language-bash">mix ash_typescript.codegen --output "assets/js/ash_generated.ts"</code>
+                  </pre>
+                </section>
+
+                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">
+                      3
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-900">
+                      Import and Use Generated Functions
+                    </h2>
+                  </div>
+                  <p className="text-slate-700 mb-6 text-lg leading-relaxed">
+                    Import the generated RPC functions in your TypeScript/React code:
+                  </p>
+                  <pre className="rounded-lg overflow-x-auto text-sm border">
+                    <code className="language-typescript">
+      {\`import { getByEmail, listUsers, getUser } from "./ash_generated";
+
+      // Use the typed RPC functions
+      const findUserByEmail = async (email: string) => {
+        try {
+          const result = await getByEmail({ email });
+          if (result.success) {
+            console.log("User found:", result.data);
+            return result.data;
+          } else {
+            console.error("User not found:", result.errors);
+            return null;
+          }
+        } catch (error) {
+          console.error("Network error:", error);
+          return null;
+        }
+      };
+
+      const fetchUsers = async () => {
+        try {
+          const result = await listUsers();
+          if (result.success) {
+            console.log("Users:", result.data);
+          } else {
+            console.error("Failed to fetch users:", result.errors);
+          }
+        } catch (error) {
+          console.error("Network error:", error);
+        }
+      };\`}
+                    </code>
+                  </pre>
+                </section>
+
+                <section className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                  <h2 className="text-2xl font-bold text-slate-900 mb-8">
+                    Learn More & Examples
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <a
+                      href="https://hexdocs.pm/ash_typescript"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group"
+                    >
+                      <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
+                        <span className="text-orange-600 font-bold text-xl">📚</span>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Documentation</h3>
+                        <p className="text-slate-600">Complete API reference and guides on HexDocs</p>
+                      </div>
+                    </a>
+
+                    <a
+                      href="https://github.com/ash-project/ash_typescript"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group"
+                    >
+                      <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
+                        <span className="text-orange-600 font-bold text-xl">🔧</span>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Source Code</h3>
+                        <p className="text-slate-600">View the source, report issues, and contribute on GitHub</p>
+                      </div>
+                    </a>
+
+                    <a
+                      href="https://github.com/ChristianAlexander/ash_typescript_demo"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group"
+                    >
+                      <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
+                        <span className="text-orange-600 font-bold text-xl">🚀</span>
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Demo App</h3>
+                        <p className="text-slate-600">See AshTypescript with TanStack Query & Table in action</p>
+                        <p className="text-slate-500 text-sm mt-1">by ChristianAlexander</p>
+                      </div>
+                    </a>
+                  </div>
+                </section>
+
+                <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-lg p-8 text-center">
+                  <div className="flex items-center justify-center mb-4">
+                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center">
+                      <span className="text-orange-600 font-bold text-xl">🚀</span>
+                    </div>
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-3">
+                    Ready to Get Started?
+                  </h3>
+                  <p className="text-orange-100 text-lg leading-relaxed max-w-2xl mx-auto">
+                    Check your generated RPC functions and start building type-safe interactions between your frontend and Ash resources!
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+      """
+    end
+
+    # Vue page script and template content
+    defp get_vue_page_content do
+      script_content = """
+      <script setup lang="ts">
+      import { onMounted } from "vue";
+
+      declare global {
+        interface Window {
+          Prism: any;
+        }
+      }
+
+      onMounted(() => {
+        if (window.Prism) {
+          window.Prism.highlightAll();
+        }
+      });
+
+      const elixirCode = `defmodule MyApp.Accounts do
+        use Ash.Domain, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource MyApp.Accounts.User do
+            rpc_action :get_by_email, :get_by_email
+            rpc_action :list_users, :read
+            rpc_action :get_user, :read
+          end
+        end
+
+        resources do
+          resource MyApp.Accounts.User
+        end
+      end`;
+
+      const typescriptCode = `import { getByEmail, listUsers, getUser } from "./ash_generated";
+
+      // Use the typed RPC functions
+      const findUserByEmail = async (email: string) => {
+        try {
+          const result = await getByEmail({ email });
+          if (result.success) {
+            console.log("User found:", result.data);
+            return result.data;
+          } else {
+            console.error("User not found:", result.errors);
+            return null;
+          }
+        } catch (error) {
+          console.error("Network error:", error);
+          return null;
+        }
+      };
+
+      const fetchUsers = async () => {
+        try {
+          const result = await listUsers();
+          if (result.success) {
+            console.log("Users:", result.data);
+          } else {
+            console.error("Failed to fetch users:", result.errors);
+          }
+        } catch (error) {
+          console.error("Network error:", error);
+        }
+      };`;
+      </script>
       """
 
-      domain_path =
-        app_module
-        |> Macro.underscore()
-        |> then(&"lib/#{&1}/demo.ex")
+      template_content = """
+      <template>
+        <div class="min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
+          <div class="max-w-4xl mx-auto p-8">
+            <div class="flex items-center gap-6 mb-12">
+              <img
+                src="https://raw.githubusercontent.com/ash-project/ash_typescript/main/logos/ash-typescript.png"
+                alt="AshTypescript Logo"
+                class="w-20 h-20"
+              />
+              <div>
+                <h1 class="text-5xl font-bold text-slate-900 mb-2">AshTypescript</h1>
+                <p class="text-xl text-slate-600 font-medium">
+                  Type-safe TypeScript bindings for Ash Framework
+                </p>
+              </div>
+            </div>
 
-      igniter
-      |> Igniter.create_new_file(domain_path, domain_content, on_exists: :warning)
-    end
+            <div class="space-y-12">
+              <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                <div class="flex items-center gap-3 mb-6">
+                  <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">1</div>
+                  <h2 class="text-2xl font-bold text-slate-900">Configure RPC in Your Domain</h2>
+                </div>
+                <p class="text-slate-700 mb-6 text-lg leading-relaxed">
+                  Add the AshTypescript.Rpc extension to your domain and configure RPC actions:
+                </p>
+                <pre class="rounded-lg overflow-x-auto text-sm border"><code class="language-elixir">{{ elixirCode }}</code></pre>
+              </section>
 
-    # Creates a demo Todo resource with ETS data layer and AshTypescript.Resource extension
-    defp create_demo_todo_resource(igniter, web_module) do
-      app_module =
-        web_module
-        |> to_string()
-        |> String.replace_prefix("Elixir.", "")
-        |> String.replace_suffix("Web", "")
+              <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                <div class="flex items-center gap-3 mb-6">
+                  <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">2</div>
+                  <h2 class="text-2xl font-bold text-slate-900">TypeScript Auto-Generation</h2>
+                </div>
+                <p class="text-slate-700 mb-6 text-lg leading-relaxed">
+                  When running the dev server, TypeScript types are automatically generated for you:
+                </p>
+                <pre class="rounded-lg text-sm border mb-6"><code class="language-bash">mix phx.server</code></pre>
+                <div class="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-6">
+                  <p class="text-slate-700 text-lg leading-relaxed">
+                    <strong class="text-orange-700">✨ Automatic regeneration:</strong> TypeScript files are automatically regenerated whenever you make changes to your resources or expose new RPC actions. No manual codegen step required during development!
+                  </p>
+                </div>
+                <p class="text-slate-600 mb-4">For production builds or manual generation, you can also run:</p>
+                <pre class="rounded-lg text-sm border"><code class="language-bash">mix ash_typescript.codegen --output "assets/js/ash_generated.ts"</code></pre>
+              </section>
 
-      todo_module = "#{app_module}.Demo.Todo"
-      domain_module = "#{app_module}.Demo"
+              <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                <div class="flex items-center gap-3 mb-6">
+                  <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">3</div>
+                  <h2 class="text-2xl font-bold text-slate-900">Import and Use Generated Functions</h2>
+                </div>
+                <p class="text-slate-700 mb-6 text-lg leading-relaxed">
+                  Import the generated RPC functions in your TypeScript/Vue code:
+                </p>
+                <pre class="rounded-lg overflow-x-auto text-sm border"><code class="language-typescript">{{ typescriptCode }}</code></pre>
+              </section>
 
-      resource_content = """
-      defmodule #{todo_module} do
-        use Ash.Resource,
-          domain: #{domain_module},
-          data_layer: Ash.DataLayer.Ets,
-          extensions: [AshTypescript.Resource]
+              <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                <h2 class="text-2xl font-bold text-slate-900 mb-8">Learn More & Examples</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <a href="https://hexdocs.pm/ash_typescript" target="_blank" rel="noopener noreferrer"
+                     class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
+                    <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
+                      <span class="text-orange-600 font-bold text-xl">📚</span>
+                    </div>
+                    <div>
+                      <h3 class="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Documentation</h3>
+                      <p class="text-slate-600">Complete API reference and guides on HexDocs</p>
+                    </div>
+                  </a>
+                  <a href="https://github.com/ash-project/ash_typescript" target="_blank" rel="noopener noreferrer"
+                     class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
+                    <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
+                      <span class="text-orange-600 font-bold text-xl">🔧</span>
+                    </div>
+                    <div>
+                      <h3 class="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Source Code</h3>
+                      <p class="text-slate-600">View the source, report issues, and contribute on GitHub</p>
+                    </div>
+                  </a>
+                  <a href="https://github.com/ChristianAlexander/ash_typescript_demo" target="_blank" rel="noopener noreferrer"
+                     class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
+                    <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
+                      <span class="text-orange-600 font-bold text-xl">🚀</span>
+                    </div>
+                    <div>
+                      <h3 class="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Demo App</h3>
+                      <p class="text-slate-600">See AshTypescript with TanStack Query & Table in action</p>
+                      <p class="text-slate-500 text-sm mt-1">by ChristianAlexander</p>
+                    </div>
+                  </a>
+                </div>
+              </section>
 
-        typescript do
-          type_name "Todo"
-        end
-
-        ets do
-          private? true
-        end
-
-        attributes do
-          uuid_primary_key :id
-
-          attribute :title, :string do
-            allow_nil? false
-            public? true
-          end
-
-          attribute :completed, :boolean do
-            default false
-            public? true
-          end
-        end
-
-        actions do
-          defaults [:read, :destroy]
-
-          create :create do
-            primary? true
-            accept [:title]
-          end
-        end
-      end
+              <div class="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-lg p-8 text-center">
+                <div class="flex items-center justify-center mb-4">
+                  <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center">
+                    <span class="text-orange-600 font-bold text-xl">🚀</span>
+                  </div>
+                </div>
+                <h3 class="text-2xl font-bold text-white mb-3">Ready to Get Started?</h3>
+                <p class="text-orange-100 text-lg leading-relaxed max-w-2xl mx-auto">
+                  Check your generated RPC functions and start building type-safe interactions between your frontend and Ash resources!
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
       """
 
-      resource_path =
-        app_module
-        |> Macro.underscore()
-        |> then(&"lib/#{&1}/demo/todo.ex")
-
-      igniter
-      |> Igniter.create_new_file(resource_path, resource_content, on_exists: :warning)
+      {script_content, template_content}
     end
 
-    # Registers the demo domain in the app's ash_domains config
-    defp register_demo_domain(igniter, web_module) do
-      app_name = Igniter.Project.Application.app_name(igniter)
+    # Svelte page script and template content
+    defp get_svelte_page_content do
+      script_content = """
+      <script lang="ts">
+        import { onMount } from "svelte";
 
-      app_module =
-        web_module
-        |> to_string()
-        |> String.replace_prefix("Elixir.", "")
-        |> String.replace_suffix("Web", "")
+        declare global {
+          interface Window {
+            Prism: any;
+          }
+        }
 
-      domain_module_ast = Sourceror.parse_string!("#{app_module}.Demo")
+        onMount(() => {
+          if (window.Prism) {
+            window.Prism.highlightAll();
+          }
+        });
 
-      Igniter.Project.Config.configure(
-        igniter,
-        "config.exs",
-        app_name,
-        [:ash_domains],
-        {:code, Sourceror.parse_string!("[#{app_module}.Demo]")},
-        updater: fn list ->
-          Igniter.Code.List.prepend_new_to_list(
-            list,
-            domain_module_ast
-          )
+        const elixirCode = `defmodule MyApp.Accounts do
+        use Ash.Domain, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource MyApp.Accounts.User do
+            rpc_action :get_by_email, :get_by_email
+            rpc_action :list_users, :read
+            rpc_action :get_user, :read
+          end
         end
-      )
+
+        resources do
+          resource MyApp.Accounts.User
+        end
+      end`;
+
+        const typescriptCode = `import { getByEmail, listUsers, getUser } from "./ash_generated";
+
+      // Use the typed RPC functions
+      const findUserByEmail = async (email: string) => {
+        try {
+          const result = await getByEmail({ email });
+          if (result.success) {
+            console.log("User found:", result.data);
+            return result.data;
+          } else {
+            console.error("User not found:", result.errors);
+            return null;
+          }
+        } catch (error) {
+          console.error("Network error:", error);
+          return null;
+        }
+      };
+
+      const fetchUsers = async () => {
+        try {
+          const result = await listUsers();
+          if (result.success) {
+            console.log("Users:", result.data);
+          } else {
+            console.error("Failed to fetch users:", result.errors);
+          }
+        } catch (error) {
+          console.error("Network error:", error);
+        }
+      };`;
+      </script>
+      """
+
+      template_content = """
+      <div class="min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
+        <div class="max-w-4xl mx-auto p-8">
+          <div class="flex items-center gap-6 mb-12">
+            <img
+              src="https://raw.githubusercontent.com/ash-project/ash_typescript/main/logos/ash-typescript.png"
+              alt="AshTypescript Logo"
+              class="w-20 h-20"
+            />
+            <div>
+              <h1 class="text-5xl font-bold text-slate-900 mb-2">AshTypescript</h1>
+              <p class="text-xl text-slate-600 font-medium">
+                Type-safe TypeScript bindings for Ash Framework
+              </p>
+            </div>
+          </div>
+
+          <div class="space-y-12">
+            <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+              <div class="flex items-center gap-3 mb-6">
+                <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">1</div>
+                <h2 class="text-2xl font-bold text-slate-900">Configure RPC in Your Domain</h2>
+              </div>
+              <p class="text-slate-700 mb-6 text-lg leading-relaxed">
+                Add the AshTypescript.Rpc extension to your domain and configure RPC actions:
+              </p>
+              <pre class="rounded-lg overflow-x-auto text-sm border"><code class="language-elixir">{elixirCode}</code></pre>
+            </section>
+
+            <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+              <div class="flex items-center gap-3 mb-6">
+                <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">2</div>
+                <h2 class="text-2xl font-bold text-slate-900">TypeScript Auto-Generation</h2>
+              </div>
+              <p class="text-slate-700 mb-6 text-lg leading-relaxed">
+                When running the dev server, TypeScript types are automatically generated for you:
+              </p>
+              <pre class="rounded-lg text-sm border mb-6"><code class="language-bash">mix phx.server</code></pre>
+              <div class="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-6">
+                <p class="text-slate-700 text-lg leading-relaxed">
+                  <strong class="text-orange-700">✨ Automatic regeneration:</strong> TypeScript files are automatically regenerated whenever you make changes to your resources or expose new RPC actions. No manual codegen step required during development!
+                </p>
+              </div>
+              <p class="text-slate-600 mb-4">For production builds or manual generation, you can also run:</p>
+              <pre class="rounded-lg text-sm border"><code class="language-bash">mix ash_typescript.codegen --output "assets/js/ash_generated.ts"</code></pre>
+            </section>
+
+            <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+              <div class="flex items-center gap-3 mb-6">
+                <div class="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">3</div>
+                <h2 class="text-2xl font-bold text-slate-900">Import and Use Generated Functions</h2>
+              </div>
+              <p class="text-slate-700 mb-6 text-lg leading-relaxed">
+                Import the generated RPC functions in your TypeScript/Svelte code:
+              </p>
+              <pre class="rounded-lg overflow-x-auto text-sm border"><code class="language-typescript">{typescriptCode}</code></pre>
+            </section>
+
+            <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+              <h2 class="text-2xl font-bold text-slate-900 mb-8">Learn More & Examples</h2>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <a href="https://hexdocs.pm/ash_typescript" target="_blank" rel="noopener noreferrer"
+                   class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
+                  <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
+                    <span class="text-orange-600 font-bold text-xl">📚</span>
+                  </div>
+                  <div>
+                    <h3 class="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Documentation</h3>
+                    <p class="text-slate-600">Complete API reference and guides on HexDocs</p>
+                  </div>
+                </a>
+                <a href="https://github.com/ash-project/ash_typescript" target="_blank" rel="noopener noreferrer"
+                   class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
+                  <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
+                    <span class="text-orange-600 font-bold text-xl">🔧</span>
+                  </div>
+                  <div>
+                    <h3 class="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Source Code</h3>
+                    <p class="text-slate-600">View the source, report issues, and contribute on GitHub</p>
+                  </div>
+                </a>
+                <a href="https://github.com/ChristianAlexander/ash_typescript_demo" target="_blank" rel="noopener noreferrer"
+                   class="flex flex-col items-start gap-4 p-6 border border-slate-200 rounded-lg hover:border-orange-300 hover:shadow-md transition-all duration-200 group">
+                  <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
+                    <span class="text-orange-600 font-bold text-xl">🚀</span>
+                  </div>
+                  <div>
+                    <h3 class="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">Demo App</h3>
+                    <p class="text-slate-600">See AshTypescript with TanStack Query & Table in action</p>
+                    <p class="text-slate-500 text-sm mt-1">by ChristianAlexander</p>
+                  </div>
+                </a>
+              </div>
+            </section>
+
+            <div class="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-lg p-8 text-center">
+              <div class="flex items-center justify-center mb-4">
+                <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center">
+                  <span class="text-orange-600 font-bold text-xl">🚀</span>
+                </div>
+              </div>
+              <h3 class="text-2xl font-bold text-white mb-3">Ready to Get Started?</h3>
+              <p class="text-orange-100 text-lg leading-relaxed max-w-2xl mx-auto">
+                Check your generated RPC functions and start building type-safe interactions between your frontend and Ash resources!
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      """
+
+      {script_content, template_content}
     end
 
-    # ---- End Inertia.js Support Functions ----
+    # ---- End Shared Page Content Generators ----
 
     defp add_next_steps_notice(igniter, framework, bundler, use_inertia) do
       base_notice = """
@@ -3748,22 +3250,16 @@ if Code.ensure_loaded?(Igniter) do
         Files created:
         - inertia_root.html.heex: Layout for Inertia pages (loads inertia.js + app.css)
         - inertia.tsx: Inertia client-side entry point with createInertiaApp()
-        - pages/AshTypescriptGuide.tsx: Demo page with Todo CRUD using RPC client
+        - pages/AshTypescriptGuide.tsx: Getting started guide page
         - PageController: Renders Inertia pages
-        - Demo domain + Todo resource: Working Ash domain with ETS data layer
 
         The root.html.heex layout loads app.js + app.css for LiveView pages.
         The inertia_root.html.heex layout loads inertia.js + app.css for Inertia pages.
 
         Next Steps:
-        1. Run: mix deps.get (to install dependencies)
-        2. Run: mix ash.codegen --dev (to generate ash_rpc.ts with RPC functions)
-        3. Start your Phoenix server: mix phx.server
-        4. Visit http://localhost:4000/ash-typescript to see the Todo CRUD demo!
-        5. Visit http://localhost:4000/ to see LiveView still working!
-
-        The demo page uses generated RPC functions (listTodos, createTodo, etc.)
-        from ash_rpc.ts to demonstrate type-safe communication with your Ash backend.
+        1. Start your Phoenix server: mix phx.server
+        2. Visit http://localhost:4000/ash-typescript to see the getting started guide!
+        3. Visit http://localhost:4000/ to see LiveView still working!
 
         Documentation: https://hexdocs.pm/ash_typescript
         Inertia.js: https://inertiajs.com
@@ -3779,22 +3275,16 @@ if Code.ensure_loaded?(Igniter) do
         Files created:
         - inertia_root.html.heex: Layout for Inertia pages (loads inertia.js as ES module)
         - inertia.tsx: Inertia client-side entry point with createInertiaApp()
-        - pages/AshTypescriptGuide.tsx: Demo page with Todo CRUD using RPC client
+        - pages/AshTypescriptGuide.tsx: Getting started guide page
         - PageController: Renders Inertia pages
-        - Demo domain + Todo resource: Working Ash domain with ETS data layer
 
         The root.html.heex layout loads app.js + app.css for LiveView pages.
         The inertia_root.html.heex layout loads inertia.js as ES module for Inertia pages.
 
         Next Steps:
-        1. Run: mix deps.get (to install dependencies)
-        2. Run: mix ash.codegen --dev (to generate ash_rpc.ts with RPC functions)
-        3. Start your Phoenix server: mix phx.server
-        4. Visit http://localhost:4000/ash-typescript to see the Todo CRUD demo!
-        5. Visit http://localhost:4000/ to see LiveView still working!
-
-        The demo page uses generated RPC functions (listTodos, createTodo, etc.)
-        from ash_rpc.ts to demonstrate type-safe communication with your Ash backend.
+        1. Start your Phoenix server: mix phx.server
+        2. Visit http://localhost:4000/ash-typescript to see the getting started guide!
+        3. Visit http://localhost:4000/ to see LiveView still working!
 
         Documentation: https://hexdocs.pm/ash_typescript
         Inertia.js: https://inertiajs.com
