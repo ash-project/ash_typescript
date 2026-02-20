@@ -734,7 +734,12 @@ if Code.ensure_loaded?(Igniter) do
             _ -> nil
           end
 
-        needs_jsx = jsx_setting && not String.contains?(content, ~s("jsx":))
+        needs_jsx =
+          if is_nil(jsx_setting) do
+            false
+          else
+            not String.contains?(content, ~s("jsx":))
+          end
 
         needs_jsx_import_source =
           framework == "solid" and not String.contains?(content, ~s("jsxImportSource":))
