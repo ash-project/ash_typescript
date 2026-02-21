@@ -40,12 +40,9 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     } = route_info
 
     function_name = build_function_name(route.name, scope_prefix, :path)
+    style = AshTypescript.typed_controller_path_params_style()
 
-    path_param_args =
-      Enum.map(path_params, fn param ->
-        ts_type = get_path_param_type(route, param)
-        "#{format_output_field(param)}: #{ts_type}"
-      end)
+    path_param_args = build_path_param_args(route, path_params, style)
 
     is_mutation = method in @mutation_methods
     query_args = if is_mutation, do: [], else: get_query_args(route, path_params)
@@ -59,8 +56,10 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     params = Enum.join(all_params, ", ")
     jsdoc = build_jsdoc(route, path)
 
+    use_path_prefix = style == :object and path_params != []
+
     if query_args == [] do
-      url_expr = build_url_template(path, path_params)
+      url_expr = build_url_template(path, path_params, use_path_prefix)
 
       """
       #{jsdoc}
@@ -69,7 +68,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
       }
       """
     else
-      url_expr = build_url_template_to_variable(path, path_params)
+      url_expr = build_url_template_to_variable(path, path_params, use_path_prefix)
       body = Enum.join(query_body_lines, "\n")
 
       """
@@ -143,7 +142,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
 
     input_fields = build_input_fields(route, path_params)
     has_input = input_fields != []
-    has_path_params = path_params != []
+    style = AshTypescript.typed_controller_path_params_style()
 
     input_type_def =
       if has_input do
@@ -153,18 +152,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
         ""
       end
 
-    path_param =
-      if has_path_params do
-        path_fields =
-          Enum.map_join(path_params, ", ", fn param ->
-            ts_type = get_path_param_type(route, param)
-            "#{format_output_field(param)}: #{ts_type}"
-          end)
-
-        [format_output_field(:path) <> ": { " <> path_fields <> " }"]
-      else
-        []
-      end
+    path_param = build_path_param_args(route, path_params, style)
 
     input_param =
       if has_input do
@@ -182,7 +170,8 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     all_params = path_param ++ input_param ++ config_param
     params = Enum.join(all_params, ", ")
 
-    url_expr = build_action_url_template(path, path_params)
+    use_path_prefix = style == :object and path_params != []
+    url_expr = build_url_template(path, path_params, use_path_prefix)
     jsdoc = build_action_jsdoc(route, method_upper, path)
 
     body_line =
@@ -256,42 +245,63 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     format_output_field(:"#{scope_prefix}_#{action_name}")
   end
 
-  defp build_url_template(nil, _path_params), do: "\"\""
-  defp build_url_template(path, []), do: "\"#{path}\""
+  defp build_path_param_args(_route, [], _style), do: []
 
-  defp build_url_template(path, path_params) do
+  defp build_path_param_args(route, path_params, :object) do
+    path_fields =
+      Enum.map_join(path_params, ", ", fn param ->
+        ts_type = get_path_param_type(route, param)
+        "#{format_output_field(param)}: #{ts_type}"
+      end)
+
+    [format_output_field(:path) <> ": { " <> path_fields <> " }"]
+  end
+
+  defp build_path_param_args(route, path_params, :args) do
+    Enum.map(path_params, fn param ->
+      ts_type = get_path_param_type(route, param)
+      "#{format_output_field(param)}: #{ts_type}"
+    end)
+  end
+
+  defp build_url_template(nil, _path_params, _use_path_prefix), do: "\"\""
+  defp build_url_template(path, [], _use_path_prefix), do: "\"#{path}\""
+
+  defp build_url_template(path, path_params, use_path_prefix) do
     template =
       Enum.reduce(path_params, path, fn param, acc ->
-        String.replace(acc, ":#{param}", "${#{format_output_field(param)}}")
+        interpolation =
+          if use_path_prefix do
+            "${#{format_output_field(:path)}.#{format_output_field(param)}}"
+          else
+            "${#{format_output_field(param)}}"
+          end
+
+        String.replace(acc, ":#{param}", interpolation)
       end)
 
     "`#{template}`"
   end
 
-  defp build_url_template_to_variable(nil, _path_params), do: "const base = \"\";"
-  defp build_url_template_to_variable(path, []), do: "const base = \"#{path}\";"
+  defp build_url_template_to_variable(nil, _path_params, _use_path_prefix),
+    do: "const base = \"\";"
 
-  defp build_url_template_to_variable(path, path_params) do
+  defp build_url_template_to_variable(path, [], _use_path_prefix), do: "const base = \"#{path}\";"
+
+  defp build_url_template_to_variable(path, path_params, use_path_prefix) do
     template =
       Enum.reduce(path_params, path, fn param, acc ->
-        String.replace(acc, ":#{param}", "${#{format_output_field(param)}}")
+        interpolation =
+          if use_path_prefix do
+            "${#{format_output_field(:path)}.#{format_output_field(param)}}"
+          else
+            "${#{format_output_field(param)}}"
+          end
+
+        String.replace(acc, ":#{param}", interpolation)
       end)
 
     "const base = `#{template}`;"
-  end
-
-  defp build_action_url_template(nil, _path_params), do: "\"\""
-  defp build_action_url_template(path, []), do: "\"#{path}\""
-
-  defp build_action_url_template(path, path_params) do
-    path_var = format_output_field(:path)
-
-    template =
-      Enum.reduce(path_params, path, fn param, acc ->
-        String.replace(acc, ":#{param}", "${#{path_var}.#{format_output_field(param)}}")
-      end)
-
-    "`#{template}`"
   end
 
   defp build_jsdoc(route, path) do

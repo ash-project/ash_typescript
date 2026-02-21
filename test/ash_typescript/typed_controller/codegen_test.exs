@@ -89,8 +89,18 @@ defmodule AshTypescript.TypedController.CodegenTest do
       typescript: typescript
     } do
       assert String.contains?(typescript, "export function providerPagePath(")
-      assert String.contains?(typescript, "provider: string")
+      assert String.contains?(typescript, "path: { provider: string }")
       assert String.contains?(typescript, "query?: { tab?: string }")
+    end
+
+    test "GET path helper with path params uses path object in URL template", %{
+      typescript: typescript
+    } do
+      [_, after_provider_page] =
+        String.split(typescript, "export function providerPagePath(", parts: 2)
+
+      [provider_page_body | _] = String.split(after_provider_page, "\n}\n", parts: 2)
+      assert String.contains?(provider_page_body, "${path.provider}")
     end
 
     test "generates path helper for search route with required query param", %{
@@ -227,8 +237,71 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
     test "generates path helper alongside PATCH action function", %{typescript: typescript} do
       assert String.contains?(typescript, "export function updateProviderPath(")
-      assert String.contains?(typescript, "provider: string")
+      assert String.contains?(typescript, "path: { provider: string }")
       assert String.contains?(typescript, "Path helper for /auth/providers/:provider")
+    end
+  end
+
+  describe "typed_controller_path_params_style: :args" do
+    setup do
+      previous = Application.get_env(:ash_typescript, :typed_controller_path_params_style)
+      Application.put_env(:ash_typescript, :typed_controller_path_params_style, :args)
+
+      typescript =
+        AshTypescript.TypedController.Codegen.generate(
+          router: AshTypescript.Test.ControllerResourceTestRouter
+        )
+
+      on_exit(fn ->
+        if previous do
+          Application.put_env(:ash_typescript, :typed_controller_path_params_style, previous)
+        else
+          Application.delete_env(:ash_typescript, :typed_controller_path_params_style)
+        end
+      end)
+
+      %{typescript: typescript}
+    end
+
+    test "GET path helper uses flat positional args for path params", %{typescript: typescript} do
+      assert String.contains?(typescript, "export function providerPagePath(provider: string,")
+      refute String.contains?(typescript, "providerPagePath(path:")
+    end
+
+    test "GET path helper URL template accesses params directly", %{typescript: typescript} do
+      [_, after_provider_page] =
+        String.split(typescript, "export function providerPagePath(", parts: 2)
+
+      [provider_page_body | _] = String.split(after_provider_page, "\n}\n", parts: 2)
+      assert String.contains?(provider_page_body, "${provider}")
+      refute String.contains?(provider_page_body, "${path.provider}")
+    end
+
+    test "mutation action function uses flat positional args for path params", %{
+      typescript: typescript
+    } do
+      assert String.contains?(
+               typescript,
+               "export async function updateProvider(provider: string,"
+             )
+
+      refute String.contains?(typescript, "updateProvider(path:")
+    end
+
+    test "mutation action function URL template accesses params directly", %{
+      typescript: typescript
+    } do
+      [_, after_update_provider] =
+        String.split(typescript, "export async function updateProvider(", parts: 2)
+
+      [update_provider_body | _] = String.split(after_update_provider, "\n}\n", parts: 2)
+      assert String.contains?(update_provider_body, "${provider}")
+      refute String.contains?(update_provider_body, "${path.provider}")
+    end
+
+    test "mutation path helper uses flat positional args", %{typescript: typescript} do
+      assert String.contains?(typescript, "export function updateProviderPath(provider: string)")
+      refute String.contains?(typescript, "updateProviderPath(path:")
     end
   end
 

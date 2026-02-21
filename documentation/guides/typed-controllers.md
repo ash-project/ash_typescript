@@ -353,7 +353,67 @@ export async function login(
 
 ### Routes with Path Parameters
 
-When a route includes path parameters (e.g., `/providers/:provider`), they become a separate `path` parameter:
+When a router path includes parameters (e.g., `/organizations/:org_slug`), they become a separate `path` parameter in the generated TypeScript. Every path parameter must have a matching `argument` in the route definition.
+
+For GET routes, path params are interpolated into the path helper:
+
+```elixir
+route :settings do
+  method :get
+  argument :org_slug, :string
+  run fn conn, _params -> render(conn, "settings.html") end
+end
+```
+
+Router:
+```elixir
+scope "/organizations/:org_slug" do
+  get "/settings", OrganizationController, :settings
+end
+```
+
+Generated TypeScript (default `:object` style):
+```typescript
+export function settingsPath(path: { orgSlug: string }): string {
+  return `/organizations/${path.orgSlug}/settings`;
+}
+```
+
+When a GET route has both path params and additional arguments, the path params are placed in a `path` object and the remaining arguments become query parameters:
+
+```elixir
+route :members do
+  method :get
+  argument :org_slug, :string
+  argument :role, :string
+  argument :page, :integer
+  run fn conn, params -> render(conn, "members.html", params) end
+end
+```
+
+Router:
+```elixir
+scope "/organizations/:org_slug" do
+  get "/members", OrganizationController, :members
+end
+```
+
+Generated TypeScript:
+```typescript
+export function membersPath(
+  path: { orgSlug: string },
+  query?: { role?: string; page?: number }
+): string {
+  const base = `/organizations/${path.orgSlug}/members`;
+  const searchParams = new URLSearchParams();
+  if (query?.role !== undefined) searchParams.set("role", String(query.role));
+  if (query?.page !== undefined) searchParams.set("page", String(query.page));
+  const qs = searchParams.toString();
+  return qs ? `${base}?${qs}` : base;
+}
+```
+
+For mutation routes, path params are separated from the request body input:
 
 ```elixir
 route :update_provider do
@@ -452,8 +512,25 @@ This generates only path helpers for all routes, skipping input types and async 
 | `router` | module | `nil` | Phoenix router for path introspection |
 | `routes_output_file` | string | `nil` | Output file path (when `nil`, route generation is skipped) |
 | `typed_controller_mode` | `:full` or `:paths_only` | `:full` | Generation mode |
+| `typed_controller_path_params_style` | `:object` or `:args` | `:object` | Path params style (see below) |
 
 All three of `typed_controllers`, `router`, and `routes_output_file` must be configured for route generation to run.
+
+### Path Params Style
+
+Controls how path parameters are represented in all generated TypeScript functions (GET path helpers, mutation path helpers, and mutation action functions):
+
+- **`:object`** (default) — path params are wrapped in a `path: { ... }` object:
+  ```typescript
+  settingsPath(path: { orgSlug: string })
+  updateProvider(path: { provider: string }, input: UpdateProviderInput, config?)
+  ```
+
+- **`:args`** — path params are flat positional arguments:
+  ```typescript
+  settingsPath(orgSlug: string)
+  updateProvider(provider: string, input: UpdateProviderInput, config?)
+  ```
 
 ## Compile-Time Validation
 

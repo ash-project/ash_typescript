@@ -441,6 +441,26 @@ defmodule AshTypescript do
   end
 
   @doc """
+  Gets the path params style for typed controller TypeScript generation.
+
+  Controls how path parameters are represented in generated TypeScript functions:
+
+  - `:object` (default) — all functions use `path: { param: Type }` object style
+  - `:args` — all functions use flat positional `param: Type` arguments
+
+  ## Example
+
+      config :ash_typescript,
+        typed_controller_path_params_style: :object
+
+  ## Returns
+  An atom, either `:object` or `:args`.
+  """
+  def typed_controller_path_params_style do
+    Application.get_env(:ash_typescript, :typed_controller_path_params_style, :object)
+  end
+
+  @doc """
   Gets the output field formatter configuration for TypeScript generation.
 
   This determines how internal Elixir field names are converted for client
