@@ -244,7 +244,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       throw({:calculation_requires_args, internal_name, path})
     end
 
-    if requires_nested_selection?(field_type, constraints) do
+    if requires_nested_selection?(field_type, constraints) and category != :calculation_complex do
       throw({:requires_field_selection, category, internal_name, path})
     end
 
@@ -255,7 +255,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       :relationship ->
         throw({:requires_field_selection, :relationship, internal_name, path})
 
-      cat when cat in [:calculation, :aggregate] ->
+      cat when cat in [:calculation, :calculation_complex, :aggregate] ->
         {select, load ++ [internal_name], template ++ [internal_name]}
     end
   end
@@ -339,9 +339,14 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         load_spec = build_load_spec(internal_name, nested_select, nested_load)
         {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
 
-      cat when cat in [:calculation, :calculation_complex] ->
+      :calculation ->
         load_spec = build_load_spec(internal_name, nested_select, nested_load)
         {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
+
+      :calculation_complex ->
+        # Ash doesn't support nested loads on calculations (only on relationships).
+        # Load the calculation flat and let the template extract sub-fields.
+        {select, load ++ [internal_name], template ++ [{internal_name, nested_template}]}
 
       :aggregate ->
         # Aggregates don't support nested loads - just load the aggregate itself
