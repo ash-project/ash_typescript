@@ -290,6 +290,101 @@ if (ctx?.trackPerformance) {
 }
 ```
 
+### Typed Controller Issues
+
+#### Error: "Controller 422 error"
+
+**Cause:** Missing required argument or invalid type in request.
+
+**Solution:** Check your request includes all required arguments (`allow_nil?: false`) and that values match expected types:
+
+```elixir
+# This argument is required — omitting it from the request body returns 422
+argument :code, :string, allow_nil?: false
+```
+
+The error response includes all validation failures at once:
+```json
+{
+  "errors": [
+    { "field": "code", "message": "is required" },
+    { "field": "count", "message": "is invalid" }
+  ]
+}
+```
+
+#### Error: "Route handler must return %Plug.Conn{}"
+
+**Cause:** Your route handler returned something other than a `%Plug.Conn{}` struct.
+
+**Solution:** Ensure every code path in your handler returns `%Plug.Conn{}`:
+
+```elixir
+# ❌ Wrong — returns a tuple
+run fn conn, params ->
+  {:ok, "result"}
+end
+
+# ✅ Correct — returns conn
+run fn conn, params ->
+  Plug.Conn.send_resp(conn, 200, "OK")
+end
+```
+
+#### Routes Not Generated
+
+**Cause:** Missing configuration.
+
+**Solution:** All three settings must be configured:
+
+```elixir
+config :ash_typescript,
+  typed_controllers: [MyApp.Session],       # Required
+  router: MyAppWeb.Router,                  # Required
+  routes_output_file: "assets/js/routes.ts" # Required
+```
+
+#### Multi-Mount Ambiguity Error
+
+**Cause:** A controller action is mounted at multiple paths without unique `as:` options.
+
+**Solution:** Add `as:` to each scope:
+
+```elixir
+# ❌ Wrong — ambiguous
+scope "/admin" do
+  get "/auth", SessionController, :auth
+end
+scope "/app" do
+  get "/auth", SessionController, :auth
+end
+
+# ✅ Correct — disambiguated
+scope "/admin", as: :admin do
+  get "/auth", SessionController, :auth
+end
+scope "/app", as: :app do
+  get "/auth", SessionController, :auth
+end
+```
+
+#### Path Parameter Missing Argument Error
+
+**Cause:** Router path has a `:param` that doesn't have a matching DSL argument.
+
+**Solution:** Add the missing argument:
+
+```elixir
+# Router: patch "/providers/:provider", SessionController, :update_provider
+
+route :update_provider do
+  method :patch
+  argument :provider, :string  # Must match :provider in the path
+  argument :enabled, :boolean, allow_nil?: false
+  run fn conn, params -> handle_update(conn, params) end
+end
+```
+
 ### Channel Hook Issues
 
 #### Setting Default Timeout

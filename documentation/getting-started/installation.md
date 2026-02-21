@@ -202,5 +202,6 @@ import { listTodos, createTodo } from './ash_rpc';
 ## Next Steps
 
 - [Your First RPC Action](first-rpc-action.md) - Create and use your first type-safe API call
+- [Typed Controllers](../guides/typed-controllers.md) - Generate TypeScript helpers for controller routes
 - [Frontend Frameworks](frontend-frameworks.md) - React, Vue, and other framework integrations
 - [Configuration Reference](../reference/configuration.md) - Full configuration options

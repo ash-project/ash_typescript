@@ -55,6 +55,12 @@ config :ash_typescript,
   warn_on_missing_rpc_config: true,
   warn_on_non_rpc_references: true,
 
+  # Typed controllers
+  typed_controllers: [],
+  router: nil,
+  routes_output_file: nil,
+  typed_controller_mode: :full,
+
   # Dev codegen behavior
   always_regenerate: false,
 
@@ -91,6 +97,10 @@ config :ash_typescript,
 | `untyped_map_type` | `string` | `"Record<string, any>"` | TypeScript type for untyped maps |
 | `warn_on_missing_rpc_config` | `boolean` | `true` | Warn about resources with extension not in RPC config |
 | `warn_on_non_rpc_references` | `boolean` | `true` | Warn about non-RPC resources referenced by RPC resources |
+| `typed_controllers` | `list(module)` | `[]` | TypedController modules to generate route helpers for |
+| `router` | `module \| nil` | `nil` | Phoenix router module for path introspection |
+| `routes_output_file` | `string \| nil` | `nil` | Output file path for generated route helpers |
+| `typed_controller_mode` | `:full \| :paths_only` | `:full` | Generation mode: `:full` generates path helpers + fetch functions, `:paths_only` generates only path helpers |
 | `always_regenerate` | `boolean` | `false` | Skip diff check and always write generated files |
 | `not_found_error?` | `boolean` | `true` | Global default: `true` returns error on not found, `false` returns null |
 | `add_ash_internals_to_jsdoc` | `boolean` | `false` | Show Ash resource/action details in JSDoc |
@@ -214,6 +224,34 @@ config :ash_typescript, always_regenerate: true
 
 When enabled, `--check` mode will write files directly instead of comparing, so the `PendingCodegen` error page is never shown during development.
 
+## Typed Controller Configuration
+
+Configure typed controllers to generate TypeScript path helpers and typed fetch functions for Phoenix controller routes. All three settings (`typed_controllers`, `router`, `routes_output_file`) must be configured for route generation to run.
+
+```elixir
+config :ash_typescript,
+  # List of TypedController modules
+  typed_controllers: [MyApp.Session],
+
+  # Phoenix router for path introspection
+  router: MyAppWeb.Router,
+
+  # Output file for generated route helpers
+  routes_output_file: "assets/js/routes.ts",
+
+  # Generation mode (optional)
+  typed_controller_mode: :full  # :full (default) or :paths_only
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `typed_controllers` | `list(module)` | `[]` | Modules using `AshTypescript.TypedController` |
+| `router` | `module` | `nil` | Phoenix router for path introspection |
+| `routes_output_file` | `string` | `nil` | Output file path (when `nil`, generation is skipped) |
+| `typed_controller_mode` | `:full \| :paths_only` | `:full` | `:full` generates path helpers + fetch functions; `:paths_only` generates only path helpers |
+
+See [Typed Controllers](../guides/typed-controllers.md) for complete documentation.
+
 ## Detailed Documentation
 
 For in-depth configuration guides, see:
@@ -225,6 +263,7 @@ For in-depth configuration guides, see:
 - [Phoenix Channels](../features/phoenix-channels.md) - Channel-based RPC configuration
 - [Multitenancy](../features/multitenancy.md) - Tenant parameter configuration
 - [Form Validation](../guides/form-validation.md) - Zod schema configuration
+- [Typed Controllers](../guides/typed-controllers.md) - Controller route helpers
 
 ## See Also
 

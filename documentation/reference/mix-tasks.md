@@ -153,6 +153,12 @@ When run, this task generates:
    - Integration with external types
    - Type mapping support
 
+8. **Typed Controller Route Helpers** (if configured)
+   - Path helpers for all routes
+   - Typed async fetch functions for mutation routes
+   - Input types from route arguments
+   - See [Typed Controllers](../guides/typed-controllers.md) for details
+
 #### Examples
 
 **Basic Generation:**
