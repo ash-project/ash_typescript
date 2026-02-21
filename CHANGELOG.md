@@ -11,6 +11,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.15.1](https://github.com/ash-project/ash_typescript/compare/v0.15.0...v0.15.1) (2026-02-21)
+
+
+
+
+### Bug Fixes:
+
+* restore method/module_name in spark formatter locals_without_parens by [@Torkan](https://github.com/Torkan)
+
+* add typed_controller_path_params_style config option by [@Torkan](https://github.com/Torkan)
+
+* codegen: check typescript_type_name before unwrapping NewTypes (#52) by [@Torkan](https://github.com/Torkan)
+
 ## [v0.15.0](https://github.com/ash-project/ash_typescript/compare/v0.14.4...v0.15.0) (2026-02-19)
 
 
