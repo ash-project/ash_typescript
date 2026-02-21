@@ -216,7 +216,8 @@ defmodule AshTypescript.MixProject do
         "usage_rules.sync AGENTS.md --all --link-to-folder deps --link-style at"
       ],
       credo: "credo --strict",
-      "spark.formatter": "spark.formatter --extensions AshTypescript.Rpc,AshTypescript.Resource",
+      "spark.formatter":
+        "spark.formatter --extensions AshTypescript.Rpc,AshTypescript.Resource,AshTypescript.TypedController.Dsl",
       "spark.cheat_sheets":
         "spark.cheat_sheets --extensions AshTypescript.Rpc,AshTypescript.Resource"
     ]

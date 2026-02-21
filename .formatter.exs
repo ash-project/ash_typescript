@@ -4,8 +4,13 @@
 
 # Used by "mix format"
 spark_locals_without_parens = [
+  allow_nil?: 1,
   allowed_loads: 1,
+  argument: 2,
+  argument: 3,
   argument_names: 1,
+  constraints: 1,
+  default: 1,
   denied_loads: 1,
   deprecated: 1,
   description: 1,
@@ -23,8 +28,14 @@ spark_locals_without_parens = [
   read_action: 1,
   resource: 1,
   resource: 2,
+<<<<<<< HEAD
+=======
+  route: 1,
+  route: 2,
+>>>>>>> 6884020 (chore: add TypedController DSL to spark.formatter extensions)
   rpc_action: 2,
   rpc_action: 3,
+  run: 1,
   see: 1,
   show_metadata: 1,
   show_raised_errors?: 1,
