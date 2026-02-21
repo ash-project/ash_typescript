@@ -28,11 +28,8 @@ spark_locals_without_parens = [
   read_action: 1,
   resource: 1,
   resource: 2,
-<<<<<<< HEAD
-=======
   route: 1,
   route: 2,
->>>>>>> 6884020 (chore: add TypedController DSL to spark.formatter extensions)
   rpc_action: 2,
   rpc_action: 3,
   run: 1,
