@@ -25,6 +25,9 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
         end)
       end)
     end)
+    |> Enum.sort_by(fn {resource, _action, rpc_action} ->
+      {inspect(resource), to_string(rpc_action.name)}
+    end)
   end
 
   @doc """

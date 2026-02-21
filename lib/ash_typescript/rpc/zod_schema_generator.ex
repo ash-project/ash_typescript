@@ -511,6 +511,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
         deps = Map.get(deps_map, resource, [])
         Enum.all?(deps, fn dep -> not MapSet.member?(remaining, dep) end)
       end)
+      |> Enum.sort_by(&inspect/1)
 
     case ready do
       [] ->

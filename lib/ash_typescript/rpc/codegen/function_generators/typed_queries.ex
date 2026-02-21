@@ -28,7 +28,9 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
       Enum.group_by(typed_queries, fn {resource, _action, _query} -> resource end)
 
     sections =
-      Enum.map(queries_by_resource, fn {resource, queries} ->
+      queries_by_resource
+      |> Enum.sort_by(fn {resource, _queries} -> inspect(resource) end)
+      |> Enum.map(fn {resource, queries} ->
         resource_name = build_resource_type_name(resource)
 
         query_types_and_consts =
@@ -119,12 +121,21 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
   defp satisfies_clause(fields_type), do: " satisfies #{fields_type}"
 
   defp find_matching_rpc_fields_type(resource, action, rpc_resources_and_actions) do
-    matching_rpc =
-      Enum.find(rpc_resources_and_actions, fn {rpc_resource, rpc_action, _rpc_action_config} ->
+    matches =
+      rpc_resources_and_actions
+      |> Enum.filter(fn {rpc_resource, rpc_action, _rpc_action_config} ->
         rpc_resource == resource && rpc_action.name == action.name
       end)
+      |> Enum.sort_by(fn {_resource, _action, rpc_action_config} ->
+        is_get =
+          Map.get(rpc_action_config, :get?, false) or
+            (Map.get(rpc_action_config, :get_by) || []) != []
 
-    case matching_rpc do
+        # Prefer non-get actions (list-style) for typed queries, then sort alphabetically
+        {is_get, to_string(rpc_action_config.name)}
+      end)
+
+    case List.first(matches) do
       {_resource, _action, rpc_action_config} ->
         rpc_action_name = to_string(rpc_action_config.name)
         "#{snake_to_pascal_case(rpc_action_name)}Fields"
@@ -185,6 +196,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
   defp format_field_item(%{} = field_map, resource) do
     formatted_pairs =
       field_map
+      |> Enum.sort_by(fn {k, _v} -> to_string(k) end)
       |> Enum.map_join(", ", fn {k, v} ->
         key = format_field_name(k, resource)
         value = format_field_item(v, resource)
@@ -212,6 +224,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
   defp format_args_map(args, resource) do
     formatted_args =
       args
+      |> Enum.sort_by(fn {k, _v} -> to_string(k) end)
       |> Enum.map_join(", ", fn {k, v} ->
         "\"#{format_field_name(k, resource)}\": #{Jason.encode!(v)}"
       end)
