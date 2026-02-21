@@ -7,58 +7,38 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
   describe "calculation field selection" do
-    test "rejects simple atom selection for calculation without arguments that returns complex type" do
-      # This should be rejected - complex types require field selection
+    test "allows simple selection for calculation without arguments that returns complex type" do
+      # Struct calculations without arguments should be loadable as a simple field.
+      # Ash doesn't support nested loads on calculations, so the RPC loads them flat
+      # and returns all sub-fields.
       result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [:summary])
 
-      assert {:error, {:requires_field_selection, :calculation_complex, :summary, []}} = result
+      assert {:ok, {[], [:summary], [:summary]}} = result
     end
 
-    test "should allow field selection for calculation without arguments that returns complex type" do
-      # This currently fails but should work - requesting fields from the calculation result
+    test "allows field selection for calculation without arguments that returns complex type" do
+      # Requesting specific fields from a struct calculation without arguments.
+      # The calculation is loaded flat (Ash limitation) and the template extracts sub-fields.
       requested_fields = [%{summary: [:view_count, :edit_count]}]
 
       result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
 
-      # Currently this throws {:invalid_calculation_args, :summary, [:view_count, :edit_count]}
-      # But it should allow field selection since the calculation returns a complex type
-      case result do
-        {:ok, {[], load_fields, template}} ->
-          # This is what should happen - load the calculation, extract requested fields in template
-          assert load_fields == [{:summary, []}]
-          assert template == [{:summary, [:view_count, :edit_count]}]
-
-        {:error, {:invalid_calculation_args, :summary, _}} ->
-          flunk(
-            "Should allow field selection for calculation returning complex type, but got invalid_calculation_args error"
-          )
-
-        other ->
-          flunk("Unexpected result: #{inspect(other)}")
-      end
+      assert {:ok, {[], [:summary], [{:summary, [:view_count, :edit_count]}]}} = result
     end
 
-    test "demonstrates issue with complex field selection from calculation without arguments" do
-      # This test demonstrates the current issue - it will fail with the current implementation
+    test "allows nested field selection from calculation without arguments" do
       requested_fields = [
         %{summary: [%{performance_metrics: [:focus_time_seconds, :efficiency_score]}]}
       ]
 
       result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
 
-      case result do
-        {:ok, _} ->
-          # This would be the desired behavior
-          assert true
-
-        {:error, {:invalid_calculation_args, :summary, _}} ->
-          # This is what currently happens - the error we want to fix
-          assert true,
-                 "Current behavior: calculation without arguments can't have field selection"
-
-        other ->
-          flunk("Unexpected result: #{inspect(other)}")
-      end
+      assert {:ok,
+              {[], [:summary],
+               [
+                 {:summary,
+                  [{:performance_metrics, [:focus_time_seconds, :efficiency_score]}]}
+               ]}} = result
     end
 
     test "calculation with arguments still works normally" do
