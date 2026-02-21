@@ -219,7 +219,7 @@ defmodule AshTypescript.MixProject do
       "spark.formatter":
         "spark.formatter --extensions AshTypescript.Rpc,AshTypescript.Resource,AshTypescript.TypedController.Dsl",
       "spark.cheat_sheets":
-        "spark.cheat_sheets --extensions AshTypescript.Rpc,AshTypescript.Resource"
+        "spark.cheat_sheets --extensions AshTypescript.Rpc,AshTypescript.Resource,AshTypescript.TypedController.Dsl"
     ]
   end
 end
