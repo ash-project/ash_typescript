@@ -8,22 +8,23 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
 
   describe "calculation field selection" do
     test "allows simple selection for calculation without arguments that returns complex type" do
-      # Struct calculations without arguments should be loadable as a simple field.
-      # Ash doesn't support nested loads on calculations, so the RPC loads them flat
-      # and returns all sub-fields.
+      # Struct calculations without arguments can be loaded as a simple field.
+      # All sub-fields are returned.
       result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [:summary])
 
       assert {:ok, {[], [:summary], [:summary]}} = result
     end
 
     test "allows field selection for calculation without arguments that returns complex type" do
-      # Requesting specific fields from a struct calculation without arguments.
-      # The calculation is loaded flat (Ash limitation) and the template extracts sub-fields.
+      # TypedStruct calculations load as bare atom — sub-field extraction is
+      # handled by the template. Ash can't load_through non-resource types.
       requested_fields = [%{summary: [:view_count, :edit_count]}]
 
       result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
 
-      assert {:ok, {[], [:summary], [{:summary, [:view_count, :edit_count]}]}} = result
+      assert {:ok,
+              {[], [:summary],
+               [{:summary, [:view_count, :edit_count]}]}} = result
     end
 
     test "allows nested field selection from calculation without arguments" do
@@ -34,7 +35,8 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
       result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
 
       assert {:ok,
-              {[], [:summary],
+              {[],
+               [:summary],
                [
                  {:summary,
                   [{:performance_metrics, [:focus_time_seconds, :efficiency_score]}]}
@@ -54,8 +56,6 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
 
   describe "deeply nested map field selection" do
     test "supports selecting fields from nested maps within maps" do
-      # Create a test with a map that has another map as a field
-      # For this test, let's imagine performance_metrics has a nested_data field that's also a map
       requested_fields = [
         %{
           summary: [
@@ -76,7 +76,8 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
 
       case result do
         {:ok, {[], load_fields, template}} ->
-          assert load_fields == [{:summary, []}]
+          # TypedStruct calculations load as bare atom
+          assert load_fields == [:summary]
 
           assert template == [
                    {:summary,

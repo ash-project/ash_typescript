@@ -344,9 +344,26 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
 
       :calculation_complex ->
-        # Ash doesn't support nested loads on calculations (only on relationships).
-        # Load the calculation flat and let the template extract sub-fields.
-        {select, load ++ [internal_name], template ++ [{internal_name, nested_template}]}
+        # Calculations returning complex types without arguments.
+        # For Ash Resources: use {calc, {%{}, loads}} to enable load_through.
+        # For TypedStruct/typed maps: load as bare atom — Ash can't query through
+        # non-resource types. Sub-field extraction is handled by the template.
+        load_spec =
+          if nested_select != [] or nested_load != [] do
+            # Resource-type return: select/load are populated by select_resource_fields
+            load_fields =
+              case nested_load do
+                [] -> nested_select
+                _ -> nested_select ++ nested_load
+              end
+
+            {internal_name, {%{}, load_fields}}
+          else
+            # TypedStruct/typed map: fields only appear in template
+            internal_name
+          end
+
+        {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
 
       :aggregate ->
         # Aggregates don't support nested loads - just load the aggregate itself
