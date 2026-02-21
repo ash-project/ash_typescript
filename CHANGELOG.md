@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.15.2](https://github.com/ash-project/ash_typescript/compare/v0.15.1...v0.15.2) (2026-02-21)
+
+
+
+
+### Bug Fixes:
+
+* sort typed controller output for deterministic codegen by [@Torkan](https://github.com/Torkan)
+
 ## [v0.15.1](https://github.com/ash-project/ash_typescript/compare/v0.15.0...v0.15.1) (2026-02-21)
 
 
