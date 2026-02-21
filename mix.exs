@@ -112,6 +112,7 @@ defmodule AshTypescript.MixProject do
         "documentation/guides/typed-queries.md",
         "documentation/guides/error-handling.md",
         "documentation/guides/form-validation.md",
+        "documentation/guides/typed-controllers.md",
 
         # Features
         "documentation/features/rpc-action-options.md",
