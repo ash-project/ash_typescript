@@ -174,8 +174,6 @@ defmodule AshTypescript.Rpc.Codegen do
     grouped = RpcConfigCollector.get_rpc_resources_by_namespace(otp_app)
 
     # Generate namespace files (simple re-exports from main file)
-    # Note: Map iteration order doesn't matter here - each namespace file is written
-    # to its own path, and the content within each file is sorted (see lines 210-211).
     namespace_files =
       grouped
       |> Map.delete(nil)
