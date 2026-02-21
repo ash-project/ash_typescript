@@ -116,12 +116,13 @@ defmodule AshTypescript.TypedController.CodegenTest do
       assert String.contains?(typescript, "searchParams.toString()")
     end
 
-    test "GET routes do not generate async functions", %{typescript: typescript} do
-      [get_section | _] = String.split(typescript, "export type LoginInput")
-
-      refute String.contains?(get_section, "async function")
-      refute String.contains?(get_section, "fetch(")
-      refute String.contains?(get_section, "Promise<")
+    test "GET path helpers do not generate async functions", %{typescript: typescript} do
+      # Extract individual path helper functions (authPath, providerPagePath, searchPath)
+      # and verify none are async
+      for path_fn <- ["authPath()", "providerPagePath(", "searchPath("] do
+        assert String.contains?(typescript, "export function #{path_fn}")
+        refute String.contains?(typescript, "export async function #{path_fn}")
+      end
     end
 
     test "generates JSDoc for path helpers", %{typescript: typescript} do

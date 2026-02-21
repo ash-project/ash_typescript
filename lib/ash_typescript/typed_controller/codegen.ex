@@ -112,7 +112,12 @@ defmodule AshTypescript.TypedController.Codegen do
 
     """
 
-    functions = Enum.map_join(route_infos, "\n", &RouteRenderer.render/1)
+    sorted_infos =
+      Enum.sort_by(route_infos, fn info ->
+        {info.scope_prefix || "", info.route.name}
+      end)
+
+    functions = Enum.map_join(sorted_infos, "\n", &RouteRenderer.render/1)
 
     header <> functions
   end
