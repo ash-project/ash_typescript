@@ -153,6 +153,9 @@ Typed controllers are validated at compile time with these constraints:
 - **Unique route names** — no duplicate names within a module
 - **Handlers required** — every route must have a `run` handler
 - **Valid argument types** — all argument types must be valid Ash types
+- **Valid names for TypeScript** — route and argument names must not contain `_1`-style patterns or `?` characters (uses `VerifyFieldNames` from the resource verifiers)
+
+Path parameters are also validated at codegen time: every `:param` in the router path must have a matching DSL argument. Missing arguments produce a clear error with suggested fixes.
 
 ## Router Introspection
 
@@ -212,6 +215,26 @@ export function providerPagePath(provider: string): string {
   return `/auth/providers/${provider}`;
 }
 ```
+
+### GET Routes with Arguments → Query Parameters
+
+When GET routes have arguments (excluding path parameters), arguments become typed query parameters using `URLSearchParams`:
+
+```typescript
+export function searchPath(query: { q: string; page?: number }): string {
+  const base = "/search";
+  const searchParams = new URLSearchParams();
+  searchParams.set("q", String(query.q));
+  if (query?.page !== undefined) searchParams.set("page", String(query.page));
+  const qs = searchParams.toString();
+  return qs ? `${base}?${qs}` : base;
+}
+```
+
+- Required arguments (`allow_nil?: false`, no default) → always set on `searchParams`
+- Optional arguments → conditionally set with `!== undefined` check
+- If all arguments are optional, the `query` parameter itself is optional (`query?:`)
+- Path parameters are excluded from query args (they stay in the URL template)
 
 ### Mutation Routes → Typed Async Functions
 
@@ -281,6 +304,19 @@ export async function updateProvider(
 | Single mount | `actionNamePath` | `actionName` |
 | Multi-mount | `scopePrefixActionNamePath` | `scopePrefixActionName` |
 
+## Paths-Only Mode
+
+When `typed_controller_mode: :paths_only` is configured, only path helper functions are generated for all routes (including mutation routes). No input types or async fetch functions are produced.
+
+```elixir
+config :ash_typescript,
+  typed_controller_mode: :paths_only
+```
+
+This is useful when mutations are handled via a different client library or directly with `fetch`. In `:full` mode (the default), mutation routes generate both a path helper and a typed async fetch function.
+
+**Implementation**: `RouteRenderer.render/1` checks `AshTypescript.typed_controller_mode()` — when `:paths_only` or when the route is a GET, only the path helper is rendered.
+
 ## Configuration
 
 ### Application Config
@@ -289,10 +325,18 @@ export async function updateProvider(
 config :ash_typescript,
   typed_controllers: [MyApp.Session],       # List of TypedController modules
   router: MyAppWeb.Router,                  # Phoenix router for path introspection
-  routes_output_file: "assets/js/routes.ts" # Output file for route helpers
+  routes_output_file: "assets/js/routes.ts", # Output file for route helpers
+  typed_controller_mode: :full              # :full (default) or :paths_only
 ```
 
 `typed_controllers` lists all modules using `AshTypescript.TypedController`. Both `router` and `routes_output_file` are required for route generation. If `routes_output_file` is `nil`, route generation is skipped.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `typed_controllers` | `list(module)` | `[]` | Modules using `AshTypescript.TypedController` |
+| `router` | `module` | `nil` | Phoenix router for path introspection |
+| `routes_output_file` | `string` | `nil` | Output file path (when `nil`, generation is skipped) |
+| `typed_controller_mode` | `:full \| :paths_only` | `:full` | `:full` generates path helpers + fetch functions; `:paths_only` generates only path helpers |
 
 ### Mix Task Integration
 
@@ -361,3 +405,5 @@ cd test/ts && npm run compileGenerated            # Verify TS compilation
 | Multi-mount ambiguity error | Same controller at multiple scopes without `as:` | Add unique `as:` option to each scope |
 | 500 error from controller | Handler doesn't return `%Plug.Conn{}` | Ensure handler returns `%Plug.Conn{}` directly |
 | Module not in `typed_controllers` | Missing config entry | Add module to `typed_controllers: [MyApp.Session]` in config |
+| Path param without matching argument | Router path has `:param` but no DSL argument | Add `argument :param, :string` to the route definition |
+| Invalid names for TypeScript | Route or argument names contain `_1` or `?` | Rename to avoid patterns that produce awkward camelCase |

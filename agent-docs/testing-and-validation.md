@@ -85,6 +85,35 @@ cd test/ts && npm run compileShouldFail # Invalid patterns rejected
 
 ## Change-Specific Validations
 
+### Typed Controller Changes
+When modifying `lib/ash_typescript/typed_controller/` modules:
+
+```bash
+# Codegen output validation
+mix test test/ash_typescript/typed_controller/codegen_test.exs
+
+# Request handler (argument extraction, casting, validation, dispatch)
+mix test test/ash_typescript/typed_controller/request_handler_test.exs
+
+# Router matching and multi-mount
+mix test test/ash_typescript/typed_controller/router_introspection_test.exs
+
+# Compile-time verification (unique names, valid types, TS name validation)
+mix test test/ash_typescript/typed_controller/verify_typed_controller_test.exs
+
+# Full typed controller test suite
+mix test test/ash_typescript/typed_controller/
+
+# Validate generated routes compile
+mix test.codegen
+cd test/ts && npm run compileGenerated
+```
+
+**Key test fixtures:**
+- `test/support/resources/session.ex` — test typed controller module
+- `test/support/routes_test_router.ex` — single-mount and multi-mount test routers
+- `test/ts/generated_routes.ts` — generated output for TS compilation validation
+
 ### Type System Changes
 When modifying `lib/ash_typescript/codegen/` modules (type_mapper.ex, resource_schemas.ex, etc.) or `lib/ash_typescript/rpc/codegen.ex`:
 

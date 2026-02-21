@@ -8,6 +8,31 @@ SPDX-License-Identifier: MIT
 
 Key architectural decisions and their reasoning for AI assistant context.
 
+## 2026-02: Typed Controller Feature Completion
+
+**Change**: Added GET query parameter support, paths-only mode, and compile-time name validation for TypedController
+**Why**: Complete the TypedController feature set to match RPC pipeline maturity
+**Impact**:
+- GET routes with arguments now generate query parameter path helpers using `URLSearchParams`
+- `typed_controller_mode: :paths_only` config option generates only path helpers (no fetch functions)
+- Route and argument names validated for TypeScript compatibility at compile time (reuses `VerifyFieldNames`)
+- Path parameters validated at codegen time — every `:param` in router paths must have a matching DSL argument
+**Key Commits**:
+- `6669e22` feat: generate query params and typed path helpers
+- `f4d790b` feat: add typed_controller_mode config for paths_only generation
+- `cb56218` feat: validate route and argument names for TypeScript compatibility
+- `d5ff7e9` feat: validate that path params have matching DSL arguments
+**Key Files**: `lib/ash_typescript/typed_controller/codegen/route_renderer.ex`, `lib/ash_typescript/typed_controller/verifiers/verify_typed_controller.ex`
+
+## 2026-01: TypedController — Standalone Spark DSL for Controller Routes
+
+**Change**: Added `AshTypescript.TypedController` as a standalone Spark DSL that generates Phoenix controllers and TypeScript route helpers
+**Why**: Need type-safe route helpers for controller-style actions (Inertia renders, redirects, OAuth flows) that don't fit the RPC pipeline pattern
+**Impact**: Three-layer architecture (DSL → Generation → Rendering), compile-time controller module generation via `Module.create/3`, runtime request handling with type casting and validation
+**Key Commit**: `546a15e` feat: add TypedController as standalone Spark DSL
+**Key Files**: `lib/ash_typescript/typed_controller/`, `lib/ash_typescript/typed_controller/codegen/`
+**Design Decision**: Completely independent from `Ash.Resource` — uses Spark DSL directly with colocated arguments and handler functions. Generated controllers delegate to `RequestHandler.handle/4` for consistent param processing.
+
 ## 2025-12-08: Field Processing and Formatting Architecture Simplification
 
 **Change**: Unified type-driven dispatch pattern for field processing and value formatting

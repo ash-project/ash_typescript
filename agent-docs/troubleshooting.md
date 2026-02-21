@@ -142,6 +142,15 @@ AshTypescript.Rpc.run_action(:ash_typescript, conn, params)
 - Field selection failing: Use `{content: ["field"]}` format for union member selection
 - Type inference problems: Check union storage mode configuration
 
+### Typed Controllers
+- Routes not generated: Missing `typed_controllers`, `router`, or `routes_output_file` config — all three required
+- Path shows as `nil`: Router not configured or action not in Phoenix router
+- Multi-mount ambiguity: Same controller at multiple scopes without unique `as:` options
+- 422 error: Missing required argument (`allow_nil?: false`) or invalid type cast
+- 500 error: Handler doesn't return `%Plug.Conn{}`
+- Path param error at codegen: Router path has `:param` without matching DSL argument
+- Invalid TypeScript names: Route or argument names contain `_1` or `?` patterns
+
 ## Validation Workflow
 
 1. `mix test.codegen`

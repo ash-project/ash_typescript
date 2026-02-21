@@ -300,6 +300,8 @@ mix credo --strict                   # Linting
 | Multi-mount ambiguity | Duplicate mounts without `as:` | Add unique `as:` to each scope |
 | "load_not_allowed" error | Requested field not in `allowed_loads` | Add field to `allowed_loads` or remove the option |
 | "load_denied" error | Requested field in `denied_loads` | Remove field from `denied_loads` list |
+| Path param without matching argument | Router path has `:param` but no DSL argument | Add `argument :param, :string` to the route definition |
+| Invalid names for TypeScript (controller) | Route/argument names with `_1` or `?` | Rename to avoid patterns that produce awkward camelCase |
 
 ## RPC Resource Warnings
 
@@ -336,10 +338,13 @@ When `typed_controllers`, `router`, and `routes_output_file` are configured, `mi
 config :ash_typescript,
   typed_controllers: [MyApp.Session],         # TypedController modules
   router: MyAppWeb.Router,                    # Phoenix router for path introspection
-  routes_output_file: "assets/js/routes.ts"   # Output file for route helpers
+  routes_output_file: "assets/js/routes.ts",  # Output file for route helpers
+  typed_controller_mode: :full                # :full (default) or :paths_only
 ```
 
-**Implementation:** `lib/ash_typescript.ex` (`typed_controllers/0`, `router/0`, `routes_output_file/0`) + `lib/mix/tasks/ash_typescript.codegen.ex` + `lib/ash_typescript/typed_controller/`
+**Modes:** `:full` generates path helpers + typed fetch functions for mutations. `:paths_only` generates only path helpers.
+
+**Implementation:** `lib/ash_typescript.ex` (`typed_controllers/0`, `router/0`, `routes_output_file/0`, `typed_controller_mode/0`) + `lib/mix/tasks/ash_typescript.codegen.ex` + `lib/ash_typescript/typed_controller/`
 
 ## Always Regenerate Mode
 

@@ -66,6 +66,8 @@ SPDX-License-Identifier: MIT
 | **Typed Controllers** | `config :ash_typescript, typed_controllers: [M]` | Module discovery |
 | **Router Config** | `config :ash_typescript, router: MyWeb.Router` | Path introspection |
 | **Routes Output** | `config :ash_typescript, routes_output_file: "routes.ts"` | Route file path |
+| **Paths-Only Mode** | `config :ash_typescript, typed_controller_mode: :paths_only` | Skip fetch functions |
+| **GET Query Params** | `argument :q, :string, allow_nil?: false` on GET route | Becomes `?q=value` |
 
 ## Action Feature Matrix
 
@@ -179,24 +181,21 @@ end
 
 ```typescript
 // GET → path helper
-export function authPath(): string {
-  return "/auth";
-}
+authPath()                          // → "/auth"
+
+// GET with query args → path with query params
+searchPath({ q: "test", page: 1 }) // → "/search?q=test&page=1"
 
 // POST → typed async function
-export type LoginInput = { code: string; rememberMe?: boolean };
-export async function login(
-  input: LoginInput,
-  config?: { headers?: Record<string, string> }
-): Promise<Response> { ... }
+login({ code: "abc" }, { headers: csrfHeaders })
 
 // PATCH with path params + input
-export async function updateProvider(
-  path: { provider: string },
-  input: UpdateProviderInput,
-  config?: { headers?: Record<string, string> }
-): Promise<Response> { ... }
+updateProvider({ provider: "github" }, { enabled: true })
 ```
+
+**Function parameter order**: `path` (if path params) → `input` (if args) → `config?` (always optional)
+
+**Modes**: `:full` (default) generates path helpers + fetch functions. `:paths_only` generates only path helpers.
 
 ### Typed Controller Constraints
 
@@ -221,6 +220,7 @@ export async function updateProvider(
 | Typed controller 500 error | Handler must return `%Plug.Conn{}` |
 | Routes not generated | Set `typed_controllers:`, `router:`, and `routes_output_file:` in config |
 | Multi-mount ambiguity error | Add unique `as:` option to each scope |
+| Path param without matching argument | Add `argument :param, :string` to route |
 
 ## Error Quick Reference
 
@@ -262,7 +262,8 @@ config :ash_typescript,
   # Typed Controller (route helpers)
   typed_controllers: [MyApp.Session],
   router: MyAppWeb.Router,
-  routes_output_file: "assets/js/routes.ts"
+  routes_output_file: "assets/js/routes.ts",
+  typed_controller_mode: :full  # :full or :paths_only
 ```
 
 ## Commands
