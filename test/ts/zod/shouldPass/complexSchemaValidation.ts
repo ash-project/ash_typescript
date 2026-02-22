@@ -2,17 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-// Complex Schema Validation Tests - shouldPass
-// Tests for advanced schema features like embedded resources, unions, and calculations
-
 import { z } from "zod";
+import { createTodo } from "../../generated";
 import {
-  createTodo,
   createTodoZodSchema,
   TodoMetadataZodSchema,
-} from "../../generated";
+} from "../../ash_zod";
 
-// Test 1: Embedded resource schema validation
 export function testEmbeddedResourceValidation() {
   const validMetadata = {
     category: "work",
@@ -30,14 +26,6 @@ export function testEmbeddedResourceValidation() {
   return validMetadata;
 }
 
-// Test 2: Union type schema validation (disabled - schema not available)
-// export function testUnionTypeValidation() {
-//   // Union type schemas would be tested here when available
-//   console.log("Union type validation skipped - schemas not available");
-//   return {};
-// }
-
-// Test 3: Complex todo creation with all fields
 export function testComplexTodoCreation() {
   const complexTodoData = {
     title: "Complex Todo Item",
@@ -67,14 +55,6 @@ export function testComplexTodoCreation() {
   return validated;
 }
 
-// Test 4: Update operations with partial data (disabled - schema not available)
-// export function testPartialUpdateValidation() {
-//   // Update schema would be tested here when available
-//   console.log("Update validation skipped - schema not available");
-//   return {};
-// }
-
-// Test 5: Schema validation with transforms and defaults
 export function testSchemaWithTransforms() {
   const transformedSchema = createTodoZodSchema
     .omit({ userId: true })
@@ -97,7 +77,6 @@ export function testSchemaWithTransforms() {
   return validated;
 }
 
-// Test 6: Nested object validation within schemas
 export function testNestedObjectValidation() {
   const nestedData = {
     title: "Todo with nested metadata",
@@ -119,7 +98,6 @@ export function testNestedObjectValidation() {
   return validated;
 }
 
-// Test 7: Array field validation
 export function testArrayFieldValidation() {
   const dataWithArrays = {
     title: "Todo with arrays",
@@ -135,7 +113,6 @@ export function testArrayFieldValidation() {
   return validated;
 }
 
-// Test 8: Date and time validation
 export function testDateTimeValidation() {
   const dateTimeData = {
     title: "Todo with dates",
@@ -150,7 +127,6 @@ export function testDateTimeValidation() {
   return validated;
 }
 
-// Test 9: Conditional validation with refinements
 export function testConditionalValidation() {
   const refinedSchema = createTodoZodSchema.refine(
     (data: any) => {
@@ -176,7 +152,6 @@ export function testConditionalValidation() {
   return validated;
 }
 
-// Test 10: Schema composition and merging
 export function testSchemaComposition() {
   const baseSchema = z.object({
     title: z.string(),

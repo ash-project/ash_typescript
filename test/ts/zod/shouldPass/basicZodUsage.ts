@@ -2,17 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-// Basic Zod Schema Usage Tests - shouldPass
-// Tests for valid schema validation patterns with generated schemas
-
 import { z } from "zod";
 import {
   createTodoZodSchema,
   listTodosZodSchema,
   getTodoZodSchema,
-} from "../../generated";
+} from "../../ash_zod";
 
-// Test 1: Basic schema validation with createTodo input
 export function testCreateTodoValidation() {
   const validCreateData = {
     title: "Complete project",
@@ -21,14 +17,12 @@ export function testCreateTodoValidation() {
     userId: "user-id-123",
   };
 
-  // Schema should validate successfully
   const validatedData = createTodoZodSchema.parse(validCreateData);
   console.log("Create todo validation passed:", validatedData);
 
   return validatedData;
 }
 
-// Test 2: List todos schema validation with optional fields
 export function testListTodosValidation() {
   const validListData = {
     filterCompleted: true,
@@ -41,7 +35,6 @@ export function testListTodosValidation() {
   return validatedListData;
 }
 
-// Test 3: Schema validation with minimal required fields
 export function testMinimalValidation() {
   const minimalCreateData = {
     title: "Minimal todo",
@@ -52,7 +45,6 @@ export function testMinimalValidation() {
   return validated;
 }
 
-// Test 4: Get todo input validation (should work with empty input)
 export function testGetTodoValidation() {
   const emptyInput = {};
   const validatedInput = getTodoZodSchema.parse(emptyInput);
@@ -60,7 +52,6 @@ export function testGetTodoValidation() {
   return validatedInput;
 }
 
-// Test 5: Schema validation with all optional fields present
 export function testFullValidation() {
   const fullCreateData = {
     title: "Complete todo",
@@ -77,12 +68,10 @@ export function testFullValidation() {
   return validated;
 }
 
-// Test 6: Type inference from schemas
 export type CreateTodoInput = z.infer<typeof createTodoZodSchema>;
 export type ListTodosInput = z.infer<typeof listTodosZodSchema>;
 export type GetTodoInput = z.infer<typeof getTodoZodSchema>;
 
-// Test 7: Schema validation in function context
 export function validateCreateInput(input: unknown): CreateTodoInput {
   return createTodoZodSchema.parse(input);
 }
@@ -91,7 +80,6 @@ export function validateListInput(input: unknown): ListTodosInput {
   return listTodosZodSchema.parse(input);
 }
 
-// Test 8: Safe parsing that doesn't throw
 export function testSafeParsing() {
   const validData = {
     title: "Test todo",
@@ -108,7 +96,6 @@ export function testSafeParsing() {
   }
 }
 
-// Test 9: Schema refinement and custom validation
 export function testSchemaRefinement() {
   const schema = createTodoZodSchema.refine(
     (data: any) => data.title.length > 0,
@@ -123,7 +110,6 @@ export function testSchemaRefinement() {
   return schema.parse(validData);
 }
 
-// Test 10: Schema transformation
 export function testSchemaTransformation() {
   const transformedSchema = createTodoZodSchema.transform((data: any) => ({
     ...data,

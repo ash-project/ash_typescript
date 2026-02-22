@@ -4,30 +4,20 @@
 
 import Config
 
-# Default configuration for ash_typescript
 config :ash_typescript,
-  # Core configuration
   output_file: "assets/js/ash_rpc.ts",
   run_endpoint: "/rpc/run",
   validate_endpoint: "/rpc/validate",
   input_field_formatter: :camel_case,
   output_field_formatter: :camel_case,
-
-  # Feature toggles
   require_tenant_parameters: false,
   generate_zod_schemas: false,
   generate_phx_channel_rpc_actions: false,
   generate_validation_functions: true,
-
-  # Import paths and naming
   zod_import_path: "zod",
   zod_schema_suffix: "ZodSchema",
   phoenix_import_path: "phoenix",
   type_mapping_overrides: []
-
-# Type generation
-# untyped_map_type: "Record<string, any>"  # Default
-# untyped_map_type: "Record<string, unknown>"  # Stricter type safety
 
 if Mix.env() == :test do
   config :ash,
@@ -51,24 +41,20 @@ if Mix.env() == :test do
     add_ash_internals_to_manifest: true,
     manifest_file: "./test/ts/MANIFEST.md",
     output_file: "./test/ts/generated.ts",
-    # Namespace file generation (disabled by default, tested explicitly)
     enable_namespace_files: false,
-    # namespace_output_dir: "./test/ts/namespace",
-    # Lifecycle hooks configuration
+    enable_controller_namespace_files: true,
     rpc_action_before_request_hook: "RpcHooks.beforeActionRequest",
     rpc_action_after_request_hook: "RpcHooks.afterActionRequest",
     rpc_validation_before_request_hook: "RpcHooks.beforeValidationRequest",
     rpc_validation_after_request_hook: "RpcHooks.afterValidationRequest",
     rpc_action_hook_context_type: "RpcHooks.ActionHookContext",
     rpc_validation_hook_context_type: "RpcHooks.ValidationHookContext",
-    # Channel lifecycle hooks configuration
     rpc_action_before_channel_push_hook: "ChannelHooks.beforeChannelPush",
     rpc_action_after_channel_response_hook: "ChannelHooks.afterChannelResponse",
     rpc_validation_before_channel_push_hook: "ChannelHooks.beforeValidationChannelPush",
     rpc_validation_after_channel_response_hook: "ChannelHooks.afterValidationChannelResponse",
     rpc_action_channel_hook_context_type: "ChannelHooks.ActionChannelHookContext",
     rpc_validation_channel_hook_context_type: "ChannelHooks.ValidationChannelHookContext",
-    # Typed controller lifecycle hooks configuration
     typed_controller_before_request_hook: "RouteHooks.beforeRequest",
     typed_controller_after_request_hook: "RouteHooks.afterRequest",
     typed_controller_hook_context_type: "RouteHooks.RouteHookContext",
