@@ -110,7 +110,7 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     end
 
     test "succeeds when all required arguments are present with optional ones omitted" do
-      conn = call(:update_provider, %{"enabled" => "true"})
+      conn = call(:update_provider, %{"provider" => "github", "enabled" => "true"})
 
       assert conn.status == 200
       assert conn.resp_body == "ProviderUpdated"
@@ -232,7 +232,7 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     end
 
     test "route with all optional arguments works when none provided" do
-      conn = call(:provider_page, %{})
+      conn = call(:provider_page, %{"provider" => "github"})
 
       assert conn.status == 200
       assert conn.resp_body == "ProviderPage"
@@ -317,6 +317,112 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       assert "name" in fields_with_errors
       # count has an invalid value
       assert "count" in fields_with_errors
+    end
+  end
+
+  describe "error handler" do
+    setup do
+      prev = Application.get_env(:ash_typescript, :typed_controller_error_handler)
+      on_exit(fn -> reset_env(:typed_controller_error_handler, prev) end)
+      :ok
+    end
+
+    test "MFA error handler transforms 422 errors" do
+      Application.put_env(
+        :ash_typescript,
+        :typed_controller_error_handler,
+        {__MODULE__.TestErrorHandler, :handle, []}
+      )
+
+      conn = call(:login, %{})
+
+      assert conn.status == 422
+      body = json_body(conn)
+
+      Enum.each(body["errors"], fn error ->
+        assert error["transformed"] == true
+      end)
+    end
+
+    test "MFA error handler can filter out errors by returning nil" do
+      Application.put_env(
+        :ash_typescript,
+        :typed_controller_error_handler,
+        {__MODULE__.FilteringErrorHandler, :handle, []}
+      )
+
+      conn = call(:login, %{})
+
+      assert conn.status == 422
+      body = json_body(conn)
+      # FilteringErrorHandler returns nil for all errors
+      assert body["errors"] == []
+    end
+
+    test "module error handler transforms errors" do
+      Application.put_env(
+        :ash_typescript,
+        :typed_controller_error_handler,
+        __MODULE__.ModuleErrorHandler
+      )
+
+      conn = call(:login, %{})
+
+      assert conn.status == 422
+      body = json_body(conn)
+
+      Enum.each(body["errors"], fn error ->
+        assert error["module_handled"] == true
+      end)
+    end
+  end
+
+  describe "show_raised_errors?" do
+    setup do
+      prev = Application.get_env(:ash_typescript, :typed_controller_show_raised_errors)
+      on_exit(fn -> reset_env(:typed_controller_show_raised_errors, prev) end)
+      :ok
+    end
+
+    test "returns generic message when show_raised_errors is false (default)" do
+      Application.put_env(:ash_typescript, :typed_controller_show_raised_errors, false)
+
+      conn = call(:raise_error, %{})
+
+      assert conn.status == 500
+      body = json_body(conn)
+      error = hd(body["errors"])
+      assert error["message"] == "Internal server error"
+    end
+
+    test "returns actual message when show_raised_errors is true" do
+      Application.put_env(:ash_typescript, :typed_controller_show_raised_errors, true)
+
+      conn = call(:raise_error, %{})
+
+      assert conn.status == 500
+      body = json_body(conn)
+      error = hd(body["errors"])
+      assert error["message"] == "test error for show_raised_errors"
+    end
+  end
+
+  defp reset_env(key, nil), do: Application.delete_env(:ash_typescript, key)
+  defp reset_env(key, value), do: Application.put_env(:ash_typescript, key, value)
+
+  defmodule TestErrorHandler do
+    def handle(error, _context) do
+      Map.put(error, :transformed, true)
+    end
+  end
+
+  defmodule FilteringErrorHandler do
+    def handle(_error, _context), do: nil
+  end
+
+  defmodule ModuleErrorHandler do
+    def handle_error(error, _context) do
+      Map.put(error, :module_handled, true)
     end
   end
 end
