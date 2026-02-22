@@ -25,4 +25,27 @@ defmodule AshTypescript.TypedController.Codegen.RouteConfigCollector do
       {module, controller_module, routes}
     end)
   end
+
+  @doc """
+  Gets the controller-level namespace for a typed controller module.
+  """
+  def get_controller_namespace(module) do
+    case Spark.Dsl.Extension.fetch_opt(module, [:typed_controller], :namespace) do
+      {:ok, ns} -> ns
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Resolves the namespace for a route.
+
+  Namespace precedence: route > controller.
+  Returns nil if no namespace is configured at any level.
+  """
+  def resolve_route_namespace(route, controller_module) do
+    route_ns = Map.get(route, :namespace)
+    controller_ns = get_controller_namespace(controller_module)
+
+    route_ns || controller_ns
+  end
 end

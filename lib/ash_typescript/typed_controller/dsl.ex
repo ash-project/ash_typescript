@@ -63,6 +63,7 @@ defmodule AshTypescript.TypedController.Dsl do
       :description,
       :deprecated,
       :zod_schema_name,
+      :namespace,
       see: [],
       arguments: [],
       __spark_metadata__: nil
@@ -155,6 +156,12 @@ defmodule AshTypescript.TypedController.Dsl do
         required: false,
         doc:
           "Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema."
+      ],
+      namespace: [
+        type: :string,
+        required: false,
+        doc:
+          "Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace."
       ]
     ],
     args: [:name]
@@ -170,6 +177,12 @@ defmodule AshTypescript.TypedController.Dsl do
         required: true,
         doc:
           "The module name for the generated Phoenix controller (e.g. MyAppWeb.SessionController)"
+      ],
+      namespace: [
+        type: :string,
+        required: false,
+        doc:
+          "Default namespace (filename) for all routes in this controller. Can be overridden per-route."
       ]
     ]
   }

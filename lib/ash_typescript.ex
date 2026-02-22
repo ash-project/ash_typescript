@@ -406,8 +406,11 @@ defmodule AshTypescript do
   @doc """
   Gets the output file path for generated route helper TypeScript.
 
-  When set, `mix ash_typescript.codegen` generates typed route functions
+  `mix ash_typescript.codegen` generates typed route functions
   from modules using `AshTypescript.TypedController`.
+
+  Auto-derives from `output_file` directory with default name `ash_routes.ts`.
+  Falls back to `"assets/js/ash_routes.ts"` if `output_file` is also unset.
 
   ## Configuration
 
@@ -415,10 +418,10 @@ defmodule AshTypescript do
         routes_output_file: "assets/js/routes.ts"
 
   ## Returns
-  A string file path, or `nil` if route generation is disabled.
+  A string file path (always non-nil).
   """
   def routes_output_file do
-    Application.get_env(:ash_typescript, :routes_output_file)
+    config_or_derive(:routes_output_file, "ash_routes.ts", "assets/js/ash_routes.ts")
   end
 
   @doc """
@@ -605,11 +608,12 @@ defmodule AshTypescript do
   @doc """
   Gets the output file path for shared TypeScript type definitions.
 
-  When set, shared types (type aliases, resource schemas, filter types, utility types)
+  Shared types (type aliases, resource schemas, filter types, utility types)
   are generated into this dedicated file. Both RPC and typed controller files import
   from this file instead of generating types inline.
 
-  When nil, auto-derives from `output_file` directory with default name `ash_types.ts`.
+  Auto-derives from `output_file` directory with default name `ash_types.ts`.
+  Falls back to `"assets/js/ash_types.ts"` if `output_file` is also unset.
 
   ## Configuration
 
@@ -617,23 +621,20 @@ defmodule AshTypescript do
         types_output_file: "assets/js/ash_types.ts"
 
   ## Returns
-  A string file path, or nil if neither this nor `output_file` is configured.
+  A string file path (always non-nil).
   """
   def types_output_file do
-    case Application.get_env(:ash_typescript, :types_output_file) do
-      nil -> derive_from_output_file("ash_types.ts")
-      path -> path
-    end
+    config_or_derive(:types_output_file, "ash_types.ts", "assets/js/ash_types.ts")
   end
 
   @doc """
   Gets the output file path for shared Zod validation schemas.
 
-  When set, resource Zod schemas are generated into this dedicated file.
+  Resource Zod schemas are generated into this dedicated file.
   Both RPC and typed controller files import from this file.
 
-  When nil, auto-derives from `output_file` directory with default name `ash_zod.ts`.
-  Returns nil when Zod schema generation is disabled.
+  Auto-derives from `output_file` directory with default name `ash_zod.ts`.
+  Falls back to `"assets/js/ash_zod.ts"` if `output_file` is also unset.
 
   ## Configuration
 
@@ -641,11 +642,34 @@ defmodule AshTypescript do
         zod_output_file: "assets/js/ash_zod.ts"
 
   ## Returns
-  A string file path, or nil if Zod generation is disabled or no output_file is configured.
+  A string file path (always non-nil).
   """
   def zod_output_file do
-    case Application.get_env(:ash_typescript, :zod_output_file) do
-      nil -> derive_from_output_file("ash_zod.ts")
+    config_or_derive(:zod_output_file, "ash_zod.ts", "assets/js/ash_zod.ts")
+  end
+
+  @doc """
+  Determines if controller namespace file generation is enabled.
+
+  When true, namespaced typed controller routes are generated into separate files.
+  When false (default), all routes are in a single file.
+  """
+  def enable_controller_namespace_files? do
+    Application.get_env(:ash_typescript, :enable_controller_namespace_files, false)
+  end
+
+  @doc """
+  Gets the output directory for controller namespace files.
+
+  When nil, namespace files are written to the same directory as the routes output file.
+  """
+  def controller_namespace_output_dir do
+    Application.get_env(:ash_typescript, :controller_namespace_output_dir)
+  end
+
+  defp config_or_derive(key, derived_name, fallback) do
+    case Application.get_env(:ash_typescript, key) do
+      nil -> derive_from_output_file(derived_name) || fallback
       path -> path
     end
   end
