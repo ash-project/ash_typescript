@@ -30,12 +30,7 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
     end)
   end
 
-  @doc """
-  Gets all RPC resources and their actions, including domain and resource config.
-
-  Returns a list of tuples: `{resource, action, rpc_action, domain, resource_config}`
-  """
-  def get_rpc_resources_and_actions_with_context(otp_app) do
+  defp get_rpc_resources_and_actions_with_context(otp_app) do
     otp_app
     |> Ash.Info.domains()
     |> Enum.flat_map(fn domain ->
@@ -66,10 +61,7 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
     action_ns || resource_ns || domain_ns
   end
 
-  @doc """
-  Gets the namespace configured at the domain level.
-  """
-  def get_domain_namespace(domain) do
+  defp get_domain_namespace(domain) do
     case Spark.Dsl.Extension.fetch_opt(domain, [:typescript_rpc], :namespace) do
       {:ok, ns} -> ns
       _ -> nil

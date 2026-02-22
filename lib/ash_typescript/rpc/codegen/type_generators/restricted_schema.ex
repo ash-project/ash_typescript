@@ -22,14 +22,6 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   alias AshTypescript.TypeSystem.Introspection
 
   @doc """
-  Checks if an RPC action has load restrictions configured.
-  """
-  def has_load_restrictions?(rpc_action) do
-    not is_nil(Map.get(rpc_action, :allowed_loads)) or
-      not is_nil(Map.get(rpc_action, :denied_loads))
-  end
-
-  @doc """
   Returns the schema reference and optional schema definition for an RPC action.
 
   If the action has load restrictions, returns `{schema_definition, schema_name}`.
@@ -67,21 +59,6 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
 
       true ->
         {nil, base_schema}
-    end
-  end
-
-  @doc """
-  Returns the TypeScript schema reference for an RPC action (without generating definition).
-
-  Useful when the schema definition is generated separately.
-  """
-  def get_schema_reference(resource, rpc_action, rpc_action_name_pascal) do
-    resource_name = Helpers.build_resource_type_name(resource)
-
-    if has_load_restrictions?(rpc_action) do
-      "#{rpc_action_name_pascal}Schema"
-    else
-      "#{resource_name}ResourceSchema"
     end
   end
 
@@ -267,7 +244,6 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
        ) do
     nested_field_names = Enum.map(nested_allows, fn {field_name, _} -> field_name end)
 
-    # Process nested allows (with recursive restrictions)
     {nested_schema_defs, nested_overrides} =
       nested_allows
       |> Enum.map(fn {field_name, allowed_nested_fields} ->
@@ -275,7 +251,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
       end)
       |> Enum.unzip()
 
-    # Process flat allows - these use AttributesOnlySchema (no nested loads allowed)
+    # Flat allows use AttributesOnlySchema (no nested loads allowed)
     flat_overrides =
       flat_allows
       |> Enum.map(fn field_name ->

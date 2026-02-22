@@ -18,10 +18,6 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   # Container types that can have field constraints for field selection
   @field_constrained_types [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple]
 
-  # ─────────────────────────────────────────────────────────────────
-  # Pagination Helpers
-  # ─────────────────────────────────────────────────────────────────
-
   @doc """
   Returns true if the action supports pagination.
 
@@ -87,20 +83,14 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
     end
   end
 
-  @doc """
-  Returns true if the action has pagination configuration.
-  """
-  def has_pagination_config?(action) do
+  defp has_pagination_config?(action) do
     case action do
       %{pagination: pagination} when is_map(pagination) -> true
       _ -> false
     end
   end
 
-  @doc """
-  Gets the pagination configuration for an action.
-  """
-  def get_pagination_config(action) do
+  defp get_pagination_config(action) do
     case action do
       %{pagination: pagination} when is_map(pagination) -> pagination
       _ -> nil
@@ -114,10 +104,8 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   This is based on the action's public arguments and accepted attributes.
   """
   def action_input_type(resource, action) do
-    # Get public arguments
     public_arguments = Enum.filter(action.arguments, & &1.public?)
 
-    # Get accepted attributes (for create/update/destroy actions)
     accepted_attributes =
       (Map.get(action, :accept) || [])
       |> Enum.map(&Ash.Resource.Info.attribute(resource, &1))
@@ -167,10 +155,6 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
     end
   end
 
-  # ─────────────────────────────────────────────────────────────────
-  # Return Type Classification
-  # ─────────────────────────────────────────────────────────────────
-
   defp check_action_returns(action) do
     {base_type, constraints, is_array} = unwrap_return_type(action)
 
@@ -204,7 +188,6 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
     end
   end
 
-  # Unwraps array wrapper from return type, returning {base_type, constraints, is_array}
   defp unwrap_return_type(action) do
     case action.returns do
       {:array, inner_type} ->
@@ -216,7 +199,6 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
     end
   end
 
-  # Classifies a return type into a category for field selectability
   @spec classify_return_type(atom() | tuple(), keyword()) ::
           {:resource, module()}
           | {:typed_map, keyword()}
@@ -225,28 +207,23 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
           | {:error, atom()}
   defp classify_return_type(type, constraints) do
     cond do
-      # Ash.Type.Struct with instance_of - represents a resource
       type == Ash.Type.Struct and Keyword.has_key?(constraints, :instance_of) ->
         {:resource, Keyword.get(constraints, :instance_of)}
 
-      # Ash.Type.Struct without instance_of - error
       type == Ash.Type.Struct ->
         {:error, :no_instance_of_defined}
 
-      # Container types with field constraints (Map, Keyword, Tuple)
       type in @field_constrained_types and Keyword.has_key?(constraints, :fields) ->
         {:typed_map, Keyword.get(constraints, :fields)}
 
-      # Container types without field constraints - unconstrained map
       type in @field_constrained_types ->
         :unconstrained_map
 
-      # Module with field constraints (TypedStruct pattern - requires both fields and instance_of)
+      # TypedStruct pattern - requires both fields and instance_of constraints
       is_atom(type) and has_field_constraints?(constraints) ->
         fields = Keyword.get(constraints, :fields, [])
         {:typed_struct, {type, fields}}
 
-      # Not field-selectable
       true ->
         {:error, :not_field_selectable_type}
     end

@@ -64,16 +64,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
     end
   end
 
-  @doc """
-  Generates an offset pagination result type.
-
-  The result includes:
-  - results: Array of items
-  - hasMore: Boolean indicating if more results exist
-  - limit: Number of items per page
-  - offset: Current offset
-  """
-  def generate_offset_pagination_result_type(rpc_action_name_pascal, schema_ref, has_metadata) do
+  defp generate_offset_pagination_result_type(rpc_action_name_pascal, schema_ref, has_metadata) do
     results_field = formatted_results_field()
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()
@@ -105,19 +96,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
     end
   end
 
-  @doc """
-  Generates a keyset pagination result type.
-
-  The result includes:
-  - results: Array of items
-  - hasMore: Boolean indicating if more results exist
-  - limit: Number of items per page
-  - after: Cursor for next page (or null)
-  - before: Cursor for previous page (or null)
-  - previousPage: Cursor string for previous page
-  - nextPage: Cursor string for next page
-  """
-  def generate_keyset_pagination_result_type(rpc_action_name_pascal, schema_ref, has_metadata) do
+  defp generate_keyset_pagination_result_type(rpc_action_name_pascal, schema_ref, has_metadata) do
     results_field = formatted_results_field()
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()
@@ -158,13 +137,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
     end
   end
 
-  @doc """
-  Generates a mixed pagination result type (supports both offset and keyset).
-
-  The result is a union type with a discriminant `type` field that indicates
-  whether offset or keyset pagination was used.
-  """
-  def generate_mixed_pagination_result_type(rpc_action_name_pascal, schema_ref, has_metadata) do
+  defp generate_mixed_pagination_result_type(rpc_action_name_pascal, schema_ref, has_metadata) do
     results_field = formatted_results_field()
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()
@@ -373,12 +346,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
     end
   end
 
-  @doc """
-  Generates an inline offset pagination type (without the wrapper Result type).
-
-  Used within conditional pagination types.
-  """
-  def generate_offset_pagination_type_inline(schema_ref, rpc_action_name_pascal, has_metadata) do
+  defp generate_offset_pagination_type_inline(schema_ref, rpc_action_name_pascal, has_metadata) do
     results_field = formatted_results_field()
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()
@@ -406,12 +374,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
     |> String.trim()
   end
 
-  @doc """
-  Generates an inline keyset pagination type (without the wrapper Result type).
-
-  Used within conditional pagination types.
-  """
-  def generate_keyset_pagination_type_inline(schema_ref, rpc_action_name_pascal, has_metadata) do
+  defp generate_keyset_pagination_type_inline(schema_ref, rpc_action_name_pascal, has_metadata) do
     results_field = formatted_results_field()
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()

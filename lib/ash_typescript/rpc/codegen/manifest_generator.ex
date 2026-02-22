@@ -57,14 +57,12 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     |> Kernel.<>("\n")
   end
 
-  # Check if there are any actual namespaces configured (not just nil)
   defp has_meaningful_namespaces?(namespaced_actions) do
     namespaced_actions
     |> Map.keys()
     |> Enum.any?(&(&1 != nil))
   end
 
-  # Generate content grouped by namespace
   defp generate_namespace_grouped_content(namespaced_actions, include_internals?) do
     # Sort namespaces: nil first (as "Default"), then alphabetically
     sorted_namespaces =
@@ -89,7 +87,6 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
         ns -> "Namespace: #{ns}"
       end
 
-    # Group actions by resource for better organization within namespace
     actions_by_resource =
       actions
       |> Enum.group_by(fn {resource, _action, _rpc_action, _domain, _resource_config} ->
@@ -121,7 +118,6 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
 
     table = generate_actions_table_from_tuples(sorted_actions, include_internals?)
 
-    # Get typed queries for this resource from any of the resource configs
     typed_queries =
       actions
       |> Enum.flat_map(fn {_resource, _action, _rpc_action, _domain, resource_config} ->
@@ -141,7 +137,6 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     |> String.trim_trailing()
   end
 
-  # Generate content grouped by domain (original behavior)
   defp generate_domain_grouped_content(otp_app, include_internals?) do
     domain_configs = RpcConfigCollector.get_rpc_config_by_domain(otp_app)
 
@@ -158,7 +153,6 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
   defp generate_domain_section(domain, rpc_config, include_internals?) do
     domain_name = inspect(domain)
 
-    # Filter to only resources with RPC actions, then sort alphabetically
     sorted_resources =
       rpc_config
       |> Enum.filter(fn %{rpc_actions: rpc_actions} -> rpc_actions != [] end)
@@ -472,12 +466,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     |> List.last()
   end
 
-  @doc """
-  Generates a Markdown manifest section for typed controller routes.
-
-  Returns an empty string if no typed controllers are configured.
-  """
-  def generate_typed_controller_manifest_section do
+  defp generate_typed_controller_manifest_section do
     routes_config =
       AshTypescript.TypedController.Codegen.RouteConfigCollector.get_typed_controllers()
 
