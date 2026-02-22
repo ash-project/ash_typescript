@@ -17,24 +17,6 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   @mutation_methods [:post, :patch, :put, :delete]
 
   @doc """
-  Renders TypeScript code for a single route (including inline Zod schema).
-
-  GET routes produce path helpers. Mutation routes produce typed async
-  functions that call `fetch` with the correct method and typed input.
-  """
-  def render(route_info) do
-    if route_info.method in @mutation_methods and AshTypescript.typed_controller_mode() == :full do
-      zod_schema = render_zod_schema(route_info)
-
-      [render_path_helper(route_info), render_action_function(route_info), zod_schema]
-      |> Enum.reject(&(&1 == ""))
-      |> Enum.join("\n")
-    else
-      render_path_helper(route_info)
-    end
-  end
-
-  @doc """
   Renders TypeScript code for a single route without Zod schema.
 
   Same as `render/1` but skips Zod schema generation (for split-file mode

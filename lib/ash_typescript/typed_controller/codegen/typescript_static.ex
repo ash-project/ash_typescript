@@ -36,14 +36,7 @@ defmodule AshTypescript.TypedController.Codegen.TypescriptStatic do
     |> Enum.join("\n")
   end
 
-  @doc """
-  Generates TypeScript import statements based on configuration.
-
-  ## Options
-
-    * `:skip_zod` - When true, omits the Zod import
-  """
-  def generate_imports(opts \\ []) do
+  defp generate_imports(opts) do
     skip_zod = Keyword.get(opts, :skip_zod, false)
 
     zod_import =
