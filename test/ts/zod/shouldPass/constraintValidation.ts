@@ -2,17 +2,13 @@
 //
 // SPDX-License-Identifier: MIT
 
-// Constraint Validation Tests - shouldPass
-// Tests for valid constraint validation with generated schemas
-
 import { z } from "zod";
+import { createOrgTodo } from "../../generated";
 import {
-  createOrgTodo,
   createOrgTodoZodSchema,
   AshTypescriptTestTodoContentLinkContentZodSchema,
-} from "../../generated";
+} from "../../ash_zod";
 
-// Helper to create valid base data
 function createValidBaseData() {
   return {
     title: "Test",
@@ -36,7 +32,6 @@ function createValidBaseData() {
   };
 }
 
-// Test 1: Valid integer constraints - minimum value
 export function testIntegerMinConstraint() {
   const validData = {
     ...createValidBaseData(),
@@ -48,7 +43,6 @@ export function testIntegerMinConstraint() {
   return validated;
 }
 
-// Test 2: Valid integer constraints - maximum value
 export function testIntegerMaxConstraint() {
   const validData = {
     ...createValidBaseData(),
@@ -60,7 +54,6 @@ export function testIntegerMaxConstraint() {
   return validated;
 }
 
-// Test 3: Valid integer constraints - mid-range value
 export function testIntegerMidRangeConstraint() {
   const validData = {
     ...createValidBaseData(),
@@ -71,7 +64,6 @@ export function testIntegerMidRangeConstraint() {
   return validated;
 }
 
-// Test 4: Valid string constraints - minimum length
 export function testStringMinLengthConstraint() {
   const validData = {
     ...createValidBaseData(),
@@ -83,7 +75,6 @@ export function testStringMinLengthConstraint() {
   return validated;
 }
 
-// Test 5: Valid string constraints - maximum length
 export function testStringMaxLengthConstraint() {
   const validData = {
     ...createValidBaseData(),
@@ -95,7 +86,6 @@ export function testStringMaxLengthConstraint() {
   return validated;
 }
 
-// Test 6: Valid string constraints - mid-range length
 export function testStringMidRangeLengthConstraint() {
   const validData = {
     ...createValidBaseData(),
@@ -106,7 +96,6 @@ export function testStringMidRangeLengthConstraint() {
   return validated;
 }
 
-// Test 7: Valid regex constraint - simple URL pattern
 export function testRegexConstraintValid() {
   const validData = {
     url: "https://example.com", // Matches ^https?://
@@ -118,7 +107,6 @@ export function testRegexConstraintValid() {
   return validated;
 }
 
-// Test 8: Valid regex constraint - HTTP URL
 export function testRegexConstraintHttpUrl() {
   const validData = {
     url: "http://example.com", // Also matches ^https?://
@@ -129,7 +117,6 @@ export function testRegexConstraintHttpUrl() {
   return validated;
 }
 
-// Test 9: All constraints together - valid scenario
 export function testAllConstraintsTogether() {
   const validData = {
     ...createValidBaseData(),
@@ -155,7 +142,6 @@ export function testAllConstraintsTogether() {
   return validated;
 }
 
-// Test 10: Safe parsing with valid constraints
 export function testSafeParsingWithConstraints() {
   const validData = {
     ...createValidBaseData(),
@@ -172,32 +158,25 @@ export function testSafeParsingWithConstraints() {
   }
 }
 
-// Test 11: Type inference with constraints
 export type CreateOrgTodoInput = z.infer<typeof createOrgTodoZodSchema>;
 
 export function validateWithConstraints(input: unknown): CreateOrgTodoInput {
   return createOrgTodoZodSchema.parse(input);
 }
 
-// Test 12: Constraint validation in function context
 export function createOrgTodoWithValidation(data: CreateOrgTodoInput) {
-  // If this compiles, the constraints are in the type system
   const employees: number = data.numberOfEmployees;
   const str: string = data.someString;
 
   return { employees, str };
 }
 
-// Test 13: Optional fields with constraints still validate when present
 export function testOptionalConstrainedField() {
-  // If a field is optional but has constraints, those constraints
-  // should still apply when the field is present
   const validData = {
     ...createValidBaseData(),
     numberOfEmployees: 100, // Valid when present
     slug: "test-slug-123",
     version: "1.2.3",
-    // Optional fields can be omitted or included with valid values
     description: "Valid description",
   };
 
@@ -205,7 +184,6 @@ export function testOptionalConstrainedField() {
   return validated;
 }
 
-// Test 14: Valid email addresses
 export function testValidEmails() {
   const validEmails = [
     "user@example.com",
@@ -223,7 +201,6 @@ export function testValidEmails() {
   return true;
 }
 
-// Test 15: Valid phone numbers
 export function testValidPhoneNumbers() {
   const validPhones = [
     "+15551234567",
@@ -241,7 +218,6 @@ export function testValidPhoneNumbers() {
   return true;
 }
 
-// Test 16: Valid hex colors
 export function testValidHexColors() {
   const validColors = [
     "#000000",
@@ -260,7 +236,6 @@ export function testValidHexColors() {
   return true;
 }
 
-// Test 17: Valid slugs
 export function testValidSlugs() {
   const validSlugs = [
     "test",
@@ -279,7 +254,6 @@ export function testValidSlugs() {
   return true;
 }
 
-// Test 18: Valid semantic versions
 export function testValidVersions() {
   const validVersions = [
     "0.0.0",
@@ -298,12 +272,11 @@ export function testValidVersions() {
   return true;
 }
 
-// Test 19: Case-insensitive codes (both upper and lower case should work)
 export function testCaseInsensitiveCodes() {
   const validCodes = [
-    "ABC-1234", // All uppercase
-    "abc-1234", // All lowercase (should work due to /i flag)
-    "AbC-5678", // Mixed case
+    "ABC-1234",
+    "abc-1234",
+    "AbC-5678",
     "XYZ-0000",
   ];
 
@@ -316,17 +289,14 @@ export function testCaseInsensitiveCodes() {
   return true;
 }
 
-// Test 20: Optional URL field can be omitted
 export function testOptionalUrlOmitted() {
   const validData = createValidBaseData();
-  // optionalUrl is not provided
 
   const validated = createOrgTodoZodSchema.parse(validData);
   console.log("Optional URL field successfully omitted");
   return validated;
 }
 
-// Test 21: Optional URL field with valid value
 export function testOptionalUrlProvided() {
   const validUrls = [
     "https://example.com",
@@ -344,13 +314,12 @@ export function testOptionalUrlProvided() {
   return true;
 }
 
-// Test 22: Valid float constraints - price within range
 export function testFloatPriceValid() {
   const validPrices = [
-    0.0,        // Minimum
-    0.01,       // Just above minimum
-    100.50,     // Mid-range
-    999999.99,  // Maximum
+    0.0,
+    0.01,
+    100.50,
+    999999.99,
   ];
 
   for (const price of validPrices) {
@@ -362,13 +331,12 @@ export function testFloatPriceValid() {
   return true;
 }
 
-// Test 23: Valid float constraints - temperature with gt/lt
 export function testFloatTemperatureValid() {
   const validTemperatures = [
-    -273.14,    // Just above greater_than: -273.15
-    0.0,        // Zero
-    100.0,      // Positive
-    999999.99,  // Just below less_than: 1000000.0
+    -273.14,
+    0.0,
+    100.0,
+    999999.99,
   ];
 
   for (const temperature of validTemperatures) {
@@ -380,14 +348,13 @@ export function testFloatTemperatureValid() {
   return true;
 }
 
-// Test 24: Valid float constraints - percentage 0-100
 export function testFloatPercentageValid() {
   const validPercentages = [
-    0.0,    // Minimum
-    0.5,    // Small decimal
-    50.0,   // Middle
-    99.99,  // Near maximum
-    100.0,  // Maximum
+    0.0,
+    0.5,
+    50.0,
+    99.99,
+    100.0,
   ];
 
   for (const percentage of validPercentages) {
@@ -399,22 +366,19 @@ export function testFloatPercentageValid() {
   return true;
 }
 
-// Test 25: Optional float field - can be omitted
 export function testOptionalFloatOmitted() {
   const validData = createValidBaseData();
-  // optionalRating is not provided
   const validated = createOrgTodoZodSchema.parse(validData);
   console.log("Optional rating successfully omitted");
   return validated;
 }
 
-// Test 26: Optional float field - valid when provided
 export function testOptionalFloatProvided() {
   const validRatings = [
-    0.0,   // Minimum
-    2.5,   // Middle
-    4.99,  // Near maximum
-    5.0,   // Maximum
+    0.0,
+    2.5,
+    4.99,
+    5.0,
   ];
 
   for (const rating of validRatings) {
@@ -426,7 +390,6 @@ export function testOptionalFloatProvided() {
   return true;
 }
 
-// Test 27: Float precision is preserved
 export function testFloatPrecision() {
   const testCases = [
     { price: 19.99 },
@@ -438,7 +401,6 @@ export function testFloatPrecision() {
   for (const testCase of testCases) {
     const validData = { ...createValidBaseData(), ...testCase };
     const validated = createOrgTodoZodSchema.parse(validData);
-    // Zod preserves the float values
     if ('price' in testCase) {
       console.log(`Price precision: ${validated.price}`);
     }
@@ -448,12 +410,11 @@ export function testFloatPrecision() {
   return true;
 }
 
-// Test 28: CiString constraints - username length
 export function testCiStringUsernameValid() {
   const validUsernames = [
-    "abc",        // Minimum length (3)
-    "testuser",   // Mid-range
-    "a".repeat(20), // Maximum length (20)
+    "abc",
+    "testuser",
+    "a".repeat(20),
   ];
 
   for (const username of validUsernames) {
@@ -465,13 +426,12 @@ export function testCiStringUsernameValid() {
   return true;
 }
 
-// Test 29: CiString with regex - company name
 export function testCiStringCompanyNameValid() {
   const validCompanyNames = [
-    "AB",              // Minimum length (2)
-    "Acme Corp",       // Alphanumeric with space
-    "Test Company 123", // With numbers
-    "A".repeat(100),   // Maximum length (100)
+    "AB",
+    "Acme Corp",
+    "Test Company 123",
+    "A".repeat(100),
   ];
 
   for (const companyName of validCompanyNames) {
@@ -483,13 +443,12 @@ export function testCiStringCompanyNameValid() {
   return true;
 }
 
-// Test 30: CiString with case-insensitive regex - country code
 export function testCiStringCountryCodeValid() {
   const validCountryCodes = [
-    "US",  // Uppercase
-    "uk",  // Lowercase (should work due to /i flag)
-    "Ca",  // Mixed case
-    "FR",  // Another uppercase
+    "US",
+    "uk",
+    "Ca",
+    "FR",
   ];
 
   for (const countryCode of validCountryCodes) {
@@ -501,21 +460,18 @@ export function testCiStringCountryCodeValid() {
   return true;
 }
 
-// Test 31: Optional CiString - can be omitted
 export function testOptionalCiStringOmitted() {
   const validData = createValidBaseData();
-  // optionalNickname is not provided
   const validated = createOrgTodoZodSchema.parse(validData);
   console.log("Optional nickname successfully omitted");
   return validated;
 }
 
-// Test 32: Optional CiString - valid when provided
 export function testOptionalCiStringProvided() {
   const validNicknames = [
-    "ab",           // Minimum length (2)
-    "Johnny",       // Mid-range
-    "a".repeat(15), // Maximum length (15)
+    "ab",
+    "Johnny",
+    "a".repeat(15),
   ];
 
   for (const nickname of validNicknames) {
@@ -527,7 +483,6 @@ export function testOptionalCiStringProvided() {
   return true;
 }
 
-// Test 33: CiString case variations (all should be accepted)
 export function testCiStringCaseVariations() {
   const testCases = [
     { username: "TestUser", companyName: "ACME CORP", countryCode: "us" },

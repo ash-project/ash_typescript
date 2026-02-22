@@ -2,17 +2,12 @@
 //
 // SPDX-License-Identifier: MIT
 
-// Constraint Validation Tests - shouldFail
-// Tests that constraint validation properly rejects invalid values at runtime
-// Note: These are runtime validation failures, not TypeScript compilation errors
-
 import { z } from "zod";
 import {
   createOrgTodoZodSchema,
   AshTypescriptTestTodoContentLinkContentZodSchema,
-} from "../../generated";
+} from "../../ash_zod";
 
-// Helper to create valid base data
 function createValidBaseData() {
   return {
     title: "Test",
@@ -36,7 +31,6 @@ function createValidBaseData() {
   };
 }
 
-// Test 1: Integer constraint - below minimum (runtime failure)
 export function testIntegerBelowMin() {
   const invalidData = {
     ...createValidBaseData(),
@@ -55,7 +49,6 @@ export function testIntegerBelowMin() {
   }
 }
 
-// Test 2: Integer constraint - above maximum (runtime failure)
 export function testIntegerAboveMax() {
   const invalidData = {
     ...createValidBaseData(),
@@ -74,7 +67,6 @@ export function testIntegerAboveMax() {
   }
 }
 
-// Test 3: Integer constraint - negative value (runtime failure)
 export function testIntegerNegative() {
   const invalidData = {
     ...createValidBaseData(),
@@ -96,7 +88,6 @@ export function testIntegerNegative() {
   }
 }
 
-// Test 4: String constraint - empty string (runtime failure)
 export function testStringEmpty() {
   const invalidData = {
     ...createValidBaseData(),
@@ -115,7 +106,6 @@ export function testStringEmpty() {
   }
 }
 
-// Test 5: String constraint - too long (runtime failure)
 export function testStringTooLong() {
   const invalidData = {
     ...createValidBaseData(),
@@ -134,7 +124,6 @@ export function testStringTooLong() {
   }
 }
 
-// Test 6: String constraint - way too long (runtime failure)
 export function testStringWayTooLong() {
   const invalidData = {
     ...createValidBaseData(),
@@ -156,7 +145,6 @@ export function testStringWayTooLong() {
   }
 }
 
-// Test 7: Regex constraint - invalid URL format (runtime failure)
 export function testRegexInvalidUrl() {
   const invalidData = {
     url: "not-a-url", // Doesn't match ^https?://
@@ -175,7 +163,6 @@ export function testRegexInvalidUrl() {
   }
 }
 
-// Test 8: Regex constraint - FTP URL (runtime failure)
 export function testRegexFtpUrl() {
   const invalidData = {
     url: "ftp://example.com", // Doesn't match ^https?:// (no ftp)
@@ -194,7 +181,6 @@ export function testRegexFtpUrl() {
   }
 }
 
-// Test 9: Multiple constraint violations (runtime failure)
 export function testMultipleConstraintViolations() {
   const invalidData = {
     ...createValidBaseData(),
@@ -208,7 +194,6 @@ export function testMultipleConstraintViolations() {
   } catch (error) {
     if (error instanceof z.ZodError) {
       console.log("Correctly rejected multiple violations:", error.issues);
-      // Should have errors for both numberOfEmployees and someString
       const hasEmployeeError = error.issues.some((e) =>
         e.path.includes("numberOfEmployees"),
       );
@@ -225,7 +210,6 @@ export function testMultipleConstraintViolations() {
   }
 }
 
-// Test 10: Safe parsing with constraint violations
 export function testSafeParseConstraintViolation() {
   const invalidData = {
     ...createValidBaseData(),
@@ -242,16 +226,14 @@ export function testSafeParseConstraintViolation() {
   }
 }
 
-// Test 11: Integer constraint - floating point (might pass int check but fail range)
 export function testIntegerFloatingPoint() {
   const invalidData = {
     ...createValidBaseData(),
-    numberOfEmployees: 10.5, // Float when integer expected
+    numberOfEmployees: 10.5,
   };
 
   try {
     createOrgTodoZodSchema.parse(invalidData);
-    // Note: Zod .int() will fail on floating point numbers
     throw new Error("Should have failed validation");
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -262,7 +244,6 @@ export function testIntegerFloatingPoint() {
   }
 }
 
-// Test 12: Boundary testing - just outside valid range
 export function testBoundaryViolations() {
   const justBelowMin = {
     ...createValidBaseData(),
@@ -298,10 +279,8 @@ export function testBoundaryViolations() {
   return errors;
 }
 
-// Test 13: Required field with constraint - missing value
 export function testRequiredFieldMissing() {
   const { numberOfEmployees, ...invalidData } = createValidBaseData();
-  // numberOfEmployees is missing (required)
 
   try {
     createOrgTodoZodSchema.parse(invalidData);
@@ -315,7 +294,6 @@ export function testRequiredFieldMissing() {
   }
 }
 
-// Test 14: Invalid email - missing @ symbol
 export function testInvalidEmailNoAt() {
   const invalidData = {
     title: "Test",
@@ -344,7 +322,6 @@ export function testInvalidEmailNoAt() {
   }
 }
 
-// Test 15: Invalid email - missing domain extension
 export function testInvalidEmailNoDomain() {
   const invalidData = {
     title: "Test",
@@ -376,7 +353,6 @@ export function testInvalidEmailNoDomain() {
   }
 }
 
-// Test 16: Invalid phone - starts with 0
 export function testInvalidPhoneStartsWithZero() {
   const invalidData = {
     title: "Test",
@@ -405,7 +381,6 @@ export function testInvalidPhoneStartsWithZero() {
   }
 }
 
-// Test 17: Invalid phone - too short
 export function testInvalidPhoneTooShort() {
   const invalidData = {
     title: "Test",
@@ -434,7 +409,6 @@ export function testInvalidPhoneTooShort() {
   }
 }
 
-// Test 18: Invalid hex color - wrong length
 export function testInvalidHexColorLength() {
   const invalidData = {
     title: "Test",
@@ -466,7 +440,6 @@ export function testInvalidHexColorLength() {
   }
 }
 
-// Test 19: Invalid hex color - missing #
 export function testInvalidHexColorNoHash() {
   const invalidData = {
     title: "Test",
@@ -495,7 +468,6 @@ export function testInvalidHexColorNoHash() {
   }
 }
 
-// Test 20: Invalid slug - contains uppercase
 export function testInvalidSlugUppercase() {
   const invalidData = {
     title: "Test",
@@ -524,7 +496,6 @@ export function testInvalidSlugUppercase() {
   }
 }
 
-// Test 21: Invalid slug - starts with hyphen
 export function testInvalidSlugStartsWithHyphen() {
   const invalidData = {
     title: "Test",
@@ -556,7 +527,6 @@ export function testInvalidSlugStartsWithHyphen() {
   }
 }
 
-// Test 22: Invalid version - missing patch number
 export function testInvalidVersionMissingPatch() {
   const invalidData = {
     title: "Test",
@@ -585,7 +555,6 @@ export function testInvalidVersionMissingPatch() {
   }
 }
 
-// Test 23: Invalid version - contains letters
 export function testInvalidVersionWithLetters() {
   const invalidData = {
     title: "Test",
@@ -614,7 +583,6 @@ export function testInvalidVersionWithLetters() {
   }
 }
 
-// Test 24: Invalid case-insensitive code - wrong format
 export function testInvalidCodeWrongFormat() {
   const invalidData = {
     title: "Test",
@@ -643,7 +611,6 @@ export function testInvalidCodeWrongFormat() {
   }
 }
 
-// Test 25: Invalid optional URL - wrong protocol
 export function testInvalidOptionalUrlWrongProtocol() {
   const invalidData = {
     title: "Test",
@@ -673,7 +640,6 @@ export function testInvalidOptionalUrlWrongProtocol() {
   }
 }
 
-// Test 26: Float constraint - price below minimum
 export function testFloatPriceBelowMin() {
   const invalidData = { ...createValidBaseData(), price: -0.01 }; // Below min: 0.0
 
@@ -689,7 +655,6 @@ export function testFloatPriceBelowMin() {
   }
 }
 
-// Test 27: Float constraint - price above maximum
 export function testFloatPriceAboveMax() {
   const invalidData = { ...createValidBaseData(), price: 1000000.0 }; // Above max: 999999.99
 
@@ -705,7 +670,6 @@ export function testFloatPriceAboveMax() {
   }
 }
 
-// Test 28: Float constraint - temperature at exclusive boundary (gt)
 export function testFloatTemperatureAtGtBoundary() {
   const invalidData = { ...createValidBaseData(), temperature: -273.15 }; // At greater_than boundary (exclusive)
 
@@ -724,7 +688,6 @@ export function testFloatTemperatureAtGtBoundary() {
   }
 }
 
-// Test 29: Float constraint - temperature at exclusive boundary (lt)
 export function testFloatTemperatureAtLtBoundary() {
   const invalidData = { ...createValidBaseData(), temperature: 1000000.0 }; // At less_than boundary (exclusive)
 
@@ -743,7 +706,6 @@ export function testFloatTemperatureAtLtBoundary() {
   }
 }
 
-// Test 30: Float constraint - percentage below minimum
 export function testFloatPercentageBelowMin() {
   const invalidData = { ...createValidBaseData(), percentage: -0.1 }; // Below min: 0.0
 
@@ -759,7 +721,6 @@ export function testFloatPercentageBelowMin() {
   }
 }
 
-// Test 31: Float constraint - percentage above maximum
 export function testFloatPercentageAboveMax() {
   const invalidData = { ...createValidBaseData(), percentage: 100.01 }; // Above max: 100.0
 
@@ -775,7 +736,6 @@ export function testFloatPercentageAboveMax() {
   }
 }
 
-// Test 32: Optional float - invalid when provided
 export function testOptionalFloatInvalid() {
   const invalidData = { ...createValidBaseData(), optionalRating: 5.5 }; // Above max: 5.0
 
@@ -791,7 +751,6 @@ export function testOptionalFloatInvalid() {
   }
 }
 
-// Test 33: Multiple float constraints violated
 export function testMultipleFloatViolations() {
   const invalidData = {
     ...createValidBaseData(),
@@ -826,7 +785,6 @@ export function testMultipleFloatViolations() {
   }
 }
 
-// Test 34: CiString constraint - username too short
 export function testCiStringUsernameTooShort() {
   const invalidData = { ...createValidBaseData(), username: "ab" }; // Below min: 3
 
@@ -842,7 +800,6 @@ export function testCiStringUsernameTooShort() {
   }
 }
 
-// Test 35: CiString constraint - username too long
 export function testCiStringUsernameTooLong() {
   const invalidData = { ...createValidBaseData(), username: "a".repeat(21) }; // Above max: 20
 
@@ -858,7 +815,6 @@ export function testCiStringUsernameTooLong() {
   }
 }
 
-// Test 36: CiString constraint - company name with invalid characters
 export function testCiStringCompanyNameInvalidChars() {
   const invalidData = { ...createValidBaseData(), companyName: "Acme@Corp!" }; // Contains @ and !
 
@@ -877,7 +833,6 @@ export function testCiStringCompanyNameInvalidChars() {
   }
 }
 
-// Test 37: CiString constraint - company name too short
 export function testCiStringCompanyNameTooShort() {
   const invalidData = { ...createValidBaseData(), companyName: "A" }; // Below min: 2
 
@@ -893,7 +848,6 @@ export function testCiStringCompanyNameTooShort() {
   }
 }
 
-// Test 38: CiString constraint - country code wrong length
 export function testCiStringCountryCodeWrongLength() {
   const invalidData = { ...createValidBaseData(), countryCode: "USA" }; // 3 characters instead of 2
 
@@ -912,7 +866,6 @@ export function testCiStringCountryCodeWrongLength() {
   }
 }
 
-// Test 39: CiString constraint - country code with number
 export function testCiStringCountryCodeWithNumber() {
   const invalidData = { ...createValidBaseData(), countryCode: "U1" }; // Contains number
 
@@ -928,7 +881,6 @@ export function testCiStringCountryCodeWithNumber() {
   }
 }
 
-// Test 40: Optional CiString - invalid when provided
 export function testOptionalCiStringInvalid() {
   const invalidData = { ...createValidBaseData(), optionalNickname: "a" }; // Below min: 2
 
@@ -947,7 +899,6 @@ export function testOptionalCiStringInvalid() {
   }
 }
 
-// Test 41: Multiple CiString constraints violated
 export function testMultipleCiStringViolations() {
   const invalidData = {
     ...createValidBaseData(),

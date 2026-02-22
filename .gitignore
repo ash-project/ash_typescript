@@ -33,6 +33,8 @@ test/ts/ash_types.ts
 test/ts/ash_zod.ts
 test/ts/todos.ts
 test/ts/users.ts
+test/ts/account.ts
+test/ts/auth.ts
 test/ts/**/*.js
 test/ts/MANIFEST.md
 test/ts/namespace/

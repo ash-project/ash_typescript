@@ -51,6 +51,7 @@ Define typed controller routes
 | Name | Type | Default | Docs |
 |------|------|---------|------|
 | [`module_name`](#typed_controller-module_name){: #typed_controller-module_name .spark-required} | `atom` |  | The module name for the generated Phoenix controller (e.g. MyAppWeb.SessionController) |
+| [`namespace`](#typed_controller-namespace){: #typed_controller-namespace } | `String.t` |  | Default namespace (filename) for all routes in this controller. Can be overridden per-route. |
 
 
 
@@ -88,6 +89,7 @@ the `AshTypescript.TypedController.Route` behaviour. Handlers receive
 | [`deprecated`](#typed_controller-route-deprecated){: #typed_controller-route-deprecated } | `boolean \| String.t` |  | Mark this route as deprecated. Set to true for a default message, or provide a custom deprecation notice. |
 | [`see`](#typed_controller-route-see){: #typed_controller-route-see } | `list(atom)` | `[]` | List of related route names to reference in JSDoc @see tags. |
 | [`zod_schema_name`](#typed_controller-route-zod_schema_name){: #typed_controller-route-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
+| [`namespace`](#typed_controller-route-namespace){: #typed_controller-route-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
 
 
 ### typed_controller.route.argument

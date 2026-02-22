@@ -300,7 +300,7 @@ mix credo --strict                   # Linting
 | "Union input must be a map" | Direct value for union input | Wrap in map: `{member_name: value}` |
 | "Union input map contains multiple member keys" | Multiple union members in input | Provide exactly one member key |
 | "Union input map does not contain any valid member key" | Invalid or missing member key | Use valid member name from union definition |
-| Test reads stale generated.ts | Test uses `File.read!("test/ts/generated.ts")` | Use `AshTypescript.Rpc.Codegen.generate_typescript_types/1` in `setup_all` |
+| Test reads stale generated.ts | Test uses `File.read!("test/ts/generated.ts")` | Use `AshTypescript.Test.CodegenTestHelper.generate_all_content/0` in `setup_all` |
 | Controller 422 error | Missing required argument or invalid type cast | Check `allow_nil?` and argument types |
 | Controller 500 error | Handler doesn't return `%Plug.Conn{}` | Return `%Plug.Conn{}` from handler |
 | Routes not generated | Missing config | Set `typed_controllers:`, `router:`, and `routes_output_file:` in config |

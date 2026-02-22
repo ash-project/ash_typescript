@@ -2,22 +2,18 @@
 //
 // SPDX-License-Identifier: MIT
 
-// Complex Invalid Schema Tests - shouldFail
-// Tests for complex invalid schema usage patterns that should fail TypeScript compilation
-
 import { z } from "zod";
 import {
   createTodoZodSchema,
   TodoMetadataZodSchema,
-} from "../../generated";
+} from "../../ash_zod";
 
-// Test 1: Invalid embedded resource field types
 export function testInvalidEmbeddedFields() {
   if (TodoMetadataZodSchema) {
     const invalidMetadata: z.infer<typeof TodoMetadataZodSchema> = {
       category: "work",
       // @ts-expect-error - priorityScore should be number, not string
-      priorityScore: "high", // Should be number
+      priorityScore: "high",
       tags: ["urgent"],
       createdBy: "user-123",
     };
@@ -26,7 +22,7 @@ export function testInvalidEmbeddedFields() {
       category: "work",
       priorityScore: 8,
       // @ts-expect-error - tags should be array of strings, not single string
-      tags: "urgent", // Should be array
+      tags: "urgent",
       createdBy: "user-123",
     };
 
@@ -36,20 +32,12 @@ export function testInvalidEmbeddedFields() {
   return {};
 }
 
-// Test 2: Invalid union type discriminator (disabled - schema not available)
-// export function testInvalidUnionTypes() {
-//   // Union type schema errors would be tested here when available
-//   console.log("Union type error testing skipped - schemas not available");
-//   return {};
-// }
-
-// Test 3: Invalid complex nested object structures
 export function testInvalidNestedStructures() {
   const invalidMetadataType: z.infer<typeof createTodoZodSchema> = {
     title: "Invalid nested structure",
     userId: "user-123",
     // @ts-expect-error - metadata should be object, not array
-    metadata: ["should", "be", "object"], // Wrong type
+    metadata: ["should", "be", "object"],
   };
 
   const invalidContentStructure: z.infer<typeof createTodoZodSchema> = {
@@ -64,128 +52,110 @@ export function testInvalidNestedStructures() {
   return { invalidMetadataType, invalidContentStructure };
 }
 
-// Test 4: Invalid array field types and structures
 export function testInvalidArrayTypes() {
   const invalidTagTypes: z.infer<typeof createTodoZodSchema> = {
     title: "Invalid tags",
     userId: "user-123",
     // @ts-expect-error - tags should be array of strings, not numbers
-    tags: [1, 2, 3], // Should be strings
+    tags: [1, 2, 3],
   };
 
   const singleStringTag: z.infer<typeof createTodoZodSchema> = {
     title: "Single tag",
     userId: "user-123",
     // @ts-expect-error - tags should be array, not single string
-    tags: "single-tag", // Should be array
+    tags: "single-tag",
   };
 
   const mixedArrayTypes: z.infer<typeof createTodoZodSchema> = {
     title: "Mixed array",
     userId: "user-123",
     // @ts-expect-error - mixed array types not allowed
-    tags: ["string", 123, true], // Should all be strings
+    tags: ["string", 123, true],
   };
 
   return { invalidTagTypes, singleStringTag, mixedArrayTypes };
 }
 
-// Test 5: Invalid date and time formats
 export function testInvalidDateFormats() {
   const dateObjectInsteadOfString: z.infer<typeof createTodoZodSchema> = {
     title: "Invalid date format",
     userId: "user-123",
     // @ts-expect-error - dueDate should be ISO string, not Date object
-    dueDate: new Date(), // Should be string
+    dueDate: new Date(),
   };
 
   const invalidDateString: z.infer<typeof createTodoZodSchema> = {
     title: "Invalid date string",
     userId: "user-123",
-    // Note: This won't produce a compile error - Zod validates at runtime
-    dueDate: "not-a-date", // Should be valid ISO string (runtime validation)
+    // Zod validates date format at runtime, not compile time
+    dueDate: "not-a-date",
   };
 
   const timestampNumber: z.infer<typeof createTodoZodSchema> = {
     title: "Timestamp number",
     userId: "user-123",
     // @ts-expect-error - timestamp number not allowed
-    dueDate: 1640995200000, // Should be string
+    dueDate: 1640995200000,
   };
 
   return { dateObjectInsteadOfString, invalidDateString, timestampNumber };
 }
 
-// Test 6: Invalid schema method chaining
 export function testInvalidSchemaChaining() {
   const invalidChain = createTodoZodSchema
-    .transform((data) => data.title) // Returns string
-    // @ts-expect-error - can't chain incompatible transformations
-    .extend({ // Can't extend string
+    .transform((data) => data.title)
+    // @ts-expect-error - transform returns string, can't extend a non-object schema
+    .extend({
       newField: z.string(),
     });
 
   const wrongTypeRefine = createTodoZodSchema
     .transform((data) => "string")
-    // Note: Using 'as any' to bypass type checking - would error at runtime
-    .refine((data) => (data as any).title.length > 0); // data is string, not object
+    // 'as any' bypasses type checking; data is string after transform, not object
+    .refine((data) => (data as any).title.length > 0);
 
   return { invalidChain, wrongTypeRefine };
 }
 
-// Test 7: Invalid partial schema usage with updates (disabled - schema not available)
-// export function testInvalidPartialUsage() {
-//   // Update schema errors would be tested here when available
-//   console.log("Update schema error testing skipped - schema not available");
-//   return {};
-// }
-
-// Test 8: Invalid conditional schema refinements
 export function testInvalidConditionalRefinements() {
-  // Note: TypeScript can't detect this return type error at compile time
+  // TypeScript can't detect non-boolean refine return at compile time
   const invalidRefineReturn = createTodoZodSchema.refine((data) => {
-    return "not a boolean" as any; // Runtime error, not compile time
+    return "not a boolean" as any;
   });
 
-  // Note: Using 'as any' bypasses type checking
   const invalidErrorFormat = createTodoZodSchema.refine(
     (data) => true,
-    "should be object with message property" as any // Valid with 'as any'
+    "should be object with message property" as any
   );
 
   return { invalidRefineReturn, invalidErrorFormat };
 }
 
-// Test 9: Invalid schema composition conflicts
 export function testInvalidSchemaComposition() {
-  // Note: Zod allows overriding field types with extend/merge
+  // Zod allows overriding field types with extend/merge
   const conflictingExtend = createTodoZodSchema.extend({
-    title: z.number(), // Overrides existing string type
-    userId: z.boolean(), // Overrides existing string type
+    title: z.number(),
+    userId: z.boolean(),
   });
 
   const incompatibleMerge = createTodoZodSchema.merge(
     z.object({
-      title: z.array(z.string()), // Overrides existing string type
+      title: z.array(z.string()),
     })
   );
 
   return { conflictingExtend, incompatibleMerge };
 }
 
-// Test 10: Invalid optional vs required field mismatches
 export function testInvalidOptionalRequiredMismatches() {
-  // Note: These tests won't produce compile errors as Partial/Required are valid TypeScript operations
-  // They're kept here for documentation purposes
-  const incorrectOptional: Partial<z.infer<typeof createTodoZodSchema>> = {
-    // title is required but Partial makes it optional - this is actually valid TypeScript
-  };
+  // Partial makes all fields optional, so this is valid TypeScript
+  const incorrectOptional: Partial<z.infer<typeof createTodoZodSchema>> = {};
 
   // @ts-expect-error - Required makes all fields mandatory but we're not providing them all
   const incorrectRequired: Required<z.infer<typeof createTodoZodSchema>> = {
     title: "Required title",
     userId: "user-123",
-    // This will fail because not all optional fields are provided
   };
 
   return { incorrectOptional, incorrectRequired };
