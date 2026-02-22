@@ -154,6 +154,12 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **TypeScript type mapping** | `lib/ash_typescript/codegen/type_mapper.ex` |
 | **Resource schema generation** | `lib/ash_typescript/codegen/resource_schemas.ex` |
 | **Filter types generation** | `lib/ash_typescript/codegen/filter_types.ex` |
+| **Zod schema generation** | `lib/ash_typescript/codegen/zod_schema_generator.ex` |
+| **Utility types generation** | `lib/ash_typescript/codegen/utility_types.ex` |
+| **Import path resolution** | `lib/ash_typescript/codegen/import_resolver.ex` |
+| **Shared types generator** | `lib/ash_typescript/codegen/shared_types_generator.ex` |
+| **Shared Zod generator** | `lib/ash_typescript/codegen/shared_zod_generator.ex` |
+| **Multi-file orchestrator** | `lib/ash_typescript/codegen/orchestrator.ex` |
 | **RPC client generation** | `lib/ash_typescript/rpc/codegen.ex` |
 | **JSDoc comment generation** | `lib/ash_typescript/rpc/codegen/function_generators/jsdoc_generator.ex` |
 | **Manifest generation** | `lib/ash_typescript/rpc/codegen/manifest_generator.ex` |
@@ -174,6 +180,7 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Controller codegen** | `lib/ash_typescript/typed_controller/codegen.ex` |
 | **Router introspection** | `lib/ash_typescript/typed_controller/codegen/router_introspector.ex` |
 | **Route renderer** | `lib/ash_typescript/typed_controller/codegen/route_renderer.ex` |
+| **TypeScript static code** | `lib/ash_typescript/typed_controller/codegen/typescript_static.ex` |
 | **Controller verifier** | `lib/ash_typescript/typed_controller/verifiers/verify_typed_controller.ex` |
 | **Test domain** | `test/support/domain.ex` |
 | **Primary test resource** | `test/support/resources/todo.ex` |
@@ -302,6 +309,8 @@ mix credo --strict                   # Linting
 | "load_denied" error | Requested field in `denied_loads` | Remove field from `denied_loads` list |
 | Path param without matching argument | Router path has `:param` but no DSL argument | Add `argument :param, :string` to the route definition |
 | Invalid names for TypeScript (controller) | Route/argument names with `_1` or `?` | Rename to avoid patterns that produce awkward camelCase |
+| `allow_nil?: true` on always-present path param | Path param always provided by router | Set `allow_nil?: false` on the argument |
+| `allow_nil?: false` on sometimes-present path param | Path param only at some mounts | Set `allow_nil?: true` (default) on the argument |
 
 ## RPC Resource Warnings
 

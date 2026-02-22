@@ -60,6 +60,17 @@ config :ash_typescript,
   router: nil,
   routes_output_file: nil,
   typed_controller_mode: :full,
+  typed_controller_path_params_style: :object,
+
+  # Typed controller lifecycle hooks
+  typed_controller_before_request_hook: nil,
+  typed_controller_after_request_hook: nil,
+  typed_controller_hook_context_type: "Record<string, any>",
+  typed_controller_import_into_generated: [],
+
+  # Typed controller error handling
+  typed_controller_error_handler: nil,
+  typed_controller_show_raised_errors: false,
 
   # Dev codegen behavior
   always_regenerate: false,
@@ -81,6 +92,8 @@ config :ash_typescript,
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `output_file` | `string` | `"assets/js/ash_rpc.ts"` | Path where generated TypeScript code will be written |
+| `types_output_file` | `string \| nil` | `nil` | Path for shared types file (auto-derives from `output_file` dir as `ash_types.ts`) |
+| `zod_output_file` | `string \| nil` | `nil` | Path for shared Zod schemas file (auto-derives from `output_file` dir as `ash_zod.ts`) |
 | `run_endpoint` | `string \| {:runtime_expr, string}` | `"/rpc/run"` | Endpoint for executing RPC actions |
 | `validate_endpoint` | `string \| {:runtime_expr, string}` | `"/rpc/validate"` | Endpoint for validating RPC requests |
 | `input_field_formatter` | `:camel_case \| :snake_case` | `:camel_case` | How to format field names in request inputs |
@@ -101,6 +114,13 @@ config :ash_typescript,
 | `router` | `module \| nil` | `nil` | Phoenix router module for path introspection |
 | `routes_output_file` | `string \| nil` | `nil` | Output file path for generated route helpers |
 | `typed_controller_mode` | `:full \| :paths_only` | `:full` | Generation mode: `:full` generates path helpers + fetch functions, `:paths_only` generates only path helpers |
+| `typed_controller_path_params_style` | `:object \| :args` | `:object` | Path parameter style in generated functions |
+| `typed_controller_before_request_hook` | `string \| nil` | `nil` | Function called before typed controller requests |
+| `typed_controller_after_request_hook` | `string \| nil` | `nil` | Function called after typed controller requests |
+| `typed_controller_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for typed controller hook context |
+| `typed_controller_import_into_generated` | `list(map)` | `[]` | Custom imports for generated routes file |
+| `typed_controller_error_handler` | `mfa \| module \| nil` | `nil` | Custom error transformation handler |
+| `typed_controller_show_raised_errors` | `boolean` | `false` | Show exception messages in 500 responses |
 | `always_regenerate` | `boolean` | `false` | Skip diff check and always write generated files |
 | `not_found_error?` | `boolean` | `true` | Global default: `true` returns error on not found, `false` returns null |
 | `add_ash_internals_to_jsdoc` | `boolean` | `false` | Show Ash resource/action details in JSDoc |
@@ -124,8 +144,11 @@ config :ash_typescript,
 | `rpc_validation_after_channel_response_hook` | `string \| nil` | `nil` | Function called after channel response for validations |
 | `rpc_action_channel_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for channel action hook context |
 | `rpc_validation_channel_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for channel validation hook context |
+| `typed_controller_before_request_hook` | `string \| nil` | `nil` | Function called before typed controller requests |
+| `typed_controller_after_request_hook` | `string \| nil` | `nil` | Function called after typed controller requests |
+| `typed_controller_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for typed controller hook context |
 
-See [Lifecycle Hooks](../features/lifecycle-hooks.md) for complete documentation.
+See [Lifecycle Hooks](../features/lifecycle-hooks.md) and [Typed Controllers](../guides/typed-controllers.md#lifecycle-hooks) for complete documentation.
 
 ## Domain Configuration
 
@@ -240,7 +263,20 @@ config :ash_typescript,
   routes_output_file: "assets/js/routes.ts",
 
   # Generation mode (optional)
-  typed_controller_mode: :full  # :full (default) or :paths_only
+  typed_controller_mode: :full,              # :full (default) or :paths_only
+  typed_controller_path_params_style: :object, # :object (default) or :args
+
+  # Lifecycle hooks (optional)
+  typed_controller_before_request_hook: "RouteHooks.beforeRequest",
+  typed_controller_after_request_hook: "RouteHooks.afterRequest",
+  typed_controller_hook_context_type: "RouteHooks.RouteHookContext",
+  typed_controller_import_into_generated: [
+    %{import_name: "RouteHooks", file: "./routeHooks"}
+  ],
+
+  # Error handling (optional)
+  typed_controller_error_handler: {MyApp.ErrorHandler, :handle, []},
+  typed_controller_show_raised_errors: false  # true only in dev
 ```
 
 | Option | Type | Default | Description |
@@ -249,6 +285,13 @@ config :ash_typescript,
 | `router` | `module` | `nil` | Phoenix router for path introspection |
 | `routes_output_file` | `string` | `nil` | Output file path (when `nil`, generation is skipped) |
 | `typed_controller_mode` | `:full \| :paths_only` | `:full` | `:full` generates path helpers + fetch functions; `:paths_only` generates only path helpers |
+| `typed_controller_path_params_style` | `:object \| :args` | `:object` | Path parameter style in generated TypeScript |
+| `typed_controller_before_request_hook` | `string \| nil` | `nil` | Function called before typed controller requests |
+| `typed_controller_after_request_hook` | `string \| nil` | `nil` | Function called after typed controller requests |
+| `typed_controller_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for hook context |
+| `typed_controller_import_into_generated` | `list(map)` | `[]` | Custom imports (`%{import_name: "Name", file: "./path"}`) |
+| `typed_controller_error_handler` | `mfa \| module \| nil` | `nil` | Custom error transformation handler |
+| `typed_controller_show_raised_errors` | `boolean` | `false` | Show exception messages in 500 responses |
 
 See [Typed Controllers](../guides/typed-controllers.md) for complete documentation.
 

@@ -63,6 +63,7 @@ SPDX-License-Identifier: MIT
 | **Route Argument** | `argument :code, :string, allow_nil?: false` | Colocated in route |
 | **Route Description** | `description "..."` | JSDoc on route (inside do block) |
 | **Route Deprecated** | `deprecated true` | Deprecation notice (inside do block) |
+| **Route @see Tags** | `see [:auth, :logout]` | JSDoc `@see` cross-references |
 | **Typed Controllers** | `config :ash_typescript, typed_controllers: [M]` | Module discovery |
 | **Router Config** | `config :ash_typescript, router: MyWeb.Router` | Path introspection |
 | **Routes Output** | `config :ash_typescript, routes_output_file: "routes.ts"` | Route file path |
@@ -169,6 +170,7 @@ defmodule MyApp.Session do
 
     route :login do
       method :post
+      see [:auth, :logout]  # JSDoc @see tags
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
       argument :code, :string, allow_nil?: false
       argument :remember_me, :boolean
@@ -186,22 +188,23 @@ authPath()                          // → "/auth"
 // GET with query args → path with query params
 searchPath({ q: "test", page: 1 }) // → "/search?q=test&page=1"
 
-// POST → typed async function
-login({ code: "abc" }, { headers: csrfHeaders })
+// POST → typed async function (via executeTypedControllerRequest helper)
+login({ code: "abc" }, { headers: { "X-CSRF-Token": token } })
 
 // PATCH with path params + input
 updateProvider({ provider: "github" }, { enabled: true })
 ```
 
-**Function parameter order**: `path` (if path params) → `input` (if args) → `config?` (always optional)
+**Function parameter order**: `path` (if path params) → `input` (if args) → `config?: TypedControllerConfig`
 
-**Modes**: `:full` (default) generates path helpers + fetch functions. `:paths_only` generates only path helpers.
+**Modes**: `:full` generates path helpers + fetch functions (+ Zod schemas if enabled). `:paths_only` generates only path helpers.
 
 ### Typed Controller Constraints
 
 - Handlers must return `%Plug.Conn{}` directly — no `{:ok, conn}` wrapping
 - Multi-mount requires unique `as:` options on scopes for disambiguation
 - Not an Ash resource — standalone Spark DSL with colocated arguments
+- Path param `allow_nil?` must match presence: always present → `false`, sometimes present (multi-mount) → `true`
 
 ## Common Gotchas
 
@@ -221,6 +224,8 @@ updateProvider({ provider: "github" }, { enabled: true })
 | Routes not generated | Set `typed_controllers:`, `router:`, and `routes_output_file:` in config |
 | Multi-mount ambiguity error | Add unique `as:` option to each scope |
 | Path param without matching argument | Add `argument :param, :string` to route |
+| Path param `allow_nil?` mismatch | Always-present → `false`; sometimes-present → `true` |
+| Route hooks not firing | Check `typed_controller_import_into_generated` + hook names |
 
 ## Error Quick Reference
 
@@ -233,6 +238,8 @@ updateProvider({ provider: "github" }, { enabled: true })
 | "403 Forbidden" | Use `buildCSRFHeaders()` |
 | "Invalid field names" | Add mapping (see Field Name Mapping) |
 | "load_not_allowed" / "load_denied" | Check load restrictions config |
+| "allow_nil?: true" + path param | Set `allow_nil?: false` for always-present path params |
+| "allow_nil?: false" + sometimes-present | Use `allow_nil?: true` for multi-mount path params |
 
 ## Configuration
 
@@ -263,7 +270,15 @@ config :ash_typescript,
   typed_controllers: [MyApp.Session],
   router: MyAppWeb.Router,
   routes_output_file: "assets/js/routes.ts",
-  typed_controller_mode: :full  # :full or :paths_only
+  typed_controller_mode: :full,                # :full or :paths_only
+  typed_controller_path_params_style: :object,  # :object or :args
+  # Optional: lifecycle hooks, custom imports, error handling
+  # typed_controller_before_request_hook: "RouteHooks.beforeRequest",
+  # typed_controller_after_request_hook: "RouteHooks.afterRequest",
+  # typed_controller_hook_context_type: "RouteHooks.RouteHookContext",
+  # typed_controller_import_into_generated: [%{import_name: "RouteHooks", file: "./routeHooks"}],
+  # typed_controller_error_handler: {MyApp.ErrorHandler, :handle, []},
+  # typed_controller_show_raised_errors: false  # true only in dev
 ```
 
 ## Commands

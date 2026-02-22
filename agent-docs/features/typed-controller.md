@@ -16,12 +16,12 @@ The `AshTypescript.TypedController` DSL generates TypeScript path helpers and ty
 
 ## Architecture
 
-### Three-Layer Design
+### Four-Layer Design
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  DSL Layer: AshTypescript.TypedController.Dsl            │
-│  - Route definitions with method/run/description         │
+│  - Route definitions with method/run/description/see     │
 │  - Colocated arguments inside route entities             │
 │  - Controller module_name configuration                  │
 │  - Compile-time verification                             │
@@ -30,11 +30,20 @@ The `AshTypescript.TypedController` DSL generates TypeScript path helpers and ty
 │  - Introspects Phoenix router for actual URL paths       │
 │  - Discovers typed controllers from app config           │
 │  - Handles multi-mount scenarios with scope prefixes     │
+│  - Validates path param allow_nil? consistency            │
+├─────────────────────────────────────────────────────────┤
+│  Static Layer: TypescriptStatic                           │
+│  - TypedControllerConfig interface                       │
+│  - executeTypedControllerRequest helper function         │
+│  - Import statements (Zod, custom imports)               │
+│  - Hook context type definition                          │
 ├─────────────────────────────────────────────────────────┤
 │  Rendering Layer: RouteRenderer                           │
 │  - GET routes → path helper functions                    │
-│  - Mutation routes → typed async fetch functions          │
+│  - Mutation routes → typed async action functions         │
+│  - Zod schema generation for mutation inputs             │
 │  - Input types from colocated route arguments            │
+│  - JSDoc with @see tags, @deprecated                     │
 │  - Field name mapping (camelCase)                        │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -70,6 +79,10 @@ end
 All validation errors are collected in a single pass so the client receives every issue at once.
 
 Handlers **must** return `%Plug.Conn{}` — the request handler returns a 500 JSON error if they return anything else.
+
+**Error transformation:** When `typed_controller_error_handler` is configured, errors are passed through the handler before being sent to the client. The handler is called for both 422 validation errors and 500 server errors. Returning `nil` from the handler suppresses that error.
+
+**Exception handling:** The entire handler is wrapped in a `rescue` block. When `typed_controller_show_raised_errors` is `true`, the actual exception message is included in the 500 response; otherwise, a generic "Internal server error" is returned.
 
 ### Error Response Format
 
@@ -109,13 +122,14 @@ end
 
 ### Route Options
 
-| Option | Type | Required | Description |
-|--------|------|----------|-------------|
-| `name` | atom | Yes | Controller action name (positional arg) |
-| `method` | atom | Yes | HTTP method: `:get`, `:post`, `:patch`, `:put`, `:delete` |
-| `run` | fn/2 or module | Yes | Handler function or module implementing `Route` behaviour |
-| `description` | string | No | JSDoc description for generated TypeScript |
-| `deprecated` | bool/string | No | Mark route as deprecated |
+| Option | Type | Required | Default | Description |
+|--------|------|----------|---------|-------------|
+| `name` | atom | Yes | - | Controller action name (positional arg) |
+| `method` | atom | Yes | - | HTTP method: `:get`, `:post`, `:patch`, `:put`, `:delete` |
+| `run` | fn/2 or module | Yes | - | Handler function or module implementing `Route` behaviour |
+| `description` | string | No | - | JSDoc description for generated TypeScript |
+| `deprecated` | bool/string | No | - | Mark route as deprecated |
+| `see` | list(atom) | No | `[]` | Related route names for JSDoc `@see` tags |
 
 ### Argument Options
 
@@ -155,7 +169,13 @@ Typed controllers are validated at compile time with these constraints:
 - **Valid argument types** — all argument types must be valid Ash types
 - **Valid names for TypeScript** — route and argument names must not contain `_1`-style patterns or `?` characters (uses `VerifyFieldNames` from the resource verifiers)
 
-Path parameters are also validated at codegen time: every `:param` in the router path must have a matching DSL argument. Missing arguments produce a clear error with suggested fixes.
+Path parameters are also validated at codegen time:
+
+- Every `:param` in the router path must have a matching DSL argument (missing arguments produce a clear error with suggested fixes)
+- **Always-present path params** must have `allow_nil?: false`
+- **Sometimes-present path params** (multi-mount) must have `allow_nil?: true`
+
+See [Path Param `allow_nil?` Validation](#path-param-allow_nil-validation) for details.
 
 ## Router Introspection
 
@@ -238,7 +258,7 @@ export function searchPath(query: { q: string; page?: number }): string {
 
 ### Mutation Routes → Typed Async Functions
 
-POST/PATCH/PUT/DELETE routes generate async functions with typed inputs:
+POST/PATCH/PUT/DELETE routes generate async functions with typed inputs. In `:full` mode, the file includes a `TypedControllerConfig` interface and `executeTypedControllerRequest` helper function (generated once by `TypescriptStatic`), which all mutation functions delegate to:
 
 ```typescript
 export type LoginInput = {
@@ -248,16 +268,11 @@ export type LoginInput = {
 
 export async function login(
   input: LoginInput,
-  config?: { headers?: Record<string, string> }
+  config?: TypedControllerConfig,
 ): Promise<Response> {
-  return fetch("/auth/login", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...config?.headers,
-    },
-    body: JSON.stringify(input),
-  });
+  return executeTypedControllerRequest(
+    "/auth/login", "POST", "login", JSON.stringify(input), config,
+  );
 }
 ```
 
@@ -274,13 +289,12 @@ export type UpdateProviderInput = {
 export async function updateProvider(
   path: { provider: string },
   input: UpdateProviderInput,
-  config?: { headers?: Record<string, string> }
+  config?: TypedControllerConfig,
 ): Promise<Response> {
-  return fetch(`/auth/providers/${path.provider}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json", ...config?.headers },
-    body: JSON.stringify(input),
-  });
+  return executeTypedControllerRequest(
+    `/auth/providers/${path.provider}`, "PATCH", "updateProvider",
+    JSON.stringify(input), config,
+  );
 }
 ```
 
@@ -288,7 +302,7 @@ export async function updateProvider(
 
 1. **Path object** (if route has path parameters): `path: { param: string }`
 2. **Input** (if route has arguments): `input: TypeInput`
-3. **Config** (always optional): `config?: { headers?: Record<string, string> }`
+3. **Config** (always optional): `config?: TypedControllerConfig`
 
 ### Input Type Generation
 
@@ -317,6 +331,84 @@ This is useful when mutations are handled via a different client library or dire
 
 **Implementation**: `RouteRenderer.render/1` checks `AshTypescript.typed_controller_mode()` — when `:paths_only` or when the route is a GET, only the path helper is rendered.
 
+## TypescriptStatic Code Generation
+
+The `TypescriptStatic` module generates boilerplate TypeScript code included once at the top of the routes file (only in `:full` mode):
+
+1. **Import statements** — Zod import (if `generate_zod_schemas: true`) and custom imports from `typed_controller_import_into_generated`
+2. **Hook context type** — `TypedControllerHookContext` type alias (if hooks are enabled)
+3. **`TypedControllerConfig` interface** — Configuration object for requests (headers, fetchOptions, customFetch, hookCtx)
+4. **`executeTypedControllerRequest` helper** — Centralizes request execution with hook integration (before/after hooks, custom fetch, header merging)
+
+All mutation action functions generated by `RouteRenderer` delegate to `executeTypedControllerRequest` rather than calling `fetch` directly. This ensures consistent behavior across all routes and a single point for hook integration.
+
+**Implementation**: `lib/ash_typescript/typed_controller/codegen/typescript_static.ex`
+
+## Lifecycle Hooks
+
+Typed controller hooks follow the same pattern as RPC hooks but are scoped to typed controller requests.
+
+**Config keys:**
+- `typed_controller_before_request_hook` — called before each request, can modify `TypedControllerConfig`
+- `typed_controller_after_request_hook` — called after each request, receives response
+- `typed_controller_hook_context_type` — TypeScript type for the `hookCtx` field
+- `typed_controller_import_into_generated` — imports for hook modules
+
+**Hook signatures:**
+```typescript
+// beforeRequest: can modify config (add headers, credentials, timing, etc.)
+async function beforeRequest(actionName: string, config: TypedControllerConfig): Promise<TypedControllerConfig>
+
+// afterRequest: observe response (logging, timing, telemetry)
+async function afterRequest(actionName: string, response: Response, config: TypedControllerConfig): Promise<void>
+```
+
+When hooks are enabled, `TypedControllerConfig` gains a `hookCtx?: TypedControllerHookContext` field for per-request metadata.
+
+**Implementation**: `TypescriptStatic.generate_helper_function/0` injects hook calls into `executeTypedControllerRequest`.
+
+## Zod Schema Generation
+
+When `generate_zod_schemas: true`, mutation routes generate Zod schemas alongside input types:
+
+```typescript
+export const loginZodSchema = z.object({
+  code: z.string().min(1),
+  rememberMe: z.boolean().optional(),
+});
+```
+
+Schema naming follows the `zod_schema_suffix` config. Multi-mount routes include the scope prefix in the schema name.
+
+**Implementation**: `RouteRenderer.render_zod_schema/1` delegates to `AshTypescript.Codegen.ZodSchemaGenerator.get_zod_type/1`.
+
+## Path Param `allow_nil?` Validation
+
+At codegen time, `Codegen.validate_path_param_allow_nil!/1` validates consistency between route arguments and path parameters across all mounts:
+
+- **Always-present params** (path param at every mount) → must have `allow_nil?: false`
+- **Sometimes-present params** (path param at some mounts only) → must have `allow_nil?: true`
+
+This catches configuration errors early rather than producing runtime nil-related bugs.
+
+**Implementation**: `lib/ash_typescript/typed_controller/codegen.ex` — `validate_always_present_allow_nil!/2` and `validate_sometimes_present_allow_nil!/2`.
+
+## Error Handler
+
+The request handler supports configurable error transformation via `typed_controller_error_handler`:
+
+- **MFA tuple** `{Module, :function, extra_args}` — calls `apply(Module, function, [error, context | extra_args])` for each error
+- **Module** — calls `Module.handle_error(error, context)` for each error
+- **nil** (default) — no transformation
+
+Context map: `%{route: route_name, source_module: source_module}`
+
+Returning `nil` from the handler suppresses that error from the response.
+
+`typed_controller_show_raised_errors` controls whether unhandled exceptions show the real message (`true`) or a generic "Internal server error" (`false`, default).
+
+**Implementation**: `RequestHandler.maybe_apply_error_handler/2`
+
 ## Configuration
 
 ### Application Config
@@ -326,7 +418,20 @@ config :ash_typescript,
   typed_controllers: [MyApp.Session],       # List of TypedController modules
   router: MyAppWeb.Router,                  # Phoenix router for path introspection
   routes_output_file: "assets/js/routes.ts", # Output file for route helpers
-  typed_controller_mode: :full              # :full (default) or :paths_only
+  typed_controller_mode: :full,             # :full (default) or :paths_only
+  typed_controller_path_params_style: :object, # :object (default) or :args
+
+  # Lifecycle hooks
+  typed_controller_before_request_hook: "RouteHooks.beforeRequest",
+  typed_controller_after_request_hook: "RouteHooks.afterRequest",
+  typed_controller_hook_context_type: "RouteHooks.RouteHookContext",
+  typed_controller_import_into_generated: [
+    %{import_name: "RouteHooks", file: "./routeHooks"}
+  ],
+
+  # Error handling
+  typed_controller_error_handler: {MyApp.ErrorHandler, :handle, []},
+  typed_controller_show_raised_errors: false
 ```
 
 `typed_controllers` lists all modules using `AshTypescript.TypedController`. Both `router` and `routes_output_file` are required for route generation. If `routes_output_file` is `nil`, route generation is skipped.
@@ -337,6 +442,13 @@ config :ash_typescript,
 | `router` | `module` | `nil` | Phoenix router for path introspection |
 | `routes_output_file` | `string` | `nil` | Output file path (when `nil`, generation is skipped) |
 | `typed_controller_mode` | `:full \| :paths_only` | `:full` | `:full` generates path helpers + fetch functions; `:paths_only` generates only path helpers |
+| `typed_controller_path_params_style` | `:object \| :args` | `:object` | Path parameter style in generated TypeScript |
+| `typed_controller_before_request_hook` | `string \| nil` | `nil` | Function called before typed controller requests |
+| `typed_controller_after_request_hook` | `string \| nil` | `nil` | Function called after typed controller requests |
+| `typed_controller_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for hook context |
+| `typed_controller_import_into_generated` | `list(map)` | `[]` | Custom imports (`%{import_name: _, file: _}`) |
+| `typed_controller_error_handler` | `mfa \| module \| nil` | `nil` | Custom error transformation handler |
+| `typed_controller_show_raised_errors` | `boolean` | `false` | Show exception messages in 500 responses |
 
 ### Mix Task Integration
 
@@ -364,9 +476,10 @@ The task handles RPC types first, then route helpers. Both use the same `--check
 | `lib/ash_typescript/typed_controller/codegen.ex` | Codegen orchestration entry point |
 | `lib/ash_typescript/typed_controller/codegen/route_config_collector.ex` | Discovers typed controllers from app config |
 | `lib/ash_typescript/typed_controller/codegen/router_introspector.ex` | Phoenix router path matching and multi-mount handling |
-| `lib/ash_typescript/typed_controller/codegen/route_renderer.ex` | TypeScript function/type generation |
+| `lib/ash_typescript/typed_controller/codegen/route_renderer.ex` | TypeScript function/type/Zod schema generation |
+| `lib/ash_typescript/typed_controller/codegen/typescript_static.ex` | Static TS code: TypedControllerConfig, executeTypedControllerRequest, imports, hooks |
 | `lib/mix/tasks/ash_typescript.codegen.ex` | Mix task integration |
-| `lib/ash_typescript.ex` | `typed_controllers/0`, `router/0`, `routes_output_file/0` config accessors |
+| `lib/ash_typescript.ex` | Config accessors for all typed controller options |
 
 ## Testing
 
@@ -387,6 +500,8 @@ The task handles RPC types first, then route helpers. Both use the same `--check
 - **Single-mount router** (`ControllerResourceTestRouter`): Standard route matching
 - **Multi-mount router** (`ControllerResourceMultiMountRouter`): Scope prefix generation with `as:` options
 - **Ambiguous router** (`ControllerResourceAmbiguousRouter`): Error case — multi-mount without `as:` disambiguation
+- **Allow nil always-present router** (`AllowNilAlwaysPresentErrorRouter`): Error case — path param always present but `allow_nil?: true`
+- **Allow nil sometimes-present router** (`AllowNilSometimesPresentErrorRouter`): Error case — path param sometimes present but `allow_nil?: false`
 
 ### Running Tests
 
@@ -407,3 +522,8 @@ cd test/ts && npm run compileGenerated            # Verify TS compilation
 | Module not in `typed_controllers` | Missing config entry | Add module to `typed_controllers: [MyApp.Session]` in config |
 | Path param without matching argument | Router path has `:param` but no DSL argument | Add `argument :param, :string` to the route definition |
 | Invalid names for TypeScript | Route or argument names contain `_1` or `?` | Rename to avoid patterns that produce awkward camelCase |
+| `allow_nil?: true` on always-present path param | Path param always provided by router | Set `allow_nil?: false` on the argument |
+| `allow_nil?: false` on sometimes-present path param | Path param only at some mounts | Set `allow_nil?: true` (default) on the argument |
+| Error handler not called | `typed_controller_error_handler` not configured | Add MFA tuple or module to config |
+| Hook not executing | Missing import or wrong function name | Check `typed_controller_import_into_generated` and hook function names |
+| Generic "Internal server error" in dev | `show_raised_errors` is false | Set `typed_controller_show_raised_errors: true` in dev config |
