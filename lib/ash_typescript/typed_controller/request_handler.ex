@@ -26,6 +26,7 @@ defmodule AshTypescript.TypedController.RequestHandler do
   def handle(conn, source_module, route_name, params) do
     routes = AshTypescript.TypedController.Info.typed_controller(source_module)
     route = Enum.find(routes, &(&1.name == route_name))
+    error_context = %{route: route_name, source_module: source_module}
 
     raw_params = extract_input(params)
 
@@ -34,15 +35,28 @@ defmodule AshTypescript.TypedController.RequestHandler do
         dispatch(conn, route.run, cast_params)
 
       {:error, errors} ->
+        errors = maybe_apply_error_handler(errors, error_context)
+
         conn
         |> put_status(422)
         |> json(%{errors: errors})
     end
   rescue
     e ->
+      error_msg =
+        if AshTypescript.typed_controller_show_raised_errors?(),
+          do: Exception.message(e),
+          else: "Internal server error"
+
+      errors =
+        maybe_apply_error_handler(
+          [%{message: error_msg}],
+          %{route: route_name, source_module: source_module}
+        )
+
       conn
       |> put_status(500)
-      |> json(%{errors: [%{message: Exception.message(e)}]})
+      |> json(%{errors: errors})
   end
 
   defp cast_arguments(arguments, raw_params) do
@@ -110,6 +124,23 @@ defmodule AshTypescript.TypedController.RequestHandler do
         }
       ]
     })
+  end
+
+  defp maybe_apply_error_handler(errors, context) do
+    case AshTypescript.typed_controller_error_handler() do
+      nil ->
+        errors
+
+      {module, function, extra_args} ->
+        errors
+        |> Enum.map(fn error -> apply(module, function, [error, context | extra_args]) end)
+        |> Enum.reject(&is_nil/1)
+
+      module when is_atom(module) ->
+        errors
+        |> Enum.map(fn error -> module.handle_error(error, context) end)
+        |> Enum.reject(&is_nil/1)
+    end
   end
 
   defp extract_input(params) do

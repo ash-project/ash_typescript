@@ -461,6 +461,123 @@ defmodule AshTypescript do
   end
 
   @doc """
+  Gets the beforeRequest hook function name for typed controller actions from application configuration.
+
+  This hook is called before making the HTTP request for typed controller mutation actions,
+  allowing you to modify the config (add headers, set fetchOptions, etc.).
+
+  ## Configuration
+
+      config :ash_typescript,
+        typed_controller_before_request_hook: "RouteHooks.beforeRequest"
+
+  ## Returns
+  A string representing the hook function name, or `nil` if not configured.
+  """
+  def typed_controller_before_request_hook do
+    Application.get_env(:ash_typescript, :typed_controller_before_request_hook)
+  end
+
+  @doc """
+  Gets the afterRequest hook function name for typed controller actions from application configuration.
+
+  This hook is called after the HTTP request completes for typed controller mutation actions,
+  regardless of success or failure.
+
+  ## Configuration
+
+      config :ash_typescript,
+        typed_controller_after_request_hook: "RouteHooks.afterRequest"
+
+  ## Returns
+  A string representing the hook function name, or `nil` if not configured.
+  """
+  def typed_controller_after_request_hook do
+    Application.get_env(:ash_typescript, :typed_controller_after_request_hook)
+  end
+
+  @doc """
+  Gets the TypeScript type for typed controller hook context from application configuration.
+
+  ## Configuration
+
+      config :ash_typescript,
+        typed_controller_hook_context_type: "MyHookContext"
+
+  ## Returns
+  A string representing the TypeScript type to use, defaulting to `"Record<string, any>"`.
+  """
+  def typed_controller_hook_context_type do
+    Application.get_env(
+      :ash_typescript,
+      :typed_controller_hook_context_type,
+      "Record<string, any>"
+    )
+  end
+
+  @doc """
+  Returns true if any typed controller hooks are configured.
+  """
+  def typed_controller_hooks_enabled? do
+    typed_controller_before_request_hook() != nil or
+      typed_controller_after_request_hook() != nil
+  end
+
+  @doc """
+  Gets custom imports to add to the generated typed controller routes file.
+
+  ## Configuration
+
+      config :ash_typescript,
+        typed_controller_import_into_generated: [
+          %{import_name: "RouteHooks", file: "./routeHooks"}
+        ]
+
+  ## Returns
+  A list of import config maps, or an empty list.
+  """
+  def typed_controller_import_into_generated do
+    Application.get_env(:ash_typescript, :typed_controller_import_into_generated, [])
+  end
+
+  @doc """
+  Gets the error handler for typed controller requests.
+
+  Can be:
+  - `nil` (default) - no error transformation
+  - `{Module, :function, extra_args}` - MFA tuple
+  - `Module` - module implementing `handle_error/2`
+
+  ## Configuration
+
+      config :ash_typescript,
+        typed_controller_error_handler: {MyApp.ErrorHandler, :handle, []}
+
+  ## Returns
+  The error handler configuration, or `nil`.
+  """
+  def typed_controller_error_handler do
+    Application.get_env(:ash_typescript, :typed_controller_error_handler)
+  end
+
+  @doc """
+  Gets whether to show actual exception messages in typed controller 500 responses.
+
+  When `false` (default), 500 responses return "Internal server error".
+  When `true`, the actual exception message is included.
+
+  ## Configuration
+
+      config :ash_typescript, typed_controller_show_raised_errors: true
+
+  ## Returns
+  A boolean, defaulting to `false`.
+  """
+  def typed_controller_show_raised_errors? do
+    Application.get_env(:ash_typescript, :typed_controller_show_raised_errors, false)
+  end
+
+  @doc """
   Gets the output field formatter configuration for TypeScript generation.
 
   This determines how internal Elixir field names are converted for client
@@ -483,5 +600,60 @@ defmodule AshTypescript do
   """
   def input_field_formatter do
     Application.get_env(:ash_typescript, :input_field_formatter)
+  end
+
+  @doc """
+  Gets the output file path for shared TypeScript type definitions.
+
+  When set, shared types (type aliases, resource schemas, filter types, utility types)
+  are generated into this dedicated file. Both RPC and typed controller files import
+  from this file instead of generating types inline.
+
+  When nil, auto-derives from `output_file` directory with default name `ash_types.ts`.
+
+  ## Configuration
+
+      config :ash_typescript,
+        types_output_file: "assets/js/ash_types.ts"
+
+  ## Returns
+  A string file path, or nil if neither this nor `output_file` is configured.
+  """
+  def types_output_file do
+    case Application.get_env(:ash_typescript, :types_output_file) do
+      nil -> derive_from_output_file("ash_types.ts")
+      path -> path
+    end
+  end
+
+  @doc """
+  Gets the output file path for shared Zod validation schemas.
+
+  When set, resource Zod schemas are generated into this dedicated file.
+  Both RPC and typed controller files import from this file.
+
+  When nil, auto-derives from `output_file` directory with default name `ash_zod.ts`.
+  Returns nil when Zod schema generation is disabled.
+
+  ## Configuration
+
+      config :ash_typescript,
+        zod_output_file: "assets/js/ash_zod.ts"
+
+  ## Returns
+  A string file path, or nil if Zod generation is disabled or no output_file is configured.
+  """
+  def zod_output_file do
+    case Application.get_env(:ash_typescript, :zod_output_file) do
+      nil -> derive_from_output_file("ash_zod.ts")
+      path -> path
+    end
+  end
+
+  defp derive_from_output_file(default_name) do
+    case Application.get_env(:ash_typescript, :output_file) do
+      nil -> nil
+      output_file -> Path.join(Path.dirname(output_file), default_name)
+    end
   end
 end

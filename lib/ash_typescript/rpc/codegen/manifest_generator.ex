@@ -13,6 +13,8 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
   detailed information like descriptions, deprecation notices, and related action references.
   """
 
+  @tc_mutation_methods [:post, :patch, :put, :delete]
+
   alias AshTypescript.Helpers
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
 
@@ -41,12 +43,15 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
         generate_domain_grouped_content(otp_app, include_internals?)
       end
 
+    tc_section = generate_typed_controller_manifest_section()
+
     """
     # RPC Action Manifest
 
     Generated: #{date}
 
     #{content}
+    #{tc_section}
     """
     |> String.trim_trailing()
     |> Kernel.<>("\n")
@@ -465,5 +470,113 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     resource
     |> Module.split()
     |> List.last()
+  end
+
+  @doc """
+  Generates a Markdown manifest section for typed controller routes.
+
+  Returns an empty string if no typed controllers are configured.
+  """
+  def generate_typed_controller_manifest_section do
+    routes_config =
+      AshTypescript.TypedController.Codegen.RouteConfigCollector.get_typed_controllers()
+
+    if routes_config == [] do
+      ""
+    else
+      router = AshTypescript.router()
+
+      route_infos =
+        AshTypescript.TypedController.Codegen.resolve_route_infos(router, routes_config)
+
+      show_zod = AshTypescript.Rpc.generate_zod_schemas?()
+
+      headers = build_tc_headers(show_zod)
+      separator = build_tc_separator(show_zod)
+
+      sorted_infos =
+        Enum.sort_by(route_infos, fn info ->
+          {info.scope_prefix || "", info.route.name}
+        end)
+
+      rows =
+        sorted_infos
+        |> Enum.map_join("\n", fn info -> build_tc_row(info, show_zod) end)
+
+      """
+
+      ## Typed Controller Routes
+
+      #{headers}
+      #{separator}
+      #{rows}
+      """
+      |> String.trim_trailing()
+    end
+  end
+
+  defp build_tc_headers(show_zod) do
+    base = "| Method | Path | Function | Input Type |"
+    if show_zod, do: base <> " Zod Schema |", else: base
+  end
+
+  defp build_tc_separator(show_zod) do
+    base = "|--------|------|----------|------------|"
+    if show_zod, do: base <> "------------|", else: base
+  end
+
+  defp build_tc_row(info, show_zod) do
+    method = info.method |> to_string() |> String.upcase()
+    path = info.path || ""
+
+    function_name =
+      if info.method in @tc_mutation_methods and
+           AshTypescript.typed_controller_mode() == :full do
+        case info.scope_prefix do
+          nil -> Helpers.format_output_field(info.route.name)
+          prefix -> Helpers.format_output_field(:"#{prefix}_#{info.route.name}")
+        end
+      else
+        case info.scope_prefix do
+          nil -> Helpers.format_output_field(:"#{info.route.name}_path")
+          prefix -> Helpers.format_output_field(:"#{prefix}_#{info.route.name}_path")
+        end
+      end
+
+    path_param_set = MapSet.new(info.path_params)
+
+    input_args =
+      info.route.arguments
+      |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
+
+    input_type =
+      if info.method in @tc_mutation_methods and input_args != [] do
+        case info.scope_prefix do
+          nil -> Macro.camelize("#{info.route.name}_input")
+          prefix -> Macro.camelize("#{prefix}_#{info.route.name}_input")
+        end
+      else
+        "-"
+      end
+
+    base = "| #{method} | #{path} | `#{function_name}` | #{input_type} |"
+
+    if show_zod do
+      suffix = AshTypescript.Rpc.zod_schema_suffix()
+
+      zod_name =
+        if info.method in @tc_mutation_methods and input_args != [] do
+          case info.scope_prefix do
+            nil -> "`#{Helpers.format_output_field(:"#{info.route.name}#{suffix}")}`"
+            prefix -> "`#{Helpers.format_output_field(:"#{prefix}_#{info.route.name}#{suffix}")}`"
+          end
+        else
+          "-"
+        end
+
+      base <> " #{zod_name} |"
+    else
+      base
+    end
   end
 end

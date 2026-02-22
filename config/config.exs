@@ -68,6 +68,16 @@ if Mix.env() == :test do
     rpc_validation_after_channel_response_hook: "ChannelHooks.afterValidationChannelResponse",
     rpc_action_channel_hook_context_type: "ChannelHooks.ActionChannelHookContext",
     rpc_validation_channel_hook_context_type: "ChannelHooks.ValidationChannelHookContext",
+    # Typed controller lifecycle hooks configuration
+    typed_controller_before_request_hook: "RouteHooks.beforeRequest",
+    typed_controller_after_request_hook: "RouteHooks.afterRequest",
+    typed_controller_hook_context_type: "RouteHooks.RouteHookContext",
+    typed_controller_import_into_generated: [
+      %{
+        import_name: "RouteHooks",
+        file: "./routeHooks"
+      }
+    ],
     import_into_generated: [
       %{
         import_name: "CustomTypes",

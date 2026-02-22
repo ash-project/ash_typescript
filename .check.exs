@@ -23,6 +23,7 @@
     {:sobelow, "mix sobelow --config"},
     {:test_codegen, "mix test.codegen"},
     {:compile_generated, "mix cmd --cd test/ts npm run compileGenerated", deps: [:test_codegen]},
+    {:compile_generated_routes, "mix cmd --cd test/ts npm run compileGeneratedRoutes", deps: [:test_codegen]},
     {:compile_should_pass, "mix cmd --cd test/ts npm run compileShouldPass", deps: [:test_codegen]},
     {:compile_should_fail, "mix cmd --cd test/ts npm run compileShouldFail", deps: [:test_codegen]},
     {:test_zod, "mix cmd --cd test/ts npm run testZod", deps: [:test_codegen]},

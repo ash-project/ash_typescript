@@ -62,6 +62,8 @@ defmodule AshTypescript.TypedController.Dsl do
       :run,
       :description,
       :deprecated,
+      :zod_schema_name,
+      see: [],
       arguments: [],
       __spark_metadata__: nil
     ]
@@ -141,6 +143,18 @@ defmodule AshTypescript.TypedController.Dsl do
         required: false,
         doc:
           "Mark this route as deprecated. Set to true for a default message, or provide a custom deprecation notice."
+      ],
+      see: [
+        type: {:list, :atom},
+        required: false,
+        default: [],
+        doc: "List of related route names to reference in JSDoc @see tags."
+      ],
+      zod_schema_name: [
+        type: :string,
+        required: false,
+        doc:
+          "Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema."
       ]
     ],
     args: [:name]
