@@ -19,7 +19,7 @@ defmodule AshTypescript.Rpc.NestedMapFieldFormattingTest do
 
   setup_all do
     {:ok, generated_content} =
-      AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
     {:ok, generated: generated_content}
   end
@@ -28,7 +28,6 @@ defmodule AshTypescript.Rpc.NestedMapFieldFormattingTest do
     test "list_users_map action generates camelCase field names for nested array fields", %{
       generated: generated
     } do
-      # Check that the output type uses camelCase for nested fields
       assert generated =~ "firstName",
              "Expected 'firstName' in generated TypeScript but got snake_case"
 
@@ -44,20 +43,17 @@ defmodule AshTypescript.Rpc.NestedMapFieldFormattingTest do
       assert generated =~ "insertedAt",
              "Expected 'insertedAt' in generated TypeScript but got snake_case"
 
-      # The top-level field should also be camelCase
       assert generated =~ "totalCount",
              "Expected 'totalCount' in generated TypeScript but got snake_case"
     end
 
     test "nested map fields should NOT contain snake_case versions", %{generated: generated} do
-      # Look for the NestedMapResource types specifically to avoid false positives
       nested_map_types =
         generated
         |> String.split("\n")
         |> Enum.filter(&String.contains?(&1, "NestedMapResource"))
         |> Enum.join("\n")
 
-      # Check that the generated types don't contain snake_case field names
       refute nested_map_types =~ ~r/first_name.*:/,
              "Found 'first_name' in NestedMapResource types - should be 'firstName'"
 
@@ -82,14 +78,12 @@ defmodule AshTypescript.Rpc.NestedMapFieldFormattingTest do
     test "get_nested_stats action generates camelCase for deeply nested map fields", %{
       generated: generated
     } do
-      # Check top-level nested fields are camelCased
       assert generated =~ "userStats",
              "Expected 'userStats' in generated TypeScript but got snake_case"
 
       assert generated =~ "contentStats",
              "Expected 'contentStats' in generated TypeScript but got snake_case"
 
-      # Check deeply nested fields are camelCased
       assert generated =~ "activeUsers",
              "Expected 'activeUsers' in generated TypeScript but got snake_case"
 

@@ -14,6 +14,8 @@ defmodule AshTypescript.Test.SecondDomain do
     extensions: [AshTypescript.Rpc]
 
   typescript_rpc do
+    namespace "second"
+
     resource AshTypescript.Test.User do
       rpc_action :list_users_second, :read
       rpc_action :get_user_by_id_second, :get_by_id

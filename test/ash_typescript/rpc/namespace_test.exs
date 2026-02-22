@@ -3,14 +3,11 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Rpc.NamespaceTest do
-  # Not async because tests modify global Application config
   use ExUnit.Case, async: false
 
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.JsdocGenerator
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
 
-  # Ensure consistent config for all tests
-  # Tests that need different settings will override explicitly
   setup do
     Application.put_env(:ash_typescript, :enable_namespace_files, false)
     Application.put_env(:ash_typescript, :add_ash_internals_to_jsdoc, true)
@@ -44,16 +41,18 @@ defmodule AshTypescript.Rpc.NamespaceTest do
       assert RpcConfigCollector.resolve_namespace(domain, resource_config, rpc_action) == nil
     end
 
-    test "get_domain_namespace returns namespace from real domain" do
-      # Test with our test domain that has a domain-level namespace
-      # Note: AshTypescript.Test.Domain doesn't have domain-level namespace by default
-      domain_ns = RpcConfigCollector.get_domain_namespace(AshTypescript.Test.Domain)
-      # This will be nil unless we add a domain-level namespace to test domain
-      assert is_nil(domain_ns) or is_binary(domain_ns)
+    test "domain namespace is resolved via resolve_namespace" do
+      no_ns = %{namespace: nil}
+
+      # Domain without namespace returns nil
+      assert RpcConfigCollector.resolve_namespace(AshTypescript.Test.Domain, no_ns, no_ns) == nil
+
+      # SecondDomain has namespace "second" configured
+      assert RpcConfigCollector.resolve_namespace(AshTypescript.Test.SecondDomain, no_ns, no_ns) ==
+               "second"
     end
 
     test "namespace precedence: action > resource > domain" do
-      # With all three set, action wins
       domain = %{}
       resource_config = %{namespace: "resource_ns"}
       rpc_action = %{namespace: "action_ns"}
@@ -61,13 +60,11 @@ defmodule AshTypescript.Rpc.NamespaceTest do
       assert RpcConfigCollector.resolve_namespace(domain, resource_config, rpc_action) ==
                "action_ns"
 
-      # With only resource and domain, resource wins
       rpc_action_no_ns = %{namespace: nil}
 
       assert RpcConfigCollector.resolve_namespace(domain, resource_config, rpc_action_no_ns) ==
                "resource_ns"
 
-      # With only domain, domain wins (tested via get_domain_namespace)
       resource_config_no_ns = %{namespace: nil}
 
       # For mock domain (empty map), returns nil since get_domain_namespace
@@ -77,10 +74,8 @@ defmodule AshTypescript.Rpc.NamespaceTest do
     end
 
     test "actions in test domain have correct resolved namespaces" do
-      # Get actual namespaces from the test config
       namespaced_actions = RpcConfigCollector.get_rpc_resources_by_namespace(:ash_typescript)
 
-      # Check that actions with action-level namespace: "todos" are grouped under "todos"
       todos_actions = Map.get(namespaced_actions, "todos", [])
 
       todos_function_names =
@@ -90,7 +85,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
       assert :list_todos_deprecated in todos_function_names
       assert :list_todos_with_custom_description in todos_function_names
 
-      # Check that actions with action-level namespace: "users" are grouped under "users"
       users_actions = Map.get(namespaced_actions, "users", [])
 
       users_function_names =
@@ -98,7 +92,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       assert :list_users in users_function_names
 
-      # Check that actions without namespace are grouped under nil
       nil_actions = Map.get(namespaced_actions, nil, [])
 
       nil_function_names =
@@ -108,17 +101,34 @@ defmodule AshTypescript.Rpc.NamespaceTest do
       assert :get_todo in nil_function_names
     end
 
-    test "resource-level namespace applies to all actions in resource" do
-      # UserSettings has namespace: "settings" at the resource level
+    test "domain-level namespace applies to all actions in that domain" do
       namespaced_actions = RpcConfigCollector.get_rpc_resources_by_namespace(:ash_typescript)
 
-      # Actions should inherit the resource namespace
+      second_actions = Map.get(namespaced_actions, "second", [])
+
+      second_function_names =
+        Enum.map(second_actions, fn {_, _, rpc_action, _, _} -> rpc_action.name end)
+
+      assert :list_users_second in second_function_names
+      assert :get_user_by_id_second in second_function_names
+
+      nil_actions = Map.get(namespaced_actions, nil, [])
+
+      nil_function_names =
+        Enum.map(nil_actions, fn {_, _, rpc_action, _, _} -> rpc_action.name end)
+
+      refute :list_users_second in nil_function_names
+      refute :get_user_by_id_second in nil_function_names
+    end
+
+    test "resource-level namespace applies to all actions in resource" do
+      namespaced_actions = RpcConfigCollector.get_rpc_resources_by_namespace(:ash_typescript)
+
       settings_actions = Map.get(namespaced_actions, "settings", [])
 
       settings_function_names =
         Enum.map(settings_actions, fn {_, _, rpc_action, _, _} -> rpc_action.name end)
 
-      # These actions don't have action-level namespace, so they inherit from resource
       assert :list_user_settings in settings_function_names
       assert :get_user_settings in settings_function_names
       assert :create_user_settings in settings_function_names
@@ -129,8 +139,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
     test "action-level namespace overrides resource-level namespace" do
       namespaced_actions = RpcConfigCollector.get_rpc_resources_by_namespace(:ash_typescript)
 
-      # admin_list_user_settings has action-level namespace: "admin" which overrides
-      # the resource-level namespace: "settings"
       admin_actions = Map.get(namespaced_actions, "admin", [])
 
       admin_function_names =
@@ -138,7 +146,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       assert :admin_list_user_settings in admin_function_names
 
-      # And it should NOT be in the settings namespace
       settings_actions = Map.get(namespaced_actions, "settings", [])
 
       settings_function_names =
@@ -216,7 +223,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       assert jsdoc =~ "@validation true"
       assert jsdoc =~ "@namespace todos"
-      # Validation description derives from main description with "Validate: " prefix
       assert jsdoc =~ "Validate: Create a new Todo"
     end
 
@@ -229,13 +235,11 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       jsdoc = JsdocGenerator.generate_jsdoc(resource, action, rpc_action, namespace: "todos")
 
-      # Should include these
       assert jsdoc =~ "/**"
       assert jsdoc =~ "@ashActionType :read"
       assert jsdoc =~ "@namespace todos"
       assert jsdoc =~ "*/"
 
-      # Should NOT include internals (use specific patterns to avoid substring matches)
       refute jsdoc =~ "@ashResource "
       refute jsdoc =~ "@ashAction :"
       refute jsdoc =~ "@ashActionDef "
@@ -252,12 +256,10 @@ defmodule AshTypescript.Rpc.NamespaceTest do
       jsdoc =
         JsdocGenerator.generate_validation_jsdoc(resource, action, rpc_action, namespace: "todos")
 
-      # Should include these
       assert jsdoc =~ "@ashActionType :create"
       assert jsdoc =~ "@validation true"
       assert jsdoc =~ "@namespace todos"
 
-      # Should NOT include internals (use specific patterns to avoid substring matches)
       refute jsdoc =~ "@ashResource "
       refute jsdoc =~ "@ashAction :"
       refute jsdoc =~ "@ashActionDef "
@@ -273,7 +275,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       jsdoc = JsdocGenerator.generate_jsdoc(resource, action, rpc_action)
 
-      # Should use the action's description instead of the default
       assert jsdoc =~ "Fetches all todos for the current user"
       refute jsdoc =~ "Read Todo records"
     end
@@ -287,7 +288,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       jsdoc = JsdocGenerator.generate_jsdoc(resource, action, rpc_action)
 
-      # Should fall back to default description
       assert jsdoc =~ "Read Todo records"
     end
 
@@ -300,7 +300,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       jsdoc = JsdocGenerator.generate_jsdoc(resource, action, rpc_action)
 
-      # Should fall back to default description for empty string
       assert jsdoc =~ "Create a new Todo"
     end
 
@@ -313,7 +312,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       jsdoc = JsdocGenerator.generate_jsdoc(resource, action, rpc_action)
 
-      # Should use default description, not the action's description
       assert jsdoc =~ "Read Todo records"
       refute jsdoc =~ "Custom action description"
     end
@@ -327,7 +325,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       jsdoc = JsdocGenerator.generate_jsdoc(resource, action, rpc_action)
 
-      # Should use RPC description, not action description
       assert jsdoc =~ "Public RPC description"
       refute jsdoc =~ "Internal action description"
       refute jsdoc =~ "Read Todo records"
@@ -342,7 +339,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       jsdoc = JsdocGenerator.generate_jsdoc(resource, action, rpc_action)
 
-      # Should use RPC description regardless of internals setting
       assert jsdoc =~ "Public RPC description"
       refute jsdoc =~ "Internal action description"
       refute jsdoc =~ "Read Todo records"
@@ -357,7 +353,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       jsdoc = JsdocGenerator.generate_jsdoc(resource, action, rpc_action)
 
-      # Should use action description as fallback
       assert jsdoc =~ "Internal action description"
       refute jsdoc =~ "Read Todo records"
     end
@@ -371,7 +366,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       jsdoc = JsdocGenerator.generate_jsdoc(resource, action, rpc_action)
 
-      # Should use default description
       assert jsdoc =~ "Read Todo records"
     end
 
@@ -393,7 +387,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
       jsdoc = JsdocGenerator.generate_jsdoc(resource, action, rpc_action)
 
       assert jsdoc =~ "@deprecated"
-      # Should not have a message after @deprecated
       refute jsdoc =~ "@deprecated "
     end
 
@@ -418,7 +411,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       jsdoc = JsdocGenerator.generate_jsdoc(resource, action, rpc_action)
 
-      # Should convert snake_case to camelCase
       assert jsdoc =~ "@see createTodo"
       assert jsdoc =~ "@see getTodo"
     end
@@ -444,9 +436,7 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       jsdoc = JsdocGenerator.generate_validation_jsdoc(resource, action, rpc_action)
 
-      # Deprecated should be included for validation
       assert jsdoc =~ "@deprecated Deprecated"
-      # See tags are not included for validation functions
       refute jsdoc =~ "@see"
     end
 
@@ -473,16 +463,13 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
   describe "generated TypeScript with JSDoc" do
     test "action without description uses default in JSDoc" do
-      # Check that actions without description use default description
       resource = AshTypescript.Test.Todo
       action = Ash.Resource.Info.action(resource, :read)
 
-      # Ash actions without explicit description have nil
       assert is_nil(action.description)
     end
 
     test "action with description includes it in JSDoc when internals enabled" do
-      # User resource has actions with descriptions
       resource = AshTypescript.Test.User
       action = Ash.Resource.Info.action(resource, :update_me)
 
@@ -491,66 +478,62 @@ defmodule AshTypescript.Rpc.NamespaceTest do
     end
 
     test "rpc_action description appears in generated JSDoc" do
-      {:ok, content} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, content} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Check that the custom rpc_action description appears
       assert content =~ "Fetch todos with a custom public description"
     end
 
     test "generated functions include JSDoc comments" do
-      {:ok, content} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
+      rpc = AshTypescript.Test.CodegenTestHelper.rpc_content(files)
 
-      # Check that JSDoc is present for functions
-      assert content =~ "/**"
-      assert content =~ "@ashActionType"
-      assert content =~ "@ashResource"
-      assert content =~ "@ashAction"
-      assert content =~ "*/"
+      assert rpc =~ "/**"
+      assert rpc =~ "@ashActionType"
+      assert rpc =~ "@ashResource"
+      assert rpc =~ "@ashAction"
+      assert rpc =~ "*/"
     end
 
     test "JSDoc appears before function declaration" do
-      {:ok, content} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
+      rpc = AshTypescript.Test.CodegenTestHelper.rpc_content(files)
 
-      # Find a function and verify JSDoc precedes it
-      # Look for the pattern: JSDoc comment followed by export async function
       regex = ~r/\/\*\*[\s\S]*?@ashActionType\s+:\w+[\s\S]*?\*\/\nexport async function/
 
-      assert Regex.match?(regex, content),
+      assert Regex.match?(regex, rpc),
              "JSDoc should immediately precede function declarations"
     end
   end
 
   describe "multi-file output" do
     test "get_rpc_resources_by_namespace groups actions correctly" do
-      # This tests the grouping function without actually enabling multi-file mode
       grouped = RpcConfigCollector.get_rpc_resources_by_namespace(:ash_typescript)
 
-      # All actions should be grouped under nil (no namespace) in the default test config
       assert Map.has_key?(grouped, nil)
       assert is_list(grouped[nil])
       assert grouped[nil] != []
     end
 
-    test "generate_typescript_types returns multi-file format when enabled" do
+    test "orchestrator returns map of file paths to content" do
       # Temporarily enable namespace files
       original = Application.get_env(:ash_typescript, :enable_namespace_files)
       Application.put_env(:ash_typescript, :enable_namespace_files, true)
 
       try do
-        {:ok, result} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+        {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
 
-        # Should return a map with main and namespaces
-        assert is_map(result)
-        assert Map.has_key?(result, :main)
-        assert Map.has_key?(result, :namespaces)
-        assert is_binary(result.main)
-        assert is_map(result.namespaces)
+        assert is_map(files)
+        assert map_size(files) > 1
 
-        # Main content should have JSDoc comments
-        assert result.main =~ "/**"
-        assert result.main =~ "@ashActionType"
+        Enum.each(files, fn {path, content} ->
+          assert is_binary(path), "Key should be a file path string"
+          assert is_binary(content), "Value should be content string"
+        end)
+
+        rpc = AshTypescript.Test.CodegenTestHelper.rpc_content(files)
+        assert rpc =~ "/**"
+        assert rpc =~ "@ashActionType"
       after
-        # Restore original setting
         if original do
           Application.put_env(:ash_typescript, :enable_namespace_files, original)
         else
@@ -559,51 +542,31 @@ defmodule AshTypescript.Rpc.NamespaceTest do
       end
     end
 
-    test "generate_typescript_types returns single file format when disabled" do
-      # Ensure namespace files are disabled
-      original = Application.get_env(:ash_typescript, :enable_namespace_files)
-      Application.put_env(:ash_typescript, :enable_namespace_files, false)
+    test "utility types are exported from types file" do
+      {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
+      types = AshTypescript.Test.CodegenTestHelper.types_content(files)
 
-      try do
-        {:ok, result} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
-
-        # Should return a binary (single file)
-        assert is_binary(result)
-        assert result =~ "/**"
-        assert result =~ "@ashActionType"
-      after
-        # Restore original setting
-        if original do
-          Application.put_env(:ash_typescript, :enable_namespace_files, original)
-        else
-          Application.delete_env(:ash_typescript, :enable_namespace_files)
-        end
-      end
+      assert types =~ "export type TypedSchema"
+      assert types =~ "export type UnifiedFieldSelection"
+      assert types =~ "export type InferResult"
+      assert types =~ "export type InferFieldValue"
+      assert types =~ "export type UnionToIntersection"
     end
 
-    test "utility types are exported from main file" do
-      {:ok, content} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
-
-      # Verify key utility types are exported
-      assert content =~ "export type TypedSchema"
-      assert content =~ "export type UnifiedFieldSelection"
-      assert content =~ "export type InferResult"
-      assert content =~ "export type InferFieldValue"
-      assert content =~ "export type UnionToIntersection"
-    end
-
-    test "namespace files re-export functions from main file" do
+    test "namespace files re-export functions from RPC file" do
       original = Application.get_env(:ash_typescript, :enable_namespace_files)
       Application.put_env(:ash_typescript, :enable_namespace_files, true)
 
       try do
-        {:ok, result} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+        {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
+        namespace_dir = Path.dirname(Application.get_env(:ash_typescript, :output_file))
+        todos_path = Path.join(namespace_dir, "todos.ts")
 
-        # Check that todos namespace exists
-        assert Map.has_key?(result.namespaces, "todos"), "Should have todos namespace"
-        todos_content = result.namespaces["todos"]
+        assert Map.has_key?(files, todos_path),
+               "Should have todos namespace file at #{todos_path}"
 
-        # Verify re-exports from main file (not full function definitions)
+        todos_content = files[todos_path]
+
         assert todos_content =~ ~r/export \{[^}]+\} from/,
                "Should have value re-exports"
 
@@ -613,7 +576,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
         assert todos_content =~ "validateListTodos",
                "Should re-export validateListTodos function"
 
-        # Should NOT contain function implementations
         refute todos_content =~ "export async function",
                "Should not have function implementations (only re-exports)"
       after
@@ -625,16 +587,15 @@ defmodule AshTypescript.Rpc.NamespaceTest do
       end
     end
 
-    test "namespace files re-export types from main file" do
+    test "namespace files re-export types from RPC file" do
       original = Application.get_env(:ash_typescript, :enable_namespace_files)
       Application.put_env(:ash_typescript, :enable_namespace_files, true)
 
       try do
-        {:ok, result} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+        {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
+        namespace_dir = Path.dirname(Application.get_env(:ash_typescript, :output_file))
+        todos_content = files[Path.join(namespace_dir, "todos.ts")]
 
-        todos_content = result.namespaces["todos"]
-
-        # Verify type re-exports
         assert todos_content =~ ~r/export type \{[^}]+\} from/,
                "Should have type re-exports"
 
@@ -660,24 +621,23 @@ defmodule AshTypescript.Rpc.NamespaceTest do
       Application.put_env(:ash_typescript, :enable_namespace_files, true)
 
       try do
-        {:ok, result} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+        {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
+        namespace_dir = Path.dirname(Application.get_env(:ash_typescript, :output_file))
 
-        # Check todos namespace has listTodos but not other functions
-        todos_content = result.namespaces["todos"]
+        todos_content = files[Path.join(namespace_dir, "todos.ts")]
 
         assert todos_content =~ "listTodos",
                "todos namespace should re-export listTodos"
 
-        # Should NOT contain functions from other namespaces
         refute todos_content =~ "createTodo",
                "todos namespace should NOT re-export createTodo (not in this namespace)"
 
         refute todos_content =~ "listUsers",
                "todos namespace should NOT re-export listUsers (different namespace)"
 
-        # Check users namespace
-        assert Map.has_key?(result.namespaces, "users"), "Should have users namespace"
-        users_content = result.namespaces["users"]
+        users_path = Path.join(namespace_dir, "users.ts")
+        assert Map.has_key?(files, users_path), "Should have users namespace"
+        users_content = files[users_path]
 
         assert users_content =~ "listUsers",
                "users namespace should re-export listUsers"
@@ -693,26 +653,22 @@ defmodule AshTypescript.Rpc.NamespaceTest do
       end
     end
 
-    test "main file contains ALL functions including namespaced ones" do
+    test "RPC file contains ALL functions including namespaced ones" do
       original = Application.get_env(:ash_typescript, :enable_namespace_files)
       Application.put_env(:ash_typescript, :enable_namespace_files, true)
 
       try do
-        {:ok, result} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+        {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
+        rpc = AshTypescript.Test.CodegenTestHelper.rpc_content(files)
 
-        main_content = result.main
+        assert rpc =~ "export async function listTodos<",
+               "RPC file should contain listTodos (namespace files re-export from RPC)"
 
-        # Main file SHOULD contain listTodos (namespaced actions are in main file)
-        assert main_content =~ "export async function listTodos<",
-               "Main file should contain listTodos (namespace files re-export from main)"
+        assert rpc =~ "export async function listUsers<",
+               "RPC file should contain listUsers"
 
-        # Main file SHOULD contain listUsers
-        assert main_content =~ "export async function listUsers<",
-               "Main file should contain listUsers"
-
-        # Main file SHOULD also contain non-namespaced functions
-        assert main_content =~ "export async function createTodo",
-               "Main file should contain createTodo (not namespaced)"
+        assert rpc =~ "export async function createTodo",
+               "RPC file should contain createTodo (not namespaced)"
       after
         if original do
           Application.put_env(:ash_typescript, :enable_namespace_files, original)
@@ -722,21 +678,19 @@ defmodule AshTypescript.Rpc.NamespaceTest do
       end
     end
 
-    test "main file contains JSDoc with @namespace for namespaced functions" do
+    test "RPC file contains JSDoc with @namespace for namespaced functions" do
       original = Application.get_env(:ash_typescript, :enable_namespace_files)
       Application.put_env(:ash_typescript, :enable_namespace_files, true)
 
       try do
-        {:ok, result} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+        {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
+        rpc = AshTypescript.Test.CodegenTestHelper.rpc_content(files)
 
-        main_content = result.main
+        assert rpc =~ "@namespace todos",
+               "RPC file JSDoc should include @namespace todos"
 
-        # JSDoc with @namespace should be in main file
-        assert main_content =~ "@namespace todos",
-               "Main file JSDoc should include @namespace todos"
-
-        assert main_content =~ "@namespace users",
-               "Main file JSDoc should include @namespace users"
+        assert rpc =~ "@namespace users",
+               "RPC file JSDoc should include @namespace users"
       after
         if original do
           Application.put_env(:ash_typescript, :enable_namespace_files, original)
@@ -751,9 +705,9 @@ defmodule AshTypescript.Rpc.NamespaceTest do
       Application.put_env(:ash_typescript, :enable_namespace_files, true)
 
       try do
-        {:ok, result} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
-
-        todos_content = result.namespaces["todos"]
+        {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
+        namespace_dir = Path.dirname(Application.get_env(:ash_typescript, :output_file))
+        todos_content = files[Path.join(namespace_dir, "todos.ts")]
 
         assert todos_content =~ "// Generated by AshTypescript",
                "Should have generated header"
@@ -777,9 +731,9 @@ defmodule AshTypescript.Rpc.NamespaceTest do
       Application.put_env(:ash_typescript, :enable_namespace_files, true)
 
       try do
-        {:ok, result} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
-
-        todos_content = result.namespaces["todos"]
+        {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
+        namespace_dir = Path.dirname(Application.get_env(:ash_typescript, :output_file))
+        todos_content = files[Path.join(namespace_dir, "todos.ts")]
         marker = AshTypescript.Rpc.Codegen.namespace_custom_code_marker()
 
         assert todos_content =~ marker,
@@ -795,119 +749,96 @@ defmodule AshTypescript.Rpc.NamespaceTest do
   end
 
   describe "custom code preservation" do
-    @tag :tmp_dir
-    test "preserves custom code below marker on regeneration", %{tmp_dir: tmp_dir} do
-      original_ns = Application.get_env(:ash_typescript, :enable_namespace_files)
-      original_dir = Application.get_env(:ash_typescript, :namespace_output_dir)
-      original_output = Application.get_env(:ash_typescript, :output_file)
+    @describetag :tmp_dir
+
+    setup %{tmp_dir: tmp_dir} do
+      original_config =
+        Map.new(
+          ~w[enable_namespace_files namespace_output_dir output_file routes_output_file types_output_file zod_output_file]a,
+          &{&1, Application.get_env(:ash_typescript, &1)}
+        )
 
       Application.put_env(:ash_typescript, :enable_namespace_files, true)
       Application.put_env(:ash_typescript, :namespace_output_dir, tmp_dir)
       Application.put_env(:ash_typescript, :output_file, Path.join(tmp_dir, "generated.ts"))
 
-      try do
-        # First generation
-        Mix.Tasks.AshTypescript.Codegen.run([])
+      Application.put_env(
+        :ash_typescript,
+        :routes_output_file,
+        Path.join(tmp_dir, "generated_routes.ts")
+      )
 
-        # Add custom code to todos.ts
-        todos_path = Path.join(tmp_dir, "todos.ts")
-        marker = AshTypescript.Rpc.Codegen.namespace_custom_code_marker()
+      Application.put_env(:ash_typescript, :types_output_file, Path.join(tmp_dir, "ash_types.ts"))
+      Application.put_env(:ash_typescript, :zod_output_file, Path.join(tmp_dir, "ash_zod.ts"))
 
-        original_content = File.read!(todos_path)
-        custom_code = "\n// My custom helper\nexport const customHelper = () => 'hello';\n"
-        modified_content = original_content <> custom_code
+      on_exit(fn ->
+        Enum.each(original_config, fn {key, value} ->
+          if value do
+            Application.put_env(:ash_typescript, key, value)
+          else
+            Application.delete_env(:ash_typescript, key)
+          end
+        end)
+      end)
 
-        File.write!(todos_path, modified_content)
-
-        # Regenerate
-        Mix.Tasks.AshTypescript.Codegen.run([])
-
-        # Verify custom code is preserved
-        regenerated_content = File.read!(todos_path)
-
-        assert regenerated_content =~ marker,
-               "Should still have the marker"
-
-        assert regenerated_content =~ "// My custom helper",
-               "Should preserve custom comment"
-
-        assert regenerated_content =~ "customHelper",
-               "Should preserve custom code"
-
-        # Verify generated content was updated (still has re-exports)
-        assert regenerated_content =~ "listTodos",
-               "Should still have generated re-exports"
-      after
-        if original_ns do
-          Application.put_env(:ash_typescript, :enable_namespace_files, original_ns)
-        else
-          Application.delete_env(:ash_typescript, :enable_namespace_files)
-        end
-
-        if original_dir do
-          Application.put_env(:ash_typescript, :namespace_output_dir, original_dir)
-        else
-          Application.delete_env(:ash_typescript, :namespace_output_dir)
-        end
-
-        if original_output do
-          Application.put_env(:ash_typescript, :output_file, original_output)
-        else
-          Application.delete_env(:ash_typescript, :output_file)
-        end
-      end
+      :ok
     end
 
-    @tag :tmp_dir
+    test "preserves custom code below marker on regeneration", %{tmp_dir: tmp_dir} do
+      # First generation
+      Mix.Tasks.AshTypescript.Codegen.run([])
+
+      # Add custom code to todos.ts
+      todos_path = Path.join(tmp_dir, "todos.ts")
+      marker = AshTypescript.Rpc.Codegen.namespace_custom_code_marker()
+
+      original_content = File.read!(todos_path)
+      custom_code = "\n// My custom helper\nexport const customHelper = () => 'hello';\n"
+      modified_content = original_content <> custom_code
+
+      File.write!(todos_path, modified_content)
+
+      # Regenerate
+      Mix.Tasks.AshTypescript.Codegen.run([])
+
+      # Verify custom code is preserved
+      regenerated_content = File.read!(todos_path)
+
+      assert regenerated_content =~ marker,
+             "Should still have the marker"
+
+      assert regenerated_content =~ "// My custom helper",
+             "Should preserve custom comment"
+
+      assert regenerated_content =~ "customHelper",
+             "Should preserve custom code"
+
+      # Verify generated content was updated (still has re-exports)
+      assert regenerated_content =~ "listTodos",
+             "Should still have generated re-exports"
+    end
+
     test "does not duplicate custom code on multiple regenerations", %{tmp_dir: tmp_dir} do
-      original_ns = Application.get_env(:ash_typescript, :enable_namespace_files)
-      original_dir = Application.get_env(:ash_typescript, :namespace_output_dir)
-      original_output = Application.get_env(:ash_typescript, :output_file)
+      # First generation
+      Mix.Tasks.AshTypescript.Codegen.run([])
 
-      Application.put_env(:ash_typescript, :enable_namespace_files, true)
-      Application.put_env(:ash_typescript, :namespace_output_dir, tmp_dir)
-      Application.put_env(:ash_typescript, :output_file, Path.join(tmp_dir, "generated.ts"))
+      # Add custom code
+      todos_path = Path.join(tmp_dir, "todos.ts")
+      original_content = File.read!(todos_path)
+      custom_code = "\nexport const myHelper = 42;\n"
+      File.write!(todos_path, original_content <> custom_code)
 
-      try do
-        # First generation
-        Mix.Tasks.AshTypescript.Codegen.run([])
+      # Regenerate multiple times
+      Mix.Tasks.AshTypescript.Codegen.run([])
+      Mix.Tasks.AshTypescript.Codegen.run([])
+      Mix.Tasks.AshTypescript.Codegen.run([])
 
-        # Add custom code
-        todos_path = Path.join(tmp_dir, "todos.ts")
-        original_content = File.read!(todos_path)
-        custom_code = "\nexport const myHelper = 42;\n"
-        File.write!(todos_path, original_content <> custom_code)
+      # Count occurrences of custom code
+      final_content = File.read!(todos_path)
+      occurrences = length(String.split(final_content, "myHelper")) - 1
 
-        # Regenerate multiple times
-        Mix.Tasks.AshTypescript.Codegen.run([])
-        Mix.Tasks.AshTypescript.Codegen.run([])
-        Mix.Tasks.AshTypescript.Codegen.run([])
-
-        # Count occurrences of custom code
-        final_content = File.read!(todos_path)
-        occurrences = length(String.split(final_content, "myHelper")) - 1
-
-        assert occurrences == 1,
-               "Custom code should appear exactly once, not #{occurrences} times"
-      after
-        if original_ns do
-          Application.put_env(:ash_typescript, :enable_namespace_files, original_ns)
-        else
-          Application.delete_env(:ash_typescript, :enable_namespace_files)
-        end
-
-        if original_dir do
-          Application.put_env(:ash_typescript, :namespace_output_dir, original_dir)
-        else
-          Application.delete_env(:ash_typescript, :namespace_output_dir)
-        end
-
-        if original_output do
-          Application.put_env(:ash_typescript, :output_file, original_output)
-        else
-          Application.delete_env(:ash_typescript, :output_file)
-        end
-      end
+      assert occurrences == 1,
+             "Custom code should appear exactly once, not #{occurrences} times"
     end
   end
 end

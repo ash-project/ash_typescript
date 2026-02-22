@@ -6,12 +6,6 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
   @moduledoc """
   Tests that private action arguments (public?: false) are excluded from TypeScript codegen.
 
-  This test module verifies that:
-  1. Private arguments are NOT included in TypeScript input types
-  2. Private arguments are NOT included in Zod validation schemas
-  3. Private arguments are NOT included in validation error schemas
-  4. Public arguments on the same action ARE still included
-
   The tests use OrgTodo resource which has private arguments on various action types:
   - `read :read` has `internal_audit_mode` (private)
   - `create :create` has `internal_tracking_id` (private)
@@ -31,14 +25,13 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
 
   setup_all do
     {:ok, generated_content} =
-      AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
     {:ok, generated: generated_content}
   end
 
   describe "private arguments are excluded from TypeScript input types" do
     test "create action private argument is excluded from input type", %{generated: generated} do
-      # Find the CreateOrgTodoInput type
       input_type_match =
         Regex.run(
           ~r/export type CreateOrgTodoInput = \{[^}]+\}/s,
@@ -48,11 +41,9 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
       assert input_type_match, "CreateOrgTodoInput type should be defined"
       input_type = List.first(input_type_match)
 
-      # Private argument should NOT be in the type
       refute input_type =~ "internalTrackingId",
              "Private argument 'internalTrackingId' should NOT be in CreateOrgTodoInput"
 
-      # But public arguments should still be there
       assert input_type =~ "autoComplete",
              "Public argument 'autoComplete' should be in CreateOrgTodoInput"
 
@@ -61,7 +52,6 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
     end
 
     test "read action private argument is excluded from input type", %{generated: generated} do
-      # Find the ListOrgTodosInput type (read action)
       input_type_match =
         Regex.run(
           ~r/export type ListOrgTodosInput = \{[^}]+\}/s,
@@ -71,11 +61,9 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
       assert input_type_match, "ListOrgTodosInput type should be defined"
       input_type = List.first(input_type_match)
 
-      # Private argument should NOT be in the type
       refute input_type =~ "internalAuditMode",
              "Private argument 'internalAuditMode' should NOT be in ListOrgTodosInput"
 
-      # But public arguments should still be there
       assert input_type =~ "filterCompleted",
              "Public argument 'filterCompleted' should be in ListOrgTodosInput"
 
@@ -84,7 +72,6 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
     end
 
     test "update action private argument is excluded from input type", %{generated: generated} do
-      # Find the SetPriorityOrgTodoInput type (update action)
       input_type_match =
         Regex.run(
           ~r/export type SetPriorityOrgTodoInput = \{[^}]+\}/s,
@@ -94,17 +81,14 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
       assert input_type_match, "SetPriorityOrgTodoInput type should be defined"
       input_type = List.first(input_type_match)
 
-      # Private argument should NOT be in the type
       refute input_type =~ "bypassValidation",
              "Private argument 'bypassValidation' should NOT be in SetPriorityOrgTodoInput"
 
-      # But public arguments should still be there
       assert input_type =~ "priority",
              "Public argument 'priority' should be in SetPriorityOrgTodoInput"
     end
 
     test "generic action private argument is excluded from input type", %{generated: generated} do
-      # Find the SearchOrgTodosInput type (generic action)
       input_type_match =
         Regex.run(
           ~r/export type SearchOrgTodosInput = \{[^}]+\}/s,
@@ -114,11 +98,9 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
       assert input_type_match, "SearchOrgTodosInput type should be defined"
       input_type = List.first(input_type_match)
 
-      # Private argument should NOT be in the type
       refute input_type =~ "debugMode",
              "Private argument 'debugMode' should NOT be in SearchOrgTodosInput"
 
-      # But public arguments should still be there
       assert input_type =~ "query",
              "Public argument 'query' should be in SearchOrgTodosInput"
 
@@ -132,11 +114,9 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
       action = Ash.Resource.Info.action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
-      # Private argument should NOT be in the schema
       refute zod_schema =~ "internalTrackingId",
              "Private argument 'internalTrackingId' should NOT be in Zod schema"
 
-      # But public arguments should still be there
       assert zod_schema =~ "autoComplete",
              "Public argument 'autoComplete' should be in Zod schema"
 
@@ -148,11 +128,9 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
       action = Ash.Resource.Info.action(OrgTodo, :read)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "list_org_todos")
 
-      # Private argument should NOT be in the schema
       refute zod_schema =~ "internalAuditMode",
              "Private argument 'internalAuditMode' should NOT be in Zod schema"
 
-      # But public arguments should still be there
       assert zod_schema =~ "filterCompleted",
              "Public argument 'filterCompleted' should be in Zod schema"
     end
@@ -163,11 +141,9 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
       zod_schema =
         ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "set_priority_org_todo")
 
-      # Private argument should NOT be in the schema
       refute zod_schema =~ "bypassValidation",
              "Private argument 'bypassValidation' should NOT be in Zod schema"
 
-      # But public arguments should still be there
       assert zod_schema =~ "priority",
              "Public argument 'priority' should be in Zod schema"
     end
@@ -176,11 +152,9 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
       action = Ash.Resource.Info.action(OrgTodo, :search)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "search_org_todos")
 
-      # Private argument should NOT be in the schema
       refute zod_schema =~ "debugMode",
              "Private argument 'debugMode' should NOT be in Zod schema"
 
-      # But public arguments should still be there
       assert zod_schema =~ "query",
              "Public argument 'query' should be in Zod schema"
     end
@@ -193,11 +167,9 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
       error_schema =
         ValidationErrorSchemas.generate_validation_error_type(OrgTodo, action, "create_org_todo")
 
-      # Private argument should NOT be in the schema
       refute error_schema =~ "internalTrackingId",
              "Private argument 'internalTrackingId' should NOT be in validation error schema"
 
-      # But public arguments should still be there
       assert error_schema =~ "autoComplete",
              "Public argument 'autoComplete' should be in validation error schema"
     end
@@ -208,11 +180,9 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
       error_schema =
         ValidationErrorSchemas.generate_validation_error_type(OrgTodo, action, "list_org_todos")
 
-      # Private argument should NOT be in the schema
       refute error_schema =~ "internalAuditMode",
              "Private argument 'internalAuditMode' should NOT be in validation error schema"
 
-      # But public arguments should still be there
       assert error_schema =~ "filterCompleted",
              "Public argument 'filterCompleted' should be in validation error schema"
     end
@@ -227,11 +197,9 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
           "search_org_todos"
         )
 
-      # Private argument should NOT be in the schema
       refute error_schema =~ "debugMode",
              "Private argument 'debugMode' should NOT be in validation error schema"
 
-      # But public arguments should still be there
       assert error_schema =~ "query",
              "Public argument 'query' should be in validation error schema"
     end
@@ -241,12 +209,10 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
     test "OrgTodo create action has a private argument defined" do
       action = Ash.Resource.Info.action(OrgTodo, :create)
 
-      # Verify the private argument exists in the action definition
       private_arg = Enum.find(action.arguments, &(&1.name == :internal_tracking_id))
       assert private_arg, "internal_tracking_id argument should exist on the action"
       refute private_arg.public?, "internal_tracking_id should have public?: false"
 
-      # Verify public arguments also exist
       public_arg = Enum.find(action.arguments, &(&1.name == :user_id))
       assert public_arg, "user_id argument should exist on the action"
       assert public_arg.public?, "user_id should have public?: true (default)"

@@ -11,6 +11,7 @@ defmodule AshTypescript.Test.Session do
 
   typed_controller do
     module_name AshTypescript.Test.SessionController
+    namespace "auth"
 
     route :auth do
       method :get
@@ -54,6 +55,7 @@ defmodule AshTypescript.Test.Session do
 
     route :profile do
       method :get
+      namespace "account"
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Profile") end
       argument :user_id, :string
       argument :bio, :string

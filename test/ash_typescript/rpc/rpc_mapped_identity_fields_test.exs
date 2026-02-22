@@ -4,12 +4,8 @@
 
 defmodule AshTypescript.Rpc.RpcMappedIdentityFieldsTest do
   @moduledoc """
-  Tests for identity field name mapping in RPC actions.
-
-  This tests that identity fields with `field_names` mappings (for invalid
-  TypeScript characters like `?`) are correctly:
-  - Generated in TypeScript with the mapped names
-  - Parsed from client input using reverse mapping
+  Tests for identity field name mapping in RPC actions, ensuring `field_names`
+  mappings (e.g. `is_active?` -> `isActive`) are applied in both codegen and runtime.
   """
   use ExUnit.Case, async: false
 
@@ -22,9 +18,8 @@ defmodule AshTypescript.Rpc.RpcMappedIdentityFieldsTest do
   end
 
   setup_all do
-    # Generate the TypeScript code programmatically
     {:ok, generated_content} =
-      AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
     {:ok, generated: generated_content}
   end
@@ -32,8 +27,6 @@ defmodule AshTypescript.Rpc.RpcMappedIdentityFieldsTest do
   describe "identity with mapped field names - runtime" do
     setup do
       conn = TestHelpers.build_rpc_conn()
-
-      # Create a test subscription using Ash directly to avoid field name issues
       user_id = Ash.UUID.generate()
 
       subscription =
@@ -54,9 +47,6 @@ defmodule AshTypescript.Rpc.RpcMappedIdentityFieldsTest do
       subscription: subscription,
       user_id: user_id
     } do
-      # The identity :by_user_and_status uses [:user_id, :is_active?]
-      # is_active? is mapped to isActive in TypeScript
-      # Client sends: { userId: "...", isActive: true }
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "update_subscription_by_user_status",
@@ -74,7 +64,6 @@ defmodule AshTypescript.Rpc.RpcMappedIdentityFieldsTest do
     end
 
     test "destroy by identity with mapped field names", %{conn: conn, user_id: user_id} do
-      # Create another subscription to destroy using Ash directly
       sub_to_destroy =
         AshTypescript.Test.Subscription
         |> Ash.Changeset.for_create(:create, %{
@@ -85,7 +74,6 @@ defmodule AshTypescript.Rpc.RpcMappedIdentityFieldsTest do
         })
         |> Ash.create!()
 
-      # Destroy using identity with mapped field name
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "destroy_subscription_by_user_status",
@@ -97,7 +85,6 @@ defmodule AshTypescript.Rpc.RpcMappedIdentityFieldsTest do
 
       assert %{"success" => true} = result
 
-      # Verify subscription was destroyed
       assert {:error, _} =
                Ash.get(AshTypescript.Test.Subscription, sub_to_destroy.id, action: :get_by_id)
     end
@@ -107,8 +94,6 @@ defmodule AshTypescript.Rpc.RpcMappedIdentityFieldsTest do
     test "update_subscription_by_user_status has identity with mapped field names", %{
       generated: generated
     } do
-      # Identity should use the TypeScript field names (userId, isActive)
-      # not the Elixir names (user_id, is_active?)
       assert generated =~
                ~r/function updateSubscriptionByUserStatus.*identity: \{ userId: UUID; isActive: boolean \};/s
     end

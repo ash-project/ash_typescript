@@ -23,10 +23,15 @@ defmodule AshTypescript.Rpc.CodegenDeterminismTest do
     test "generating TypeScript types 10 times produces identical output" do
       hashes =
         Enum.map(1..10, fn _i ->
-          {:ok, typescript} =
-            AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+          {:ok, files} =
+            AshTypescript.Test.CodegenTestHelper.generate_files()
 
-          :crypto.hash(:sha256, typescript) |> Base.encode16()
+          canonical =
+            files
+            |> Enum.sort_by(fn {path, _} -> path end)
+            |> :erlang.term_to_binary()
+
+          :crypto.hash(:sha256, canonical) |> Base.encode16()
         end)
 
       unique_hashes = Enum.uniq(hashes)

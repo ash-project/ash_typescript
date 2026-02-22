@@ -27,7 +27,6 @@ defmodule AshTypescript.Codegen.AggregateCalculationSupportTest do
     test "generates filter type for sum aggregate over calculation" do
       result = FilterTypes.generate_filter_type(AshTypescript.Test.Todo)
 
-      # Sum aggregate over integer calculation should generate numeric filter
       assert result =~ "totalWeightedScore?: {"
       assert result =~ "eq?: number"
       assert result =~ "greaterThan?: number"
@@ -36,27 +35,23 @@ defmodule AshTypescript.Codegen.AggregateCalculationSupportTest do
 
   describe "end-to-end TypeScript generation - aggregates over calculations" do
     setup do
-      {:ok, typescript} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
       {:ok, typescript: typescript}
     end
 
     test "sum aggregate over calculation has correct type", %{typescript: typescript} do
-      # Sum over integer calculation should be number
       assert typescript =~ ~r/totalWeightedScore\??: number/
     end
 
     test "max aggregate over calculation has correct type", %{typescript: typescript} do
-      # Max over integer calculation should be number (not string fallback)
       assert typescript =~ ~r/maxWeightedScore\??: number/
     end
 
     test "first aggregate over calculation has correct type", %{typescript: typescript} do
-      # First over integer calculation should be number (not string fallback)
       assert typescript =~ ~r/firstWeightedScore\??: number/
     end
 
     test "list aggregate over calculation has correct type", %{typescript: typescript} do
-      # List over integer calculation should be array of numbers
       assert typescript =~ ~r/weightedScores\??: (number\[\]|Array<number>)/
     end
   end

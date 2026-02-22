@@ -20,7 +20,7 @@ defmodule AshTypescript.Rpc.OptionalTenantForAllActionsTest do
 
   describe "optional tenant for all actions - TypeScript codegen" do
     setup do
-      {:ok, ts_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, ts_output} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
       {:ok, ts_output: ts_output}
     end
 

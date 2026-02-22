@@ -5,14 +5,11 @@
 defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
   use ExUnit.Case
 
-  alias AshTypescript.Rpc.Codegen
-
   @moduletag :ash_typescript
 
   setup do
     Application.put_env(:ash_typescript, :enable_namespace_files, false)
 
-    # Save original config
     original_config = [
       rpc_action_before_channel_push_hook:
         Application.get_env(:ash_typescript, :rpc_action_before_channel_push_hook),
@@ -29,7 +26,6 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
     ]
 
     on_exit(fn ->
-      # Restore original config
       Enum.each(original_config, fn {key, value} ->
         if value do
           Application.put_env(:ash_typescript, key, value)
@@ -56,7 +52,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
         "ChannelHooks.ActionContext"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ "export type ActionChannelHookContext = ChannelHooks.ActionContext;"
     end
@@ -68,7 +64,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
         "ChannelHooks.beforePush"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ ~r/hookCtx\?: ActionChannelHookContext;/
     end
@@ -80,9 +76,8 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
         "ChannelHooks.beforeChannelPush"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Check that the hook is embedded in the executeActionChannelPush helper
       assert typescript =~ "executeActionChannelPush"
       assert typescript =~ "let processedConfig = config;"
       assert typescript =~ "if (ChannelHooks.beforeChannelPush)"
@@ -98,9 +93,8 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
         "ChannelHooks.afterChannelResponse"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Check that the hook is embedded in the executeActionChannelPush helper
       assert typescript =~ "executeActionChannelPush"
       assert typescript =~ "if (ChannelHooks.afterChannelResponse)"
 
@@ -115,7 +109,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
         "ChannelHooks.afterChannelResponse"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       # Check that the hook is embedded in the executeActionChannelPush helper
       assert typescript =~ "executeActionChannelPush"
@@ -131,10 +125,8 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
         "ChannelHooks.afterChannelResponse"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Check that the hook is embedded in the executeActionChannelPush helper
-      # Note: The helper uses "undefined" instead of "null" for timeout
       assert typescript =~ "executeActionChannelPush"
 
       assert typescript =~
@@ -148,9 +140,8 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
         "ChannelHooks.beforePush"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Timeout is passed to the helper which uses it directly
       assert typescript =~ "executeActionChannelPush"
       assert typescript =~ "config.timeout"
     end
@@ -168,7 +159,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
         "CustomChannelContext"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ "export type ActionChannelHookContext = CustomChannelContext;"
     end
@@ -182,7 +173,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
 
       Application.delete_env(:ash_typescript, :rpc_action_channel_hook_context_type)
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ "export type ActionChannelHookContext = Record<string, any>;"
     end
@@ -202,7 +193,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
         "ChannelHooks.ValidationContext"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~
                "export type ValidationChannelHookContext = ChannelHooks.ValidationContext;"
@@ -215,7 +206,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
         "ChannelHooks.beforeValidationPush"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ ~r/hookCtx\?: ValidationChannelHookContext;/
     end
@@ -227,9 +218,8 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
         "ChannelHooks.beforeValidationChannelPush"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Check that the hook is embedded in the executeValidationChannelPush helper
       assert typescript =~ "executeValidationChannelPush"
       assert typescript =~ "if (ChannelHooks.beforeValidationChannelPush)"
 
@@ -244,9 +234,8 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
         "ChannelHooks.afterValidationChannelResponse"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Check that the hook is embedded in the executeValidationChannelPush helper
       assert typescript =~ "executeValidationChannelPush"
       assert typescript =~ "if (ChannelHooks.afterValidationChannelResponse)"
 
@@ -267,7 +256,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
         "CustomValidationChannelContext"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~
                "export type ValidationChannelHookContext = CustomValidationChannelContext;"
@@ -281,7 +270,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
       Application.delete_env(:ash_typescript, :rpc_validation_before_channel_push_hook)
       Application.delete_env(:ash_typescript, :rpc_validation_after_channel_response_hook)
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       refute typescript =~ "export type ActionChannelHookContext"
       refute typescript =~ "export type ValidationChannelHookContext"
@@ -291,9 +280,8 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
       Application.delete_env(:ash_typescript, :rpc_action_before_channel_push_hook)
       Application.delete_env(:ash_typescript, :rpc_action_after_channel_response_hook)
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Should still have channel configs, but without hookCtx
       refute typescript =~ ~r/hookCtx\?: ActionChannelHookContext;/
     end
 
@@ -301,11 +289,9 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
       Application.delete_env(:ash_typescript, :rpc_action_before_channel_push_hook)
       Application.delete_env(:ash_typescript, :rpc_validation_before_channel_push_hook)
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # When no hooks, uses const instead of let
       assert typescript =~ "const processedConfig = config;"
-      # Should not have await calls to channel hooks
       refute typescript =~ "await ChannelHooks.beforeChannelPush"
       refute typescript =~ "await ChannelHooks.beforeValidationChannelPush"
     end
@@ -314,7 +300,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
       Application.delete_env(:ash_typescript, :rpc_action_after_channel_response_hook)
       Application.delete_env(:ash_typescript, :rpc_validation_after_channel_response_hook)
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       refute typescript =~ "await ChannelHooks.afterChannelResponse"
       refute typescript =~ "await ChannelHooks.afterValidationChannelResponse"
@@ -332,7 +318,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
       Application.delete_env(:ash_typescript, :rpc_validation_before_channel_push_hook)
       Application.delete_env(:ash_typescript, :rpc_validation_after_channel_response_hook)
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ "export type ActionChannelHookContext"
       refute typescript =~ "export type ValidationChannelHookContext"
@@ -348,7 +334,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
         "ChannelHooks.beforeValidationPush"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       refute typescript =~ "export type ActionChannelHookContext"
       assert typescript =~ "export type ValidationChannelHookContext"
@@ -363,7 +349,7 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
 
       Application.delete_env(:ash_typescript, :rpc_action_after_channel_response_hook)
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ "if (ChannelHooks.beforeChannelPush)"
       refute typescript =~ "ChannelHooks.afterChannelResponse"
@@ -378,12 +364,10 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksCodegenTest do
         "ChannelHooks.afterChannelResponse"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ "if (ChannelHooks.afterChannelResponse)"
-      # When no before hook, uses const instead of let
       assert typescript =~ "const processedConfig = config;"
-      # Should not have beforeChannelPush call
       refute typescript =~ "if (ChannelHooks.beforeChannelPush)"
     end
   end

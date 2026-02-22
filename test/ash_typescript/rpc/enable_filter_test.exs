@@ -16,7 +16,6 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
   describe "enable_filter? option - pipeline behavior" do
     test "filter is dropped when enable_filter? is false" do
-      # Try to send a filter to an action with enable_filter?: false
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"],
@@ -27,7 +26,6 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
 
-      # Filter should be dropped (set to nil)
       assert request.filter == nil
     end
 
@@ -42,12 +40,10 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
 
-      # Filter should be preserved
       assert request.filter == %{status: %{eq: "active"}}
     end
 
     test "sort is not affected by enable_filter?" do
-      # Sort should still work even with enable_filter?: false
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"],
@@ -59,7 +55,6 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
 
-      # Filter should be dropped but sort should remain
       assert request.filter == nil
       assert request.sort == "-created_at"
     end
@@ -67,15 +62,13 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
   describe "enable_filter? option - TypeScript codegen" do
     setup do
-      {:ok, ts_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, ts_output} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
       {:ok, ts_output: ts_output}
     end
 
     test "action with enable_filter?: false does not have filter field but has sort field", %{
       ts_output: ts_output
     } do
-      # Find the ListTodosNoFilterConfig type
-      # It should NOT contain a filter field but SHOULD have sort
       config_match =
         Regex.named_captures(
           ~r/export type ListTodosNoFilterConfig[^{]*\{(?<body>[^}]+)\}/,
@@ -85,19 +78,14 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       assert config_match != nil, "ListTodosNoFilterConfig should exist"
       config_body = config_match["body"]
 
-      # Should not have filter field
       refute config_body =~ "filter?:", "Config should not have filter field"
-      # Should still have sort field (sort is independent of enable_filter?)
       assert config_body =~ "sort?:", "Config should have sort field"
-      # Should have fields field
       assert config_body =~ "fields:", "Config should have fields field"
     end
 
     test "action with enable_filter?: true (default) has filter field in config", %{
       ts_output: ts_output
     } do
-      # Find the ListTodosConfig type
-      # It should contain a filter field
       config_match =
         Regex.named_captures(
           ~r/export type ListTodosConfig[^{]*\{(?<body>[^}]+)\}/,
@@ -107,7 +95,6 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       assert config_match != nil, "ListTodosConfig should exist"
       config_body = config_match["body"]
 
-      # Should have filter and sort fields
       assert config_body =~ "filter?:", "Config should have filter field"
       assert config_body =~ "sort?:", "Config should have sort field"
     end
@@ -125,9 +112,7 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
 
-      # Pagination should still work
       assert request.pagination == %{limit: 10, offset: 0}
-      # Filter should be nil (not sent)
       assert request.filter == nil
     end
   end
@@ -137,7 +122,6 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"]
-        # No filter sent
       }
 
       conn = %Plug.Conn{}
@@ -162,7 +146,6 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
 
-      # Even complex filters should be dropped
       assert request.filter == nil
     end
 
@@ -182,14 +165,13 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
   describe "enable_filter? - TypeScript function body generation" do
     setup do
-      {:ok, ts_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, ts_output} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
       {:ok, ts_output: ts_output}
     end
 
     test "function with enable_filter?: false doesn't include filter in payload", %{
       ts_output: ts_output
     } do
-      # Find the listTodosNoFilter function implementation
       function_match =
         Regex.named_captures(
           ~r/export async function listTodosNoFilter[^{]*\{(?<body>[\s\S]*?)\n\}/,
@@ -199,9 +181,7 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       assert function_match != nil, "listTodosNoFilter function should exist"
       function_body = function_match["body"]
 
-      # Should not reference filter in the payload
       refute function_body =~ "config.filter", "Function body should not reference config.filter"
-      # But should still reference sort
       assert function_body =~ "config.sort", "Function body should reference config.sort"
     end
 
@@ -217,14 +197,13 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       assert config_match != nil, "ListTodosNoFilterConfig should exist"
       config_body = config_match["body"]
 
-      # Should have page field for pagination
       assert config_body =~ "page?:", "Config should have page field for pagination"
     end
   end
 
   describe "enable_filter? - channel function generation" do
     setup do
-      {:ok, ts_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, ts_output} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
       {:ok, ts_output: ts_output}
     end
 
@@ -262,9 +241,7 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
 
-      # Input should be preserved
       assert request.input == %{filter_completed: true}
-      # Filter should be dropped
       assert request.filter == nil
     end
   end
