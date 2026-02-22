@@ -17,14 +17,34 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   @mutation_methods [:post, :patch, :put, :delete]
 
   @doc """
-  Renders TypeScript code for a single route.
+  Renders TypeScript code for a single route (including inline Zod schema).
 
   GET routes produce path helpers. Mutation routes produce typed async
   functions that call `fetch` with the correct method and typed input.
   """
   def render(route_info) do
     if route_info.method in @mutation_methods and AshTypescript.typed_controller_mode() == :full do
-      render_path_helper(route_info) <> "\n" <> render_action_function(route_info)
+      zod_schema = render_zod_schema(route_info)
+
+      [render_path_helper(route_info), render_action_function(route_info), zod_schema]
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.join("\n")
+    else
+      render_path_helper(route_info)
+    end
+  end
+
+  @doc """
+  Renders TypeScript code for a single route without Zod schema.
+
+  Same as `render/1` but skips Zod schema generation (for split-file mode
+  where Zod schemas live in ash_zod.ts).
+  """
+  def render_no_zod(route_info) do
+    if route_info.method in @mutation_methods and AshTypescript.typed_controller_mode() == :full do
+      [render_path_helper(route_info), render_action_function(route_info)]
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.join("\n")
     else
       render_path_helper(route_info)
     end
@@ -45,7 +65,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     path_param_args = build_path_param_args(route, path_params, style)
 
     is_mutation = method in @mutation_methods
-    query_args = if is_mutation, do: [], else: get_query_args(route, path_params)
+    query_args = if is_mutation, do: [], else: non_path_args(route, path_params)
 
     {query_param, query_body_lines} = build_query_param_and_body(query_args)
 
@@ -90,7 +110,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     end
   end
 
-  defp get_query_args(route, path_params) do
+  defp non_path_args(route, path_params) do
     path_param_set = MapSet.new(path_params)
 
     route.arguments
@@ -163,8 +183,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
       end
 
     config_param = [
-      format_output_field(:config) <>
-        "?: { " <> format_output_field(:headers) <> "?: Record<string, string> }"
+      format_output_field(:config) <> "?: TypedControllerConfig"
     ]
 
     all_params = path_param ++ input_param ++ config_param
@@ -174,36 +193,86 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     url_expr = build_url_template(path, path_params, use_path_prefix)
     jsdoc = build_action_jsdoc(route, method_upper, path)
 
-    body_line =
+    body_arg =
       if has_input do
-        "\n    body: JSON.stringify(#{format_output_field(:input)}),"
+        "JSON.stringify(#{format_output_field(:input)})"
       else
-        ""
+        "undefined"
       end
 
     config_var = format_output_field(:config)
-    headers_field = format_output_field(:headers)
+    action_name_str = format_output_field(route.name)
 
     input_type_def <>
       """
       #{jsdoc}
       export async function #{function_name}(#{params}): Promise<Response> {
-        return fetch(#{url_expr}, {
-          method: "#{method_upper}",
-          headers: {
-            "Content-Type": "application/json",
-            ...#{config_var}?.#{headers_field},
-          },#{body_line}
-        });
+        return executeTypedControllerRequest(#{url_expr}, "#{method_upper}", "#{action_name_str}", #{body_arg}, #{config_var});
       }
       """
   end
 
-  defp build_input_fields(route, path_params) do
-    path_param_set = MapSet.new(path_params)
+  @doc """
+  Renders the Zod schema for a route's mutation input.
 
-    route.arguments
-    |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
+  Returns an empty string for GET routes, routes without non-path arguments,
+  or when Zod schema generation is disabled.
+  """
+  def render_zod_schema(route_info) do
+    if AshTypescript.Rpc.generate_zod_schemas?() do
+      %{route: route, path_params: path_params, scope_prefix: scope_prefix} = route_info
+      suffix = AshTypescript.Rpc.zod_schema_suffix()
+
+      input_args = non_path_args(route, path_params)
+
+      if input_args == [] do
+        ""
+      else
+        schema_name =
+          if route.zod_schema_name do
+            route.zod_schema_name
+          else
+            build_zod_schema_name(route.name, scope_prefix, suffix)
+          end
+
+        field_lines =
+          Enum.map_join(input_args, "\n", fn arg ->
+            resolved_type = Ash.Type.get_type(arg.type)
+
+            zod_type =
+              AshTypescript.Codegen.ZodSchemaGenerator.get_zod_type(%{
+                type: resolved_type,
+                constraints: arg.constraints || [],
+                allow_nil?: arg.allow_nil?
+              })
+
+            optional = arg.allow_nil? || arg.default != nil
+            zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
+            "  #{format_output_field(arg.name)}: #{zod_type},"
+          end)
+
+        """
+        export const #{schema_name} = z.object({
+        #{field_lines}
+        });
+        """
+      end
+    else
+      ""
+    end
+  end
+
+  defp build_zod_schema_name(action_name, nil, suffix) do
+    format_output_field(:"#{action_name}#{suffix}")
+  end
+
+  defp build_zod_schema_name(action_name, scope_prefix, suffix) do
+    format_output_field(:"#{scope_prefix}_#{action_name}#{suffix}")
+  end
+
+  defp build_input_fields(route, path_params) do
+    route
+    |> non_path_args(path_params)
     |> Enum.map(fn arg ->
       optional = arg.allow_nil? || arg.default != nil
       ts_type = get_ts_input_type(%{type: arg.type, constraints: arg.constraints || []})
@@ -315,6 +384,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
       end
 
     lines = maybe_add_deprecated(lines, route)
+    lines = maybe_add_see_tags(lines, route)
     lines = lines ++ [" */"]
     Enum.join(lines, "\n")
   end
@@ -330,6 +400,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
       end
 
     lines = maybe_add_deprecated(lines, route)
+    lines = maybe_add_see_tags(lines, route)
     lines = lines ++ [" */"]
     Enum.join(lines, "\n")
   end
@@ -344,6 +415,21 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
       lines ++ [" * @deprecated #{deprecation_msg}"]
     else
       lines
+    end
+  end
+
+  defp maybe_add_see_tags(lines, route) do
+    case Map.get(route, :see, []) do
+      [] ->
+        lines
+
+      see_list ->
+        see_lines =
+          Enum.map(see_list, fn route_name ->
+            " * @see #{format_output_field(route_name)}"
+          end)
+
+        lines ++ see_lines
     end
   end
 end

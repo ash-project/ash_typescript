@@ -13,8 +13,8 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
   @shortdoc "Generates TypeScript types for Ash Rpc-calls"
 
   use Mix.Task
-  import AshTypescript.Rpc.Codegen
 
+  alias AshTypescript.Codegen.Orchestrator
   alias AshTypescript.Rpc.Codegen.ManifestGenerator
 
   def run(args) do
@@ -34,9 +34,6 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
       )
 
     otp_app = Mix.Project.config()[:app]
-
-    output_file =
-      Keyword.get(opts, :output) || Application.get_env(:ash_typescript, :output_file)
 
     run_endpoint =
       Keyword.get(opts, :run_endpoint) || Application.get_env(:ash_typescript, :run_endpoint)
@@ -66,76 +63,28 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
         AshTypescript.rpc_validation_channel_hook_context_type()
     ]
 
-    if output_file do
-      case generate_typescript_types(otp_app, codegen_opts) do
-        {:ok, %{main: main_content, namespaces: namespace_files}} ->
-          handle_multi_file_output(output_file, main_content, namespace_files, opts)
+    case Orchestrator.generate(otp_app, codegen_opts) do
+      {:ok, files} ->
+        marker = AshTypescript.Rpc.Codegen.namespace_custom_code_marker()
 
-        {:ok, typescript_content} when is_binary(typescript_content) ->
-          handle_single_file_output(output_file, typescript_content, opts, otp_app)
+        # Preserve custom content in namespace files
+        files =
+          Map.new(files, fn {path, content} ->
+            {path, maybe_preserve_custom_content(path, content, marker)}
+          end)
 
-        {:error, error_message} ->
-          Mix.raise(error_message)
-      end
-    end
+        handle_files(files, opts, otp_app)
 
-    maybe_generate_typed_controller(opts)
-  end
-
-  defp handle_single_file_output(output_file, typescript_content, opts, otp_app) do
-    current_content =
-      if File.exists?(output_file) do
-        File.read!(output_file)
-      else
-        ""
-      end
-
-    cond do
-      opts[:check] && !(opts[:dev] && AshTypescript.always_regenerate?()) ->
-        if typescript_content != current_content do
-          raise Ash.Error.Framework.PendingCodegen,
-            diff: %{
-              output_file => typescript_content
-            }
-        end
-
-      opts[:dry_run] ->
-        if typescript_content != current_content do
-          IO.puts("##{output_file}:\n\n#{typescript_content}")
-        end
-
-      true ->
-        if typescript_content != current_content do
-          File.write!(output_file, typescript_content)
-
-          if manifest_path = AshTypescript.Rpc.manifest_file() do
-            manifest = ManifestGenerator.generate_manifest(otp_app)
-            File.write!(manifest_path, manifest)
-          end
-        end
+      {:error, error_message} ->
+        Mix.raise(error_message)
     end
   end
 
-  defp handle_multi_file_output(output_file, main_content, namespace_files, opts) do
-    output_dir = AshTypescript.Rpc.namespace_output_dir() || Path.dirname(output_file)
-    marker = AshTypescript.Rpc.Codegen.namespace_custom_code_marker()
-
-    # Build namespace files with preserved custom content
-    namespace_files_with_custom =
-      Enum.map(namespace_files, fn {namespace, content} ->
-        path = Path.join(output_dir, "#{namespace}.ts")
-        content_with_custom = maybe_preserve_custom_content(path, content, marker)
-        {path, content_with_custom}
-      end)
-
-    # Build all file changes for check/dry-run
-    all_files = [{output_file, main_content}] ++ namespace_files_with_custom
-
+  defp handle_files(files, opts, otp_app) do
     cond do
       opts[:check] && !(opts[:dev] && AshTypescript.always_regenerate?()) ->
-        # Check if any files have changed
         changes =
-          all_files
+          files
           |> Enum.filter(fn {path, content} ->
             current = if File.exists?(path), do: File.read!(path), else: ""
             content != current
@@ -147,7 +96,7 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
         end
 
       opts[:dry_run] ->
-        Enum.each(all_files, fn {path, content} ->
+        Enum.each(files, fn {path, content} ->
           current = if File.exists?(path), do: File.read!(path), else: ""
 
           if content != current do
@@ -157,66 +106,25 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
 
       true ->
         changed_files =
-          Enum.filter(all_files, fn {path, content} ->
+          Enum.filter(files, fn {path, content} ->
             current = if File.exists?(path), do: File.read!(path), else: ""
             content != current
           end)
 
         if changed_files != [] do
-          File.mkdir_p!(output_dir)
+          # Create directories for all changed files
+          Enum.each(changed_files, fn {path, _content} ->
+            File.mkdir_p!(Path.dirname(path))
+          end)
 
           Enum.each(changed_files, fn {path, content} ->
             File.write!(path, content)
           end)
 
           if manifest_path = AshTypescript.Rpc.manifest_file() do
-            otp_app = Mix.Project.config()[:app]
             manifest = ManifestGenerator.generate_manifest(otp_app)
             File.write!(manifest_path, manifest)
           end
-        end
-    end
-  end
-
-  defp maybe_generate_typed_controller(opts) do
-    output_file = AshTypescript.routes_output_file()
-
-    if output_file do
-      router = AshTypescript.router()
-
-      content =
-        AshTypescript.TypedController.Codegen.generate(router: router)
-
-      if content != "" do
-        handle_typed_controller_file_output(output_file, content, opts)
-      end
-    end
-  end
-
-  defp handle_typed_controller_file_output(output_file, content, opts) do
-    current_content =
-      if File.exists?(output_file) do
-        File.read!(output_file)
-      else
-        ""
-      end
-
-    cond do
-      opts[:check] && not AshTypescript.always_regenerate?() ->
-        if content != current_content do
-          raise Ash.Error.Framework.PendingCodegen,
-            diff: %{output_file => content}
-        end
-
-      opts[:dry_run] ->
-        if content != current_content do
-          IO.puts("##{output_file}:\n\n#{content}")
-        end
-
-      true ->
-        if content != current_content do
-          File.mkdir_p!(Path.dirname(output_file))
-          File.write!(output_file, content)
         end
     end
   end

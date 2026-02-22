@@ -42,7 +42,8 @@ spark_locals_without_parens = [
   ts_result_type_name: 1,
   type_name: 1,
   typed_query: 2,
-  typed_query: 3
+  typed_query: 3,
+  zod_schema_name: 1
 ]
 
 [
