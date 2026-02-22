@@ -19,7 +19,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
   """
   use ExUnit.Case, async: true
 
-  alias AshTypescript.Rpc.ZodSchemaGenerator
+  alias AshTypescript.Codegen.ZodSchemaGenerator
   alias AshTypescript.Test.Task
 
   describe "Zod schemas for create actions with mapped field names" do

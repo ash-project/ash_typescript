@@ -15,7 +15,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
   """
   use ExUnit.Case, async: true
 
-  alias AshTypescript.Rpc.ZodSchemaGenerator
+  alias AshTypescript.Codegen.ZodSchemaGenerator
   alias AshTypescript.Test.OrgTodo
 
   describe "Integer constraints in Zod schemas" do

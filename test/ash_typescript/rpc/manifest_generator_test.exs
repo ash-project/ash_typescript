@@ -492,6 +492,58 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
     end
   end
 
+  describe "ManifestGenerator - typed controller routes section" do
+    setup do
+      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      {:ok, manifest: manifest}
+    end
+
+    test "includes Typed Controller Routes section header", %{manifest: manifest} do
+      assert manifest =~ "## Typed Controller Routes"
+    end
+
+    test "includes route table with Method, Path, Function columns", %{manifest: manifest} do
+      assert manifest =~ "| Method | Path | Function | Input Type |"
+    end
+
+    test "includes route entries for configured routes", %{manifest: manifest} do
+      assert manifest =~ "| GET | /auth |"
+      assert manifest =~ "| POST | /auth/login |"
+      assert manifest =~ "`login`"
+    end
+
+    test "includes Zod Schema column when zod schemas enabled", %{manifest: manifest} do
+      if AshTypescript.Rpc.generate_zod_schemas?() do
+        assert manifest =~ "| Zod Schema |"
+        assert manifest =~ "`loginZodSchema`"
+      end
+    end
+
+    test "shows input type for mutation routes", %{manifest: manifest} do
+      assert manifest =~ "LoginInput"
+    end
+
+    test "shows dash for routes without input type", %{manifest: manifest} do
+      # GET routes and POST routes without args should show -
+      assert manifest =~ "| GET | /auth |"
+    end
+  end
+
+  describe "ManifestGenerator - no typed controllers" do
+    test "omits section when no typed controllers configured" do
+      original = Application.get_env(:ash_typescript, :typed_controllers)
+
+      try do
+        Application.put_env(:ash_typescript, :typed_controllers, [])
+        manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+
+        refute manifest =~ "## Typed Controller Routes"
+      after
+        restore_config(:typed_controllers, original)
+      end
+    end
+  end
+
   # Helper to restore config
   defp restore_config(key, nil), do: Application.delete_env(:ash_typescript, key)
   defp restore_config(key, value), do: Application.put_env(:ash_typescript, key, value)

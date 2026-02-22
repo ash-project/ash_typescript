@@ -23,7 +23,7 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
   """
   use ExUnit.Case, async: true
 
-  alias AshTypescript.Rpc.ZodSchemaGenerator
+  alias AshTypescript.Codegen.ZodSchemaGenerator
 
   alias AshTypescript.Test.ZodOrder.{NodeA, NodeB, NodeC, NodeD, NodeE}
 
