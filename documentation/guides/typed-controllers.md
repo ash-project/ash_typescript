@@ -109,6 +109,41 @@ This generates a TypeScript file with path helpers and typed fetch functions:
 ```typescript
 // assets/js/routes.ts (auto-generated)
 
+/**
+ * Configuration options for typed controller requests
+ */
+export interface TypedControllerConfig {
+  headers?: Record<string, string>;
+  fetchOptions?: RequestInit;
+  customFetch?: (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => Promise<Response>;
+}
+
+export async function executeTypedControllerRequest(
+  url: string,
+  method: string,
+  actionName: string,
+  body: string | undefined,
+  config?: TypedControllerConfig,
+): Promise<Response> {
+  const processedConfig = config || {};
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...processedConfig.headers,
+  };
+  const fetchFunction = processedConfig.customFetch || fetch;
+  const fetchInit: RequestInit = {
+    ...processedConfig.fetchOptions,
+    method,
+    headers,
+    ...(body !== undefined ? { body } : {}),
+  };
+  const response = await fetchFunction(url, fetchInit);
+  return response;
+}
+
 export function authPath(): string {
   return "/auth";
 }
@@ -124,16 +159,11 @@ export type LoginInput = {
 
 export async function login(
   input: LoginInput,
-  config?: { headers?: Record<string, string> }
+  config?: TypedControllerConfig,
 ): Promise<Response> {
-  return fetch("/auth/login", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...config?.headers,
-    },
-    body: JSON.stringify(input),
-  });
+  return executeTypedControllerRequest(
+    "/auth/login", "POST", "login", JSON.stringify(input), config,
+  );
 }
 
 export function logoutPath(): string {
@@ -144,18 +174,18 @@ export function logoutPath(): string {
 ### 5. Use in Your Frontend
 
 ```typescript
-import { authPath, login, logout } from "./routes";
+import { authPath, login, logoutPath } from "./routes";
 
 // GET routes generate path helpers
 const authUrl = authPath(); // "/auth"
 
 // POST/PATCH/PUT/DELETE routes generate typed async functions
-const response = await login({
-  magicLinkToken: "my-token",
-  rememberMe: true,
-});
+const response = await login(
+  { magicLinkToken: "my-token", rememberMe: true },
+  { headers: { "X-CSRF-Token": csrfToken } },
+);
 
-const logoutUrl = logout();
+const logoutUrl = logoutPath(); // "/auth/logout"
 ```
 
 ## DSL Reference
@@ -175,6 +205,7 @@ const logoutUrl = logout();
 | `run` | fn/2 or module | Yes | — | Handler function or module |
 | `description` | string | No | — | JSDoc description in generated TypeScript |
 | `deprecated` | boolean or string | No | — | Mark as deprecated in TypeScript (`true` for default message, string for custom) |
+| `see` | list of atoms | No | `[]` | Related route names for JSDoc `@see` tags |
 
 ### `argument` Options
 
@@ -338,18 +369,15 @@ export type LoginInput = {
 
 export async function login(
   input: LoginInput,
-  config?: { headers?: Record<string, string> }
+  config?: TypedControllerConfig,
 ): Promise<Response> {
-  return fetch("/auth/login", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...config?.headers,
-    },
-    body: JSON.stringify(input),
-  });
+  return executeTypedControllerRequest(
+    "/auth/login", "POST", "login", JSON.stringify(input), config,
+  );
 }
 ```
+
+The `TypedControllerConfig` interface and `executeTypedControllerRequest` helper are generated once at the top of the file and shared by all mutation functions. See [Lifecycle Hooks](#lifecycle-hooks) for how hooks integrate with this helper.
 
 ### Routes with Path Parameters
 
@@ -440,16 +468,12 @@ export type UpdateProviderInput = {
 export async function updateProvider(
   path: { provider: string },
   input: UpdateProviderInput,
-  config?: { headers?: Record<string, string> }
+  config?: TypedControllerConfig,
 ): Promise<Response> {
-  return fetch(`/auth/providers/${path.provider}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      ...config?.headers,
-    },
-    body: JSON.stringify(input),
-  });
+  return executeTypedControllerRequest(
+    `/auth/providers/${path.provider}`, "PATCH", "updateProvider",
+    JSON.stringify(input), config,
+  );
 }
 ```
 
@@ -461,7 +485,7 @@ Generated functions follow this parameter order:
 
 1. **`path`** (if route has path params): `path: { param: Type }`
 2. **`input`** (if route has non-path arguments): `input: InputType`
-3. **`config`** (always optional): `config?: { headers?: Record<string, string> }`
+3. **`config`** (always optional): `config?: TypedControllerConfig`
 
 ## Multi-Mount Routes
 
@@ -484,11 +508,11 @@ Generated TypeScript uses scope prefixes:
 ```typescript
 // Admin scope
 export function adminAuthPath(): string { return "/admin/auth"; }
-export async function adminLogin(input: AdminLoginInput, config?): Promise<Response> { ... }
+export async function adminLogin(input: AdminLoginInput, config?: TypedControllerConfig): Promise<Response> { ... }
 
 // App scope
 export function appAuthPath(): string { return "/app/auth"; }
-export async function appLogin(input: AppLoginInput, config?): Promise<Response> { ... }
+export async function appLogin(input: AppLoginInput, config?: TypedControllerConfig): Promise<Response> { ... }
 ```
 
 If routes are mounted at multiple paths without unique `as:` options, codegen will raise an error with instructions to add them.
@@ -504,6 +528,172 @@ config :ash_typescript,
 
 This generates only path helpers for all routes, skipping input types and async functions. Useful when you handle mutations via a different client library or directly with `fetch`.
 
+## JSDoc `@see` Tags
+
+Use the `see` option to add cross-references between related routes:
+
+```elixir
+route :login do
+  method :post
+  see [:auth, :logout]
+  argument :code, :string, allow_nil?: false
+  run fn conn, params -> handle_login(conn, params) end
+end
+```
+
+Generated TypeScript includes `@see` tags in the JSDoc comments:
+
+```typescript
+/**
+ * POST /auth/login
+ * @see auth
+ * @see logout
+ */
+export async function login(input: LoginInput, config?: TypedControllerConfig): Promise<Response> {
+  ...
+}
+```
+
+The `@see` tags reference route names using their formatted output names (camelCase by default).
+
+## Lifecycle Hooks
+
+Lifecycle hooks let you intercept typed controller requests to add custom behavior like authentication headers, logging, or telemetry.
+
+### Configuration
+
+```elixir
+config :ash_typescript,
+  typed_controller_before_request_hook: "RouteHooks.beforeRequest",
+  typed_controller_after_request_hook: "RouteHooks.afterRequest",
+  typed_controller_hook_context_type: "RouteHooks.RouteHookContext",
+  typed_controller_import_into_generated: [
+    %{import_name: "RouteHooks", file: "./routeHooks"}
+  ]
+```
+
+### Hook Signatures
+
+**beforeRequest** — called before the HTTP request, can modify config:
+
+```typescript
+export async function beforeRequest(
+  actionName: string,
+  config: TypedControllerConfig,
+): Promise<TypedControllerConfig> {
+  // Add auth headers, set credentials, start timing, etc.
+  return {
+    ...config,
+    fetchOptions: { ...config.fetchOptions, credentials: "include" },
+  };
+}
+```
+
+**afterRequest** — called after the HTTP request completes:
+
+```typescript
+export async function afterRequest(
+  actionName: string,
+  response: Response,
+  config: TypedControllerConfig,
+): Promise<void> {
+  // Log, measure timing, report errors, etc.
+  console.log(`[${actionName}] status: ${response.status}`);
+}
+```
+
+### Hook Context
+
+When hooks are enabled, the `TypedControllerConfig` interface includes an optional `hookCtx` field typed to your configured context type. This lets you pass per-request metadata (like timing flags or custom headers) through the request lifecycle:
+
+```typescript
+await login(
+  { code: "abc123" },
+  {
+    hookCtx: { enableLogging: true, enableTiming: true },
+  },
+);
+```
+
+## Custom Imports
+
+Use `typed_controller_import_into_generated` to add custom TypeScript imports to the generated routes file. This is typically used alongside lifecycle hooks:
+
+```elixir
+config :ash_typescript,
+  typed_controller_import_into_generated: [
+    %{import_name: "RouteHooks", file: "./routeHooks"},
+    %{import_name: "Analytics", file: "./analytics"}
+  ]
+```
+
+Generated output:
+
+```typescript
+import * as RouteHooks from "./routeHooks";
+import * as Analytics from "./analytics";
+```
+
+## Zod Schema Generation
+
+When `generate_zod_schemas: true` is configured, mutation routes also generate Zod validation schemas alongside their input types:
+
+```typescript
+export type LoginInput = {
+  code: string;
+  rememberMe?: boolean;
+};
+
+export const loginZodSchema = z.object({
+  code: z.string().min(1),
+  rememberMe: z.boolean().optional(),
+});
+```
+
+The schemas use the same `zod_import_path` and `zod_schema_suffix` settings as RPC Zod schemas. The `z` import is automatically added to the generated routes file.
+
+## Error Handling
+
+### Error Handler
+
+Configure a custom error handler to transform validation errors before they are sent to the client:
+
+```elixir
+config :ash_typescript,
+  typed_controller_error_handler: {MyApp.ErrorHandler, :handle, []}
+```
+
+The handler is called for each error (both 422 validation errors and 500 server errors). It receives the error map and a context map containing the route name and source module:
+
+```elixir
+defmodule MyApp.ErrorHandler do
+  def handle(error, %{route: route_name, source_module: module}) do
+    # Transform, log, or filter errors
+    # Return nil to suppress the error, or a modified error map
+    Map.put(error, :code, "VALIDATION_ERROR")
+  end
+end
+```
+
+You can also pass a module implementing `handle_error/2`:
+
+```elixir
+config :ash_typescript,
+  typed_controller_error_handler: MyApp.ErrorHandler
+```
+
+### Show Raised Errors
+
+By default, unhandled exceptions in route handlers return a generic "Internal server error" message. For development, you can expose the actual exception message:
+
+```elixir
+# config/dev.exs
+config :ash_typescript,
+  typed_controller_show_raised_errors: true
+```
+
+When enabled, 500 responses include the real exception message instead of the generic one. **Do not enable in production.**
+
 ## Configuration Reference
 
 | Option | Type | Default | Description |
@@ -513,6 +703,12 @@ This generates only path helpers for all routes, skipping input types and async 
 | `routes_output_file` | string | `nil` | Output file path (when `nil`, route generation is skipped) |
 | `typed_controller_mode` | `:full` or `:paths_only` | `:full` | Generation mode |
 | `typed_controller_path_params_style` | `:object` or `:args` | `:object` | Path params style (see below) |
+| `typed_controller_before_request_hook` | string or nil | `nil` | Function called before requests |
+| `typed_controller_after_request_hook` | string or nil | `nil` | Function called after requests |
+| `typed_controller_hook_context_type` | string | `"Record<string, any>"` | TypeScript type for hook context |
+| `typed_controller_import_into_generated` | list of maps | `[]` | Custom imports for generated file |
+| `typed_controller_error_handler` | MFA tuple, module, or nil | `nil` | Custom error transformation handler |
+| `typed_controller_show_raised_errors` | boolean | `false` | Show exception messages in 500 responses |
 
 All three of `typed_controllers`, `router`, and `routes_output_file` must be configured for route generation to run.
 
@@ -541,7 +737,27 @@ AshTypescript validates typed controllers at compile time:
 - **Valid argument types** — all types must be valid Ash types
 - **Valid names for TypeScript** — route and argument names must not contain `_1`-style patterns or `?` characters
 
-Path parameters are also validated at codegen time: every `:param` in the router path must have a matching DSL argument.
+Path parameters are also validated at codegen time:
+
+- Every `:param` in the router path must have a matching DSL argument
+- **Always-present path params** must have `allow_nil?: false` — if a path parameter exists at every mount of a route, it is always provided by the router and can never be nil
+- **Sometimes-present path params** must have `allow_nil?: true` — if a route is mounted at multiple paths and a parameter only appears at some mounts, it will be nil at the others
+
+```elixir
+# ✅ Correct — :provider is always a path param, so allow_nil?: false
+route :provider_page do
+  method :get
+  argument :provider, :string, allow_nil?: false
+  run fn conn, _params -> render(conn, "provider.html") end
+end
+
+# ✅ Correct — :id is only a path param at /admin/pages/:id, nil at /app/pages
+route :page do
+  method :get
+  argument :id, :string  # allow_nil?: true (default) is correct here
+  run fn conn, _params -> render(conn, "page.html") end
+end
+```
 
 ## Next Steps
 

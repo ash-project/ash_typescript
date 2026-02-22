@@ -385,6 +385,66 @@ route :update_provider do
 end
 ```
 
+#### Error: "path parameter arguments with `allow_nil?: true`"
+
+**Cause:** A path parameter argument has `allow_nil?: true` (the default), but it is always present in the router path at every mount. Path parameters are always provided by the router and can never be nil.
+
+**Solution:** Set `allow_nil?: false` on the argument:
+
+```elixir
+# ❌ Wrong — :provider is always a path param
+argument :provider, :string  # allow_nil?: true (default) is wrong here
+
+# ✅ Correct
+argument :provider, :string, allow_nil?: false
+```
+
+#### Error: "path parameter arguments with `allow_nil?: false`"
+
+**Cause:** A path parameter argument has `allow_nil?: false`, but it is only a path parameter at some mounts and will be nil at others (multi-mount scenario).
+
+**Solution:** Set `allow_nil?: true` (the default) on the argument:
+
+```elixir
+# Route mounted at both /admin/pages/:id and /app/pages (no :id)
+# :id is sometimes nil, so it must allow nil
+
+# ❌ Wrong
+argument :id, :string, allow_nil?: false
+
+# ✅ Correct
+argument :id, :string  # allow_nil?: true (default) is correct here
+```
+
+#### Error Handler Not Transforming Errors
+
+**Cause:** Error handler returning wrong type or nil unexpectedly.
+
+**Solution:** Ensure your handler returns error maps (or nil to suppress):
+
+```elixir
+# MFA style
+config :ash_typescript,
+  typed_controller_error_handler: {MyApp.ErrorHandler, :handle, []}
+
+# The function receives (error_map, context_map)
+defmodule MyApp.ErrorHandler do
+  def handle(error, %{route: route_name, source_module: _module}) do
+    # Return modified error map, or nil to suppress
+    Map.put(error, :route, route_name)
+  end
+end
+```
+
+#### Typed Controller Hook Not Executing
+
+**Checklist:**
+- Verify `typed_controller_before_request_hook` or `typed_controller_after_request_hook` is configured
+- Check that `typed_controller_import_into_generated` includes the hooks module
+- Regenerate types with `mix ash_typescript.codegen`
+- Ensure hook function names match the configuration exactly
+- Verify hook functions are exported from the configured module
+
 ### Channel Hook Issues
 
 #### Setting Default Timeout

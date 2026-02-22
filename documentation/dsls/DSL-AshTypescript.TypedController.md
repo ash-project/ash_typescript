@@ -86,6 +86,8 @@ the `AshTypescript.TypedController.Route` behaviour. Handlers receive
 | [`run`](#typed_controller-route-run){: #typed_controller-route-run .spark-required} | `(any, any -> any) \| atom` |  | The handler — an fn/2 closure or a module implementing AshTypescript.TypedController.Route |
 | [`description`](#typed_controller-route-description){: #typed_controller-route-description } | `String.t` |  | JSDoc description for the generated TypeScript path helper |
 | [`deprecated`](#typed_controller-route-deprecated){: #typed_controller-route-deprecated } | `boolean \| String.t` |  | Mark this route as deprecated. Set to true for a default message, or provide a custom deprecation notice. |
+| [`see`](#typed_controller-route-see){: #typed_controller-route-see } | `list(atom)` | `[]` | List of related route names to reference in JSDoc @see tags. |
+| [`zod_schema_name`](#typed_controller-route-zod_schema_name){: #typed_controller-route-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
 
 
 ### typed_controller.route.argument
