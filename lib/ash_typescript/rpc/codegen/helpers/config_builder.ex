@@ -50,14 +50,12 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
       }
   """
   def get_action_context(resource, action, rpc_action) do
-    # Check both Ash's native get? and RPC's get?/get_by options
     ash_get? = action.type == :read and Map.get(action, :get?, false)
     rpc_get? = Map.get(rpc_action, :get?, false)
     rpc_get_by = (Map.get(rpc_action, :get_by) || []) != []
 
     is_get_action = ash_get? or rpc_get? or rpc_get_by
 
-    # enable_filter? and enable_sort? default to true - when false, disables respective support
     enable_filter? = Map.get(rpc_action, :enable_filter?, true)
     enable_sort? = Map.get(rpc_action, :enable_sort?, true)
 
@@ -140,41 +138,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
     end
   end
 
-  @doc """
-  Builds the identity configuration field for the TypeScript config type.
-
-  Generates a union type for all supported identities (primary key and/or named identities).
-
-  ## Parameters
-
-    * `resource` - The Ash resource
-    * `identities` - List of identity atoms (e.g., `[:_primary_key, :email]`)
-    * `opts` - Options keyword list:
-      - `:validation_function?` - If true, each field type becomes `Type | string` to accept
-        either the typed value or a string representation (for validation functions)
-
-  ## Returns
-
-  A list containing one TypeScript field definition string for the identity.
-
-  ## Examples
-
-      # Single primary key (non-composite)
-      ["  identity: UUID;"]
-
-      # Single primary key for validation function
-      ["  identity: UUID | string;"]
-
-      # Primary key and email identity (identity uses email field)
-      ["  identity: UUID | { email: string };"]
-
-      # Composite primary key
-      ["  identity: { id: UUID; tenantId: string };"]
-
-      # Composite primary key for validation function
-      ["  identity: { id: UUID | string; tenantId: string };"]
-  """
-  def build_identity_config_field(resource, identities, opts) do
+  defp build_identity_config_field(resource, identities, opts) do
     validation_function? = Keyword.get(opts, :validation_function?, false)
 
     identity_types =
@@ -202,7 +166,6 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
         base_type
       end
     else
-      # Composite primary key - always use object format
       field_types =
         Enum.map_join(primary_key_attrs, "; ", fn attr_name ->
           attr = Ash.Resource.Info.attribute(resource, attr_name)
@@ -250,11 +213,9 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
     end
   end
 
-  # Adds "| string" to a type, unless the type is already "string"
   defp maybe_add_string_union("string"), do: "string"
   defp maybe_add_string_union(type), do: "#{type} | string"
 
-  # Gets the formatted field name, applying field_names mappings and output formatter
   defp get_formatted_field_name(resource, field_name) do
     AshTypescript.FieldFormatter.format_field_for_client(
       field_name,
@@ -324,7 +285,6 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
           config_fields
       end
 
-    # Add hookCtx field if hooks are enabled
     config_fields =
       cond do
         # Channel validation hooks
@@ -390,8 +350,6 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
       ["  #{formatted_get_by}: {"] ++ field_lines ++ ["  };"]
     end
   end
-
-  # Private helper functions for pagination config fields
 
   defp generate_offset_pagination_config_fields(limit_required, supports_countable, optional_mark) do
     fields = [

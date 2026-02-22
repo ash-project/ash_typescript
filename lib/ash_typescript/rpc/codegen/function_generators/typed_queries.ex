@@ -61,16 +61,13 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
     """
   end
 
-  @doc """
-  Generates a single typed query type and const declaration.
-  """
-  def generate_typed_query_type_and_const(
-        resource,
-        action,
-        typed_query,
-        rpc_resources_and_actions,
-        _all_resources
-      ) do
+  defp generate_typed_query_type_and_const(
+         resource,
+         action,
+         typed_query,
+         rpc_resources_and_actions,
+         _all_resources
+       ) do
     resource_name = build_resource_type_name(resource)
 
     atomized_fields =
@@ -163,7 +160,6 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
     |> Enum.map_join(", ", &format_field_item(&1, resource))
   end
 
-  # format_field_item/2 - with resource context for field name mapping
   defp format_field_item(field, resource) when is_atom(field) do
     ~s["#{format_field_name(field, resource)}"]
   end

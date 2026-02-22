@@ -167,13 +167,6 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
   end
 
   @doc """
-  Generates TypeScript utility types for field selection and type inference.
-
-  Delegates to `AshTypescript.Codegen.UtilityTypes.generate_utility_types/0`.
-  """
-  defdelegate generate_utility_types, to: AshTypescript.Codegen.UtilityTypes
-
-  @doc """
   Generates TypeScript helper functions and configuration interfaces.
 
   Includes:
