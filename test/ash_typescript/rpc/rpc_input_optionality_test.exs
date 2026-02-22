@@ -4,15 +4,8 @@
 
 defmodule AshTypescript.RpcInputOptionalityTest do
   @moduledoc """
-  Tests for input type optionality based on action configuration.
-
-  This test module verifies that generated input types correctly handle:
-  1. `allow_nil_input` on create actions - makes specified attributes optional
-  2. `require_attributes` on update actions - makes specified attributes required
-
-  These tests use the Article resource which has:
-  - `create_with_optional_hero_image` action with `allow_nil_input: [:hero_image_url]`
-  - `update_with_required_hero_image_alt` action with `require_attributes: [:hero_image_alt]`
+  Tests for input type optionality based on `allow_nil_input` and `require_attributes`
+  action configuration, using the Article resource.
   """
   use ExUnit.Case, async: true
 
@@ -23,7 +16,7 @@ defmodule AshTypescript.RpcInputOptionalityTest do
 
   setup_all do
     {:ok, generated_content} =
-      AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
     {:ok, generated: generated_content}
   end
@@ -42,8 +35,7 @@ defmodule AshTypescript.RpcInputOptionalityTest do
 
       input_type = List.first(input_type_match)
 
-      # heroImageUrl should be optional (in allow_nil_input)
-      # even though the attribute has allow_nil?: false
+      # heroImageUrl is optional via allow_nil_input even though the attribute has allow_nil?: false
       assert input_type =~ "heroImageUrl?: string;"
     end
 
@@ -58,11 +50,9 @@ defmodule AshTypescript.RpcInputOptionalityTest do
 
       input_type = List.first(input_type_match)
 
-      # heroImageAlt should be required (not in allow_nil_input, allow_nil?: false)
       assert input_type =~ "heroImageAlt: string;"
       refute input_type =~ "heroImageAlt?: string;"
 
-      # summary and body should also be required
       assert input_type =~ "summary: string;"
       assert input_type =~ "body: string;"
     end
@@ -81,7 +71,6 @@ defmodule AshTypescript.RpcInputOptionalityTest do
 
       input_type = List.first(input_type_match)
 
-      # heroImageAlt should be required (in require_attributes)
       assert input_type =~ "heroImageAlt: string;"
       refute input_type =~ "heroImageAlt?: string;"
     end
@@ -97,7 +86,6 @@ defmodule AshTypescript.RpcInputOptionalityTest do
 
       input_type = List.first(input_type_match)
 
-      # heroImageUrl, summary, body should be optional (not in require_attributes)
       assert input_type =~ "heroImageUrl?: string;"
       assert input_type =~ "summary?: string;"
       assert input_type =~ "body?: string;"

@@ -6,18 +6,9 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
   @moduledoc """
   Tests for RPC action function generation with field and argument name mapping.
 
-  This test module verifies that generated RPC action functions correctly use mapped
-  field and argument names for TypeScript code generation. It ensures that:
-  1. RPC action input types use mapped field and argument names
-  2. RPC action result types use mapped field names
-  3. Validation functions use mapped field and argument names
-  4. Generated function signatures match TypeScript client expectations
-
-  These tests use the Task resource which has:
+  Uses the Task resource which has:
   - Field mapping: `archived?` -> `is_archived`
   - Argument mapping: `completed?` -> `is_completed` (in mark_completed action)
-
-  The tests work by generating the TypeScript code directly in the test setup.
   """
   use ExUnit.Case, async: true
 
@@ -27,41 +18,33 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
   end
 
   setup_all do
-    # Generate the TypeScript code programmatically
     {:ok, generated_content} =
-      AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
     {:ok, generated: generated_content}
   end
 
   describe "RPC action input type generation with mapped field names" do
     test "create action input type uses mapped field names", %{generated: generated} do
-      # Should define CreateTaskInput type
       assert generated =~ "export type CreateTaskInput = {"
       assert generated =~ "title: string;"
 
-      # Should not have archived field in create (not in accepts)
       refute generated =~ ~r/CreateTaskInput = \{[^}]*archived/
     end
 
     test "update action input type uses mapped field names", %{generated: generated} do
-      # Find the UpdateTaskInput type definition
       input_type_match = Regex.run(~r/export type UpdateTaskInput = \{[^}]+\}/s, generated)
       assert input_type_match, "UpdateTaskInput type should be defined"
 
       input_type = List.first(input_type_match)
 
-      # Should contain the mapped field name
       assert input_type =~ "isArchived?: boolean;"
-
-      # Should NOT contain the internal field name
       refute input_type =~ "archived?"
     end
 
     test "action with mapped argument uses mapped argument name in input type", %{
       generated: generated
     } do
-      # Find the MarkCompletedTaskInput type definition
       input_type_match =
         Regex.run(~r/export type MarkCompletedTaskInput = \{[^}]+\}/s, generated)
 
@@ -69,10 +52,7 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
       input_type = List.first(input_type_match)
 
-      # Should contain the mapped argument name
       assert input_type =~ "isCompleted: boolean;"
-
-      # Should NOT contain the internal argument name
       refute input_type =~ "completed?"
     end
 
@@ -82,7 +62,6 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
       input_type = List.first(input_type_match)
 
-      # isCompleted is required (allow_nil?: false, no default)
       assert input_type =~ "isCompleted: boolean;"
       refute input_type =~ "isCompleted?: boolean;"
       refute input_type =~ "completed?"
@@ -92,7 +71,6 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
       input_type_match = Regex.run(~r/export type UpdateTaskInput = \{[^}]+\}/s, generated)
       input_type = List.first(input_type_match)
 
-      # isArchived has a default, should be optional in input
       assert input_type =~ "isArchived?: boolean;"
       refute input_type =~ "archived?"
     end
@@ -100,14 +78,12 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
   describe "RPC action result type generation with mapped names" do
     test "result type success case uses mapped field names", %{generated: generated} do
-      # Result type should be defined
       assert generated =~ "export type UpdateTaskResult"
       assert generated =~ "{ success: true"
       assert generated =~ "InferUpdateTaskResult<Fields>"
     end
 
     test "result type error case uses AshRpcError array", %{generated: generated} do
-      # Error case should reference AshRpcError[]
       assert generated =~ "export type UpdateTaskResult"
       assert generated =~ "success: false"
       assert generated =~ "errors: AshRpcError[]"
@@ -116,10 +92,8 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
   describe "RPC action function generation with mapped names" do
     test "action function has correct type signature with mapped input", %{generated: generated} do
-      # updateTask function should be defined
       assert generated =~ "export async function updateTask"
 
-      # Function config should include mapped input type
       update_function_section =
         generated
         |> String.split("export async function updateTask")
@@ -132,18 +106,13 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
     end
 
     test "action function sends correct payload structure", %{generated: generated} do
-      # Payload should include action name
       assert generated =~ "action: \"update_task\""
-
-      # Function should accept input of the correct type
       assert generated =~ ~r/function updateTask.*input: UpdateTaskInput/s
     end
 
     test "validation function uses mapped input type", %{generated: generated} do
-      # validateUpdateTask function should be defined
       assert generated =~ "export async function validateUpdateTask"
 
-      # Function config should use mapped input type
       validate_function_section =
         generated
         |> String.split("export async function validateUpdateTask")
@@ -162,10 +131,8 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
   describe "channel-based RPC function generation with mapped names" do
     test "channel function has correct type signature with mapped input", %{generated: generated} do
-      # updateTaskChannel function should be defined (async function)
       assert generated =~ "export async function updateTaskChannel"
 
-      # Function config should use mapped input type
       channel_function_section =
         generated
         |> String.split("export async function updateTaskChannel")
@@ -178,7 +145,6 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
     end
 
     test "channel function sends correct payload structure", %{generated: generated} do
-      # The function should use MarkCompletedTaskInput type
       assert generated =~ "export async function markCompletedTaskChannel"
       assert generated =~ ~r/markCompletedTaskChannel.*input: MarkCompletedTaskInput/s
       refute generated =~ ~r/isTaskCompletedNow\?/s
@@ -188,7 +154,6 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
   describe "comprehensive RPC function mapping coverage" do
     test "all Task action input types use mapped field/argument names", %{generated: generated} do
-      # Test CreateTaskInput
       assert generated =~ "export type CreateTaskInput"
 
       create_input =
@@ -196,14 +161,12 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
       refute create_input =~ "archived?"
 
-      # Test UpdateTaskInput
       update_input =
         Regex.run(~r/export type UpdateTaskInput = \{[^}]+\}/s, generated) |> List.first()
 
       assert update_input =~ "isArchived?: boolean;"
       refute update_input =~ "archived?"
 
-      # Test MarkCompletedTaskInput
       mark_input =
         Regex.run(~r/export type MarkCompletedTaskInput = \{[^}]+\}/s, generated) |> List.first()
 
@@ -212,12 +175,10 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
     end
 
     test "all validation functions use mapped input types", %{generated: generated} do
-      # Test validateUpdateTask
       assert generated =~ "export async function validateUpdateTask"
       assert generated =~ ~r/validateUpdateTask.*input: UpdateTaskInput/s
       refute generated =~ ~r/validateUpdateTask.*archived\?/s
 
-      # Test validateMarkCompletedTask
       assert generated =~ "export async function validateMarkCompletedTask"
       assert generated =~ ~r/validateMarkCompletedTask.*input: MarkCompletedTaskInput/s
       refute generated =~ ~r/isTaskCompletedNow\?/s
@@ -227,10 +188,8 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
   describe "function consistency with TypeScript client" do
     test "RPC functions use the same input types as type definitions", %{generated: generated} do
-      # updateTask function should use UpdateTaskInput
       assert generated =~ ~r/function updateTask.*input: UpdateTaskInput/s
 
-      # UpdateTaskInput type should use mapped field names
       update_input_type =
         Regex.run(~r/export type UpdateTaskInput = \{[^}]+\}/s, generated) |> List.first()
 
@@ -239,17 +198,12 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
     end
 
     test "validation functions use shared validation result type", %{generated: generated} do
-      # validateMarkCompletedTask function should return the shared ValidationResult type
       assert generated =~
                ~r/function validateMarkCompletedTask.*Promise<ValidationResult>/s
 
-      # The shared ValidationResult type should be defined
       assert generated =~ "export type ValidationResult"
-
-      # Individual validation result types should not be generated
       refute generated =~ "export type ValidateMarkCompletedTaskResult"
 
-      # Input type should use mapped argument name
       mark_input_type =
         Regex.run(~r/export type MarkCompletedTaskInput = \{[^}]+\}/s, generated) |> List.first()
 
@@ -260,13 +214,9 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
     test "channel functions use the same input types as regular RPC functions", %{
       generated: generated
     } do
-      # updateTaskChannel should use UpdateTaskInput
       assert generated =~ ~r/function updateTaskChannel.*input: UpdateTaskInput/s
-
-      # Regular updateTask should also use UpdateTaskInput
       assert generated =~ ~r/function updateTask.*input: UpdateTaskInput/s
 
-      # UpdateTaskInput should use mapped field names
       input_type =
         Regex.run(~r/export type UpdateTaskInput = \{[^}]+\}/s, generated) |> List.first()
 
@@ -277,7 +227,6 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
   describe "edge cases and special scenarios" do
     test "read actions use filter directly without input type", %{generated: generated} do
-      # Read actions don't generate separate input types, they use filter parameter
       assert generated =~ "export async function listTasks"
       assert generated =~ ~r/listTasks.*filter\?: TaskFilterInput/s
     end
@@ -286,11 +235,7 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
       update_input_type =
         Regex.run(~r/export type UpdateTaskInput = \{[^}]+\}/s, generated) |> List.first()
 
-      # 'title' has no mapping and should appear as-is
-      # All accepted attributes are optional for update actions
       assert update_input_type =~ "title?: string;"
-
-      # Mapped field should use mapped name
       assert update_input_type =~ "isArchived?: boolean;"
       refute update_input_type =~ "archived?"
     end
@@ -298,7 +243,6 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
   describe "embedded resource input schemas" do
     test "TaskMetadata input schema uses mapped field names", %{generated: generated} do
-      # Find TaskMetadataInputSchema
       input_schema_match =
         Regex.run(~r/export type TaskMetadataInputSchema = \{[^}]+\}/s, generated)
 
@@ -306,7 +250,6 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
       input_schema = List.first(input_schema_match)
 
-      # Should use mapped field names
       assert input_schema =~ "createdBy: string;"
       refute input_schema =~ "created_by?:"
 

@@ -4,13 +4,7 @@
 
 defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
   @moduledoc """
-  Tests for composite primary key identity handling.
-
-  Verifies that:
-  1. Generated TypeScript types use object format for composite PKs
-  2. Regular action functions use actual field types (UUID, string, etc.)
-  3. Validation functions use string types for all fields
-  4. Runtime identity lookup works correctly with composite PKs
+  Tests for composite primary key identity handling in TypeScript codegen and runtime.
   """
   use ExUnit.Case, async: true
 
@@ -23,9 +17,8 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
   end
 
   setup_all do
-    # Generate the TypeScript code programmatically
     {:ok, generated_content} =
-      AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
     {:ok, generated: generated_content}
   end
@@ -34,7 +27,6 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
     test "generates object type for composite primary key in update function", %{
       generated: generated
     } do
-      # Regular update function should have typed identity (tenant comes before identity)
       assert generated =~
                ~r/export async function updateTenantSetting.*\n\s+config: \{\n\s*tenant\?: string;\n\s*identity: \{ tenantId: UUID; settingKey: string \}/s
     end
@@ -42,7 +34,6 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
     test "generates union types for composite primary key in validation function", %{
       generated: generated
     } do
-      # Validation function should accept original type OR string for each field (tenant comes before identity)
       assert generated =~
                ~r/export async function validateUpdateTenantSetting.*\n\s+config: \{\n\s*tenant\?: string;\n\s*identity: \{ tenantId: UUID \| string; settingKey: string \}/s
     end
@@ -50,7 +41,6 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
     test "generates object type for composite primary key in destroy function", %{
       generated: generated
     } do
-      # Destroy function should have typed identity (tenant comes before identity)
       assert generated =~
                ~r/export async function destroyTenantSetting.*\n\s+config: \{\n\s*tenant\?: string;\n\s*identity: \{ tenantId: UUID; settingKey: string \}/s
     end
@@ -58,7 +48,6 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
     test "generates union types for composite primary key in destroy validation function", %{
       generated: generated
     } do
-      # Destroy validation function should accept original type OR string for each field (tenant comes before identity)
       assert generated =~
                ~r/export async function validateDestroyTenantSetting.*\n\s+config: \{\n\s*tenant\?: string;\n\s*identity: \{ tenantId: UUID \| string; settingKey: string \}/s
     end
@@ -66,7 +55,6 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
     test "generates object type for composite primary key in channel function", %{
       generated: generated
     } do
-      # Channel function should have typed identity (channel and tenant come before identity)
       assert generated =~
                ~r/export async function updateTenantSettingChannel.*config: \{\n\s+channel: Channel;\n\s+tenant\?: string;\n\s+identity: \{ tenantId: UUID; settingKey: string \}/s
     end
@@ -77,7 +65,6 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
       conn = TestHelpers.build_rpc_conn()
       tenant_id = Ash.UUID.generate()
 
-      # Create a test setting
       %{"success" => true, "data" => setting} =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "create_tenant_setting",
@@ -115,7 +102,6 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
     end
 
     test "destroys record using composite primary key identity", %{conn: conn} do
-      # Create another setting to destroy
       new_tenant_id = Ash.UUID.generate()
 
       %{"success" => true} =

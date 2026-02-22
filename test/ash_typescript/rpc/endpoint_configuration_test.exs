@@ -39,52 +39,44 @@ defmodule AshTypescript.Rpc.EndpointConfigurationTest do
     end
   end
 
-  describe "integration with generate_typescript_types" do
+  describe "integration with codegen" do
     test "generates correct TypeScript with string endpoints" do
       {:ok, generated} =
-        Codegen.generate_typescript_types(:ash_typescript,
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
           run_endpoint: "/rpc/run",
           validate_endpoint: "/rpc/validate"
         )
 
-      # Endpoints are now embedded in the helper functions, not passed as parameters
-      # Check that the helpers contain the endpoints in their fetch calls
       assert generated =~ ~r/function executeActionRpcRequest.*?fetch.*?"\/rpc\/run"/s
       assert generated =~ ~r/function executeValidationRpcRequest.*?fetch.*?"\/rpc\/validate"/s
     end
 
     test "generates correct TypeScript with runtime expression endpoints" do
       {:ok, generated} =
-        Codegen.generate_typescript_types(:ash_typescript,
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
           run_endpoint: {:runtime_expr, "CustomTypes.getRunEndpoint()"},
           validate_endpoint: {:runtime_expr, "CustomTypes.getValidateEndpoint()"}
         )
 
-      # Endpoints are now embedded in the helper functions
-      # Check that the helpers contain the runtime expressions in their fetch calls
       assert generated =~
                ~r/function executeActionRpcRequest.*?fetch.*?CustomTypes\.getRunEndpoint\(\)/s
 
       assert generated =~
                ~r/function executeValidationRpcRequest.*?fetch.*?CustomTypes\.getValidateEndpoint\(\)/s
 
-      # Should NOT contain quoted versions of runtime expressions
       refute generated =~ ~r/fetch.*?"CustomTypes/
     end
 
     test "generates correct TypeScript with mixed endpoint types" do
       {:ok, generated} =
-        Codegen.generate_typescript_types(:ash_typescript,
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
           run_endpoint: {:runtime_expr, "CustomTypes.getRunEndpoint()"},
           validate_endpoint: "/rpc/validate"
         )
 
-      # Endpoints are now embedded in the helper functions
-      # run_endpoint should be a runtime expression in executeActionRpcRequest
       assert generated =~
                ~r/function executeActionRpcRequest.*?fetch.*?CustomTypes\.getRunEndpoint\(\)/s
 
-      # validate_endpoint should be a string literal in executeValidationRpcRequest
       assert generated =~ ~r/function executeValidationRpcRequest.*?fetch.*?"\/rpc\/validate"/s
     end
   end

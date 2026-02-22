@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.CodegenCheckTest do
-  # Not async because tests modify global Application config
   use ExUnit.Case, async: false
 
   @moduletag :tmp_dir
@@ -11,12 +10,21 @@ defmodule AshTypescript.CodegenCheckTest do
   setup %{tmp_dir: tmp_dir} do
     original_config =
       Map.new(
-        ~w[output_file always_regenerate enable_namespace_files namespace_output_dir]a,
+        ~w[output_file types_output_file zod_output_file always_regenerate enable_namespace_files namespace_output_dir routes_output_file]a,
         &{&1, Application.get_env(:ash_typescript, &1)}
       )
 
     output_file = Path.join(tmp_dir, "generated.ts")
     Application.put_env(:ash_typescript, :output_file, output_file)
+    Application.put_env(:ash_typescript, :types_output_file, Path.join(tmp_dir, "ash_types.ts"))
+    Application.put_env(:ash_typescript, :zod_output_file, Path.join(tmp_dir, "ash_zod.ts"))
+
+    Application.put_env(
+      :ash_typescript,
+      :routes_output_file,
+      Path.join(tmp_dir, "generated_routes.ts")
+    )
+
     File.write!(output_file, "")
 
     on_exit(fn ->

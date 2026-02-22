@@ -5,10 +5,6 @@
 defmodule AshTypescript.Rpc.RpcGetActionsTest do
   @moduledoc """
   Tests for get? and get_by RPC action options.
-
-  These options provide convenient ways to fetch single resources:
-  - `get?`: Constrains a read action to return a single record (uses Ash.read_one)
-  - `get_by`: Retrieves a single resource by specified fields (passed in separate getBy config)
   """
   use ExUnit.Case, async: false
   alias AshTypescript.Rpc
@@ -23,7 +19,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     setup do
       conn = TestHelpers.build_rpc_conn()
 
-      # Create a user for relationship testing
       %{"success" => true, "data" => user} =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "create_user",
@@ -34,7 +29,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
           "fields" => ["id", "name", "email"]
         })
 
-      # Create a todo for testing get_single_todo
       %{"success" => true, "data" => todo} =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "create_todo",
@@ -54,8 +48,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       conn: conn,
       todo: _todo
     } do
-      # get? constrains action to return a single record
-      # Without filters, it returns any single record
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_single_todo",
@@ -63,13 +55,11 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
         })
 
       assert result["success"] == true
-      # get? returns single result or null, not a list
       assert is_map(result["data"])
 
       assert Map.has_key?(result["data"], "id")
       assert Map.has_key?(result["data"], "title")
       assert Map.has_key?(result["data"], "description")
-      # Should not include fields not requested
       refute Map.has_key?(result["data"], "status")
       refute Map.has_key?(result["data"], "completed")
     end
@@ -77,7 +67,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     test "retrieves todo with input parameters (using action's built-in arguments)", %{
       conn: conn
     } do
-      # get_single_todo uses :read action which has filterCompleted and priorityFilter args
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_single_todo",
@@ -132,13 +121,11 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     end
 
     test "retrieves todo with embedded resource fields", %{conn: conn, user: user, todo: todo} do
-      # Delete the existing todo first, then create one with metadata
       Rpc.run_action(:ash_typescript, conn, %{
         "action" => "destroy_todo",
         "identity" => todo["id"]
       })
 
-      # Create todo with metadata
       %{"success" => true, "data" => _todo_with_metadata} =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "create_todo",
@@ -190,7 +177,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     end
 
     test "returns null with not_found_error?: false when no records exist", %{conn: conn} do
-      # Delete all todos first
       %{"success" => true, "data" => todos} =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos",
@@ -210,7 +196,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
           "fields" => ["id", "title"]
         })
 
-      # With not_found_error?: false, returns success with null data
       assert result["success"] == true
       assert result["data"] == nil
     end
@@ -245,7 +230,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     setup do
       conn = TestHelpers.build_rpc_conn()
 
-      # Create users with unique emails for testing
       %{"success" => true, "data" => user1} =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "create_user",
@@ -307,7 +291,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     end
 
     test "retrieves user with relationship fields", %{conn: conn, user1: user1} do
-      # First create a todo for this user
       %{"success" => true} =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "create_todo",
@@ -387,7 +370,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
           "fields" => ["id", "name"]
         })
 
-      # Default (not_found_error?: true): returns error
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
@@ -426,7 +408,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     setup do
       conn = TestHelpers.build_rpc_conn()
 
-      # Create a user
       %{"success" => true, "data" => user} =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "create_user",
@@ -437,7 +418,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
           "fields" => ["id", "name", "email"]
         })
 
-      # Create todos with different statuses for the same user
       %{"success" => true, "data" => pending_todo} =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "create_todo",
@@ -541,7 +521,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       assert result["data"]["id"] == finished_todo["id"]
       assert result["data"]["title"] == "Finished Todo"
       assert result["data"]["status"] == "finished"
-      # completed is a derived field based on status
       assert Map.has_key?(result["data"], "completed")
     end
 
@@ -554,13 +533,11 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
           "action" => "get_todo_by_user_and_status",
           "getBy" => %{
             "userId" => user["id"],
-            # User doesn't have a todo with "cancelled" status
             "status" => "cancelled"
           },
           "fields" => ["id", "title"]
         })
 
-      # Default (not_found_error?: true): returns error
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
@@ -568,7 +545,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     end
 
     test "requires all get_by fields in getBy", %{conn: conn, user: user} do
-      # Missing status
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo_by_user_and_status",
@@ -583,7 +559,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     end
 
     test "requires user_id in getBy", %{conn: conn} do
-      # Missing user_id
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_todo_by_user_and_status",
@@ -636,7 +611,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
         })
 
       assert result["success"] == true
-      # Calculations should be present (may be nil if no due_date)
       assert Map.has_key?(result["data"], "isOverdue")
       assert Map.has_key?(result["data"], "daysUntilDue")
     end
@@ -644,30 +618,22 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
   describe "get actions - type generation verification" do
     setup do
-      {:ok, generated} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, generated} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
       {:ok, generated: generated}
     end
 
     test "get_single_todo has correct function signature in generated code", %{
       generated: generated
     } do
-      # Check that getSingleTodo function exists
       assert String.contains?(generated, "export async function getSingleTodo")
-
-      # Check that GetSingleTodoInput exists (for action's built-in arguments)
       assert String.contains?(generated, "GetSingleTodoInput")
-
-      # Check that input is optional (get? doesn't require any specific input)
       assert String.contains?(generated, "input?: GetSingleTodoInput")
     end
 
     test "get_user_by_email has correct function signature with getBy in generated code", %{
       generated: generated
     } do
-      # Check that getUserByEmail function exists
       assert String.contains?(generated, "export async function getUserByEmail")
-
-      # Check that getBy config field exists with email field
       assert String.contains?(generated, "getBy: {")
       assert String.contains?(generated, "email: string")
     end
@@ -676,13 +642,10 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
          %{
            generated: generated
          } do
-      # Check that function exists
       assert String.contains?(generated, "export async function getTodoByUserAndStatus")
-
-      # Check that getBy config has both fields
       assert String.contains?(generated, "getBy: {")
       assert String.contains?(generated, "userId: UUID")
-      # status is an inline enum type (not a separate Status alias)
+
       assert String.contains?(
                generated,
                "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\""
@@ -690,29 +653,21 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     end
 
     test "get actions do not have pagination or filter options", %{generated: generated} do
-      # Find the GetSingleTodo config block
       [_, after_get_single] =
         String.split(generated, "export async function getSingleTodo", parts: 2)
 
       get_single_block = String.split(after_get_single, "export async function", parts: 2) |> hd()
 
-      # Get actions should not have page parameter
       refute String.contains?(get_single_block, "page?:")
-
-      # Get actions should not have filter parameter
       refute String.contains?(get_single_block, "filter?:")
 
-      # Find the GetUserByEmail config block
       [_, after_get_by_email] =
         String.split(generated, "export async function getUserByEmail", parts: 2)
 
       get_by_email_block =
         String.split(after_get_by_email, "export async function", parts: 2) |> hd()
 
-      # Get actions should not have page parameter
       refute String.contains?(get_by_email_block, "page?:")
-
-      # Get actions should not have filter parameter
       refute String.contains?(get_by_email_block, "filter?:")
     end
   end
@@ -736,7 +691,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     end
 
     test "validates get_single_todo action without input", %{conn: conn} do
-      # get? actions don't require any specific input
       result =
         Rpc.validate_action(:ash_typescript, conn, %{
           "action" => "get_single_todo"
@@ -770,12 +724,8 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
   describe "verifier - get options validation" do
     test "validates get_by fields exist on resource" do
-      # This is implicitly tested by the domain definition - invalid fields
-      # would cause a compile-time error. We can verify the domain compiled
-      # successfully by checking the RPC actions exist.
       rpc_configs = AshTypescript.Rpc.Info.typescript_rpc(AshTypescript.Test.Domain)
 
-      # Find the User resource config
       user_config =
         Enum.find(rpc_configs, fn config ->
           config.resource == AshTypescript.Test.User
@@ -783,7 +733,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
       assert user_config != nil
 
-      # Find get_user_by_email action
       get_by_email_action =
         Enum.find(user_config.rpc_actions, fn action ->
           action.name == :get_user_by_email
@@ -798,7 +747,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     setup do
       conn = TestHelpers.build_rpc_conn()
 
-      # Create a user for testing
       %{"success" => true, "data" => user} =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "create_user",
@@ -822,7 +770,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
           "fields" => ["id", "name", "email"]
         })
 
-      # With not_found_error?: false, returns success with null data
       assert result["success"] == true
       assert result["data"] == nil
     end
@@ -856,7 +803,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
           "fields" => ["id", "name"]
         })
 
-      # With not_found_error?: true, returns error
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
@@ -882,7 +828,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     end
 
     test "get? with not_found_error?: false returns null when no records exist", %{conn: conn} do
-      # Delete all todos first to ensure no records exist
       %{"success" => true, "data" => todos} =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos",
@@ -902,7 +847,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
           "fields" => ["id", "title"]
         })
 
-      # With not_found_error?: false, returns success with null data
       assert result["success"] == true
       assert result["data"] == nil
     end
@@ -910,8 +854,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     test "default behavior (no explicit not_found_error?) returns error when not found", %{
       conn: conn
     } do
-      # Using get_user_by_email which has no explicit not_found_error? setting
-      # It should use the global default (true)
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_user_by_email",
@@ -921,7 +863,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
           "fields" => ["id", "name"]
         })
 
-      # Default behavior returns error
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
@@ -933,11 +874,9 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     setup do
       conn = TestHelpers.build_rpc_conn()
 
-      # Store original config
       original_config = Application.get_env(:ash_typescript, :not_found_error?, true)
 
       on_exit(fn ->
-        # Restore original config after test
         Application.put_env(:ash_typescript, :not_found_error?, original_config)
       end)
 
@@ -945,11 +884,8 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     end
 
     test "global config false makes default behavior return null", %{conn: conn} do
-      # Set global config to false
       Application.put_env(:ash_typescript, :not_found_error?, false)
 
-      # Using get_user_by_email which has no explicit not_found_error? setting
-      # It should now return null instead of error
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_user_by_email",
@@ -959,17 +895,13 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
           "fields" => ["id", "name"]
         })
 
-      # With global config false, returns success with null data
       assert result["success"] == true
       assert result["data"] == nil
     end
 
     test "explicit action config overrides global config false", %{conn: conn} do
-      # Set global config to false
       Application.put_env(:ash_typescript, :not_found_error?, false)
 
-      # Using get_user_by_email_error which has explicit not_found_error?: true
-      # It should still return error despite global config being false
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_user_by_email_error",
@@ -979,7 +911,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
           "fields" => ["id", "name"]
         })
 
-      # Explicit action config overrides global
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
@@ -987,11 +918,8 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     end
 
     test "explicit action config false overrides global config true", %{conn: conn} do
-      # Ensure global config is true (default)
       Application.put_env(:ash_typescript, :not_found_error?, true)
 
-      # Using get_user_by_email_nullable which has explicit not_found_error?: false
-      # It should return null despite global config being true
       result =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "get_user_by_email_nullable",
@@ -1001,7 +929,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
           "fields" => ["id", "name"]
         })
 
-      # Explicit action config overrides global
       assert result["success"] == true
       assert result["data"] == nil
     end
@@ -1009,18 +936,15 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
   describe "not_found_error? TypeScript codegen" do
     setup do
-      {:ok, generated} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, generated} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
       {:ok, generated: generated}
     end
 
     test "result type includes | null for not_found_error?: false actions", %{
       generated: generated
     } do
-      # get_user_by_email_nullable has not_found_error?: false
-      # Result type should include | null
       assert String.contains?(generated, "InferGetUserByEmailNullableResult<")
 
-      # Find the result type definition
       [_, after_nullable_result] =
         String.split(generated, "InferGetUserByEmailNullableResult<", parts: 2)
 
@@ -1028,50 +952,38 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
         String.split(after_nullable_result, "export type", parts: 2)
         |> hd()
 
-      # Should include null in the result type
       assert String.contains?(result_type_block, "| null")
     end
 
     test "result type does not include | null for default not_found_error? (true)", %{
       generated: generated
     } do
-      # get_user_by_email has default not_found_error? (true)
-      # Result type should NOT include | null
       assert String.contains?(generated, "InferGetUserByEmailResult<")
 
-      # Find the result type definition - look for the exact pattern
-      # to avoid matching GetUserByEmailNullable or GetUserByEmailError
       [_, after_result] =
         String.split(generated, "export type InferGetUserByEmailResult<", parts: 2)
 
-      # Get just the result type line (up to the semicolon)
       result_type_line =
         after_result
         |> String.split(";", parts: 2)
         |> hd()
 
-      # Should NOT include null in the basic result type
       refute String.contains?(result_type_line, "| null")
     end
 
     test "result type does not include | null for explicit not_found_error?: true", %{
       generated: generated
     } do
-      # get_user_by_email_error has explicit not_found_error?: true
-      # Result type should NOT include | null
       assert String.contains?(generated, "InferGetUserByEmailErrorResult<")
 
-      # Find the result type definition
       [_, after_error_result] =
         String.split(generated, "export type InferGetUserByEmailErrorResult<", parts: 2)
 
-      # Get just the result type line (up to the semicolon)
       result_type_line =
         after_error_result
         |> String.split(";", parts: 2)
         |> hd()
 
-      # Should NOT include null (errors are returned instead)
       refute String.contains?(result_type_line, "| null")
     end
   end

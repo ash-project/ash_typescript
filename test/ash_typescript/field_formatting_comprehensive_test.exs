@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.FieldFormattingComprehensiveTest do
-  # async: false because we're modifying application config
   use ExUnit.Case, async: false
   import Phoenix.ConnTest
   import Plug.Conn
@@ -16,13 +15,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
   setup do
     Application.put_env(:ash_typescript, :enable_namespace_files, false)
 
-    # Store original configuration
     original_input_field_formatter = Application.get_env(:ash_typescript, :input_field_formatter)
 
     original_output_field_formatter =
       Application.get_env(:ash_typescript, :output_field_formatter)
 
-    # Create proper Plug.Conn struct for RPC integration tests
     conn =
       build_conn()
       |> put_private(:ash, %{actor: nil})
@@ -30,7 +27,6 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       |> assign(:context, %{})
 
     on_exit(fn ->
-      # Restore original configuration
       if original_input_field_formatter do
         Application.put_env(
           :ash_typescript,
@@ -348,8 +344,6 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
     end
 
     test "formats PascalCase input fields when output formatter is PascalCase", %{conn: conn} do
-      # Input fields are matched against expected keys generated using the output formatter
-      # To use PascalCase input, set the output formatter to PascalCase
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       user_params = %{
@@ -414,7 +408,6 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
     test "formats snake_case output fields to camelCase", %{conn: conn} do
       Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
 
-      # Simply test reading existing data to verify field formatting
       read_params = %{
         "action" => "list_todos",
         "fields" => ["id", "title", "user_id", "completed"]
@@ -423,15 +416,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       result = Rpc.run_action(:ash_typescript, conn, read_params)
       assert %{"success" => true, "data" => formatted_todos} = result
       assert is_list(formatted_todos)
-
-      # The key test is that the field formatter is configured and we can read without errors
-      # In practice, field formatting is verified through TypeScript generation tests
     end
 
     test "formats snake_case output fields to PascalCase", %{conn: conn} do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
-      # Input must match output format (PascalCase) for field matching
       user_params = %{
         "action" => "create_user",
         "fields" => ["Id"],
@@ -476,7 +465,6 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
     test "leaves snake_case output fields as-is", %{conn: conn} do
       Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
 
-      # Input must match output format (snake_case) for field matching
       user_params = %{
         "action" => "create_user",
         "fields" => ["id"],
@@ -520,15 +508,10 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
 
   describe "RPC runtime field formatting - custom formatters" do
     test "formats input fields using output formatter for expected keys", %{conn: conn} do
-      # Input fields are matched against expected keys generated using the output formatter
-      # This ensures consistency between codegen (which uses output formatter) and runtime parsing
-      # Custom input formatters are only used for fields that aren't in the expected keys map
-
       user_params = %{
         "action" => "create_user",
         "fields" => ["id"],
         "input" => %{
-          # Using camelCase (the default output format) - these are known fields
           "name" => "Test User",
           "email" => "test@example.com"
         }
@@ -541,7 +524,6 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         "action" => "create_todo",
         "fields" => ["id", "title"],
         "input" => %{
-          # Using camelCase - these are known fields matched via output formatter
           "title" => "Test Todo",
           "userId" => user["id"]
         }
@@ -554,14 +536,9 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
     end
 
     @tag :skip
-    # This test is skipped because custom output formatters require bidirectional
-    # mapping support in the Atomizer, which is beyond the scope of the current
-    # input parsing refactor. Custom formatters are an advanced feature.
     test "formats output fields with custom formatters", %{conn: conn} do
       Application.put_env(:ash_typescript, :output_field_formatter, {Formatters, :custom_format})
 
-      # Input fields must match the output format (custom_* prefix)
-      # But "fields" parameter uses the output format field names (which the client sees)
       user_params = %{
         "action" => "create_user",
         "fields" => ["custom_id"],
@@ -608,9 +585,8 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
 
       {:ok, typescript_output} =
-        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+        AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Check that resource field schemas use camelCase
       assert String.contains?(typescript_output, "name: string")
       assert String.contains?(typescript_output, "email: string")
       assert String.contains?(typescript_output, "active: boolean | null")
@@ -618,10 +594,8 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       assert String.contains?(typescript_output, "title: string")
       assert String.contains?(typescript_output, "completed: boolean | null")
 
-      # Check that config interfaces use camelCase
       assert String.contains?(typescript_output, "fields: UnifiedFieldSelection")
 
-      # Verify old snake_case names are not present in field schemas
       refute String.contains?(typescript_output, "user_name: string")
       refute String.contains?(typescript_output, "user_email: string | null")
       refute String.contains?(typescript_output, "created_at: UtcDateTime")
@@ -631,9 +605,8 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       {:ok, typescript_output} =
-        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+        AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Check that resource field schemas use PascalCase
       assert String.contains?(typescript_output, "Name: string")
       assert String.contains?(typescript_output, "Email: string")
       assert String.contains?(typescript_output, "Active: boolean | null")
@@ -641,7 +614,6 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       assert String.contains?(typescript_output, "Title: string")
       assert String.contains?(typescript_output, "Completed: boolean | null")
 
-      # Verify old snake_case names are not present
       refute String.contains?(typescript_output, "user_name: string")
       refute String.contains?(typescript_output, "is_super_admin: boolean | null")
     end
@@ -650,9 +622,8 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
 
       {:ok, typescript_output} =
-        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+        AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Check that resource field schemas use snake_case
       assert String.contains?(typescript_output, "name: string")
       assert String.contains?(typescript_output, "email: string")
       assert String.contains?(typescript_output, "active: boolean | null")
@@ -660,7 +631,6 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       assert String.contains?(typescript_output, "title: string")
       assert String.contains?(typescript_output, "completed: boolean | null")
 
-      # Verify camelCase names are not present
       refute String.contains?(typescript_output, "isSuperAdmin: boolean | null")
       refute String.contains?(typescript_output, "userName: string")
     end
@@ -671,16 +641,14 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       Application.put_env(:ash_typescript, :output_field_formatter, {Formatters, :custom_format})
 
       {:ok, typescript_output} =
-        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+        AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Check that resource field schemas use custom formatting
       assert String.contains?(typescript_output, "custom_name: string")
       assert String.contains?(typescript_output, "custom_email: string")
       assert String.contains?(typescript_output, "custom_active: boolean | null")
       assert String.contains?(typescript_output, "custom_title: string")
       assert String.contains?(typescript_output, "custom_completed: boolean | null")
 
-      # Verify custom formatted names are present and working
       custom_name_count =
         (typescript_output |> String.split("custom_name: string") |> length()) - 1
 
@@ -703,14 +671,12 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       )
 
       {:ok, typescript_output} =
-        AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+        AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Check that resource field schemas use custom formatting with suffix
       assert String.contains?(typescript_output, "name_gen: string")
       assert String.contains?(typescript_output, "email_gen: string")
       assert String.contains?(typescript_output, "title_gen: string")
 
-      # Verify original names are not present
       refute String.contains?(typescript_output, "name: string")
       refute String.contains?(typescript_output, "email: string")
       refute String.contains?(typescript_output, "title: string")

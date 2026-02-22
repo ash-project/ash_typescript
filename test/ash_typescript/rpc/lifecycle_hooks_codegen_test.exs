@@ -5,14 +5,11 @@
 defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
   use ExUnit.Case
 
-  alias AshTypescript.Rpc.Codegen
-
   @moduletag :ash_typescript
 
   setup do
     Application.put_env(:ash_typescript, :enable_namespace_files, false)
 
-    # Save original config
     original_config = [
       rpc_action_before_request_hook:
         Application.get_env(:ash_typescript, :rpc_action_before_request_hook),
@@ -29,7 +26,6 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
     ]
 
     on_exit(fn ->
-      # Restore original config
       Enum.each(original_config, fn {key, value} ->
         if value do
           Application.put_env(:ash_typescript, key, value)
@@ -52,7 +48,7 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
 
       Application.put_env(:ash_typescript, :rpc_action_hook_context_type, "MyHooks.ActionContext")
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ "export type ActionHookContext = MyHooks.ActionContext;"
     end
@@ -64,7 +60,7 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
         "MyHooks.beforeAction"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ ~r/hookCtx\?: ActionHookContext;/
     end
@@ -76,9 +72,8 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
         "MyHooks.beforeAction"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Check that the hook is embedded in the executeActionRpcRequest helper
       assert typescript =~ ~r/if \(MyHooks\.beforeAction\)/
       assert typescript =~ ~r/await MyHooks\.beforeAction\(payload\.action, config\)/
     end
@@ -86,9 +81,8 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
     test "includes afterRequest hook call with correct parameters" do
       Application.put_env(:ash_typescript, :rpc_action_after_request_hook, "MyHooks.afterAction")
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Check that the hook is embedded in the executeActionRpcRequest helper
       assert typescript =~ ~r/if \(MyHooks\.afterAction\)/
 
       assert typescript =~
@@ -102,9 +96,8 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
         "MyHooks.beforeAction"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Config merging is now done inside executeActionRpcRequest helper
       # config (direct) should come last to take precedence over processedConfig (from hook)
       assert typescript =~ "executeActionRpcRequest"
       assert typescript =~ ~r/\.\.\.processedConfig\.headers,\s*\.\.\.config\.headers,/
@@ -118,9 +111,8 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
         "MyHooks.beforeAction"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # customFetch precedence is still enforced inside executeActionRpcRequest helper
       assert typescript =~ "executeActionRpcRequest"
       assert typescript =~ "config.customFetch || processedConfig.customFetch || fetch"
     end
@@ -128,9 +120,8 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
     test "includes conditional JSON parsing based on response.ok" do
       Application.put_env(:ash_typescript, :rpc_action_after_request_hook, "MyHooks.afterAction")
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # JSON parsing is still done inside executeActionRpcRequest helper
       assert typescript =~ "executeActionRpcRequest"
       assert typescript =~ "const result = response.ok ? await response.json() : null;"
     end
@@ -144,7 +135,7 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
 
       Application.put_env(:ash_typescript, :rpc_action_hook_context_type, "CustomActionContext")
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ "export type ActionHookContext = CustomActionContext;"
     end
@@ -158,7 +149,7 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
 
       Application.delete_env(:ash_typescript, :rpc_action_hook_context_type)
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ "export type ActionHookContext = Record<string, any>;"
     end
@@ -178,7 +169,7 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
         "MyHooks.ValidationContext"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ "export type ValidationHookContext = MyHooks.ValidationContext;"
     end
@@ -190,7 +181,7 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
         "MyHooks.beforeValidation"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ ~r/async function validate.*?\{[^}]*hookCtx\?: ValidationHookContext;/s
     end
@@ -202,9 +193,8 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
         "MyHooks.beforeValidation"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Check that the hook is embedded in the executeValidationRpcRequest helper
       assert typescript =~ ~r/if \(MyHooks\.beforeValidation\)/
       assert typescript =~ ~r/await MyHooks\.beforeValidation\(payload\.action, config\)/
     end
@@ -216,9 +206,8 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
         "MyHooks.afterValidation"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Check that the hook is embedded in the executeValidationRpcRequest helper
       assert typescript =~ ~r/if \(MyHooks\.afterValidation\)/
 
       assert typescript =~
@@ -238,7 +227,7 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
         "CustomValidationContext"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ "export type ValidationHookContext = CustomValidationContext;"
     end
@@ -251,7 +240,7 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
       Application.delete_env(:ash_typescript, :rpc_validation_before_request_hook)
       Application.delete_env(:ash_typescript, :rpc_validation_after_request_hook)
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       refute typescript =~ "export type ActionHookContext"
       refute typescript =~ "export type ValidationHookContext"
@@ -261,9 +250,8 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
       Application.delete_env(:ash_typescript, :rpc_action_before_request_hook)
       Application.delete_env(:ash_typescript, :rpc_action_after_request_hook)
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # Should still have configs, but without hookCtx
       refute typescript =~ ~r/hookCtx\?: ActionHookContext;/
     end
 
@@ -271,12 +259,9 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
       Application.delete_env(:ash_typescript, :rpc_action_before_request_hook)
       Application.delete_env(:ash_typescript, :rpc_validation_before_request_hook)
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # When no hooks, uses const instead of let
       assert typescript =~ "const processedConfig = config;"
-      # Should not have HTTP beforeRequest hook calls (channel hooks may still be present)
-      # Note: Channel hooks use "beforeChannelPush" or "beforeValidationChannelPush"
       refute typescript =~ ~r/processedConfig = await \w+\.beforeAction\(/
       refute typescript =~ ~r/processedConfig = await \w+\.beforeValidation\(/
     end
@@ -285,7 +270,7 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
       Application.delete_env(:ash_typescript, :rpc_action_after_request_hook)
       Application.delete_env(:ash_typescript, :rpc_validation_after_request_hook)
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       refute typescript =~ "await MyHooks.afterAction"
       refute typescript =~ "await MyHooks.afterValidation"
@@ -303,7 +288,7 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
       Application.delete_env(:ash_typescript, :rpc_validation_before_request_hook)
       Application.delete_env(:ash_typescript, :rpc_validation_after_request_hook)
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~ "export type ActionHookContext"
       refute typescript =~ "export type ValidationHookContext"
@@ -319,7 +304,7 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
         "MyHooks.beforeValidation"
       )
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       refute typescript =~ "export type ActionHookContext"
       assert typescript =~ "export type ValidationHookContext"
@@ -334,9 +319,8 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
 
       Application.delete_env(:ash_typescript, :rpc_action_after_request_hook)
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # With new pattern, check that before hook is in helper but not after
       assert typescript =~ ~r/if \(MyHooks\.beforeAction\)/
       refute typescript =~ ~r/if \(MyHooks\.afterAction\)/
     end
@@ -345,11 +329,9 @@ defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
       Application.delete_env(:ash_typescript, :rpc_action_before_request_hook)
       Application.put_env(:ash_typescript, :rpc_action_after_request_hook, "MyHooks.afterAction")
 
-      {:ok, typescript} = Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
-      # With new pattern, check that after hook is in helper but not before
       assert typescript =~ ~r/if \(MyHooks\.afterAction\)/
-      # Should have processedConfig = config (not let processedConfig since no before hook)
       assert typescript =~ "const processedConfig = config;"
     end
   end

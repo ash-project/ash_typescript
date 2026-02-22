@@ -5,9 +5,6 @@
 defmodule AshTypescript.Rpc.TypedQueryCodegenTest do
   @moduledoc """
   Tests for typed query TypeScript code generation.
-
-  Verifies that typed query field constants are generated correctly,
-  including the removal of `as const` assertions that would make arrays readonly.
   """
   use ExUnit.Case
 
@@ -20,7 +17,7 @@ defmodule AshTypescript.Rpc.TypedQueryCodegenTest do
 
   describe "typed query field constants - TypeScript codegen" do
     setup do
-      {:ok, ts_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, ts_output} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
       {:ok, ts_output: ts_output}
     end
 
@@ -34,7 +31,6 @@ defmodule AshTypescript.Rpc.TypedQueryCodegenTest do
       assert const_match != nil, "listTodosUserPage constant should exist"
       const_value = const_match["value"]
 
-      # Should NOT contain "as const" anywhere in the value
       refute const_value =~ "as const",
              "Field constant should not contain 'as const' assertions"
     end
@@ -101,7 +97,7 @@ defmodule AshTypescript.Rpc.TypedQueryCodegenTest do
 
   describe "typed query field constants - multiple queries" do
     setup do
-      {:ok, ts_output} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, ts_output} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
       {:ok, ts_output: ts_output}
     end
 

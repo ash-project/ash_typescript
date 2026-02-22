@@ -5,21 +5,20 @@
 defmodule AshTypescript.TypedController.CodegenTest do
   use ExUnit.Case
 
+  alias AshTypescript.Test.CodegenTestHelper
+
   @moduletag :ash_typescript
 
   setup_all do
-    typescript =
-      AshTypescript.TypedController.Codegen.generate(
-        router: AshTypescript.Test.ControllerResourceTestRouter
-      )
-
-    %{typescript: typescript}
+    {:ok, files} = CodegenTestHelper.generate_files()
+    typescript = CodegenTestHelper.routes_content(files)
+    %{typescript: typescript, files: files}
   end
 
   describe "multi-mount code generation" do
     setup do
       typescript =
-        AshTypescript.TypedController.Codegen.generate(
+        CodegenTestHelper.generate_controller_content(
           router: AshTypescript.Test.ControllerResourceMultiMountRouter
         )
 
@@ -67,7 +66,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
   describe "ambiguous mount error" do
     test "raises when router has duplicate mounts without as: options" do
       assert_raise RuntimeError, ~r/don't have unique `as:` options/, fn ->
-        AshTypescript.TypedController.Codegen.generate(
+        CodegenTestHelper.generate_controller_content(
           router: AshTypescript.Test.ControllerResourceAmbiguousRouter
         )
       end
@@ -117,8 +116,6 @@ defmodule AshTypescript.TypedController.CodegenTest do
     end
 
     test "GET path helpers do not generate async functions", %{typescript: typescript} do
-      # Extract individual path helper functions (authPath, providerPagePath, searchPath)
-      # and verify none are async
       for path_fn <- ["authPath()", "providerPagePath(", "searchPath("] do
         assert String.contains?(typescript, "export function #{path_fn}")
         refute String.contains?(typescript, "export async function #{path_fn}")
@@ -290,7 +287,6 @@ defmodule AshTypescript.TypedController.CodegenTest do
           source_module: MyApp.Item
         )
 
-      # Should not raise — param is only at one mount, so allow_nil?: true is valid
       AshTypescript.TypedController.Codegen.validate_path_param_arguments!([
         mount_with_param,
         mount_without_param
@@ -306,7 +302,6 @@ defmodule AshTypescript.TypedController.CodegenTest do
           path_params: [:id]
         )
 
-      # Should not raise
       AshTypescript.TypedController.Codegen.validate_path_param_arguments!([route_info])
     end
 
@@ -357,7 +352,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
   describe "path param allow_nil? integration — always present error" do
     test "raises when :tab is always a path param but has allow_nil?: true" do
       assert_raise RuntimeError, ~r/allow_nil\?: true.*can never be nil/s, fn ->
-        AshTypescript.TypedController.Codegen.generate(
+        CodegenTestHelper.generate_controller_content(
           router: AshTypescript.Test.AllowNilAlwaysPresentErrorRouter
         )
       end
@@ -367,7 +362,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
   describe "path param allow_nil? integration — sometimes present error" do
     test "raises when :provider is a path param at some mounts but has allow_nil?: false" do
       assert_raise RuntimeError, ~r/allow_nil\?: false.*will be nil at others/s, fn ->
-        AshTypescript.TypedController.Codegen.generate(
+        CodegenTestHelper.generate_controller_content(
           router: AshTypescript.Test.AllowNilSometimesPresentErrorRouter
         )
       end
@@ -377,7 +372,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
   describe "path param allow_nil? integration — asymmetric multi-mount happy path" do
     setup do
       typescript =
-        AshTypescript.TypedController.Codegen.generate(
+        CodegenTestHelper.generate_controller_content(
           router: AshTypescript.Test.ControllerResourceMultiMountRouter
         )
 
@@ -404,7 +399,6 @@ defmodule AshTypescript.TypedController.CodegenTest do
         String.split(typescript, "export function appProfilePath(", parts: 2)
 
       [app_profile_body | _] = String.split(after_app_profile, "\n}\n", parts: 2)
-      # user_id should be a query param, not a path param
       refute String.contains?(app_profile_body, "${path.userId}")
       assert String.contains?(app_profile_body, "query")
     end
@@ -422,7 +416,6 @@ defmodule AshTypescript.TypedController.CodegenTest do
       assert String.contains?(typescript, "export type UpdateProviderInput = {")
       assert String.contains?(typescript, "enabled: boolean;")
       assert String.contains?(typescript, "displayName?: string;")
-      # provider is a path param and should not be in the input type
       refute String.contains?(typescript, "UpdateProviderInput = {\n  provider")
     end
 
@@ -460,7 +453,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
       Application.put_env(:ash_typescript, :typed_controller_path_params_style, :args)
 
       typescript =
-        AshTypescript.TypedController.Codegen.generate(
+        CodegenTestHelper.generate_controller_content(
           router: AshTypescript.Test.ControllerResourceTestRouter
         )
 
@@ -523,7 +516,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
       Application.put_env(:ash_typescript, :typed_controller_mode, :paths_only)
 
       typescript =
-        AshTypescript.TypedController.Codegen.generate(
+        CodegenTestHelper.generate_controller_content(
           router: AshTypescript.Test.ControllerResourceTestRouter
         )
 
@@ -602,7 +595,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
       Application.delete_env(:ash_typescript, :typed_controller_hook_context_type)
 
       typescript =
-        AshTypescript.TypedController.Codegen.generate(
+        CodegenTestHelper.generate_controller_content(
           router: AshTypescript.Test.ControllerResourceTestRouter
         )
 
@@ -640,7 +633,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
       )
 
       typescript =
-        AshTypescript.TypedController.Codegen.generate(
+        CodegenTestHelper.generate_controller_content(
           router: AshTypescript.Test.ControllerResourceTestRouter
         )
 
@@ -686,7 +679,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
       )
 
       typescript =
-        AshTypescript.TypedController.Codegen.generate(
+        CodegenTestHelper.generate_controller_content(
           router: AshTypescript.Test.ControllerResourceTestRouter
         )
 
@@ -706,42 +699,42 @@ defmodule AshTypescript.TypedController.CodegenTest do
   end
 
   describe "Zod schema generation" do
-    test "generates Zod schemas for mutation routes with input args", %{typescript: typescript} do
-      # login has code (required string) and remember_me (optional boolean)
-      assert String.contains?(typescript, "export const loginZodSchema = z.object({")
-      assert String.contains?(typescript, "code: z.string().min(1),")
-      assert String.contains?(typescript, "rememberMe: z.boolean().optional(),")
+    setup %{files: files} do
+      zod = CodegenTestHelper.zod_content(files)
+      %{zod: zod}
     end
 
-    test "generates Zod schema for update_provider excluding path params", %{
-      typescript: typescript
-    } do
-      assert String.contains?(typescript, "export const updateProviderZodSchema = z.object({")
-      assert String.contains?(typescript, "enabled: z.boolean(),")
-      assert String.contains?(typescript, "displayName: z.string().optional(),")
-      # provider is a path param, not in the Zod schema
+    test "generates Zod schemas for mutation routes with input args", %{zod: zod} do
+      assert String.contains?(zod, "export const loginZodSchema = z.object({")
+      assert String.contains?(zod, "code: z.string().min(1),")
+      assert String.contains?(zod, "rememberMe: z.boolean().optional(),")
+    end
+
+    test "generates Zod schema for update_provider excluding path params", %{zod: zod} do
+      assert String.contains?(zod, "export const updateProviderZodSchema = z.object({")
+      assert String.contains?(zod, "enabled: z.boolean(),")
+      assert String.contains?(zod, "displayName: z.string().optional(),")
+
       [_, after_schema] =
-        String.split(typescript, "export const updateProviderZodSchema = z.object({", parts: 2)
+        String.split(zod, "export const updateProviderZodSchema = z.object({", parts: 2)
 
       [schema_body | _] = String.split(after_schema, "});", parts: 2)
       refute String.contains?(schema_body, "provider")
     end
 
-    test "generates Zod import when zod schemas enabled", %{typescript: typescript} do
-      assert String.contains?(typescript, "import { z } from \"zod\";")
+    test "generates Zod import in zod file", %{zod: zod} do
+      assert String.contains?(zod, "import { z } from \"zod\";")
     end
 
-    test "no Zod schema for mutation routes without input args", %{typescript: typescript} do
-      # logout has no arguments
-      refute String.contains?(typescript, "logoutZodSchema")
+    test "no Zod schema for mutation routes without input args", %{zod: zod} do
+      refute String.contains?(zod, "logoutZodSchema")
     end
 
-    test "maps types correctly - string, boolean, integer", %{typescript: typescript} do
-      # echo_params has name (string, required), count (integer, optional), active (boolean, optional)
-      assert String.contains?(typescript, "export const echoParamsZodSchema = z.object({")
+    test "maps types correctly - string, boolean, integer", %{zod: zod} do
+      assert String.contains?(zod, "export const echoParamsZodSchema = z.object({")
 
       [_, after_schema] =
-        String.split(typescript, "export const echoParamsZodSchema = z.object({", parts: 2)
+        String.split(zod, "export const echoParamsZodSchema = z.object({", parts: 2)
 
       [schema_body | _] = String.split(after_schema, "});", parts: 2)
       assert String.contains?(schema_body, "name: z.string().min(1),")
@@ -751,68 +744,67 @@ defmodule AshTypescript.TypedController.CodegenTest do
   end
 
   describe "Zod schema generation with type constraints" do
-    test "generates string constraints: min_length, max_length, regex", %{typescript: typescript} do
-      assert String.contains?(typescript, "export const registerZodSchema = z.object({")
+    setup %{files: files} do
+      zod = CodegenTestHelper.zod_content(files)
+      %{zod: zod}
+    end
+
+    test "generates string constraints: min_length, max_length, regex", %{zod: zod} do
+      assert String.contains?(zod, "export const registerZodSchema = z.object({")
 
       [_, after_schema] =
-        String.split(typescript, "export const registerZodSchema = z.object({", parts: 2)
+        String.split(zod, "export const registerZodSchema = z.object({", parts: 2)
 
       [schema_body | _] = String.split(after_schema, "});", parts: 2)
 
-      # username: required string with min_length: 3, max_length: 20, regex
       assert String.contains?(
                schema_body,
                "username: z.string().min(3).max(20).regex(/^[a-zA-Z0-9_]+$/),"
              )
 
-      # email: required string with regex (gets .min(1) automatically since allow_nil?: false)
       assert String.contains?(
                schema_body,
                "email: z.string().min(1).regex(/^[^@]+@[^@]+\\.[^@]+$/),"
              )
     end
 
-    test "generates integer constraints: min, max", %{typescript: typescript} do
+    test "generates integer constraints: min, max", %{zod: zod} do
       [_, after_schema] =
-        String.split(typescript, "export const registerZodSchema = z.object({", parts: 2)
+        String.split(zod, "export const registerZodSchema = z.object({", parts: 2)
 
       [schema_body | _] = String.split(after_schema, "});", parts: 2)
 
-      # age: required integer with min: 13, max: 120
       assert String.contains?(schema_body, "age: z.number().int().min(13).max(120),")
     end
 
-    test "generates float constraints: min, max", %{typescript: typescript} do
+    test "generates float constraints: min, max", %{zod: zod} do
       [_, after_schema] =
-        String.split(typescript, "export const registerZodSchema = z.object({", parts: 2)
+        String.split(zod, "export const registerZodSchema = z.object({", parts: 2)
 
       [schema_body | _] = String.split(after_schema, "});", parts: 2)
 
-      # score: optional float with min: 0, max: 100
       assert String.contains?(schema_body, "score: z.number().min(0).max(100).optional(),")
     end
 
-    test "generates string max_length-only constraint", %{typescript: typescript} do
+    test "generates string max_length-only constraint", %{zod: zod} do
       [_, after_schema] =
-        String.split(typescript, "export const registerZodSchema = z.object({", parts: 2)
+        String.split(zod, "export const registerZodSchema = z.object({", parts: 2)
 
       [schema_body | _] = String.split(after_schema, "});", parts: 2)
 
-      # bio: optional string with max_length: 500
       assert String.contains?(schema_body, "bio: z.string().max(500).optional(),")
     end
 
-    test "generates fixed-length string via min_length + max_length", %{typescript: typescript} do
+    test "generates fixed-length string via min_length + max_length", %{zod: zod} do
       [_, after_schema] =
-        String.split(typescript, "export const registerZodSchema = z.object({", parts: 2)
+        String.split(zod, "export const registerZodSchema = z.object({", parts: 2)
 
       [schema_body | _] = String.split(after_schema, "});", parts: 2)
 
-      # invite_code: optional string with min_length: 8, max_length: 8
       assert String.contains?(schema_body, "inviteCode: z.string().min(8).max(8).optional(),")
     end
 
-    test "generates corresponding TypeScript input type", %{typescript: typescript} do
+    test "generates corresponding TypeScript input type in routes file", %{typescript: typescript} do
       assert String.contains?(typescript, "export type RegisterInput = {")
       assert String.contains?(typescript, "username: string;")
       assert String.contains?(typescript, "email: string;")
@@ -824,20 +816,26 @@ defmodule AshTypescript.TypedController.CodegenTest do
   end
 
   describe "embedded resource argument type" do
-    test "generates input type with embedded resource reference", %{typescript: typescript} do
+    setup %{files: files} do
+      types = CodegenTestHelper.types_content(files)
+      zod = CodegenTestHelper.zod_content(files)
+      %{types: types, zod: zod}
+    end
+
+    test "generates input type with embedded resource reference in routes file", %{
+      typescript: typescript
+    } do
       assert String.contains?(typescript, "export type CreateTaskInput = {")
       assert String.contains?(typescript, "title: string;")
       assert String.contains?(typescript, "metadata: TaskMetadataInputSchema;")
       assert String.contains?(typescript, "priority?: number;")
     end
 
-    test "generates Zod schema referencing embedded resource Zod schema", %{
-      typescript: typescript
-    } do
-      assert String.contains?(typescript, "export const createTaskRouteZodSchema = z.object({")
+    test "generates Zod schema referencing embedded resource Zod schema", %{zod: zod} do
+      assert String.contains?(zod, "export const createTaskRouteZodSchema = z.object({")
 
       [_, after_schema] =
-        String.split(typescript, "export const createTaskRouteZodSchema = z.object({", parts: 2)
+        String.split(zod, "export const createTaskRouteZodSchema = z.object({", parts: 2)
 
       [schema_body | _] = String.split(after_schema, "});", parts: 2)
 
@@ -846,30 +844,26 @@ defmodule AshTypescript.TypedController.CodegenTest do
       assert String.contains?(schema_body, "priority: z.number().int().min(1).max(5).optional(),")
     end
 
-    test "generates action function for create_task", %{typescript: typescript} do
+    test "generates action function for create_task in routes file", %{typescript: typescript} do
       assert String.contains?(typescript, "export async function createTask(")
       assert String.contains?(typescript, "input: CreateTaskInput")
     end
 
-    test "generates inline TaskMetadataInputSchema type definition", %{typescript: typescript} do
-      assert String.contains?(typescript, "export type TaskMetadataInputSchema = {")
-      assert String.contains?(typescript, "createdBy: string;")
+    test "generates TaskMetadataInputSchema type definition in types file", %{types: types} do
+      assert String.contains?(types, "export type TaskMetadataInputSchema = {")
+      assert String.contains?(types, "createdBy: string;")
     end
 
-    test "generates inline TaskMetadataZodSchema when Zod enabled", %{typescript: typescript} do
-      assert String.contains?(typescript, "export const TaskMetadataZodSchema = z.object({")
+    test "generates TaskMetadataZodSchema in zod file", %{zod: zod} do
+      assert String.contains?(zod, "export const TaskMetadataZodSchema = z.object({")
     end
 
-    test "inline type definitions appear before route functions", %{typescript: typescript} do
-      input_schema_pos =
-        :binary.match(typescript, "export type TaskMetadataInputSchema")
-        |> elem(0)
-
-      create_task_pos =
-        :binary.match(typescript, "export async function createTask")
-        |> elem(0)
-
-      assert input_schema_pos < create_task_pos
+    test "types file defines TaskMetadataInputSchema referenced by routes file", %{
+      types: types,
+      typescript: typescript
+    } do
+      assert String.contains?(types, "export type TaskMetadataInputSchema")
+      assert String.contains?(typescript, "metadata: TaskMetadataInputSchema;")
     end
   end
 
@@ -879,7 +873,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
       Application.put_env(:ash_typescript, :generate_zod_schemas, false)
 
       typescript =
-        AshTypescript.TypedController.Codegen.generate(
+        CodegenTestHelper.generate_controller_content(
           router: AshTypescript.Test.ControllerResourceTestRouter
         )
 
@@ -899,7 +893,6 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
   describe "JSDoc @see tags" do
     test "generates @see tags on login path helper", %{typescript: typescript} do
-      # login route has see: [:auth, :logout]
       [_, after_login_path] =
         String.split(typescript, "/**\n * Path helper for /auth/login", parts: 2)
 
