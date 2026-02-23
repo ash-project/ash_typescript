@@ -27,7 +27,7 @@ def index(conn, _params) do
   todos = Ash.read!(MyApp.Todo)
 
   conn
-  |> assign_prop(:todos, todos)  # 💥 Protocol.UndefinedError!
+  |> assign_prop(:todos, todos)  # Protocol.UndefinedError!
   |> render_inertia("TodoList")
 end
 ```
@@ -41,7 +41,7 @@ Even if you manually convert to maps, your frontend has no type information:
 ```svelte
 <script lang="ts">
   interface Props {
-    todos: any[];  // 😢 No type safety
+    todos: any[];  // No type safety
   }
 
   let { todos }: Props = $props();
@@ -342,7 +342,7 @@ end
 Always use the generated types—never duplicate:
 
 ```svelte
-<!-- ❌ WRONG - Custom interface that can drift -->
+<!-- WRONG - Custom interface that can drift -->
 <script lang="ts">
   interface Todo {
     id: string;
@@ -355,7 +355,7 @@ Always use the generated types—never duplicate:
   }
 </script>
 
-<!-- ✅ CORRECT - Use generated type -->
+<!-- CORRECT - Use generated type -->
 <script lang="ts">
   import type { DashboardTodo } from '$js/ash_rpc';
 
@@ -393,7 +393,7 @@ If you support client-side re-fetching, use the same fields constant:
 
 ## Common Mistakes
 
-### ❌ Using Ash.read Directly
+### Using Ash.read Directly
 
 ```elixir
 # WRONG - Will cause Jason encoding errors
@@ -401,12 +401,12 @@ def index(conn, _params) do
   todos = Ash.read!(MyApp.Todo)
 
   conn
-  |> assign_prop(:todos, todos)  # 💥 ERROR!
+  |> assign_prop(:todos, todos)  # ERROR!
   |> render_inertia("TodoList")
 end
 ```
 
-### ❌ Wrong Pattern Matching
+### Wrong Pattern Matching
 
 ```elixir
 # WRONG - Response is a map, not a tuple
@@ -422,7 +422,7 @@ case AshTypescript.Rpc.run_typed_query(:my_app, :todos, %{}, conn) do
 end
 ```
 
-### ❌ String Keys for Arguments
+### String Keys for Arguments
 
 ```elixir
 # WRONG - String keys for input
@@ -432,7 +432,7 @@ run_typed_query(:my_app, :todo_detail, %{"id" => id}, conn)
 run_typed_query(:my_app, :todo_detail, %{input: %{id: id}}, conn)
 ```
 
-### ❌ Keyword Lists for Pagination
+### Keyword Lists for Pagination
 
 ```elixir
 # WRONG - Keyword list

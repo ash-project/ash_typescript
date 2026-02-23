@@ -126,7 +126,7 @@ const tasksPartial = await readLimited({
   metadataFields: ["processingTimeMs"]
 });
 
-// ⚠️ Silently filtered: Non-exposed fields are ignored
+// Silently filtered: Non-exposed fields are ignored
 const tasksFiltered = await readLimited({
   fields: ["id", "title"],
   metadataFields: ["processingTimeMs", "apiVersion"]  // apiVersion not exposed
