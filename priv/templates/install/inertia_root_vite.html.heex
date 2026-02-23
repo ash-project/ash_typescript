@@ -6,16 +6,8 @@
     <meta name="csrf-token" content={get_csrf_token()} />
     <.inertia_title>{assigns[:page_title]}</.inertia_title>
     <.inertia_head content={@inertia_head} />
-    <link
-      href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"
-      rel="stylesheet"
-    />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js">
-    </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js">
-    </script>
     <PhoenixVite.Components.assets
-      names={["js/index.js", "css/app.css"]}
+      names={[if(PhoenixVite.Components.has_vite_watcher?(__WEB_MODULE__.Endpoint), do: "js/index.js", else: "__ENTRY_FILE__"), "css/app.css"]}
       manifest={{:__APP_NAME__, "priv/static/.vite/manifest.json"}}
       dev_server={PhoenixVite.Components.has_vite_watcher?(__WEB_MODULE__.Endpoint)}
       to_url={fn p -> static_url(@conn, p) end}

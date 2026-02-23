@@ -26,7 +26,7 @@ if Code.ensure_loaded?(Igniter) do
       Improves build performance when using the esbuild bundler.
 
     * `--inertia` - Install with Inertia.js support for SSR.
-      Creates a dedicated entry point (`js/index.ts`) and Inertia-specific
+      Creates dedicated entry points (`js/index.ts` and `js/ssr.ts`) and Inertia-specific
       pipeline. Requires `--framework` to be specified.
 
     ## Examples
@@ -158,9 +158,11 @@ if Code.ensure_loaded?(Igniter) do
             igniter
 
           {framework, true} ->
-            # Inertia flow: separate entry point, layout, controller, and routes
+            # Inertia flow: separate entry points, layout, controller, and routes
             igniter
             |> create_package_json(bundler, framework)
+            |> add_prism_deps()
+            |> add_prism_stylesheet()
             |> add_inertia_deps(framework)
             |> update_tsconfig(framework)
             |> setup_framework_bundler_for_inertia(app_name, bundler, use_bun, framework)
@@ -170,6 +172,8 @@ if Code.ensure_loaded?(Igniter) do
             |> add_inertia_plug_to_router()
             |> create_inertia_root_layout(web_module, bundler, framework)
             |> create_inertia_entry_point(framework, bundler)
+            |> create_inertia_ssr_entry_point(framework)
+            |> setup_inertia_ssr_support(app_name, web_module, bundler, framework)
             |> create_inertia_page_component(framework)
             |> create_inertia_page_controller(web_module, framework)
             |> add_inertia_pipeline_and_routes(web_module)
@@ -178,6 +182,8 @@ if Code.ensure_loaded?(Igniter) do
             # SPA flow: client-side routing with spa_root layout
             igniter
             |> create_package_json(bundler, framework)
+            |> add_prism_deps()
+            |> add_prism_stylesheet()
             |> create_index_page(framework)
             |> update_tsconfig(framework)
             |> setup_framework_bundler(app_name, bundler, use_bun, framework)
@@ -670,6 +676,25 @@ if Code.ensure_loaded?(Igniter) do
       end)
     end
 
+    defp add_prism_deps(igniter) do
+      update_package_json(igniter, fn package_json ->
+        merge_package_section(package_json, "dependencies", %{"prismjs" => "^1.30.0"})
+      end)
+    end
+
+    defp add_prism_stylesheet(igniter) do
+      Igniter.update_file(igniter, "assets/css/app.css", fn source ->
+        content = source.content
+        prism_import = ~s|@import "prismjs/themes/prism-tomorrow.css";|
+
+        if String.contains?(content, prism_import) do
+          source
+        else
+          Rewrite.Source.update(source, :content, prism_import <> "\n" <> content)
+        end
+      end)
+    end
+
     defp update_package_json(igniter, updater) do
       Igniter.update_file(igniter, "assets/package.json", fn source ->
         case Jason.decode(source.content) do
@@ -705,6 +730,10 @@ if Code.ensure_loaded?(Igniter) do
       react_index_content = """
       import React from "react";
       import { createRoot } from "react-dom/client";
+      import Prism from "prismjs";
+      import "prismjs/components/prism-elixir";
+      import "prismjs/components/prism-bash";
+      import "prismjs/components/prism-typescript";
 
       // Declare Prism for TypeScript
       declare global {
@@ -712,6 +741,8 @@ if Code.ensure_loaded?(Igniter) do
           Prism: any;
         }
       }
+
+      (window as any).Prism = Prism;
 
       export default function App() {
         React.useEffect(() => {
@@ -747,6 +778,12 @@ if Code.ensure_loaded?(Igniter) do
       vue_index_content = """
       import { createApp } from "vue";
       import App from "./App.vue";
+      import Prism from "prismjs";
+      import "prismjs/components/prism-elixir";
+      import "prismjs/components/prism-bash";
+      import "prismjs/components/prism-typescript";
+
+      (window as any).Prism = Prism;
 
       const app = createApp(App);
       app.mount("#app");
@@ -765,6 +802,12 @@ if Code.ensure_loaded?(Igniter) do
       svelte_index_content = """
       import App from "./App.svelte";
       import { mount } from "svelte";
+      import Prism from "prismjs";
+      import "prismjs/components/prism-elixir";
+      import "prismjs/components/prism-bash";
+      import "prismjs/components/prism-typescript";
+
+      (window as any).Prism = Prism;
 
       const app = mount(App, {
         target: document.getElementById("app")!,
@@ -784,12 +827,18 @@ if Code.ensure_loaded?(Igniter) do
       solid_index_content = """
       import { onMount } from "solid-js";
       import { render } from "solid-js/web";
+      import Prism from "prismjs";
+      import "prismjs/components/prism-elixir";
+      import "prismjs/components/prism-bash";
+      import "prismjs/components/prism-typescript";
 
       declare global {
         interface Window {
           Prism: any;
         }
       }
+
+      (window as any).Prism = Prism;
 
       const App = () => {
         onMount(() => {
@@ -971,6 +1020,39 @@ if Code.ensure_loaded?(Igniter) do
             zipper
         end
       end)
+      |> normalize_esbuild_node_path_env()
+    end
+
+    # Ensure esbuild receives NODE_PATH as a path-delimited string.
+    # Some templates can emit a list value, which breaks module resolution in prod.
+    defp normalize_esbuild_node_path_env(igniter) do
+      joined_node_path =
+        ~s|env: %{"NODE_PATH" => Enum.join([Path.expand("../deps", __DIR__), Path.expand(Mix.Project.build_path()), Path.expand("../_build/dev", __DIR__)], ":")}|
+
+      Igniter.update_file(igniter, "config/config.exs", fn source ->
+        content = source.content
+
+        updated_content =
+          content
+          |> String.replace(
+            ~s|env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}|,
+            joined_node_path
+          )
+          |> String.replace(
+            ~s|env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}|,
+            joined_node_path
+          )
+          |> String.replace(
+            ~s|env: %{"NODE_PATH" => Enum.join([Path.expand("../deps", __DIR__), Mix.Project.build_path()], ":")}|,
+            joined_node_path
+          )
+
+        if updated_content == content do
+          source
+        else
+          Rewrite.Source.update(source, :content, updated_content)
+        end
+      end)
     end
 
     defp get_entry_file("react"), do: "js/index.tsx"
@@ -989,6 +1071,10 @@ if Code.ensure_loaded?(Igniter) do
       const args = process.argv.slice(2);
       const watch = args.includes("--watch");
       const deploy = args.includes("--deploy");
+      const mixBuildPath =
+        process.env.MIX_BUILD_PATH ||
+        path.resolve(__dirname, "..", "_build", process.env.MIX_ENV || "dev");
+      const fallbackDevBuildPath = path.resolve(__dirname, "..", "_build", "dev");
 
       const loader = {
         ".js": "js",
@@ -1012,8 +1098,13 @@ if Code.ensure_loaded?(Igniter) do
         logLevel: "info",
         loader,
         plugins,
-        nodePaths: ["../deps", ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : [])],
-        external: ["/fonts/*", "/images/*", "phoenix-colocated/*"],
+        nodePaths: [
+          "../deps",
+          mixBuildPath,
+          fallbackDevBuildPath,
+          ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : []),
+        ],
+        external: ["/fonts/*", "/images/*"],
         splitting: true,
         format: "esm",
       };
@@ -1051,6 +1142,10 @@ if Code.ensure_loaded?(Igniter) do
       const args = process.argv.slice(2);
       const watch = args.includes("--watch");
       const deploy = args.includes("--deploy");
+      const mixBuildPath =
+        process.env.MIX_BUILD_PATH ||
+        path.resolve(__dirname, "..", "_build", process.env.MIX_ENV || "dev");
+      const fallbackDevBuildPath = path.resolve(__dirname, "..", "_build", "dev");
 
       const loader = {
         ".js": "js",
@@ -1078,8 +1173,13 @@ if Code.ensure_loaded?(Igniter) do
         logLevel: "info",
         loader,
         plugins,
-        nodePaths: ["../deps", ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : [])],
-        external: ["/fonts/*", "/images/*", "phoenix-colocated/*"],
+        nodePaths: [
+          "../deps",
+          mixBuildPath,
+          fallbackDevBuildPath,
+          ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : []),
+        ],
+        external: ["/fonts/*", "/images/*"],
         mainFields: ["svelte", "browser", "module", "main"],
         conditions: ["svelte", "browser"],
         splitting: true,
@@ -1119,6 +1219,10 @@ if Code.ensure_loaded?(Igniter) do
       const args = process.argv.slice(2);
       const watch = args.includes("--watch");
       const deploy = args.includes("--deploy");
+      const mixBuildPath =
+        process.env.MIX_BUILD_PATH ||
+        path.resolve(__dirname, "..", "_build", process.env.MIX_ENV || "dev");
+      const fallbackDevBuildPath = path.resolve(__dirname, "..", "_build", "dev");
 
       const loader = {
         ".js": "js",
@@ -1142,8 +1246,13 @@ if Code.ensure_loaded?(Igniter) do
         logLevel: "info",
         loader,
         plugins,
-        nodePaths: ["../deps", ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : [])],
-        external: ["/fonts/*", "/images/*", "phoenix-colocated/*"],
+        nodePaths: [
+          "../deps",
+          mixBuildPath,
+          fallbackDevBuildPath,
+          ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : []),
+        ],
+        external: ["/fonts/*", "/images/*"],
         splitting: true,
         format: "esm",
       };
@@ -1247,7 +1356,7 @@ if Code.ensure_loaded?(Igniter) do
          [
            #{runner}: ["build.js", "--watch",
              cd: Path.expand("../assets", __DIR__),
-             env: %{"NODE_PATH" => Enum.join([Path.expand("../deps", __DIR__), Mix.Project.build_path()], ":")}
+             env: %{"NODE_PATH" => Enum.join([Path.expand("../deps", __DIR__), Path.expand(Mix.Project.build_path()), Path.expand("../_build/dev", __DIR__)], ":")}
            ],
            tailwind: {Tailwind, :install_and_run, [:#{app_name}, ~w(--watch)]}
          ]
@@ -1260,7 +1369,7 @@ if Code.ensure_loaded?(Igniter) do
              [
                #{runner}: ["build.js", "--watch",
                  cd: Path.expand("../assets", __DIR__),
-                 env: %{"NODE_PATH" => Enum.join([Path.expand("../deps", __DIR__), Mix.Project.build_path()], ":")}
+                 env: %{"NODE_PATH" => Enum.join([Path.expand("../deps", __DIR__), Path.expand(Mix.Project.build_path()), Path.expand("../_build/dev", __DIR__)], ":")}
                ],
                tailwind: {Tailwind, :install_and_run, [:#{app_name}, ~w(--watch)]}
              ]
@@ -1285,7 +1394,7 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.Project.TaskAliases.modify_existing_alias("assets.deploy", fn zipper ->
         alias_code =
           Sourceror.parse_string!(
-            ~s|["tailwind #{app_name} --minify", "cmd --cd assets #{runner} build.js --deploy"]|
+            ~s|["tailwind #{app_name} --minify", "cmd --cd assets #{runner} build.js --deploy", "phx.digest"]|
           )
 
         {:ok, Igniter.Code.Common.replace_code(zipper, alias_code)}
@@ -1449,6 +1558,8 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     # Create spa_root.html.heex layout for vite + react (includes React Refresh preamble)
+    # TODO: Remove __ENTRY_FILE__ dev/prod split in Vite layout templates once
+    # https://github.com/LostKobrakai/phoenix_vite/pull/24 is merged. Otherwise keep as is.
     defp create_spa_root_layout(igniter, web_module, "vite", framework)
          when framework in ["react", "react18"] do
       app_name = Igniter.Project.Application.app_name(igniter)
@@ -1459,9 +1570,9 @@ if Code.ensure_loaded?(Igniter) do
       layout_content =
         render_install_template("spa_root_vite_react.html.heex", %{
           "__WEB_MODULE__" => clean_web_module,
-          "__APP_NAME__" => to_string(app_name)
+          "__APP_NAME__" => to_string(app_name),
+          "__ENTRY_FILE__" => get_entry_file(framework)
         })
-        |> String.replace("js/index.js", get_entry_file(framework))
 
       igniter
       |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
@@ -1477,9 +1588,9 @@ if Code.ensure_loaded?(Igniter) do
       layout_content =
         render_install_template("spa_root_vite.html.heex", %{
           "__WEB_MODULE__" => clean_web_module,
-          "__APP_NAME__" => to_string(app_name)
+          "__APP_NAME__" => to_string(app_name),
+          "__ENTRY_FILE__" => get_entry_file(framework)
         })
-        |> String.replace("js/index.js", get_entry_file(framework))
 
       igniter
       |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
@@ -1762,10 +1873,6 @@ if Code.ensure_loaded?(Igniter) do
 
       # Default template for other bundlers
       index_template_content = """
-      <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
-
       <div id="app"></div>
       <script defer phx-track-static type="text/javascript" src={~p"/assets/index.js"}>
       </script>
@@ -1996,6 +2103,187 @@ if Code.ensure_loaded?(Igniter) do
     defp setup_framework_bundler_for_inertia(igniter, _app_name, "vite", _use_bun, _framework),
       do: igniter
 
+    # Shared Inertia SSR setup for esbuild installs.
+    # React/React18 use the built-in Elixir esbuild profile.
+    defp setup_inertia_ssr_support(igniter, app_name, web_module, "esbuild", framework)
+         when framework in ["react", "react18"] do
+      igniter
+      |> configure_inertia_ssr_esbuild_profile(framework)
+      |> add_inertia_ssr_dev_watcher(app_name)
+      |> add_inertia_ssr_mix_aliases()
+      |> add_inertia_ssr_gitignore_entry()
+      |> add_inertia_ssr_application_child(app_name, web_module)
+      |> enable_inertia_ssr_config()
+    end
+
+    # Vue/Svelte use custom plugin-based build.js scripts, so they only need
+    # runtime wiring here (their SSR build is configured in build.js itself).
+    defp setup_inertia_ssr_support(igniter, app_name, web_module, "esbuild", framework)
+         when framework in ["vue", "svelte"] do
+      igniter
+      |> add_inertia_ssr_gitignore_entry()
+      |> add_inertia_ssr_application_child(app_name, web_module)
+      |> enable_inertia_ssr_config()
+    end
+
+    defp setup_inertia_ssr_support(igniter, _app_name, _web_module, _bundler, _framework),
+      do: igniter
+
+    defp configure_inertia_ssr_esbuild_profile(igniter, framework) do
+      ssr_entry =
+        if framework in ["react", "react18"],
+          do: "js/ssr.tsx",
+          else: "js/ssr.ts"
+
+      ssr_profile =
+        """
+        [
+          args: ~w(#{ssr_entry} --bundle --platform=node --outdir=../priv --format=cjs),
+          cd: Path.expand("../assets", __DIR__),
+          env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+        ]
+        """
+
+      ssr_profile_ast = Sourceror.parse_string!(ssr_profile)
+
+      Igniter.Project.Config.configure(
+        igniter,
+        "config.exs",
+        :esbuild,
+        [:ssr],
+        {:code, ssr_profile_ast},
+        updater: fn zipper ->
+          {:ok, Igniter.Code.Common.replace_code(zipper, ssr_profile_ast)}
+        end
+      )
+    end
+
+    defp add_inertia_ssr_dev_watcher(igniter, app_name) do
+      {igniter, endpoint} = Igniter.Libs.Phoenix.select_endpoint(igniter)
+
+      endpoint =
+        case endpoint do
+          nil ->
+            web_module = Igniter.Libs.Phoenix.web_module(igniter)
+            Module.concat(web_module, Endpoint)
+
+          endpoint ->
+            endpoint
+        end
+
+      default_watchers =
+        Sourceror.parse_string!("""
+        [
+          esbuild: {Esbuild, :install_and_run, [#{inspect(app_name)}, ~w(--sourcemap=inline --watch)]},
+          ssr: {Esbuild, :install_and_run, [:ssr, ~w(--sourcemap=inline --watch)]},
+          tailwind: {Tailwind, :install_and_run, [#{inspect(app_name)}, ~w(--watch)]}
+        ]
+        """)
+
+      ssr_watcher =
+        Sourceror.parse_string!(
+          "{Esbuild, :install_and_run, [:ssr, ~w(--sourcemap=inline --watch)]}"
+        )
+
+      Igniter.Project.Config.configure(
+        igniter,
+        "dev.exs",
+        app_name,
+        [endpoint, :watchers],
+        {:code, default_watchers},
+        updater: fn zipper ->
+          Igniter.Code.Keyword.set_keyword_key(zipper, :ssr, ssr_watcher, &{:ok, &1})
+        end
+      )
+    end
+
+    defp add_inertia_ssr_mix_aliases(igniter) do
+      igniter
+      |> Igniter.Project.TaskAliases.add_alias("assets.build", "esbuild ssr", if_exists: :append)
+      |> Igniter.Project.TaskAliases.add_alias("assets.deploy", "esbuild ssr", if_exists: :append)
+    end
+
+    defp add_inertia_ssr_gitignore_entry(igniter) do
+      if Igniter.exists?(igniter, ".gitignore") do
+        Igniter.update_file(igniter, ".gitignore", fn source ->
+          content = source.content
+
+          if String.contains?(content, "/priv/ssr.js") do
+            source
+          else
+            updated_content =
+              if String.ends_with?(content, "\n") do
+                content <> "/priv/ssr.js\n"
+              else
+                content <> "\n/priv/ssr.js\n"
+              end
+
+            Rewrite.Source.update(source, :content, updated_content)
+          end
+        end)
+      else
+        Igniter.create_new_file(igniter, ".gitignore", "/priv/ssr.js\n")
+      end
+    end
+
+    defp add_inertia_ssr_application_child(igniter, app_name, web_module) do
+      clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
+      app_module = String.replace_suffix(clean_web_module, "Web", "")
+      app_path = Macro.underscore(app_module)
+      application_path = "lib/#{app_path}/application.ex"
+
+      ssr_child =
+        "      {Inertia.SSR, path: Path.join([Application.app_dir(:#{app_name}), \"priv\"])}"
+
+      endpoint_child = "      #{clean_web_module}.Endpoint"
+
+      Igniter.update_file(igniter, application_path, fn source ->
+        content = source.content
+
+        if String.contains?(content, "Inertia.SSR") do
+          source
+        else
+          updated_content =
+            String.replace(
+              content,
+              endpoint_child,
+              ssr_child <> ",\n" <> endpoint_child,
+              global: false
+            )
+
+          if updated_content == content do
+            source
+          else
+            Rewrite.Source.update(source, :content, updated_content)
+          end
+        end
+      end)
+    end
+
+    defp enable_inertia_ssr_config(igniter) do
+      raise_setting = Sourceror.parse_string!("config_env() != :prod")
+
+      igniter
+      |> Igniter.Project.Config.configure(
+        "config.exs",
+        :inertia,
+        [:ssr],
+        true,
+        updater: fn zipper ->
+          {:ok, Igniter.Code.Common.replace_code(zipper, true)}
+        end
+      )
+      |> Igniter.Project.Config.configure(
+        "config.exs",
+        :inertia,
+        [:raise_on_ssr_failure],
+        {:code, raise_setting},
+        updater: fn zipper ->
+          {:ok, Igniter.Code.Common.replace_code(zipper, raise_setting)}
+        end
+      )
+    end
+
     # Update esbuild config for Inertia (adds inertia entry file instead of index)
     defp update_esbuild_config_for_inertia(igniter, app_name, use_bun, framework) do
       npm_install_task =
@@ -2090,12 +2378,18 @@ if Code.ensure_loaded?(Igniter) do
             zipper
         end
       end)
+      |> normalize_esbuild_node_path_env()
     end
 
     defp get_inertia_entry_file(framework) when framework in ["react", "react18"],
       do: "js/index.tsx"
 
     defp get_inertia_entry_file(_), do: "js/index.ts"
+
+    defp get_inertia_ssr_entry_file(framework) when framework in ["react", "react18"],
+      do: "ssr.tsx"
+
+    defp get_inertia_ssr_entry_file(_), do: "ssr.ts"
 
     # Create esbuild build.js for Vue/Svelte with Inertia entry point
     defp create_esbuild_script_for_inertia(igniter, "vue") do
@@ -2107,6 +2401,10 @@ if Code.ensure_loaded?(Igniter) do
       const args = process.argv.slice(2);
       const watch = args.includes("--watch");
       const deploy = args.includes("--deploy");
+      const mixBuildPath =
+        process.env.MIX_BUILD_PATH ||
+        path.resolve(__dirname, "..", "_build", process.env.MIX_ENV || "dev");
+      const fallbackDevBuildPath = path.resolve(__dirname, "..", "_build", "dev");
 
       const loader = {
         ".js": "js",
@@ -2120,39 +2418,86 @@ if Code.ensure_loaded?(Igniter) do
         ".gif": "file",
       };
 
-      const plugins = [vuePlugin()];
+      const clientPlugins = [vuePlugin()];
+      const ssrPlugins = [vuePlugin({ renderSSR: true })];
 
-      let opts = {
+      let clientOpts = {
         entryPoints: ["js/index.ts", "js/app.js"],
         bundle: true,
         target: "es2020",
         outdir: "../priv/static/assets",
         logLevel: "info",
         loader,
-        plugins,
-        nodePaths: ["../deps", ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : [])],
+        plugins: clientPlugins,
+        nodePaths: [
+          "../deps",
+          mixBuildPath,
+          fallbackDevBuildPath,
+          ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : []),
+        ],
+        external: ["/fonts/*", "/images/*"],
         splitting: true,
         format: "esm",
       };
 
+      let ssrOpts = {
+        entryPoints: ["js/ssr.ts"],
+        bundle: true,
+        platform: "node",
+        target: "node20",
+        format: "cjs",
+        outfile: "../priv/ssr.js",
+        logLevel: "info",
+        loader,
+        plugins: ssrPlugins,
+        nodePaths: [
+          "../deps",
+          mixBuildPath,
+          fallbackDevBuildPath,
+          ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : []),
+        ],
+      };
+
       if (deploy) {
-        opts = {
-          ...opts,
+        clientOpts = {
+          ...clientOpts,
+          minify: true,
+        };
+
+        ssrOpts = {
+          ...ssrOpts,
           minify: true,
         };
       }
 
-      if (watch) {
-        opts = {
-          ...opts,
-          sourcemap: "linked",
-        };
-        esbuild.context(opts).then((ctx) => {
-          ctx.watch();
-        });
-      } else {
-        esbuild.build(opts);
+      async function run() {
+        if (watch) {
+          clientOpts = {
+            ...clientOpts,
+            sourcemap: "linked",
+          };
+
+          ssrOpts = {
+            ...ssrOpts,
+            sourcemap: "linked",
+          };
+
+          const [clientCtx, ssrCtx] = await Promise.all([
+            esbuild.context(clientOpts),
+            esbuild.context(ssrOpts),
+          ]);
+
+          await Promise.all([clientCtx.watch(), ssrCtx.watch()]);
+          return;
+        }
+
+        await Promise.all([esbuild.build(clientOpts), esbuild.build(ssrOpts)]);
       }
+
+      run().catch((error) => {
+        console.error(error);
+        process.exit(1);
+      });
       """
 
       igniter
@@ -2168,6 +2513,10 @@ if Code.ensure_loaded?(Igniter) do
       const args = process.argv.slice(2);
       const watch = args.includes("--watch");
       const deploy = args.includes("--deploy");
+      const mixBuildPath =
+        process.env.MIX_BUILD_PATH ||
+        path.resolve(__dirname, "..", "_build", process.env.MIX_ENV || "dev");
+      const fallbackDevBuildPath = path.resolve(__dirname, "..", "_build", "dev");
 
       const loader = {
         ".js": "js",
@@ -2187,7 +2536,13 @@ if Code.ensure_loaded?(Igniter) do
         }),
       ];
 
-      let opts = {
+      const ssrPlugins = [
+        sveltePlugin({
+          compilerOptions: { generate: "server", css: "external" },
+        }),
+      ];
+
+      let clientOpts = {
         entryPoints: ["js/index.ts", "js/app.js"],
         bundle: true,
         target: "es2020",
@@ -2195,31 +2550,79 @@ if Code.ensure_loaded?(Igniter) do
         logLevel: "info",
         loader,
         plugins,
-        nodePaths: ["../deps", ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : [])],
+        nodePaths: [
+          "../deps",
+          mixBuildPath,
+          fallbackDevBuildPath,
+          ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : []),
+        ],
+        external: ["/fonts/*", "/images/*"],
         mainFields: ["svelte", "browser", "module", "main"],
         conditions: ["svelte", "browser"],
         splitting: true,
         format: "esm",
       };
 
+      let ssrOpts = {
+        entryPoints: ["js/ssr.ts"],
+        bundle: true,
+        platform: "node",
+        target: "node20",
+        format: "cjs",
+        outfile: "../priv/ssr.js",
+        logLevel: "info",
+        loader,
+        plugins: ssrPlugins,
+        nodePaths: [
+          "../deps",
+          mixBuildPath,
+          fallbackDevBuildPath,
+          ...(process.env.NODE_PATH ? process.env.NODE_PATH.split(path.delimiter) : []),
+        ],
+        mainFields: ["svelte", "module", "main"],
+        conditions: ["svelte"],
+      };
+
       if (deploy) {
-        opts = {
-          ...opts,
+        clientOpts = {
+          ...clientOpts,
+          minify: true,
+        };
+
+        ssrOpts = {
+          ...ssrOpts,
           minify: true,
         };
       }
 
-      if (watch) {
-        opts = {
-          ...opts,
-          sourcemap: "linked",
-        };
-        esbuild.context(opts).then((ctx) => {
-          ctx.watch();
-        });
-      } else {
-        esbuild.build(opts);
+      async function run() {
+        if (watch) {
+          clientOpts = {
+            ...clientOpts,
+            sourcemap: "linked",
+          };
+
+          ssrOpts = {
+            ...ssrOpts,
+            sourcemap: "linked",
+          };
+
+          const [clientCtx, ssrCtx] = await Promise.all([
+            esbuild.context(clientOpts),
+            esbuild.context(ssrOpts),
+          ]);
+
+          await Promise.all([clientCtx.watch(), ssrCtx.watch()]);
+          return;
+        }
+
+        await Promise.all([esbuild.build(clientOpts), esbuild.build(ssrOpts)]);
       }
+
+      run().catch((error) => {
+        console.error(error);
+        process.exit(1);
+      });
       """
 
       igniter
@@ -2369,9 +2772,9 @@ if Code.ensure_loaded?(Igniter) do
       layout_content =
         render_install_template("inertia_root_vite_react.html.heex", %{
           "__WEB_MODULE__" => clean_web_module,
-          "__APP_NAME__" => to_string(app_name)
+          "__APP_NAME__" => to_string(app_name),
+          "__ENTRY_FILE__" => get_inertia_entry_file(framework)
         })
-        |> String.replace("js/index.js", get_inertia_entry_file(framework))
 
       igniter
       |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
@@ -2387,9 +2790,9 @@ if Code.ensure_loaded?(Igniter) do
       layout_content =
         render_install_template("inertia_root_vite.html.heex", %{
           "__WEB_MODULE__" => clean_web_module,
-          "__APP_NAME__" => to_string(app_name)
+          "__APP_NAME__" => to_string(app_name),
+          "__ENTRY_FILE__" => get_inertia_entry_file(framework)
         })
-        |> String.replace("js/index.js", get_inertia_entry_file(framework))
 
       igniter
       |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
@@ -2410,39 +2813,24 @@ if Code.ensure_loaded?(Igniter) do
     defp create_inertia_root_layout(igniter, _web_module, _bundler, _framework), do: igniter
 
     # Create Inertia entry point file (assets/js/index.tsx or .ts)
-    defp create_inertia_entry_point(igniter, framework, bundler)
+    defp create_inertia_entry_point(igniter, framework, _bundler)
          when framework in ["react", "react18"] do
-      # For esbuild, use dynamic import() for code splitting
-      # For vite, use import.meta.glob for page resolution
-      resolve_code =
-        if bundler == "vite" do
-          """
-            resolve: (name) => {
-              const pages = import.meta.glob("./pages/**/*.tsx", { eager: true });
-              return pages[`./pages/${name}.tsx`];
-            },
-          """
-        else
-          """
-            resolve: async (name) => {
-              return await import(`./pages/${name}.tsx`);
-            },
-          """
-        end
-
       entry_content = """
-      import React from "react";
       import { createInertiaApp } from "@inertiajs/react";
-      import { createRoot } from "react-dom/client";
+      import { hydrateRoot } from "react-dom/client";
+      import Prism from "prismjs";
+      import "prismjs/components/prism-elixir";
+      import "prismjs/components/prism-bash";
+      import "prismjs/components/prism-typescript";
+
+      (window as any).Prism = Prism;
 
       createInertiaApp({
-      #{String.trim(resolve_code)}
+        resolve: async (name) => {
+          return await import(`./pages/${name}.tsx`);
+        },
         setup({ el, App, props }) {
-          createRoot(el).render(
-            <React.StrictMode>
-              <App {...props} />
-            </React.StrictMode>
-          );
+          hydrateRoot(el, <App {...props} />);
         },
       });
       """
@@ -2451,31 +2839,23 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.create_new_file("assets/js/index.tsx", entry_content, on_exists: :warning)
     end
 
-    defp create_inertia_entry_point(igniter, "vue", bundler) do
-      resolve_code =
-        if bundler == "vite" do
-          """
-            resolve: (name) => {
-              const pages = import.meta.glob("./**/*.vue", { eager: true });
-              return pages[`./${name}.vue`] || pages[`./pages/${name}.vue`];
-            },
-          """
-        else
-          """
-            resolve: async (name) => {
-              return await import(`./pages/${name}.vue`);
-            },
-          """
-        end
-
+    defp create_inertia_entry_point(igniter, "vue", _bundler) do
       entry_content = """
-      import { createApp, h } from "vue";
+      import { createSSRApp, h } from "vue";
       import { createInertiaApp } from "@inertiajs/vue3";
+      import Prism from "prismjs";
+      import "prismjs/components/prism-elixir";
+      import "prismjs/components/prism-bash";
+      import "prismjs/components/prism-typescript";
+
+      (window as any).Prism = Prism;
 
       createInertiaApp({
-      #{String.trim(resolve_code)}
+        resolve: async (name) => {
+          return await import(`./pages/${name}.vue`);
+        },
         setup({ el, App, props, plugin }) {
-          createApp({ render: () => h(App, props) })
+          createSSRApp({ render: () => h(App, props) })
             .use(plugin)
             .mount(el);
         },
@@ -2486,37 +2866,105 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.create_new_file("assets/js/index.ts", entry_content, on_exists: :warning)
     end
 
-    defp create_inertia_entry_point(igniter, "svelte", bundler) do
-      resolve_code =
-        if bundler == "vite" do
-          """
-            resolve: (name) => {
-              const pages = import.meta.glob("./**/*.svelte", { eager: true });
-              return pages[`./${name}.svelte`] || pages[`./pages/${name}.svelte`];
-            },
-          """
-        else
-          """
-            resolve: async (name) => {
-              return await import(`./pages/${name}.svelte`);
-            },
-          """
-        end
-
+    defp create_inertia_entry_point(igniter, "svelte", _bundler) do
       entry_content = """
       import { mount } from "svelte";
+      import { hydrate } from "svelte";
       import { createInertiaApp } from "@inertiajs/svelte";
+      import Prism from "prismjs";
+      import "prismjs/components/prism-elixir";
+      import "prismjs/components/prism-bash";
+      import "prismjs/components/prism-typescript";
+
+      (window as any).Prism = Prism;
 
       createInertiaApp({
-      #{String.trim(resolve_code)}
+        resolve: async (name) => {
+          return await import(`./pages/${name}.svelte`);
+        },
         setup({ el, App, props }) {
-          mount(App, { target: el, props });
+          if (el.dataset.serverRendered === "true") {
+            hydrate(App, { target: el, props });
+          } else {
+            mount(App, { target: el, props });
+          }
         },
       });
       """
 
       igniter
       |> Igniter.create_new_file("assets/js/index.ts", entry_content, on_exists: :warning)
+    end
+
+    # Create Inertia SSR entry point file (assets/js/ssr.tsx or .ts)
+    defp create_inertia_ssr_entry_point(igniter, framework)
+         when framework in ["react", "react18"] do
+      entry_content = """
+      import { createInertiaApp } from "@inertiajs/react";
+      import ReactDOMServer from "react-dom/server";
+
+      export function render(page) {
+        return createInertiaApp({
+          page,
+          render: ReactDOMServer.renderToString,
+          resolve: async (name) => {
+            return await import(`./pages/${name}.tsx`);
+          },
+          setup: ({ App, props }) => <App {...props} />,
+        });
+      }
+      """
+
+      igniter
+      |> Igniter.create_new_file("assets/js/ssr.tsx", entry_content, on_exists: :warning)
+    end
+
+    defp create_inertia_ssr_entry_point(igniter, "vue") do
+      entry_content = """
+      import { createInertiaApp } from "@inertiajs/vue3";
+      import { renderToString } from "vue/server-renderer";
+      import { createSSRApp, h } from "vue";
+
+      export function render(page) {
+        return createInertiaApp({
+          page,
+          render: renderToString,
+          resolve: async (name) => {
+            return await import(`./pages/${name}.vue`);
+          },
+          setup({ App, props, plugin }) {
+            return createSSRApp({
+              render: () => h(App, props),
+            }).use(plugin);
+          },
+        });
+      }
+      """
+
+      igniter
+      |> Igniter.create_new_file("assets/js/ssr.ts", entry_content, on_exists: :warning)
+    end
+
+    defp create_inertia_ssr_entry_point(igniter, "svelte") do
+      entry_content = """
+      import { createInertiaApp } from "@inertiajs/svelte";
+      import { render as renderSvelte } from "svelte/server";
+
+      export function render(page) {
+        return createInertiaApp({
+          page,
+          resolve: async (name) => {
+            return await import(`./pages/${name}.svelte`);
+          },
+          setup({ App, props }) {
+            return renderSvelte(App, { props });
+          },
+        });
+      }
+      """
+
+      igniter
+      |> Igniter.create_new_file("assets/js/ssr.ts", entry_content, on_exists: :warning)
     end
 
     # Create demo page component that demonstrates AshTypescript RPC client
@@ -3321,6 +3769,8 @@ if Code.ensure_loaded?(Igniter) do
       inertia_entry_file =
         if framework in ["react", "react18"], do: "index.tsx", else: "index.ts"
 
+      inertia_ssr_entry_file = get_inertia_ssr_entry_file(framework)
+
       inertia_page_file =
         if framework in ["react", "react18"],
           do: "pages/App.tsx",
@@ -3393,6 +3843,7 @@ if Code.ensure_loaded?(Igniter) do
         Files created:
         - inertia_root.html.heex: Layout for Inertia pages (loads the Vite entry + app.css)
         - #{inertia_entry_file}: Inertia client-side entry point with createInertiaApp()
+        - #{inertia_ssr_entry_file}: Inertia SSR entry point
         - #{inertia_page_file}: Getting started guide page
         - PageController: Renders Inertia pages
 
@@ -3418,6 +3869,7 @@ if Code.ensure_loaded?(Igniter) do
         Files created:
         - inertia_root.html.heex: Layout for Inertia pages (loads index.js as ES module)
         - #{inertia_entry_file}: Inertia client-side entry point with createInertiaApp()
+        - #{inertia_ssr_entry_file}: Inertia SSR entry point
         - #{inertia_page_file}: Getting started guide page
         - PageController: Renders Inertia pages
 
@@ -3484,6 +3936,14 @@ if Code.ensure_loaded?(Igniter) do
           _ ->
             base_notice
         end
+
+      notice =
+        notice <>
+          """
+
+          Note:
+          - The demo page syntax highlighting uses the bundled `prismjs` npm package.
+          """
 
       # Run assets.setup to install npm dependencies (including framework deps we added)
       # For both esbuild and vite, we need to run this since we add framework deps to package.json
