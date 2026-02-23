@@ -67,6 +67,7 @@ config :ash_typescript,
   routes_output_file: nil,
   typed_controller_mode: :full,
   typed_controller_path_params_style: :object,
+  typed_controller_base_path: "",             # Base URL prefix for all generated route URLs
   enable_controller_namespace_files: false,  # Generate separate files for namespaced routes
   controller_namespace_output_dir: nil,       # Directory for controller namespace files
 
@@ -140,6 +141,7 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `routes_output_file` | `string \| nil` | `nil` | Output file path for generated route helpers |
 | `typed_controller_mode` | `:full \| :paths_only` | `:full` | Generation mode: `:full` generates path helpers + fetch functions, `:paths_only` generates only path helpers |
 | `typed_controller_path_params_style` | `:object \| :args` | `:object` | Path parameter style in generated functions |
+| `typed_controller_base_path` | `string \| {:runtime_expr, string}` | `""` | Base URL prefix for all generated route URLs |
 | `enable_controller_namespace_files` | `boolean` | `false` | Generate separate files for namespaced controller routes |
 | `controller_namespace_output_dir` | `string \| nil` | `nil` | Directory for controller namespace files (defaults to `routes_output_file` dir) |
 | `typed_controller_before_request_hook` | `string \| nil` | `nil` | Function called before typed controller requests |
@@ -292,6 +294,7 @@ config :ash_typescript,
   # Generation mode (optional)
   typed_controller_mode: :full,              # :full (default) or :paths_only
   typed_controller_path_params_style: :object, # :object (default) or :args
+  typed_controller_base_path: "",            # Base URL prefix (string or {:runtime_expr, "..."})
 
   # Namespace files (optional)
   enable_controller_namespace_files: false,  # Generate separate files per namespace
@@ -317,6 +320,7 @@ config :ash_typescript,
 | `routes_output_file` | `string` | `nil` | Output file path (when `nil`, generation is skipped) |
 | `typed_controller_mode` | `:full \| :paths_only` | `:full` | `:full` generates path helpers + fetch functions; `:paths_only` generates only path helpers |
 | `typed_controller_path_params_style` | `:object \| :args` | `:object` | Path parameter style in generated TypeScript |
+| `typed_controller_base_path` | `string \| {:runtime_expr, string}` | `""` | Base URL prefix for all generated route URLs |
 | `enable_controller_namespace_files` | `boolean` | `false` | Generate separate files for namespaced routes |
 | `controller_namespace_output_dir` | `string \| nil` | `nil` | Directory for namespace files (defaults to `routes_output_file` dir) |
 | `typed_controller_before_request_hook` | `string \| nil` | `nil` | Function called before typed controller requests |

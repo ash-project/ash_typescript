@@ -393,6 +393,31 @@ Route exports are categorized as:
 - `Codegen.collect_route_exports/1` — categorizes exports for re-export generation
 - `ImportResolver.generate_namespace_reexport_content/5` — shared namespace file generator (used by both RPC and controller codegen)
 
+## Base Path
+
+When `typed_controller_base_path` is configured (string or `{:runtime_expr, "..."}`), all generated route URLs are prefixed with a `_basePath` variable.
+
+### How It Works
+
+1. **Config** (`lib/ash_typescript.ex`): `typed_controller_base_path/0` returns `""` by default
+2. **Codegen** (`codegen.ex`): reads the config, passes `base_path` to both `TypescriptStatic` and `RouteRenderer`
+3. **TypescriptStatic** (`typescript_static.ex`): `generate_base_path_variable/1` emits `const _basePath = ...;` when non-empty (uses `AshTypescript.Helpers.format_ts_value/1` for string vs runtime_expr formatting)
+4. **RouteRenderer** (`route_renderer.ex`): `build_url_template/4` and `build_url_template_to_variable/4` accept `has_base_path` flag — when true, URLs are prefixed with `${_basePath}`
+
+In `:paths_only` mode, the `_basePath` variable is generated standalone (not inside `generate_static_code`) since the static code block is skipped.
+
+### Format Function
+
+`AshTypescript.Helpers.format_ts_value/1` is the shared utility for embedding config values in TypeScript:
+- String → `"\"value\""`
+- `{:runtime_expr, expr}` → `expr` (raw JS)
+
+This is the same function used by RPC endpoint formatting (via `defdelegate format_endpoint_for_typescript/1`).
+
+### Test File
+
+`test/ash_typescript/typed_controller/base_path_test.exs` — covers default (no prefix), static string, runtime expression, option passthrough, and paths_only mode.
+
 ## Paths-Only Mode
 
 When `typed_controller_mode: :paths_only` is configured, only path helper functions are generated for all routes (including mutation routes). No input types or async fetch functions are produced.
@@ -495,6 +520,7 @@ config :ash_typescript,
   routes_output_file: "assets/js/routes.ts", # Output file for route helpers
   typed_controller_mode: :full,             # :full (default) or :paths_only
   typed_controller_path_params_style: :object, # :object (default) or :args
+  typed_controller_base_path: "",            # Base URL prefix (string or {:runtime_expr, "..."})
 
   # Lifecycle hooks
   typed_controller_before_request_hook: "RouteHooks.beforeRequest",
@@ -518,6 +544,7 @@ config :ash_typescript,
 | `routes_output_file` | `string` | `nil` | Output file path (when `nil`, generation is skipped) |
 | `typed_controller_mode` | `:full \| :paths_only` | `:full` | `:full` generates path helpers + fetch functions; `:paths_only` generates only path helpers |
 | `typed_controller_path_params_style` | `:object \| :args` | `:object` | Path parameter style in generated TypeScript |
+| `typed_controller_base_path` | `string \| {:runtime_expr, string}` | `""` | Base URL prefix for all generated route URLs |
 | `typed_controller_before_request_hook` | `string \| nil` | `nil` | Function called before typed controller requests |
 | `typed_controller_after_request_hook` | `string \| nil` | `nil` | Function called after typed controller requests |
 | `typed_controller_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for hook context |
@@ -563,6 +590,7 @@ The `Orchestrator` coordinates all file generation (types, Zod, RPC, routes, nam
 | File | Purpose |
 |------|---------|
 | `test/ash_typescript/typed_controller/codegen_test.exs` | Codegen output validation |
+| `test/ash_typescript/typed_controller/base_path_test.exs` | Base path URL prefixing (static, runtime_expr, paths_only) |
 | `test/ash_typescript/typed_controller/namespace_test.exs` | Controller namespace grouping and re-exports |
 | `test/ash_typescript/typed_controller/request_handler_test.exs` | Argument extraction, casting, validation, dispatch |
 | `test/ash_typescript/typed_controller/router_introspection_test.exs` | Router matching and multi-mount |
