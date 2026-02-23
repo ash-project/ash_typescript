@@ -2418,14 +2418,14 @@ if Code.ensure_loaded?(Igniter) do
         if bundler == "vite" do
           """
             resolve: (name) => {
-              const pages = import.meta.glob("./Pages/**/*.tsx", { eager: true });
-              return pages[`./Pages/${name}.tsx`];
+              const pages = import.meta.glob("./pages/**/*.tsx", { eager: true });
+              return pages[`./pages/${name}.tsx`];
             },
           """
         else
           """
             resolve: async (name) => {
-              return await import(`./Pages/${name}.tsx`);
+              return await import(`./pages/${name}.tsx`);
             },
           """
         end
@@ -2457,13 +2457,13 @@ if Code.ensure_loaded?(Igniter) do
           """
             resolve: (name) => {
               const pages = import.meta.glob("./**/*.vue", { eager: true });
-              return pages[`./${name}.vue`] || pages[`./Pages/${name}.vue`];
+              return pages[`./${name}.vue`] || pages[`./pages/${name}.vue`];
             },
           """
         else
           """
             resolve: async (name) => {
-              return await import(`./Pages/${name}.vue`);
+              return await import(`./pages/${name}.vue`);
             },
           """
         end
@@ -2492,13 +2492,13 @@ if Code.ensure_loaded?(Igniter) do
           """
             resolve: (name) => {
               const pages = import.meta.glob("./**/*.svelte", { eager: true });
-              return pages[`./${name}.svelte`] || pages[`./Pages/${name}.svelte`];
+              return pages[`./${name}.svelte`] || pages[`./pages/${name}.svelte`];
             },
           """
         else
           """
             resolve: async (name) => {
-              return await import(`./Pages/${name}.svelte`);
+              return await import(`./pages/${name}.svelte`);
             },
           """
         end
@@ -2548,7 +2548,7 @@ if Code.ensure_loaded?(Igniter) do
 
       igniter
       |> Igniter.create_new_file(
-        "assets/js/Pages/App.tsx",
+        "assets/js/pages/App.tsx",
         component_content,
         on_exists: :warning
       )
@@ -2560,7 +2560,7 @@ if Code.ensure_loaded?(Igniter) do
       vue_component = script_content <> "\n" <> template_content
 
       igniter
-      |> Igniter.create_new_file("assets/js/Pages/App.vue", vue_component, on_exists: :warning)
+      |> Igniter.create_new_file("assets/js/pages/App.vue", vue_component, on_exists: :warning)
     end
 
     defp create_inertia_page_component(igniter, "svelte") do
@@ -2569,7 +2569,7 @@ if Code.ensure_loaded?(Igniter) do
       svelte_component = script_content <> "\n" <> template_content
 
       igniter
-      |> Igniter.create_new_file("assets/js/Pages/App.svelte", svelte_component,
+      |> Igniter.create_new_file("assets/js/pages/App.svelte", svelte_component,
         on_exists: :warning
       )
     end
@@ -3323,8 +3323,8 @@ if Code.ensure_loaded?(Igniter) do
 
       inertia_page_file =
         if framework in ["react", "react18"],
-          do: "Pages/App.tsx",
-          else: "Pages/App.#{framework}"
+          do: "pages/App.tsx",
+          else: "pages/App.#{framework}"
 
       base_notice = """
       AshTypescript has been successfully installed!
