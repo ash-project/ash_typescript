@@ -377,8 +377,7 @@ end
 ```elixir
 # Router: patch "/providers/:provider", SessionController, :update_provider
 
-route :update_provider do
-  method :patch
+patch :update_provider do
   argument :provider, :string  # Must match :provider in the path
   argument :enabled, :boolean, allow_nil?: false
   run fn conn, params -> handle_update(conn, params) end

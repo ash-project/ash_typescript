@@ -18,7 +18,7 @@ else where an rpc action isn't a natural fit.
 
 ### 1. Define a Typed Controller
 
-Create a module that uses `AshTypescript.TypedController` and define your routes:
+Create a module that uses `AshTypescript.TypedController` and define your routes. The preferred syntax uses HTTP verb shortcuts (`get`, `post`, `patch`, `put`, `delete`):
 
 ```elixir
 defmodule MyApp.Session do
@@ -27,16 +27,14 @@ defmodule MyApp.Session do
   typed_controller do
     module_name MyAppWeb.SessionController
 
-    route :auth do
-      method :get
+    get :auth do
       run fn conn, _params ->
         render(conn, "auth.html")
       end
     end
 
-    route :login do
-      method :post
-      argument :code, :string, allow_nil?: false
+    post :login do
+      argument :magic_link_token, :string, allow_nil?: false
       argument :remember_me, :boolean
       run fn conn, %{magic_link_token: token, remember_me: remember_me} ->
         case MyApp.Auth.get_user_from_magic_link_token(token) do
@@ -53,8 +51,7 @@ defmodule MyApp.Session do
       end
     end
 
-    route :logout do
-      method :get
+    get :logout do
       run fn conn, _params ->
         conn
         |> clear_session()
@@ -195,17 +192,50 @@ const logoutUrl = logoutPath(); // "/auth/logout"
 | Option | Type | Required | Description |
 |--------|------|----------|-------------|
 | `module_name` | atom | Yes | The Phoenix controller module to generate (e.g., `MyAppWeb.SessionController`) |
+| `namespace` | string | No | Default namespace for all routes in this controller. Can be overridden per-route. |
 
-### `route` Options
+### Three Route Syntaxes
+
+The DSL supports three ways to define routes:
+
+**Verb shortcuts (preferred)** — the HTTP method is the entity name:
+```elixir
+get :auth do
+  run fn conn, _params -> render(conn, "auth.html") end
+end
+
+post :login do
+  run fn conn, _params -> handle_login(conn) end
+  argument :code, :string, allow_nil?: false
+end
+```
+
+**Positional method arg** — method as second argument to `route`:
+```elixir
+route :logout, :post do
+  run fn conn, _params -> handle_logout(conn) end
+end
+```
+
+**Default method** — `route` without method defaults to `:get`:
+```elixir
+route :home do
+  run fn conn, _params -> render(conn, "home.html") end
+end
+```
+
+### Route Options
 
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
 | name | atom | Yes | — | Controller action name (positional arg) |
-| `method` | atom | Yes | — | HTTP method: `:get`, `:post`, `:patch`, `:put`, `:delete` |
+| `method` | atom | No | `:get` | HTTP method: `:get`, `:post`, `:patch`, `:put`, `:delete`. Implicit with verb shortcuts. |
 | `run` | fn/2 or module | Yes | — | Handler function or module |
 | `description` | string | No | — | JSDoc description in generated TypeScript |
 | `deprecated` | boolean or string | No | — | Mark as deprecated in TypeScript (`true` for default message, string for custom) |
 | `see` | list of atoms | No | `[]` | Related route names for JSDoc `@see` tags |
+| `namespace` | string | No | — | Namespace for this route (overrides controller-level namespace) |
+| `zod_schema_name` | string | No | — | Override generated Zod schema name (avoids collisions with RPC) |
 
 ### `argument` Options
 
@@ -224,8 +254,7 @@ const logoutUrl = logoutPath(); // "/auth/logout"
 The simplest approach — define the handler directly in the DSL:
 
 ```elixir
-route :auth do
-  method :get
+get :auth do
   run fn conn, _params ->
     render(conn, "auth.html")
   end
@@ -260,8 +289,7 @@ end
 Then reference it in the DSL:
 
 ```elixir
-route :login do
-  method :post
+post :login do
   argument :magic_link_token, :string, allow_nil?: false
   run MyApp.Handlers.Login
 end
@@ -312,8 +340,7 @@ All validation errors are collected in a single pass, so the client receives eve
 GET routes generate synchronous path helper functions:
 
 ```elixir
-route :auth do
-  method :get
+get :auth do
   run fn conn, _params -> render(conn, "auth.html") end
 end
 ```
@@ -329,8 +356,7 @@ export function authPath(): string {
 Arguments on GET routes become query parameters:
 
 ```elixir
-route :search do
-  method :get
+get :search do
   argument :q, :string, allow_nil?: false
   argument :page, :integer
   run fn conn, params -> render(conn, "search.html", params) end
@@ -353,8 +379,7 @@ export function searchPath(query: { q: string; page?: number }): string {
 POST, PATCH, PUT, and DELETE routes generate async fetch functions with typed inputs:
 
 ```elixir
-route :login do
-  method :post
+post :login do
   argument :code, :string, allow_nil?: false
   argument :remember_me, :boolean
   run fn conn, params -> handle_login(conn, params) end
@@ -386,8 +411,7 @@ When a router path includes parameters (e.g., `/organizations/:org_slug`), they 
 For GET routes, path params are interpolated into the path helper:
 
 ```elixir
-route :settings do
-  method :get
+get :settings do
   argument :org_slug, :string
   run fn conn, _params -> render(conn, "settings.html") end
 end
@@ -410,8 +434,7 @@ export function settingsPath(path: { orgSlug: string }): string {
 When a GET route has both path params and additional arguments, the path params are placed in a `path` object and the remaining arguments become query parameters:
 
 ```elixir
-route :members do
-  method :get
+get :members do
   argument :org_slug, :string
   argument :role, :string
   argument :page, :integer
@@ -444,8 +467,7 @@ export function membersPath(
 For mutation routes, path params are separated from the request body input:
 
 ```elixir
-route :update_provider do
-  method :patch
+patch :update_provider do
   argument :provider, :string
   argument :enabled, :boolean, allow_nil?: false
   argument :display_name, :string
@@ -528,13 +550,57 @@ config :ash_typescript,
 
 This generates only path helpers for all routes, skipping input types and async functions. Useful when you handle mutations via a different client library or directly with `fetch`.
 
+## Namespaces
+
+Typed controllers support namespaces for organizing generated route helpers into separate files — the same concept as [RPC namespaces](../features/developer-experience.md#namespaces).
+
+### Configuration
+
+Set a default namespace at the controller level, and optionally override per-route:
+
+```elixir
+defmodule MyApp.Session do
+  use AshTypescript.TypedController
+
+  typed_controller do
+    module_name MyAppWeb.SessionController
+    namespace "auth"  # Default namespace for all routes
+
+    get :auth do
+      run fn conn, _params -> render(conn, "auth.html") end
+    end
+
+    post :login do
+      run fn conn, _params -> handle_login(conn) end
+      argument :code, :string, allow_nil?: false
+    end
+
+    # This route goes into a different namespace
+    get :profile do
+      namespace "account"  # Overrides the controller-level "auth"
+      run fn conn, _params -> render(conn, "profile.html") end
+    end
+  end
+end
+```
+
+### Precedence
+
+Route-level namespace overrides controller-level. Routes without any namespace go into the main routes file.
+
+### Generated Output
+
+With the example above, code generation produces:
+- `routes.ts` — imports and re-exports from namespace files
+- `namespace/auth.ts` — `authPath`, `login`, `LoginInput`, etc.
+- `namespace/account.ts` — `profilePath`
+
 ## JSDoc `@see` Tags
 
 Use the `see` option to add cross-references between related routes:
 
 ```elixir
-route :login do
-  method :post
+post :login do
   see [:auth, :logout]
   argument :code, :string, allow_nil?: false
   run fn conn, params -> handle_login(conn, params) end
@@ -709,8 +775,12 @@ When enabled, 500 responses include the real exception message instead of the ge
 | `typed_controller_import_into_generated` | list of maps | `[]` | Custom imports for generated file |
 | `typed_controller_error_handler` | MFA tuple, module, or nil | `nil` | Custom error transformation handler |
 | `typed_controller_show_raised_errors` | boolean | `false` | Show exception messages in 500 responses |
+| `enable_controller_namespace_files` | boolean | `false` | Generate separate files for namespaced routes |
+| `controller_namespace_output_dir` | string or nil | `nil` | Directory for namespace files (defaults to `routes_output_file` dir) |
 
 All three of `typed_controllers`, `router`, and `routes_output_file` must be configured for route generation to run.
+
+Route helpers are part of AshTypescript's multi-file output architecture — shared types and Zod schemas are generated into separate files that both RPC and controller code import from. See [Configuration Reference — Multi-File Output](../reference/configuration.md#multi-file-output) for the full file layout.
 
 ### Path Params Style
 
@@ -745,15 +815,13 @@ Path parameters are also validated at codegen time:
 
 ```elixir
 # ✅ Correct — :provider is always a path param, so allow_nil?: false
-route :provider_page do
-  method :get
+get :provider_page do
   argument :provider, :string, allow_nil?: false
   run fn conn, _params -> render(conn, "provider.html") end
 end
 
 # ✅ Correct — :id is only a path param at /admin/pages/:id, nil at /app/pages
-route :page do
-  method :get
+get :page do
   argument :id, :string  # allow_nil?: true (default) is correct here
   run fn conn, _params -> render(conn, "page.html") end
 end
