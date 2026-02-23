@@ -14,22 +14,29 @@ handler modules implementing `AshTypescript.TypedController.Route`).
 
 ## Usage
 
+Three syntaxes are supported for defining routes:
+
     defmodule MyApp.Session do
       use AshTypescript.TypedController
 
       typed_controller do
         module_name MyAppWeb.SessionController
 
-        route :login do
-          method :post
+        # Verb shortcut (preferred)
+        post :login do
           run fn conn, params -> Plug.Conn.send_resp(conn, 200, "OK") end
           argument :code, :string, allow_nil?: false
           argument :remember_me, :boolean
         end
 
-        route :auth do
-          method :get
+        # Positional method arg
+        route :auth, :get do
           run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Auth") end
+        end
+
+        # Method defaults to :get when omitted
+        route :home do
+          run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Home") end
         end
       end
     end
@@ -40,6 +47,16 @@ Define typed controller routes
 
 ### Nested DSLs
  * [route](#typed_controller-route)
+   * argument
+ * [get](#typed_controller-get)
+   * argument
+ * [post](#typed_controller-post)
+   * argument
+ * [patch](#typed_controller-patch)
+   * argument
+ * [put](#typed_controller-put)
+   * argument
+ * [delete](#typed_controller-delete)
    * argument
 
 
@@ -57,11 +74,16 @@ Define typed controller routes
 
 ### typed_controller.route
 ```elixir
-route name
+route name, method \\ :get
 ```
 
 
 Define a route that maps a controller action to a handler.
+
+Supports three syntaxes:
+- `route :name, :post do ... end` (positional method arg)
+- `route :name do ... end` (defaults to GET)
+- `post :name do ... end` (verb shortcut)
 
 The handler can be an inline function (fn/2) or a module implementing
 the `AshTypescript.TypedController.Route` behaviour. Handlers receive
@@ -79,11 +101,11 @@ the `AshTypescript.TypedController.Route` behaviour. Handlers receive
 | Name | Type | Default | Docs |
 |------|------|---------|------|
 | [`name`](#typed_controller-route-name){: #typed_controller-route-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth) |
+| [`method`](#typed_controller-route-method){: #typed_controller-route-method } | `:get \| :post \| :patch \| :put \| :delete` | `:get` | The HTTP method. Defaults to :get. |
 ### Options
 
 | Name | Type | Default | Docs |
 |------|------|---------|------|
-| [`method`](#typed_controller-route-method){: #typed_controller-route-method .spark-required} | `:get \| :post \| :patch \| :put \| :delete` |  | The HTTP method. Required for all routes. |
 | [`run`](#typed_controller-route-run){: #typed_controller-route-run .spark-required} | `(any, any -> any) \| atom` |  | The handler — an fn/2 closure or a module implementing AshTypescript.TypedController.Route |
 | [`description`](#typed_controller-route-description){: #typed_controller-route-description } | `String.t` |  | JSDoc description for the generated TypeScript path helper |
 | [`deprecated`](#typed_controller-route-deprecated){: #typed_controller-route-deprecated } | `boolean \| String.t` |  | Mark this route as deprecated. Set to true for a default message, or provide a custom deprecation notice. |
@@ -117,6 +139,366 @@ Define an argument for this route.
 | [`constraints`](#typed_controller-route-argument-constraints){: #typed_controller-route-argument-constraints } | `keyword` | `[]` | Type constraints |
 | [`allow_nil?`](#typed_controller-route-argument-allow_nil?){: #typed_controller-route-argument-allow_nil? } | `boolean` | `true` | Whether this argument can be nil. Set to false to make it required. |
 | [`default`](#typed_controller-route-argument-default){: #typed_controller-route-argument-default } | `any` |  | Default value for this argument |
+
+
+
+
+
+### Introspection
+
+Target: `AshTypescript.TypedController.Dsl.RouteArgument`
+
+
+
+
+### Introspection
+
+Target: `AshTypescript.TypedController.Dsl.Route`
+
+### typed_controller.get
+```elixir
+get name
+```
+
+
+Define a GET route. Shorthand for `route :name, :get`.
+
+### Nested DSLs
+ * [argument](#typed_controller-get-argument)
+
+
+
+
+### Arguments
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`name`](#typed_controller-get-name){: #typed_controller-get-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth) |
+### Options
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`run`](#typed_controller-get-run){: #typed_controller-get-run .spark-required} | `(any, any -> any) \| atom` |  | The handler — an fn/2 closure or a module implementing AshTypescript.TypedController.Route |
+| [`description`](#typed_controller-get-description){: #typed_controller-get-description } | `String.t` |  | JSDoc description for the generated TypeScript path helper |
+| [`deprecated`](#typed_controller-get-deprecated){: #typed_controller-get-deprecated } | `boolean \| String.t` |  | Mark this route as deprecated. Set to true for a default message, or provide a custom deprecation notice. |
+| [`see`](#typed_controller-get-see){: #typed_controller-get-see } | `list(atom)` | `[]` | List of related route names to reference in JSDoc @see tags. |
+| [`zod_schema_name`](#typed_controller-get-zod_schema_name){: #typed_controller-get-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
+| [`namespace`](#typed_controller-get-namespace){: #typed_controller-get-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
+
+
+### typed_controller.get.argument
+```elixir
+argument name, type
+```
+
+
+Define an argument for this route.
+
+
+
+
+
+### Arguments
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`name`](#typed_controller-get-argument-name){: #typed_controller-get-argument-name .spark-required} | `atom` |  | The argument name |
+| [`type`](#typed_controller-get-argument-type){: #typed_controller-get-argument-type .spark-required} | `atom \| {atom, keyword}` |  | The Ash type (e.g. :string, :boolean, :integer) |
+### Options
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`constraints`](#typed_controller-get-argument-constraints){: #typed_controller-get-argument-constraints } | `keyword` | `[]` | Type constraints |
+| [`allow_nil?`](#typed_controller-get-argument-allow_nil?){: #typed_controller-get-argument-allow_nil? } | `boolean` | `true` | Whether this argument can be nil. Set to false to make it required. |
+| [`default`](#typed_controller-get-argument-default){: #typed_controller-get-argument-default } | `any` |  | Default value for this argument |
+
+
+
+
+
+### Introspection
+
+Target: `AshTypescript.TypedController.Dsl.RouteArgument`
+
+
+
+
+### Introspection
+
+Target: `AshTypescript.TypedController.Dsl.Route`
+
+### typed_controller.post
+```elixir
+post name
+```
+
+
+Define a POST route. Shorthand for `route :name, :post`.
+
+### Nested DSLs
+ * [argument](#typed_controller-post-argument)
+
+
+
+
+### Arguments
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`name`](#typed_controller-post-name){: #typed_controller-post-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth) |
+### Options
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`run`](#typed_controller-post-run){: #typed_controller-post-run .spark-required} | `(any, any -> any) \| atom` |  | The handler — an fn/2 closure or a module implementing AshTypescript.TypedController.Route |
+| [`description`](#typed_controller-post-description){: #typed_controller-post-description } | `String.t` |  | JSDoc description for the generated TypeScript path helper |
+| [`deprecated`](#typed_controller-post-deprecated){: #typed_controller-post-deprecated } | `boolean \| String.t` |  | Mark this route as deprecated. Set to true for a default message, or provide a custom deprecation notice. |
+| [`see`](#typed_controller-post-see){: #typed_controller-post-see } | `list(atom)` | `[]` | List of related route names to reference in JSDoc @see tags. |
+| [`zod_schema_name`](#typed_controller-post-zod_schema_name){: #typed_controller-post-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
+| [`namespace`](#typed_controller-post-namespace){: #typed_controller-post-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
+
+
+### typed_controller.post.argument
+```elixir
+argument name, type
+```
+
+
+Define an argument for this route.
+
+
+
+
+
+### Arguments
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`name`](#typed_controller-post-argument-name){: #typed_controller-post-argument-name .spark-required} | `atom` |  | The argument name |
+| [`type`](#typed_controller-post-argument-type){: #typed_controller-post-argument-type .spark-required} | `atom \| {atom, keyword}` |  | The Ash type (e.g. :string, :boolean, :integer) |
+### Options
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`constraints`](#typed_controller-post-argument-constraints){: #typed_controller-post-argument-constraints } | `keyword` | `[]` | Type constraints |
+| [`allow_nil?`](#typed_controller-post-argument-allow_nil?){: #typed_controller-post-argument-allow_nil? } | `boolean` | `true` | Whether this argument can be nil. Set to false to make it required. |
+| [`default`](#typed_controller-post-argument-default){: #typed_controller-post-argument-default } | `any` |  | Default value for this argument |
+
+
+
+
+
+### Introspection
+
+Target: `AshTypescript.TypedController.Dsl.RouteArgument`
+
+
+
+
+### Introspection
+
+Target: `AshTypescript.TypedController.Dsl.Route`
+
+### typed_controller.patch
+```elixir
+patch name
+```
+
+
+Define a PATCH route. Shorthand for `route :name, :patch`.
+
+### Nested DSLs
+ * [argument](#typed_controller-patch-argument)
+
+
+
+
+### Arguments
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`name`](#typed_controller-patch-name){: #typed_controller-patch-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth) |
+### Options
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`run`](#typed_controller-patch-run){: #typed_controller-patch-run .spark-required} | `(any, any -> any) \| atom` |  | The handler — an fn/2 closure or a module implementing AshTypescript.TypedController.Route |
+| [`description`](#typed_controller-patch-description){: #typed_controller-patch-description } | `String.t` |  | JSDoc description for the generated TypeScript path helper |
+| [`deprecated`](#typed_controller-patch-deprecated){: #typed_controller-patch-deprecated } | `boolean \| String.t` |  | Mark this route as deprecated. Set to true for a default message, or provide a custom deprecation notice. |
+| [`see`](#typed_controller-patch-see){: #typed_controller-patch-see } | `list(atom)` | `[]` | List of related route names to reference in JSDoc @see tags. |
+| [`zod_schema_name`](#typed_controller-patch-zod_schema_name){: #typed_controller-patch-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
+| [`namespace`](#typed_controller-patch-namespace){: #typed_controller-patch-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
+
+
+### typed_controller.patch.argument
+```elixir
+argument name, type
+```
+
+
+Define an argument for this route.
+
+
+
+
+
+### Arguments
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`name`](#typed_controller-patch-argument-name){: #typed_controller-patch-argument-name .spark-required} | `atom` |  | The argument name |
+| [`type`](#typed_controller-patch-argument-type){: #typed_controller-patch-argument-type .spark-required} | `atom \| {atom, keyword}` |  | The Ash type (e.g. :string, :boolean, :integer) |
+### Options
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`constraints`](#typed_controller-patch-argument-constraints){: #typed_controller-patch-argument-constraints } | `keyword` | `[]` | Type constraints |
+| [`allow_nil?`](#typed_controller-patch-argument-allow_nil?){: #typed_controller-patch-argument-allow_nil? } | `boolean` | `true` | Whether this argument can be nil. Set to false to make it required. |
+| [`default`](#typed_controller-patch-argument-default){: #typed_controller-patch-argument-default } | `any` |  | Default value for this argument |
+
+
+
+
+
+### Introspection
+
+Target: `AshTypescript.TypedController.Dsl.RouteArgument`
+
+
+
+
+### Introspection
+
+Target: `AshTypescript.TypedController.Dsl.Route`
+
+### typed_controller.put
+```elixir
+put name
+```
+
+
+Define a PUT route. Shorthand for `route :name, :put`.
+
+### Nested DSLs
+ * [argument](#typed_controller-put-argument)
+
+
+
+
+### Arguments
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`name`](#typed_controller-put-name){: #typed_controller-put-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth) |
+### Options
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`run`](#typed_controller-put-run){: #typed_controller-put-run .spark-required} | `(any, any -> any) \| atom` |  | The handler — an fn/2 closure or a module implementing AshTypescript.TypedController.Route |
+| [`description`](#typed_controller-put-description){: #typed_controller-put-description } | `String.t` |  | JSDoc description for the generated TypeScript path helper |
+| [`deprecated`](#typed_controller-put-deprecated){: #typed_controller-put-deprecated } | `boolean \| String.t` |  | Mark this route as deprecated. Set to true for a default message, or provide a custom deprecation notice. |
+| [`see`](#typed_controller-put-see){: #typed_controller-put-see } | `list(atom)` | `[]` | List of related route names to reference in JSDoc @see tags. |
+| [`zod_schema_name`](#typed_controller-put-zod_schema_name){: #typed_controller-put-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
+| [`namespace`](#typed_controller-put-namespace){: #typed_controller-put-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
+
+
+### typed_controller.put.argument
+```elixir
+argument name, type
+```
+
+
+Define an argument for this route.
+
+
+
+
+
+### Arguments
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`name`](#typed_controller-put-argument-name){: #typed_controller-put-argument-name .spark-required} | `atom` |  | The argument name |
+| [`type`](#typed_controller-put-argument-type){: #typed_controller-put-argument-type .spark-required} | `atom \| {atom, keyword}` |  | The Ash type (e.g. :string, :boolean, :integer) |
+### Options
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`constraints`](#typed_controller-put-argument-constraints){: #typed_controller-put-argument-constraints } | `keyword` | `[]` | Type constraints |
+| [`allow_nil?`](#typed_controller-put-argument-allow_nil?){: #typed_controller-put-argument-allow_nil? } | `boolean` | `true` | Whether this argument can be nil. Set to false to make it required. |
+| [`default`](#typed_controller-put-argument-default){: #typed_controller-put-argument-default } | `any` |  | Default value for this argument |
+
+
+
+
+
+### Introspection
+
+Target: `AshTypescript.TypedController.Dsl.RouteArgument`
+
+
+
+
+### Introspection
+
+Target: `AshTypescript.TypedController.Dsl.Route`
+
+### typed_controller.delete
+```elixir
+delete name
+```
+
+
+Define a DELETE route. Shorthand for `route :name, :delete`.
+
+### Nested DSLs
+ * [argument](#typed_controller-delete-argument)
+
+
+
+
+### Arguments
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`name`](#typed_controller-delete-name){: #typed_controller-delete-name .spark-required} | `atom` |  | The controller action name (e.g. :login, :auth) |
+### Options
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`run`](#typed_controller-delete-run){: #typed_controller-delete-run .spark-required} | `(any, any -> any) \| atom` |  | The handler — an fn/2 closure or a module implementing AshTypescript.TypedController.Route |
+| [`description`](#typed_controller-delete-description){: #typed_controller-delete-description } | `String.t` |  | JSDoc description for the generated TypeScript path helper |
+| [`deprecated`](#typed_controller-delete-deprecated){: #typed_controller-delete-deprecated } | `boolean \| String.t` |  | Mark this route as deprecated. Set to true for a default message, or provide a custom deprecation notice. |
+| [`see`](#typed_controller-delete-see){: #typed_controller-delete-see } | `list(atom)` | `[]` | List of related route names to reference in JSDoc @see tags. |
+| [`zod_schema_name`](#typed_controller-delete-zod_schema_name){: #typed_controller-delete-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
+| [`namespace`](#typed_controller-delete-namespace){: #typed_controller-delete-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
+
+
+### typed_controller.delete.argument
+```elixir
+argument name, type
+```
+
+
+Define an argument for this route.
+
+
+
+
+
+### Arguments
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`name`](#typed_controller-delete-argument-name){: #typed_controller-delete-argument-name .spark-required} | `atom` |  | The argument name |
+| [`type`](#typed_controller-delete-argument-type){: #typed_controller-delete-argument-type .spark-required} | `atom \| {atom, keyword}` |  | The Ash type (e.g. :string, :boolean, :integer) |
+### Options
+
+| Name | Type | Default | Docs |
+|------|------|---------|------|
+| [`constraints`](#typed_controller-delete-argument-constraints){: #typed_controller-delete-argument-constraints } | `keyword` | `[]` | Type constraints |
+| [`allow_nil?`](#typed_controller-delete-argument-allow_nil?){: #typed_controller-delete-argument-allow_nil? } | `boolean` | `true` | Whether this argument can be nil. Set to false to make it required. |
+| [`default`](#typed_controller-delete-argument-default){: #typed_controller-delete-argument-default } | `any` |  | Default value for this argument |
 
 
 
