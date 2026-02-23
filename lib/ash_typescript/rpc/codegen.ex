@@ -21,26 +21,11 @@ defmodule AshTypescript.Rpc.Codegen do
   @doc """
   Formats an endpoint configuration for TypeScript code generation.
 
-  Accepts either:
-  - A string: Returns the string as a quoted literal for direct embedding
-  - A tuple {:runtime_expr, "expression"}: Returns the expression as-is for runtime evaluation
-
-  ## Examples
-
-      iex> format_endpoint_for_typescript("/rpc/run")
-      "\"/rpc/run\""
-
-      iex> format_endpoint_for_typescript({:runtime_expr, "CustomTypes.getRunEndpoint()"})
-      "CustomTypes.getRunEndpoint()"
+  Delegates to `AshTypescript.Helpers.format_ts_value/1`.
   """
-  def format_endpoint_for_typescript(endpoint) when is_binary(endpoint) do
-    "\"#{endpoint}\""
-  end
-
-  def format_endpoint_for_typescript({:runtime_expr, expression})
-      when is_binary(expression) do
-    expression
-  end
+  defdelegate format_endpoint_for_typescript(value),
+    to: AshTypescript.Helpers,
+    as: :format_ts_value
 
   @doc """
   The marker comment used to separate generated code from custom code in namespace files.

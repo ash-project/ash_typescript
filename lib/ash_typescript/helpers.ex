@@ -50,6 +50,24 @@ defmodule AshTypescript.Helpers do
   end
 
   @doc """
+  Formats a value for embedding in generated TypeScript code.
+
+  Accepts either:
+  - A string: Returns the string as a quoted literal for direct embedding
+  - A tuple `{:runtime_expr, "expression"}`: Returns the expression as-is for runtime evaluation
+
+  ## Examples
+
+      iex> format_ts_value("/rpc/run")
+      "\"/rpc/run\""
+
+      iex> format_ts_value({:runtime_expr, "AppConfig.getEndpoint()"})
+      "AppConfig.getEndpoint()"
+  """
+  def format_ts_value(value) when is_binary(value), do: "\"#{value}\""
+  def format_ts_value({:runtime_expr, expr}) when is_binary(expr), do: expr
+
+  @doc """
   Formats a field name using the configured output field formatter.
   """
   def format_output_field(field_name) do
