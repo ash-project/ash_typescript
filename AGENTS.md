@@ -363,12 +363,15 @@ config :ash_typescript,
   typed_controllers: [MyApp.Session],         # TypedController modules
   router: MyAppWeb.Router,                    # Phoenix router for path introspection
   routes_output_file: "assets/js/routes.ts",  # Output file for route helpers
-  typed_controller_mode: :full                # :full (default) or :paths_only
+  typed_controller_mode: :full,               # :full (default) or :paths_only
+  typed_controller_base_path: ""              # Base URL prefix (string or {:runtime_expr, "..."})
 ```
 
 **Modes:** `:full` generates path helpers + typed fetch functions for mutations. `:paths_only` generates only path helpers.
 
-**Implementation:** `lib/ash_typescript.ex` (`typed_controllers/0`, `router/0`, `routes_output_file/0`, `typed_controller_mode/0`) + `lib/mix/tasks/ash_typescript.codegen.ex` + `lib/ash_typescript/typed_controller/`
+**Base path:** When set (e.g., `"https://api.example.com"` or `{:runtime_expr, "AppConfig.getBasePath()"}`), all generated route URLs are prefixed with `_basePath`. Uses the same `{:runtime_expr, "..."}` pattern as RPC endpoints.
+
+**Implementation:** `lib/ash_typescript.ex` (`typed_controllers/0`, `router/0`, `routes_output_file/0`, `typed_controller_mode/0`, `typed_controller_base_path/0`) + `lib/mix/tasks/ash_typescript.codegen.ex` + `lib/ash_typescript/typed_controller/`
 
 ## Always Regenerate Mode
 

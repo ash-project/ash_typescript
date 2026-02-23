@@ -539,6 +539,57 @@ export async function appLogin(input: AppLoginInput, config?: TypedControllerCon
 
 If routes are mounted at multiple paths without unique `as:` options, codegen will raise an error with instructions to add them.
 
+## Base Path
+
+When your frontend is deployed separately from the backend (e.g., a standalone SPA calling an API on a different domain), you can configure a base path that is prepended to all generated route URLs:
+
+```elixir
+config :ash_typescript,
+  typed_controller_base_path: "https://api.example.com"
+```
+
+Generated TypeScript:
+
+```typescript
+const _basePath = "https://api.example.com";
+
+export function authPath(): string {
+  return `${_basePath}/auth`;
+}
+
+export async function login(
+  input: LoginInput,
+  config?: TypedControllerConfig,
+): Promise<Response> {
+  return executeTypedControllerRequest(
+    `${_basePath}/auth/login`, "POST", "login", JSON.stringify(input), config,
+  );
+}
+```
+
+### Runtime Expressions
+
+For dynamic base paths (e.g., from environment variables or app config), use `{:runtime_expr, "..."}`:
+
+```elixir
+config :ash_typescript,
+  typed_controller_base_path: {:runtime_expr, "AppConfig.getBasePath()"}
+```
+
+This embeds the expression directly in the generated code:
+
+```typescript
+const _basePath = AppConfig.getBasePath();
+
+export function authPath(): string {
+  return `${_basePath}/auth`;
+}
+```
+
+This follows the same `{:runtime_expr, "..."}` pattern used by [Dynamic RPC Endpoints](../reference/configuration.md#dynamic-rpc-endpoints).
+
+When `typed_controller_base_path` is not set or is `""` (the default), no `_basePath` variable is generated and paths remain as plain strings (e.g., `"/auth"`).
+
 ## Paths-Only Mode
 
 If you only need path helpers (no fetch functions), use the `:paths_only` mode:
@@ -769,6 +820,7 @@ When enabled, 500 responses include the real exception message instead of the ge
 | `routes_output_file` | string | `nil` | Output file path (when `nil`, route generation is skipped) |
 | `typed_controller_mode` | `:full` or `:paths_only` | `:full` | Generation mode |
 | `typed_controller_path_params_style` | `:object` or `:args` | `:object` | Path params style (see below) |
+| `typed_controller_base_path` | string or `{:runtime_expr, string}` | `""` | Base URL prefix for all generated route URLs |
 | `typed_controller_before_request_hook` | string or nil | `nil` | Function called before requests |
 | `typed_controller_after_request_hook` | string or nil | `nil` | Function called after requests |
 | `typed_controller_hook_context_type` | string | `"Record<string, any>"` | TypeScript type for hook context |
