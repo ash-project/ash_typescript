@@ -27,13 +27,26 @@ defmodule AshTypescript.TypedController.Codegen.TypescriptStatic do
   """
   def generate_static_code(opts \\ []) do
     imports = generate_imports(opts)
+    base_path_var = generate_base_path_variable(Keyword.get(opts, :base_path, ""))
     hook_context_type = generate_hook_context_type()
     config_interface = generate_config_interface()
     helper_function = generate_helper_function()
 
-    [imports, hook_context_type, config_interface, helper_function]
+    [imports, base_path_var, hook_context_type, config_interface, helper_function]
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n")
+  end
+
+  @doc """
+  Generates a `_basePath` constant when a base path is configured.
+
+  Returns an empty string when the base path is `""` (default).
+  """
+  def generate_base_path_variable(""), do: ""
+
+  def generate_base_path_variable(base_path) do
+    formatted = AshTypescript.Helpers.format_ts_value(base_path)
+    "const _basePath = #{formatted};\n"
   end
 
   defp generate_imports(opts) do
