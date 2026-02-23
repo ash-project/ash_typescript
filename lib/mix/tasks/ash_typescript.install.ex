@@ -26,7 +26,7 @@ if Code.ensure_loaded?(Igniter) do
       Improves build performance when using the esbuild bundler.
 
     * `--inertia` - Install with Inertia.js support for SSR.
-      Creates a dedicated entry point (`js/inertia.ts`) and Inertia-specific
+      Creates a dedicated entry point (`js/index.ts`) and Inertia-specific
       pipeline. Requires `--framework` to be specified.
 
     ## Examples
@@ -145,6 +145,7 @@ if Code.ensure_loaded?(Igniter) do
         |> add_ash_typescript_config()
         |> create_rpc_controller(app_name, web_module)
         |> add_rpc_routes(web_module)
+        |> maybe_fix_vite_runtime_manifest_cache(bundler, app_name)
 
       igniter =
         case {framework, use_inertia} do
@@ -220,6 +221,38 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp setup_framework_bundler(igniter, _app_name, "vite", _use_bun, _framework), do: igniter
+
+    # PhoenixVite installs cache_static_manifest_latest in runtime.exs.
+    # During MIX_ENV=prod assets.deploy, that manifest may not exist yet.
+    defp maybe_fix_vite_runtime_manifest_cache(igniter, "vite", app_name) do
+      runtime_path = "config/runtime.exs"
+
+      direct_call =
+        "cache_static_manifest_latest: PhoenixVite.cache_static_manifest_latest(:#{app_name})"
+
+      tuple_call =
+        ~s|cache_static_manifest_latest: PhoenixVite.cache_static_manifest_latest({:#{app_name}, "priv/static/.vite/manifest.json"})|
+
+      guarded_call =
+        ~s|cache_static_manifest_latest: if(File.exists?(Application.app_dir(:#{app_name}, "priv/static/.vite/manifest.json")), do: PhoenixVite.cache_static_manifest_latest(:#{app_name}), else: %{})|
+
+      Igniter.update_file(igniter, runtime_path, fn source ->
+        content = source.content
+
+        updated_content =
+          content
+          |> String.replace(direct_call, guarded_call)
+          |> String.replace(tuple_call, guarded_call)
+
+        if updated_content == content do
+          source
+        else
+          Rewrite.Source.update(source, :content, updated_content)
+        end
+      end)
+    end
+
+    defp maybe_fix_vite_runtime_manifest_cache(igniter, _bundler, _app_name), do: igniter
 
     defp validate_framework(igniter, framework) do
       case framework do
@@ -1263,10 +1296,10 @@ if Code.ensure_loaded?(Igniter) do
       Igniter.update_file(igniter, "assets/vite.config.mjs", fn source ->
         content = source.content
 
-        if String.contains?(content, "@vitejs/plugin-vue") do
-          source
-        else
-          updated_content =
+        updated_content =
+          if String.contains?(content, "@vitejs/plugin-vue") do
+            replace_spa_vite_input_config(content, "js/index.ts")
+          else
             content
             |> String.replace(
               ~s|import { defineConfig } from 'vite'|,
@@ -1276,12 +1309,12 @@ if Code.ensure_loaded?(Igniter) do
               ~s|plugins: [|,
               ~s|plugins: [\n    vue(),|
             )
-            # Add js/index.ts to vite input for production builds
-            |> String.replace(
-              ~s|input: ["js/app.js"|,
-              ~s|input: ["js/index.ts", "js/app.js"|
-            )
+            |> replace_spa_vite_input_config("js/index.ts")
+          end
 
+        if updated_content == content do
+          source
+        else
           Rewrite.Source.update(source, :content, updated_content)
         end
       end)
@@ -1291,10 +1324,10 @@ if Code.ensure_loaded?(Igniter) do
       Igniter.update_file(igniter, "assets/vite.config.mjs", fn source ->
         content = source.content
 
-        if String.contains?(content, "@sveltejs/vite-plugin-svelte") do
-          source
-        else
-          updated_content =
+        updated_content =
+          if String.contains?(content, "@sveltejs/vite-plugin-svelte") do
+            replace_spa_vite_input_config(content, "js/index.ts")
+          else
             content
             |> String.replace(
               ~s|import { defineConfig } from 'vite'|,
@@ -1304,12 +1337,12 @@ if Code.ensure_loaded?(Igniter) do
               ~s|plugins: [|,
               ~s|plugins: [\n    svelte(),|
             )
-            # Add js/index.ts to vite input for production builds
-            |> String.replace(
-              ~s|input: ["js/app.js"|,
-              ~s|input: ["js/index.ts", "js/app.js"|
-            )
+            |> replace_spa_vite_input_config("js/index.ts")
+          end
 
+        if updated_content == content do
+          source
+        else
           Rewrite.Source.update(source, :content, updated_content)
         end
       end)
@@ -1319,10 +1352,10 @@ if Code.ensure_loaded?(Igniter) do
       Igniter.update_file(igniter, "assets/vite.config.mjs", fn source ->
         content = source.content
 
-        if String.contains?(content, "@vitejs/plugin-react") do
-          source
-        else
-          updated_content =
+        updated_content =
+          if String.contains?(content, "@vitejs/plugin-react") do
+            replace_spa_vite_input_config(content, "js/index.tsx")
+          else
             content
             |> String.replace(
               ~s|import { defineConfig } from 'vite'|,
@@ -1332,12 +1365,12 @@ if Code.ensure_loaded?(Igniter) do
               ~s|plugins: [|,
               ~s|plugins: [\n    react(),|
             )
-            # Add js/index.tsx to vite input for production builds
-            |> String.replace(
-              ~s|input: ["js/app.js"|,
-              ~s|input: ["js/index.tsx", "js/app.js"|
-            )
+            |> replace_spa_vite_input_config("js/index.tsx")
+          end
 
+        if updated_content == content do
+          source
+        else
           Rewrite.Source.update(source, :content, updated_content)
         end
       end)
@@ -1347,10 +1380,10 @@ if Code.ensure_loaded?(Igniter) do
       Igniter.update_file(igniter, "assets/vite.config.mjs", fn source ->
         content = source.content
 
-        if String.contains?(content, "vite-plugin-solid") do
-          source
-        else
-          updated_content =
+        updated_content =
+          if String.contains?(content, "vite-plugin-solid") do
+            replace_spa_vite_input_config(content, "js/index.tsx")
+          else
             content
             |> String.replace(
               ~s|import { defineConfig } from 'vite'|,
@@ -1360,14 +1393,42 @@ if Code.ensure_loaded?(Igniter) do
               ~s|plugins: [|,
               ~s|plugins: [\n    solid(),|
             )
-            |> String.replace(
-              ~s|input: ["js/app.js"|,
-              ~s|input: ["js/index.tsx", "js/app.js"|
-            )
+            |> replace_spa_vite_input_config("js/index.tsx")
+          end
 
+        if updated_content == content do
+          source
+        else
           Rewrite.Source.update(source, :content, updated_content)
         end
       end)
+    end
+
+    # Vite manifest keys are source entry paths (js/index.ts / js/index.tsx).
+    defp replace_spa_vite_input_config(content, spa_entry) do
+      input_config = ~s|input: ["#{spa_entry}", "js/app.js", "css/app.css"]|
+
+      content
+      |> String.replace(
+        ~s|input: ["js/app.js", "css/app.css"]|,
+        input_config
+      )
+      |> String.replace(
+        ~s|input: ["js/index.ts", "js/app.js", "css/app.css"]|,
+        input_config
+      )
+      |> String.replace(
+        ~s|input: ["js/index.tsx", "js/app.js", "css/app.css"]|,
+        input_config
+      )
+      |> String.replace(
+        ~s|input: {"js/index.js": "js/index.ts", "js/app.js": "js/app.js", "css/app.css": "css/app.css"}|,
+        input_config
+      )
+      |> String.replace(
+        ~s|input: {"js/index.js": "js/index.tsx", "js/app.js": "js/app.js", "css/app.css": "css/app.css"}|,
+        input_config
+      )
     end
 
     defp render_install_template(template_name, replacements \\ %{}) do
@@ -1400,13 +1461,14 @@ if Code.ensure_loaded?(Igniter) do
           "__WEB_MODULE__" => clean_web_module,
           "__APP_NAME__" => to_string(app_name)
         })
+        |> String.replace("js/index.js", get_entry_file(framework))
 
       igniter
       |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
     end
 
     # Create spa_root.html.heex layout for vite + vue/svelte (no React Refresh needed)
-    defp create_spa_root_layout(igniter, web_module, "vite", _framework) do
+    defp create_spa_root_layout(igniter, web_module, "vite", framework) do
       app_name = Igniter.Project.Application.app_name(igniter)
       clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
       web_path = Macro.underscore(clean_web_module)
@@ -1417,6 +1479,7 @@ if Code.ensure_loaded?(Igniter) do
           "__WEB_MODULE__" => clean_web_module,
           "__APP_NAME__" => to_string(app_name)
         })
+        |> String.replace("js/index.js", get_entry_file(framework))
 
       igniter
       |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
@@ -1786,7 +1849,7 @@ if Code.ensure_loaded?(Igniter) do
         "config.exs",
         :inertia,
         [:static_paths],
-        ["/assets/inertia.js"]
+        ["/assets/index.js"]
       )
       |> Igniter.Project.Config.configure_new(
         "config.exs",
@@ -2030,9 +2093,9 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp get_inertia_entry_file(framework) when framework in ["react", "react18"],
-      do: "js/inertia.tsx"
+      do: "js/index.tsx"
 
-    defp get_inertia_entry_file(_), do: "js/inertia.ts"
+    defp get_inertia_entry_file(_), do: "js/index.ts"
 
     # Create esbuild build.js for Vue/Svelte with Inertia entry point
     defp create_esbuild_script_for_inertia(igniter, "vue") do
@@ -2060,7 +2123,7 @@ if Code.ensure_loaded?(Igniter) do
       const plugins = [vuePlugin()];
 
       let opts = {
-        entryPoints: ["js/inertia.ts", "js/app.js"],
+        entryPoints: ["js/index.ts", "js/app.js"],
         bundle: true,
         target: "es2020",
         outdir: "../priv/static/assets",
@@ -2125,7 +2188,7 @@ if Code.ensure_loaded?(Igniter) do
       ];
 
       let opts = {
-        entryPoints: ["js/inertia.ts", "js/app.js"],
+        entryPoints: ["js/index.ts", "js/app.js"],
         bundle: true,
         target: "es2020",
         outdir: "../priv/static/assets",
@@ -2163,31 +2226,69 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.create_new_file("assets/build.js", build_script, on_exists: :warning)
     end
 
-    # Add inertia entry point to vite config
+    # Add Inertia entry point to vite config.
     defp update_vite_config_for_inertia(igniter, framework) do
       inertia_entry = get_inertia_entry_file(framework)
 
       Igniter.update_file(igniter, "assets/vite.config.mjs", fn source ->
         content = source.content
 
-        if String.contains?(content, inertia_entry) do
+        updated_content =
+          content
+          |> replace_inertia_vite_input_config(inertia_entry)
+
+        if updated_content == content do
           source
         else
-          # Add inertia entry point to vite input array
-          updated_content =
-            String.replace(
-              content,
-              ~s|input: ["js/app.js"|,
-              ~s|input: ["#{inertia_entry}", "js/app.js"|
-            )
-
           Rewrite.Source.update(source, :content, updated_content)
         end
       end)
     end
 
+    defp replace_inertia_vite_input_config(content, inertia_entry) do
+      input_config = ~s|input: ["#{inertia_entry}", "js/app.js", "css/app.css"]|
+
+      content
+      |> String.replace(
+        ~s|input: ["js/app.js", "css/app.css"]|,
+        input_config
+      )
+      |> String.replace(
+        ~s|input: ["js/index.ts", "js/app.js", "css/app.css"]|,
+        input_config
+      )
+      |> String.replace(
+        ~s|input: ["js/index.tsx", "js/app.js", "css/app.css"]|,
+        input_config
+      )
+      |> String.replace(
+        ~s|input: ["js/inertia.ts", "js/app.js", "css/app.css"]|,
+        input_config
+      )
+      |> String.replace(
+        ~s|input: ["js/inertia.tsx", "js/app.js", "css/app.css"]|,
+        input_config
+      )
+      |> String.replace(
+        ~s|input: {"js/index.js": "js/index.ts", "js/app.js": "js/app.js", "css/app.css": "css/app.css"}|,
+        input_config
+      )
+      |> String.replace(
+        ~s|input: {"js/index.js": "js/index.tsx", "js/app.js": "js/app.js", "css/app.css": "css/app.css"}|,
+        input_config
+      )
+      |> String.replace(
+        ~s|input: {"js/index.js": "js/inertia.ts", "js/app.js": "js/app.js", "css/app.css": "css/app.css"}|,
+        input_config
+      )
+      |> String.replace(
+        ~s|input: {"js/index.js": "js/inertia.tsx", "js/app.js": "js/app.js", "css/app.css": "css/app.css"}|,
+        input_config
+      )
+    end
+
     # Add vite framework plugin (import + plugin entry) WITHOUT adding an SPA entry point.
-    # Used by the Inertia flow which has its own entry point (js/inertia.tsx).
+    # Used by the Inertia flow which has its own entry point (js/index.tsx).
     defp add_vite_framework_plugin(igniter, "vue") do
       Igniter.update_file(igniter, "assets/vite.config.mjs", fn source ->
         content = source.content
@@ -2270,13 +2371,14 @@ if Code.ensure_loaded?(Igniter) do
           "__WEB_MODULE__" => clean_web_module,
           "__APP_NAME__" => to_string(app_name)
         })
+        |> String.replace("js/index.js", get_inertia_entry_file(framework))
 
       igniter
       |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
     end
 
     # Create inertia_root.html.heex layout for vite + vue/svelte
-    defp create_inertia_root_layout(igniter, web_module, "vite", _framework) do
+    defp create_inertia_root_layout(igniter, web_module, "vite", framework) do
       app_name = Igniter.Project.Application.app_name(igniter)
       clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
       web_path = Macro.underscore(clean_web_module)
@@ -2287,6 +2389,7 @@ if Code.ensure_loaded?(Igniter) do
           "__WEB_MODULE__" => clean_web_module,
           "__APP_NAME__" => to_string(app_name)
         })
+        |> String.replace("js/index.js", get_inertia_entry_file(framework))
 
       igniter
       |> Igniter.create_new_file(layout_path, layout_content, on_exists: :warning)
@@ -2306,7 +2409,7 @@ if Code.ensure_loaded?(Igniter) do
 
     defp create_inertia_root_layout(igniter, _web_module, _bundler, _framework), do: igniter
 
-    # Create Inertia entry point file (assets/js/inertia.tsx or .ts)
+    # Create Inertia entry point file (assets/js/index.tsx or .ts)
     defp create_inertia_entry_point(igniter, framework, bundler)
          when framework in ["react", "react18"] do
       # For esbuild, use dynamic import() for code splitting
@@ -2315,14 +2418,14 @@ if Code.ensure_loaded?(Igniter) do
         if bundler == "vite" do
           """
             resolve: (name) => {
-              const pages = import.meta.glob("./pages/**/*.tsx", { eager: true });
-              return pages[`./pages/${name}.tsx`];
+              const pages = import.meta.glob("./Pages/**/*.tsx", { eager: true });
+              return pages[`./Pages/${name}.tsx`];
             },
           """
         else
           """
             resolve: async (name) => {
-              return await import(`./pages/${name}.tsx`);
+              return await import(`./Pages/${name}.tsx`);
             },
           """
         end
@@ -2345,7 +2448,7 @@ if Code.ensure_loaded?(Igniter) do
       """
 
       igniter
-      |> Igniter.create_new_file("assets/js/inertia.tsx", entry_content, on_exists: :warning)
+      |> Igniter.create_new_file("assets/js/index.tsx", entry_content, on_exists: :warning)
     end
 
     defp create_inertia_entry_point(igniter, "vue", bundler) do
@@ -2354,13 +2457,13 @@ if Code.ensure_loaded?(Igniter) do
           """
             resolve: (name) => {
               const pages = import.meta.glob("./**/*.vue", { eager: true });
-              return pages[`./${name}.vue`] || pages[`./pages/${name}.vue`];
+              return pages[`./${name}.vue`] || pages[`./Pages/${name}.vue`];
             },
           """
         else
           """
             resolve: async (name) => {
-              return await import(`./pages/${name}.vue`);
+              return await import(`./Pages/${name}.vue`);
             },
           """
         end
@@ -2380,7 +2483,7 @@ if Code.ensure_loaded?(Igniter) do
       """
 
       igniter
-      |> Igniter.create_new_file("assets/js/inertia.ts", entry_content, on_exists: :warning)
+      |> Igniter.create_new_file("assets/js/index.ts", entry_content, on_exists: :warning)
     end
 
     defp create_inertia_entry_point(igniter, "svelte", bundler) do
@@ -2389,13 +2492,13 @@ if Code.ensure_loaded?(Igniter) do
           """
             resolve: (name) => {
               const pages = import.meta.glob("./**/*.svelte", { eager: true });
-              return pages[`./${name}.svelte`] || pages[`./pages/${name}.svelte`];
+              return pages[`./${name}.svelte`] || pages[`./Pages/${name}.svelte`];
             },
           """
         else
           """
             resolve: async (name) => {
-              return await import(`./pages/${name}.svelte`);
+              return await import(`./Pages/${name}.svelte`);
             },
           """
         end
@@ -2413,7 +2516,7 @@ if Code.ensure_loaded?(Igniter) do
       """
 
       igniter
-      |> Igniter.create_new_file("assets/js/inertia.ts", entry_content, on_exists: :warning)
+      |> Igniter.create_new_file("assets/js/index.ts", entry_content, on_exists: :warning)
     end
 
     # Create demo page component that demonstrates AshTypescript RPC client
@@ -2445,7 +2548,7 @@ if Code.ensure_loaded?(Igniter) do
 
       igniter
       |> Igniter.create_new_file(
-        "assets/js/pages/App.tsx",
+        "assets/js/Pages/App.tsx",
         component_content,
         on_exists: :warning
       )
@@ -2457,7 +2560,7 @@ if Code.ensure_loaded?(Igniter) do
       vue_component = script_content <> "\n" <> template_content
 
       igniter
-      |> Igniter.create_new_file("assets/js/pages/App.vue", vue_component, on_exists: :warning)
+      |> Igniter.create_new_file("assets/js/Pages/App.vue", vue_component, on_exists: :warning)
     end
 
     defp create_inertia_page_component(igniter, "svelte") do
@@ -2466,7 +2569,7 @@ if Code.ensure_loaded?(Igniter) do
       svelte_component = script_content <> "\n" <> template_content
 
       igniter
-      |> Igniter.create_new_file("assets/js/pages/App.svelte", svelte_component,
+      |> Igniter.create_new_file("assets/js/Pages/App.svelte", svelte_component,
         on_exists: :warning
       )
     end
@@ -3216,12 +3319,12 @@ if Code.ensure_loaded?(Igniter) do
 
     defp add_next_steps_notice(igniter, framework, bundler, use_inertia) do
       inertia_entry_file =
-        if framework in ["react", "react18"], do: "inertia.tsx", else: "inertia.ts"
+        if framework in ["react", "react18"], do: "index.tsx", else: "index.ts"
 
       inertia_page_file =
         if framework in ["react", "react18"],
-          do: "pages/App.tsx",
-          else: "pages/App.#{framework}"
+          do: "Pages/App.tsx",
+          else: "Pages/App.#{framework}"
 
       base_notice = """
       AshTypescript has been successfully installed!
@@ -3242,11 +3345,11 @@ if Code.ensure_loaded?(Igniter) do
         Your Phoenix + #{name} + TypeScript + Vite setup is ready!
 
         Files created:
-        - spa_root.html.heex: Layout for SPA pages (loads js/index.tsx + app.css)
+        - spa_root.html.heex: Layout for SPA pages (loads the Vite entry + app.css)
         - PageController: Uses put_root_layout to switch to spa_root layout
 
         The root.html.heex layout loads app.js + app.css for LiveView pages.
-        The spa_root.html.heex layout loads js/index.tsx + app.css for SPA pages.
+        The spa_root.html.heex layout loads your Vite entry (js/index.ts or js/index.tsx) + app.css for SPA pages.
 
         Next Steps:
         1. Configure your domain with the AshTypescript.Rpc extension
@@ -3265,11 +3368,11 @@ if Code.ensure_loaded?(Igniter) do
         Your Phoenix + #{name} + TypeScript + esbuild setup is ready!
 
         Files created:
-        - spa_root.html.heex: Layout for SPA pages (loads js/index.tsx as ES module)
+        - spa_root.html.heex: Layout for SPA pages (loads index.js as ES module)
         - PageController: Uses put_root_layout to switch to spa_root layout
 
         The root.html.heex layout loads app.js + app.css for LiveView pages.
-        The spa_root.html.heex layout loads js/index.tsx as ES module for SPA pages.
+        The spa_root.html.heex layout loads index.js as ES module for SPA pages.
 
         Next Steps:
         1. Configure your domain with the AshTypescript.Rpc extension
@@ -3288,13 +3391,13 @@ if Code.ensure_loaded?(Igniter) do
         Your Phoenix + #{name} + Inertia.js + TypeScript + Vite setup is ready!
 
         Files created:
-        - inertia_root.html.heex: Layout for Inertia pages (loads inertia.js + app.css)
+        - inertia_root.html.heex: Layout for Inertia pages (loads the Vite entry + app.css)
         - #{inertia_entry_file}: Inertia client-side entry point with createInertiaApp()
         - #{inertia_page_file}: Getting started guide page
         - PageController: Renders Inertia pages
 
         The root.html.heex layout loads app.js + app.css for LiveView pages.
-        The inertia_root.html.heex layout loads inertia.js + app.css for Inertia pages.
+        The inertia_root.html.heex layout loads your Vite entry (js/index.ts or js/index.tsx) + app.css for Inertia pages.
 
         Next Steps:
         1. Start your Phoenix server: mix phx.server
@@ -3313,13 +3416,13 @@ if Code.ensure_loaded?(Igniter) do
         Your Phoenix + #{name} + Inertia.js + TypeScript + esbuild setup is ready!
 
         Files created:
-        - inertia_root.html.heex: Layout for Inertia pages (loads inertia.js as ES module)
+        - inertia_root.html.heex: Layout for Inertia pages (loads index.js as ES module)
         - #{inertia_entry_file}: Inertia client-side entry point with createInertiaApp()
         - #{inertia_page_file}: Getting started guide page
         - PageController: Renders Inertia pages
 
         The root.html.heex layout loads app.js + app.css for LiveView pages.
-        The inertia_root.html.heex layout loads inertia.js as ES module for Inertia pages.
+        The inertia_root.html.heex layout loads index.js as ES module for Inertia pages.
 
         Next Steps:
         1. Start your Phoenix server: mix phx.server
