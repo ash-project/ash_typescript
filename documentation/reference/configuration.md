@@ -16,8 +16,10 @@ Configure AshTypescript in your `config/config.exs` file:
 ```elixir
 # config/config.exs
 config :ash_typescript,
-  # File generation
+  # File generation (multi-file architecture)
   output_file: "assets/js/ash_rpc.ts",
+  types_output_file: nil,             # Auto-derives as ash_types.ts in output_file dir
+  zod_output_file: nil,               # Auto-derives as ash_zod.ts in output_file dir
 
   # RPC endpoints
   run_endpoint: "/rpc/run",
@@ -55,12 +57,18 @@ config :ash_typescript,
   warn_on_missing_rpc_config: true,
   warn_on_non_rpc_references: true,
 
+  # RPC namespace files
+  enable_namespace_files: false,      # Generate separate files for namespaced RPC actions
+  namespace_output_dir: nil,          # Directory for RPC namespace files (defaults to output_file dir)
+
   # Typed controllers
   typed_controllers: [],
   router: nil,
   routes_output_file: nil,
   typed_controller_mode: :full,
   typed_controller_path_params_style: :object,
+  enable_controller_namespace_files: false,  # Generate separate files for namespaced routes
+  controller_namespace_output_dir: nil,       # Directory for controller namespace files
 
   # Typed controller lifecycle hooks
   typed_controller_before_request_hook: nil,
@@ -87,6 +95,21 @@ config :ash_typescript,
   add_ash_internals_to_manifest: false
 ```
 
+## Multi-File Output
+
+AshTypescript generates multiple TypeScript files, each with a specific responsibility:
+
+| File | Config Key | Default | Contents |
+|------|-----------|---------|----------|
+| RPC functions | `output_file` | `assets/js/ash_rpc.ts` | RPC functions, hook types, helpers |
+| Shared types | `types_output_file` | Auto-derived as `ash_types.ts` | Type aliases, resource schemas, filter types, utility types |
+| Shared Zod schemas | `zod_output_file` | Auto-derived as `ash_zod.ts` | Zod schemas for all resources (when `generate_zod_schemas: true`) |
+| Route helpers | `routes_output_file` | `nil` (disabled) | Path helpers, typed fetch functions, controller input types |
+| RPC namespace re-exports | `namespace_output_dir` | Same dir as `output_file` | Per-namespace re-export files (when `enable_namespace_files: true`) |
+| Controller namespace re-exports | `controller_namespace_output_dir` | Same dir as `routes_output_file` | Per-namespace re-export files (when `enable_controller_namespace_files: true`) |
+
+`types_output_file` and `zod_output_file` auto-derive from the `output_file` directory — set `output_file` and the others follow. Override individually if needed.
+
 ## Quick Reference
 
 | Option | Type | Default | Description |
@@ -110,11 +133,15 @@ config :ash_typescript,
 | `untyped_map_type` | `string` | `"Record<string, any>"` | TypeScript type for untyped maps |
 | `warn_on_missing_rpc_config` | `boolean` | `true` | Warn about resources with extension not in RPC config |
 | `warn_on_non_rpc_references` | `boolean` | `true` | Warn about non-RPC resources referenced by RPC resources |
+| `enable_namespace_files` | `boolean` | `false` | Generate separate files for namespaced RPC actions |
+| `namespace_output_dir` | `string \| nil` | `nil` | Directory for RPC namespace files (defaults to `output_file` dir) |
 | `typed_controllers` | `list(module)` | `[]` | TypedController modules to generate route helpers for |
 | `router` | `module \| nil` | `nil` | Phoenix router module for path introspection |
 | `routes_output_file` | `string \| nil` | `nil` | Output file path for generated route helpers |
 | `typed_controller_mode` | `:full \| :paths_only` | `:full` | Generation mode: `:full` generates path helpers + fetch functions, `:paths_only` generates only path helpers |
 | `typed_controller_path_params_style` | `:object \| :args` | `:object` | Path parameter style in generated functions |
+| `enable_controller_namespace_files` | `boolean` | `false` | Generate separate files for namespaced controller routes |
+| `controller_namespace_output_dir` | `string \| nil` | `nil` | Directory for controller namespace files (defaults to `routes_output_file` dir) |
 | `typed_controller_before_request_hook` | `string \| nil` | `nil` | Function called before typed controller requests |
 | `typed_controller_after_request_hook` | `string \| nil` | `nil` | Function called after typed controller requests |
 | `typed_controller_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for typed controller hook context |
@@ -266,6 +293,10 @@ config :ash_typescript,
   typed_controller_mode: :full,              # :full (default) or :paths_only
   typed_controller_path_params_style: :object, # :object (default) or :args
 
+  # Namespace files (optional)
+  enable_controller_namespace_files: false,  # Generate separate files per namespace
+  controller_namespace_output_dir: nil,      # Directory for namespace files (defaults to routes_output_file dir)
+
   # Lifecycle hooks (optional)
   typed_controller_before_request_hook: "RouteHooks.beforeRequest",
   typed_controller_after_request_hook: "RouteHooks.afterRequest",
@@ -286,6 +317,8 @@ config :ash_typescript,
 | `routes_output_file` | `string` | `nil` | Output file path (when `nil`, generation is skipped) |
 | `typed_controller_mode` | `:full \| :paths_only` | `:full` | `:full` generates path helpers + fetch functions; `:paths_only` generates only path helpers |
 | `typed_controller_path_params_style` | `:object \| :args` | `:object` | Path parameter style in generated TypeScript |
+| `enable_controller_namespace_files` | `boolean` | `false` | Generate separate files for namespaced routes |
+| `controller_namespace_output_dir` | `string \| nil` | `nil` | Directory for namespace files (defaults to `routes_output_file` dir) |
 | `typed_controller_before_request_hook` | `string \| nil` | `nil` | Function called before typed controller requests |
 | `typed_controller_after_request_hook` | `string \| nil` | `nil` | Function called after typed controller requests |
 | `typed_controller_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for hook context |
