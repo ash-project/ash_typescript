@@ -425,6 +425,33 @@ defmodule AshTypescript do
   end
 
   @doc """
+  Gets the base path to prefix all typed controller route URLs.
+
+  When set, all generated path helpers and action function URLs will be prefixed
+  with this value. Useful when the frontend calls a backend on a different domain.
+
+  Accepts either:
+  - A string: Embedded as a quoted literal (e.g. `"https://api.example.com"`)
+  - A tuple `{:runtime_expr, "expression"}`: Embedded as a raw JS expression
+
+  ## Configuration
+
+      # Static base path
+      config :ash_typescript,
+        typed_controller_base_path: "https://api.example.com"
+
+      # Runtime expression
+      config :ash_typescript,
+        typed_controller_base_path: {:runtime_expr, "AppConfig.getBasePath()"}
+
+  ## Returns
+  A string, a `{:runtime_expr, expr}` tuple, or `""` (default, no prefix).
+  """
+  def typed_controller_base_path do
+    Application.get_env(:ash_typescript, :typed_controller_base_path, "")
+  end
+
+  @doc """
   Gets the typed controller generation mode.
 
   Controls what TypeScript code is generated for typed controller routes:
