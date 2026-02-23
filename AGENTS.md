@@ -60,6 +60,9 @@ end
 ```
 
 ### Typed Controller Configuration
+
+Three syntaxes are supported for defining routes:
+
 ```elixir
 defmodule MyApp.Session do
   use AshTypescript.TypedController
@@ -67,15 +70,20 @@ defmodule MyApp.Session do
   typed_controller do
     module_name MyAppWeb.SessionController
 
-    route :auth do
-      method :get
+    # Verb shortcut (preferred) — method is the entity name
+    get :auth do
       run fn conn, _params -> render_inertia(conn, "Auth") end
     end
 
-    route :login do
-      method :post
+    # Positional method arg
+    route :login, :post do
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
       argument :code, :string, allow_nil?: false
+    end
+
+    # Method defaults to :get when omitted
+    route :home do
+      run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Home") end
     end
   end
 end

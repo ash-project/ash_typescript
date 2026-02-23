@@ -13,62 +13,59 @@ defmodule AshTypescript.Test.Session do
     module_name AshTypescript.Test.SessionController
     namespace "auth"
 
-    route :auth do
-      method :get
+    # Verb shortcut syntax — `get :name do ... end`
+    get :auth do
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Auth") end
     end
 
-    route :provider_page do
-      method :get
+    # Verb shortcut with arguments
+    get :provider_page do
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "ProviderPage") end
       argument :provider, :string, allow_nil?: false
       argument :tab, :string
     end
 
-    route :search do
-      method :get
+    # Positional method arg syntax — `route :name, :get do ... end`
+    route :search, :get do
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Search") end
       argument :q, :string, allow_nil?: false
       argument :page, :integer
     end
 
-    route :login do
-      method :post
+    # Verb shortcut for POST
+    post :login do
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "LoggedIn") end
       see [:auth, :logout]
       argument :code, :string, allow_nil?: false
       argument :remember_me, :boolean
     end
 
-    route :logout do
-      method :post
+    # Positional method arg for POST
+    route :logout, :post do
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "LoggedOut") end
     end
 
-    route :update_provider do
-      method :patch
+    # Verb shortcut for PATCH
+    patch :update_provider do
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "ProviderUpdated") end
       argument :provider, :string, allow_nil?: false
       argument :enabled, :boolean, allow_nil?: false
       argument :display_name, :string
     end
 
+    # Default method (omitted = :get) with namespace override
     route :profile do
-      method :get
       namespace "account"
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Profile") end
       argument :user_id, :string
       argument :bio, :string
     end
 
-    route :raise_error do
-      method :post
+    route :raise_error, :post do
       run fn _conn, _params -> raise "test error for show_raised_errors" end
     end
 
-    route :echo_params do
-      method :post
-
+    post :echo_params do
       run fn conn, params ->
         # Echoes received params as JSON so tests can inspect them
         json_params = Map.new(params, fn {k, v} -> {to_string(k), v} end)
@@ -84,8 +81,7 @@ defmodule AshTypescript.Test.Session do
       argument :active, :boolean
     end
 
-    route :register do
-      method :post
+    post :register do
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Registered") end
 
       argument :username, :string,
@@ -107,8 +103,7 @@ defmodule AshTypescript.Test.Session do
       argument :invite_code, :string, constraints: [min_length: 8, max_length: 8]
     end
 
-    route :create_task do
-      method :post
+    route :create_task, :post do
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "TaskCreated") end
       zod_schema_name "createTaskRouteZodSchema"
 
