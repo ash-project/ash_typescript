@@ -103,19 +103,61 @@ When argument validation or casting fails, the handler returns a **422** respons
 
 ## DSL Reference
 
-### Typed Controller Section
+### Three Syntax Variants
+
+The DSL supports three ways to define routes:
+
+**1. Verb shortcuts (preferred)** — method is the entity name:
+```elixir
+get :auth do
+  run fn conn, _params -> render_inertia(conn, "Auth") end
+end
+
+post :login do
+  run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+  argument :code, :string, allow_nil?: false
+end
+```
+
+**2. Positional method arg** — method as second positional argument to `route`:
+```elixir
+route :logout, :post do
+  run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+end
+```
+
+**3. Default method** — `route` without method defaults to `:get`:
+```elixir
+route :profile do
+  run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Profile") end
+end
+```
+
+All three produce the same `Route` struct. Verb shortcuts (`get`, `post`, `patch`, `put`, `delete`) use `auto_set_fields: [method: method]` on the Spark entity, while `route` uses `args: [:name, {:optional, :method, :get}]`.
+
+### Full DSL Example
 
 ```elixir
 typed_controller do
   module_name MyAppWeb.SessionController  # Required: generated controller module
+  namespace "auth"                        # Optional: groups routes into namespace file
 
-  route :action_name do
-    method :get                           # Required: HTTP method
-    run fn conn, params -> ... end        # Required: handler fn/2 or module
+  get :auth do                            # Verb shortcut (GET)
+    run fn conn, _params -> ... end
     description "JSDoc description"       # Optional
     deprecated true                       # Optional: true or "message"
+  end
 
-    argument :code, :string, allow_nil?: false  # Optional: colocated arguments
+  post :login do                          # Verb shortcut (POST)
+    run fn conn, _params -> ... end
+    see [:auth, :logout]                  # Optional: JSDoc @see tags
+    argument :code, :string, allow_nil?: false
+  end
+
+  route :profile do                       # Default method (GET)
+    namespace "account"                   # Optional: route-level namespace override
+    run fn conn, _params -> ... end
+    argument :user_id, :string
   end
 end
 ```
@@ -125,11 +167,13 @@ end
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
 | `name` | atom | Yes | - | Controller action name (positional arg) |
-| `method` | atom | Yes | - | HTTP method: `:get`, `:post`, `:patch`, `:put`, `:delete` |
+| `method` | atom | No | `:get` | HTTP method (`:get`, `:post`, `:patch`, `:put`, `:delete`). Implicit with verb shortcuts. |
 | `run` | fn/2 or module | Yes | - | Handler function or module implementing `Route` behaviour |
 | `description` | string | No | - | JSDoc description for generated TypeScript |
 | `deprecated` | bool/string | No | - | Mark route as deprecated |
 | `see` | list(atom) | No | `[]` | Related route names for JSDoc `@see` tags |
+| `namespace` | string | No | - | Namespace for this route (overrides controller-level namespace) |
+| `zod_schema_name` | string | No | - | Override generated Zod schema name (avoids collisions with RPC) |
 
 ### Argument Options
 
@@ -145,16 +189,14 @@ end
 
 **Inline function**:
 ```elixir
-route :auth do
-  method :get
+get :auth do
   run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Auth") end
 end
 ```
 
 **Handler module** (implements `AshTypescript.TypedController.Route`):
 ```elixir
-route :login do
-  method :post
+post :login do
   run MyApp.LoginHandler
   argument :code, :string, allow_nil?: false
 end
@@ -318,6 +360,39 @@ export async function updateProvider(
 | Single mount | `actionNamePath` | `actionName` |
 | Multi-mount | `scopePrefixActionNamePath` | `scopePrefixActionName` |
 
+## Controller Namespaces
+
+Typed controllers support namespaces for organizing generated route helpers into separate files (same concept as RPC namespaces).
+
+### Namespace Levels
+
+| Level | Syntax | Scope |
+|-------|--------|-------|
+| Controller-level | `namespace "auth"` inside `typed_controller do` | Default for all routes in controller |
+| Route-level | `namespace "account"` inside route `do` block | Override for specific route |
+
+### Namespace Precedence
+
+Route-level namespace overrides controller-level namespace. If no namespace is set at either level, routes go into the main routes file.
+
+### Generated Output
+
+With `namespace "auth"` on the controller:
+- Main `routes.ts` — imports and re-exports from namespace files
+- `namespace/auth.ts` — contains the namespaced route exports
+
+Route exports are categorized as:
+- `:value` — path helper functions
+- `:type` — input type definitions
+- `:zod_value` — Zod schema constants
+
+### Implementation
+
+- `RouteConfigCollector.resolve_route_namespace/2` — resolves namespace precedence
+- `Codegen.get_routes_by_namespace/1` — groups routes by resolved namespace
+- `Codegen.collect_route_exports/1` — categorizes exports for re-export generation
+- `ImportResolver.generate_namespace_reexport_content/5` — shared namespace file generator (used by both RPC and controller codegen)
+
 ## Paths-Only Mode
 
 When `typed_controller_mode: :paths_only` is configured, only path helper functions are generated for all routes (including mutation routes). No input types or async fetch functions are produced.
@@ -460,7 +535,7 @@ mix ash_typescript.codegen --check      # Verify both are up-to-date (CI)
 mix ash_typescript.codegen --dry-run    # Preview changes
 ```
 
-The task handles RPC types first, then route helpers. Both use the same `--check`/`--dry-run` flags.
+The `Orchestrator` coordinates all file generation (types, Zod, RPC, routes, namespace re-exports) in a single pass. Both `--check` and `--dry-run` flags apply to all generated files.
 
 ## Key Files
 
@@ -473,8 +548,8 @@ The task handles RPC types first, then route helpers. Both use the same `--check
 | `lib/ash_typescript/typed_controller/request_handler.ex` | Phoenix→handler request bridge |
 | `lib/ash_typescript/typed_controller/transformers/generate_controller.ex` | Compile-time controller module generation |
 | `lib/ash_typescript/typed_controller/verifiers/verify_typed_controller.ex` | Compile-time validation |
-| `lib/ash_typescript/typed_controller/codegen.ex` | Codegen orchestration entry point |
-| `lib/ash_typescript/typed_controller/codegen/route_config_collector.ex` | Discovers typed controllers from app config |
+| `lib/ash_typescript/typed_controller/codegen.ex` | Codegen orchestration entry point (namespace grouping, export collection) |
+| `lib/ash_typescript/typed_controller/codegen/route_config_collector.ex` | Discovers typed controllers from app config, resolves namespace precedence |
 | `lib/ash_typescript/typed_controller/codegen/router_introspector.ex` | Phoenix router path matching and multi-mount handling |
 | `lib/ash_typescript/typed_controller/codegen/route_renderer.ex` | TypeScript function/type/Zod schema generation |
 | `lib/ash_typescript/typed_controller/codegen/typescript_static.ex` | Static TS code: TypedControllerConfig, executeTypedControllerRequest, imports, hooks |
@@ -488,6 +563,7 @@ The task handles RPC types first, then route helpers. Both use the same `--check
 | File | Purpose |
 |------|---------|
 | `test/ash_typescript/typed_controller/codegen_test.exs` | Codegen output validation |
+| `test/ash_typescript/typed_controller/namespace_test.exs` | Controller namespace grouping and re-exports |
 | `test/ash_typescript/typed_controller/request_handler_test.exs` | Argument extraction, casting, validation, dispatch |
 | `test/ash_typescript/typed_controller/router_introspection_test.exs` | Router matching and multi-mount |
 | `test/ash_typescript/typed_controller/verify_typed_controller_test.exs` | Compile-time verification |

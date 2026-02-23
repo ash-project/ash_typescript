@@ -186,6 +186,7 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Typed controller main** | `lib/ash_typescript/typed_controller.ex` |
 | **Controller request handler** | `lib/ash_typescript/typed_controller/request_handler.ex` |
 | **Controller codegen** | `lib/ash_typescript/typed_controller/codegen.ex` |
+| **Controller config discovery** | `lib/ash_typescript/typed_controller/codegen/route_config_collector.ex` |
 | **Router introspection** | `lib/ash_typescript/typed_controller/codegen/router_introspector.ex` |
 | **Route renderer** | `lib/ash_typescript/typed_controller/codegen/route_renderer.ex` |
 | **TypeScript static code** | `lib/ash_typescript/typed_controller/codegen/typescript_static.ex` |
@@ -194,6 +195,7 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Primary test resource** | `test/support/resources/todo.ex` |
 | **TypeScript validation** | `test/ts/shouldPass/` & `test/ts/shouldFail/` |
 | **TypeScript call extractor** | `test/support/ts_action_call_extractor.ex` |
+| **Codegen test helper** | `test/support/codegen_test_helper.ex` |
 | **Typed controller tests** | `test/ash_typescript/typed_controller/` |
 | **Test typed controller** | `test/support/resources/session.ex` |
 | **Test router** | `test/support/routes_test_router.ex` |
@@ -274,6 +276,11 @@ mix credo --strict                   # Linting
 - **Pipeline** - Four-stage orchestration
 - **ErrorBuilder** - Comprehensive error handling
 - **ValueFormatter** - Unified type-aware value formatting
+
+### Multi-File Codegen Architecture
+- **Orchestrator** (`codegen/orchestrator.ex`): Coordinates all file generation — types, Zod, RPC, routes, namespace re-exports
+- **ImportResolver** (`codegen/import_resolver.ex`): Shared utility for import path resolution and namespace re-export generation (used by both RPC and controller codegen)
+- **CodegenTestHelper** (`test/support/codegen_test_helper.ex`): Test wrapper for orchestrator — use `generate_all_content/0` for string assertions, `generate_files/0` for file-level assertions
 
 ### Type System Architecture
 - **Type Introspection**: Centralized in `type_system/introspection.ex`

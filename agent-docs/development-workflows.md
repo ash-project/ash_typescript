@@ -38,9 +38,10 @@ mcp__tidewave__project_eval("Application.get_all_env(:ash_typescript)")
 
 ### Type System Changes
 1. Write TypeScript validation tests first
-2. Modify codegen logic
-3. Validate generated TypeScript compiles
-4. Run full test suite
+2. Generate via `CodegenTestHelper.generate_all_content/0` or `generate_files/0` in test `setup_all`
+3. Modify codegen logic
+4. Validate generated TypeScript compiles
+5. Run full test suite
 
 ### RPC Pipeline Changes
 1. Test field processing with Tidewave
@@ -72,11 +73,19 @@ Profile specific pipeline stages, not entire system
 Test individual modules in isolation
 
 ### Integration Tests
-Test complete pipeline with real data
+Test complete pipeline with real data. Use `CodegenTestHelper` to generate through the Orchestrator:
+- `generate_all_content/0` — concatenated string for regex assertions
+- `generate_files/0` — `%{path => content}` map for file-level assertions
+- `generate_controller_content/1` — direct controller codegen with custom options (e.g. specific router)
 
 ### TypeScript Tests
 Both positive (shouldPass) and negative (shouldFail) patterns.
 Ensure we test both http/fetch and channel functions.
+
+### Multi-File Codegen Tests
+The Orchestrator generates multiple files (types, Zod, RPC, routes, namespace re-exports). When testing:
+- Use `generate_files/0` + extractors (`rpc_content/1`, `types_content/1`, etc.) to verify content lands in the correct file
+- Use `generate_all_content/0` when you only care that something is generated, not which file it's in
 
 ## Extension Points
 

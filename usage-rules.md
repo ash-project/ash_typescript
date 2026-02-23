@@ -59,8 +59,11 @@ SPDX-License-Identifier: MIT
 | **Type Overrides** | `type_mapping_overrides: [{Module, "TSType"}]` | Map dependency types |
 | **Typed Controller** | `use AshTypescript.TypedController` | Controller-style routes |
 | **Controller Module** | `typed_controller do module_name MyWeb.Ctrl` | Generated controller module |
-| **Route** | `route :name do method :get; run fn ... end end` | Route with handler |
+| **Verb Shortcut** | `get :auth do run fn ... end end` | Preferred route syntax |
+| **Positional Method** | `route :login, :post do run fn ... end end` | Method as 2nd arg |
+| **Default GET** | `route :home do run fn ... end end` | Method defaults to :get |
 | **Route Argument** | `argument :code, :string, allow_nil?: false` | Colocated in route |
+| **Route Namespace** | `namespace "auth"` | Inside typed_controller or route do block |
 | **Route Description** | `description "..."` | JSDoc on route (inside do block) |
 | **Route Deprecated** | `deprecated true` | Deprecation notice (inside do block) |
 | **Route @see Tags** | `see [:auth, :logout]` | JSDoc `@see` cross-references |
@@ -163,17 +166,27 @@ defmodule MyApp.Session do
   typed_controller do
     module_name MyAppWeb.SessionController
 
-    route :auth do
-      method :get
+    # Verb shortcut (preferred)
+    get :auth do
       run fn conn, _params -> render_inertia(conn, "Auth") end
     end
 
-    route :login do
-      method :post
-      see [:auth, :logout]  # JSDoc @see tags
+    # Verb shortcut with args
+    post :login do
+      see [:auth, :logout]
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
       argument :code, :string, allow_nil?: false
       argument :remember_me, :boolean
+    end
+
+    # Positional method arg
+    route :logout, :post do
+      run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+    end
+
+    # Default method (GET when omitted)
+    route :home do
+      run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Home") end
     end
   end
 end

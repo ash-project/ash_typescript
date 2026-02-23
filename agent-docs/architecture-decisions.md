@@ -8,6 +8,26 @@ SPDX-License-Identifier: MIT
 
 Key architectural decisions and their reasoning for AI assistant context.
 
+## 2026-02: Multi-File Orchestrator and DSL Enhancements
+
+**Change**: Unified multi-file codegen orchestration, HTTP verb shortcuts for TypedController DSL, controller namespace support, and shared ImportResolver
+**Why**: Simplify codegen coordination, improve DSL ergonomics, and enable route namespacing
+**Impact**:
+- **Orchestrator** (`codegen/orchestrator.ex`) now coordinates all file generation (types, Zod, RPC, routes, namespaces) in a single pass, replacing the previous sequential approach in the mix task
+- **HTTP verb shortcuts**: `get :auth do`, `post :login do` etc. — cleaner syntax using Spark `auto_set_fields`. Positional method arg also supported: `route :auth, :post do`. Default method is `:get` when omitted.
+- **Controller namespaces**: `namespace "auth"` at controller and route level, with route-level overriding controller-level. Generates `namespace/*.ts` re-export files.
+- **ImportResolver** extracted as shared utility for import path resolution and namespace re-export generation (used by both RPC and controller codegen)
+- **RouteConfigCollector** discovers typed controllers from config and resolves namespace precedence
+- **CodegenTestHelper** wraps orchestrator for tests — `generate_all_content/0` and `generate_files/0`
+- **RPC codegen** reduced to focused content generation; no longer responsible for monolithic output
+**Key Commits**:
+- `0077ef2` feat: add HTTP verb shortcuts and positional method arg to typed controller DSL
+- `47a14bc` feat: add controller namespace support and simplify codegen orchestration
+- `5d3c885` refactor: remove monolithic codegen and reduce public API
+- `c97a05d` refactor: extract namespace reexport and import helpers into ImportResolver
+- `097f4e7` test: add CodegenTestHelper and update all tests for orchestrator
+**Key Files**: `lib/ash_typescript/codegen/orchestrator.ex`, `lib/ash_typescript/codegen/import_resolver.ex`, `lib/ash_typescript/typed_controller/dsl.ex`, `lib/ash_typescript/typed_controller/codegen/route_config_collector.ex`, `test/support/codegen_test_helper.ex`
+
 ## 2026-02: Typed Controller Feature Completion
 
 **Change**: Added GET query parameter support, paths-only mode, and compile-time name validation for TypedController

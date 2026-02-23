@@ -101,6 +101,9 @@ mix test test/ash_typescript/typed_controller/router_introspection_test.exs
 # Compile-time verification (unique names, valid types, TS name validation)
 mix test test/ash_typescript/typed_controller/verify_typed_controller_test.exs
 
+# Namespace grouping and re-exports
+mix test test/ash_typescript/typed_controller/namespace_test.exs
+
 # Full typed controller test suite
 mix test test/ash_typescript/typed_controller/
 
@@ -172,35 +175,64 @@ diff -u test/ts/generated_before.ts test/ts/generated.ts
 
 **CRITICAL: Never read from `test/ts/generated.ts` in tests.** This file may be stale or out of sync with the current codebase. Instead, generate the TypeScript programmatically and assert on the resulting string.
 
-### Correct Pattern
+### Correct Pattern — CodegenTestHelper
+
+Use `AshTypescript.Test.CodegenTestHelper` which wraps the multi-file `Orchestrator`:
 
 ```elixir
 defmodule AshTypescript.Rpc.MyFeatureTest do
   use ExUnit.Case, async: true
 
   setup_all do
-    # Generate TypeScript programmatically - this ensures fresh output
+    # Generate all files and concatenate — ensures fresh output through Orchestrator
     {:ok, generated_content} =
-      AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
     {:ok, generated: generated_content}
   end
 
   describe "TypeScript codegen" do
     test "generates correct type for my feature", %{generated: generated} do
-      # Assert on the generated string
       assert generated =~ ~r/function myAction.*input: MyInput/s
     end
   end
 end
 ```
 
+### When to Use `generate_files/0` Instead
+
+Use `generate_files/0` when you need to inspect specific files (e.g., check that a type lands in the correct output file):
+
+```elixir
+setup_all do
+  {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
+  {:ok, files: files}
+end
+
+test "routes go to routes file", %{files: files} do
+  routes = AshTypescript.Test.CodegenTestHelper.routes_content(files)
+  assert routes =~ "authPath"
+end
+```
+
+Helper extractors: `rpc_content/1`, `types_content/1`, `zod_content/1`, `routes_content/1`.
+
+For typed controller tests that need custom router options, use `generate_controller_content/1`:
+
+```elixir
+{:ok, content} =
+  AshTypescript.Test.CodegenTestHelper.generate_controller_content(
+    router: MyCustomRouter
+  )
+```
+
 ### Why This Matters
 
 1. **Test Isolation**: Tests don't depend on external file state
-2. **Reproducibility**: Tests always use freshly generated output
-3. **CI Reliability**: No need to ensure `generated.ts` is up-to-date before running tests
-4. **Accurate Results**: Assertions reflect current codegen behavior, not cached output
+2. **Reproducibility**: Tests always use freshly generated output via the Orchestrator
+3. **CI Reliability**: No need to ensure generated files are up-to-date before running tests
+4. **Multi-file Aware**: Tests work with the orchestrated multi-file output, not a single monolithic file
+5. **Accurate Results**: Assertions reflect current codegen behavior, not cached output
 
 ### Anti-Pattern (Do NOT Do This)
 
@@ -218,6 +250,7 @@ See these test files for the correct pattern:
 - `test/ash_typescript/rpc/rpc_function_generation_mapped_fields_test.exs`
 - `test/ash_typescript/rpc/rpc_identities_test.exs`
 - `test/ash_typescript/rpc/rpc_composite_primary_key_test.exs`
+- `test/ash_typescript/typed_controller/namespace_test.exs` (file-level assertions)
 
 ## Testing Unconstrained Maps
 
