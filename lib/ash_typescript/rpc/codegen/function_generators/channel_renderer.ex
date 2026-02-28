@@ -13,13 +13,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.{FunctionCore, JsdocGenerator}
   alias AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder
 
-  import AshTypescript.Helpers,
-    only: [
-      formatted_result_handler_field: 0,
-      formatted_error_handler_field: 0,
-      formatted_timeout_handler_field: 0,
-      formatted_timeout_field: 0
-    ]
+  import AshTypescript.Helpers, only: [format_output_field: 1]
 
   @doc """
   Renders a Channel execution function (handler-based).
@@ -43,7 +37,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
         AshTypescript.Rpc.output_field_formatter()
       )
 
-    channel_config_fields = ["  channel: Channel;"] ++ shape.config_fields
+    channel_config_fields =
+      ["  #{format_output_field(:channel)}: Channel;"] ++ shape.config_fields
 
     {result_handler_type, error_handler_type, timeout_handler_type, generic_part} =
       build_handler_types(shape)
@@ -51,15 +46,15 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
     config_fields =
       channel_config_fields ++
         [
-          "  #{formatted_result_handler_field()}: #{result_handler_type};",
-          "  #{formatted_error_handler_field()}?: (error: #{error_handler_type}) => void;",
-          "  #{formatted_timeout_handler_field()}?: #{timeout_handler_type};",
-          "  #{formatted_timeout_field()}?: number;"
+          "  #{format_output_field(:result_handler)}: #{result_handler_type};",
+          "  #{format_output_field(:error_handler)}?: (error: #{error_handler_type}) => void;",
+          "  #{format_output_field(:timeout_handler)}?: #{timeout_handler_type};",
+          "  #{format_output_field(:timeout)}?: number;"
         ]
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
 
-    timeout_field = formatted_timeout_field()
+    timeout_field = format_output_field(:timeout)
 
     payload_fields =
       PayloadBuilder.build_payload_fields(rpc_action_name, shape.context,
@@ -78,7 +73,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
     #{jsdoc}
     export async function #{function_name}#{generic_part}(config: #{config_type_def}) {
       executeActionChannelPush<#{result_type_for_handler}>(
-        config.channel,
+        config.#{format_output_field(:channel)},
         #{payload_def},
         config.#{timeout_field},
         config
@@ -111,7 +106,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
       )
 
     config_fields =
-      ["  channel: Channel;"] ++
+      ["  #{format_output_field(:channel)}: Channel;"] ++
         ConfigBuilder.build_common_config_fields(resource, action, shape.context,
           rpc_action_name: rpc_action_name,
           validation_function?: true,
@@ -126,15 +121,15 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
     config_fields =
       config_fields ++
         [
-          "  #{formatted_result_handler_field()}: #{result_handler_type};",
-          "  #{formatted_error_handler_field()}?: (error: #{error_handler_type}) => void;",
-          "  #{formatted_timeout_handler_field()}?: #{timeout_handler_type};",
-          "  #{formatted_timeout_field()}?: number;"
+          "  #{format_output_field(:result_handler)}: #{result_handler_type};",
+          "  #{format_output_field(:error_handler)}?: (error: #{error_handler_type}) => void;",
+          "  #{format_output_field(:timeout_handler)}?: #{timeout_handler_type};",
+          "  #{format_output_field(:timeout)}?: number;"
         ]
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
 
-    timeout_field = formatted_timeout_field()
+    timeout_field = format_output_field(:timeout)
 
     payload_fields =
       PayloadBuilder.build_payload_fields(rpc_action_name, shape.context,
@@ -150,7 +145,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
     #{jsdoc}
     export async function #{function_name}(config: #{config_type_def}) {
       executeValidationChannelPush<ValidationResult>(
-        config.channel,
+        config.#{format_output_field(:channel)},
         #{payload_def},
         config.#{timeout_field},
         config
