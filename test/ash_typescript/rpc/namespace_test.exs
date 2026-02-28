@@ -754,7 +754,7 @@ defmodule AshTypescript.Rpc.NamespaceTest do
     setup %{tmp_dir: tmp_dir} do
       original_config =
         Map.new(
-          ~w[enable_namespace_files namespace_output_dir output_file routes_output_file types_output_file zod_output_file]a,
+          ~w[enable_namespace_files namespace_output_dir output_file routes_output_file types_output_file zod_output_file typed_channels_output_file]a,
           &{&1, Application.get_env(:ash_typescript, &1)}
         )
 
@@ -770,6 +770,12 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       Application.put_env(:ash_typescript, :types_output_file, Path.join(tmp_dir, "ash_types.ts"))
       Application.put_env(:ash_typescript, :zod_output_file, Path.join(tmp_dir, "ash_zod.ts"))
+
+      Application.put_env(
+        :ash_typescript,
+        :typed_channels_output_file,
+        Path.join(tmp_dir, "generated_typed_channels.ts")
+      )
 
       on_exit(fn ->
         Enum.each(original_config, fn {key, value} ->

@@ -10,7 +10,7 @@ defmodule AshTypescript.CodegenCheckTest do
   setup %{tmp_dir: tmp_dir} do
     original_config =
       Map.new(
-        ~w[output_file types_output_file zod_output_file always_regenerate enable_namespace_files namespace_output_dir routes_output_file]a,
+        ~w[output_file types_output_file zod_output_file always_regenerate enable_namespace_files namespace_output_dir routes_output_file typed_channels_output_file]a,
         &{&1, Application.get_env(:ash_typescript, &1)}
       )
 
@@ -23,6 +23,12 @@ defmodule AshTypescript.CodegenCheckTest do
       :ash_typescript,
       :routes_output_file,
       Path.join(tmp_dir, "generated_routes.ts")
+    )
+
+    Application.put_env(
+      :ash_typescript,
+      :typed_channels_output_file,
+      Path.join(tmp_dir, "generated_typed_channels.ts")
     )
 
     File.write!(output_file, "")
