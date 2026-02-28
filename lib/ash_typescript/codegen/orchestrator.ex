@@ -7,12 +7,14 @@ defmodule AshTypescript.Codegen.Orchestrator do
   Coordinates multi-file TypeScript code generation with full cross-file deduplication.
 
   Each piece of generated code lives in exactly one file:
-  - `ash_types.ts` — type aliases, resource schemas, filter types, utility types, custom imports
+  - `ash_types.ts` — type aliases, resource schemas, filter types, utility types, custom imports,
+                      channel payload type aliases and events maps
   - `ash_zod.ts` — ALL Zod schemas: resource-level + per-action RPC + per-route controller
   - `ash_rpc.ts` — imports types from ash_types.ts (no Zod), hook types, helper functions,
                     per-action input types, per-action result types, per-action RPC functions
   - `routes.ts` — imports types from ash_types.ts (no Zod), static code, per-route path
                    helpers, per-route input types, per-route action functions
+  - `ash_typed_channels.ts` — imports types from ash_types.ts, channel subscription helper functions
   - `namespace/*.ts` — re-exports: functions + types from ash_rpc.ts, Zod schemas from ash_zod.ts
 
   Returns a map of `%{file_path => content}` for all generated files.
@@ -28,6 +30,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
   alias AshTypescript.Rpc.Codegen, as: RpcCodegen
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
+  alias AshTypescript.TypedChannel.Codegen, as: ChannelCodegen
   alias AshTypescript.TypedController.Codegen, as: ControllerCodegen
 
   @doc """
@@ -48,9 +51,11 @@ defmodule AshTypescript.Codegen.Orchestrator do
     types_output_file = AshTypescript.types_output_file()
     zod_output_file = AshTypescript.zod_output_file()
     routes_output_file = AshTypescript.routes_output_file()
+    typed_channels_output_file = AshTypescript.typed_channels_output_file()
     zod_enabled? = AshTypescript.Rpc.generate_zod_schemas?()
 
     rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
+    channel_entries = collect_typed_channel_entries()
 
     if rpc_output_file do
       domains = Ash.Info.domains(otp_app)
@@ -108,8 +113,17 @@ defmodule AshTypescript.Codegen.Orchestrator do
             otp_app: otp_app
           )
 
-        type_names = extract_exported_type_names(types_content)
-        {Map.put(files, types_output_file, types_content), type_names}
+        channel_types = generate_channel_types_content(channel_entries)
+
+        full_types_content =
+          if channel_types == "" do
+            types_content
+          else
+            types_content <> "\n" <> channel_types
+          end
+
+        type_names = extract_exported_type_names(full_types_content)
+        {Map.put(files, types_output_file, full_types_content), type_names}
       else
         {files, []}
       end
@@ -191,6 +205,38 @@ defmodule AshTypescript.Codegen.Orchestrator do
           Map.put(files, routes_output_file, routes_content)
         else
           files
+        end
+      else
+        files
+      end
+
+    files =
+      if typed_channels_output_file do
+        if channel_entries == [] do
+          files
+        else
+          body = ChannelCodegen.generate_all_channel_functions(channel_entries)
+
+          if body == "" do
+            files
+          else
+            types_import_path =
+              ImportResolver.resolve_import_path(typed_channels_output_file, types_output_file)
+
+            import_paths = %{types: types_import_path}
+
+            imports =
+              ImportResolver.build_shared_type_imports(import_paths, shared_type_names, body)
+
+            full_content =
+              if imports == "" do
+                body
+              else
+                imports <> "\n\n" <> body
+              end
+
+            Map.put(files, typed_channels_output_file, full_content)
+          end
         end
       else
         files
@@ -287,6 +333,25 @@ defmodule AshTypescript.Codegen.Orchestrator do
     |> Enum.map(fn [_, name] -> name end)
     |> Enum.uniq()
     |> Enum.sort()
+  end
+
+  defp collect_typed_channel_entries do
+    AshTypescript.typed_channels()
+    |> Enum.map(fn mod ->
+      Code.ensure_loaded(mod)
+      topic = AshTypescript.TypedChannel.Info.typed_channel_topic!(mod)
+      {mod, topic}
+    end)
+    |> Enum.uniq_by(fn {mod, _topic} -> mod end)
+    |> Enum.sort_by(fn {mod, _topic} -> inspect(mod) end)
+  end
+
+  defp generate_channel_types_content(channel_entries) do
+    if channel_entries == [] do
+      ""
+    else
+      ChannelCodegen.generate_all_channel_types(channel_entries)
+    end
   end
 
   defp collect_typed_controller_resources do

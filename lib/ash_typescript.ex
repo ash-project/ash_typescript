@@ -694,6 +694,24 @@ defmodule AshTypescript do
     Application.get_env(:ash_typescript, :controller_namespace_output_dir)
   end
 
+  @doc """
+  Gets the list of TypedChannel modules from application configuration.
+
+  Each module must `use AshTypescript.TypedChannel` and declare a `topic` in its DSL.
+  """
+  def typed_channels do
+    Application.get_env(:ash_typescript, :typed_channels, [])
+  end
+
+  @doc """
+  Gets the output file path for typed channel subscription functions.
+
+  When nil, no separate typed channels file is generated.
+  """
+  def typed_channels_output_file do
+    Application.get_env(:ash_typescript, :typed_channels_output_file)
+  end
+
   defp config_or_derive(key, derived_name, fallback) do
     case Application.get_env(:ash_typescript, key) do
       nil -> derive_from_output_file(derived_name) || fallback

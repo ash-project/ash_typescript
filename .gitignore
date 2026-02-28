@@ -29,6 +29,7 @@ ash_typescript-*.tar
 test/ts/node_modules/
 test/ts/generated.ts
 test/ts/generated_routes.ts
+test/ts/generated_typed_channels.ts
 test/ts/ash_types.ts
 test/ts/ash_zod.ts
 test/ts/todos.ts
