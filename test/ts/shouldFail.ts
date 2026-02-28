@@ -20,6 +20,7 @@ import "./shouldFail/wrongPaginationTypes";
 import "./shouldFail/noFieldsReadActions";
 import "./shouldFail/loadRestrictions";
 import "./shouldFail/firstAggregates";
+import "./shouldFail/invalidTypedChannelUsage";
 
 // Import Zod schema validation failure tests
 import "./zod/shouldFail/invalidZodUsage";
