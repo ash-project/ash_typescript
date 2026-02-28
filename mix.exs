@@ -117,6 +117,7 @@ defmodule AshTypescript.MixProject do
         # Features
         "documentation/features/rpc-action-options.md",
         "documentation/features/phoenix-channels.md",
+        "documentation/features/typed-channels.md",
         "documentation/features/lifecycle-hooks.md",
         "documentation/features/multitenancy.md",
         "documentation/features/action-metadata.md",
@@ -175,7 +176,7 @@ defmodule AshTypescript.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, "~> 3.7"},
+      {:ash, "~> 3.18"},
       {:ash_phoenix, "~> 2.0"},
       {:ash_postgres, "~> 2.0", only: [:dev, :test]},
       {:git_ops, "~> 2.0", only: [:dev], runtime: false},
