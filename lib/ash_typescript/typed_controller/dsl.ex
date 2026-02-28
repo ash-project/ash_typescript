@@ -182,7 +182,7 @@ defmodule AshTypescript.TypedController.Dsl do
           doc: "The HTTP method. Defaults to :get."
         ]
       ] ++ @common_route_schema,
-    args: [:name, {:optional, :method, :get}]
+    args: [:name, {:optional, :method}]
   }
 
   # Verb shortcut entities — e.g. `get :login do ... end`, `post :login do ... end`

@@ -74,7 +74,7 @@ Define typed controller routes
 
 ### typed_controller.route
 ```elixir
-route name, method \\ :get
+route name, method \\ nil
 ```
 
 
