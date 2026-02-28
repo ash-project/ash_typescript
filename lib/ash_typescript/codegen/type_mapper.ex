@@ -467,6 +467,43 @@ defmodule AshTypescript.Codegen.TypeMapper do
   end
 
   @doc """
+  Maps an Ash type to a TypeScript type for channel event payloads.
+
+  Like `map_type/3` with `:output` direction, but typed containers (maps/structs
+  with `:fields` constraint) generate plain object types without the
+  `__type`/`__primitiveFields` metadata that the RPC field-selection system needs.
+  """
+  @spec map_channel_payload_type(atom() | tuple(), keyword()) :: String.t()
+  def map_channel_payload_type(type, constraints) do
+    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+
+    cond do
+      unwrapped_type in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] ->
+        fields = Keyword.get(full_constraints, :fields, [])
+
+        if fields == [] do
+          AshTypescript.untyped_map_type()
+        else
+          field_name_mappings = get_field_name_mappings(unwrapped_type, full_constraints)
+          build_plain_map_type(fields, field_name_mappings)
+        end
+
+      unwrapped_type == Ash.Type.Struct ->
+        fields = Keyword.get(full_constraints, :fields)
+
+        if fields do
+          field_name_mappings = get_field_name_mappings(Ash.Type.Struct, full_constraints)
+          build_plain_map_type(fields, field_name_mappings)
+        else
+          map_type(type, constraints, :output)
+        end
+
+      true ->
+        map_type(type, constraints, :output)
+    end
+  end
+
+  @doc """
   Builds a TypeScript map type with optional field filtering and name mapping.
   """
   def build_map_type(fields, select \\ nil, field_name_mappings \\ nil) do
@@ -529,6 +566,30 @@ defmodule AshTypescript.Codegen.TypeMapper do
       end
 
     "{#{field_types}, __type: \"TypedMap\", __primitiveFields: #{primitive_fields_union}}"
+  end
+
+  defp build_plain_map_type(fields, field_name_mappings) do
+    field_types =
+      fields
+      |> Enum.map_join(", ", fn {field_name, field_config} ->
+        field_type = map_type(field_config[:type], field_config[:constraints] || [], :output)
+
+        formatted_field_name =
+          if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
+            Keyword.get(field_name_mappings, field_name) |> to_string()
+          else
+            field_name
+          end
+          |> AshTypescript.FieldFormatter.format_field_name(
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        allow_nil = Keyword.get(field_config, :allow_nil?, true)
+        optional = if allow_nil, do: " | null", else: ""
+        "#{formatted_field_name}: #{field_type}#{optional}"
+      end)
+
+    "{#{field_types}}"
   end
 
   @doc """
