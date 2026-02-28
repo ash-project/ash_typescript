@@ -12,6 +12,7 @@ SPDX-License-Identifier: MIT
 **Critical**: Add `AshTypescript.Rpc` extension to domain, run `mix ash_typescript.codegen`
 **Authentication**: Use `buildCSRFHeaders()` for Phoenix CSRF protection
 **Controller Routes**: Use `AshTypescript.TypedController` for controller-style actions with `conn` access
+**Typed Channels**: Use `AshTypescript.TypedChannel` for typed PubSub event subscriptions
 **Validation**: Always verify generated TypeScript compiles
 
 ## Essential Syntax Table
@@ -72,6 +73,14 @@ SPDX-License-Identifier: MIT
 | **Routes Output** | `config :ash_typescript, routes_output_file: "routes.ts"` | Route file path |
 | **Paths-Only Mode** | `config :ash_typescript, typed_controller_mode: :paths_only` | Skip fetch functions |
 | **GET Query Params** | `argument :q, :string, allow_nil?: false` on GET route | Becomes `?q=value` |
+| **Typed Channel** | `use AshTypescript.TypedChannel` | Server-push event subscriptions |
+| **Channel Topic** | `typed_channel do topic "org:*"` | Wildcard or static topic |
+| **Channel Resource** | `resource MyApp.Post do publish :event end` | Declare events per resource |
+| **Channel Create** | `createOrgChannel(socket, suffix)` | Factory with branded type |
+| **Channel Subscribe** | `onOrgChannelMessages(channel, handlers)` | Multi-event subscription |
+| **Channel Unsubscribe** | `unsubscribeOrgChannel(channel, refs)` | Cleanup all refs |
+| **Typed Channels** | `config :ash_typescript, typed_channels: [M]` | Module discovery |
+| **Channels Output** | `config :ash_typescript, typed_channels_output_file: "..."` | Channel functions file |
 
 ## Action Feature Matrix
 
@@ -219,6 +228,71 @@ updateProvider({ provider: "github" }, { enabled: true })
 - Not an Ash resource — standalone Spark DSL with colocated arguments
 - Path param `allow_nil?` must match presence: always present → `false`, sometimes present (multi-mount) → `true`
 
+## Typed Channel (Event Subscriptions)
+
+### When to Use
+
+| Use Case | Extension |
+|----------|-----------|
+| Data operations with field selection, filtering, pagination | `AshTypescript.Rpc` + `AshTypescript.Resource` |
+| Controller actions (Inertia renders, redirects, file downloads) | `AshTypescript.TypedController` |
+| Server pushes events to clients (notifications, updates) | `AshTypescript.TypedChannel` |
+
+### Setup
+
+```elixir
+defmodule MyAppWeb.OrgChannel do
+  use AshTypescript.TypedChannel
+  use Phoenix.Channel
+
+  typed_channel do
+    topic "org:*"
+
+    resource MyApp.Post do
+      publish :post_created
+      publish :post_updated
+    end
+  end
+
+  @impl true
+  def join("org:" <> org_id, _payload, socket), do: {:ok, socket}
+end
+```
+
+Resources must have `pub_sub` publications with matching `event:` names. Add `returns:` to publications for typed payloads (otherwise `unknown`).
+
+### Generated TypeScript
+
+```typescript
+// Create branded channel + subscribe
+const channel = createOrgChannel(socket, orgId);
+channel.join();
+
+const refs = onOrgChannelMessages(channel, {
+  post_created: (payload) => console.log(payload),  // typed payload
+  post_updated: (payload) => updatePost(payload),
+});
+
+// Single event: onOrgChannelMessage(channel, "post_created", handler)
+
+// Cleanup
+unsubscribeOrgChannel(channel, refs);
+```
+
+### Topic Patterns
+
+| Topic Pattern | Factory Signature |
+|--------------|-------------------|
+| `"org:*"` (wildcard) | `createOrgChannel(socket, suffix)` |
+| `"global"` (no wildcard) | `createGlobalChannel(socket)` |
+
+### Typed Channel Constraints
+
+- Event names must be unique across all resources in a channel
+- Publications need `public?: true` (warning if missing)
+- Publications need `returns:` option for typed payloads (warning if missing, falls back to `unknown`)
+- Channel types go in `ash_types.ts`; channel functions go in `typed_channels_output_file`
+
 ## Common Gotchas
 
 | Error Pattern | Fix |
@@ -239,6 +313,10 @@ updateProvider({ provider: "github" }, { enabled: true })
 | Path param without matching argument | Add `argument :param, :string` to route |
 | Path param `allow_nil?` mismatch | Always-present → `false`; sometimes-present → `true` |
 | Route hooks not firing | Check `typed_controller_import_into_generated` + hook names |
+| Typed channel event not found | Event name must match `event:` option on resource's `pub_sub` publication |
+| Duplicate channel event names | Use unique event names across all resources in one channel |
+| Channel payload is `unknown` | Add `returns:` option to the resource's `pub_sub` publication |
+| Typed channels not generated | Set `typed_channels:` and `typed_channels_output_file:` in config |
 
 ## Error Quick Reference
 
@@ -253,6 +331,8 @@ updateProvider({ provider: "github" }, { enabled: true })
 | "load_not_allowed" / "load_denied" | Check load restrictions config |
 | "allow_nil?: true" + path param | Set `allow_nil?: false` for always-present path params |
 | "allow_nil?: false" + sometimes-present | Use `allow_nil?: true` for multi-mount path params |
+| "No publication with event X found" | Check `event:` option on resource's `pub_sub` block |
+| "Duplicate event names found" | Use unique event names per channel |
 
 ## Configuration
 
@@ -292,6 +372,9 @@ config :ash_typescript,
   # typed_controller_import_into_generated: [%{import_name: "RouteHooks", file: "./routeHooks"}],
   # typed_controller_error_handler: {MyApp.ErrorHandler, :handle, []},
   # typed_controller_show_raised_errors: false  # true only in dev
+  # Typed Channel (event subscriptions)
+  typed_channels: [MyApp.OrgChannel],
+  typed_channels_output_file: "assets/js/ash_typed_channels.ts"
 ```
 
 ## Commands

@@ -61,6 +61,10 @@ config :ash_typescript,
   enable_namespace_files: false,      # Generate separate files for namespaced RPC actions
   namespace_output_dir: nil,          # Directory for RPC namespace files (defaults to output_file dir)
 
+  # Typed channel event subscriptions
+  typed_channels: [],
+  typed_channels_output_file: nil,
+
   # Typed controllers
   typed_controllers: [],
   router: nil,
@@ -106,6 +110,7 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | Shared types | `types_output_file` | Auto-derived as `ash_types.ts` | Type aliases, resource schemas, filter types, utility types |
 | Shared Zod schemas | `zod_output_file` | Auto-derived as `ash_zod.ts` | Zod schemas for all resources (when `generate_zod_schemas: true`) |
 | Route helpers | `routes_output_file` | `nil` (disabled) | Path helpers, typed fetch functions, controller input types |
+| Typed channel functions | `typed_channels_output_file` | `nil` (disabled) | Channel factory, subscription helpers, cleanup functions |
 | RPC namespace re-exports | `namespace_output_dir` | Same dir as `output_file` | Per-namespace re-export files (when `enable_namespace_files: true`) |
 | Controller namespace re-exports | `controller_namespace_output_dir` | Same dir as `routes_output_file` | Per-namespace re-export files (when `enable_controller_namespace_files: true`) |
 
@@ -136,6 +141,8 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `warn_on_non_rpc_references` | `boolean` | `true` | Warn about non-RPC resources referenced by RPC resources |
 | `enable_namespace_files` | `boolean` | `false` | Generate separate files for namespaced RPC actions |
 | `namespace_output_dir` | `string \| nil` | `nil` | Directory for RPC namespace files (defaults to `output_file` dir) |
+| `typed_channels` | `list(module)` | `[]` | TypedChannel modules to generate event subscription helpers for |
+| `typed_channels_output_file` | `string \| nil` | `nil` | Output file for typed channel functions (when `nil`, generation is skipped) |
 | `typed_controllers` | `list(module)` | `[]` | TypedController modules to generate route helpers for |
 | `router` | `module \| nil` | `nil` | Phoenix router module for path introspection |
 | `routes_output_file` | `string \| nil` | `nil` | Output file path for generated route helpers |
@@ -276,6 +283,25 @@ config :ash_typescript, always_regenerate: true
 
 When enabled, `--check` mode will write files directly instead of comparing, so the `PendingCodegen` error page is never shown during development.
 
+## Typed Channel Configuration
+
+Configure typed channels to generate TypeScript event subscription helpers from Ash PubSub publications. Both `typed_channels` and `typed_channels_output_file` must be configured for generation to run.
+
+```elixir
+config :ash_typescript,
+  typed_channels: [MyApp.OrgChannel, MyApp.ActivityChannel],
+  typed_channels_output_file: "assets/js/ash_typed_channels.ts"
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `typed_channels` | `list(module)` | `[]` | Modules using `AshTypescript.TypedChannel` |
+| `typed_channels_output_file` | `string \| nil` | `nil` | Output file for channel functions (when `nil`, generation is skipped) |
+
+Channel types (branded types, payload aliases, event maps) are appended to the shared types file (`ash_types.ts`). Channel functions (factory, subscription helpers) go into `typed_channels_output_file` and import their types from `ash_types.ts`.
+
+See [Typed Channels](../features/typed-channels.md) for complete documentation.
+
 ## Typed Controller Configuration
 
 Configure typed controllers to generate TypeScript path helpers and typed fetch functions for Phoenix controller routes. All three settings (`typed_controllers`, `router`, `routes_output_file`) must be configured for route generation to run.
@@ -341,6 +367,7 @@ For in-depth configuration guides, see:
 - [Developer Experience](../features/developer-experience.md) - Namespaces, JSDoc, and manifest generation
 - [Lifecycle Hooks](../features/lifecycle-hooks.md) - HTTP and channel lifecycle hooks
 - [Phoenix Channels](../features/phoenix-channels.md) - Channel-based RPC configuration
+- [Typed Channels](../features/typed-channels.md) - Typed event subscriptions from PubSub
 - [Multitenancy](../features/multitenancy.md) - Tenant parameter configuration
 - [Form Validation](../guides/form-validation.md) - Zod schema configuration
 - [Typed Controllers](../guides/typed-controllers.md) - Controller route helpers

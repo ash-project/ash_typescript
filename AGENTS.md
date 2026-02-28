@@ -11,7 +11,7 @@ SPDX-License-Identifier: MIT
 
 **AshTypescript** generates TypeScript types and RPC clients from Ash resources, providing end-to-end type safety between Elixir backends and TypeScript frontends.
 
-**Key Features**: Type generation, RPC client generation, Phoenix channel RPC actions, typed controller route helpers, action metadata support, nested calculations, multitenancy, embedded resources, union types, field/argument/metadata name mapping, load restrictions, configurable RPC warnings
+**Key Features**: Type generation, RPC client generation, Phoenix channel RPC actions, typed channel event subscriptions, typed controller route helpers, action metadata support, nested calculations, multitenancy, embedded resources, union types, field/argument/metadata name mapping, load restrictions, configurable RPC warnings
 
 ## 🚨 Critical Development Rules
 
@@ -128,6 +128,36 @@ listTodosChannel({
 });
 ```
 
+### Typed Channel Event Subscriptions
+
+For typed one-way push events from Ash PubSub publications:
+
+```elixir
+defmodule MyApp.OrgChannel do
+  use AshTypescript.TypedChannel
+
+  typed_channel do
+    topic "org:*"
+
+    resource MyApp.Post do
+      publish :post_created
+      publish :post_updated
+    end
+  end
+end
+```
+
+```typescript
+import { createOrgChannel, onOrgChannelMessages, unsubscribeOrgChannel } from './ash_typed_channels';
+
+const channel = createOrgChannel(socket, orgId);
+const refs = onOrgChannelMessages(channel, {
+  post_created: (payload) => console.log("New post:", payload),
+  post_updated: (payload) => console.log("Updated:", payload),
+});
+// Cleanup: unsubscribeOrgChannel(channel, refs);
+```
+
 ## Runtime Introspection (Tidewave MCP)
 
 **Use these tools instead of shell commands for Elixir evaluation:**
@@ -191,12 +221,18 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Route renderer** | `lib/ash_typescript/typed_controller/codegen/route_renderer.ex` |
 | **TypeScript static code** | `lib/ash_typescript/typed_controller/codegen/typescript_static.ex` |
 | **Controller verifier** | `lib/ash_typescript/typed_controller/verifiers/verify_typed_controller.ex` |
+| **Typed channel DSL** | `lib/ash_typescript/typed_channel/dsl.ex` |
+| **Typed channel main** | `lib/ash_typescript/typed_channel.ex` |
+| **Typed channel codegen** | `lib/ash_typescript/typed_channel/codegen.ex` |
+| **Typed channel verifier** | `lib/ash_typescript/typed_channel/verifiers/verify_typed_channel.ex` |
+| **Channel payload type mapper** | `lib/ash_typescript/codegen/type_mapper.ex` (`map_channel_payload_type/2`) |
 | **Test domain** | `test/support/domain.ex` |
 | **Primary test resource** | `test/support/resources/todo.ex` |
 | **TypeScript validation** | `test/ts/shouldPass/` & `test/ts/shouldFail/` |
 | **TypeScript call extractor** | `test/support/ts_action_call_extractor.ex` |
 | **Codegen test helper** | `test/support/codegen_test_helper.ex` |
 | **Typed controller tests** | `test/ash_typescript/typed_controller/` |
+| **Typed channel tests** | `test/ash_typescript/typed_channel/` |
 | **Test typed controller** | `test/support/resources/session.ex` |
 | **Test router** | `test/support/routes_test_router.ex` |
 | **Generated route helpers** | `test/ts/generated_routes.ts` |
@@ -256,6 +292,7 @@ mix credo --strict                   # Linting
 | **Union types** | [features/union-systems-core.md](agent-docs/features/union-systems-core.md) | `test/ash_typescript/rpc/rpc_union_*_test.exs` |
 | **Namespaces, JSDoc, Manifest** | [features/developer-experience.md](agent-docs/features/developer-experience.md) | `test/ash_typescript/rpc/namespace_test.exs` |
 | **Typed controllers & route helpers** | [features/typed-controller.md](agent-docs/features/typed-controller.md) | `test/ash_typescript/typed_controller/` |
+| **Typed channel event subscriptions** | [features/typed-channel.md](agent-docs/features/typed-channel.md) | `test/ash_typescript/typed_channel/` |
 | **Development patterns** | [development-workflows.md](agent-docs/development-workflows.md) | N/A |
 
 ## Key Architecture Concepts
@@ -278,7 +315,7 @@ mix credo --strict                   # Linting
 - **ValueFormatter** - Unified type-aware value formatting
 
 ### Multi-File Codegen Architecture
-- **Orchestrator** (`codegen/orchestrator.ex`): Coordinates all file generation — types, Zod, RPC, routes, namespace re-exports
+- **Orchestrator** (`codegen/orchestrator.ex`): Coordinates all file generation — types, Zod, RPC, routes, typed channels, namespace re-exports
 - **ImportResolver** (`codegen/import_resolver.ex`): Shared utility for import path resolution and namespace re-export generation (used by both RPC and controller codegen)
 - **CodegenTestHelper** (`test/support/codegen_test_helper.ex`): Test wrapper for orchestrator — use `generate_all_content/0` for string assertions, `generate_files/0` for file-level assertions
 
@@ -326,6 +363,9 @@ mix credo --strict                   # Linting
 | Invalid names for TypeScript (controller) | Route/argument names with `_1` or `?` | Rename to avoid patterns that produce awkward camelCase |
 | `allow_nil?: true` on always-present path param | Path param always provided by router | Set `allow_nil?: false` on the argument |
 | `allow_nil?: false` on sometimes-present path param | Path param only at some mounts | Set `allow_nil?: true` (default) on the argument |
+| "No publication with event X found" | Typed channel event doesn't match any publication | Check `event:` option on the resource's `pub_sub` block |
+| "Duplicate event names found in typed_channel" | Same event name across resources in one channel | Use unique event names per channel |
+| Channel `unknown` payload type | Publication missing `returns` option | Add `returns: :some_type` to the publication |
 
 ## RPC Resource Warnings
 
@@ -372,6 +412,21 @@ config :ash_typescript,
 **Base path:** When set (e.g., `"https://api.example.com"` or `{:runtime_expr, "AppConfig.getBasePath()"}`), all generated route URLs are prefixed with `_basePath`. Uses the same `{:runtime_expr, "..."}` pattern as RPC endpoints.
 
 **Implementation:** `lib/ash_typescript.ex` (`typed_controllers/0`, `router/0`, `routes_output_file/0`, `typed_controller_mode/0`, `typed_controller_base_path/0`) + `lib/mix/tasks/ash_typescript.codegen.ex` + `lib/ash_typescript/typed_controller/`
+
+## Typed Channel Configuration
+
+When `typed_channels` and `typed_channels_output_file` are configured, `mix ash_typescript.codegen` generates typed TypeScript event subscription helpers alongside RPC types.
+
+**Configuration:**
+```elixir
+config :ash_typescript,
+  typed_channels: [MyApp.OrgChannel],                       # TypedChannel modules
+  typed_channels_output_file: "assets/js/ash_typed_channels.ts"  # Output file for channel functions
+```
+
+Channel types (branded types, payload aliases, event maps) are appended to `ash_types.ts`. Channel functions (factory, subscription helpers) go into the separate `typed_channels_output_file`.
+
+**Implementation:** `lib/ash_typescript.ex` (`typed_channels/0`, `typed_channels_output_file/0`) + `lib/ash_typescript/typed_channel/` + `lib/ash_typescript/codegen/orchestrator.ex`
 
 ## Always Regenerate Mode
 
