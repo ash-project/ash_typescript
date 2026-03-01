@@ -36,15 +36,20 @@ defmodule AshTypescript.Codegen.ImportResolver do
   """
   @spec resolve_import_path(String.t(), String.t()) :: String.t()
   def resolve_import_path(from_file, to_file) do
-    from_dir = Path.dirname(from_file)
-    to_dir = Path.dirname(to_file)
+    from_dir = from_file |> Path.dirname() |> Path.expand()
+    to_dir = to_file |> Path.dirname() |> Path.expand()
     to_name = Path.basename(to_file, ".ts")
 
     if from_dir == to_dir do
       "./#{to_name}"
     else
-      relative_dir = Path.relative_to(to_dir, from_dir)
-      "./#{relative_dir}/#{to_name}"
+      relative_dir = Path.relative_to(to_dir, from_dir, force: true)
+
+      if String.starts_with?(relative_dir, "..") do
+        "#{relative_dir}/#{to_name}"
+      else
+        "./#{relative_dir}/#{to_name}"
+      end
     end
   end
 
