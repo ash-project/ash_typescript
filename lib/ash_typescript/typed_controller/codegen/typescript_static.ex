@@ -145,6 +145,9 @@ defmodule AshTypescript.TypedController.Codegen.TypescriptStatic do
         ""
       end
 
+    has_hooks = before_hook != nil or after_hook != nil
+    action_name_param = if has_hooks, do: "actionName", else: "_actionName"
+
     headers_field = formatted_headers_field()
     custom_fetch_field = formatted_custom_fetch_field()
     fetch_options_field = formatted_fetch_options_field()
@@ -156,7 +159,7 @@ defmodule AshTypescript.TypedController.Codegen.TypescriptStatic do
     export async function executeTypedControllerRequest(
       url: string,
       method: string,
-      actionName: string,
+      #{action_name_param}: string,
       body: string | undefined,
       config?: TypedControllerConfig,
     ): Promise<Response> {
