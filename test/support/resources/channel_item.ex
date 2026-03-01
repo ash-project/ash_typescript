@@ -37,7 +37,9 @@ defmodule AshTypescript.Test.ChannelItem do
 
     publish :destroy, [:id],
       event: "item_deleted",
-      public?: true
+      public?: true,
+      returns: :string,
+      transform: fn notification -> notification.data.id end
   end
 
   attributes do

@@ -32,8 +32,8 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
       assert content =~ "export type ItemUpdatedPayload = number;"
     end
 
-    test "generates unknown payload type for event without returns", %{content: content} do
-      assert content =~ "export type ItemDeletedPayload = unknown;"
+    test "generates string payload type for item_deleted (:string)", %{content: content} do
+      assert content =~ "export type ItemDeletedPayload = string;"
     end
 
     test "generates channel events map type", %{content: content} do

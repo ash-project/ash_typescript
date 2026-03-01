@@ -71,9 +71,9 @@ const itemUpdatedRef: number = onOrgChannelMessage(
   }
 );
 
-// Test 4: Single-event subscription - unknown payload (no returns)
+// Test 4: Single-event subscription - string payload
 onOrgChannelMessage(orgChannel, "item_deleted", (payload) => {
-  const value: unknown = payload;
+  const value: string = payload;
 });
 
 // Test 5: Multi-event subscription
@@ -86,7 +86,7 @@ const orgRefs: OrgChannelRefs = onOrgChannelMessages(orgChannel, {
     const count: number = payload;
   },
   item_deleted: (payload) => {
-    const value: unknown = payload;
+    const value: string = payload;
   },
 });
 
@@ -208,7 +208,7 @@ const singleRef = onFullActivityChannelMessage(
 // Test 16: Payload type aliases are usable standalone
 const myPayload: ItemCreatedPayload = { id: "abc" as any, name: "test" };
 const myUpdate: ItemUpdatedPayload = 42;
-const myDelete: ItemDeletedPayload = undefined;
+const myDelete: ItemDeletedPayload = "some-id";
 const myArticle: ArticlePublishedPayload = { id: "abc" as any, title: "Hi" };
 const myArticleUpdate: ArticleUpdatedPayload = "new title";
 const myReview: ReviewSubmittedPayload = 5;
