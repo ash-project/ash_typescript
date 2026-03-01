@@ -21,6 +21,21 @@ Generate type-safe TypeScript clients directly from your Elixir Ash resources, e
 
 ## Breaking Changes
 
+### 0.17.0 - Project-Root-Relative Import Paths
+
+`import_into_generated` and `typed_controller_import_into_generated` file paths are now **project-root-relative** instead of JS-relative import paths. The codegen resolves the correct relative import path for each output file automatically.
+
+**Migration:**
+```elixir
+# Before (JS-relative)
+config :ash_typescript,
+  import_into_generated: [%{import_name: "RpcHooks", file: "./rpcHooks"}]
+
+# After (project-root-relative)
+config :ash_typescript,
+  import_into_generated: [%{import_name: "RpcHooks", file: "assets/js/rpcHooks.ts"}]
+```
+
 ### 0.16.0 - Multi-File Output
 
 AshTypescript now generates multiple output files instead of a single monolithic file. Shared types and Zod schemas are extracted into dedicated files (`ash_types.ts` and `ash_zod.ts`) that both RPC and controller code import from.
