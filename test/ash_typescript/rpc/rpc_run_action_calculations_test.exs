@@ -1192,7 +1192,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert perf_metrics["taskComplexity"] == "medium"
     end
 
-    test "returns error when requesting no-argument complex calculation as simple atom", %{
+    test "allows requesting no-argument complex calculation as simple atom", %{
       conn: conn
     } do
       result =
@@ -1200,16 +1200,12 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
           "action" => "list_todos",
           "fields" => [
             "id",
-            # summary returns a complex type, must use field selection
+            # summary returns a complex type — loaded flat, all sub-fields returned
             "summary"
           ]
         })
 
-      assert result["success"] == false
-      assert is_list(result["errors"])
-      [error | _] = result["errors"]
-      assert error["type"] == "requires_field_selection"
-      assert List.first(error["fields"]) == "summary"
+      assert result["success"] == true
     end
 
     test "returns error for invalid field in no-argument calculation field selection", %{

@@ -244,7 +244,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       throw({:calculation_requires_args, internal_name, path})
     end
 
-    if requires_nested_selection?(field_type, constraints) do
+    if requires_nested_selection?(field_type, constraints) and category != :calculation_complex do
       throw({:requires_field_selection, category, internal_name, path})
     end
 
@@ -255,7 +255,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       :relationship ->
         throw({:requires_field_selection, :relationship, internal_name, path})
 
-      cat when cat in [:calculation, :aggregate] ->
+      cat when cat in [:calculation, :calculation_complex, :aggregate] ->
         {select, load ++ [internal_name], template ++ [internal_name]}
     end
   end
@@ -339,8 +339,30 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         load_spec = build_load_spec(internal_name, nested_select, nested_load)
         {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
 
-      cat when cat in [:calculation, :calculation_complex] ->
+      :calculation ->
         load_spec = build_load_spec(internal_name, nested_select, nested_load)
+        {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
+
+      :calculation_complex ->
+        # Calculations returning complex types without arguments.
+        # For Ash Resources: use {calc, {%{}, loads}} to enable load_through.
+        # For TypedStruct/typed maps: load as bare atom — Ash can't query through
+        # non-resource types. Sub-field extraction is handled by the template.
+        load_spec =
+          if nested_select != [] or nested_load != [] do
+            # Resource-type return: select/load are populated by select_resource_fields
+            load_fields =
+              case nested_load do
+                [] -> nested_select
+                _ -> nested_select ++ nested_load
+              end
+
+            {internal_name, {%{}, load_fields}}
+          else
+            # TypedStruct/typed map: fields only appear in template
+            internal_name
+          end
+
         {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
 
       :aggregate ->
