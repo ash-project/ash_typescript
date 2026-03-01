@@ -15,6 +15,8 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
 
   import AshTypescript.Helpers
 
+  alias AshTypescript.Codegen.ImportResolver
+
   @doc """
   Generates TypeScript import statements based on configuration.
 
@@ -26,9 +28,11 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
   ## Options
 
     * `:skip_zod` - When true, omits the Zod import (for split-file mode where Zod is in ash_zod.ts)
+    * `:output_file` - The target output file path, for resolving custom import paths
   """
   def generate_imports(opts \\ []) do
     skip_zod = Keyword.get(opts, :skip_zod, false)
+    output_file = Keyword.get(opts, :output_file)
 
     zod_import =
       if not skip_zod and AshTypescript.Rpc.generate_zod_schemas?() do
@@ -52,19 +56,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
           ""
 
         imports when is_list(imports) ->
-          imports
-          |> Enum.map(fn import_config ->
-            import_name = Map.get(import_config, :import_name)
-            file_path = Map.get(import_config, :file)
-
-            if import_name && file_path do
-              "import * as #{import_name} from \"#{file_path}\";"
-            else
-              ""
-            end
-          end)
-          |> Enum.reject(&(&1 == ""))
-          |> Enum.join("\n")
+          ImportResolver.resolve_custom_imports(output_file, imports)
 
         _ ->
           ""

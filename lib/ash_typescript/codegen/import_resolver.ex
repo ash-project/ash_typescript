@@ -54,6 +54,41 @@ defmodule AshTypescript.Codegen.ImportResolver do
   end
 
   @doc """
+  Resolves custom import paths from `import_into_generated` config entries
+  relative to a target output file.
+
+  Each import config is a map with `:import_name` and `:file` keys, where `:file`
+  is a project-root-relative path (e.g., `"assets/js/hooks.ts"`).
+
+  ## Parameters
+
+    * `target_output_file` - The output file that will contain the import statements
+    * `imports` - List of import config maps with `:import_name` and `:file` keys
+
+  ## Examples
+
+      iex> resolve_custom_imports("assets/js/ash_rpc.ts", [%{import_name: "Hooks", file: "assets/js/hooks.ts"}])
+      "import * as Hooks from \\"./hooks\\";"
+  """
+  @spec resolve_custom_imports(String.t(), list(map())) :: String.t()
+  def resolve_custom_imports(target_output_file, imports) do
+    imports
+    |> Enum.map(fn import_config ->
+      import_name = Map.get(import_config, :import_name)
+      file_path = Map.get(import_config, :file)
+
+      if import_name && file_path do
+        resolved = resolve_import_path(target_output_file, file_path)
+        "import * as #{import_name} from \"#{resolved}\";"
+      else
+        ""
+      end
+    end)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n")
+  end
+
+  @doc """
   Builds import and re-export lines for shared types.
 
   Generates an `export type * from` re-export, plus a local `import type { ... }`

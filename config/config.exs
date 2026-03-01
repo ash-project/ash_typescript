@@ -68,21 +68,21 @@ if Mix.env() == :test do
     typed_controller_import_into_generated: [
       %{
         import_name: "RouteHooks",
-        file: "./routeHooks"
+        file: "./test/ts/routeHooks.ts"
       }
     ],
     import_into_generated: [
       %{
         import_name: "CustomTypes",
-        file: "./customTypes"
+        file: "./test/ts/customTypes.ts"
       },
       %{
         import_name: "RpcHooks",
-        file: "./rpcHooks"
+        file: "./test/ts/rpcHooks.ts"
       },
       %{
         import_name: "ChannelHooks",
-        file: "./channelHooks"
+        file: "./test/ts/channelHooks.ts"
       }
     ],
     type_mapping_overrides: [

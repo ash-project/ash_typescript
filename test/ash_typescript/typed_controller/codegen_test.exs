@@ -675,7 +675,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
       Application.put_env(
         :ash_typescript,
         :typed_controller_import_into_generated,
-        [%{import_name: "RouteHooks", file: "./routeHooks"}]
+        [%{import_name: "RouteHooks", file: "./test/ts/routeHooks.ts"}]
       )
 
       typescript =

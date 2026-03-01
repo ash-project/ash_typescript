@@ -110,7 +110,8 @@ defmodule AshTypescript.Codegen.Orchestrator do
             rpc_resources: rpc_resources,
             actions: actions,
             struct_argument_resources: struct_argument_resources,
-            otp_app: otp_app
+            otp_app: otp_app,
+            types_output_file: types_output_file
           )
 
         channel_types = generate_channel_types_content(channel_entries)
@@ -175,7 +176,8 @@ defmodule AshTypescript.Codegen.Orchestrator do
           import_paths: import_paths,
           otp_app: otp_app,
           all_resources: all_resources,
-          shared_type_names: shared_type_names
+          shared_type_names: shared_type_names,
+          output_file: rpc_output_file
         ]
 
         rpc_content = RpcCodegen.generate_rpc_content(resources_and_actions, opts, codegen_opts)
