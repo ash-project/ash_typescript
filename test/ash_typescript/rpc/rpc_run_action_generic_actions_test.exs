@@ -504,6 +504,46 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
     end
   end
 
+  describe "get_custom_data_list action (array of unconstrained maps)" do
+    setup do
+      conn = TestHelpers.build_rpc_conn()
+      %{conn: conn}
+    end
+
+    test "returns array of maps", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_custom_data_list_todo"
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+
+      assert is_list(data)
+      assert length(data) == 2
+
+      [first, second] = data
+      assert first["userId"] == "123e4567-e89b-12d3-a456-426614174000"
+      assert first["status"] == "active"
+      assert second["userId"] == "223e4567-e89b-12d3-a456-426614174001"
+      assert second["status"] == "pending"
+    end
+
+    test "generated result type is Array<Record<string, any>>" do
+      {:ok, typescript} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
+      assert typescript =~
+               "export type InferGetCustomDataListTodoResult = Array<Record<string, any>>;"
+    end
+
+    test "non-array unconstrained map result type remains Record<string, any>" do
+      {:ok, typescript} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+
+      assert typescript =~
+               "export type InferGetCustomDataTodoResult = Record<string, any>;"
+    end
+  end
+
   describe "complex return type validation" do
     setup do
       conn = TestHelpers.build_rpc_conn()

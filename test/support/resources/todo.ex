@@ -664,6 +664,16 @@ defmodule AshTypescript.Test.Todo do
       end
     end
 
+    action :get_custom_data_list, {:array, :map} do
+      run fn _input, _context ->
+        {:ok,
+         [
+           %{user_id: "123e4567-e89b-12d3-a456-426614174000", status: "active"},
+           %{user_id: "223e4567-e89b-12d3-a456-426614174001", status: "pending"}
+         ]}
+      end
+    end
+
     # Additional read action with different pagination configuration for testing
     read :search_paginated do
       argument :query, :string, allow_nil?: false

@@ -982,7 +982,7 @@ defmodule AshTypescript.Rpc.Pipeline do
         when type in [:typed_map, :array_of_typed_map, :typed_struct, :array_of_typed_struct] ->
           format_generic_action_output(data, action, formatter)
 
-        {:ok, :unconstrained_map, _} ->
+        {:ok, type, _} when type in [:unconstrained_map, :array_of_unconstrained_map] ->
           format_field_names(data, formatter)
 
         _ ->
@@ -1000,7 +1000,7 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp unconstrained_map_action?(action) do
     case ActionIntrospection.action_returns_field_selectable_type?(action) do
-      {:ok, :unconstrained_map, _} -> true
+      {:ok, type, _} when type in [:unconstrained_map, :array_of_unconstrained_map] -> true
       _ -> false
     end
   end
@@ -1019,9 +1019,14 @@ defmodule AshTypescript.Rpc.Pipeline do
 
           :action ->
             case ActionIntrospection.action_returns_field_selectable_type?(action) do
-              {:ok, :unconstrained_map, _} -> false
-              {:ok, _, _} -> true
-              _ -> false
+              {:ok, type, _} when type in [:unconstrained_map, :array_of_unconstrained_map] ->
+                false
+
+              {:ok, _, _} ->
+                true
+
+              _ ->
+                false
             end
 
           _ ->
