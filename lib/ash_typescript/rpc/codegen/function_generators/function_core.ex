@@ -148,7 +148,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore do
               {updated_fields, true,
                "Fields extends #{rpc_action_name_pascal}Fields | undefined = undefined"}
 
-            {:ok, :unconstrained_map, _} ->
+            {:ok, type, _} when type in [:unconstrained_map, :array_of_unconstrained_map] ->
               # Unconstrained maps don't support field selection
               {config_fields, false, nil}
 
