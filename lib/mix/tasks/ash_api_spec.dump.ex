@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule Mix.Tasks.AshApiSpec.Dump do
   @shortdoc "Dump API specification as JSON"
   @moduledoc """
@@ -43,23 +47,19 @@ defmodule Mix.Tasks.AshApiSpec.Dump do
   end
 
   defp generate_json(otp_app, output) do
-    case AshApiSpec.generate(otp_app: otp_app) do
-      {:ok, spec} ->
-        case AshApiSpec.JsonSerializer.to_json(spec, pretty: true) do
-          {:ok, json} ->
-            if output do
-              File.write!(output, json)
-              Mix.shell().info("API spec written to #{output}")
-            else
-              Mix.shell().info(json)
-            end
+    {:ok, spec} = AshApiSpec.generate(otp_app: otp_app)
 
-          {:error, error} ->
-            Mix.raise("Failed to serialize API spec: #{error}")
+    case AshApiSpec.JsonSerializer.to_json(spec, pretty: true) do
+      {:ok, json} ->
+        if output do
+          File.write!(output, json)
+          Mix.shell().info("API spec written to #{output}")
+        else
+          Mix.shell().info(json)
         end
 
       {:error, error} ->
-        Mix.raise("Failed to generate API spec: #{inspect(error)}")
+        Mix.raise("Failed to serialize API spec: #{error}")
     end
   end
 end

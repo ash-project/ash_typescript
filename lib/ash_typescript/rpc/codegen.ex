@@ -10,7 +10,6 @@ defmodule AshTypescript.Rpc.Codegen do
   import AshTypescript.Helpers, only: [format_output_field: 1]
 
   alias AshTypescript.Codegen.{FilterTypes, ResourceSchemas, TypeAliases, TypeDiscovery}
-  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries
@@ -97,14 +96,8 @@ defmodule AshTypescript.Rpc.Codegen do
     domains = Ash.Info.domains(otp_app)
 
     # Generate AshApiSpec and build resource lookup map for codegen fast path
-    resource_lookup =
-      case AshApiSpec.Generator.generate(otp_app: otp_app) do
-        {:ok, api_spec} ->
-          Map.new(api_spec.resources, fn r -> {r.module, r} end)
-
-        _ ->
-          %{}
-      end
+    {:ok, api_spec} = AshApiSpec.Generator.generate(otp_app: otp_app)
+    resource_lookup = Map.new(api_spec.resources, fn r -> {r.module, r} end)
 
     hook_config = %{
       rpc_action_before_request_hook: rpc_action_before_request_hook,

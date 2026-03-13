@@ -35,11 +35,8 @@ defmodule AshTypescript.Codegen.TypeAliases do
   end
 
   def generate_ash_type_aliases(resources, actions, otp_app, _no_lookup) do
-    resource_lookup =
-      case AshApiSpec.Generator.generate(otp_app: otp_app) do
-        {:ok, api_spec} -> Map.new(api_spec.resources, fn r -> {r.module, r} end)
-        _ -> %{}
-      end
+    {:ok, api_spec} = AshApiSpec.Generator.generate(otp_app: otp_app)
+    resource_lookup = Map.new(api_spec.resources, fn r -> {r.module, r} end)
 
     generate_ash_type_aliases(resources, actions, otp_app, resource_lookup)
   end
