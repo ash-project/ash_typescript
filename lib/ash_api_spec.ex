@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshApiSpec do
   @moduledoc """
   Generates a language-agnostic API specification from Ash resources and actions.
