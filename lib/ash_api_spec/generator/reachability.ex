@@ -3,6 +3,10 @@ defmodule AshApiSpec.Generator.Reachability do
   Discovers all reachable resources and standalone types by traversing the type graph
   starting from a set of root resources.
 
+  Returns results in depth-first discovery order: dependencies appear before the
+  resources that reference them. This ordering is important for consumers that need
+  to declare types before they are referenced (e.g., Zod schema generation).
+
   Handles cycle detection via a visited set to prevent infinite recursion.
   """
 
@@ -11,15 +15,14 @@ defmodule AshApiSpec.Generator.Reachability do
   @doc """
   Find all resources and standalone types reachable from the given resource modules.
 
-  Returns `{reachable_resources, standalone_types}` where both are lists of modules.
+  Returns `{reachable_resources, standalone_types}` where both are lists of modules
+  in depth-first discovery order (dependencies before dependents).
   """
   @spec find_reachable([atom()]) :: {[atom()], [atom()]}
   def find_reachable(resource_modules) do
     {resources, types, _visited} =
-      Enum.reduce(resource_modules, {MapSet.new(), MapSet.new(), MapSet.new()}, fn resource,
-                                                                                   {resources,
-                                                                                    types,
-                                                                                    visited} ->
+      Enum.reduce(resource_modules, {[], [], MapSet.new()}, fn resource,
+                                                                {resources, types, visited} ->
         if MapSet.member?(visited, resource) do
           {resources, types, visited}
         else
@@ -27,14 +30,14 @@ defmodule AshApiSpec.Generator.Reachability do
             traverse_resource(resource, MapSet.put(visited, resource))
 
           {
-            MapSet.union(resources, MapSet.put(found_resources, resource)),
-            MapSet.union(types, found_types),
+            resources ++ found_resources ++ [resource],
+            types ++ found_types,
             new_visited
           }
         end
       end)
 
-    {MapSet.to_list(resources), MapSet.to_list(types)}
+    {Enum.uniq(resources), Enum.uniq(types)}
   end
 
   # ─────────────────────────────────────────────────────────────────
@@ -43,7 +46,7 @@ defmodule AshApiSpec.Generator.Reachability do
 
   defp traverse_resource(resource, visited) do
     unless is_resource?(resource) do
-      {MapSet.new(), MapSet.new(), visited}
+      {[], [], visited}
     else
       # Traverse all public fields
       fields =
@@ -56,11 +59,10 @@ defmodule AshApiSpec.Generator.Reachability do
 
       # Walk fields
       {field_resources, field_types, visited} =
-        Enum.reduce(fields, {MapSet.new(), MapSet.new(), visited}, fn field,
-                                                                      {resources, types, visited} ->
+        Enum.reduce(fields, {[], [], visited}, fn field, {resources, types, visited} ->
           {type, constraints} = get_field_type_and_constraints(field)
           {found_r, found_t, new_visited} = traverse_type(type, constraints, visited)
-          {MapSet.union(resources, found_r), MapSet.union(types, found_t), new_visited}
+          {resources ++ found_r, types ++ found_t, new_visited}
         end)
 
       # Walk relationship destinations
@@ -78,8 +80,8 @@ defmodule AshApiSpec.Generator.Reachability do
               {found_r, found_t, newer_visited} = traverse_resource(destination, new_visited)
 
               {
-                MapSet.union(resources, MapSet.put(found_r, destination)),
-                MapSet.union(types, found_t),
+                resources ++ found_r ++ [destination],
+                types ++ found_t,
                 newer_visited
               }
             end
@@ -115,9 +117,8 @@ defmodule AshApiSpec.Generator.Reachability do
       Ash.Type.Union ->
         union_types = Keyword.get(unwrapped_constraints, :types, [])
 
-        Enum.reduce(union_types, {MapSet.new(), MapSet.new(), visited}, fn {_name, config},
-                                                                           {resources, types,
-                                                                            visited} ->
+        Enum.reduce(union_types, {[], [], visited}, fn {_name, config},
+                                                       {resources, types, visited} ->
           member_type = Keyword.get(config, :type)
           member_constraints = Keyword.get(config, :constraints, [])
 
@@ -125,7 +126,7 @@ defmodule AshApiSpec.Generator.Reachability do
             {found_r, found_t, new_visited} =
               traverse_type(member_type, member_constraints, visited)
 
-            {MapSet.union(resources, found_r), MapSet.union(types, found_t), new_visited}
+            {resources ++ found_r, types ++ found_t, new_visited}
           else
             {resources, types, visited}
           end
@@ -140,31 +141,31 @@ defmodule AshApiSpec.Generator.Reachability do
             traverse_resource_ref(type, visited)
 
           is_enum_type?(type) ->
-            {MapSet.new(), MapSet.new([type]), visited}
+            {[], [type], visited}
 
           Code.ensure_loaded?(type) == true ->
             traverse_field_constraints(unwrapped_constraints, visited)
 
           true ->
-            {MapSet.new(), MapSet.new(), visited}
+            {[], [], visited}
         end
 
       _ ->
-        {MapSet.new(), MapSet.new(), visited}
+        {[], [], visited}
     end
   end
 
   defp traverse_type(_type, _constraints, visited) do
-    {MapSet.new(), MapSet.new(), visited}
+    {[], [], visited}
   end
 
   defp traverse_resource_ref(resource, visited) do
     if MapSet.member?(visited, resource) do
-      {MapSet.new([resource]), MapSet.new(), visited}
+      {[], [], visited}
     else
       new_visited = MapSet.put(visited, resource)
       {found_r, found_t, newer_visited} = traverse_resource(resource, new_visited)
-      {MapSet.put(found_r, resource), found_t, newer_visited}
+      {found_r ++ [resource], found_t, newer_visited}
     end
   end
 
@@ -172,8 +173,8 @@ defmodule AshApiSpec.Generator.Reachability do
     fields = Keyword.get(constraints, :fields)
 
     if fields && is_list(fields) do
-      Enum.reduce(fields, {MapSet.new(), MapSet.new(), visited}, fn {_name, config},
-                                                                    {resources, types, visited} ->
+      Enum.reduce(fields, {[], [], visited}, fn {_name, config},
+                                                {resources, types, visited} ->
         field_type = Keyword.get(config, :type)
         field_constraints = Keyword.get(config, :constraints, [])
 
@@ -181,13 +182,13 @@ defmodule AshApiSpec.Generator.Reachability do
           {found_r, found_t, new_visited} =
             traverse_type(field_type, field_constraints, visited)
 
-          {MapSet.union(resources, found_r), MapSet.union(types, found_t), new_visited}
+          {resources ++ found_r, types ++ found_t, new_visited}
         else
           {resources, types, visited}
         end
       end)
     else
-      {MapSet.new(), MapSet.new(), visited}
+      {[], [], visited}
     end
   end
 
