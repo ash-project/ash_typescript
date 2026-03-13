@@ -17,6 +17,31 @@ defmodule AshTypescript.Codegen.TypeMapper do
   # Type Constants
   # ─────────────────────────────────────────────────────────────────
 
+  # Kind → TypeScript type mapping for %AshApiSpec.Type{} dispatch.
+  # Used as a fallback when the module isn't a direct Ash primitive
+  # (e.g., NewTypes wrapping primitives).
+  @kind_to_ts %{
+    :string => "string",
+    :ci_string => "string",
+    :integer => "number",
+    :float => "number",
+    :decimal => "Decimal",
+    :boolean => "boolean",
+    :uuid => "UUID",
+    :date => "AshDate",
+    :time => "Time",
+    :time_usec => "TimeUsec",
+    :datetime => "DateTime",
+    :utc_datetime => "UtcDateTime",
+    :utc_datetime_usec => "UtcDateTimeUsec",
+    :naive_datetime => "NaiveDateTime",
+    :duration => "Duration",
+    :binary => "Binary",
+    :term => "any",
+    :atom => "string",
+    :unknown => "any"
+  }
+
   @primitives %{
     Ash.Type.String => "string",
     Ash.Type.CiString => "string",
@@ -138,11 +163,66 @@ defmodule AshTypescript.Codegen.TypeMapper do
   ## Returns
   A TypeScript type string.
   """
-  @spec map_type(atom() | tuple(), keyword(), direction()) :: String.t()
+  @spec map_type(atom() | tuple() | AshApiSpec.Type.t(), keyword(), direction()) :: String.t()
   def map_type(type, constraints, direction)
 
   # Nil type
   def map_type(nil, _constraints, _direction), do: "null"
+
+  # ── %AshApiSpec.Type{} dispatch ──────────────────────────────────
+  # Eliminates unwrap_new_type + cond cascade when pre-resolved types
+  # are available (e.g., from ResourceBuilder or persisted Resource specs).
+  def map_type(%AshApiSpec.Type{} = type_info, _constraints, direction) do
+    case type_info.kind do
+      :array ->
+        inner_ts = map_type(type_info.item_type, [], direction)
+        wrap_array(inner_ts)
+
+      kind when kind in [:resource, :embedded_resource] ->
+        resource = type_info.resource_module || type_info.module
+        map_resource(resource, direction)
+
+      :enum ->
+        map_enum_from_type(type_info)
+
+      :union ->
+        map_union(type_info.constraints || [], direction)
+
+      :struct ->
+        map_struct(ensure_codegen_instance_of(type_info), direction)
+
+      kind when kind in [:map, :keyword, :tuple] ->
+        mod = kind_to_container_module(kind)
+        map_typed_container(mod, type_info.constraints || [], direction)
+
+      _ ->
+        # For primitive kinds: check module lookup, custom types, then kind fallback
+        cond do
+          (ts = Map.get(@primitives, type_info.module)) != nil ->
+            ts
+
+          is_atom(type_info.module) and not is_nil(type_info.module) and
+              is_custom_type?(type_info.module) ->
+            type_info.module.typescript_type_name()
+
+          (override = get_type_mapping_override(type_info.module)) != nil ->
+            override
+
+          (ts = Map.get(@kind_to_ts, type_info.kind)) != nil ->
+            ts
+
+          type_info.kind == :atom ->
+            case Keyword.get(type_info.constraints || [], :one_of) do
+              nil -> "string"
+              values -> Enum.map_join(values, " | ", &"\"#{to_string(&1)}\"")
+            end
+
+          true ->
+            # Last resort: delegate to existing module-based dispatch
+            map_type(type_info.module, type_info.constraints || [], direction)
+        end
+    end
+  end
 
   def map_type(type, constraints, direction) do
     cond do
@@ -650,6 +730,15 @@ defmodule AshTypescript.Codegen.TypeMapper do
   @doc """
   Determines if a union member is a "primitive" (no selectable fields).
   """
+  def is_primitive_union_member?(%AshApiSpec.Type{} = type_info) do
+    case type_info.kind do
+      kind when kind in [:embedded_resource, :resource, :union] -> false
+      :struct -> !(type_info.instance_of || has_type_fields?(type_info))
+      kind when kind in [:map, :keyword, :tuple] -> !has_type_fields?(type_info)
+      _ -> true
+    end
+  end
+
   def is_primitive_union_member?(type, constraints) do
     cond do
       # Types with field constraints are not primitive
@@ -869,6 +958,37 @@ defmodule AshTypescript.Codegen.TypeMapper do
   defp get_type_mapping_override(_type), do: nil
 
   defp is_custom_type?(type), do: Introspection.is_custom_type?(type)
+
+  # Ensures instance_of is in constraints for %Type{} structs (bridges
+  # TypeResolver compile-time output and map_struct's constraint expectations).
+  defp ensure_codegen_instance_of(%AshApiSpec.Type{} = type_info) do
+    constraints = type_info.constraints || []
+
+    if type_info.instance_of && !Keyword.has_key?(constraints, :instance_of) do
+      Keyword.put(constraints, :instance_of, type_info.instance_of)
+    else
+      constraints
+    end
+  end
+
+  defp kind_to_container_module(:map), do: Ash.Type.Map
+  defp kind_to_container_module(:keyword), do: Ash.Type.Keyword
+  defp kind_to_container_module(:tuple), do: Ash.Type.Tuple
+
+  defp map_enum_from_type(%AshApiSpec.Type{values: values})
+       when is_list(values) and values != [] do
+    Enum.map_join(values, " | ", &"\"#{to_string(&1)}\"")
+  end
+
+  defp map_enum_from_type(_), do: "string"
+
+  defp has_type_fields?(%AshApiSpec.Type{fields: fields})
+       when is_list(fields) and fields != [],
+       do: true
+
+  defp has_type_fields?(%AshApiSpec.Type{constraints: constraints}) do
+    Keyword.has_key?(constraints || [], :fields)
+  end
 
   # Helper to check if a field config represents a complex type that supports nested field selection
   # This includes: TypedMaps (maps with :fields), Unions, and NewTypes wrapping these

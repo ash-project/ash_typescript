@@ -43,8 +43,26 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   Handles relationships, calculations, and attribute types. Returns the field
   category which determines how to generate its TypeScript definition.
+
+  Accepts Ash field structs, `%AshApiSpec.Field{}`, or `%AshApiSpec.Type{}`.
   """
   @spec classify_field(map()) :: field_category()
+
+  # %AshApiSpec.Field{} dispatch — uses pre-resolved %Type{kind}
+  def classify_field(%AshApiSpec.Field{kind: :calculation, type: type, arguments: args}) do
+    has_args = is_list(args) and args != []
+
+    if has_args do
+      :calculation
+    else
+      classify_by_type(type)
+    end
+  end
+
+  def classify_field(%AshApiSpec.Field{type: type}) do
+    classify_by_type(type)
+  end
+
   def classify_field(field) do
     case field do
       # Relationships
@@ -73,8 +91,45 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   @doc """
   Classifies a field by its type, handling NewType unwrapping and array wrappers.
+
+  Accepts Ash field structs or `%AshApiSpec.Type{}`.
   """
-  @spec classify_by_type(map()) :: field_category()
+  @spec classify_by_type(map() | AshApiSpec.Type.t()) :: field_category()
+
+  # %AshApiSpec.Type{} dispatch — direct kind matching, no unwrapping needed
+  def classify_by_type(%AshApiSpec.Type{kind: :array, item_type: item_type}) do
+    classify_by_type(item_type)
+  end
+
+  def classify_by_type(%AshApiSpec.Type{kind: :union}), do: :union
+
+  def classify_by_type(%AshApiSpec.Type{kind: kind})
+      when kind in [:resource, :embedded_resource],
+      do: :embedded
+
+  def classify_by_type(%AshApiSpec.Type{kind: kind} = type_info)
+      when kind in [:map, :keyword, :tuple] do
+    if has_type_fields?(type_info), do: :typed_map, else: :primitive
+  end
+
+  def classify_by_type(%AshApiSpec.Type{kind: :struct} = type_info) do
+    cond do
+      type_info.resource_module || is_resource_instance?(type_info.instance_of) ->
+        :embedded
+
+      type_info.instance_of && has_type_fields?(type_info) ->
+        :typed_struct
+
+      has_type_fields?(type_info) ->
+        :typed_map
+
+      true ->
+        :primitive
+    end
+  end
+
+  def classify_by_type(%AshApiSpec.Type{}), do: :primitive
+
   def classify_by_type(field) do
     # Unwrap NewTypes first
     {unwrapped_type, unwrapped_constraints} =
@@ -870,6 +925,22 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   # Helper to format a resource field name for client output
   # Uses field_names DSL mapping if available, otherwise applies formatter
+  defp has_type_fields?(%AshApiSpec.Type{fields: fields})
+       when is_list(fields) and fields != [],
+       do: true
+
+  defp has_type_fields?(%AshApiSpec.Type{constraints: constraints}) do
+    Keyword.has_key?(constraints || [], :fields)
+  end
+
+  defp is_resource_instance?(nil), do: false
+
+  defp is_resource_instance?(module) when is_atom(module) do
+    Code.ensure_loaded?(module) == true and Ash.Resource.Info.resource?(module)
+  end
+
+  defp is_resource_instance?(_), do: false
+
   defp format_client_field_name(nil, field_name) do
     AshTypescript.FieldFormatter.format_field_name(
       field_name,
