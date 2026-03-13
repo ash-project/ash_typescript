@@ -114,6 +114,10 @@ defmodule AshTypescript.Codegen.TypeMapper do
   Maps an Ash type to a TypeScript type for input schemas.
   Backward compatible wrapper around map_type/3.
   """
+  def get_ts_input_type(%AshApiSpec.Field{type: type}) do
+    map_type(type, [], :input)
+  end
+
   def get_ts_input_type(%{type: type, constraints: constraints}) do
     map_type(type, constraints, :input)
   end
@@ -123,6 +127,10 @@ defmodule AshTypescript.Codegen.TypeMapper do
   Backward compatible wrapper around map_type/3.
   """
   def get_ts_type(type_and_constraints, select_and_loads \\ nil)
+
+  def get_ts_type(%AshApiSpec.Field{type: type}, _select_and_loads) do
+    map_type(type, [], :output)
+  end
 
   # Handle aggregate kind atoms directly
   def get_ts_type(kind, _) when is_atom(kind) and kind in @aggregate_atoms do
@@ -193,7 +201,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
       kind when kind in [:map, :keyword, :tuple] ->
         mod = kind_to_container_module(kind)
-        map_typed_container(mod, type_info.constraints || [], direction)
+        map_typed_container(mod, ensure_codegen_instance_of(type_info), direction)
 
       _ ->
         # For primitive kinds: check module lookup, custom types, then kind fallback
@@ -960,14 +968,27 @@ defmodule AshTypescript.Codegen.TypeMapper do
   defp is_custom_type?(type), do: Introspection.is_custom_type?(type)
 
   # Ensures instance_of is in constraints for %Type{} structs (bridges
-  # TypeResolver compile-time output and map_struct's constraint expectations).
+  # TypeResolver compile-time output and map_struct/map_typed_container expectations).
+  # Checks both type_info.instance_of and type_info.module for typescript_field_names.
   defp ensure_codegen_instance_of(%AshApiSpec.Type{} = type_info) do
     constraints = type_info.constraints || []
 
-    if type_info.instance_of && !Keyword.has_key?(constraints, :instance_of) do
-      Keyword.put(constraints, :instance_of, type_info.instance_of)
-    else
+    if Keyword.has_key?(constraints, :instance_of) do
       constraints
+    else
+      # Prefer instance_of, fall back to module if it has typescript_field_names
+      instance =
+        type_info.instance_of ||
+          if is_atom(type_info.module) and not is_nil(type_info.module) and
+               Introspection.has_typescript_field_names?(type_info.module) do
+            type_info.module
+          end
+
+      if instance do
+        Keyword.put(constraints, :instance_of, instance)
+      else
+        constraints
+      end
     end
   end
 
