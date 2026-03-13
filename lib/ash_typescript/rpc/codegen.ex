@@ -47,8 +47,10 @@ defmodule AshTypescript.Rpc.Codegen do
 
     exports = [{function_name, :value}]
 
+    has_input? = ActionIntrospection.action_input_type(resource, action) != :none
+
     exports =
-      if action.arguments != [] do
+      if has_input? do
         input_type_name = Macro.camelize(rpc_action_name) <> "Input"
         exports ++ [{input_type_name, :type}]
       else
@@ -57,7 +59,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     # Classified as :zod_value so namespace files can re-export from ash_zod.ts
     exports =
-      if AshTypescript.Rpc.generate_zod_schemas?() and action.arguments != [] do
+      if AshTypescript.Rpc.generate_zod_schemas?() and has_input? do
         zod_schema_name = format_output_field("#{rpc_action_name}_zod_schema")
         exports ++ [{zod_schema_name, :zod_value}]
       else
