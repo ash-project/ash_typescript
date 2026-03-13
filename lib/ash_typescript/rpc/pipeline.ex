@@ -60,6 +60,8 @@ defmodule AshTypescript.Rpc.Pipeline do
 
     with {:ok, {domain, resource, action, rpc_action}} <-
            discover_action(otp_app, normalized_params),
+         resource_lookups =
+           Spark.Dsl.Extension.get_persisted(domain, :ash_api_spec_lookups),
          :ok <-
            validate_required_parameters_for_action_type(
              normalized_params,
@@ -77,10 +79,11 @@ defmodule AshTypescript.Rpc.Pipeline do
              resource,
              action.name,
              requested_fields,
-             validation_mode?
+             validation_mode?,
+             resource_lookups
            ),
          :ok <- validate_load_restrictions(load, rpc_action),
-         {:ok, input} <- parse_action_input(normalized_params, action, resource),
+         {:ok, input} <- parse_action_input(normalized_params, action, resource, resource_lookups),
          {:ok, get_by} <- parse_get_by(normalized_params, rpc_action, resource),
          {:ok, pagination} <- parse_pagination(normalized_params) do
       formatted_sort = format_sort_string(normalized_params[:sort], input_formatter)
@@ -160,9 +163,6 @@ defmodule AshTypescript.Rpc.Pipeline do
       enable_sort? = Map.get(rpc_action, :enable_sort?, true)
       filter = if enable_filter?, do: normalized_params[:filter], else: nil
       sort = if enable_sort?, do: formatted_sort, else: nil
-
-      resource_lookups =
-        Spark.Dsl.Extension.get_persisted(domain, :ash_api_spec_lookups)
 
       request =
         Request.new(%{
@@ -419,13 +419,13 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp parse_action_input(params, action, resource) do
+  defp parse_action_input(params, action, resource, resource_lookups) do
     raw_input = Map.get(params, :input, %{})
 
     if is_map(raw_input) do
       formatter = Rpc.input_field_formatter()
 
-      case InputFormatter.format(raw_input, resource, action, formatter) do
+      case InputFormatter.format(raw_input, resource, action, formatter, resource_lookups) do
         {:ok, parsed_input} ->
           converted_input = convert_keyword_tuple_inputs(parsed_input, resource, action)
           {:ok, converted_input}
@@ -1057,7 +1057,8 @@ defmodule AshTypescript.Rpc.Pipeline do
          _resource,
          _action_name,
          [],
-         true = _validation_mode?
+         true = _validation_mode?,
+         _resource_lookups
        ) do
     {:ok, {[], [], []}}
   end
@@ -1066,9 +1067,10 @@ defmodule AshTypescript.Rpc.Pipeline do
          resource,
          action_name,
          requested_fields,
-         _validation_mode?
+         _validation_mode?,
+         resource_lookups
        ) do
-    RequestedFieldsProcessor.process(resource, action_name, requested_fields)
+    RequestedFieldsProcessor.process(resource, action_name, requested_fields, resource_lookups)
   end
 
   defp validate_fields_if_needed(_params, false), do: :ok

@@ -667,7 +667,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   # Entry Points (using type-driven dispatch)
   # ─────────────────────────────────────────────────────────────────────────────
 
-  defp extract_list_fields(results, extraction_template, resource, _resource_lookups) do
+  defp extract_list_fields(results, extraction_template, resource, resource_lookups) do
     {type, constraints} = determine_data_type(List.first(results), resource)
 
     inner_type =
@@ -675,6 +675,9 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         {:array, inner} -> inner
         _ -> type
       end
+
+    # When we have resource_lookups and a resource type, try the fast path
+    inner_type = maybe_resolve_to_api_type(inner_type, resource_lookups)
 
     Enum.map(results, fn item ->
       case extract_value(item, inner_type, constraints, extraction_template) do
@@ -687,12 +690,13 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   defp extract_single_result(data, extraction_template, resource, resource_lookups)
 
-  defp extract_single_result(data, extraction_template, resource, _resource_lookups)
+  defp extract_single_result(data, extraction_template, resource, resource_lookups)
        when is_list(extraction_template) do
     if extraction_template == [] and is_primitive_value?(data) do
       normalize_primitive(data)
     else
       {type, constraints} = determine_data_type(data, resource)
+      type = maybe_resolve_to_api_type(type, resource_lookups)
       extract_value(data, type, constraints, extraction_template)
     end
   end
@@ -776,4 +780,25 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         other
     end
   end
+
+  # When we have resource_lookups and the type is a resource module,
+  # build an %AshApiSpec.Type{} so extract_value hits the fast dispatch head.
+  defp maybe_resolve_to_api_type(type, resource_lookups)
+       when is_atom(type) and is_map(resource_lookups) do
+    case Map.get(resource_lookups, type) do
+      %AshApiSpec.Resource{} ->
+        %AshApiSpec.Type{
+          kind: :resource,
+          name: "Resource",
+          module: type,
+          resource_module: type,
+          constraints: []
+        }
+
+      nil ->
+        type
+    end
+  end
+
+  defp maybe_resolve_to_api_type(type, _), do: type
 end

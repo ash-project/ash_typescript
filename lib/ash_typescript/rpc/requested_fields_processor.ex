@@ -66,4 +66,11 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
       {:error, %{type: :invalid_field, field: "user.invalidField"}}
   """
   defdelegate process(resource, action_name, requested_fields), to: FieldSelector
+
+  @doc """
+  Same as `process/3` but with an optional `resource_lookups` map for O(1) field type lookup.
+  """
+  def process(resource, action_name, requested_fields, resource_lookups) do
+    FieldSelector.process(resource, action_name, requested_fields, resource_lookups)
+  end
 end

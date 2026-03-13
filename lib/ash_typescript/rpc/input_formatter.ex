@@ -38,8 +38,8 @@ defmodule AshTypescript.Rpc.InputFormatter do
   The formatted data with client field names converted to internal atom keys,
   except for untyped map keys which are preserved exactly.
   """
-  def format(data, resource, action_name_or_action, formatter) do
-    {:ok, format_data(data, resource, action_name_or_action, formatter)}
+  def format(data, resource, action_name_or_action, formatter, resource_lookups \\ nil) do
+    {:ok, format_data(data, resource, action_name_or_action, formatter, resource_lookups)}
   catch
     :throw, error ->
       {:error, error}
@@ -52,14 +52,14 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   defp get_action(_resource, %{} = action), do: action
 
-  defp format_data(data, resource, action_name_or_action, formatter) do
+  defp format_data(data, resource, action_name_or_action, formatter, resource_lookups) do
     case data do
       map when is_map(map) and not is_struct(map) ->
-        format_map(map, resource, action_name_or_action, formatter)
+        format_map(map, resource, action_name_or_action, formatter, resource_lookups)
 
       list when is_list(list) ->
         Enum.map(list, fn item ->
-          format_data(item, resource, action_name_or_action, formatter)
+          format_data(item, resource, action_name_or_action, formatter, resource_lookups)
         end)
 
       other ->
@@ -67,7 +67,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end
   end
 
-  defp format_map(map, resource, action_name_or_action, formatter) do
+  defp format_map(map, resource, action_name_or_action, formatter, resource_lookups) do
     action = get_action(resource, action_name_or_action)
 
     # Build the expected keys map once for this action
@@ -80,7 +80,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
         internal_key ->
           {type, constraints} = get_input_field_type(action, resource, internal_key)
-          formatted_value = format_value(value, type, constraints, formatter)
+          formatted_value = format_value(value, type, constraints, formatter, resource_lookups)
           {internal_key, formatted_value}
       end
     end)
@@ -150,7 +150,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end)
   end
 
-  defp format_value(data, type, constraints, formatter) do
+  defp format_value(data, type, constraints, formatter, resource_lookups) do
     case type do
       struct_type when struct_type in [Ash.Type.Struct, :struct] ->
         instance_of = Keyword.get(constraints, :instance_of)
@@ -158,11 +158,11 @@ defmodule AshTypescript.Rpc.InputFormatter do
         if instance_of && Ash.Resource.Info.resource?(instance_of) && is_map(data) &&
              not is_struct(data) do
           formatted_data =
-            ValueFormatter.format(data, instance_of, constraints, formatter, :input)
+            ValueFormatter.format(data, instance_of, constraints, formatter, :input, resource_lookups)
 
           cast_map_to_struct(formatted_data, instance_of)
         else
-          ValueFormatter.format(data, type, constraints, formatter, :input)
+          ValueFormatter.format(data, type, constraints, formatter, :input, resource_lookups)
         end
 
       {:array, inner_type} when inner_type in [Ash.Type.Struct, :struct] ->
@@ -173,7 +173,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
           Enum.map(data, fn item ->
             if is_map(item) && not is_struct(item) do
               formatted_item =
-                ValueFormatter.format(item, instance_of, items_constraints, formatter, :input)
+                ValueFormatter.format(item, instance_of, items_constraints, formatter, :input, resource_lookups)
 
               cast_map_to_struct(formatted_item, instance_of)
             else
@@ -181,11 +181,11 @@ defmodule AshTypescript.Rpc.InputFormatter do
             end
           end)
         else
-          ValueFormatter.format(data, type, constraints, formatter, :input)
+          ValueFormatter.format(data, type, constraints, formatter, :input, resource_lookups)
         end
 
       _ ->
-        ValueFormatter.format(data, type, constraints, formatter, :input)
+        ValueFormatter.format(data, type, constraints, formatter, :input, resource_lookups)
     end
   end
 
