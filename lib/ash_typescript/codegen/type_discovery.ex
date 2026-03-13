@@ -101,14 +101,10 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
   def scan_rpc_resources(otp_app) do
     rpc_resources = get_rpc_resources(otp_app)
 
-    rpc_resources
-    |> Enum.reduce({[], MapSet.new()}, fn resource, {acc, visited} ->
-      {found, new_visited} = scan_rpc_resource(resource, visited)
-      {acc ++ found, new_visited}
-    end)
-    |> elem(0)
-    |> Enum.map(fn {resource, _path} -> resource end)
-    |> Enum.uniq()
+    {reachable_resources, _standalone_types} =
+      AshApiSpec.Generator.Reachability.find_reachable(rpc_resources)
+
+    Enum.uniq(reachable_resources)
   end
 
   @doc """
