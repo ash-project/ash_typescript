@@ -221,28 +221,4 @@ defmodule AshTypescript.TypeSystem.ResourceFields do
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # AshApiSpec.Type → {type, constraints} bridge
-  # ---------------------------------------------------------------------------
-
-  @doc """
-  Converts an `%AshApiSpec.Type{}` struct back to a `{type, constraints}` tuple.
-
-  This bridges the AshApiSpec struct-based type representation and the
-  existing `{type, constraints}` format used by ValueFormatter, FieldSelector, etc.
-  """
-  @spec type_info_to_type_constraints(AshApiSpec.Type.t()) :: {atom() | tuple() | nil, keyword()}
-  def type_info_to_type_constraints(%AshApiSpec.Type{kind: :array, item_type: item_type} = type) do
-    {inner_type, inner_constraints} = type_info_to_type_constraints(item_type)
-    {{:array, inner_type}, Keyword.put(type.constraints || [], :items, inner_constraints)}
-  end
-
-  def type_info_to_type_constraints(%AshApiSpec.Type{kind: kind, module: module, constraints: constraints})
-      when kind in [:resource, :embedded_resource] do
-    {module, constraints || []}
-  end
-
-  def type_info_to_type_constraints(%AshApiSpec.Type{module: module, constraints: constraints}) do
-    {module, constraints || []}
-  end
 end
