@@ -51,7 +51,14 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   # %Type{kind} dispatch — replaces unwrap_new_type + cond for the lookup path.
   # augment_type_constraints bridges the gap between TypeResolver (compile-time,
   # doesn't add instance_of) and Introspection.unwrap_new_type (runtime, adds it).
-  def format(value, %AshApiSpec.Type{} = type_info, _constraints, formatter, direction, resource_lookups) do
+  def format(
+        value,
+        %AshApiSpec.Type{} = type_info,
+        _constraints,
+        formatter,
+        direction,
+        resource_lookups
+      ) do
     constraints = augment_type_constraints(type_info)
     inst = type_info.instance_of || type_info.module
 
@@ -432,7 +439,14 @@ defmodule AshTypescript.Rpc.ValueFormatter do
         member_value = Map.get(value, client_key)
 
         formatted_value =
-          format(member_value, member_type, member_constraints, formatter, :input, resource_lookups)
+          format(
+            member_value,
+            member_type,
+            member_constraints,
+            formatter,
+            :input,
+            resource_lookups
+          )
 
         maybe_inject_tag(formatted_value, member_spec)
 
@@ -483,8 +497,15 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     end)
   end
 
-  defp format_array(value, _inner_type, _inner_constraints, _formatter, _direction, _resource_lookups),
-    do: value
+  defp format_array(
+         value,
+         _inner_type,
+         _inner_constraints,
+         _formatter,
+         _direction,
+         _resource_lookups
+       ),
+       do: value
 
   # ---------------------------------------------------------------------------
   # Union Helper Functions

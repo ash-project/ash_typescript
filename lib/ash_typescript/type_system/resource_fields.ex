@@ -51,8 +51,12 @@ defmodule AshTypescript.TypeSystem.ResourceFields do
             }
 
             if cardinality == :many do
-              {%AshApiSpec.Type{kind: :array, name: "Array", item_type: dest_type, constraints: []},
-               []}
+              {%AshApiSpec.Type{
+                 kind: :array,
+                 name: "Array",
+                 item_type: dest_type,
+                 constraints: []
+               }, []}
             else
               {dest_type, []}
             end
@@ -220,5 +224,4 @@ defmodule AshTypescript.TypeSystem.ResourceFields do
         resolve_aggregate_type_info(resource, agg)
     end
   end
-
 end

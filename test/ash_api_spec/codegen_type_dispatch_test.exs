@@ -55,7 +55,13 @@ defmodule AshApiSpec.CodegenTypeDispatchTest do
     end
 
     test "utc_datetime kind maps to UtcDateTime" do
-      type = %Type{kind: :utc_datetime, name: "UtcDateTime", module: Ash.Type.UtcDatetime, constraints: []}
+      type = %Type{
+        kind: :utc_datetime,
+        name: "UtcDateTime",
+        module: Ash.Type.UtcDatetime,
+        constraints: []
+      }
+
       assert TypeMapper.map_type(type, [], :output) == "UtcDateTime"
     end
 
@@ -88,7 +94,13 @@ defmodule AshApiSpec.CodegenTypeDispatchTest do
 
   describe "TypeMapper.map_type/3 with %Type{} - NewType primitives (kind fallback)" do
     test "string kind with unknown module falls back to kind_to_ts" do
-      type = %Type{kind: :string, name: "MyString", module: MyApp.Types.CustomString, constraints: []}
+      type = %Type{
+        kind: :string,
+        name: "MyString",
+        module: MyApp.Types.CustomString,
+        constraints: []
+      }
+
       assert TypeMapper.map_type(type, [], :output) == "string"
     end
 

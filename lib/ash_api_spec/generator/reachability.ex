@@ -22,7 +22,7 @@ defmodule AshApiSpec.Generator.Reachability do
   def find_reachable(resource_modules) do
     {resources, types, _visited} =
       Enum.reduce(resource_modules, {[], [], MapSet.new()}, fn resource,
-                                                                {resources, types, visited} ->
+                                                               {resources, types, visited} ->
         if MapSet.member?(visited, resource) do
           {resources, types, visited}
         else
@@ -173,8 +173,7 @@ defmodule AshApiSpec.Generator.Reachability do
     fields = Keyword.get(constraints, :fields)
 
     if fields && is_list(fields) do
-      Enum.reduce(fields, {[], [], visited}, fn {_name, config},
-                                                {resources, types, visited} ->
+      Enum.reduce(fields, {[], [], visited}, fn {_name, config}, {resources, types, visited} ->
         field_type = Keyword.get(config, :type)
         field_constraints = Keyword.get(config, :constraints, [])
 

@@ -61,5 +61,4 @@ defmodule AshTypescript.Codegen do
   defdelegate is_simple_calculation(calc), to: Helpers
   defdelegate is_complex_return_type(type, constraints), to: Helpers
   defdelegate lookup_aggregate_type(resource, relationship_path, field), to: Helpers
-
 end

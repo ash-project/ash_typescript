@@ -158,7 +158,14 @@ defmodule AshTypescript.Rpc.InputFormatter do
         if instance_of && Ash.Resource.Info.resource?(instance_of) && is_map(data) &&
              not is_struct(data) do
           formatted_data =
-            ValueFormatter.format(data, instance_of, constraints, formatter, :input, resource_lookups)
+            ValueFormatter.format(
+              data,
+              instance_of,
+              constraints,
+              formatter,
+              :input,
+              resource_lookups
+            )
 
           cast_map_to_struct(formatted_data, instance_of)
         else
@@ -173,7 +180,14 @@ defmodule AshTypescript.Rpc.InputFormatter do
           Enum.map(data, fn item ->
             if is_map(item) && not is_struct(item) do
               formatted_item =
-                ValueFormatter.format(item, instance_of, items_constraints, formatter, :input, resource_lookups)
+                ValueFormatter.format(
+                  item,
+                  instance_of,
+                  items_constraints,
+                  formatter,
+                  :input,
+                  resource_lookups
+                )
 
               cast_map_to_struct(formatted_item, instance_of)
             else
