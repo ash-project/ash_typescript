@@ -27,8 +27,6 @@ defmodule AshTypescript.Codegen do
     ZodSchemaGenerator
   }
 
-  alias AshTypescript.TypeSystem.Introspection
-
   defdelegate find_embedded_resources(otp_app), to: TypeDiscovery
   defdelegate find_field_constrained_types(resources), to: TypeDiscovery
 
@@ -64,15 +62,4 @@ defmodule AshTypescript.Codegen do
   defdelegate is_complex_return_type(type, constraints), to: Helpers
   defdelegate lookup_aggregate_type(resource, relationship_path, field), to: Helpers
 
-  defdelegate is_embedded_resource?(module), to: Introspection
-  defdelegate unwrap_new_type(type, constraints), to: Introspection
-
-  defdelegate generate_zod_schema_for_resource(resource), to: ZodSchemaGenerator
-  defdelegate generate_zod_schemas_for_resources(resources), to: ZodSchemaGenerator
-  defdelegate generate_zod_schema(resource, action, rpc_action_name), to: ZodSchemaGenerator
-  defdelegate get_zod_type(type_and_constraints, context \\ nil), to: ZodSchemaGenerator
-
-  defdelegate generate_utility_types, to: UtilityTypes
-
-  defdelegate resolve_import_path(from_file, to_file), to: ImportResolver
 end
