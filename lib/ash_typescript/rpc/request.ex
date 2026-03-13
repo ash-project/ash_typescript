@@ -27,7 +27,8 @@ defmodule AshTypescript.Rpc.Request do
           filter: map() | nil,
           sort: list() | nil,
           pagination: map() | nil,
-          show_metadata: list(atom())
+          show_metadata: list(atom()),
+          resource_lookups: %{module() => AshApiSpec.Resource.t()} | nil
         }
 
   defstruct [
@@ -47,7 +48,8 @@ defmodule AshTypescript.Rpc.Request do
     :filter,
     :sort,
     :pagination,
-    show_metadata: []
+    show_metadata: [],
+    resource_lookups: nil
   ]
 
   @doc """

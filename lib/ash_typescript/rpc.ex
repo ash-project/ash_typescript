@@ -281,6 +281,9 @@ defmodule AshTypescript.Rpc do
 
   use Spark.Dsl.Extension,
     sections: [@rpc],
+    transformers: [
+      AshTypescript.Rpc.Transformers.PersistResourceLookups
+    ],
     verifiers: [
       AshTypescript.Rpc.VerifyRpc,
       AshTypescript.Rpc.Verifiers.VerifyMetadataFieldNames,

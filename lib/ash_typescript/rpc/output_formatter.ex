@@ -37,18 +37,18 @@ defmodule AshTypescript.Rpc.OutputFormatter do
   The formatted data with internal atom keys converted to client field names,
   except for untyped map keys which are preserved exactly.
   """
-  def format(data, resource, action_name, formatter) do
-    format_data(data, resource, action_name, formatter)
+  def format(data, resource, action_name, formatter, resource_lookups \\ nil) do
+    format_data(data, resource, action_name, formatter, resource_lookups)
   end
 
-  defp format_data(data, resource, action_name, formatter) do
+  defp format_data(data, resource, action_name, formatter, resource_lookups) do
     case data do
       map when is_map(map) and not is_struct(map) ->
-        format_map(map, resource, action_name, formatter)
+        format_map(map, resource, action_name, formatter, resource_lookups)
 
       list when is_list(list) ->
         Enum.map(list, fn item ->
-          format_data(item, resource, action_name, formatter)
+          format_data(item, resource, action_name, formatter, resource_lookups)
         end)
 
       other ->
@@ -57,20 +57,27 @@ defmodule AshTypescript.Rpc.OutputFormatter do
   end
 
   # Handle pagination structures specially
-  defp format_map(%{type: maybe_offset_type} = map, resource, action_name, formatter)
+  defp format_map(
+         %{type: maybe_offset_type} = map,
+         resource,
+         action_name,
+         formatter,
+         resource_lookups
+       )
        when maybe_offset_type in [:offset, :keyset] do
     Enum.into(map, %{}, fn {internal_key, value} ->
-      {type, constraints} = ResourceFields.get_public_field_type_info(resource, internal_key)
+      {type, constraints} =
+        ResourceFields.get_public_field_type_info(resource, internal_key, resource_lookups)
 
       formatted_value =
         case internal_key do
           :results when is_list(value) ->
             Enum.map(value, fn item ->
-              format_data(item, resource, action_name, formatter)
+              format_data(item, resource, action_name, formatter, resource_lookups)
             end)
 
           _ ->
-            format_value(value, type, constraints, formatter)
+            format_value(value, type, constraints, formatter, resource_lookups)
         end
 
       output_key = FieldFormatter.format_field_name(internal_key, formatter)
@@ -78,17 +85,19 @@ defmodule AshTypescript.Rpc.OutputFormatter do
     end)
   end
 
-  defp format_map(map, resource, _action_name, formatter) do
+  defp format_map(map, resource, _action_name, formatter, resource_lookups) do
     Enum.into(map, %{}, fn {internal_key, value} ->
-      {type, constraints} = ResourceFields.get_public_field_type_info(resource, internal_key)
-      formatted_value = format_value(value, type, constraints, formatter)
+      {type, constraints} =
+        ResourceFields.get_public_field_type_info(resource, internal_key, resource_lookups)
+
+      formatted_value = format_value(value, type, constraints, formatter, resource_lookups)
       output_key = FieldFormatter.format_field_for_client(internal_key, resource, formatter)
 
       {output_key, formatted_value}
     end)
   end
 
-  defp format_value(data, type, constraints, formatter) do
-    ValueFormatter.format(data, type, constraints, formatter, :output)
+  defp format_value(data, type, constraints, formatter, resource_lookups) do
+    ValueFormatter.format(data, type, constraints, formatter, :output, resource_lookups)
   end
 end

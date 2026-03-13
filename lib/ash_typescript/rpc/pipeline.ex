@@ -161,6 +161,9 @@ defmodule AshTypescript.Rpc.Pipeline do
       filter = if enable_filter?, do: normalized_params[:filter], else: nil
       sort = if enable_sort?, do: formatted_sort, else: nil
 
+      resource_lookups =
+        Spark.Dsl.Extension.get_persisted(domain, :ash_api_spec_lookups)
+
       request =
         Request.new(%{
           domain: domain,
@@ -179,7 +182,8 @@ defmodule AshTypescript.Rpc.Pipeline do
           filter: filter,
           sort: sort,
           pagination: pagination,
-          show_metadata: show_metadata
+          show_metadata: show_metadata,
+          resource_lookups: resource_lookups
         })
 
       {:ok, request}
@@ -258,7 +262,12 @@ defmodule AshTypescript.Rpc.Pipeline do
               if is_mutation_with_no_fields do
                 %{}
               else
-                ResultProcessor.process(result, request.extraction_template, resource_for_mapping)
+                ResultProcessor.process(
+                  result,
+                  request.extraction_template,
+                  resource_for_mapping,
+                  request.resource_lookups
+                )
               end
 
             filtered_with_metadata = add_metadata(filtered, result, request)
@@ -929,7 +938,13 @@ defmodule AshTypescript.Rpc.Pipeline do
 
     # Determine how to format the output based on action return type
     formatted_data =
-      format_action_output(actual_data, request.action, request.resource, formatter)
+      format_action_output(
+        actual_data,
+        request.action,
+        request.resource,
+        formatter,
+        request.resource_lookups
+      )
 
     base_response = %{
       FieldFormatter.format_field_name("success", formatter) => true,
@@ -970,32 +985,32 @@ defmodule AshTypescript.Rpc.Pipeline do
   # - Resource-returning actions use OutputFormatter for full resource field mapping
   # - Composite types (typed maps, typed structs) use ValueFormatter with type constraints
   # - Unconstrained maps just get key formatting applied
-  defp format_action_output(data, action, default_resource, formatter) do
+  defp format_action_output(data, action, default_resource, formatter, resource_lookups) do
     if action.type != :action do
-      OutputFormatter.format(data, default_resource, action.name, formatter)
+      OutputFormatter.format(data, default_resource, action.name, formatter, resource_lookups)
     else
       case ActionIntrospection.action_returns_field_selectable_type?(action) do
         {:ok, type, resource_module} when type in [:resource, :array_of_resource] ->
-          OutputFormatter.format(data, resource_module, action.name, formatter)
+          OutputFormatter.format(data, resource_module, action.name, formatter, resource_lookups)
 
         {:ok, type, _}
         when type in [:typed_map, :array_of_typed_map, :typed_struct, :array_of_typed_struct] ->
-          format_generic_action_output(data, action, formatter)
+          format_generic_action_output(data, action, formatter, resource_lookups)
 
         {:ok, type, _} when type in [:unconstrained_map, :array_of_unconstrained_map] ->
           format_field_names(data, formatter)
 
         _ ->
-          format_generic_action_output(data, action, formatter)
+          format_generic_action_output(data, action, formatter, resource_lookups)
       end
     end
   end
 
-  defp format_generic_action_output(data, action, formatter) do
+  defp format_generic_action_output(data, action, formatter, resource_lookups) do
     return_type = action.returns
     constraints = action.constraints || []
 
-    ValueFormatter.format(data, return_type, constraints, formatter, :output)
+    ValueFormatter.format(data, return_type, constraints, formatter, :output, resource_lookups)
   end
 
   defp unconstrained_map_action?(action) do

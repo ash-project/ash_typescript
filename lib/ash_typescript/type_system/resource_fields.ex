@@ -13,29 +13,57 @@ defmodule AshTypescript.TypeSystem.ResourceFields do
 
   - `get_field_type_info/2` - Looks up any field (public or private)
   - `get_public_field_type_info/2` - Looks up only public fields
+  - `get_field_type_info/3` - Lookup-accelerated variant using persisted `%AshApiSpec.Resource{}` specs
 
   Both return `{type, constraints}` tuples, with `{nil, []}` for unknown fields.
   """
 
+  # ---------------------------------------------------------------------------
+  # get_field_type_info/2 - Accepts %AshApiSpec.Resource{} or resource module
+  # ---------------------------------------------------------------------------
+
   @doc """
   Gets the type and constraints for any field on a resource.
 
-  Checks attributes, calculations, relationships, and aggregates in order.
-  Uses non-public Ash.Resource.Info functions to access all fields.
+  Accepts either a `%AshApiSpec.Resource{}` for O(1) indexed access, or a
+  resource module atom for Ash.Resource.Info-based lookup.
 
-  ## Examples
-
-      iex> get_field_type_info(MyApp.User, :name)
-      {Ash.Type.String, []}
-
-      iex> get_field_type_info(MyApp.User, :todos)
-      {{:array, MyApp.Todo}, []}
-
-      iex> get_field_type_info(MyApp.User, :unknown)
-      {nil, []}
+  Returns `{type, constraints}` or `{nil, []}` if not found.
   """
-  @spec get_field_type_info(module(), atom()) :: {atom() | tuple() | nil, keyword()}
-  def get_field_type_info(resource, field_name) do
+  @spec get_field_type_info(AshApiSpec.Resource.t() | module(), atom()) ::
+          {atom() | tuple() | nil, keyword()}
+  def get_field_type_info(%AshApiSpec.Resource{} = resource_spec, field_name) do
+    case Map.get(resource_spec.fields, field_name) do
+      %AshApiSpec.Field{type: %AshApiSpec.Type{} = type_info} ->
+        # Return %Type{} directly — callers with %Type{} dispatch heads
+        # can pattern match on kind without unwrap_new_type + cond
+        {type_info, []}
+
+      nil ->
+        case Map.get(resource_spec.relationships, field_name) do
+          %AshApiSpec.Relationship{destination: dest, cardinality: cardinality} ->
+            dest_type = %AshApiSpec.Type{
+              kind: :resource,
+              name: "Resource",
+              module: dest,
+              resource_module: dest,
+              constraints: []
+            }
+
+            if cardinality == :many do
+              {%AshApiSpec.Type{kind: :array, name: "Array", item_type: dest_type, constraints: []},
+               []}
+            else
+              {dest_type, []}
+            end
+
+          nil ->
+            {nil, []}
+        end
+    end
+  end
+
+  def get_field_type_info(resource, field_name) when is_atom(resource) do
     cond do
       attr = Ash.Resource.Info.attribute(resource, field_name) ->
         {attr.type, attr.constraints || []}
@@ -55,20 +83,52 @@ defmodule AshTypescript.TypeSystem.ResourceFields do
     end
   end
 
+  # ---------------------------------------------------------------------------
+  # get_field_type_info/3 - With optional resource_lookups map
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Gets the type and constraints for a field, using lookups map if available.
+  """
+  @spec get_field_type_info(module(), atom(), map() | nil) :: {atom() | tuple() | nil, keyword()}
+  def get_field_type_info(resource, field_name, resource_lookups)
+      when is_atom(resource) and is_map(resource_lookups) do
+    case Map.get(resource_lookups, resource) do
+      %AshApiSpec.Resource{} = spec -> get_field_type_info(spec, field_name)
+      nil -> get_field_type_info(resource, field_name)
+    end
+  end
+
+  def get_field_type_info(resource, field_name, _nil_lookups) when is_atom(resource) do
+    get_field_type_info(resource, field_name)
+  end
+
+  # ---------------------------------------------------------------------------
+  # get_public_field_type_info
+  # ---------------------------------------------------------------------------
+
   @doc """
   Gets the type and constraints for public fields only.
 
   Checks public attributes, calculations, aggregates, and relationships in order.
   Used for output formatting where we only want publicly accessible fields.
-
-  ## Examples
-
-      iex> get_public_field_type_info(MyApp.User, :name)
-      {Ash.Type.String, []}
-
-      iex> get_public_field_type_info(MyApp.User, :private_field)
-      {nil, []}
+  The 3-arity version uses resource_lookups for O(1) indexed access when available.
   """
+  @spec get_public_field_type_info(module(), atom(), map() | nil) ::
+          {atom() | tuple() | nil, keyword()}
+  def get_public_field_type_info(resource, field_name, resource_lookups)
+      when is_atom(resource) and is_map(resource_lookups) do
+    # Resource spec only contains public fields, so this is equivalent
+    case Map.get(resource_lookups, resource) do
+      %AshApiSpec.Resource{} = spec -> get_field_type_info(spec, field_name)
+      nil -> get_public_field_type_info(resource, field_name)
+    end
+  end
+
+  def get_public_field_type_info(resource, field_name, _nil_lookups) do
+    get_public_field_type_info(resource, field_name)
+  end
+
   @spec get_public_field_type_info(module(), atom()) :: {atom() | tuple() | nil, keyword()}
   def get_public_field_type_info(resource, field_name) do
     cond do
@@ -159,5 +219,30 @@ defmodule AshTypescript.TypeSystem.ResourceFields do
       agg ->
         resolve_aggregate_type_info(resource, agg)
     end
+  end
+
+  # ---------------------------------------------------------------------------
+  # AshApiSpec.Type → {type, constraints} bridge
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Converts an `%AshApiSpec.Type{}` struct back to a `{type, constraints}` tuple.
+
+  This bridges the AshApiSpec struct-based type representation and the
+  existing `{type, constraints}` format used by ValueFormatter, FieldSelector, etc.
+  """
+  @spec type_info_to_type_constraints(AshApiSpec.Type.t()) :: {atom() | tuple() | nil, keyword()}
+  def type_info_to_type_constraints(%AshApiSpec.Type{kind: :array, item_type: item_type} = type) do
+    {inner_type, inner_constraints} = type_info_to_type_constraints(item_type)
+    {{:array, inner_type}, Keyword.put(type.constraints || [], :items, inner_constraints)}
+  end
+
+  def type_info_to_type_constraints(%AshApiSpec.Type{kind: kind, module: module, constraints: constraints})
+      when kind in [:resource, :embedded_resource] do
+    {module, constraints || []}
+  end
+
+  def type_info_to_type_constraints(%AshApiSpec.Type{module: module, constraints: constraints}) do
+    {module, constraints || []}
   end
 end

@@ -38,11 +38,12 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   @doc """
   Main entry point for processing Ash results.
   """
-  @spec process(term(), map(), module() | nil) :: term()
-  def process(result, extraction_template, resource \\ nil) do
+  @spec process(term(), map(), module() | nil, map() | nil) :: term()
+  def process(result, extraction_template, resource \\ nil, resource_lookups \\ nil) do
     case result do
       %Ash.Page.Offset{results: results} = page ->
-        processed_results = extract_list_fields(results, extraction_template, resource)
+        processed_results =
+          extract_list_fields(results, extraction_template, resource, resource_lookups)
 
         page
         |> Map.take([:limit, :offset, :count])
@@ -51,7 +52,8 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         |> Map.put(:type, :offset)
 
       %Ash.Page.Keyset{results: results} = page ->
-        processed_results = extract_list_fields(results, extraction_template, resource)
+        processed_results =
+          extract_list_fields(results, extraction_template, resource, resource_lookups)
 
         {previous_page_cursor, next_page_cursor} =
           if Enum.empty?(results) do
@@ -73,13 +75,13 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
       result when is_list(result) ->
         if Keyword.keyword?(result) do
-          extract_single_result(result, extraction_template, resource)
+          extract_single_result(result, extraction_template, resource, resource_lookups)
         else
-          extract_list_fields(result, extraction_template, resource)
+          extract_list_fields(result, extraction_template, resource, resource_lookups)
         end
 
       result ->
-        extract_single_result(result, extraction_template, resource)
+        extract_single_result(result, extraction_template, resource, resource_lookups)
     end
   end
 
@@ -99,15 +101,18 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   ## Returns
   `{type, constraints}` or `{nil, []}` if not found.
   """
-  @spec get_field_type_info(module() | nil, atom()) :: {atom() | tuple() | nil, keyword()}
-  def get_field_type_info(nil, _field_name), do: {nil, []}
+  @spec get_field_type_info(module() | nil, atom(), map() | nil) ::
+          {atom() | tuple() | nil, keyword()}
+  def get_field_type_info(resource, field_name, resource_lookups \\ nil)
 
-  def get_field_type_info(resource, field_name) when is_atom(resource) do
+  def get_field_type_info(nil, _field_name, _lookups), do: {nil, []}
+
+  def get_field_type_info(resource, field_name, resource_lookups) when is_atom(resource) do
     cond do
       # For Ash resources, delegate to ResourceFields which handles all field types
       # including proper aggregate type resolution
       Ash.Resource.Info.resource?(resource) ->
-        ResourceFields.get_field_type_info(resource, field_name)
+        ResourceFields.get_field_type_info(resource, field_name, resource_lookups)
 
       # For modules with typescript_field_names (TypedStruct wrappers)
       Code.ensure_loaded?(resource) && function_exported?(resource, :typescript_field_names, 0) ->
@@ -119,7 +124,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  def get_field_type_info(_resource, _field_name), do: {nil, []}
+  def get_field_type_info(_resource, _field_name, _lookups), do: {nil, []}
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Type-Driven Extraction Dispatcher
@@ -158,6 +163,42 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   end
 
   def extract_value(value, nil, _constraints, _template), do: normalize_primitive(value)
+
+  # %Type{kind} dispatch — replaces unwrap_new_type + cond for the lookup path
+  def extract_value(value, %AshApiSpec.Type{} = type_info, _constraints, template) do
+    constraints = augment_type_constraints(type_info)
+    inst = type_info.instance_of || type_info.module
+
+    case type_info.kind do
+      :array ->
+        extract_array_value(value, type_info.item_type, [], template)
+
+      kind when kind in [:resource, :embedded_resource] ->
+        resource = type_info.resource_module || inst
+        extract_resource_value(value, resource, template)
+
+      :union ->
+        extract_union_value(value, constraints, template)
+
+      kind when kind in [:struct, :map] ->
+        cond do
+          inst && is_atom(inst) && Ash.Resource.Info.resource?(inst) ->
+            extract_resource_value(value, inst, template)
+
+          Introspection.has_typescript_field_names?(inst) ->
+            extract_typed_struct_value(value, constraints, template)
+
+          true ->
+            extract_typed_map_value(value, constraints, template)
+        end
+
+      kind when kind in [:tuple, :keyword] ->
+        extract_typed_map_value(value, constraints, template)
+
+      _ ->
+        normalize_primitive(value)
+    end
+  end
 
   def extract_value(value, type, constraints, template) do
     # Unwrap NewTypes first (same pattern as ValueFormatter)
@@ -282,6 +323,18 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         # Recurse with both type info AND nested template
         extracted = extract_value(value, field_type, field_constraints, nested_template)
         Map.put(acc, field_atom, extracted)
+    end
+  end
+
+  defp augment_type_constraints(type_info) do
+    constraints = type_info.constraints || []
+    inst = type_info.instance_of || type_info.module
+
+    if inst && is_atom(inst) && !Keyword.has_key?(constraints, :instance_of) &&
+         Introspection.has_typescript_field_names?(inst) do
+      Keyword.put(constraints, :instance_of, inst)
+    else
+      constraints
     end
   end
 
@@ -614,7 +667,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   # Entry Points (using type-driven dispatch)
   # ─────────────────────────────────────────────────────────────────────────────
 
-  defp extract_list_fields(results, extraction_template, resource) do
+  defp extract_list_fields(results, extraction_template, resource, _resource_lookups) do
     {type, constraints} = determine_data_type(List.first(results), resource)
 
     inner_type =
@@ -632,7 +685,9 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     |> Enum.reject(&is_nil/1)
   end
 
-  defp extract_single_result(data, extraction_template, resource)
+  defp extract_single_result(data, extraction_template, resource, resource_lookups)
+
+  defp extract_single_result(data, extraction_template, resource, _resource_lookups)
        when is_list(extraction_template) do
     if extraction_template == [] and is_primitive_value?(data) do
       normalize_primitive(data)
@@ -642,7 +697,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  defp extract_single_result(data, _template, _resource) do
+  defp extract_single_result(data, _template, _resource, _resource_lookups) do
     normalize_data(data)
   end
 

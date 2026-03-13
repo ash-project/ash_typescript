@@ -111,7 +111,73 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   Mirrors `ValueFormatter.format/5` - uses the same type detection and dispatch pattern.
   Each type category has its own handler that may recurse back into this function.
   """
-  @spec select_fields(atom() | tuple(), keyword(), list(), list()) :: select_result()
+  @spec select_fields(atom() | tuple() | AshApiSpec.Type.t(), keyword(), list(), list()) ::
+          select_result()
+
+  # %Type{kind} dispatch — replaces unwrap_new_type + cond for the lookup path
+  def select_fields(%AshApiSpec.Type{} = type_info, _constraints, requested_fields, path) do
+    constraints = augment_type_constraints(type_info)
+    inst = type_info.instance_of || type_info.module
+
+    case type_info.kind do
+      :array ->
+        select_fields(type_info.item_type, [], requested_fields, path)
+
+      kind when kind in [:resource, :embedded_resource] ->
+        resource = type_info.resource_module || inst
+        select_resource_fields(resource, requested_fields, path)
+
+      :union ->
+        select_union_fields(constraints, requested_fields, path, "union_attribute")
+
+      :tuple ->
+        select_tuple_fields(constraints, requested_fields, path)
+
+      :keyword ->
+        if Introspection.has_field_constraints?(constraints) do
+          select_typed_map_fields(constraints, requested_fields, path)
+        else
+          if requested_fields != [] do
+            throw({:invalid_field_selection, :primitive_type, type_info, requested_fields, path})
+          end
+
+          {[], [], []}
+        end
+
+      kind when kind in [:struct, :map] ->
+        cond do
+          inst && is_atom(inst) && Ash.Resource.Info.resource?(inst) ->
+            select_resource_fields(inst, requested_fields, path)
+
+          Introspection.has_typescript_field_names?(inst) ->
+            select_typed_struct_fields(constraints, requested_fields, path)
+
+          Introspection.has_field_constraints?(constraints) ->
+            error_type = if kind == :map, do: "map", else: "field_constrained_type"
+            select_typed_map_fields(constraints, requested_fields, path, error_type)
+
+          true ->
+            if requested_fields != [] do
+              throw(
+                {:invalid_field_selection, :primitive_type, type_info, requested_fields, path}
+              )
+            end
+
+            {[], [], []}
+        end
+
+      :any ->
+        select_generic_fields(requested_fields, path)
+
+      _ ->
+        if requested_fields != [] do
+          throw({:invalid_field_selection, :primitive_type, type_info, requested_fields, path})
+        end
+
+        {[], [], []}
+    end
+  end
+
   def select_fields(type, constraints, requested_fields, path) do
     {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
 
@@ -234,6 +300,18 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
           end)
       end
     end)
+  end
+
+  defp augment_type_constraints(type_info) do
+    constraints = type_info.constraints || []
+    inst = type_info.instance_of || type_info.module
+
+    if inst && is_atom(inst) && !Keyword.has_key?(constraints, :instance_of) &&
+         Introspection.has_typescript_field_names?(inst) do
+      Keyword.put(constraints, :instance_of, inst)
+    else
+      constraints
+    end
   end
 
   defp process_simple_resource_field(resource, field_name, path, {select, load, template}) do
