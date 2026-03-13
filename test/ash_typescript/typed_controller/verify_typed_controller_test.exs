@@ -191,10 +191,10 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
         use AshTypescript.TypedController
 
         typed_controller do
-          module_name AshTypescript.Test.UnderscoreArgController
+          module_name(AshTypescript.Test.UnderscoreArgController)
 
           route :test do
-            method :post
+            method(:post)
             run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
             argument :line_1, :string
           end
@@ -213,10 +213,10 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
         use AshTypescript.TypedController
 
         typed_controller do
-          module_name AshTypescript.Test.UnderscoreRouteController
+          module_name(AshTypescript.Test.UnderscoreRouteController)
 
           route :step_1 do
-            method :get
+            method(:get)
             run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
           end
         end
@@ -234,10 +234,10 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
         use AshTypescript.TypedController
 
         typed_controller do
-          module_name AshTypescript.Test.QuestionMarkArgController
+          module_name(AshTypescript.Test.QuestionMarkArgController)
 
           route :test do
-            method :post
+            method(:post)
             run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
             argument :is_active?, :boolean
           end
@@ -256,10 +256,10 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
         use AshTypescript.TypedController
 
         typed_controller do
-          module_name AshTypescript.Test.SuggestionController
+          module_name(AshTypescript.Test.SuggestionController)
 
           route :test do
-            method :post
+            method(:post)
             run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
             argument :address_line_1, :string
           end
