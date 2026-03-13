@@ -17,16 +17,15 @@ defmodule AshApiSpec.Generator.ResourceBuilderTest do
     test "includes public attributes as fields" do
       resource = ResourceBuilder.build(AshTypescript.Test.Todo)
 
-      field_names = Enum.map(resource.fields, & &1.name)
-      assert :title in field_names
-      assert :description in field_names
-      assert :completed in field_names
-      assert :status in field_names
+      assert Map.has_key?(resource.fields, :title)
+      assert Map.has_key?(resource.fields, :description)
+      assert Map.has_key?(resource.fields, :completed)
+      assert Map.has_key?(resource.fields, :status)
     end
 
     test "marks attribute field properties correctly" do
       resource = ResourceBuilder.build(AshTypescript.Test.Todo)
-      title_field = Enum.find(resource.fields, &(&1.name == :title))
+      title_field = resource.fields[:title]
 
       assert %Field{} = title_field
       assert title_field.kind == :attribute
@@ -36,7 +35,7 @@ defmodule AshApiSpec.Generator.ResourceBuilderTest do
 
     test "includes id as primary key field" do
       resource = ResourceBuilder.build(AshTypescript.Test.Todo)
-      id_field = Enum.find(resource.fields, &(&1.name == :id))
+      id_field = resource.fields[:id]
 
       assert %Field{} = id_field
       assert id_field.primary_key? == true
@@ -45,7 +44,7 @@ defmodule AshApiSpec.Generator.ResourceBuilderTest do
 
     test "includes calculations as fields" do
       resource = ResourceBuilder.build(AshTypescript.Test.Todo)
-      calc_fields = Enum.filter(resource.fields, &(&1.kind == :calculation))
+      calc_fields = resource.fields |> Map.values() |> Enum.filter(&(&1.kind == :calculation))
 
       calc_names = Enum.map(calc_fields, & &1.name)
       assert :is_overdue in calc_names
@@ -55,7 +54,7 @@ defmodule AshApiSpec.Generator.ResourceBuilderTest do
     test "calculation fields include arguments" do
       resource = ResourceBuilder.build(AshTypescript.Test.Todo)
 
-      self_calc = Enum.find(resource.fields, &(&1.name == :self))
+      self_calc = resource.fields[:self]
       assert self_calc != nil
       assert self_calc.kind == :calculation
       assert is_list(self_calc.arguments)
@@ -67,7 +66,7 @@ defmodule AshApiSpec.Generator.ResourceBuilderTest do
 
     test "includes aggregates as fields" do
       resource = ResourceBuilder.build(AshTypescript.Test.Todo)
-      agg_fields = Enum.filter(resource.fields, &(&1.kind == :aggregate))
+      agg_fields = resource.fields |> Map.values() |> Enum.filter(&(&1.kind == :aggregate))
 
       agg_names = Enum.map(agg_fields, & &1.name)
       assert :comment_count in agg_names
@@ -77,28 +76,25 @@ defmodule AshApiSpec.Generator.ResourceBuilderTest do
     test "aggregate fields have aggregate_kind" do
       resource = ResourceBuilder.build(AshTypescript.Test.Todo)
 
-      comment_count = Enum.find(resource.fields, &(&1.name == :comment_count))
+      comment_count = resource.fields[:comment_count]
       assert comment_count.aggregate_kind == :count
     end
 
     test "includes relationships" do
-      resource = ResourceBuilder.build(AshTypescript.Test.Todo)
-      rel_names = Enum.map(resource.relationships, & &1.name)
-
-      assert :user in rel_names
-      assert :comments in rel_names
+      assert Map.has_key?(ResourceBuilder.build(AshTypescript.Test.Todo).relationships, :user)
+      assert Map.has_key?(ResourceBuilder.build(AshTypescript.Test.Todo).relationships, :comments)
     end
 
     test "relationship properties are correct" do
       resource = ResourceBuilder.build(AshTypescript.Test.Todo)
 
-      user_rel = Enum.find(resource.relationships, &(&1.name == :user))
+      user_rel = resource.relationships[:user]
       assert %Relationship{} = user_rel
       assert user_rel.type == :belongs_to
       assert user_rel.cardinality == :one
       assert user_rel.destination == AshTypescript.Test.User
 
-      comments_rel = Enum.find(resource.relationships, &(&1.name == :comments))
+      comments_rel = resource.relationships[:comments]
       assert %Relationship{} = comments_rel
       assert comments_rel.type == :has_many
       assert comments_rel.cardinality == :many
@@ -106,22 +102,20 @@ defmodule AshApiSpec.Generator.ResourceBuilderTest do
 
     test "includes all actions when no filter" do
       resource = ResourceBuilder.build(AshTypescript.Test.Todo)
-      action_names = Enum.map(resource.actions, & &1.name)
 
-      assert :read in action_names
-      assert :create in action_names
-      assert :update in action_names
-      assert :destroy in action_names
+      assert Map.has_key?(resource.actions, :read)
+      assert Map.has_key?(resource.actions, :create)
+      assert Map.has_key?(resource.actions, :update)
+      assert Map.has_key?(resource.actions, :destroy)
     end
 
     test "filters actions when action_names provided" do
       resource = ResourceBuilder.build(AshTypescript.Test.Todo, action_names: [:read, :create])
-      action_names = Enum.map(resource.actions, & &1.name)
 
-      assert :read in action_names
-      assert :create in action_names
-      refute :update in action_names
-      refute :destroy in action_names
+      assert Map.has_key?(resource.actions, :read)
+      assert Map.has_key?(resource.actions, :create)
+      refute Map.has_key?(resource.actions, :update)
+      refute Map.has_key?(resource.actions, :destroy)
     end
 
     test "builds embedded resource" do

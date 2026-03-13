@@ -44,9 +44,9 @@ defmodule AshApiSpec.JsonSerializer do
       "module" => module_to_string(resource.module),
       "embedded" => resource.embedded?,
       "primary_key" => Enum.map(resource.primary_key || [], &to_string/1),
-      "fields" => Enum.map(resource.fields, &serialize_field/1),
-      "relationships" => Enum.map(resource.relationships, &serialize_relationship/1),
-      "actions" => Enum.map(resource.actions, &serialize_action/1)
+      "fields" => serialize_named_map(resource.fields, &serialize_field/1),
+      "relationships" => serialize_named_map(resource.relationships, &serialize_relationship/1),
+      "actions" => serialize_named_map(resource.actions, &serialize_action/1)
     }
     |> put_if_present("description", resource.description)
     |> put_if_present("multitenancy", serialize_multitenancy(resource.multitenancy))
@@ -58,7 +58,6 @@ defmodule AshApiSpec.JsonSerializer do
 
   defp serialize_field(%AshApiSpec.Field{} = field) do
     base = %{
-      "name" => to_string(field.name),
       "kind" => to_string(field.kind),
       "type" => serialize_type(field.type),
       "allow_nil" => field.allow_nil?,
@@ -83,7 +82,6 @@ defmodule AshApiSpec.JsonSerializer do
 
   defp serialize_relationship(%AshApiSpec.Relationship{} = rel) do
     %{
-      "name" => to_string(rel.name),
       "type" => to_string(rel.type),
       "cardinality" => to_string(rel.cardinality),
       "destination" => module_to_string(rel.destination),
@@ -100,7 +98,6 @@ defmodule AshApiSpec.JsonSerializer do
 
   defp serialize_action(%AshApiSpec.Action{} = action) do
     %{
-      "name" => to_string(action.name),
       "type" => to_string(action.type),
       "primary" => action.primary?,
       "get" => action.get?,
@@ -189,6 +186,12 @@ defmodule AshApiSpec.JsonSerializer do
   # ─────────────────────────────────────────────────────────────────
   # Helpers
   # ─────────────────────────────────────────────────────────────────
+
+  defp serialize_named_map(map, serialize_fn) when is_map(map) do
+    Map.new(map, fn {name, value} ->
+      {to_string(name), serialize_fn.(value)}
+    end)
+  end
 
   defp serialize_type_or_nil(nil), do: nil
   defp serialize_type_or_nil(type), do: serialize_type(type)

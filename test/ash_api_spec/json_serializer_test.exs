@@ -31,9 +31,9 @@ defmodule AshApiSpec.JsonSerializerTest do
       assert is_binary(todo["module"])
       assert is_boolean(todo["embedded"])
       assert is_list(todo["primary_key"])
-      assert is_list(todo["fields"])
-      assert is_list(todo["relationships"])
-      assert is_list(todo["actions"])
+      assert is_map(todo["fields"])
+      assert is_map(todo["relationships"])
+      assert is_map(todo["actions"])
     end
 
     test "fields have expected structure" do
@@ -42,7 +42,7 @@ defmodule AshApiSpec.JsonSerializerTest do
       {:ok, decoded} = Jason.decode(json)
 
       todo = Enum.find(decoded["resources"], &(&1["name"] == "Todo"))
-      title = Enum.find(todo["fields"], &(&1["name"] == "title"))
+      title = todo["fields"]["title"]
 
       assert title["kind"] == "attribute"
       assert title["type"]["kind"] == "string"
@@ -57,7 +57,7 @@ defmodule AshApiSpec.JsonSerializerTest do
       {:ok, decoded} = Jason.decode(json)
 
       todo = Enum.find(decoded["resources"], &(&1["name"] == "Todo"))
-      user_rel = Enum.find(todo["relationships"], &(&1["name"] == "user"))
+      user_rel = todo["relationships"]["user"]
 
       assert user_rel["type"] == "belongs_to"
       assert user_rel["cardinality"] == "one"
@@ -70,7 +70,7 @@ defmodule AshApiSpec.JsonSerializerTest do
       {:ok, decoded} = Jason.decode(json)
 
       todo = Enum.find(decoded["resources"], &(&1["name"] == "Todo"))
-      read_action = Enum.find(todo["actions"], &(&1["name"] == "read"))
+      read_action = todo["actions"]["read"]
 
       assert read_action["type"] == "read"
       assert is_boolean(read_action["primary"])
@@ -83,7 +83,7 @@ defmodule AshApiSpec.JsonSerializerTest do
       {:ok, decoded} = Jason.decode(json)
 
       todo = Enum.find(decoded["resources"], &(&1["name"] == "Todo"))
-      read_action = Enum.find(todo["actions"], &(&1["name"] == "read"))
+      read_action = todo["actions"]["read"]
 
       assert read_action["pagination"] != nil
       assert is_boolean(read_action["pagination"]["offset"])
@@ -96,7 +96,7 @@ defmodule AshApiSpec.JsonSerializerTest do
       {:ok, decoded} = Jason.decode(json)
 
       todo = Enum.find(decoded["resources"], &(&1["name"] == "Todo"))
-      bulk_complete = Enum.find(todo["actions"], &(&1["name"] == "bulk_complete"))
+      bulk_complete = todo["actions"]["bulk_complete"]
 
       if bulk_complete do
         assert bulk_complete["returns"] != nil
@@ -112,7 +112,7 @@ defmodule AshApiSpec.JsonSerializerTest do
       todo = Enum.find(decoded["resources"], &(&1["name"] == "Todo"))
 
       # Attribute fields should not have "arguments" key (only calculations have that)
-      title = Enum.find(todo["fields"], &(&1["name"] == "title"))
+      title = todo["fields"]["title"]
       refute Map.has_key?(title, "arguments")
     end
 

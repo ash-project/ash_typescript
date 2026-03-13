@@ -40,7 +40,7 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
     calculations = build_calculations(resource)
     aggregates = build_aggregates(resource)
 
-    attributes ++ calculations ++ aggregates
+    Map.new(attributes ++ calculations ++ aggregates, fn field -> {field.name, field} end)
   end
 
   defp build_attributes(resource) do
@@ -108,7 +108,7 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
         name: aggregate.name,
         kind: :aggregate,
         type: TypeResolver.resolve(type, constraints),
-        allow_nil?: true,
+        allow_nil?: Map.get(aggregate, :include_nil?, false),
         writable?: false,
         has_default?: false,
         description: Map.get(aggregate, :description),
@@ -149,8 +149,8 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
   defp build_relationships(resource) do
     resource
     |> Ash.Resource.Info.public_relationships()
-    |> Enum.map(fn rel ->
-      %Relationship{
+    |> Map.new(fn rel ->
+      relationship = %Relationship{
         name: rel.name,
         type: relationship_type(rel),
         cardinality: relationship_cardinality(rel),
@@ -160,6 +160,8 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
         filterable?: Map.get(rel, :filterable?, true),
         sortable?: Map.get(rel, :sortable?, true)
       }
+
+      {rel.name, relationship}
     end)
   end
 
@@ -179,14 +181,20 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
   defp build_actions(resource, nil) do
     resource
     |> Ash.Resource.Info.actions()
-    |> Enum.map(&ActionBuilder.build(resource, &1))
+    |> Map.new(fn action ->
+      built = ActionBuilder.build(resource, action)
+      {built.name, built}
+    end)
   end
 
   defp build_actions(resource, action_names) when is_list(action_names) do
     resource
     |> Ash.Resource.Info.actions()
     |> Enum.filter(&(&1.name in action_names))
-    |> Enum.map(&ActionBuilder.build(resource, &1))
+    |> Map.new(fn action ->
+      built = ActionBuilder.build(resource, action)
+      {built.name, built}
+    end)
   end
 
   # ─────────────────────────────────────────────────────────────────

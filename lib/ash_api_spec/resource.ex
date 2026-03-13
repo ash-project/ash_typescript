@@ -1,6 +1,9 @@
 defmodule AshApiSpec.Resource do
   @moduledoc """
   Represents a resource in the API specification.
+
+  Fields, relationships, and actions are stored as maps keyed by atom name
+  for O(1) lookup access.
   """
 
   @type t :: %__MODULE__{
@@ -9,9 +12,9 @@ defmodule AshApiSpec.Resource do
           embedded?: boolean(),
           primary_key: [atom()],
           description: String.t() | nil,
-          fields: [AshApiSpec.Field.t()],
-          relationships: [AshApiSpec.Relationship.t()],
-          actions: [AshApiSpec.Action.t()],
+          fields: %{atom() => AshApiSpec.Field.t()},
+          relationships: %{atom() => AshApiSpec.Relationship.t()},
+          actions: %{atom() => AshApiSpec.Action.t()},
           multitenancy: %{strategy: atom(), global?: boolean(), attribute: atom()} | nil
         }
 
@@ -21,9 +24,9 @@ defmodule AshApiSpec.Resource do
     :embedded?,
     :primary_key,
     :description,
-    :fields,
-    :relationships,
-    :actions,
-    :multitenancy
+    :multitenancy,
+    fields: %{},
+    relationships: %{},
+    actions: %{}
   ]
 end

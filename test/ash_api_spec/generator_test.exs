@@ -16,9 +16,9 @@ defmodule AshApiSpec.GeneratorTest do
         assert is_binary(resource.name)
         assert is_atom(resource.module)
         assert is_boolean(resource.embedded?)
-        assert is_list(resource.fields)
-        assert is_list(resource.relationships)
-        assert is_list(resource.actions)
+        assert is_map(resource.fields)
+        assert is_map(resource.relationships)
+        assert is_map(resource.actions)
       end
     end
 
@@ -30,9 +30,8 @@ defmodule AshApiSpec.GeneratorTest do
       assert todo.name == "Todo"
 
       # Should have fields
-      field_names = Enum.map(todo.fields, & &1.name)
-      assert :id in field_names
-      assert :title in field_names
+      assert Map.has_key?(todo.fields, :id)
+      assert Map.has_key?(todo.fields, :title)
     end
 
     test "includes User resource" do
@@ -51,17 +50,27 @@ defmodule AshApiSpec.GeneratorTest do
 
       todo = Enum.find(spec.resources, &(&1.module == AshTypescript.Test.Todo))
       assert todo != nil
-      action_names = Enum.map(todo.actions, & &1.name)
-      assert :read in action_names
+      assert Map.has_key?(todo.actions, :read)
+    end
+
+    test "with action filter, reachable resources have no actions" do
+      {:ok, spec} =
+        AshApiSpec.generate(
+          otp_app: :ash_typescript,
+          actions: [{AshTypescript.Test.Todo, :read}]
+        )
+
+      # User is reachable via Todo's belongs_to but was not explicitly listed
+      user = Enum.find(spec.resources, &(&1.module == AshTypescript.Test.User))
+      assert user != nil
+      assert user.actions == %{}
     end
 
     test "resources have properly resolved field types" do
       {:ok, spec} = AshApiSpec.generate(otp_app: :ash_typescript)
 
       todo = Enum.find(spec.resources, &(&1.module == AshTypescript.Test.Todo))
-      title_field = Enum.find(todo.fields, &(&1.name == :title))
-
-      assert title_field.type.kind == :string
+      assert todo.fields[:title].type.kind == :string
     end
 
     test "resources are sorted by module name" do
