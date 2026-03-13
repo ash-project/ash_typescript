@@ -1,0 +1,219 @@
+defmodule AshApiSpec.Generator.ResourceBuilder do
+  @moduledoc """
+  Converts an Ash resource module into an `%AshApiSpec.Resource{}` struct.
+  """
+
+  alias AshApiSpec.{Resource, Field, Relationship, Argument}
+  alias AshApiSpec.Generator.{TypeResolver, ActionBuilder}
+
+  @doc """
+  Build a `%AshApiSpec.Resource{}` from an Ash resource module.
+
+  ## Options
+
+    * `:action_names` - Optional list of action names to include. When nil,
+      all actions are included.
+  """
+  @spec build(atom(), keyword()) :: Resource.t()
+  def build(resource, opts \\ []) do
+    action_names = Keyword.get(opts, :action_names)
+
+    %Resource{
+      name: resource_name(resource),
+      module: resource,
+      embedded?: Ash.Resource.Info.embedded?(resource),
+      primary_key: Ash.Resource.Info.primary_key(resource),
+      description: Ash.Resource.Info.description(resource),
+      fields: build_fields(resource),
+      relationships: build_relationships(resource),
+      actions: build_actions(resource, action_names),
+      multitenancy: build_multitenancy(resource)
+    }
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Fields
+  # ─────────────────────────────────────────────────────────────────
+
+  defp build_fields(resource) do
+    attributes = build_attributes(resource)
+    calculations = build_calculations(resource)
+    aggregates = build_aggregates(resource)
+
+    attributes ++ calculations ++ aggregates
+  end
+
+  defp build_attributes(resource) do
+    resource
+    |> Ash.Resource.Info.public_attributes()
+    |> Enum.map(fn attr ->
+      %Field{
+        name: attr.name,
+        kind: :attribute,
+        type: TypeResolver.resolve(attr.type, attr.constraints || []),
+        allow_nil?: attr.allow_nil?,
+        writable?: attr.writable?,
+        has_default?: not is_nil(attr.default),
+        description: Map.get(attr, :description),
+        filterable?: Map.get(attr, :filterable?, true),
+        sortable?: Map.get(attr, :sortable?, true),
+        primary_key?: attr.primary_key?,
+        sensitive?: Map.get(attr, :sensitive?, false),
+        select_by_default?: Map.get(attr, :select_by_default?, true)
+      }
+    end)
+  end
+
+  defp build_calculations(resource) do
+    resource
+    |> Ash.Resource.Info.public_calculations()
+    |> Enum.map(fn calc ->
+      arguments =
+        Enum.map(calc.arguments, fn arg ->
+          %Argument{
+            name: arg.name,
+            type: TypeResolver.resolve(arg.type, arg.constraints || []),
+            allow_nil?: arg.allow_nil?,
+            has_default?: not is_nil(arg.default),
+            description: Map.get(arg, :description),
+            sensitive?: Map.get(arg, :sensitive?, false)
+          }
+        end)
+
+      %Field{
+        name: calc.name,
+        kind: :calculation,
+        type: TypeResolver.resolve(calc.type, calc.constraints || []),
+        allow_nil?: calc.allow_nil?,
+        writable?: false,
+        has_default?: false,
+        description: Map.get(calc, :description),
+        filterable?: Map.get(calc, :filterable?, true),
+        sortable?: Map.get(calc, :sortable?, true),
+        primary_key?: false,
+        sensitive?: Map.get(calc, :sensitive?, false),
+        select_by_default?: Map.get(calc, :select_by_default?, true),
+        arguments: arguments
+      }
+    end)
+  end
+
+  defp build_aggregates(resource) do
+    resource
+    |> Ash.Resource.Info.public_aggregates()
+    |> Enum.map(fn aggregate ->
+      {type, constraints} = resolve_aggregate_type(resource, aggregate)
+
+      %Field{
+        name: aggregate.name,
+        kind: :aggregate,
+        type: TypeResolver.resolve(type, constraints),
+        allow_nil?: true,
+        writable?: false,
+        has_default?: false,
+        description: Map.get(aggregate, :description),
+        filterable?: Map.get(aggregate, :filterable?, true),
+        sortable?: Map.get(aggregate, :sortable?, true),
+        primary_key?: false,
+        sensitive?: false,
+        select_by_default?: Map.get(aggregate, :select_by_default?, true),
+        aggregate_kind: aggregate.kind
+      }
+    end)
+  end
+
+  defp resolve_aggregate_type(resource, aggregate) do
+    field =
+      if aggregate.field do
+        related = Ash.Resource.Info.related(resource, aggregate.relationship_path)
+
+        if related do
+          Ash.Resource.Info.attribute(related, aggregate.field) ||
+            Ash.Resource.Info.calculation(related, aggregate.field)
+        end
+      end
+
+    field_type = if field, do: field.type
+    field_constraints = if field, do: Map.get(field, :constraints, []), else: []
+
+    case Ash.Query.Aggregate.kind_to_type(aggregate.kind, field_type, field_constraints) do
+      {:ok, type, constraints} -> {type, constraints}
+      _other -> {aggregate.type, aggregate.constraints || []}
+    end
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Relationships
+  # ─────────────────────────────────────────────────────────────────
+
+  defp build_relationships(resource) do
+    resource
+    |> Ash.Resource.Info.public_relationships()
+    |> Enum.map(fn rel ->
+      %Relationship{
+        name: rel.name,
+        type: relationship_type(rel),
+        cardinality: relationship_cardinality(rel),
+        destination: rel.destination,
+        allow_nil?: Map.get(rel, :allow_nil?, true),
+        description: Map.get(rel, :description),
+        filterable?: Map.get(rel, :filterable?, true),
+        sortable?: Map.get(rel, :sortable?, true)
+      }
+    end)
+  end
+
+  defp relationship_type(%Ash.Resource.Relationships.HasMany{}), do: :has_many
+  defp relationship_type(%Ash.Resource.Relationships.HasOne{}), do: :has_one
+  defp relationship_type(%Ash.Resource.Relationships.BelongsTo{}), do: :belongs_to
+  defp relationship_type(%Ash.Resource.Relationships.ManyToMany{}), do: :many_to_many
+
+  defp relationship_cardinality(%Ash.Resource.Relationships.HasMany{}), do: :many
+  defp relationship_cardinality(%Ash.Resource.Relationships.ManyToMany{}), do: :many
+  defp relationship_cardinality(_), do: :one
+
+  # ─────────────────────────────────────────────────────────────────
+  # Actions
+  # ─────────────────────────────────────────────────────────────────
+
+  defp build_actions(resource, nil) do
+    resource
+    |> Ash.Resource.Info.actions()
+    |> Enum.map(&ActionBuilder.build(resource, &1))
+  end
+
+  defp build_actions(resource, action_names) when is_list(action_names) do
+    resource
+    |> Ash.Resource.Info.actions()
+    |> Enum.filter(&(&1.name in action_names))
+    |> Enum.map(&ActionBuilder.build(resource, &1))
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Multitenancy
+  # ─────────────────────────────────────────────────────────────────
+
+  defp build_multitenancy(resource) do
+    strategy = Ash.Resource.Info.multitenancy_strategy(resource)
+
+    if strategy do
+      %{
+        strategy: strategy,
+        global?: Ash.Resource.Info.multitenancy_global?(resource),
+        attribute: Ash.Resource.Info.multitenancy_attribute(resource)
+      }
+    else
+      nil
+    end
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Helpers
+  # ─────────────────────────────────────────────────────────────────
+
+  defp resource_name(module) do
+    module
+    |> Module.split()
+    |> List.last()
+  end
+end
