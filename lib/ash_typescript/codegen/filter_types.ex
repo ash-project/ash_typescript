@@ -24,6 +24,10 @@ defmodule AshTypescript.Codegen.FilterTypes do
     Enum.map(resources, &generate_filter_type(&1, allowed_resources))
   end
 
+  def generate_filter_types(resources, allowed_resources, _resource_lookup) when is_list(resources) do
+    Enum.map(resources, &generate_filter_type(&1, allowed_resources))
+  end
+
   def generate_filter_type(resource) do
     resource_name = Helpers.build_resource_type_name(resource)
     filter_type_name = "#{resource_name}FilterInput"

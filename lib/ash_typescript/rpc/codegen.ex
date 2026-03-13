@@ -6,10 +6,10 @@ defmodule AshTypescript.Rpc.Codegen do
   @moduledoc """
   Generates TypeScript code for interacting with Ash resources via Rpc.
   """
+  import AshTypescript.Codegen
   import AshTypescript.Helpers, only: [format_output_field: 1]
 
-  alias AshTypescript.Codegen.ZodSchemaGenerator
-  alias AshTypescript.Codegen.TypeDiscovery
+  alias AshTypescript.Codegen.{FilterTypes, ResourceSchemas, TypeAliases, TypeDiscovery}
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer
@@ -25,9 +25,220 @@ defmodule AshTypescript.Rpc.Codegen do
 
   Delegates to `AshTypescript.Helpers.format_ts_value/1`.
   """
-  defdelegate format_endpoint_for_typescript(value),
-    to: AshTypescript.Helpers,
-    as: :format_ts_value
+  def format_endpoint_for_typescript(endpoint) when is_binary(endpoint) do
+    "\"#{endpoint}\""
+  end
+
+  def format_endpoint_for_typescript({:runtime_expr, expression})
+      when is_binary(expression) do
+    expression
+  end
+
+  def generate_typescript_types(otp_app, opts \\ []) do
+    endpoint_process =
+      Keyword.get(opts, :run_endpoint, "/rpc/run")
+      |> format_endpoint_for_typescript()
+
+    endpoint_validate =
+      Keyword.get(opts, :validate_endpoint, "/rpc/validate")
+      |> format_endpoint_for_typescript()
+
+    rpc_action_before_request_hook =
+      Keyword.get(opts, :rpc_action_before_request_hook) ||
+        AshTypescript.rpc_action_before_request_hook()
+
+    rpc_action_after_request_hook =
+      Keyword.get(opts, :rpc_action_after_request_hook) ||
+        AshTypescript.rpc_action_after_request_hook()
+
+    rpc_validation_before_request_hook =
+      Keyword.get(opts, :rpc_validation_before_request_hook) ||
+        AshTypescript.rpc_validation_before_request_hook()
+
+    rpc_validation_after_request_hook =
+      Keyword.get(opts, :rpc_validation_after_request_hook) ||
+        AshTypescript.rpc_validation_after_request_hook()
+
+    rpc_action_hook_context_type =
+      Keyword.get(opts, :rpc_action_hook_context_type) ||
+        AshTypescript.rpc_action_hook_context_type()
+
+    rpc_validation_hook_context_type =
+      Keyword.get(opts, :rpc_validation_hook_context_type) ||
+        AshTypescript.rpc_validation_hook_context_type()
+
+    rpc_action_before_channel_push_hook =
+      Keyword.get(opts, :rpc_action_before_channel_push_hook) ||
+        AshTypescript.rpc_action_before_channel_push_hook()
+
+    rpc_action_after_channel_response_hook =
+      Keyword.get(opts, :rpc_action_after_channel_response_hook) ||
+        AshTypescript.rpc_action_after_channel_response_hook()
+
+    rpc_validation_before_channel_push_hook =
+      Keyword.get(opts, :rpc_validation_before_channel_push_hook) ||
+        AshTypescript.rpc_validation_before_channel_push_hook()
+
+    rpc_validation_after_channel_response_hook =
+      Keyword.get(opts, :rpc_validation_after_channel_response_hook) ||
+        AshTypescript.rpc_validation_after_channel_response_hook()
+
+    rpc_action_channel_hook_context_type =
+      Keyword.get(opts, :rpc_action_channel_hook_context_type) ||
+        AshTypescript.rpc_action_channel_hook_context_type()
+
+    rpc_validation_channel_hook_context_type =
+      Keyword.get(opts, :rpc_validation_channel_hook_context_type) ||
+        AshTypescript.rpc_validation_channel_hook_context_type()
+
+    resources_and_actions = RpcConfigCollector.get_rpc_resources_and_actions(otp_app)
+
+    rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
+    domains = Ash.Info.domains(otp_app)
+
+    # Generate AshApiSpec and build resource lookup map for codegen fast path
+    resource_lookup =
+      case AshApiSpec.Generator.generate(otp_app: otp_app) do
+        {:ok, api_spec} ->
+          Map.new(api_spec.resources, fn r -> {r.module, r} end)
+
+        _ ->
+          %{}
+      end
+
+    hook_config = %{
+      rpc_action_before_request_hook: rpc_action_before_request_hook,
+      rpc_action_after_request_hook: rpc_action_after_request_hook,
+      rpc_validation_before_request_hook: rpc_validation_before_request_hook,
+      rpc_validation_after_request_hook: rpc_validation_after_request_hook,
+      rpc_action_hook_context_type: rpc_action_hook_context_type,
+      rpc_validation_hook_context_type: rpc_validation_hook_context_type,
+      rpc_action_before_channel_push_hook: rpc_action_before_channel_push_hook,
+      rpc_action_after_channel_response_hook: rpc_action_after_channel_response_hook,
+      rpc_validation_before_channel_push_hook: rpc_validation_before_channel_push_hook,
+      rpc_validation_after_channel_response_hook: rpc_validation_after_channel_response_hook,
+      rpc_action_channel_hook_context_type: rpc_action_channel_hook_context_type,
+      rpc_validation_channel_hook_context_type: rpc_validation_channel_hook_context_type
+    }
+
+    case AshTypescript.VerifierChecker.check_all_verifiers(rpc_resources ++ domains) do
+      :ok ->
+        case TypeDiscovery.build_rpc_warnings(otp_app) do
+          nil -> :ok
+          message -> IO.warn(message)
+        end
+
+        if AshTypescript.Rpc.enable_namespace_files?() do
+          generate_multi_file_output(
+            resources_and_actions,
+            endpoint_process,
+            endpoint_validate,
+            hook_config,
+            otp_app,
+            resource_lookup
+          )
+        else
+          {:ok,
+           generate_full_typescript(
+             resources_and_actions,
+             endpoint_process,
+             endpoint_validate,
+             hook_config,
+             otp_app,
+             resource_lookup
+           )}
+        end
+
+      {:error, error_message} ->
+        {:error, error_message}
+    end
+  end
+
+  defp generate_multi_file_output(
+         resources_and_actions,
+         endpoint_process,
+         endpoint_validate,
+         hook_config,
+         otp_app,
+         resource_lookup
+       ) do
+    # Generate main file with ALL actions (namespaced and non-namespaced)
+    main_content =
+      generate_full_typescript(
+        resources_and_actions,
+        endpoint_process,
+        endpoint_validate,
+        hook_config,
+        otp_app,
+        resource_lookup
+      )
+
+    # Group actions by namespace for re-export files
+    grouped = RpcConfigCollector.get_rpc_resources_by_namespace(otp_app)
+
+    # Generate namespace files (simple re-exports from main file)
+    namespace_files =
+      grouped
+      |> Map.delete(nil)
+      |> Map.new(fn {namespace, actions} ->
+        content = generate_namespace_reexport_file(namespace, actions)
+        {namespace, content}
+      end)
+
+    {:ok, %{main: main_content, namespaces: namespace_files}}
+  end
+
+  defp generate_namespace_reexport_file(namespace, actions) do
+    # Compute the relative import path from namespace dir to main file
+    main_file_path = Application.get_env(:ash_typescript, :output_file, "ash_rpc.ts")
+    main_file_name = Path.basename(main_file_path, ".ts")
+    main_file_dir = Path.dirname(main_file_path)
+
+    namespace_dir = AshTypescript.Rpc.namespace_output_dir() || main_file_dir
+
+    main_import_path =
+      if namespace_dir == main_file_dir do
+        "./#{main_file_name}"
+      else
+        "../#{main_file_name}"
+      end
+
+    # Collect all exports for each action in this namespace
+    exports = collect_action_exports(actions)
+
+    # Separate type exports from value exports
+    {type_exports, value_exports} =
+      Enum.split_with(exports, fn {_name, kind} -> kind == :type end)
+
+    type_names = type_exports |> Enum.map(fn {name, _} -> name end) |> Enum.sort()
+    value_names = value_exports |> Enum.map(fn {name, _} -> name end) |> Enum.sort()
+
+    # Build the export statements
+    type_export_line =
+      if type_names != [] do
+        "export type {\n  #{Enum.join(type_names, ",\n  ")}\n} from \"#{main_import_path}\";\n"
+      else
+        ""
+      end
+
+    value_export_line =
+      if value_names != [] do
+        "export {\n  #{Enum.join(value_names, ",\n  ")}\n} from \"#{main_import_path}\";\n"
+      else
+        ""
+      end
+
+    """
+    // Generated by AshTypescript - Namespace: #{namespace}
+    // WARNING: Do not edit this section - it will be overwritten on regeneration
+
+    #{type_export_line}
+    #{value_export_line}
+    #{namespace_custom_code_marker()}
+    """
+    |> String.trim()
+    |> Kernel.<>("\n")
+  end
 
   @doc """
   The marker comment used to separate generated code from custom code in namespace files.
@@ -116,13 +327,22 @@ defmodule AshTypescript.Rpc.Codegen do
     end
   end
 
-  # Mirrors the is_optional_pagination logic from FunctionCore.build_execution_function_shape/5.
-  # Config type is only emitted when this returns true (see TypeBuilders.build_optional_pagination_config/2).
-  defp has_optional_pagination?(_resource, action, rpc_action) do
-    ash_get? = action.get? || false
-    rpc_get? = Map.get(rpc_action, :get?, false)
-    rpc_get_by = (Map.get(rpc_action, :get_by) || []) != []
-    is_get_action = ash_get? or rpc_get? or rpc_get_by
+  defp generate_full_typescript(
+         rpc_resources_and_actions,
+         endpoint_process,
+         endpoint_validate,
+         hook_config,
+         otp_app,
+         resource_lookup
+       ) do
+    rpc_resources =
+      otp_app
+      |> Ash.Info.domains()
+      |> Enum.flat_map(fn domain ->
+        AshTypescript.Rpc.Info.typescript_rpc(domain)
+        |> Enum.map(fn %{resource: r} -> r end)
+      end)
+      |> Enum.uniq()
 
     action.type == :read and
       not is_get_action and
@@ -195,7 +415,23 @@ defmodule AshTypescript.Rpc.Codegen do
     #{TypescriptStatic.generate_imports(skip_zod: true, output_file: Keyword.get(codegen_opts, :output_file))}
     #{shared_imports}
 
-    #{body}
+    #{TypescriptStatic.generate_hook_context_types(hook_config)}
+
+    #{TypeAliases.generate_ash_type_aliases(rpc_resources, actions, otp_app, resource_lookup)}
+
+    #{ResourceSchemas.generate_all_schemas_for_resources(all_resources_for_schemas, all_resources_for_schemas, struct_argument_resources, resource_lookup)}
+
+    #{ZodSchemaGenerator.generate_zod_schemas_for_resources(Enum.uniq(embedded_resources ++ struct_argument_resources))}
+
+    #{FilterTypes.generate_filter_types(all_resources_for_schemas, all_resources_for_schemas, resource_lookup)}
+
+    #{TypescriptStatic.generate_utility_types()}
+
+    #{TypescriptStatic.generate_helper_functions(hook_config, endpoint_process, endpoint_validate)}
+
+    #{TypedQueries.generate_typed_queries_section(typed_queries, rpc_resources_and_actions, all_resources_for_schemas)}
+
+    #{generate_rpc_functions(rpc_resources_and_actions, otp_app, all_resources_for_schemas)}
     """
   end
 

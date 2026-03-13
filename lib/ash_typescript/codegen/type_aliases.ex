@@ -13,57 +13,131 @@ defmodule AshTypescript.Codegen.TypeAliases do
   @doc """
   Generates TypeScript type aliases for all Ash types used in resources, actions, and calculations.
   """
-  def generate_ash_type_aliases(resources, actions, otp_app) do
+  def generate_ash_type_aliases(resources, actions, otp_app, resource_lookup \\ nil)
+
+  def generate_ash_type_aliases(resources, actions, otp_app, resource_lookup)
+      when is_map(resource_lookup) and map_size(resource_lookup) > 0 do
     embedded_resources = TypeDiscovery.find_embedded_resources(otp_app)
     all_resources = resources ++ embedded_resources
 
     resource_types =
       Enum.reduce(all_resources, MapSet.new(), fn resource, types ->
-        types =
-          resource
-          |> Ash.Resource.Info.public_attributes()
-          |> Enum.reduce(types, fn attr, types -> MapSet.put(types, attr.type) end)
+        case Map.get(resource_lookup, resource) do
+          %AshApiSpec.Resource{} = api_resource ->
+            collect_types_from_api_resource(api_resource, types)
 
-        types =
-          resource
-          |> Ash.Resource.Info.public_calculations()
-          |> Enum.reduce(types, fn calc, types ->
-            types = MapSet.put(types, calc.type)
+          nil ->
+            collect_types_from_resource_fallback(resource, types)
+        end
+      end)
 
-            Enum.reduce(calc.arguments, types, fn arg, types ->
-              if Ash.Type.ash_type?(arg.type) do
-                MapSet.put(types, arg.type)
-              else
-                types
-              end
-            end)
-          end)
+    generate_aliases_from_types(resource_types, actions)
+  end
 
-        resource
-        |> Ash.Resource.Info.public_aggregates()
-        |> Enum.reduce(types, fn agg, types ->
-          type =
-            case agg.kind do
-              :sum ->
-                resource
-                |> Helpers.lookup_aggregate_type(agg.relationship_path, agg.field)
+  def generate_ash_type_aliases(resources, actions, otp_app, _no_lookup) do
+    embedded_resources = TypeDiscovery.find_embedded_resources(otp_app)
+    all_resources = resources ++ embedded_resources
 
-              :first ->
-                resource
-                |> Helpers.lookup_aggregate_type(agg.relationship_path, agg.field)
+    resource_types =
+      Enum.reduce(all_resources, MapSet.new(), fn resource, types ->
+        collect_types_from_resource_fallback(resource, types)
+      end)
 
-              _ ->
-                agg.kind
+    generate_aliases_from_types(resource_types, actions)
+  end
+
+  defp collect_types_from_api_resource(api_resource, types) do
+    api_resource.fields
+    |> Map.values()
+    |> Enum.reduce(types, fn field, types ->
+      # Collect the field's type module
+      types = collect_type_module(field.type, types)
+
+      # For calculations with arguments, collect argument types
+      if field.kind == :calculation && is_list(field.arguments) do
+        Enum.reduce(field.arguments, types, fn arg, types ->
+          arg_type = arg.type
+
+          type_module =
+            case arg_type do
+              %AshApiSpec.Type{module: m} when is_atom(m) -> m
+              _ -> nil
             end
 
-          if Ash.Type.ash_type?(type) do
-            MapSet.put(types, type)
+          if type_module && Ash.Type.ash_type?(type_module) do
+            MapSet.put(types, type_module)
+          else
+            types
+          end
+        end)
+      else
+        types
+      end
+    end)
+  end
+
+  defp collect_type_module(%AshApiSpec.Type{kind: :array, item_type: item_type}, types) do
+    collect_type_module(item_type, types)
+  end
+
+  defp collect_type_module(%AshApiSpec.Type{module: module}, types)
+       when is_atom(module) and not is_nil(module) do
+    if Ash.Type.ash_type?(module) do
+      MapSet.put(types, module)
+    else
+      types
+    end
+  end
+
+  defp collect_type_module(_, types), do: types
+
+  defp collect_types_from_resource_fallback(resource, types) do
+    types =
+      resource
+      |> Ash.Resource.Info.public_attributes()
+      |> Enum.reduce(types, fn attr, types -> MapSet.put(types, attr.type) end)
+
+    types =
+      resource
+      |> Ash.Resource.Info.public_calculations()
+      |> Enum.reduce(types, fn calc, types ->
+        types = MapSet.put(types, calc.type)
+
+        Enum.reduce(calc.arguments, types, fn arg, types ->
+          if Ash.Type.ash_type?(arg.type) do
+            MapSet.put(types, arg.type)
           else
             types
           end
         end)
       end)
 
+    resource
+    |> Ash.Resource.Info.public_aggregates()
+    |> Enum.reduce(types, fn agg, types ->
+      type =
+        case agg.kind do
+          :sum ->
+            resource
+            |> Helpers.lookup_aggregate_type(agg.relationship_path, agg.field)
+
+          :first ->
+            resource
+            |> Helpers.lookup_aggregate_type(agg.relationship_path, agg.field)
+
+          _ ->
+            agg.kind
+        end
+
+      if Ash.Type.ash_type?(type) do
+        MapSet.put(types, type)
+      else
+        types
+      end
+    end)
+  end
+
+  defp generate_aliases_from_types(resource_types, actions) do
     types =
       Enum.reduce(actions, resource_types, fn action, types ->
         types =

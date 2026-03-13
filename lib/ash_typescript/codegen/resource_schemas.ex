@@ -201,7 +201,8 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   def generate_all_schemas_for_resources(
         resources,
         allowed_resources,
-        resources_needing_input_schema \\ []
+        resources_needing_input_schema \\ [],
+        _resource_lookup \\ nil
       ) do
     resources
     |> Enum.map_join(
