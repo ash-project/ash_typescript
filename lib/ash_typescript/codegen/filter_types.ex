@@ -24,8 +24,13 @@ defmodule AshTypescript.Codegen.FilterTypes do
     Enum.map(resources, &generate_filter_type(&1, allowed_resources))
   end
 
-  def generate_filter_types(resources, allowed_resources, _resource_lookup) when is_list(resources) do
-    Enum.map(resources, &generate_filter_type(&1, allowed_resources))
+  def generate_filter_types(resources, allowed_resources, resource_lookup)
+      when is_list(resources) and is_map(resource_lookup) and map_size(resource_lookup) > 0 do
+    Enum.map(resources, &generate_filter_type(&1, allowed_resources, resource_lookup))
+  end
+
+  def generate_filter_types(resources, _allowed_resources, nil) when is_list(resources) do
+    raise "FilterTypes: resource_lookup is required for 3-arity generate_filter_types"
   end
 
   def generate_filter_type(resource) do
@@ -64,6 +69,96 @@ defmodule AshTypescript.Codegen.FilterTypes do
     #{relationship_filters}
     };
     """
+  end
+
+  def generate_filter_type(resource, allowed_resources, resource_lookup) do
+    case Map.get(resource_lookup, resource) do
+      %AshApiSpec.Resource{} = api_resource ->
+        generate_filter_type_from_spec(resource, api_resource, allowed_resources)
+
+      nil ->
+        raise "FilterTypes: resource #{inspect(resource)} not found in resource_lookup"
+    end
+  end
+
+  defp generate_filter_type_from_spec(resource, api_resource, allowed_resources) do
+    resource_name = Helpers.build_resource_type_name(resource)
+    filter_type_name = "#{resource_name}FilterInput"
+
+    fields = api_resource.fields |> Map.values()
+
+    attrs_and_calcs =
+      Enum.filter(fields, &(&1.kind in [:attribute, :calculation]))
+
+    aggregates =
+      Enum.filter(fields, &(&1.kind == :aggregate))
+
+    attribute_filters =
+      attrs_and_calcs
+      |> Enum.map_join("\n", &spec_attribute_filter(&1, resource))
+
+    aggregate_filters =
+      aggregates
+      |> Enum.filter(&(&1.aggregate_kind in [:sum, :count]))
+      |> Enum.map_join("\n", &spec_aggregate_filter(&1, resource))
+
+    relationship_filters =
+      api_resource.relationships
+      |> Map.values()
+      |> Enum.filter(&(&1.destination in allowed_resources))
+      |> Enum.map_join("\n", &generate_relationship_filter(&1))
+
+    logical_operators = generate_logical_operators(filter_type_name)
+
+    """
+    export type #{filter_type_name} = {
+    #{logical_operators}
+    #{attribute_filters}
+    #{aggregate_filters}
+    #{relationship_filters}
+    };
+    """
+  end
+
+  defp spec_attribute_filter(%AshApiSpec.Field{} = field, resource) do
+    base_type = TypeMapper.map_type(field.type, [], :output)
+    operations = get_applicable_operations(field.type, base_type)
+
+    formatted_name =
+      AshTypescript.FieldFormatter.format_field_for_client(
+        field.name,
+        resource,
+        AshTypescript.Rpc.output_field_formatter()
+      )
+
+    """
+      #{formatted_name}?: {
+    #{Enum.join(operations, "\n")}
+      };
+    """
+  end
+
+  defp spec_aggregate_filter(%AshApiSpec.Field{aggregate_kind: :count} = field, resource) do
+    base_type = TypeMapper.get_ts_type(%{type: :integer}, nil)
+    operations = get_applicable_operations(:integer, base_type)
+
+    formatted_name =
+      AshTypescript.FieldFormatter.format_field_for_client(
+        field.name,
+        resource,
+        AshTypescript.Rpc.output_field_formatter()
+      )
+
+    """
+      #{formatted_name}?: {
+    #{Enum.join(operations, "\n")}
+      };
+    """
+  end
+
+  defp spec_aggregate_filter(%AshApiSpec.Field{aggregate_kind: :sum} = field, resource) do
+    # AshApiSpec already has the resolved type for sum aggregates
+    spec_attribute_filter(field, resource)
   end
 
   defp generate_relationship_filters(resource) do
@@ -162,6 +257,28 @@ defmodule AshTypescript.Codegen.FilterTypes do
     |> classify_filter_type()
     |> get_operations_for_type()
     |> Enum.map(&format_operation(&1, base_type))
+  end
+
+  defp classify_filter_type(%AshApiSpec.Type{kind: kind}) do
+    case kind do
+      k when k in [:string, :ci_string] ->
+        :string
+
+      k when k in [:integer, :float, :decimal] ->
+        :numeric
+
+      k when k in [:date, :utc_datetime, :utc_datetime_usec, :datetime, :naive_datetime] ->
+        :datetime
+
+      :boolean ->
+        :boolean
+
+      :atom ->
+        :atom
+
+      _ ->
+        :default
+    end
   end
 
   defp classify_filter_type(type) do
