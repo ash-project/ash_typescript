@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshApiSpec.GeneratorTest do
   use ExUnit.Case, async: true
 
@@ -6,7 +10,7 @@ defmodule AshApiSpec.GeneratorTest do
       assert {:ok, %AshApiSpec{} = spec} = AshApiSpec.generate(otp_app: :ash_typescript)
       assert spec.version == "1.0.0"
       assert is_list(spec.resources)
-      assert length(spec.resources) > 0
+      assert spec.resources != []
     end
 
     test "all resources have names and modules" do

@@ -1,8 +1,12 @@
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshApiSpec.Generator.ActionBuilderTest do
   use ExUnit.Case, async: true
 
-  alias AshApiSpec.Generator.ActionBuilder
   alias AshApiSpec.{Action, Argument, Pagination}
+  alias AshApiSpec.Generator.ActionBuilder
 
   defp get_action(resource, action_name) do
     Ash.Resource.Info.action(resource, action_name)

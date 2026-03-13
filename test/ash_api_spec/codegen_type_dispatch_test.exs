@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshApiSpec.CodegenTypeDispatchTest do
   @moduledoc """
   Tests that TypeMapper and ResourceSchemas correctly handle %AshApiSpec.Type{}
@@ -6,8 +10,8 @@ defmodule AshApiSpec.CodegenTypeDispatchTest do
   use ExUnit.Case, async: true
 
   alias AshApiSpec.Type
-  alias AshTypescript.Codegen.TypeMapper
   alias AshTypescript.Codegen.ResourceSchemas
+  alias AshTypescript.Codegen.TypeMapper
 
   # ─────────────────────────────────────────────────────────────────
   # TypeMapper.map_type(%Type{}, _, direction)

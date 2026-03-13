@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshApiSpec.Generator.TypeResolver do
   @moduledoc """
   Resolves Ash types into `%AshApiSpec.Type{}` structs.
@@ -60,7 +64,7 @@ defmodule AshApiSpec.Generator.TypeResolver do
   @doc """
   Resolve an Ash type and its constraints into an `%AshApiSpec.Type{}`.
   """
-  @spec resolve(atom() | tuple(), keyword()) :: Type.t()
+  @spec resolve(term(), term()) :: Type.t()
   def resolve(type, constraints \\ [])
 
   def resolve(nil, _constraints) do
@@ -168,10 +172,6 @@ defmodule AshApiSpec.Generator.TypeResolver do
 
   defp resolve_complex(type, constraints) when is_atom(type) do
     cond do
-      # Arrays (shouldn't reach here, but handle just in case)
-      match?({:array, _}, type) ->
-        resolve(type, constraints)
-
       # Enums
       is_enum_type?(type) ->
         resolve_enum(type, constraints)
@@ -429,8 +429,6 @@ defmodule AshApiSpec.Generator.TypeResolver do
     Code.ensure_loaded?(type) == true and
       Spark.implements_behaviour?(type, Ash.Type.Enum)
   end
-
-  defp is_enum_type?(_), do: false
 
   defp resource_name(module) do
     module

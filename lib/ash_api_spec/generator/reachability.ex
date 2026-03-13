@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshApiSpec.Generator.Reachability do
   @moduledoc """
   Discovers all reachable resources and standalone types by traversing the type graph
@@ -45,9 +49,7 @@ defmodule AshApiSpec.Generator.Reachability do
   # ─────────────────────────────────────────────────────────────────
 
   defp traverse_resource(resource, visited) do
-    unless is_resource?(resource) do
-      {[], [], visited}
-    else
+    if is_resource?(resource) do
       # Traverse all public fields
       fields =
         resource
@@ -89,6 +91,8 @@ defmodule AshApiSpec.Generator.Reachability do
         )
 
       {rel_resources, rel_types, visited}
+    else
+      {[], [], visited}
     end
   end
 
@@ -209,6 +213,4 @@ defmodule AshApiSpec.Generator.Reachability do
     Code.ensure_loaded?(type) == true and
       Spark.implements_behaviour?(type, Ash.Type.Enum)
   end
-
-  defp is_enum_type?(_), do: false
 end

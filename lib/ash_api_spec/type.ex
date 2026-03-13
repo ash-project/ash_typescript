@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshApiSpec.Type do
   @moduledoc """
   Represents a resolved type in the API specification.
@@ -41,8 +45,8 @@ defmodule AshApiSpec.Type do
           kind: kind(),
           name: String.t(),
           module: atom() | nil,
-          constraints: keyword(),
-          allow_nil?: boolean(),
+          constraints: keyword() | nil,
+          allow_nil?: boolean() | nil,
           # For :enum
           values: [atom()] | nil,
           # For :union

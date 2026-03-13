@@ -1,8 +1,12 @@
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshApiSpec.Generator.ResourceBuilderTest do
   use ExUnit.Case, async: true
 
+  alias AshApiSpec.{Field, Relationship, Resource}
   alias AshApiSpec.Generator.ResourceBuilder
-  alias AshApiSpec.{Resource, Field, Relationship}
 
   describe "build/2" do
     test "builds a resource from Todo" do
@@ -58,7 +62,7 @@ defmodule AshApiSpec.Generator.ResourceBuilderTest do
       assert self_calc != nil
       assert self_calc.kind == :calculation
       assert is_list(self_calc.arguments)
-      assert length(self_calc.arguments) > 0
+      assert self_calc.arguments != []
 
       arg_names = Enum.map(self_calc.arguments, & &1.name)
       assert :prefix in arg_names

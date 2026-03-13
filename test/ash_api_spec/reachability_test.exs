@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshApiSpec.Generator.ReachabilityTest do
   use ExUnit.Case, async: true
 
@@ -27,7 +31,7 @@ defmodule AshApiSpec.Generator.ReachabilityTest do
       # Todo -> TodoComment -> Todo (via belongs_to)
       {resources, _types} = Reachability.find_reachable([AshTypescript.Test.Todo])
       assert is_list(resources)
-      assert length(resources) > 0
+      assert resources != []
     end
 
     test "finds standalone enum types" do

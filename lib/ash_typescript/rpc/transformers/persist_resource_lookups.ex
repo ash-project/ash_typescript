@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshTypescript.Rpc.Transformers.PersistResourceLookups do
   @moduledoc """
   Spark transformer that pre-builds `%AshApiSpec.Resource{}` maps for all
@@ -10,8 +14,8 @@ defmodule AshTypescript.Rpc.Transformers.PersistResourceLookups do
 
   use Spark.Dsl.Transformer
 
+  alias AshApiSpec.Generator.{Reachability, ResourceBuilder}
   alias Spark.Dsl.Transformer
-  alias AshApiSpec.Generator.{ResourceBuilder, Reachability}
 
   @impl true
   def transform(dsl_state) do

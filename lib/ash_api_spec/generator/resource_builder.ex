@@ -1,10 +1,14 @@
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshApiSpec.Generator.ResourceBuilder do
   @moduledoc """
   Converts an Ash resource module into an `%AshApiSpec.Resource{}` struct.
   """
 
-  alias AshApiSpec.{Resource, Field, Relationship, Argument}
-  alias AshApiSpec.Generator.{TypeResolver, ActionBuilder}
+  alias AshApiSpec.{Argument, Field, Relationship, Resource}
+  alias AshApiSpec.Generator.{ActionBuilder, TypeResolver}
 
   @doc """
   Build a `%AshApiSpec.Resource{}` from an Ash resource module.

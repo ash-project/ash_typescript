@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
 defmodule AshApiSpec.Generator do
   @moduledoc """
   Main pipeline for generating an `%AshApiSpec{}` from an OTP app's Ash domains.
@@ -78,10 +82,7 @@ defmodule AshApiSpec.Generator do
   # ─────────────────────────────────────────────────────────────────
 
   defp discover_domains(otp_app) do
-    case Ash.Info.domains(otp_app) do
-      domains when is_list(domains) -> domains
-      _ -> []
-    end
+    Ash.Info.domains(otp_app)
   end
 
   # ─────────────────────────────────────────────────────────────────
