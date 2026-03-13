@@ -10,12 +10,32 @@ defmodule AshTypescript.TypeSystem.Introspection do
   and characteristics of Ash types, including embedded resources, typed structs,
   unions, and primitive types.
 
-  Used throughout the codebase for type checking, code generation, and runtime
-  processing.
+  ## Fallback vs Primary Helpers
+
+  Some functions in this module serve as **fallback helpers** for code paths that
+  don't have access to pre-resolved `%AshApiSpec.Type{}` data. When `resource_lookups`
+  or `%AshApiSpec.Type{}` structs are available, prefer using their pre-resolved fields
+  (e.g., `type.kind`, `type.resource_module`, `type.fields`) instead of calling:
+
+  - `is_embedded_resource?/1` — use `type.kind in [:resource, :embedded_resource]`
+  - `is_resource_instance_of?/1` — use `type.resource_module` or `type.instance_of`
+  - `has_field_constraints?/1` — use `type.fields != []`
+  - `get_union_types_from_constraints/2` — use `type.constraints[:types]`
+
+  The following remain primary helpers used regardless of `%AshApiSpec.Type{}` availability:
+
+  - `is_custom_type?/1` — TypeScript callback detection
+  - `has_typescript_field_names?/1` — TypeScript field name callback detection
+  - `get_typescript_field_names_map/1` — TypeScript field name retrieval
+  - `build_reverse_field_names_map/1` — Reverse client→internal name mapping
+  - `unwrap_new_type/2` — NewType unwrapping (only for atom types, not `%AshApiSpec.Type{}`)
   """
 
   @doc """
   Checks if a module is an embedded Ash resource.
+
+  **Fallback helper** — when `%AshApiSpec.Type{}` is available, use
+  `type.kind in [:resource, :embedded_resource]` instead.
 
   ## Examples
 
@@ -33,6 +53,9 @@ defmodule AshTypescript.TypeSystem.Introspection do
 
   @doc """
   Extracts union types from type and constraints directly.
+
+  **Fallback helper** — when `%AshApiSpec.Type{}` is available, use
+  `type.constraints[:types]` instead.
 
   Useful when you have constraints but not the full attribute struct.
   Handles both direct union types and array union types.
@@ -221,6 +244,9 @@ defmodule AshTypescript.TypeSystem.Introspection do
   @doc """
   Checks if constraints specify an instance_of that is an Ash resource.
 
+  **Fallback helper** — when `%AshApiSpec.Type{}` is available, use
+  `type.resource_module` or `type.instance_of` instead.
+
   ## Examples
 
       iex> AshTypescript.TypeSystem.Introspection.is_resource_instance_of?([instance_of: MyApp.Todo])
@@ -240,6 +266,9 @@ defmodule AshTypescript.TypeSystem.Introspection do
 
   @doc """
   Checks if constraints include non-empty field definitions.
+
+  **Fallback helper** — when `%AshApiSpec.Type{}` is available, use
+  `type.fields != []` instead.
 
   ## Examples
 
