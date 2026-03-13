@@ -57,8 +57,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       iex> process(MyApp.Todo, :read, [:id, :title, %{user: [:id, :name]}])
       {:ok, {[:id, :title], [{:user, [:id, :name]}], [:id, :title, {:user, [:id, :name]}]}}
   """
-  @spec process(module(), atom(), list()) :: {:ok, select_result()} | {:error, term()}
-  def process(resource, action_name, requested_fields) do
+  @spec process(module(), atom(), list(), map() | nil) :: {:ok, select_result()} | {:error, term()}
+  def process(resource, action_name, requested_fields, resource_lookups \\ nil) do
     action = Ash.Resource.Info.action(resource, action_name)
 
     if is_nil(action) do
@@ -66,7 +66,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
 
     {type, constraints} = action_to_type_spec(resource, action)
-    {select, load, template} = select_fields(type, constraints, requested_fields, [])
+    {select, load, template} = select_fields(type, constraints, requested_fields, [], resource_lookups)
     formatted_template = format_extraction_template(template)
 
     {:ok, {select, load, formatted_template}}
@@ -111,43 +111,54 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   Mirrors `ValueFormatter.format/5` - uses the same type detection and dispatch pattern.
   Each type category has its own handler that may recurse back into this function.
   """
-  @spec select_fields(atom() | tuple() | AshApiSpec.Type.t(), keyword(), list(), list()) ::
+  @spec select_fields(atom() | tuple() | AshApiSpec.Type.t(), keyword(), list(), list(), map() | nil) ::
           select_result()
 
+  # Header for default value
+  def select_fields(type, constraints, requested_fields, path, resource_lookups \\ nil)
+
   # %Type{kind} dispatch — replaces unwrap_new_type + cond for the lookup path
-  def select_fields(%AshApiSpec.Type{} = type_info, _constraints, requested_fields, path) do
+  def select_fields(%AshApiSpec.Type{} = type_info, _constraints, requested_fields, path, resource_lookups) do
     constraints = augment_type_constraints(type_info)
     inst = type_info.instance_of || type_info.module
 
     case type_info.kind do
       :array ->
-        select_fields(type_info.item_type, [], requested_fields, path)
+        select_fields(type_info.item_type, [], requested_fields, path, resource_lookups)
 
       kind when kind in [:resource, :embedded_resource] ->
         resource = type_info.resource_module || inst
-        select_resource_fields(resource, requested_fields, path)
+        select_resource_fields(resource, requested_fields, path, resource_lookups)
 
       :union ->
         select_union_fields(constraints, requested_fields, path, "union_attribute")
 
       :tuple ->
-        select_tuple_fields(constraints, requested_fields, path)
+        if Introspection.has_typescript_field_names?(inst) do
+          select_typed_struct_fields(constraints, requested_fields, path)
+        else
+          select_tuple_fields(constraints, requested_fields, path)
+        end
 
       :keyword ->
-        if Introspection.has_field_constraints?(constraints) do
-          select_typed_map_fields(constraints, requested_fields, path)
+        if Introspection.has_typescript_field_names?(inst) do
+          select_typed_struct_fields(constraints, requested_fields, path)
         else
-          if requested_fields != [] do
-            throw({:invalid_field_selection, :primitive_type, type_info, requested_fields, path})
-          end
+          if Introspection.has_field_constraints?(constraints) do
+            select_typed_map_fields(constraints, requested_fields, path)
+          else
+            if requested_fields != [] do
+              throw({:invalid_field_selection, :primitive_type, type_info, requested_fields, path})
+            end
 
-          {[], [], []}
+            {[], [], []}
+          end
         end
 
       kind when kind in [:struct, :map] ->
         cond do
           inst && is_atom(inst) && Ash.Resource.Info.resource?(inst) ->
-            select_resource_fields(inst, requested_fields, path)
+            select_resource_fields(inst, requested_fields, path, resource_lookups)
 
           Introspection.has_typescript_field_names?(inst) ->
             select_typed_struct_fields(constraints, requested_fields, path)
@@ -178,22 +189,22 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
-  def select_fields(type, constraints, requested_fields, path) do
+  def select_fields(type, constraints, requested_fields, path, resource_lookups) do
     {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
 
     cond do
       match?({:array, _}, type) ->
         {:array, inner_type} = type
         inner_constraints = Keyword.get(constraints, :items, [])
-        select_fields(inner_type, inner_constraints, requested_fields, path)
+        select_fields(inner_type, inner_constraints, requested_fields, path, resource_lookups)
 
       is_atom(unwrapped_type) && Ash.Resource.Info.resource?(unwrapped_type) ->
-        select_resource_fields(unwrapped_type, requested_fields, path)
+        select_resource_fields(unwrapped_type, requested_fields, path, resource_lookups)
 
       unwrapped_type == Ash.Type.Struct &&
           Introspection.is_resource_instance_of?(full_constraints) ->
         resource = Keyword.get(full_constraints, :instance_of)
-        select_resource_fields(resource, requested_fields, path)
+        select_resource_fields(resource, requested_fields, path, resource_lookups)
 
       Introspection.has_typescript_field_names?(full_constraints[:instance_of]) ->
         select_typed_struct_fields(full_constraints, requested_fields, path)
@@ -234,7 +245,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
   Handles attributes, calculations, relationships, and aggregates.
   """
-  def select_resource_fields(resource, requested_fields, path) do
+  def select_resource_fields(resource, requested_fields, path, resource_lookups \\ nil) do
     Validation.check_for_duplicates(requested_fields, path)
 
     Enum.reduce(requested_fields, {[], [], []}, fn field, acc ->
@@ -242,10 +253,10 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
       case parse_field_request(field) do
         {:simple, field_name} ->
-          process_simple_resource_field(resource, field_name, path, acc)
+          process_simple_resource_field(resource, field_name, path, acc, resource_lookups)
 
         {:nested, field_name, nested_fields} ->
-          process_nested_resource_field(resource, field_name, nested_fields, path, acc)
+          process_nested_resource_field(resource, field_name, nested_fields, path, acc, resource_lookups)
 
         {:with_args, calc_name, args, fields} ->
           process_calculation_with_args(resource, calc_name, args, fields, path, acc)
@@ -262,7 +273,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
                   field_name,
                   nested_fields,
                   path,
-                  inner_acc
+                  inner_acc,
+                  resource_lookups
                 )
 
               # If nested_fields is a map, check if it's a calculation with args
@@ -284,7 +296,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
                       field_name,
                       nested_fields,
                       path,
-                      inner_acc
+                      inner_acc,
+                      resource_lookups
                     )
                 end
 
@@ -294,7 +307,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
                   field_name,
                   nested_fields,
                   path,
-                  inner_acc
+                  inner_acc,
+                  resource_lookups
                 )
             end
           end)
@@ -314,9 +328,9 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
-  defp process_simple_resource_field(resource, field_name, path, {select, load, template}) do
+  defp process_simple_resource_field(resource, field_name, path, {select, load, template}, resource_lookups) do
     internal_name = resolve_resource_field_name(resource, field_name)
-    {field_type, constraints, category} = get_resource_field_info(resource, internal_name, path)
+    {field_type, constraints, category} = get_resource_field_info(resource, internal_name, path, resource_lookups)
 
     if category == :calculation_with_args do
       throw({:calculation_requires_args, internal_name, path})
@@ -343,12 +357,13 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
          field_name,
          nested_fields,
          path,
-         {select, load, template}
+         {select, load, template},
+         resource_lookups
        ) do
     internal_name = resolve_resource_field_name(resource, field_name)
 
     {field_type, field_constraints, category} =
-      get_resource_field_info(resource, internal_name, path)
+      get_resource_field_info(resource, internal_name, path, resource_lookups)
 
     if category == :calculation_with_args do
       throw({:invalid_calculation_args, internal_name, path})
@@ -372,8 +387,13 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
 
     # For union types (attributes or aggregates), nested_fields can be a map (member selection)
-    {unwrapped_type, _} = Introspection.unwrap_new_type(field_type, field_constraints)
-    is_union_type = unwrapped_type == Ash.Type.Union
+    is_union_type =
+      case field_type do
+        %AshApiSpec.Type{kind: :union} -> true
+        _ ->
+          {unwrapped_type, _} = Introspection.unwrap_new_type(field_type, field_constraints)
+          unwrapped_type == Ash.Type.Union
+      end
 
     if category == :union_attribute || is_union_type do
       if is_list(nested_fields) && nested_fields == [] do
@@ -386,7 +406,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     new_path = path ++ [internal_name]
 
     {nested_select, nested_load, nested_template} =
-      select_fields(field_type, field_constraints, nested_fields, new_path)
+      select_fields(field_type, field_constraints, nested_fields, new_path, resource_lookups)
 
     case category do
       cat
@@ -517,7 +537,106 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     {select, load ++ [load_spec], template ++ [template_item]}
   end
 
-  defp get_resource_field_info(resource, field_name, path) do
+  defp get_resource_field_info(resource, field_name, path, resource_lookups)
+       when is_atom(resource) and is_map(resource_lookups) do
+    case Map.get(resource_lookups, resource) do
+      %AshApiSpec.Resource{} = api_resource ->
+        get_resource_field_info_from_spec(api_resource, resource, field_name, path)
+
+      nil ->
+        get_resource_field_info_fallback(resource, field_name, path)
+    end
+  end
+
+  defp get_resource_field_info(resource, field_name, path, _nil_lookups) do
+    get_resource_field_info_fallback(resource, field_name, path)
+  end
+
+  defp get_resource_field_info_from_spec(api_resource, resource, field_name, path) do
+    case Map.get(api_resource.fields, field_name) do
+      %AshApiSpec.Field{kind: kind, type: type_info} ->
+        # For calculations, we need to check argument info from Ash.Resource.Info
+        # since AshApiSpec.Field doesn't carry that. For attributes and aggregates,
+        # we can classify from the type info directly.
+        case kind do
+          :calculation ->
+            # Fall back to Ash for calculation-specific info (arguments)
+            calc = Ash.Resource.Info.public_calculation(resource, field_name)
+
+            category =
+              cond do
+                calc && has_any_arguments?(calc) -> :calculation_with_args
+                calc && requires_nested_selection?(calc.type, calc.constraints || []) -> :calculation_complex
+                true -> :calculation
+              end
+
+            # Return the %AshApiSpec.Type{} so select_fields hits the fast dispatch
+            {type_info, [], category}
+
+          :attribute ->
+            # Use the type info to classify - use the fallback classifier
+            # since it handles all the nested selection logic correctly
+            category = classify_attribute_category_from_type(type_info)
+            {type_info, [], category}
+
+          :aggregate ->
+            {type_info, [], :aggregate}
+        end
+
+      nil ->
+        case Map.get(api_resource.relationships, field_name) do
+          %AshApiSpec.Relationship{destination: dest, cardinality: cardinality} ->
+            dest_type = %AshApiSpec.Type{
+              kind: :resource,
+              name: "Resource",
+              module: dest,
+              resource_module: dest,
+              constraints: []
+            }
+
+            type =
+              if cardinality == :many do
+                %AshApiSpec.Type{kind: :array, name: "Array", item_type: dest_type, constraints: []}
+              else
+                dest_type
+              end
+
+            {type, [], :relationship}
+
+          nil ->
+            throw({:unknown_field, field_name, resource, path})
+        end
+    end
+  end
+
+  defp classify_attribute_category_from_type(%AshApiSpec.Type{} = type_info) do
+    # For array types, classify based on the inner type
+    effective_type = if type_info.kind == :array, do: type_info.item_type, else: type_info
+
+    case effective_type do
+      %AshApiSpec.Type{kind: kind} when kind in [:resource, :embedded_resource] ->
+        :embedded_resource
+
+      %AshApiSpec.Type{kind: :union} ->
+        :union_attribute
+
+      %AshApiSpec.Type{kind: :tuple} ->
+        :tuple
+
+      %AshApiSpec.Type{kind: kind, constraints: constraints}
+      when kind in [:struct, :map, :keyword] ->
+        if constraints && Keyword.get(constraints, :fields, []) != [] do
+          :field_constrained_type
+        else
+          :attribute
+        end
+
+      _ ->
+        :attribute
+    end
+  end
+
+  defp get_resource_field_info_fallback(resource, field_name, path) do
     cond do
       attr = Ash.Resource.Info.public_attribute(resource, field_name) ->
         constraints = attr.constraints || []
@@ -1150,6 +1269,21 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   defp convert_to_field_atom(field_name) do
     formatter = AshTypescript.Rpc.input_field_formatter()
     FieldFormatter.convert_to_field_atom(field_name, formatter)
+  end
+
+  defp requires_nested_selection?(%AshApiSpec.Type{} = type_info, _type_constraints) do
+    # For %AshApiSpec.Type{}, use kind-based classification directly
+    effective_type = if type_info.kind == :array, do: type_info.item_type, else: type_info
+
+    case effective_type do
+      %AshApiSpec.Type{kind: kind} when kind in [:resource, :embedded_resource] -> true
+      %AshApiSpec.Type{kind: :union} -> true
+      %AshApiSpec.Type{kind: :tuple, constraints: c} -> Introspection.has_field_constraints?(c || [])
+      %AshApiSpec.Type{kind: :keyword, constraints: c} -> Introspection.has_field_constraints?(c || [])
+      %AshApiSpec.Type{kind: kind, constraints: c} when kind in [:struct, :map] ->
+        Introspection.has_field_constraints?(c || [])
+      _ -> false
+    end
   end
 
   defp requires_nested_selection?(type, type_constraints) do
