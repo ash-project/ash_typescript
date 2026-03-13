@@ -27,8 +27,13 @@ defmodule AshApiSpec.Generator.TypeResolver do
     Ash.Type.NaiveDatetime => {:naive_datetime, "NaiveDateTime"},
     Ash.Type.Duration => {:duration, "Duration"},
     Ash.Type.Binary => {:binary, "Binary"},
+    Ash.Type.UrlEncodedBinary => {:binary, "UrlEncodedBinary"},
     Ash.Type.Term => {:term, "Term"},
-    Ash.Type.Atom => {:atom, "Atom"}
+    Ash.Type.Atom => {:atom, "Atom"},
+    Ash.Type.Module => {:atom, "Module"},
+    Ash.Type.File => {:term, "File"},
+    Ash.Type.Function => {:term, "Function"},
+    Ash.Type.Vector => {:term, "Vector"}
   }
 
   # Atom shorthand → {kind, name}
@@ -112,7 +117,7 @@ defmodule AshApiSpec.Generator.TypeResolver do
   defp resolve_module_type(type, constraints) do
     # Check module primitives before unwrapping NewTypes
     case Map.get(@primitives, type) do
-      {:atom, _name} ->
+      {:atom, name} ->
         # Atom type may have one_of constraints making it an enum
         case Keyword.get(constraints, :one_of) do
           values when is_list(values) and values != [] ->
@@ -125,7 +130,7 @@ defmodule AshApiSpec.Generator.TypeResolver do
             }
 
           _ ->
-            %Type{kind: :atom, name: "Atom", module: type, constraints: constraints}
+            %Type{kind: :atom, name: name, module: type, constraints: constraints}
         end
 
       {kind, name} ->
@@ -391,7 +396,6 @@ defmodule AshApiSpec.Generator.TypeResolver do
   @doc false
   def unwrap_new_type(type, constraints) when is_atom(type) do
     if Code.ensure_loaded?(type) == true and
-         function_exported?(type, :new_type?, 0) and
          Ash.Type.NewType.new_type?(type) do
       subtype = Ash.Type.NewType.subtype_of(type)
 

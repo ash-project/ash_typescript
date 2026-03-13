@@ -190,6 +190,39 @@ defmodule AshApiSpec.Generator.TypeResolverTest do
     end
   end
 
+  describe "resolve/2 additional primitives" do
+    test "resolves Ash.Type.UrlEncodedBinary as binary" do
+      result = TypeResolver.resolve(Ash.Type.UrlEncodedBinary, [])
+      assert %Type{kind: :binary, name: "UrlEncodedBinary"} = result
+    end
+
+    test "resolves Ash.Type.Module as atom" do
+      result = TypeResolver.resolve(Ash.Type.Module, [])
+      assert %Type{kind: :atom, name: "Module"} = result
+    end
+
+    test "resolves Ash.Type.File as term" do
+      result = TypeResolver.resolve(Ash.Type.File, [])
+      assert %Type{kind: :term, name: "File"} = result
+    end
+
+    test "resolves Ash.Type.Function as term" do
+      result = TypeResolver.resolve(Ash.Type.Function, [])
+      assert %Type{kind: :term, name: "Function"} = result
+    end
+
+    test "resolves Ash.Type.Vector as term" do
+      result = TypeResolver.resolve(Ash.Type.Vector, [])
+      assert %Type{kind: :term, name: "Vector"} = result
+    end
+
+    test "resolves Ash.Type.DurationName as enum" do
+      result = TypeResolver.resolve(Ash.Type.DurationName, [])
+      assert %Type{kind: :enum} = result
+      assert :year in result.values
+    end
+  end
+
   describe "resolve/2 nil and unknown" do
     test "resolves nil as unknown" do
       result = TypeResolver.resolve(nil, [])
