@@ -7,26 +7,23 @@ defmodule AshTypescript.UnionTypesTest do
 
   describe "union type support" do
     test "discovers embedded resources from union types" do
-      # Test the embedded resource discovery function
-      embedded_resources =
-        AshTypescript.Codegen.TypeDiscovery.find_referenced_resources(AshTypescript.Test.Todo)
+      {reachable_resources, _} =
+        AshApiSpec.Generator.Reachability.find_reachable([AshTypescript.Test.Todo])
 
       # Check that our union type embedded resources are discovered
-      assert AshTypescript.Test.TodoContent.TextContent in embedded_resources
-      assert AshTypescript.Test.TodoContent.ChecklistContent in embedded_resources
-      assert AshTypescript.Test.TodoContent.LinkContent in embedded_resources
+      assert AshTypescript.Test.TodoContent.TextContent in reachable_resources
+      assert AshTypescript.Test.TodoContent.ChecklistContent in reachable_resources
+      assert AshTypescript.Test.TodoContent.LinkContent in reachable_resources
     end
 
     test "identifies union type attributes correctly" do
-      # Variables removed - not used in test
-
-      # Test the private function through the public API
-      embedded_from_todo =
-        AshTypescript.Codegen.TypeDiscovery.find_referenced_resources(AshTypescript.Test.Todo)
-
-      # Steps 1 & 2: computation removed - was unused
+      {reachable_resources, _} =
+        AshApiSpec.Generator.Reachability.find_reachable([AshTypescript.Test.Todo])
 
       # Should find at least the 3 embedded content types
+      embedded_from_todo =
+        Enum.filter(reachable_resources, &Ash.Resource.Info.embedded?/1)
+
       assert length(embedded_from_todo) >= 3
     end
   end

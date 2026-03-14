@@ -117,13 +117,16 @@ defmodule AshTypescript.Rpc.StructArgumentTest do
     end
   end
 
-  describe "TypeDiscovery finds struct argument resources" do
-    test "find_struct_argument_resources returns a list" do
-      # The test domain might not have struct arguments, which is fine
-      result = AshTypescript.Codegen.TypeDiscovery.find_struct_argument_resources(:ash_typescript)
+  describe "Reachability discovers struct argument resources" do
+    test "reachability discovers resources used as struct arguments" do
+      # Resources used as struct arguments should be discovered through
+      # action argument traversal in reachability
+      rpc_resources = AshTypescript.Codegen.TypeDiscovery.get_rpc_resources(:ash_typescript)
 
-      # Should return a list (possibly empty)
-      assert is_list(result)
+      {reachable, _} =
+        AshApiSpec.Generator.Reachability.find_reachable(rpc_resources)
+
+      assert is_list(reachable)
     end
   end
 

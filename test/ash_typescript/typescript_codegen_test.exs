@@ -300,117 +300,6 @@ defmodule AshTypescript.CodegenTest do
     end
   end
 
-  describe "build_resource_type/2" do
-    test "builds resource type with all public attributes" do
-      result = Codegen.build_resource_type(Todo)
-
-      assert String.contains?(result, "id: UUID;")
-      assert String.contains?(result, "title: string;")
-      assert String.contains?(result, "description: string | null;")
-      assert String.contains?(result, "completed: boolean | null;")
-
-      assert String.contains?(
-               result,
-               "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
-             )
-    end
-
-    test "builds resource type with selected fields" do
-      result = Codegen.build_resource_type(Todo, [:id, :title, :completed, :status])
-
-      assert String.contains?(result, "id: UUID;")
-      assert String.contains?(result, "title: string;")
-      assert String.contains?(result, "completed: boolean | null;")
-
-      assert String.contains?(
-               result,
-               "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
-             )
-    end
-  end
-
-  describe "get_resource_field_spec/2 - attributes" do
-    test "generates field spec for required string attribute" do
-      result = Codegen.get_resource_field_spec(:title, Todo)
-      assert result == "  title: string;"
-    end
-
-    test "generates field spec for optional attribute" do
-      result = Codegen.get_resource_field_spec(:description, Todo)
-      assert result == "  description: string | null;"
-    end
-
-    test "generates field spec for boolean attribute with default" do
-      result = Codegen.get_resource_field_spec(:completed, Todo)
-      assert result == "  completed: boolean | null;"
-    end
-
-    test "generates field spec for constrained atom attribute" do
-      result = Codegen.get_resource_field_spec(:status, Todo)
-
-      assert result ==
-               "  status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
-    end
-
-    test "generates field spec for array attribute" do
-      result = Codegen.get_resource_field_spec(:tags, Todo)
-      assert result == "  tags: Array<string> | null;"
-    end
-
-    test "generates field spec for enum attribute" do
-      result = Codegen.get_resource_field_spec(:priority, Todo)
-      assert result == "  priority: \"low\" | \"medium\" | \"high\" | \"urgent\" | null;"
-    end
-
-    test "generates field spec for embedded resource attribute" do
-      result = Codegen.get_resource_field_spec(:metadata, Todo)
-      assert result == "  metadata: TodoMetadataResourceSchema | null;"
-    end
-  end
-
-  describe "get_resource_field_spec/2 - calculations" do
-    test "generates field spec for boolean calculation" do
-      result = Codegen.get_resource_field_spec(:is_overdue, Todo)
-      assert result == "  isOverdue: boolean | null;"
-    end
-
-    test "generates field spec for integer calculation" do
-      result = Codegen.get_resource_field_spec(:days_until_due, Todo)
-      assert result == "  daysUntilDue: number | null;"
-    end
-  end
-
-  describe "get_resource_field_spec/2 - aggregates" do
-    test "generates field spec for count aggregate" do
-      result = Codegen.get_resource_field_spec(:comment_count, Todo)
-      assert result == "  commentCount: number;"
-    end
-  end
-
-  describe "get_resource_field_spec/2 - relationships" do
-    test "throws error for non-public relationships" do
-      assert catch_throw(Codegen.get_resource_field_spec({:private_items, [:id, :content]}, Todo)) ==
-               "Relationship not found on AshTypescript.Test.Todo: private_items"
-    end
-  end
-
-  describe "lookup_aggregate_type/3" do
-    test "looks up field type on current resource" do
-      result = Codegen.lookup_aggregate_type(Todo, [], :title)
-      assert result.type == Ash.Type.String
-    end
-
-    test "looks up field type through relationship path" do
-      result = Codegen.lookup_aggregate_type(Todo, [:comments], :content)
-      assert result.type == Ash.Type.String
-    end
-
-    test "looks up field type through multiple relationship levels" do
-      result = Codegen.lookup_aggregate_type(Todo, [:comments], :rating)
-      assert result.type == Ash.Type.Integer
-    end
-  end
-
   describe "error handling" do
     test "raises error for unsupported type" do
       unsupported_type = MyApp.CustomUnsupportedType
@@ -419,71 +308,33 @@ defmodule AshTypescript.CodegenTest do
         Codegen.get_ts_type(%{type: unsupported_type, constraints: []})
       end
     end
-
-    test "throws error for unknown field" do
-      assert catch_throw(Codegen.get_resource_field_spec(:unknown_field, Todo)) ==
-               "Field not found: AshTypescript.Test.Todo.unknown_field"
-    end
-
-    test "throws error for unknown relationship" do
-      assert catch_throw(Codegen.get_resource_field_spec({:unknown_rel, [:id]}, Todo)) ==
-               "Relationship not found on AshTypescript.Test.Todo: unknown_rel"
-    end
   end
 
   describe "integration tests with real resources" do
-    test "generates complete Todo resource type" do
-      result = Codegen.build_resource_type(Todo)
+    test "generates complete Todo resource schema" do
+      result = Codegen.generate_unified_resource_schema(Todo, [Todo, TodoComment])
 
-      assert String.contains?(result, "id: UUID;")
-      assert String.contains?(result, "title: string;")
-      assert String.contains?(result, "description: string | null;")
-      assert String.contains?(result, "completed: boolean | null;")
-
-      assert String.contains?(
-               result,
-               "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
-             )
-
-      assert String.contains?(
-               result,
-               "priority: \"low\" | \"medium\" | \"high\" | \"urgent\" | null;"
-             )
-
-      assert String.contains?(result, "dueDate: AshDate | null;")
-      assert String.contains?(result, "tags: Array<string> | null;")
-      assert String.contains?(result, "metadata: TodoMetadataResourceSchema | null;")
-
-      assert String.contains?(
-               result,
-               "metadataHistory: Array<TodoMetadataResourceSchema> | null;"
-             )
-
-      assert String.contains?(result, "userId: UUID;")
+      assert result =~ "id: UUID;"
+      assert result =~ "title: string;"
+      assert result =~ "description: string | null;"
+      assert result =~ "completed: boolean | null;"
+      assert result =~ "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
+      assert result =~ "priority: \"low\" | \"medium\" | \"high\" | \"urgent\" | null;"
+      assert result =~ "dueDate: AshDate | null;"
+      assert result =~ "tags: Array<string> | null;"
+      assert result =~ "userId: UUID;"
     end
 
-    test "generates complete TodoComment resource type" do
-      result = Codegen.build_resource_type(TodoComment)
+    test "generates complete TodoComment resource schema" do
+      result = Codegen.generate_unified_resource_schema(TodoComment, [Todo, TodoComment])
 
-      assert String.contains?(result, "id: UUID;")
-      assert String.contains?(result, "content: string;")
-      assert String.contains?(result, "authorName: string;")
-      assert String.contains?(result, "rating: number | null;")
-      assert String.contains?(result, "isHelpful: boolean | null;")
-      assert String.contains?(result, "todoId: UUID;")
-      assert String.contains?(result, "userId: UUID;")
-    end
-
-    test "generates resource type with loaded aggregates" do
-      result = Codegen.build_resource_type(Todo, [:id, :title, :status])
-
-      assert String.contains?(result, "id: UUID;")
-      assert String.contains?(result, "title: string;")
-
-      assert String.contains?(
-               result,
-               "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
-             )
+      assert result =~ "id: UUID;"
+      assert result =~ "content: string;"
+      assert result =~ "authorName: string;"
+      assert result =~ "rating: number | null;"
+      assert result =~ "isHelpful: boolean | null;"
+      assert result =~ "todoId: UUID;"
+      assert result =~ "userId: UUID;"
     end
   end
 

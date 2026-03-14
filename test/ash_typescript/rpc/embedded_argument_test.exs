@@ -13,7 +13,6 @@ defmodule AshTypescript.Rpc.EmbeddedArgumentTest do
   """
   use ExUnit.Case, async: true
 
-  alias AshTypescript.Codegen.TypeDiscovery
   alias AshTypescript.Codegen.TypeMapper
 
   setup do
@@ -26,22 +25,15 @@ defmodule AshTypescript.Rpc.EmbeddedArgumentTest do
     {:ok, generated: generated}
   end
 
-  describe "TypeDiscovery finds embedded resources used as direct argument types" do
-    test "find_struct_argument_resources includes embedded resources used as direct argument types" do
-      result = TypeDiscovery.find_struct_argument_resources(:ash_typescript)
-      assert AshTypescript.Test.TodoMetadata in result
-    end
+  describe "Reachability discovers embedded resources used as action argument types" do
+    test "reachability finds TodoMetadata through action arguments" do
+      # TodoMetadata is used as a direct argument type in RPC actions
+      {reachable, _} =
+        AshApiSpec.Generator.Reachability.find_reachable([
+          {AshTypescript.Test.Todo, [:process_metadata, :process_metadata_batch]}
+        ])
 
-    test "find_struct_argument_resources includes embedded resources in array arguments" do
-      result = TypeDiscovery.find_struct_argument_resources(:ash_typescript)
-      assert AshTypescript.Test.TodoMetadata in result
-    end
-
-    test "find_struct_argument_resources returns unique resources" do
-      result = TypeDiscovery.find_struct_argument_resources(:ash_typescript)
-      count = Enum.count(result, &(&1 == AshTypescript.Test.TodoMetadata))
-
-      assert count == 1, "Expected TodoMetadata to appear exactly once, got #{count}"
+      assert AshTypescript.Test.TodoMetadata in reachable
     end
   end
 
