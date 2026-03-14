@@ -31,6 +31,7 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
       fields: build_fields(resource),
       relationships: build_relationships(resource),
       actions: build_actions(resource, action_names),
+      identities: build_identities(resource),
       multitenancy: build_multitenancy(resource)
     }
   end
@@ -198,6 +199,18 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
     |> Map.new(fn action ->
       built = ActionBuilder.build(resource, action)
       {built.name, built}
+    end)
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Identities
+  # ─────────────────────────────────────────────────────────────────
+
+  defp build_identities(resource) do
+    resource
+    |> Ash.Resource.Info.identities()
+    |> Map.new(fn identity ->
+      {identity.name, %{keys: identity.keys}}
     end)
   end
 

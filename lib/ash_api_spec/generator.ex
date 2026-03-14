@@ -36,11 +36,19 @@ defmodule AshApiSpec.Generator do
     # Build the resource → action_names map
     resource_action_map = build_resource_action_map(domains, action_filter)
 
-    # Get root resource modules
-    root_resources = Map.keys(resource_action_map)
+    # Build reachability entries: when filtering by actions, pass {resource, action_names}
+    # so reachability only traverses arguments of included actions
+    reachability_entries =
+      if action_filter do
+        Enum.map(resource_action_map, fn {resource, action_names} ->
+          {resource, action_names || []}
+        end)
+      else
+        Map.keys(resource_action_map)
+      end
 
     # Run reachability analysis
-    {reachable_resources, standalone_types} = Reachability.find_reachable(root_resources)
+    {reachable_resources, standalone_types} = Reachability.find_reachable(reachability_entries)
 
     # When filtering, resources not explicitly listed get no actions (empty list).
     # When not filtering, nil means "include all actions".

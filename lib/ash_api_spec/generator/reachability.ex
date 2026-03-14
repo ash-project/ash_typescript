@@ -19,19 +19,25 @@ defmodule AshApiSpec.Generator.Reachability do
   @doc """
   Find all resources and standalone types reachable from the given resource modules.
 
+  Accepts either:
+  - A list of resource modules (traverses all fields, relationships, and public action arguments)
+  - A list of `{resource_module, [action_name]}` tuples (only traverses arguments of specified actions)
+
   Returns `{reachable_resources, standalone_types}` where both are lists of modules
   in depth-first discovery order (dependencies before dependents).
   """
-  @spec find_reachable([atom()]) :: {[atom()], [atom()]}
-  def find_reachable(resource_modules) do
+  @spec find_reachable([atom() | {atom(), [atom()]}]) :: {[atom()], [atom()]}
+  def find_reachable(resource_entries) do
     {resources, types, _visited} =
-      Enum.reduce(resource_modules, {[], [], MapSet.new()}, fn resource,
+      Enum.reduce(resource_entries, {[], [], MapSet.new()}, fn entry,
                                                                {resources, types, visited} ->
+        {resource, action_names} = normalize_entry(entry)
+
         if MapSet.member?(visited, resource) do
           {resources, types, visited}
         else
           {found_resources, found_types, new_visited} =
-            traverse_resource(resource, MapSet.put(visited, resource))
+            traverse_resource(resource, MapSet.put(visited, resource), action_names)
 
           {
             resources ++ found_resources ++ [resource],
@@ -44,11 +50,18 @@ defmodule AshApiSpec.Generator.Reachability do
     {Enum.uniq(resources), Enum.uniq(types)}
   end
 
+  defp normalize_entry({resource, action_names}) when is_atom(resource) and is_list(action_names),
+    do: {resource, action_names}
+
+  defp normalize_entry(resource) when is_atom(resource),
+    do: {resource, nil}
+
   # ─────────────────────────────────────────────────────────────────
   # Resource Traversal
   # ─────────────────────────────────────────────────────────────────
 
-  defp traverse_resource(resource, visited) do
+  # action_names: nil means "traverse all public actions", list means "only these actions"
+  defp traverse_resource(resource, visited, action_names) do
     if is_resource?(resource) do
       # Traverse all public fields
       fields =
@@ -79,7 +92,8 @@ defmodule AshApiSpec.Generator.Reachability do
               {resources, types, visited}
             else
               new_visited = MapSet.put(visited, destination)
-              {found_r, found_t, newer_visited} = traverse_resource(destination, new_visited)
+              # Discovered resources only traverse fields/relationships, not action arguments
+              {found_r, found_t, newer_visited} = traverse_resource(destination, new_visited, [])
 
               {
                 resources ++ found_r ++ [destination],
@@ -90,10 +104,43 @@ defmodule AshApiSpec.Generator.Reachability do
           end
         )
 
-      {rel_resources, rel_types, visited}
+      # Walk public action arguments
+      {arg_resources, arg_types, visited} =
+        traverse_action_arguments(resource, action_names, rel_resources, rel_types, visited)
+
+      {arg_resources, arg_types, visited}
     else
       {[], [], visited}
     end
+  end
+
+  defp traverse_action_arguments(resource, action_names, resources, types, visited) do
+    actions = get_actions_to_traverse(resource, action_names)
+
+    Enum.reduce(actions, {resources, types, visited}, fn action, {resources, types, visited} ->
+      action.arguments
+      |> Enum.filter(& &1.public?)
+      |> Enum.reduce({resources, types, visited}, fn arg, {resources, types, visited} ->
+        {type, constraints} = {arg.type, arg.constraints || []}
+        {found_r, found_t, new_visited} = traverse_type(type, constraints, visited)
+        {resources ++ found_r, types ++ found_t, new_visited}
+      end)
+    end)
+  end
+
+  defp get_actions_to_traverse(resource, nil) do
+    # nil means traverse all public actions
+    Ash.Resource.Info.actions(resource)
+    |> Enum.filter(&Map.get(&1, :public?, false))
+  end
+
+  defp get_actions_to_traverse(resource, action_names) when is_list(action_names) do
+    Enum.flat_map(action_names, fn name ->
+      case Ash.Resource.Info.action(resource, name) do
+        nil -> []
+        action -> [action]
+      end
+    end)
   end
 
   # ─────────────────────────────────────────────────────────────────
@@ -168,7 +215,8 @@ defmodule AshApiSpec.Generator.Reachability do
       {[], [], visited}
     else
       new_visited = MapSet.put(visited, resource)
-      {found_r, found_t, newer_visited} = traverse_resource(resource, new_visited)
+      # Discovered resources only traverse fields/relationships, not action arguments
+      {found_r, found_t, newer_visited} = traverse_resource(resource, new_visited, [])
       {found_r ++ [resource], found_t, newer_visited}
     end
   end
