@@ -11,7 +11,6 @@ defmodule AshTypescript.Codegen.TypeMapper do
   """
 
   alias AshTypescript.Codegen.Helpers
-  alias AshTypescript.TypeSystem.Introspection
 
   # ─────────────────────────────────────────────────────────────────
   # Type Constants
@@ -118,6 +117,10 @@ defmodule AshTypescript.Codegen.TypeMapper do
     map_type(type, [], :input)
   end
 
+  def get_ts_input_type(%AshApiSpec.Argument{type: type}) do
+    map_type(type, [], :input)
+  end
+
   def get_ts_input_type(%{type: type, constraints: constraints}) do
     map_type(type, constraints, :input)
   end
@@ -129,6 +132,14 @@ defmodule AshTypescript.Codegen.TypeMapper do
   def get_ts_type(type_and_constraints, select_and_loads \\ nil)
 
   def get_ts_type(%AshApiSpec.Field{type: type}, _select_and_loads) do
+    map_type(type, [], :output)
+  end
+
+  def get_ts_type(%AshApiSpec.Argument{type: type}, _select_and_loads) do
+    map_type(type, [], :output)
+  end
+
+  def get_ts_type(%AshApiSpec.Metadata{type: type}, _select_and_loads) do
     map_type(type, [], :output)
   end
 
@@ -250,7 +261,9 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
       # Now unwrap NewTypes for complex type handling
       true ->
-        {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+        {unwrapped_type, full_constraints} =
+          AshTypescript.TypeSystem.Introspection.unwrap_new_type(type, constraints)
+
         map_complex_type(unwrapped_type, full_constraints, direction)
     end
   end
@@ -263,12 +276,20 @@ defmodule AshTypescript.Codegen.TypeMapper do
         primitive_ts
 
       # Ash Resources (embedded)
-      Introspection.is_embedded_resource?(unwrapped_type) ->
+      embedded_resource?(unwrapped_type) ->
         map_resource(unwrapped_type, direction)
 
-      # Ash.Type.Struct with instance_of or fields
+      # Ash.Type.Struct (legacy raw-type codepath)
       unwrapped_type == Ash.Type.Struct ->
-        map_struct(full_constraints, direction)
+        instance_of = Keyword.get(full_constraints, :instance_of)
+
+        {:ok, rl} = AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+
+        if instance_of && Map.has_key?(rl, instance_of) do
+          map_resource(instance_of, direction)
+        else
+          map_struct(full_constraints, direction)
+        end
 
       # Typed containers (Map, Keyword, Tuple with fields)
       unwrapped_type in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] ->
@@ -369,7 +390,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
           wrap_array(inner_ts)
         end
 
-      Introspection.is_embedded_resource?(inner_type) ->
+      embedded_resource?(inner_type) ->
         map_resource(inner_type, direction) |> wrap_array()
 
       true ->
@@ -403,13 +424,12 @@ defmodule AshTypescript.Codegen.TypeMapper do
           :output -> build_map_type(fields, nil, field_name_mappings)
         end
 
-      # instance_of pointing to Ash Resource
-      instance_of && Ash.Resource.Info.resource?(instance_of) ->
-        map_resource(instance_of, direction)
-
       # instance_of pointing to TypedStruct (output only uses this)
+      # Note: resource instance_of types are already handled as kind: :resource
+      # by the TypeResolver, so they never reach this :struct branch
       instance_of && direction == :output ->
-        build_resource_type(instance_of, nil)
+        field_name_mappings = get_field_name_mappings(Ash.Type.Struct, constraints)
+        build_map_type(fields || [], nil, field_name_mappings)
 
       # Fallback to untyped map
       true ->
@@ -455,7 +475,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
         end
 
       # Embedded resource
-      Introspection.is_embedded_resource?(type) ->
+      embedded_resource?(type) ->
         map_resource(type, direction)
 
       # Other types - recurse
@@ -478,7 +498,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
   defp map_type_with_selection(type, constraints, select_and_loads) do
     # Unwrap NewTypes first
-    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+    {unwrapped_type, full_constraints} =
+      AshTypescript.TypeSystem.Introspection.unwrap_new_type(type, constraints)
 
     cond do
       # Struct with instance_of - use build_resource_type with selection
@@ -489,7 +510,13 @@ defmodule AshTypescript.Codegen.TypeMapper do
           resource_name = Helpers.build_resource_type_name(instance_of)
           "#{resource_name}ResourceSchema"
         else
-          build_resource_type(instance_of, select_and_loads)
+          field_name_mappings = get_field_name_mappings(Ash.Type.Struct, full_constraints)
+
+          build_map_type(
+            Keyword.get(full_constraints, :fields, []),
+            select_and_loads,
+            field_name_mappings
+          )
         end
 
       # Map with fields - use build_map_type with selection
@@ -597,15 +624,18 @@ defmodule AshTypescript.Codegen.TypeMapper do
   def build_map_type(fields, select \\ nil, field_name_mappings \\ nil) do
     selected_fields =
       if select do
-        Enum.filter(fields, fn {field_name, _} -> to_string(field_name) in select end)
+        Enum.filter(fields, fn
+          {field_name, _} -> to_string(field_name) in select
+          %{name: field_name} -> to_string(field_name) in select
+        end)
       else
         fields
       end
 
     field_types =
       selected_fields
-      |> Enum.map_join(", ", fn {field_name, field_config} ->
-        field_type = map_type(field_config[:type], field_config[:constraints] || [], :output)
+      |> Enum.map_join(", ", fn field ->
+        {field_name, field_type_str, allow_nil} = extract_field_info(field)
 
         formatted_field_name =
           if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
@@ -617,9 +647,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
             AshTypescript.Rpc.output_field_formatter()
           )
 
-        allow_nil = Keyword.get(field_config, :allow_nil?, true)
         optional = if allow_nil, do: " | null", else: ""
-        "#{formatted_field_name}: #{field_type}#{optional}"
+        "#{formatted_field_name}: #{field_type_str}#{optional}"
       end)
 
     primitive_fields_union =
@@ -628,16 +657,18 @@ defmodule AshTypescript.Codegen.TypeMapper do
       else
         primitive_only_fields =
           selected_fields
-          |> Enum.filter(fn {_field_name, field_config} ->
+          |> Enum.filter(fn field ->
             # Only include truly primitive fields, not nested TypedMaps
-            !is_nested_typed_map?(field_config)
+            !is_nested_typed_map_field?(field)
           end)
 
         if Enum.empty?(primitive_only_fields) do
           "never"
         else
           primitive_only_fields
-          |> Enum.map_join(" | ", fn {field_name, _field_config} ->
+          |> Enum.map_join(" | ", fn field ->
+            field_name = extract_field_name(field)
+
             formatted_field_name =
               if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
                 Keyword.get(field_name_mappings, field_name) |> to_string()
@@ -656,29 +687,36 @@ defmodule AshTypescript.Codegen.TypeMapper do
     "{#{field_types}, __type: \"TypedMap\", __primitiveFields: #{primitive_fields_union}}"
   end
 
-  defp build_plain_map_type(fields, field_name_mappings) do
-    field_types =
-      fields
-      |> Enum.map_join(", ", fn {field_name, field_config} ->
-        field_type = map_type(field_config[:type], field_config[:constraints] || [], :output)
-
-        formatted_field_name =
-          if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
-            Keyword.get(field_name_mappings, field_name) |> to_string()
-          else
-            field_name
-          end
-          |> AshTypescript.FieldFormatter.format_field_name(
-            AshTypescript.Rpc.output_field_formatter()
-          )
-
-        allow_nil = Keyword.get(field_config, :allow_nil?, true)
-        optional = if allow_nil, do: " | null", else: ""
-        "#{formatted_field_name}: #{field_type}#{optional}"
-      end)
-
-    "{#{field_types}}"
+  # Extracts field info from both legacy {name, config} tuples and spec field maps
+  defp extract_field_info({field_name, field_config}) do
+    field_type = map_type(field_config[:type], field_config[:constraints] || [], :output)
+    allow_nil = Keyword.get(field_config, :allow_nil?, true)
+    {field_name, field_type, allow_nil}
   end
+
+  defp extract_field_info(%{
+         name: field_name,
+         type: %AshApiSpec.Type{} = type,
+         allow_nil?: allow_nil
+       }) do
+    field_type = map_type(type, [], :output)
+    {field_name, field_type, allow_nil}
+  end
+
+  defp extract_field_info(%{name: field_name, type: type, allow_nil?: allow_nil}) do
+    field_type = map_type(type, [], :output)
+    {field_name, field_type, allow_nil}
+  end
+
+  defp extract_field_name({field_name, _}), do: field_name
+  defp extract_field_name(%{name: field_name}), do: field_name
+
+  defp is_nested_typed_map_field?({_name, field_config}), do: is_nested_typed_map?(field_config)
+
+  defp is_nested_typed_map_field?(%{type: %AshApiSpec.Type{kind: kind}}),
+    do: kind in [:map, :struct, :keyword, :tuple]
+
+  defp is_nested_typed_map_field?(_), do: false
 
   @doc """
   Builds a union type with metadata for field selection.
@@ -766,7 +804,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
         false
 
       # Embedded resources are not primitive
-      is_atom(type) and Introspection.is_embedded_resource?(type) ->
+      is_atom(type) and embedded_resource?(type) ->
         false
 
       # Everything else is primitive
@@ -812,144 +850,6 @@ defmodule AshTypescript.Codegen.TypeMapper do
   # Resource Type Builder
   # ─────────────────────────────────────────────────────────────────
 
-  @doc """
-  Builds a resource type for non-Ash resources.
-  """
-  def build_resource_type(resource, select_and_loads \\ nil)
-
-  def build_resource_type(resource, nil) do
-    field_types =
-      Ash.Resource.Info.public_attributes(resource)
-      |> Enum.map_join("\n", fn attr ->
-        get_resource_field_spec(attr.name, resource)
-      end)
-
-    "{#{field_types}}"
-  end
-
-  def build_resource_type(resource, select_and_loads) do
-    field_types =
-      select_and_loads
-      |> Enum.map_join("\n", fn attr ->
-        get_resource_field_spec(attr, resource)
-      end)
-
-    "{#{field_types}}"
-  end
-
-  @doc """
-  Gets the TypeScript field specification for a resource field.
-  """
-  def get_resource_field_spec(field, resource) when is_atom(field) do
-    attributes =
-      if field == :id,
-        do: [Ash.Resource.Info.attribute(resource, :id)],
-        else: Ash.Resource.Info.public_attributes(resource)
-
-    calculations = Ash.Resource.Info.public_calculations(resource)
-    aggregates = Ash.Resource.Info.public_aggregates(resource)
-
-    with nil <- Enum.find(attributes, &(&1.name == field)),
-         nil <- Enum.find(calculations, &(&1.name == field)),
-         nil <- Enum.find(aggregates, &(&1.name == field)) do
-      throw("Field not found: #{resource}.#{field}" |> String.replace("Elixir.", ""))
-    else
-      %Ash.Resource.Attribute{} = attr ->
-        formatted_field =
-          AshTypescript.FieldFormatter.format_field_name(
-            field,
-            AshTypescript.Rpc.output_field_formatter()
-          )
-
-        ts_type = map_type(attr.type, attr.constraints, :output)
-
-        if attr.allow_nil? do
-          "  #{formatted_field}: #{ts_type} | null;"
-        else
-          "  #{formatted_field}: #{ts_type};"
-        end
-
-      %Ash.Resource.Calculation{} = calc ->
-        formatted_field =
-          AshTypescript.FieldFormatter.format_field_name(
-            field,
-            AshTypescript.Rpc.output_field_formatter()
-          )
-
-        ts_type = map_type(calc.type, calc.constraints, :output)
-
-        if calc.allow_nil? do
-          "  #{formatted_field}: #{ts_type} | null;"
-        else
-          "  #{formatted_field}: #{ts_type};"
-        end
-
-      %Ash.Resource.Aggregate{} = agg ->
-        type =
-          case agg.kind do
-            :sum ->
-              attr = Helpers.lookup_aggregate_type(resource, agg.relationship_path, agg.field)
-              map_type(attr.type, attr.constraints, :output)
-
-            :first ->
-              attr = Helpers.lookup_aggregate_type(resource, agg.relationship_path, agg.field)
-              map_type(attr.type, attr.constraints, :output)
-
-            _ ->
-              Map.get(@aggregate_kinds, agg.kind)
-          end
-
-        formatted_field =
-          AshTypescript.FieldFormatter.format_field_name(
-            field,
-            AshTypescript.Rpc.output_field_formatter()
-          )
-
-        if agg.include_nil? do
-          "  #{formatted_field}: #{type} | null;"
-        else
-          "  #{formatted_field}: #{type};"
-        end
-
-      field ->
-        throw("Unknown field type: #{inspect(field)}")
-    end
-  end
-
-  def get_resource_field_spec({field_name, fields}, resource) do
-    relationships = Ash.Resource.Info.public_relationships(resource)
-
-    case Enum.find(relationships, &(&1.name == field_name)) do
-      nil ->
-        throw(
-          "Relationship not found on #{resource}: #{field_name}"
-          |> String.replace("Elixir.", "")
-        )
-
-      %Ash.Resource.Relationships.HasMany{} = rel ->
-        id_fields = Ash.Resource.Info.primary_key(resource)
-        fields = Enum.uniq(fields ++ id_fields)
-
-        "  #{field_name}: {#{Enum.map_join(fields, "\n", &get_resource_field_spec(&1, rel.destination))}\n}[];\n"
-
-      %Ash.Resource.Relationships.ManyToMany{} = rel ->
-        id_fields = Ash.Resource.Info.primary_key(resource)
-        fields = Enum.uniq(fields ++ id_fields)
-
-        "  #{field_name}: {#{Enum.map_join(fields, "\n", &get_resource_field_spec(&1, rel.destination))}\n}[];\n"
-
-      rel ->
-        id_fields = Ash.Resource.Info.primary_key(resource)
-        fields = Enum.uniq(fields ++ id_fields)
-
-        if rel.allow_nil? do
-          "  #{field_name}: {#{Enum.map_join(fields, "\n", &get_resource_field_spec(&1, rel.destination))}} | null;"
-        else
-          "  #{field_name}: {#{Enum.map_join(fields, "\n", &get_resource_field_spec(&1, rel.destination))}};\n"
-        end
-    end
-  end
-
   # ─────────────────────────────────────────────────────────────────
   # Helpers
   # ─────────────────────────────────────────────────────────────────
@@ -965,7 +865,27 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
   defp get_type_mapping_override(_type), do: nil
 
-  defp is_custom_type?(type), do: Introspection.is_custom_type?(type)
+  defp embedded_resource?(module) when is_atom(module) and not is_nil(module) do
+    Ash.Resource.Info.resource?(module) and Ash.Resource.Info.embedded?(module)
+  end
+
+  defp embedded_resource?(_), do: false
+
+  defp is_custom_type?(type) when is_atom(type) and not is_nil(type) do
+    Code.ensure_loaded?(type) and
+      function_exported?(type, :typescript_type_name, 0) and
+      Spark.implements_behaviour?(type, Ash.Type)
+  end
+
+  defp is_custom_type?(_), do: false
+
+  defp has_typescript_field_names?(nil), do: false
+
+  defp has_typescript_field_names?(module) when is_atom(module) do
+    Code.ensure_loaded?(module) && function_exported?(module, :typescript_field_names, 0)
+  end
+
+  defp has_typescript_field_names?(_), do: false
 
   # Ensures instance_of is in constraints for %Type{} structs (bridges
   # TypeResolver compile-time output and map_struct/map_typed_container expectations).
@@ -980,7 +900,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
       instance =
         type_info.instance_of ||
           if is_atom(type_info.module) and not is_nil(type_info.module) and
-               Introspection.has_typescript_field_names?(type_info.module) do
+               has_typescript_field_names?(type_info.module) do
             type_info.module
           end
 
@@ -1057,7 +977,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
   # NewTypes: unwrap and check the underlying type
   defp is_complex_field_type?(type, constraints) when is_atom(type) do
     if Code.ensure_loaded?(type) and Ash.Type.NewType.new_type?(type) do
-      {inner_type, inner_constraints} = Introspection.unwrap_new_type(type, constraints)
+      {inner_type, inner_constraints} =
+        AshTypescript.TypeSystem.Introspection.unwrap_new_type(type, constraints)
 
       # If unwrapping changed the type, check the inner type
       if inner_type != type do

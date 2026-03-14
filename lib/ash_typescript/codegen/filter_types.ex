@@ -16,62 +16,17 @@ defmodule AshTypescript.Codegen.FilterTypes do
     AshTypescript.Rpc.output_field_formatter()
   end
 
-  def generate_filter_types(resources) when is_list(resources) do
-    Enum.map(resources, &generate_filter_type/1)
-  end
-
-  def generate_filter_types(resources, allowed_resources) when is_list(resources) do
-    Enum.map(resources, &generate_filter_type(&1, allowed_resources))
-  end
+  # ─────────────────────────────────────────────────────────────────
+  # Public API
+  # ─────────────────────────────────────────────────────────────────
 
   def generate_filter_types(resources, allowed_resources, resource_lookup)
       when is_list(resources) and is_map(resource_lookup) and map_size(resource_lookup) > 0 do
     Enum.map(resources, &generate_filter_type(&1, allowed_resources, resource_lookup))
   end
 
-  def generate_filter_types(resources, _allowed_resources, nil) when is_list(resources) do
-    raise "FilterTypes: resource_lookup is required for 3-arity generate_filter_types"
-  end
-
-  def generate_filter_type(resource) do
-    resource_name = Helpers.build_resource_type_name(resource)
-    filter_type_name = "#{resource_name}FilterInput"
-
-    attribute_filters = generate_attribute_filters(resource)
-    relationship_filters = generate_relationship_filters(resource)
-    aggregate_filters = generate_aggregate_filters(resource)
-    logical_operators = generate_logical_operators(filter_type_name)
-
-    """
-    export type #{filter_type_name} = {
-    #{logical_operators}
-    #{attribute_filters}
-    #{aggregate_filters}
-    #{relationship_filters}
-    };
-    """
-  end
-
-  def generate_filter_type(resource, allowed_resources) do
-    resource_name = Helpers.build_resource_type_name(resource)
-    filter_type_name = "#{resource_name}FilterInput"
-
-    attribute_filters = generate_attribute_filters(resource)
-    relationship_filters = generate_relationship_filters(resource, allowed_resources)
-    aggregate_filters = generate_aggregate_filters(resource)
-    logical_operators = generate_logical_operators(filter_type_name)
-
-    """
-    export type #{filter_type_name} = {
-    #{logical_operators}
-    #{attribute_filters}
-    #{aggregate_filters}
-    #{relationship_filters}
-    };
-    """
-  end
-
-  def generate_filter_type(resource, allowed_resources, resource_lookup) do
+  def generate_filter_type(resource, allowed_resources, resource_lookup)
+      when is_map(resource_lookup) do
     case Map.get(resource_lookup, resource) do
       %AshApiSpec.Resource{} = api_resource ->
         generate_filter_type_from_spec(resource, api_resource, allowed_resources)
@@ -80,6 +35,34 @@ defmodule AshTypescript.Codegen.FilterTypes do
         raise "FilterTypes: resource #{inspect(resource)} not found in resource_lookup"
     end
   end
+
+  # Convenience: generates spec internally for callers without resource_lookup
+  def generate_filter_type(resource) do
+    resource_lookup = build_resource_lookup()
+    all_resources = Map.keys(resource_lookup)
+    generate_filter_type(resource, all_resources, resource_lookup)
+  end
+
+  def generate_filter_type(resource, allowed_resources) do
+    resource_lookup = build_resource_lookup()
+    generate_filter_type(resource, allowed_resources, resource_lookup)
+  end
+
+  # Legacy list-based convenience forms
+  def generate_filter_types(resources) when is_list(resources) do
+    resource_lookup = build_resource_lookup()
+    all_resources = Map.keys(resource_lookup)
+    Enum.map(resources, &generate_filter_type(&1, all_resources, resource_lookup))
+  end
+
+  def generate_filter_types(resources, allowed_resources) when is_list(resources) do
+    resource_lookup = build_resource_lookup()
+    Enum.map(resources, &generate_filter_type(&1, allowed_resources, resource_lookup))
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Spec-based implementation
+  # ─────────────────────────────────────────────────────────────────
 
   defp generate_filter_type_from_spec(resource, api_resource, allowed_resources) do
     resource_name = Helpers.build_resource_type_name(resource)
@@ -161,11 +144,9 @@ defmodule AshTypescript.Codegen.FilterTypes do
     spec_attribute_filter(field, resource)
   end
 
-  defp generate_relationship_filters(resource) do
-    resource
-    |> Ash.Resource.Info.public_relationships()
-    |> Enum.map_join("\n", &generate_relationship_filter(&1))
-  end
+  # ─────────────────────────────────────────────────────────────────
+  # Shared helpers
+  # ─────────────────────────────────────────────────────────────────
 
   defp generate_logical_operators(filter_type_name) do
     """
@@ -175,81 +156,16 @@ defmodule AshTypescript.Codegen.FilterTypes do
     """
   end
 
-  defp generate_attribute_filters(resource) do
-    attrs =
-      resource
-      |> Ash.Resource.Info.public_attributes()
+  defp generate_relationship_filter(relationship) do
+    related_resource = relationship.destination
+    related_resource_name = Helpers.build_resource_type_name(related_resource)
+    filter_type_name = "#{related_resource_name}FilterInput"
 
-    calcs =
-      resource
-      |> Ash.Resource.Info.public_calculations()
-
-    (attrs ++ calcs)
-    |> Enum.map_join("\n", &generate_attribute_filter(&1, resource))
-  end
-
-  defp generate_attribute_filter(attribute, resource) do
-    base_type = TypeMapper.get_ts_type(attribute)
-
-    # Generate specific filter operations based on the attribute type
-    operations = get_applicable_operations(attribute.type, base_type)
-
-    # Format field name with mapping applied
-    formatted_name =
-      AshTypescript.FieldFormatter.format_field_for_client(
-        attribute.name,
-        resource,
-        AshTypescript.Rpc.output_field_formatter()
-      )
+    formatted_name = format_field(relationship.name)
 
     """
-      #{formatted_name}?: {
-    #{Enum.join(operations, "\n")}
-      };
+      #{formatted_name}?: #{filter_type_name};
     """
-  end
-
-  defp generate_aggregate_filters(resource) do
-    resource
-    |> Ash.Resource.Info.public_aggregates()
-    |> Enum.filter(&(&1.kind in [:sum, :count]))
-    |> Enum.map_join("\n", &generate_aggregate_filter(&1, resource))
-  end
-
-  defp generate_aggregate_filter(%{kind: :count, name: name}, resource) do
-    base_type = TypeMapper.get_ts_type(%{type: :integer}, nil)
-    operations = get_applicable_operations(:integer, base_type)
-
-    # Format field name with mapping applied
-    formatted_name =
-      AshTypescript.FieldFormatter.format_field_for_client(
-        name,
-        resource,
-        AshTypescript.Rpc.output_field_formatter()
-      )
-
-    """
-      #{formatted_name}?: {
-    #{Enum.join(operations, "\n")}
-      };
-    """
-  end
-
-  defp generate_aggregate_filter(%{kind: :sum} = aggregate, resource) do
-    related_resource =
-      Enum.reduce(aggregate.relationship_path, resource, fn
-        next, acc -> Ash.Resource.Info.relationship(acc, next).destination
-      end)
-
-    field =
-      Ash.Resource.Info.attribute(related_resource, aggregate.field) ||
-        Ash.Resource.Info.calculation(related_resource, aggregate.field)
-
-    if field do
-      generate_attribute_filter(%{field | name: aggregate.name}, resource)
-    else
-      ""
-    end
   end
 
   defp get_applicable_operations(type, base_type) do
@@ -349,35 +265,9 @@ defmodule AshTypescript.Codegen.FilterTypes do
     "    #{format_field(Atom.to_string(op))}?: #{base_type};"
   end
 
-  defp generate_relationship_filters(resource, allowed_resources) do
-    resource
-    |> Ash.Resource.Info.public_relationships()
-    |> Enum.filter(fn rel ->
-      # Only include relationships to allowed resources
-      Enum.member?(allowed_resources, rel.destination)
-    end)
-    |> Enum.map_join("\n", &generate_relationship_filter(&1))
-  end
-
-  defp generate_relationship_filter(relationship) do
-    related_resource = relationship.destination
-    related_resource_name = Helpers.build_resource_type_name(related_resource)
-    filter_type_name = "#{related_resource_name}FilterInput"
-
-    # Format field name using output formatter
-    formatted_name = format_field(relationship.name)
-
-    """
-      #{formatted_name}?: #{filter_type_name};
-    """
-  end
-
-  # Helper function to generate all filter types for resources in a domain
-  def generate_all_filter_types(otp_app) do
-    otp_app
-    |> Ash.Info.domains()
-    |> Enum.flat_map(&Ash.Domain.Info.resources/1)
-    |> Enum.uniq()
-    |> Enum.map_join("\n", &generate_filter_type/1)
+  defp build_resource_lookup do
+    otp_app = Mix.Project.config()[:app]
+    {:ok, api_spec} = AshApiSpec.Generator.generate(otp_app: otp_app)
+    AshApiSpec.resource_lookup(api_spec)
   end
 end

@@ -21,14 +21,8 @@ defmodule AshTypescript.Codegen do
     ImportResolver,
     ResourceSchemas,
     TypeAliases,
-    TypeDiscovery,
-    TypeMapper,
-    UtilityTypes,
-    ZodSchemaGenerator
+    TypeMapper
   }
-
-  defdelegate find_embedded_resources(otp_app), to: TypeDiscovery
-  defdelegate find_field_constrained_types(resources), to: TypeDiscovery
 
   defdelegate generate_ash_type_aliases(resources, actions, otp_app), to: TypeAliases
 
@@ -54,11 +48,5 @@ defmodule AshTypescript.Codegen do
   defdelegate build_map_type(fields, select \\ nil, field_name_mappings \\ nil), to: TypeMapper
   defdelegate build_union_type(types), to: TypeMapper
   defdelegate build_union_input_type(types), to: TypeMapper
-  defdelegate build_resource_type(resource, select_and_loads \\ nil), to: TypeMapper
-  defdelegate get_resource_field_spec(field, resource), to: TypeMapper
-
   defdelegate build_resource_type_name(resource_module), to: Helpers
-  defdelegate is_simple_calculation(calc), to: Helpers
-  defdelegate is_complex_return_type(type, constraints), to: Helpers
-  defdelegate lookup_aggregate_type(resource, relationship_path, field), to: Helpers
 end

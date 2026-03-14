@@ -7,38 +7,43 @@ defmodule AshTypescript.Codegen.TypeAliases do
   Generates TypeScript type aliases for Ash types (e.g., UUID, Decimal, DateTime, etc.).
   """
 
-  alias AshTypescript.Codegen.TypeDiscovery
-  alias AshTypescript.TypeSystem.Introspection
-
   @doc """
   Generates TypeScript type aliases for all Ash types used in resources, actions, and calculations.
   """
   def generate_ash_type_aliases(resources, actions, otp_app, resource_lookup \\ nil)
 
-  def generate_ash_type_aliases(resources, actions, otp_app, resource_lookup)
+  def generate_ash_type_aliases(resources, _actions, _otp_app, resource_lookup)
       when is_map(resource_lookup) and map_size(resource_lookup) > 0 do
-    embedded_resources = TypeDiscovery.find_embedded_resources(otp_app)
-    all_resources = resources ++ embedded_resources
+    # Derive embedded resources from resource_lookup instead of re-scanning
+    embedded_resources =
+      resource_lookup
+      |> Map.values()
+      |> Enum.filter(& &1.embedded?)
+      |> Enum.map(& &1.module)
 
-    resource_types =
+    all_resources = Enum.uniq(resources ++ embedded_resources)
+
+    # Collect all types from spec resources (fields + action arguments + returns)
+    types =
       Enum.reduce(all_resources, MapSet.new(), fn resource, types ->
         case Map.get(resource_lookup, resource) do
           %AshApiSpec.Resource{} = api_resource ->
-            collect_types_from_api_resource(api_resource, types)
+            types = collect_types_from_api_resource(api_resource, types)
+            collect_types_from_api_actions(api_resource, types)
 
           nil ->
             raise "TypeAliases: resource #{inspect(resource)} not found in resource_lookup"
         end
       end)
 
-    generate_aliases_from_types(resource_types, actions)
+    generate_aliases(types)
   end
 
-  def generate_ash_type_aliases(resources, actions, otp_app, _no_lookup) do
+  def generate_ash_type_aliases(resources, _actions, otp_app, _no_lookup) do
     {:ok, api_spec} = AshApiSpec.Generator.generate(otp_app: otp_app)
-    resource_lookup = Map.new(api_spec.resources, fn r -> {r.module, r} end)
+    resource_lookup = AshApiSpec.resource_lookup(api_spec)
 
-    generate_ash_type_aliases(resources, actions, otp_app, resource_lookup)
+    generate_ash_type_aliases(resources, [], otp_app, resource_lookup)
   end
 
   defp collect_types_from_api_resource(api_resource, types) do
@@ -86,34 +91,26 @@ defmodule AshTypescript.Codegen.TypeAliases do
 
   defp collect_type_module(_, types), do: types
 
-  defp generate_aliases_from_types(resource_types, actions) do
-    types =
-      Enum.reduce(actions, resource_types, fn action, types ->
-        types =
-          action.arguments
-          |> Enum.filter(& &1.public?)
-          |> Enum.reduce(types, fn argument, types ->
-            if Ash.Type.ash_type?(argument.type) do
-              MapSet.put(types, argument.type)
-            else
-              types
-            end
-          end)
+  # Collects type modules from spec action arguments and returns
+  defp collect_types_from_api_actions(api_resource, types) do
+    api_resource.actions
+    |> Map.values()
+    |> Enum.reduce(types, fn action, types ->
+      # Collect from action arguments
+      types =
+        Enum.reduce(action.arguments || [], types, fn arg, types ->
+          collect_type_module(arg.type, types)
+        end)
 
-        if action.type == :action do
-          if Ash.Type.ash_type?(action.returns) do
-            case action.returns do
-              {:array, type} -> MapSet.put(types, type)
-              _ -> MapSet.put(types, action.returns)
-            end
-          else
-            types
-          end
-        else
-          types
-        end
-      end)
+      # Collect from action returns (for generic actions)
+      case action.returns do
+        %AshApiSpec.Type{} = return_type -> collect_type_module(return_type, types)
+        _ -> types
+      end
+    end)
+  end
 
+  defp generate_aliases(types) do
     types
     |> Enum.map(fn type ->
       case type do
@@ -185,7 +182,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
       Ash.Type.NewType.new_type?(type) or Spark.implements_behaviour?(type, Ash.Type.Enum) ->
         ""
 
-      Introspection.is_embedded_resource?(type) ->
+      embedded_resource?(type) ->
         ""
 
       true ->
@@ -193,7 +190,19 @@ defmodule AshTypescript.Codegen.TypeAliases do
     end
   end
 
-  defp is_custom_type?(type), do: Introspection.is_custom_type?(type)
+  defp embedded_resource?(module) when is_atom(module) and not is_nil(module) do
+    Ash.Resource.Info.resource?(module) and Ash.Resource.Info.embedded?(module)
+  end
+
+  defp embedded_resource?(_), do: false
+
+  defp is_custom_type?(type) when is_atom(type) and not is_nil(type) do
+    Code.ensure_loaded?(type) and
+      function_exported?(type, :typescript_type_name, 0) and
+      Spark.implements_behaviour?(type, Ash.Type)
+  end
+
+  defp is_custom_type?(_), do: false
 
   defp get_type_mapping_override(type) when is_atom(type) do
     type_mapping_overrides = AshTypescript.type_mapping_overrides()
