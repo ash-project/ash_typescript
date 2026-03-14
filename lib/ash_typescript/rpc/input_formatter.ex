@@ -255,10 +255,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
           end
 
         _ ->
-          case Ash.Resource.Info.attribute(resource, field_key) do
-            nil -> {nil, []}
-            attr -> {attr.type, attr.constraints || []}
-          end
+          {nil, []}
       end
     else
       {nil, []}

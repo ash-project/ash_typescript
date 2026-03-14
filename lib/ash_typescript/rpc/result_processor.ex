@@ -153,7 +153,13 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   ## Returns
   The extracted and normalized value.
   """
-  @spec extract_value(term(), atom() | tuple() | nil, keyword(), list(), map() | nil) :: term()
+  @spec extract_value(
+          term(),
+          atom() | tuple() | AshApiSpec.Type.t() | nil,
+          keyword(),
+          list(),
+          map() | nil
+        ) :: term()
   def extract_value(value, type, constraints, template, resource_lookups \\ nil)
 
   # Handle nil
@@ -223,19 +229,19 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
+  # {:array, inner_type} tuple form (from raw Ash types)
+  def extract_value(value, {:array, inner_type}, constraints, template, resource_lookups) do
+    inner_constraints = Keyword.get(constraints, :items, [])
+    extract_array_value(value, inner_type, inner_constraints, template, resource_lookups)
+  end
+
   def extract_value(value, type, constraints, template, resource_lookups) do
     # Unwrap NewTypes first (same pattern as ValueFormatter)
     {unwrapped_type, full_constraints} = TypeIndex.unwrap_new_type(%{}, type, constraints)
 
     cond do
-      # Arrays - recurse into inner type
-      match?({:array, _}, type) ->
-        {:array, inner_type} = type
-        inner_constraints = Keyword.get(constraints, :items, [])
-        extract_array_value(value, inner_type, inner_constraints, template, resource_lookups)
-
       # Ash Resources
-      is_atom(unwrapped_type) && TypeIndex.resource?(%{}, unwrapped_type) ->
+      TypeIndex.resource?(%{}, unwrapped_type) ->
         extract_resource_value(value, unwrapped_type, template, resource_lookups)
 
       # Ash.Type.Struct with resource instance_of

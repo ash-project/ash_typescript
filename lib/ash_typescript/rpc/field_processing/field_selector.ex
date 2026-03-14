@@ -242,24 +242,32 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
+  # {:array, inner_type} tuple form (from raw Ash types)
+  def select_fields(
+        {:array, inner_type},
+        constraints,
+        requested_fields,
+        path,
+        resource_lookups,
+        type_index
+      ) do
+    inner_constraints = Keyword.get(constraints, :items, [])
+
+    select_fields(
+      inner_type,
+      inner_constraints,
+      requested_fields,
+      path,
+      resource_lookups,
+      type_index
+    )
+  end
+
   def select_fields(type, constraints, requested_fields, path, resource_lookups, type_index) do
     {unwrapped_type, full_constraints} = TypeIndex.unwrap_new_type(type_index, type, constraints)
 
     cond do
-      match?({:array, _}, type) ->
-        {:array, inner_type} = type
-        inner_constraints = Keyword.get(constraints, :items, [])
-
-        select_fields(
-          inner_type,
-          inner_constraints,
-          requested_fields,
-          path,
-          resource_lookups,
-          type_index
-        )
-
-      is_atom(unwrapped_type) && TypeIndex.resource?(type_index, unwrapped_type) ->
+      TypeIndex.resource?(type_index, unwrapped_type) ->
         select_resource_fields(
           unwrapped_type,
           requested_fields,
@@ -1412,23 +1420,24 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     FieldFormatter.convert_to_field_atom(field_name, formatter)
   end
 
-  # Extracts relationship destination from type info or falls back to raw Ash lookup
-  defp extract_relationship_destination(%AshApiSpec.Type{resource_module: dest}, _resource, _name)
-       when not is_nil(dest),
-       do: dest
-
+  # Extracts relationship destination from AshApiSpec type info
   defp extract_relationship_destination(
-         %AshApiSpec.Type{kind: :array, item_type: %AshApiSpec.Type{resource_module: dest}},
+         %AshApiSpec.Type{resource_module: dest},
          _resource,
          _name
        )
        when not is_nil(dest),
        do: dest
 
-  defp extract_relationship_destination(_type, resource, internal_name) do
-    rel = Ash.Resource.Info.relationship(resource, internal_name)
-    rel && rel.destination
-  end
+  defp extract_relationship_destination(
+         %AshApiSpec.Type{item_type: %AshApiSpec.Type{resource_module: dest}},
+         _resource,
+         _name
+       )
+       when not is_nil(dest),
+       do: dest
+
+  defp extract_relationship_destination(%AshApiSpec.Type{}, _resource, _name), do: nil
 
   defp requires_nested_selection?(type, constraints, type_index \\ %{})
 

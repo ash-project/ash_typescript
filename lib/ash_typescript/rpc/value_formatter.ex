@@ -43,7 +43,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   """
   @spec format(
           term(),
-          atom() | tuple() | nil,
+          atom() | tuple() | AshApiSpec.Type.t() | nil,
           keyword(),
           atom(),
           direction(),
@@ -129,16 +129,25 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     end
   end
 
+  # {:array, inner_type} tuple form (from raw Ash types)
+  def format(
+        value,
+        {:array, inner_type},
+        constraints,
+        formatter,
+        direction,
+        resource_lookups,
+        _type_index
+      ) do
+    inner_constraints = Keyword.get(constraints, :items, [])
+    format_array(value, inner_type, inner_constraints, formatter, direction, resource_lookups)
+  end
+
   def format(value, type, constraints, formatter, direction, resource_lookups, _type_index) do
     {unwrapped_type, full_constraints} = TypeIndex.unwrap_new_type(%{}, type, constraints)
 
     cond do
-      match?({:array, _}, type) ->
-        {:array, inner_type} = type
-        inner_constraints = Keyword.get(constraints, :items, [])
-        format_array(value, inner_type, inner_constraints, formatter, direction, resource_lookups)
-
-      is_atom(unwrapped_type) && TypeIndex.resource?(%{}, unwrapped_type) ->
+      TypeIndex.resource?(%{}, unwrapped_type) ->
         format_resource(value, unwrapped_type, formatter, direction, resource_lookups)
 
       unwrapped_type == Ash.Type.Struct &&

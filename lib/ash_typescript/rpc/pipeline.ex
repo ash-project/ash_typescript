@@ -1353,10 +1353,7 @@ defmodule AshTypescript.Rpc.Pipeline do
         end
 
       _ ->
-        case Ash.Resource.Info.attribute(resource, field_name) do
-          nil -> {nil, []}
-          attr -> {attr.type, attr.constraints || []}
-        end
+        {nil, []}
     end
   end
 
