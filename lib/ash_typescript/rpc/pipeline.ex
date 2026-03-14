@@ -88,7 +88,7 @@ defmodule AshTypescript.Rpc.Pipeline do
          :ok <- validate_load_restrictions(load, rpc_action),
          {:ok, input} <-
            parse_action_input(normalized_params, action, resource, resource_lookups, type_index),
-         {:ok, get_by} <- parse_get_by(normalized_params, rpc_action, resource),
+         {:ok, get_by} <- parse_get_by(normalized_params, rpc_action, resource, resource_lookups),
          {:ok, pagination} <- parse_pagination(normalized_params) do
       formatted_sort = format_sort_string(normalized_params[:sort], input_formatter)
 
@@ -440,7 +440,9 @@ defmodule AshTypescript.Rpc.Pipeline do
              type_index
            ) do
         {:ok, parsed_input} ->
-          converted_input = convert_keyword_tuple_inputs(parsed_input, resource, action)
+          converted_input =
+            convert_keyword_tuple_inputs(parsed_input, resource, action, resource_lookups)
+
           {:ok, converted_input}
 
         {:error, _} = error ->
@@ -451,9 +453,9 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp convert_keyword_tuple_inputs(input, resource, action) do
+  defp convert_keyword_tuple_inputs(input, resource, action, resource_lookups) do
     Enum.reduce(input, %{}, fn {key, value}, acc ->
-      type_result = find_input_type(key, resource, action)
+      type_result = find_input_type(key, resource, action, resource_lookups)
 
       case type_result do
         {:tuple, constraints} ->
@@ -470,7 +472,7 @@ defmodule AshTypescript.Rpc.Pipeline do
     end)
   end
 
-  defp find_input_type(field_name, resource, action) do
+  defp find_input_type(field_name, resource, action, resource_lookups) do
     field_atom =
       cond do
         is_atom(field_name) ->
@@ -488,14 +490,14 @@ defmodule AshTypescript.Rpc.Pipeline do
       end
 
     if field_atom do
-      attribute = Ash.Resource.Info.attribute(resource, field_atom)
+      {type, constraints} = lookup_field_type(resource, field_atom, resource_lookups)
 
-      case attribute do
-        %{type: type, constraints: constraints} ->
-          classify_tuple_or_keyword_type(type, constraints)
-
-        _ ->
+      case {type, constraints} do
+        {nil, _} ->
           find_action_argument_type(field_atom, action)
+
+        {type, constraints} ->
+          classify_tuple_or_keyword_type(type, constraints)
       end
     else
       :other
@@ -512,7 +514,23 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  # Classifies a type as tuple, keyword, or other, handling NewTypes
+  # Classifies a type as tuple, keyword, or other, handling NewTypes and AshApiSpec types
+  defp classify_tuple_or_keyword_type(
+         %AshApiSpec.Type{kind: :tuple, constraints: c},
+         _constraints
+       ) do
+    {:tuple, c || []}
+  end
+
+  defp classify_tuple_or_keyword_type(
+         %AshApiSpec.Type{kind: :keyword, constraints: c},
+         _constraints
+       ) do
+    {:keyword, c || []}
+  end
+
+  defp classify_tuple_or_keyword_type(%AshApiSpec.Type{}, _constraints), do: :other
+
   defp classify_tuple_or_keyword_type(type, constraints) do
     # Unwrap NewType to get the underlying type
     {unwrapped_type, full_constraints} =
@@ -584,7 +602,7 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp convert_map_to_keyword(value, _constraints), do: value
 
-  defp parse_get_by(params, rpc_action, resource) do
+  defp parse_get_by(params, rpc_action, resource, resource_lookups) do
     rpc_get_by = Map.get(rpc_action, :get_by) || []
 
     if rpc_get_by == [] do
@@ -628,9 +646,8 @@ defmodule AshTypescript.Rpc.Pipeline do
           validated_get_by =
             Enum.reduce(rpc_get_by, %{}, fn field, acc ->
               value = Map.get(parsed_get_by, field)
-              attr = Ash.Resource.Info.attribute(resource, field)
 
-              if attr do
+              if lookup_field_exists?(resource, field, resource_lookups) do
                 Map.put(acc, field, value)
               else
                 acc
@@ -1317,6 +1334,29 @@ defmodule AshTypescript.Rpc.Pipeline do
 
       _ ->
         Ash.Resource.Info.identity(resource, identity_name)
+    end
+  end
+
+  defp lookup_field_exists?(resource, field_name, resource_lookups) do
+    case resource_lookups && Map.get(resource_lookups, resource) do
+      %AshApiSpec.Resource{fields: fields} -> Map.has_key?(fields, field_name)
+      _ -> Ash.Resource.Info.attribute(resource, field_name) != nil
+    end
+  end
+
+  defp lookup_field_type(resource, field_name, resource_lookups) do
+    case resource_lookups && Map.get(resource_lookups, resource) do
+      %AshApiSpec.Resource{fields: fields} ->
+        case Map.get(fields, field_name) do
+          %AshApiSpec.Field{type: %AshApiSpec.Type{} = type} -> {type, []}
+          nil -> {nil, []}
+        end
+
+      _ ->
+        case Ash.Resource.Info.attribute(resource, field_name) do
+          nil -> {nil, []}
+          attr -> {attr.type, attr.constraints || []}
+        end
     end
   end
 

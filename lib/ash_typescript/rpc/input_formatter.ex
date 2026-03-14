@@ -78,7 +78,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
     action = get_action(resource, action_name_or_action)
 
     # Build the expected keys map once for this action
-    expected_keys = build_expected_keys_map(resource, action, formatter)
+    expected_keys = build_expected_keys_map(resource, action, formatter, resource_lookups)
 
     Enum.into(map, %{}, fn {key, value} ->
       case Map.get(expected_keys, key) do
@@ -86,7 +86,9 @@ defmodule AshTypescript.Rpc.InputFormatter do
           {key, value}
 
         internal_key ->
-          {type, constraints} = get_input_field_type(action, resource, internal_key)
+          {type, constraints} =
+            get_input_field_type(action, resource, internal_key, resource_lookups)
+
           formatted_value = format_value(value, type, constraints, formatter, resource_lookups)
           {internal_key, formatted_value}
       end
@@ -116,10 +118,10 @@ defmodule AshTypescript.Rpc.InputFormatter do
         "addressLine1" => :address_line_1
       }
   """
-  def build_expected_keys_map(resource, action, _input_formatter) do
+  def build_expected_keys_map(resource, action, _input_formatter, resource_lookups \\ nil) do
     output_formatter = AshTypescript.Rpc.output_field_formatter()
     argument_keys = build_argument_keys(resource, action, output_formatter)
-    attribute_keys = build_attribute_keys(resource, action, output_formatter)
+    attribute_keys = build_attribute_keys(resource, action, output_formatter, resource_lookups)
     Map.merge(attribute_keys, argument_keys)
   end
 
@@ -140,20 +142,25 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end)
   end
 
-  defp build_attribute_keys(resource, action, output_formatter) do
+  defp build_attribute_keys(resource, action, output_formatter, resource_lookups) do
     accept_list = Map.get(action, :accept) || []
+    resource_spec = resource_lookups && Map.get(resource_lookups || %{}, resource)
 
     accept_list
-    |> Enum.map(&Ash.Resource.Info.attribute(resource, &1))
-    |> Enum.reject(&is_nil/1)
-    |> Enum.into(%{}, fn attr ->
+    |> Enum.filter(fn attr_name ->
+      case resource_spec do
+        %AshApiSpec.Resource{fields: fields} -> Map.has_key?(fields, attr_name)
+        _ -> Ash.Resource.Info.attribute(resource, attr_name) != nil
+      end
+    end)
+    |> Enum.into(%{}, fn attr_name ->
       client_name =
-        case ResourceInfo.get_mapped_field_name(resource, attr.name) do
+        case ResourceInfo.get_mapped_field_name(resource, attr_name) do
           mapped when is_binary(mapped) -> mapped
-          nil -> FieldFormatter.format_field_name(attr.name, output_formatter)
+          nil -> FieldFormatter.format_field_name(attr_name, output_formatter)
         end
 
-      {client_name, attr.name}
+      {client_name, attr_name}
     end)
   end
 
@@ -222,16 +229,13 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end
   end
 
-  defp get_input_field_type(action, resource, field_key) do
+  defp get_input_field_type(action, resource, field_key, resource_lookups) do
     case get_action_argument(action, field_key) do
       nil ->
-        case get_accepted_attribute(action, resource, field_key) do
-          nil -> {nil, []}
-          attr -> {attr.type, attr.constraints}
-        end
+        get_accepted_attribute_type(action, resource, field_key, resource_lookups)
 
       arg ->
-        {arg.type, arg.constraints}
+        {arg.type, arg.constraints || []}
     end
   end
 
@@ -239,13 +243,25 @@ defmodule AshTypescript.Rpc.InputFormatter do
     Enum.find(action.arguments, &(&1.public? && &1.name == field_key))
   end
 
-  defp get_accepted_attribute(action, resource, field_key) do
+  defp get_accepted_attribute_type(action, resource, field_key, resource_lookups) do
     accept = Map.get(action, :accept, [])
 
     if field_key in accept do
-      Ash.Resource.Info.attribute(resource, field_key)
+      case resource_lookups && Map.get(resource_lookups || %{}, resource) do
+        %AshApiSpec.Resource{fields: fields} ->
+          case Map.get(fields, field_key) do
+            %AshApiSpec.Field{type: type} -> {type, []}
+            nil -> {nil, []}
+          end
+
+        _ ->
+          case Ash.Resource.Info.attribute(resource, field_key) do
+            nil -> {nil, []}
+            attr -> {attr.type, attr.constraints || []}
+          end
+      end
     else
-      nil
+      {nil, []}
     end
   end
 end
