@@ -91,4 +91,29 @@ defmodule AshApiSpec.Resource do
   @doc "Returns all relationship names."
   @spec relationship_names(t()) :: [atom()]
   def relationship_names(%__MODULE__{relationships: rels}), do: Map.keys(rels)
+
+  @doc "Returns relationships whose destination is in the allowed list."
+  @spec accessible_relationships(t(), [atom()] | MapSet.t()) :: [AshApiSpec.Relationship.t()]
+  def accessible_relationships(%__MODULE__{relationships: rels}, allowed_resources) do
+    allowed =
+      if is_list(allowed_resources), do: MapSet.new(allowed_resources), else: allowed_resources
+
+    rels
+    |> Map.values()
+    |> Enum.filter(&MapSet.member?(allowed, &1.destination))
+  end
+
+  @doc "Returns fields for accepted attributes of an action."
+  @spec accepted_fields(t(), map()) :: [AshApiSpec.Field.t()]
+  def accepted_fields(%__MODULE__{fields: fields}, action) do
+    case Map.get(action, :accept) || [] do
+      [] ->
+        []
+
+      accept_list ->
+        accept_list
+        |> Enum.map(&Map.get(fields, &1))
+        |> Enum.reject(&is_nil/1)
+    end
+  end
 end

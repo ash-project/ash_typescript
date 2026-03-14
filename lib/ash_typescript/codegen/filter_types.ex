@@ -86,9 +86,8 @@ defmodule AshTypescript.Codegen.FilterTypes do
       |> Enum.map_join("\n", &spec_aggregate_filter(&1, resource))
 
     relationship_filters =
-      api_resource.relationships
-      |> Map.values()
-      |> Enum.filter(&(&1.destination in allowed_resources))
+      api_resource
+      |> AshApiSpec.Resource.accessible_relationships(allowed_resources)
       |> Enum.map_join("\n", &generate_relationship_filter(&1))
 
     logical_operators = generate_logical_operators(filter_type_name)

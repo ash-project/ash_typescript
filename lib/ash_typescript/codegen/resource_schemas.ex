@@ -385,10 +385,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     {complex_fields, primitive_fields} =
       Enum.split_with(fields, &is_complex_attr?/1)
 
-    relationships =
-      api_resource.relationships
-      |> Map.values()
-      |> Enum.filter(&(&1.destination in allowed_resources))
+    relationships = AshApiSpec.Resource.accessible_relationships(api_resource, allowed_resources)
 
     complex_fields = complex_fields ++ relationships
 
