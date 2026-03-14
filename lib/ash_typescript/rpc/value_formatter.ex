@@ -106,7 +106,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
       # Struct/map: check typescript_field_names before falling through to typed_map
       kind when kind in [:struct, :map] ->
         cond do
-          inst && is_atom(inst) && Ash.Resource.Info.resource?(inst) ->
+          inst && is_atom(inst) && TypeIndex.resource?(%{}, inst) ->
             format_resource(value, inst, formatter, direction, resource_lookups)
 
           TypeIndex.has_ts_field_names?(%{}, inst) ->
@@ -138,7 +138,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
         inner_constraints = Keyword.get(constraints, :items, [])
         format_array(value, inner_type, inner_constraints, formatter, direction, resource_lookups)
 
-      is_atom(unwrapped_type) && Ash.Resource.Info.resource?(unwrapped_type) ->
+      is_atom(unwrapped_type) && TypeIndex.resource?(%{}, unwrapped_type) ->
         format_resource(value, unwrapped_type, formatter, direction, resource_lookups)
 
       unwrapped_type == Ash.Type.Struct &&

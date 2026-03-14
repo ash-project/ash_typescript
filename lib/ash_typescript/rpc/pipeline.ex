@@ -712,7 +712,12 @@ defmodule AshTypescript.Rpc.Pipeline do
       |> Ash.Query.set_context(opts[:context] || %{})
 
     with {:ok, query_with_identity} <-
-           maybe_apply_identity_filter(base_query, request.identity, identities) do
+           maybe_apply_identity_filter(
+             base_query,
+             request.identity,
+             identities,
+             request.resource_lookups
+           ) do
       query = Ash.Query.limit(query_with_identity, 1)
 
       bulk_opts = [
@@ -767,7 +772,12 @@ defmodule AshTypescript.Rpc.Pipeline do
       |> Ash.Query.set_context(opts[:context] || %{})
 
     with {:ok, query_with_identity} <-
-           maybe_apply_identity_filter(base_query, request.identity, identities) do
+           maybe_apply_identity_filter(
+             base_query,
+             request.identity,
+             identities,
+             request.resource_lookups
+           ) do
       query =
         query_with_identity
         |> Ash.Query.limit(1)
@@ -1144,8 +1154,8 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp primary_key_filter(resource, primary_key_value) do
-    primary_key_fields = Ash.Resource.Info.primary_key(resource)
+  defp primary_key_filter(resource, primary_key_value, resource_lookups) do
+    primary_key_fields = lookup_primary_key(resource, resource_lookups)
 
     if is_map(primary_key_value) do
       Enum.map(primary_key_fields, fn field ->
@@ -1156,12 +1166,13 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp maybe_apply_identity_filter(query, _identity, []), do: {:ok, query}
+  defp maybe_apply_identity_filter(query, _identity, [], _lookups), do: {:ok, query}
 
-  defp maybe_apply_identity_filter(query, identity, identities) when is_map(identity) do
+  defp maybe_apply_identity_filter(query, identity, identities, lookups)
+       when is_map(identity) do
     resource = query.resource
 
-    case build_identity_filter(resource, identity, identities) do
+    case build_identity_filter(resource, identity, identities, lookups) do
       {:ok, filter} ->
         {:ok, Ash.Query.do_filter(query, filter)}
 
@@ -1170,10 +1181,11 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp maybe_apply_identity_filter(query, identity, identities) when not is_nil(identity) do
+  defp maybe_apply_identity_filter(query, identity, identities, lookups)
+       when not is_nil(identity) do
     resource = query.resource
 
-    case build_identity_filter(resource, identity, identities) do
+    case build_identity_filter(resource, identity, identities, lookups) do
       {:ok, filter} ->
         {:ok, Ash.Query.do_filter(query, filter)}
 
@@ -1183,13 +1195,13 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   # Identity is nil but identities list is not empty - this means identity is required but missing
-  defp maybe_apply_identity_filter(query, nil, identities) when identities != [] do
+  defp maybe_apply_identity_filter(query, nil, identities, lookups) when identities != [] do
     resource = query.resource
     output_formatter = Rpc.output_field_formatter()
 
     expected_keys =
       resource
-      |> get_expected_identity_keys(identities)
+      |> get_expected_identity_keys(identities, lookups)
       |> Enum.map(&FieldFormatter.format_field_for_client(&1, resource, output_formatter))
 
     {:error,
@@ -1200,33 +1212,26 @@ defmodule AshTypescript.Rpc.Pipeline do
       }}}
   end
 
-  defp maybe_apply_identity_filter(query, _identity, _identities), do: {:ok, query}
+  defp maybe_apply_identity_filter(query, _identity, _identities, _lookups), do: {:ok, query}
 
-  defp build_identity_filter(resource, identity, identities) when is_map(identity) do
-    # Parse the identity input - for named identities, it's an object with field names
-    # e.g., { email: "foo@bar.com" } or { tenantId: "123", email: "foo@bar.com" }
-    #
-    # We need to:
-    # 1. Apply input formatter (e.g., camelCase → snake_case)
-    # 2. Apply reverse field_names mapping (e.g., addressLine1 → address_line_1)
+  defp build_identity_filter(resource, identity, identities, lookups) when is_map(identity) do
     formatter = Rpc.input_field_formatter()
     parsed_identity = parse_identity_input(resource, identity, formatter)
 
-    # Try to match against configured identities by checking if all required keys are present
     result =
       Enum.find_value(identities, fn
         :_primary_key ->
-          primary_key_attrs = Ash.Resource.Info.primary_key(resource)
+          primary_key_attrs = lookup_primary_key(resource, lookups)
 
           if length(primary_key_attrs) > 1 &&
                Enum.all?(primary_key_attrs, &Map.has_key?(parsed_identity, &1)) do
-            {:ok, primary_key_filter(resource, parsed_identity)}
+            {:ok, primary_key_filter(resource, parsed_identity, lookups)}
           else
             nil
           end
 
         identity_name ->
-          identity_info = Ash.Resource.Info.identity(resource, identity_name)
+          identity_info = lookup_identity(resource, identity_name, lookups)
 
           if identity_info && Enum.all?(identity_info.keys, &Map.has_key?(parsed_identity, &1)) do
             {:ok, build_named_identity_filter(identity_info, parsed_identity)}
@@ -1249,7 +1254,7 @@ defmodule AshTypescript.Rpc.Pipeline do
 
         expected_keys =
           resource
-          |> get_expected_identity_keys(identities)
+          |> get_expected_identity_keys(identities, lookups)
           |> Enum.map(&FieldFormatter.format_field_for_client(&1, resource, output_formatter))
 
         {:error,
@@ -1263,9 +1268,10 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   # Primary key passed directly (non-composite) or as object (composite)
-  defp build_identity_filter(resource, identity, identities) when not is_nil(identity) do
+  defp build_identity_filter(resource, identity, identities, lookups)
+       when not is_nil(identity) do
     if :_primary_key in identities do
-      {:ok, primary_key_filter(resource, identity)}
+      {:ok, primary_key_filter(resource, identity, lookups)}
     else
       {:error,
        {:invalid_identity,
@@ -1276,20 +1282,42 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp build_identity_filter(_resource, _identity, _identities), do: {:ok, []}
+  defp build_identity_filter(_resource, _identity, _identities, _lookups), do: {:ok, []}
 
-  defp get_expected_identity_keys(resource, identities) do
+  defp get_expected_identity_keys(resource, identities, lookups) do
     Enum.flat_map(identities, fn
       :_primary_key ->
-        Ash.Resource.Info.primary_key(resource)
+        lookup_primary_key(resource, lookups)
 
       identity_name ->
-        case Ash.Resource.Info.identity(resource, identity_name) do
+        case lookup_identity(resource, identity_name, lookups) do
           nil -> []
           identity -> identity.keys
         end
     end)
     |> Enum.uniq()
+  end
+
+  # AshApiSpec-first lookups with Ash.Resource.Info fallback
+
+  defp lookup_primary_key(resource, resource_lookups) do
+    case resource_lookups && Map.get(resource_lookups, resource) do
+      %AshApiSpec.Resource{primary_key: pk} -> pk
+      _ -> Ash.Resource.Info.primary_key(resource)
+    end
+  end
+
+  defp lookup_identity(resource, identity_name, resource_lookups) do
+    case resource_lookups && Map.get(resource_lookups, resource) do
+      %AshApiSpec.Resource{} = r ->
+        case AshApiSpec.Resource.get_identity(r, identity_name) do
+          nil -> Ash.Resource.Info.identity(resource, identity_name)
+          identity -> identity
+        end
+
+      _ ->
+        Ash.Resource.Info.identity(resource, identity_name)
+    end
   end
 
   # Parses identity input by applying reverse field_names mapping or input formatter

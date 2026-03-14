@@ -20,7 +20,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
   | Category | Detection | Handler |
   |----------|-----------|---------|
-  | Ash Resource | `Ash.Resource.Info.resource?(type)` | `select_resource_fields/3` |
+  | Ash Resource | `TypeIndex.resource?(type_index, type)` | `select_resource_fields/3` |
   | TypedStruct/NewType/CustomType | `typescript_field_names/0` callback | `select_typed_struct_fields/3` |
   | Typed Map/Struct | Has `fields` constraints | `select_typed_map_fields/3` |
   | Tuple | `Ash.Type.Tuple` | `select_tuple_fields/3` |
@@ -101,7 +101,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   Returns `{type, constraints}` tuple representing the action's return type.
   Handles both raw Ash action structs and `%AshApiSpec.Action{}` structs.
   """
-  @spec action_to_type_spec(module(), map()) :: {atom() | tuple() | AshApiSpec.Type.t(), keyword()}
+  @spec action_to_type_spec(module(), map()) ::
+          {atom() | tuple() | AshApiSpec.Type.t(), keyword()}
   def action_to_type_spec(resource, action) do
     case action.type do
       type when type in [:create, :update, :destroy] ->
@@ -209,7 +210,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
       kind when kind in [:struct, :map] ->
         cond do
-          inst && is_atom(inst) && Ash.Resource.Info.resource?(inst) ->
+          inst && is_atom(inst) && TypeIndex.resource?(type_index, inst) ->
             select_resource_fields(inst, requested_fields, path, resource_lookups, type_index)
 
           TypeIndex.has_ts_field_names?(type_index, inst) ->
@@ -258,7 +259,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
           type_index
         )
 
-      is_atom(unwrapped_type) && Ash.Resource.Info.resource?(unwrapped_type) ->
+      is_atom(unwrapped_type) && TypeIndex.resource?(type_index, unwrapped_type) ->
         select_resource_fields(
           unwrapped_type,
           requested_fields,
@@ -552,8 +553,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         {select ++ [internal_name], new_load, template ++ [{internal_name, nested_template}]}
 
       :relationship ->
-        rel = Ash.Resource.Info.relationship(resource, internal_name)
-        dest_resource = rel && rel.destination
+        dest_resource = extract_relationship_destination(field_type, resource, internal_name)
 
         unless dest_resource && ResourceInfo.typescript_resource?(dest_resource) do
           throw({:unknown_field, internal_name, resource, path})
@@ -680,28 +680,21 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
   defp get_resource_field_info_from_spec(api_resource, resource, field_name, path) do
     case Map.get(api_resource.fields, field_name) do
-      %AshApiSpec.Field{kind: kind, type: type_info} ->
-        # For calculations, we need to check argument info from Ash.Resource.Info
-        # since AshApiSpec.Field doesn't carry that. For attributes and aggregates,
-        # we can classify from the type info directly.
+      %AshApiSpec.Field{kind: kind, type: type_info} = field ->
         case kind do
           :calculation ->
-            # Fall back to Ash for calculation-specific info (arguments)
-            calc = Ash.Resource.Info.public_calculation(resource, field_name)
-
             category =
               cond do
-                calc && has_any_arguments?(calc) ->
+                has_any_arguments?(field) ->
                   :calculation_with_args
 
-                calc && requires_nested_selection?(calc.type, calc.constraints || []) ->
+                requires_nested_selection?(type_info, []) ->
                   :calculation_complex
 
                 true ->
                   :calculation
               end
 
-            # Return the %AshApiSpec.Type{} so select_fields hits the fast dispatch
             {type_info, [], category}
 
           :attribute ->
@@ -1417,6 +1410,24 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   defp convert_to_field_atom(field_name) do
     formatter = AshTypescript.Rpc.input_field_formatter()
     FieldFormatter.convert_to_field_atom(field_name, formatter)
+  end
+
+  # Extracts relationship destination from type info or falls back to raw Ash lookup
+  defp extract_relationship_destination(%AshApiSpec.Type{resource_module: dest}, _resource, _name)
+       when not is_nil(dest),
+       do: dest
+
+  defp extract_relationship_destination(
+         %AshApiSpec.Type{kind: :array, item_type: %AshApiSpec.Type{resource_module: dest}},
+         _resource,
+         _name
+       )
+       when not is_nil(dest),
+       do: dest
+
+  defp extract_relationship_destination(_type, resource, internal_name) do
+    rel = Ash.Resource.Info.relationship(resource, internal_name)
+    rel && rel.destination
   end
 
   defp requires_nested_selection?(type, constraints, type_index \\ %{})

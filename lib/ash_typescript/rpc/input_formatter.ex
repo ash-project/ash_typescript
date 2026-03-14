@@ -18,7 +18,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
   - Work only with action arguments and accepted attributes (simplified scope)
   """
 
-  alias AshTypescript.{FieldFormatter, Rpc.ValueFormatter}
+  alias AshTypescript.{FieldFormatter, Rpc.TypeIndex, Rpc.ValueFormatter}
   alias AshTypescript.Resource.Info, as: ResourceInfo
 
   @doc """
@@ -162,7 +162,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
       struct_type when struct_type in [Ash.Type.Struct, :struct] ->
         instance_of = Keyword.get(constraints, :instance_of)
 
-        if instance_of && Ash.Resource.Info.resource?(instance_of) && is_map(data) &&
+        if instance_of && TypeIndex.resource?(%{}, instance_of) && is_map(data) &&
              not is_struct(data) do
           formatted_data =
             ValueFormatter.format(
@@ -183,7 +183,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
         items_constraints = Keyword.get(constraints, :items, [])
         instance_of = Keyword.get(items_constraints, :instance_of)
 
-        if instance_of && Ash.Resource.Info.resource?(instance_of) && is_list(data) do
+        if instance_of && TypeIndex.resource?(%{}, instance_of) && is_list(data) do
           Enum.map(data, fn item ->
             if is_map(item) && not is_struct(item) do
               formatted_item =

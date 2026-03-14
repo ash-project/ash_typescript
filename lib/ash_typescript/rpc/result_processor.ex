@@ -118,11 +118,11 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     cond do
       # For Ash resources, delegate to ResourceFields which handles all field types
       # including proper aggregate type resolution
-      Ash.Resource.Info.resource?(resource) ->
+      TypeIndex.resource?(%{}, resource) ->
         ResourceFields.get_field_type_info(resource, field_name, resource_lookups)
 
       # For modules with typescript_field_names (TypedStruct wrappers)
-      Code.ensure_loaded?(resource) && function_exported?(resource, :typescript_field_names, 0) ->
+      TypeIndex.has_ts_field_names?(%{}, resource) ->
         # These are typically NewType wrappers - we may have field specs
         {nil, []}
 
@@ -189,7 +189,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
       kind when kind in [:struct, :map] ->
         cond do
-          inst && is_atom(inst) && Ash.Resource.Info.resource?(inst) ->
+          inst && is_atom(inst) && TypeIndex.resource?(%{}, inst) ->
             extract_resource_value(value, inst, template)
 
           TypeIndex.has_ts_field_names?(%{}, inst) ->
@@ -219,7 +219,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         extract_array_value(value, inner_type, inner_constraints, template)
 
       # Ash Resources
-      is_atom(unwrapped_type) && Ash.Resource.Info.resource?(unwrapped_type) ->
+      is_atom(unwrapped_type) && TypeIndex.resource?(%{}, unwrapped_type) ->
         extract_resource_value(value, unwrapped_type, template)
 
       # Ash.Type.Struct with resource instance_of
@@ -595,7 +595,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       is_atom(value) and not is_boolean(value) ->
         Atom.to_string(value)
 
-      is_struct(value) && Ash.Resource.Info.resource?(value.__struct__) ->
+      is_struct(value) && TypeIndex.resource?(%{}, value.__struct__) ->
         normalize_resource_struct(value, value.__struct__)
 
       is_struct(value) ->
@@ -721,7 +721,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   3. Falls back to nil for unknown types
   """
   def determine_data_type(nil, resource) do
-    if resource && Ash.Resource.Info.resource?(resource) do
+    if resource && TypeIndex.resource?(%{}, resource) do
       {resource, []}
     else
       {nil, []}
@@ -730,14 +730,14 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   def determine_data_type(data, resource) do
     cond do
-      is_struct(data) && Ash.Resource.Info.resource?(data.__struct__) ->
+      is_struct(data) && TypeIndex.resource?(%{}, data.__struct__) ->
         {data.__struct__, []}
 
-      is_struct(data) && function_exported?(data.__struct__, :typescript_field_names, 0) ->
+      is_struct(data) && TypeIndex.has_ts_field_names?(%{}, data.__struct__) ->
         {Ash.Type.Struct, [instance_of: data.__struct__]}
 
       match?(%Ash.Union{}, data) ->
-        if resource && Ash.Resource.Info.resource?(resource) do
+        if resource && TypeIndex.resource?(%{}, resource) do
           {Ash.Type.Union, get_union_constraints_from_resource(resource)}
         else
           {Ash.Type.Union, []}
@@ -752,7 +752,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       is_map(data) && not is_struct(data) ->
         {nil, []}
 
-      resource && Ash.Resource.Info.resource?(resource) && is_struct(data) ->
+      resource && TypeIndex.resource?(%{}, resource) && is_struct(data) ->
         {resource, []}
 
       true ->
