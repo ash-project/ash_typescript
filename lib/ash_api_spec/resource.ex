@@ -36,6 +36,10 @@ defmodule AshApiSpec.Resource do
     identities: %{}
   ]
 
+  # ─────────────────────────────────────────────────────────────────
+  # Single-Item Lookups
+  # ─────────────────────────────────────────────────────────────────
+
   @doc "Gets a field (attribute, calculation, or aggregate) by name."
   @spec get_field(t(), atom()) :: AshApiSpec.Field.t() | nil
   def get_field(%__MODULE__{fields: fields}, name), do: Map.get(fields, name)
@@ -52,6 +56,20 @@ defmodule AshApiSpec.Resource do
   @spec get_identity(t(), atom()) :: %{keys: [atom()]} | nil
   def get_identity(%__MODULE__{identities: identities}, name), do: Map.get(identities, name)
 
+  @doc "Checks if a field or relationship exists by name."
+  @spec has_field?(t(), atom()) :: boolean()
+  def has_field?(%__MODULE__{fields: fields, relationships: rels}, name) do
+    Map.has_key?(fields, name) || Map.has_key?(rels, name)
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Collection Accessors
+  # ─────────────────────────────────────────────────────────────────
+
+  @doc "Returns all fields as a list."
+  @spec all_fields(t()) :: [AshApiSpec.Field.t()]
+  def all_fields(%__MODULE__{fields: fields}), do: Map.values(fields)
+
   @doc "Returns all fields of a given kind (:attribute, :calculation, or :aggregate)."
   @spec fields_by_kind(t(), AshApiSpec.Field.kind()) :: [AshApiSpec.Field.t()]
   def fields_by_kind(%__MODULE__{fields: fields}, kind) do
@@ -61,4 +79,16 @@ defmodule AshApiSpec.Resource do
   @doc "Returns all relationships as a list."
   @spec all_relationships(t()) :: [AshApiSpec.Relationship.t()]
   def all_relationships(%__MODULE__{relationships: rels}), do: Map.values(rels)
+
+  @doc "Returns all actions as a list."
+  @spec all_actions(t()) :: [AshApiSpec.Action.t()]
+  def all_actions(%__MODULE__{actions: actions}), do: Map.values(actions)
+
+  @doc "Returns all field names (attributes, calculations, aggregates)."
+  @spec field_names(t()) :: [atom()]
+  def field_names(%__MODULE__{fields: fields}), do: Map.keys(fields)
+
+  @doc "Returns all relationship names."
+  @spec relationship_names(t()) :: [atom()]
+  def relationship_names(%__MODULE__{relationships: rels}), do: Map.keys(rels)
 end

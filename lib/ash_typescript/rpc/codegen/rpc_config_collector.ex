@@ -40,7 +40,7 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
       rpc_config = AshTypescript.Rpc.Info.typescript_rpc(domain)
 
       Enum.flat_map(rpc_config, fn %{resource: resource, rpc_actions: rpc_actions} ->
-        api_resource = Map.fetch!(resource_lookup, resource)
+        api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
 
         Enum.map(rpc_actions, fn rpc_action ->
           action = Map.fetch!(api_resource.actions, rpc_action.action)
@@ -67,7 +67,7 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
 
       Enum.flat_map(rpc_config, fn resource_config ->
         %{resource: resource, rpc_actions: rpc_actions} = resource_config
-        api_resource = Map.fetch!(resource_lookup, resource)
+        api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
 
         Enum.map(rpc_actions, fn rpc_action ->
           action = Map.fetch!(api_resource.actions, rpc_action.action)
@@ -130,7 +130,7 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
       rpc_config = AshTypescript.Rpc.Info.typescript_rpc(domain)
 
       Enum.flat_map(rpc_config, fn %{resource: resource, typed_queries: typed_queries} ->
-        api_resource = Map.fetch!(resource_lookup, resource)
+        api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
 
         Enum.map(typed_queries, fn typed_query ->
           action = Map.fetch!(api_resource.actions, typed_query.action)

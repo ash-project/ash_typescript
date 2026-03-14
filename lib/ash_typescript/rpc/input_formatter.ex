@@ -243,20 +243,12 @@ defmodule AshTypescript.Rpc.InputFormatter do
     Enum.find(action.arguments, &(&1.public? && &1.name == field_key))
   end
 
-  defp get_accepted_attribute_type(action, resource, field_key, resource_lookups) do
+  defp get_accepted_attribute_type(action, resource, field_key, _resource_lookups) do
     accept = Map.get(action, :accept, [])
 
     if field_key in accept do
-      case resource_lookups && Map.get(resource_lookups || %{}, resource) do
-        %AshApiSpec.Resource{fields: fields} ->
-          case Map.get(fields, field_key) do
-            %AshApiSpec.Field{type: type} -> {type, []}
-            nil -> {nil, []}
-          end
-
-        _ ->
-          {nil, []}
-      end
+      attr = Ash.Resource.Info.attribute(resource, field_key)
+      {attr.type, attr.constraints || []}
     else
       {nil, []}
     end

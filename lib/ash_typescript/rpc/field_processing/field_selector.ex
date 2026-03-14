@@ -89,10 +89,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   defp get_in_resource_lookups(nil, _resource, _action_name), do: nil
 
   defp get_in_resource_lookups(resource_lookups, resource, action_name) do
-    case Map.get(resource_lookups, resource) do
-      %AshApiSpec.Resource{} = r -> AshApiSpec.Resource.get_action(r, action_name)
-      nil -> nil
-    end
+    AshApiSpec.get_action(resource_lookups, resource, action_name)
   end
 
   @doc """
@@ -673,7 +670,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
   defp get_resource_field_info(resource, field_name, path, resource_lookups)
        when is_atom(resource) and is_map(resource_lookups) do
-    case Map.get(resource_lookups, resource) do
+    case AshApiSpec.get_resource(resource_lookups, resource) do
       %AshApiSpec.Resource{} = api_resource ->
         get_resource_field_info_from_spec(api_resource, resource, field_name, path)
 
@@ -1438,6 +1435,12 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
        do: dest
 
   defp extract_relationship_destination(%AshApiSpec.Type{}, _resource, _name), do: nil
+
+  # Fallback for non-AshApiSpec types (atom resource modules, raw Ash types)
+  defp extract_relationship_destination(_type, resource, internal_name) do
+    rel = Ash.Resource.Info.relationship(resource, internal_name)
+    rel && rel.destination
+  end
 
   defp requires_nested_selection?(type, constraints, type_index \\ %{})
 

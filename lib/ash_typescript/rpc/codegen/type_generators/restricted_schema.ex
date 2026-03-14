@@ -652,7 +652,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   end
 
   defp resolve_field_info(resource, field_name, resource_lookup) do
-    api_resource = Map.fetch!(resource_lookup, resource)
+    api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
     rel = AshApiSpec.Resource.get_relationship(api_resource, field_name)
 
     if rel do
@@ -815,7 +815,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   end
 
   defp get_loadable_field_names(resource, resource_lookup) do
-    api_resource = Map.fetch!(resource_lookup, resource)
+    api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
 
     relationships =
       api_resource

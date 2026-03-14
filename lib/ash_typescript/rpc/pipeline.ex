@@ -1318,42 +1318,28 @@ defmodule AshTypescript.Rpc.Pipeline do
   # AshApiSpec-first lookups with Ash.Resource.Info fallback
 
   defp lookup_primary_key(resource, resource_lookups) do
-    case resource_lookups && Map.get(resource_lookups, resource) do
-      %AshApiSpec.Resource{primary_key: pk} -> pk
-      _ -> Ash.Resource.Info.primary_key(resource)
+    case AshApiSpec.primary_key(resource_lookups || %{}, resource) do
+      [] -> Ash.Resource.Info.primary_key(resource)
+      pk -> pk
     end
   end
 
   defp lookup_identity(resource, identity_name, resource_lookups) do
-    case resource_lookups && Map.get(resource_lookups, resource) do
-      %AshApiSpec.Resource{} = r ->
-        case AshApiSpec.Resource.get_identity(r, identity_name) do
-          nil -> Ash.Resource.Info.identity(resource, identity_name)
-          identity -> identity
-        end
-
-      _ ->
-        Ash.Resource.Info.identity(resource, identity_name)
-    end
+    AshApiSpec.get_identity(resource_lookups || %{}, resource, identity_name) ||
+      Ash.Resource.Info.identity(resource, identity_name)
   end
 
   defp lookup_field_exists?(resource, field_name, resource_lookups) do
-    case resource_lookups && Map.get(resource_lookups, resource) do
-      %AshApiSpec.Resource{fields: fields} -> Map.has_key?(fields, field_name)
-      _ -> Ash.Resource.Info.attribute(resource, field_name) != nil
+    case AshApiSpec.get_resource(resource_lookups || %{}, resource) do
+      %AshApiSpec.Resource{} = r -> AshApiSpec.Resource.has_field?(r, field_name)
+      nil -> Ash.Resource.Info.attribute(resource, field_name) != nil
     end
   end
 
   defp lookup_field_type(resource, field_name, resource_lookups) do
-    case resource_lookups && Map.get(resource_lookups, resource) do
-      %AshApiSpec.Resource{fields: fields} ->
-        case Map.get(fields, field_name) do
-          %AshApiSpec.Field{type: %AshApiSpec.Type{} = type} -> {type, []}
-          nil -> {nil, []}
-        end
-
-      _ ->
-        {nil, []}
+    case AshApiSpec.get_field(resource_lookups || %{}, resource, field_name) do
+      %AshApiSpec.Field{type: %AshApiSpec.Type{} = type} -> {type, []}
+      _ -> {nil, []}
     end
   end
 

@@ -254,7 +254,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
     {:ok, resource_lookup} =
       AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
 
-    api_resource = Map.fetch!(resource_lookup, resource)
+    api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
 
     error_fields =
       api_resource

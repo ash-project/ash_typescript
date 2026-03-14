@@ -186,7 +186,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
        ) do
     resource_name = resource_short_name(resource)
     resource_lookup = build_resource_lookup(Mix.Project.config()[:app])
-    api_resource = Map.fetch!(resource_lookup, resource)
+    api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
 
     sorted_actions =
       rpc_actions
