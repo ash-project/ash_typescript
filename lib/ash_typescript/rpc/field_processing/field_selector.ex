@@ -60,7 +60,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   @spec process(module(), atom(), list(), map() | nil, map()) ::
           {:ok, select_result()} | {:error, term()}
   def process(resource, action_name, requested_fields, resource_lookups \\ nil, type_index \\ %{}) do
-    action = Ash.Resource.Info.action(resource, action_name)
+    action = lookup_action(resource, action_name, resource_lookups)
 
     if is_nil(action) do
       throw({:action_not_found, action_name})
@@ -78,13 +78,30 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     error_tuple -> {:error, error_tuple}
   end
 
+  # Looks up action from AshApiSpec resource_lookups first, falls back to Ash.Resource.Info
+  defp lookup_action(resource, action_name, resource_lookups) do
+    case get_in_resource_lookups(resource_lookups, resource, action_name) do
+      %AshApiSpec.Action{} = action -> action
+      nil -> Ash.Resource.Info.action(resource, action_name)
+    end
+  end
+
+  defp get_in_resource_lookups(nil, _resource, _action_name), do: nil
+
+  defp get_in_resource_lookups(resource_lookups, resource, action_name) do
+    case Map.get(resource_lookups, resource) do
+      %AshApiSpec.Resource{} = r -> AshApiSpec.Resource.get_action(r, action_name)
+      nil -> nil
+    end
+  end
+
   @doc """
   Converts an action to its type specification.
 
   Returns `{type, constraints}` tuple representing the action's return type.
+  Handles both raw Ash action structs and `%AshApiSpec.Action{}` structs.
   """
-  @spec action_to_type_spec(module(), Ash.Resource.Actions.action()) ::
-          {atom() | tuple(), keyword()}
+  @spec action_to_type_spec(module(), map()) :: {atom() | tuple() | AshApiSpec.Type.t(), keyword()}
   def action_to_type_spec(resource, action) do
     case action.type do
       type when type in [:create, :update, :destroy] ->
@@ -100,7 +117,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       :action ->
         case action.returns do
           nil -> {:any, []}
-          type -> {type, action.constraints || []}
+          %AshApiSpec.Type{} = type -> {type, []}
+          type -> {type, Map.get(action, :constraints) || []}
         end
     end
   end
