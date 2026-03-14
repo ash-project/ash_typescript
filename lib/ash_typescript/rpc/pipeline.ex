@@ -17,6 +17,7 @@ defmodule AshTypescript.Rpc.Pipeline do
     Request,
     RequestedFieldsProcessor,
     ResultProcessor,
+    TypeIndex,
     ValueFormatter
   }
 
@@ -62,6 +63,7 @@ defmodule AshTypescript.Rpc.Pipeline do
            discover_action(otp_app, normalized_params),
          resource_lookups =
            Spark.Dsl.Extension.get_persisted(domain, :ash_api_spec_lookups),
+         type_index = TypeIndex.build(resource_lookups),
          :ok <-
            validate_required_parameters_for_action_type(
              normalized_params,
@@ -80,10 +82,12 @@ defmodule AshTypescript.Rpc.Pipeline do
              action.name,
              requested_fields,
              validation_mode?,
-             resource_lookups
+             resource_lookups,
+             type_index
            ),
          :ok <- validate_load_restrictions(load, rpc_action),
-         {:ok, input} <- parse_action_input(normalized_params, action, resource, resource_lookups),
+         {:ok, input} <-
+           parse_action_input(normalized_params, action, resource, resource_lookups, type_index),
          {:ok, get_by} <- parse_get_by(normalized_params, rpc_action, resource),
          {:ok, pagination} <- parse_pagination(normalized_params) do
       formatted_sort = format_sort_string(normalized_params[:sort], input_formatter)
@@ -183,7 +187,8 @@ defmodule AshTypescript.Rpc.Pipeline do
           sort: sort,
           pagination: pagination,
           show_metadata: show_metadata,
-          resource_lookups: resource_lookups
+          resource_lookups: resource_lookups,
+          type_index: type_index
         })
 
       {:ok, request}
@@ -266,7 +271,8 @@ defmodule AshTypescript.Rpc.Pipeline do
                   result,
                   request.extraction_template,
                   resource_for_mapping,
-                  request.resource_lookups
+                  request.resource_lookups,
+                  request.type_index
                 )
               end
 
@@ -419,13 +425,20 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp parse_action_input(params, action, resource, resource_lookups) do
+  defp parse_action_input(params, action, resource, resource_lookups, type_index) do
     raw_input = Map.get(params, :input, %{})
 
     if is_map(raw_input) do
       formatter = Rpc.input_field_formatter()
 
-      case InputFormatter.format(raw_input, resource, action, formatter, resource_lookups) do
+      case InputFormatter.format(
+             raw_input,
+             resource,
+             action,
+             formatter,
+             resource_lookups,
+             type_index
+           ) do
         {:ok, parsed_input} ->
           converted_input = convert_keyword_tuple_inputs(parsed_input, resource, action)
           {:ok, converted_input}
@@ -503,7 +516,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   defp classify_tuple_or_keyword_type(type, constraints) do
     # Unwrap NewType to get the underlying type
     {unwrapped_type, full_constraints} =
-      AshTypescript.TypeSystem.Introspection.unwrap_new_type(type, constraints)
+      TypeIndex.unwrap_new_type(%{}, type, constraints)
 
     case unwrapped_type do
       Ash.Type.Tuple ->
@@ -943,7 +956,8 @@ defmodule AshTypescript.Rpc.Pipeline do
         request.action,
         request.resource,
         formatter,
-        request.resource_lookups
+        request.resource_lookups,
+        request.type_index
       )
 
     base_response = %{
@@ -985,32 +999,61 @@ defmodule AshTypescript.Rpc.Pipeline do
   # - Resource-returning actions use OutputFormatter for full resource field mapping
   # - Composite types (typed maps, typed structs) use ValueFormatter with type constraints
   # - Unconstrained maps just get key formatting applied
-  defp format_action_output(data, action, default_resource, formatter, resource_lookups) do
+  defp format_action_output(
+         data,
+         action,
+         default_resource,
+         formatter,
+         resource_lookups,
+         type_index
+       ) do
     if action.type != :action do
-      OutputFormatter.format(data, default_resource, action.name, formatter, resource_lookups)
+      OutputFormatter.format(
+        data,
+        default_resource,
+        action.name,
+        formatter,
+        resource_lookups,
+        type_index
+      )
     else
       case ActionIntrospection.action_returns_field_selectable_type?(action) do
         {:ok, type, resource_module} when type in [:resource, :array_of_resource] ->
-          OutputFormatter.format(data, resource_module, action.name, formatter, resource_lookups)
+          OutputFormatter.format(
+            data,
+            resource_module,
+            action.name,
+            formatter,
+            resource_lookups,
+            type_index
+          )
 
         {:ok, type, _}
         when type in [:typed_map, :array_of_typed_map, :typed_struct, :array_of_typed_struct] ->
-          format_generic_action_output(data, action, formatter, resource_lookups)
+          format_generic_action_output(data, action, formatter, resource_lookups, type_index)
 
         {:ok, type, _} when type in [:unconstrained_map, :array_of_unconstrained_map] ->
           format_field_names(data, formatter)
 
         _ ->
-          format_generic_action_output(data, action, formatter, resource_lookups)
+          format_generic_action_output(data, action, formatter, resource_lookups, type_index)
       end
     end
   end
 
-  defp format_generic_action_output(data, action, formatter, resource_lookups) do
+  defp format_generic_action_output(data, action, formatter, resource_lookups, type_index) do
     return_type = action.returns
     constraints = action.constraints || []
 
-    ValueFormatter.format(data, return_type, constraints, formatter, :output, resource_lookups)
+    ValueFormatter.format(
+      data,
+      return_type,
+      constraints,
+      formatter,
+      :output,
+      resource_lookups,
+      type_index
+    )
   end
 
   defp unconstrained_map_action?(action) do
@@ -1058,7 +1101,8 @@ defmodule AshTypescript.Rpc.Pipeline do
          _action_name,
          [],
          true = _validation_mode?,
-         _resource_lookups
+         _resource_lookups,
+         _type_index
        ) do
     {:ok, {[], [], []}}
   end
@@ -1068,9 +1112,16 @@ defmodule AshTypescript.Rpc.Pipeline do
          action_name,
          requested_fields,
          _validation_mode?,
-         resource_lookups
+         resource_lookups,
+         type_index
        ) do
-    RequestedFieldsProcessor.process(resource, action_name, requested_fields, resource_lookups)
+    RequestedFieldsProcessor.process(
+      resource,
+      action_name,
+      requested_fields,
+      resource_lookups,
+      type_index
+    )
   end
 
   defp validate_fields_if_needed(_params, false), do: :ok

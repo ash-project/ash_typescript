@@ -37,7 +37,7 @@ defmodule AshTypescript.Rpc.OutputFormatter do
   The formatted data with internal atom keys converted to client field names,
   except for untyped map keys which are preserved exactly.
   """
-  def format(data, resource, action_name, formatter, resource_lookups \\ nil) do
+  def format(data, resource, action_name, formatter, resource_lookups \\ nil, _type_index \\ %{}) do
     format_data(data, resource, action_name, formatter, resource_lookups)
   end
 

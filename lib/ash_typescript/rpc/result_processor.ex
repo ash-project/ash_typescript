@@ -33,13 +33,20 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   """
 
   alias AshTypescript.Rpc.FieldExtractor
-  alias AshTypescript.TypeSystem.{Introspection, ResourceFields}
+  alias AshTypescript.Rpc.TypeIndex
+  alias AshTypescript.TypeSystem.ResourceFields
 
   @doc """
   Main entry point for processing Ash results.
   """
-  @spec process(term(), map(), module() | nil, map() | nil) :: term()
-  def process(result, extraction_template, resource \\ nil, resource_lookups \\ nil) do
+  @spec process(term(), map(), module() | nil, map() | nil, map()) :: term()
+  def process(
+        result,
+        extraction_template,
+        resource \\ nil,
+        resource_lookups \\ nil,
+        _type_index \\ %{}
+      ) do
     case result do
       %Ash.Page.Offset{results: results} = page ->
         processed_results =
@@ -185,7 +192,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           inst && is_atom(inst) && Ash.Resource.Info.resource?(inst) ->
             extract_resource_value(value, inst, template)
 
-          Introspection.has_typescript_field_names?(inst) ->
+          TypeIndex.has_ts_field_names?(%{}, inst) ->
             extract_typed_struct_value(value, constraints, template)
 
           true ->
@@ -202,7 +209,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   def extract_value(value, type, constraints, template) do
     # Unwrap NewTypes first (same pattern as ValueFormatter)
-    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+    {unwrapped_type, full_constraints} = TypeIndex.unwrap_new_type(%{}, type, constraints)
 
     cond do
       # Arrays - recurse into inner type
@@ -217,12 +224,12 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
       # Ash.Type.Struct with resource instance_of
       unwrapped_type == Ash.Type.Struct &&
-          Introspection.is_resource_instance_of?(full_constraints) ->
+          TypeIndex.is_resource_instance_of?(%{}, full_constraints) ->
         instance_of = Keyword.get(full_constraints, :instance_of)
         extract_resource_value(value, instance_of, template)
 
       # TypedStruct/NewType with typescript_field_names
-      Introspection.has_typescript_field_names?(full_constraints[:instance_of]) ->
+      TypeIndex.has_ts_field_names?(%{}, full_constraints[:instance_of]) ->
         extract_typed_struct_value(value, full_constraints, template)
 
       # Ash.Type.Union
@@ -331,7 +338,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     inst = type_info.instance_of || type_info.module
 
     if inst && is_atom(inst) && !Keyword.has_key?(constraints, :instance_of) &&
-         Introspection.has_typescript_field_names?(inst) do
+         TypeIndex.has_ts_field_names?(%{}, inst) do
       Keyword.put(constraints, :instance_of, inst)
     else
       constraints
@@ -410,7 +417,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           field_value = Map.get(normalized, field_atom)
 
           {field_type, field_constraints} =
-            Introspection.get_field_spec_type(field_specs, field_atom)
+            TypeIndex.get_field_spec_type(field_specs, field_atom)
 
           extracted = extract_value(field_value, field_type, field_constraints, [])
           Map.put(acc, field_atom, extracted)
@@ -419,7 +426,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           field_value = Map.get(normalized, field_atom)
 
           {field_type, field_constraints} =
-            Introspection.get_field_spec_type(field_specs, field_atom)
+            TypeIndex.get_field_spec_type(field_specs, field_atom)
 
           extracted = extract_value(field_value, field_type, field_constraints, nested_template)
           Map.put(acc, field_atom, extracted)
@@ -461,7 +468,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
               field_value = Map.get(normalized, field_atom)
 
               {field_type, field_constraints} =
-                Introspection.get_field_spec_type(field_specs, field_atom)
+                TypeIndex.get_field_spec_type(field_specs, field_atom)
 
               extracted = extract_value(field_value, field_type, field_constraints, [])
               Map.put(acc, field_atom, extracted)
@@ -470,7 +477,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
               field_value = Map.get(normalized, field_atom)
 
               {field_type, field_constraints} =
-                Introspection.get_field_spec_type(field_specs, field_atom)
+                TypeIndex.get_field_spec_type(field_specs, field_atom)
 
               extracted =
                 extract_value(field_value, field_type, field_constraints, nested_template)
@@ -482,7 +489,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
               field_value = Map.get(normalized, field_name)
 
               {field_type, field_constraints} =
-                Introspection.get_field_spec_type(field_specs, field_name)
+                TypeIndex.get_field_spec_type(field_specs, field_name)
 
               extracted = extract_value(field_value, field_type, field_constraints, [])
               Map.put(acc, field_name, extracted)

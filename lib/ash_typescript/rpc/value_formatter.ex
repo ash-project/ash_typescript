@@ -23,7 +23,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   which contain all the information needed to format that value correctly.
   """
 
-  alias AshTypescript.{FieldFormatter, TypeSystem.Introspection, TypeSystem.ResourceFields}
+  alias AshTypescript.{FieldFormatter, Rpc.TypeIndex, TypeSystem.ResourceFields}
   alias AshTypescript.Resource.Info, as: ResourceInfo
 
   @type direction :: :input | :output
@@ -41,23 +41,39 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   ## Returns
   The formatted value with field names converted according to direction.
   """
-  @spec format(term(), atom() | tuple() | nil, keyword(), atom(), direction(), map() | nil) ::
-          term()
-  def format(value, type, constraints, formatter, direction, resource_lookups \\ nil)
+  @spec format(
+          term(),
+          atom() | tuple() | nil,
+          keyword(),
+          atom(),
+          direction(),
+          map() | nil,
+          map()
+        ) :: term()
+  def format(
+        value,
+        type,
+        constraints,
+        formatter,
+        direction,
+        resource_lookups \\ nil,
+        _type_index \\ %{}
+      )
 
-  def format(nil, _type, _constraints, _formatter, _direction, _lookups), do: nil
-  def format(value, nil, _constraints, _formatter, _direction, _lookups), do: value
+  def format(nil, _type, _constraints, _formatter, _direction, _lookups, _ti), do: nil
+  def format(value, nil, _constraints, _formatter, _direction, _lookups, _ti), do: value
 
   # %Type{kind} dispatch — replaces unwrap_new_type + cond for the lookup path.
   # augment_type_constraints bridges the gap between TypeResolver (compile-time,
-  # doesn't add instance_of) and Introspection.unwrap_new_type (runtime, adds it).
+  # doesn't add instance_of) and TypeIndex.unwrap_new_type (runtime, adds it).
   def format(
         value,
         %AshApiSpec.Type{} = type_info,
         _constraints,
         formatter,
         direction,
-        resource_lookups
+        resource_lookups,
+        _type_index
       ) do
     constraints = augment_type_constraints(type_info)
     inst = type_info.instance_of || type_info.module
@@ -93,10 +109,10 @@ defmodule AshTypescript.Rpc.ValueFormatter do
           inst && is_atom(inst) && Ash.Resource.Info.resource?(inst) ->
             format_resource(value, inst, formatter, direction, resource_lookups)
 
-          Introspection.has_typescript_field_names?(inst) ->
+          TypeIndex.has_ts_field_names?(%{}, inst) ->
             format_typed_struct(value, constraints, formatter, direction)
 
-          Introspection.has_field_constraints?(constraints) ->
+          TypeIndex.has_field_constraints?(constraints) ->
             format_typed_map(value, constraints, formatter, direction)
 
           true ->
@@ -113,8 +129,8 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     end
   end
 
-  def format(value, type, constraints, formatter, direction, resource_lookups) do
-    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+  def format(value, type, constraints, formatter, direction, resource_lookups, _type_index) do
+    {unwrapped_type, full_constraints} = TypeIndex.unwrap_new_type(%{}, type, constraints)
 
     cond do
       match?({:array, _}, type) ->
@@ -126,7 +142,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
         format_resource(value, unwrapped_type, formatter, direction, resource_lookups)
 
       unwrapped_type == Ash.Type.Struct &&
-          Introspection.is_resource_instance_of?(full_constraints) ->
+          TypeIndex.is_resource_instance_of?(%{}, full_constraints) ->
         instance_of = Keyword.get(full_constraints, :instance_of)
         format_resource(value, instance_of, formatter, direction, resource_lookups)
 
@@ -136,11 +152,11 @@ defmodule AshTypescript.Rpc.ValueFormatter do
       unwrapped_type == Ash.Type.Keyword ->
         format_keyword(value, full_constraints, formatter, direction)
 
-      Introspection.has_typescript_field_names?(full_constraints[:instance_of]) ->
+      TypeIndex.has_ts_field_names?(%{}, full_constraints[:instance_of]) ->
         format_typed_struct(value, full_constraints, formatter, direction)
 
       unwrapped_type in [Ash.Type.Map, Ash.Type.Struct] &&
-          Introspection.has_field_constraints?(full_constraints) ->
+          TypeIndex.has_field_constraints?(full_constraints) ->
         format_typed_map(value, full_constraints, formatter, direction)
 
       unwrapped_type == Ash.Type.Union ->
@@ -165,7 +181,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   defp is_custom_type_with_map_storage?(_), do: false
 
   # Bridges TypeResolver (compile-time, doesn't add instance_of to constraints)
-  # and Introspection.unwrap_new_type (runtime, adds instance_of for modules with
+  # and TypeIndex.unwrap_new_type (runtime, adds instance_of for modules with
   # typescript_field_names). Existing handlers like format_tuple/format_keyword
   # check constraints[:instance_of] to decide typed_struct vs typed_map dispatch.
   defp augment_type_constraints(type_info) do
@@ -173,7 +189,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     inst = type_info.instance_of || type_info.module
 
     if inst && is_atom(inst) && !Keyword.has_key?(constraints, :instance_of) &&
-         Introspection.has_typescript_field_names?(inst) do
+         TypeIndex.has_ts_field_names?(%{}, inst) do
       Keyword.put(constraints, :instance_of, inst)
     else
       constraints
@@ -280,14 +296,14 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   defp format_typed_struct(value, constraints, formatter, direction) when is_map(value) do
     field_specs = Keyword.get(constraints, :fields, [])
     instance_of = Keyword.get(constraints, :instance_of)
-    ts_field_names = Introspection.get_typescript_field_names_map(instance_of)
-    reverse_map = Introspection.build_reverse_field_names_map(ts_field_names)
+    ts_field_names = TypeIndex.field_names(%{}, instance_of)
+    reverse_map = TypeIndex.field_names_reverse(%{}, instance_of)
 
     Enum.into(value, %{}, fn {key, field_value} ->
       internal_key = convert_typed_struct_key(key, reverse_map, formatter, direction)
 
       {field_type, field_constraints} =
-        Introspection.get_field_spec_type(field_specs, internal_key)
+        TypeIndex.get_field_spec_type(field_specs, internal_key)
 
       formatted_value = format(field_value, field_type, field_constraints, formatter, direction)
 
@@ -337,7 +353,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
           end
 
         {field_type, field_constraints} =
-          Introspection.get_field_spec_type(field_specs, internal_key)
+          TypeIndex.get_field_spec_type(field_specs, internal_key)
 
         formatted_value = format(field_value, field_type, field_constraints, formatter, direction)
 
@@ -369,7 +385,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
         {field_name, elem(value, index)}
       end)
 
-    if Introspection.has_typescript_field_names?(instance_of) do
+    if TypeIndex.has_ts_field_names?(%{}, instance_of) do
       format_typed_struct(map_value, constraints, formatter, direction)
     else
       format_typed_map(map_value, constraints, formatter, direction)
@@ -379,7 +395,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   defp format_tuple(value, constraints, formatter, direction) when is_map(value) do
     instance_of = Keyword.get(constraints, :instance_of)
 
-    if Introspection.has_typescript_field_names?(instance_of) do
+    if TypeIndex.has_ts_field_names?(%{}, instance_of) do
       format_typed_struct(value, constraints, formatter, direction)
     else
       format_typed_map(value, constraints, formatter, direction)
@@ -396,7 +412,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     instance_of = Keyword.get(constraints, :instance_of)
     map_value = Enum.into(value, %{})
 
-    if Introspection.has_typescript_field_names?(instance_of) do
+    if TypeIndex.has_ts_field_names?(%{}, instance_of) do
       format_typed_struct(map_value, constraints, formatter, direction)
     else
       format_typed_map(map_value, constraints, formatter, direction)
@@ -406,7 +422,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   defp format_keyword(value, constraints, formatter, direction) when is_map(value) do
     instance_of = Keyword.get(constraints, :instance_of)
 
-    if Introspection.has_typescript_field_names?(instance_of) do
+    if TypeIndex.has_ts_field_names?(%{}, instance_of) do
       format_typed_struct(value, constraints, formatter, direction)
     else
       format_typed_map(value, constraints, formatter, direction)

@@ -28,7 +28,8 @@ defmodule AshTypescript.Rpc.Request do
           sort: list() | nil,
           pagination: map() | nil,
           show_metadata: list(atom()),
-          resource_lookups: %{module() => AshApiSpec.Resource.t()} | nil
+          resource_lookups: %{module() => AshApiSpec.Resource.t()} | nil,
+          type_index: AshTypescript.Rpc.TypeIndex.t()
         }
 
   defstruct [
@@ -49,7 +50,8 @@ defmodule AshTypescript.Rpc.Request do
     :sort,
     :pagination,
     show_metadata: [],
-    resource_lookups: nil
+    resource_lookups: nil,
+    type_index: %{}
   ]
 
   @doc """

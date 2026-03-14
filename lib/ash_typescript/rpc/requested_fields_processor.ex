@@ -68,9 +68,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
   defdelegate process(resource, action_name, requested_fields), to: FieldSelector
 
   @doc """
-  Same as `process/3` but with an optional `resource_lookups` map for O(1) field type lookup.
+  Same as `process/3` but with optional `resource_lookups` and `type_index` for O(1) lookups.
   """
-  def process(resource, action_name, requested_fields, resource_lookups) do
-    FieldSelector.process(resource, action_name, requested_fields, resource_lookups)
+  def process(resource, action_name, requested_fields, resource_lookups, type_index \\ %{}) do
+    FieldSelector.process(resource, action_name, requested_fields, resource_lookups, type_index)
   end
 end

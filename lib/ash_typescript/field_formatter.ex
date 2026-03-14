@@ -11,7 +11,7 @@ defmodule AshTypescript.FieldFormatter do
 
   import AshTypescript.Helpers
 
-  alias AshTypescript.TypeSystem.Introspection
+  alias AshTypescript.Rpc.TypeIndex
 
   @doc """
   Formats a field name for client output, optionally applying resource/type-level
@@ -41,8 +41,8 @@ defmodule AshTypescript.FieldFormatter do
       # This includes TypedStructs, NewTypes wrapping maps, and custom Ash types.
       # Takes priority over Ash resource field_names DSL when both are present.
       resource_or_type_module &&
-          Introspection.has_typescript_field_names?(resource_or_type_module) ->
-        ts_field_names = Introspection.get_typescript_field_names_map(resource_or_type_module)
+          TypeIndex.has_ts_field_names?(%{}, resource_or_type_module) ->
+        ts_field_names = TypeIndex.field_names(%{}, resource_or_type_module)
 
         case Map.get(ts_field_names, field) do
           mapped when is_binary(mapped) -> mapped
