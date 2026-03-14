@@ -8,11 +8,12 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   """
 
   @doc """
-  Gets all RPC resources and their actions from an OTP application.
+  Gets RPC action DSL entries (resource + action name pairs) for building the spec.
 
-  Returns a list of tuples: `{resource, action, rpc_action}`
+  Returns a list of `{resource_module, action_name}` tuples.
+  This is used to build the AshApiSpec before resolving full action structs.
   """
-  def get_rpc_resources_and_actions(otp_app) do
+  def get_rpc_action_tuples(otp_app) do
     otp_app
     |> Ash.Info.domains()
     |> Enum.flat_map(fn domain ->
@@ -20,7 +21,29 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
 
       Enum.flat_map(rpc_config, fn %{resource: resource, rpc_actions: rpc_actions} ->
         Enum.map(rpc_actions, fn rpc_action ->
-          action = Ash.Resource.Info.action(resource, rpc_action.action)
+          {resource, rpc_action.action}
+        end)
+      end)
+    end)
+  end
+
+  @doc """
+  Gets all RPC resources and their actions from an OTP application.
+
+  Resolves actions from the pre-computed `resource_lookup` (AshApiSpec).
+  Returns a list of tuples: `{resource, %AshApiSpec.Action{}, rpc_action}`
+  """
+  def get_rpc_resources_and_actions(otp_app, resource_lookup) do
+    otp_app
+    |> Ash.Info.domains()
+    |> Enum.flat_map(fn domain ->
+      rpc_config = AshTypescript.Rpc.Info.typescript_rpc(domain)
+
+      Enum.flat_map(rpc_config, fn %{resource: resource, rpc_actions: rpc_actions} ->
+        api_resource = Map.fetch!(resource_lookup, resource)
+
+        Enum.map(rpc_actions, fn rpc_action ->
+          action = Map.fetch!(api_resource.actions, rpc_action.action)
           {resource, action, rpc_action}
         end)
       end)
@@ -30,7 +53,13 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
     end)
   end
 
-  defp get_rpc_resources_and_actions_with_context(otp_app) do
+  @doc """
+  Gets all RPC resources and their actions, including domain and resource config.
+
+  Resolves actions from the pre-computed `resource_lookup` (AshApiSpec).
+  Returns a list of tuples: `{resource, %AshApiSpec.Action{}, rpc_action, domain, resource_config}`
+  """
+  def get_rpc_resources_and_actions_with_context(otp_app, resource_lookup) do
     otp_app
     |> Ash.Info.domains()
     |> Enum.flat_map(fn domain ->
@@ -38,9 +67,10 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
 
       Enum.flat_map(rpc_config, fn resource_config ->
         %{resource: resource, rpc_actions: rpc_actions} = resource_config
+        api_resource = Map.fetch!(resource_lookup, resource)
 
         Enum.map(rpc_actions, fn rpc_action ->
-          action = Ash.Resource.Info.action(resource, rpc_action.action)
+          action = Map.fetch!(api_resource.actions, rpc_action.action)
           {resource, action, rpc_action, domain, resource_config}
         end)
       end)
@@ -75,8 +105,14 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   and values are lists of `{resource, action, rpc_action, domain, resource_config}` tuples.
   """
   def get_rpc_resources_by_namespace(otp_app) do
+    {:ok, api_spec} = AshApiSpec.Generator.generate(otp_app: otp_app)
+    resource_lookup = AshApiSpec.resource_lookup(api_spec)
+    get_rpc_resources_by_namespace(otp_app, resource_lookup)
+  end
+
+  def get_rpc_resources_by_namespace(otp_app, resource_lookup) do
     otp_app
-    |> get_rpc_resources_and_actions_with_context()
+    |> get_rpc_resources_and_actions_with_context(resource_lookup)
     |> Enum.group_by(fn {_resource, _action, rpc_action, domain, resource_config} ->
       resolve_namespace(domain, resource_config, rpc_action)
     end)
@@ -87,15 +123,17 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
 
   Returns a list of tuples: `{resource, action, typed_query}`
   """
-  def get_typed_queries(otp_app) do
+  def get_typed_queries(otp_app, resource_lookup) do
     otp_app
     |> Ash.Info.domains()
     |> Enum.flat_map(fn domain ->
       rpc_config = AshTypescript.Rpc.Info.typescript_rpc(domain)
 
       Enum.flat_map(rpc_config, fn %{resource: resource, typed_queries: typed_queries} ->
+        api_resource = Map.fetch!(resource_lookup, resource)
+
         Enum.map(typed_queries, fn typed_query ->
-          action = Ash.Resource.Info.action(resource, typed_query.action)
+          action = Map.fetch!(api_resource.actions, typed_query.action)
           {resource, action, typed_query}
         end)
       end)

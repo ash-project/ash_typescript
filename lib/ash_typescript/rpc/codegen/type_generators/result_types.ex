@@ -322,7 +322,17 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
 
           _ ->
             if action.returns do
-              return_type = get_ts_type(%{type: action.returns, constraints: action.constraints})
+              return_type =
+                case action.returns do
+                  %AshApiSpec.Type{} = type ->
+                    AshTypescript.Codegen.TypeMapper.map_type(type, [], :output)
+
+                  _ ->
+                    get_ts_type(%{
+                      type: action.returns,
+                      constraints: Map.get(action, :constraints, [])
+                    })
+                end
 
               """
               export type Infer#{rpc_action_name_pascal}Result = #{return_type};

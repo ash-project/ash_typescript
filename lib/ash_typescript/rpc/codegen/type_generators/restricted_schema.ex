@@ -19,7 +19,6 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   import AshTypescript.Helpers
 
   alias AshTypescript.Codegen.Helpers
-  alias AshTypescript.TypeSystem.Introspection
 
   @doc """
   Returns the schema reference and optional schema definition for an RPC action.
@@ -46,29 +45,67 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     allow_only = Map.get(rpc_action, :allowed_loads)
     deny = Map.get(rpc_action, :denied_loads)
 
-    cond do
-      not is_nil(deny) ->
-        schema_name = "#{rpc_action_name_pascal}Schema"
-        schema_def = generate_deny_schema(resource, deny, schema_name, base_schema)
-        {schema_def, schema_name}
+    if is_nil(deny) and is_nil(allow_only) do
+      {nil, base_schema}
+    else
+      {:ok, resource_lookup} =
+        AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
 
-      not is_nil(allow_only) ->
-        schema_name = "#{rpc_action_name_pascal}Schema"
-        schema_def = generate_allow_only_schema(resource, allow_only, schema_name, base_schema)
-        {schema_def, schema_name}
+      cond do
+        not is_nil(deny) ->
+          schema_name = "#{rpc_action_name_pascal}Schema"
 
-      true ->
-        {nil, base_schema}
+          schema_def =
+            generate_deny_schema(resource, deny, schema_name, base_schema, resource_lookup)
+
+          {schema_def, schema_name}
+
+        not is_nil(allow_only) ->
+          schema_name = "#{rpc_action_name_pascal}Schema"
+
+          schema_def =
+            generate_allow_only_schema(
+              resource,
+              allow_only,
+              schema_name,
+              base_schema,
+              resource_lookup
+            )
+
+          {schema_def, schema_name}
+      end
     end
   end
 
-  defp generate_deny_schema(resource, denied_loads, schema_name, base_schema) do
+  @doc """
+  Returns the TypeScript schema reference for an RPC action (without generating definition).
+
+  Useful when the schema definition is generated separately.
+  """
+  def get_schema_reference(resource, rpc_action, rpc_action_name_pascal) do
+    resource_name = Helpers.build_resource_type_name(resource)
+
+    if has_load_restrictions?(rpc_action) do
+      "#{rpc_action_name_pascal}Schema"
+    else
+      "#{resource_name}ResourceSchema"
+    end
+  end
+
+  defp generate_deny_schema(resource, denied_loads, schema_name, base_schema, resource_lookup) do
     {flat_denies, nested_denies} = partition_restrictions(denied_loads)
 
     if Enum.empty?(nested_denies) do
       generate_simple_deny_schema(flat_denies, schema_name, base_schema)
     else
-      generate_nested_deny_schema(resource, flat_denies, nested_denies, schema_name, base_schema)
+      generate_nested_deny_schema(
+        resource,
+        flat_denies,
+        nested_denies,
+        schema_name,
+        base_schema,
+        resource_lookup
+      )
     end
   end
 
@@ -85,12 +122,19 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
          flat_denies,
          nested_denies,
          schema_name,
-         base_schema
+         base_schema,
+         resource_lookup
        ) do
     {nested_schema_defs, field_overrides} =
       nested_denies
       |> Enum.map(fn {field_name, nested_fields} ->
-        process_nested_deny_field(resource, field_name, nested_fields, schema_name)
+        process_nested_deny_field(
+          resource,
+          field_name,
+          nested_fields,
+          schema_name,
+          resource_lookup
+        )
       end)
       |> Enum.unzip()
 
@@ -131,10 +175,22 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     end
   end
 
-  defp process_nested_deny_field(resource, field_name, nested_fields, schema_name) do
-    case resolve_field_info(resource, field_name) do
+  defp process_nested_deny_field(
+         resource,
+         field_name,
+         nested_fields,
+         schema_name,
+         resource_lookup
+       ) do
+    case resolve_field_info(resource, field_name, resource_lookup) do
       {:relationship, rel} ->
-        process_nested_deny_relationship(resource, rel, nested_fields, schema_name)
+        process_nested_deny_relationship(
+          resource,
+          rel,
+          nested_fields,
+          schema_name,
+          resource_lookup
+        )
 
       {:embedded, attr, embedded_resource} ->
         process_nested_deny_embedded(
@@ -142,53 +198,91 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
           attr,
           embedded_resource,
           nested_fields,
-          schema_name
+          schema_name,
+          resource_lookup
         )
 
       {:union, attr, union_types} ->
-        process_nested_deny_union(resource, attr, union_types, nested_fields, schema_name)
+        process_nested_deny_union(
+          resource,
+          attr,
+          union_types,
+          nested_fields,
+          schema_name,
+          resource_lookup
+        )
 
       :not_found ->
         {"", nil}
     end
   end
 
-  defp process_nested_deny_relationship(resource, rel, nested_fields, schema_name) do
+  defp process_nested_deny_relationship(
+         resource,
+         rel,
+         nested_fields,
+         schema_name,
+         resource_lookup
+       ) do
     nested_resource_name = Helpers.build_resource_type_name(rel.destination)
     nested_base = "#{nested_resource_name}ResourceSchema"
     nested_schema_name = "#{schema_name}#{snake_to_pascal_case(rel.name)}"
 
     nested_def =
-      generate_deny_schema(rel.destination, nested_fields, nested_schema_name, nested_base)
+      generate_deny_schema(
+        rel.destination,
+        nested_fields,
+        nested_schema_name,
+        nested_base,
+        resource_lookup
+      )
 
     override = generate_relationship_override(resource, rel, nested_schema_name)
 
     {nested_def, {rel.name, override}}
   end
 
-  defp process_nested_deny_embedded(resource, attr, embedded_resource, nested_fields, schema_name) do
+  defp process_nested_deny_embedded(
+         resource,
+         attr,
+         embedded_resource,
+         nested_fields,
+         schema_name,
+         resource_lookup
+       ) do
     nested_resource_name = Helpers.build_resource_type_name(embedded_resource)
     nested_base = "#{nested_resource_name}ResourceSchema"
     nested_schema_name = "#{schema_name}#{snake_to_pascal_case(attr.name)}"
 
     nested_def =
-      generate_deny_schema(embedded_resource, nested_fields, nested_schema_name, nested_base)
+      generate_deny_schema(
+        embedded_resource,
+        nested_fields,
+        nested_schema_name,
+        nested_base,
+        resource_lookup
+      )
 
     override = generate_embedded_override(resource, attr, nested_schema_name)
 
     {nested_def, {attr.name, override}}
   end
 
-  defp process_nested_deny_union(resource, attr, union_types, nested_fields, schema_name) do
+  defp process_nested_deny_union(
+         resource,
+         attr,
+         union_types,
+         nested_fields,
+         schema_name,
+         resource_lookup
+       ) do
     {member_schema_defs, member_overrides} =
       union_types
       |> Enum.map(fn {member_name, member_config} ->
         member_type = Keyword.get(member_config, :type)
         inner_type = unwrap_array_type(member_type)
 
-        if is_atom(inner_type) and
-             (Introspection.is_embedded_resource?(inner_type) or
-                Ash.Resource.Info.resource?(inner_type)) do
+        if is_atom(inner_type) and Map.has_key?(resource_lookup, inner_type) do
           nested_resource_name = Helpers.build_resource_type_name(inner_type)
           nested_base = "#{nested_resource_name}ResourceSchema"
 
@@ -196,7 +290,13 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
             "#{schema_name}#{snake_to_pascal_case(attr.name)}#{snake_to_pascal_case(member_name)}"
 
           nested_def =
-            generate_deny_schema(inner_type, nested_fields, member_schema_name, nested_base)
+            generate_deny_schema(
+              inner_type,
+              nested_fields,
+              member_schema_name,
+              nested_base,
+              resource_lookup
+            )
 
           {nested_def, {member_name, member_schema_name, member_type}}
         else
@@ -216,9 +316,15 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     end
   end
 
-  defp generate_allow_only_schema(resource, allowed_loads, schema_name, base_schema) do
+  defp generate_allow_only_schema(
+         resource,
+         allowed_loads,
+         schema_name,
+         base_schema,
+         resource_lookup
+       ) do
     {flat_allows, nested_allows} = partition_restrictions(allowed_loads)
-    all_loadable_fields = get_loadable_field_names(resource)
+    all_loadable_fields = get_loadable_field_names(resource, resource_lookup)
 
     if Enum.empty?(nested_allows) and Enum.empty?(flat_allows) do
       generate_simple_deny_schema(all_loadable_fields, schema_name, base_schema)
@@ -229,7 +335,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
         nested_allows,
         all_loadable_fields,
         schema_name,
-        base_schema
+        base_schema,
+        resource_lookup
       )
     end
   end
@@ -240,14 +347,21 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
          nested_allows,
          all_loadable_fields,
          schema_name,
-         base_schema
+         base_schema,
+         resource_lookup
        ) do
     nested_field_names = Enum.map(nested_allows, fn {field_name, _} -> field_name end)
 
     {nested_schema_defs, nested_overrides} =
       nested_allows
       |> Enum.map(fn {field_name, allowed_nested_fields} ->
-        process_nested_allow_field(resource, field_name, allowed_nested_fields, schema_name)
+        process_nested_allow_field(
+          resource,
+          field_name,
+          allowed_nested_fields,
+          schema_name,
+          resource_lookup
+        )
       end)
       |> Enum.unzip()
 
@@ -255,7 +369,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     flat_overrides =
       flat_allows
       |> Enum.map(fn field_name ->
-        process_flat_allow_field(resource, field_name)
+        process_flat_allow_field(resource, field_name, resource_lookup)
       end)
       |> Enum.reject(&is_nil/1)
 
@@ -286,8 +400,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     end
   end
 
-  defp process_flat_allow_field(resource, field_name) do
-    case resolve_field_info(resource, field_name) do
+  defp process_flat_allow_field(resource, field_name, resource_lookup) do
+    case resolve_field_info(resource, field_name, resource_lookup) do
       {:relationship, rel} ->
         generate_attributes_only_relationship_override(resource, rel)
 
@@ -295,7 +409,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
         generate_attributes_only_embedded_override(resource, attr, embedded_resource)
 
       {:union, attr, union_types} ->
-        generate_attributes_only_union_override(resource, attr, union_types)
+        generate_attributes_only_union_override(resource, attr, union_types, resource_lookup)
 
       :not_found ->
         nil
@@ -332,11 +446,10 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     {rel.name, "#{formatted_name}: #{metadata}"}
   end
 
-  defp generate_attributes_only_embedded_override(resource, attr, _embedded_resource) do
+  defp generate_attributes_only_embedded_override(resource, attr, embedded_resource) do
     formatted_name = format_client_field_name(resource, attr.name)
-    inner_type = unwrap_array_type(attr.type)
-    embedded_name = Helpers.build_resource_type_name(inner_type)
-    is_array = match?({:array, _}, attr.type)
+    embedded_name = Helpers.build_resource_type_name(embedded_resource)
+    is_array = api_field_is_array?(attr)
 
     resource_type =
       if Map.get(attr, :allow_nil?, true) do
@@ -355,9 +468,9 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     {attr.name, "#{formatted_name}: #{metadata}"}
   end
 
-  defp generate_attributes_only_union_override(resource, attr, union_types) do
+  defp generate_attributes_only_union_override(resource, attr, union_types, resource_lookup) do
     formatted_name = format_client_field_name(resource, attr.name)
-    is_array = match?({:array, _}, attr.type)
+    is_array = api_field_is_array?(attr)
 
     member_type_strs =
       union_types
@@ -365,9 +478,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
         member_type = Keyword.get(member_config, :type)
         inner_type = unwrap_array_type(member_type)
 
-        if is_atom(inner_type) and
-             (Introspection.is_embedded_resource?(inner_type) or
-                Ash.Resource.Info.resource?(inner_type)) do
+        if is_atom(inner_type) and Map.has_key?(resource_lookup, inner_type) do
           resource_name = Helpers.build_resource_type_name(inner_type)
           formatted_member = format_output_field(member_name)
           member_is_array = match?({:array, _}, member_type)
@@ -399,10 +510,22 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     end
   end
 
-  defp process_nested_allow_field(resource, field_name, allowed_nested_fields, schema_name) do
-    case resolve_field_info(resource, field_name) do
+  defp process_nested_allow_field(
+         resource,
+         field_name,
+         allowed_nested_fields,
+         schema_name,
+         resource_lookup
+       ) do
+    case resolve_field_info(resource, field_name, resource_lookup) do
       {:relationship, rel} ->
-        process_nested_allow_relationship(resource, rel, allowed_nested_fields, schema_name)
+        process_nested_allow_relationship(
+          resource,
+          rel,
+          allowed_nested_fields,
+          schema_name,
+          resource_lookup
+        )
 
       {:embedded, attr, embedded_resource} ->
         process_nested_allow_embedded(
@@ -410,7 +533,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
           attr,
           embedded_resource,
           allowed_nested_fields,
-          schema_name
+          schema_name,
+          resource_lookup
         )
 
       {:union, attr, union_types} ->
@@ -419,7 +543,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
           attr,
           union_types,
           allowed_nested_fields,
-          schema_name
+          schema_name,
+          resource_lookup
         )
 
       :not_found ->
@@ -427,7 +552,13 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     end
   end
 
-  defp process_nested_allow_relationship(resource, rel, allowed_nested_fields, schema_name) do
+  defp process_nested_allow_relationship(
+         resource,
+         rel,
+         allowed_nested_fields,
+         schema_name,
+         resource_lookup
+       ) do
     nested_resource_name = Helpers.build_resource_type_name(rel.destination)
     nested_base = "#{nested_resource_name}ResourceSchema"
     nested_schema_name = "#{schema_name}#{snake_to_pascal_case(rel.name)}"
@@ -437,7 +568,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
         rel.destination,
         allowed_nested_fields,
         nested_schema_name,
-        nested_base
+        nested_base,
+        resource_lookup
       )
 
     override = generate_relationship_override(resource, rel, nested_schema_name)
@@ -450,7 +582,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
          attr,
          embedded_resource,
          allowed_nested_fields,
-         schema_name
+         schema_name,
+         resource_lookup
        ) do
     nested_resource_name = Helpers.build_resource_type_name(embedded_resource)
     nested_base = "#{nested_resource_name}ResourceSchema"
@@ -461,7 +594,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
         embedded_resource,
         allowed_nested_fields,
         nested_schema_name,
-        nested_base
+        nested_base,
+        resource_lookup
       )
 
     override = generate_embedded_override(resource, attr, nested_schema_name)
@@ -469,16 +603,21 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     {nested_def, {attr.name, override}}
   end
 
-  defp process_nested_allow_union(resource, attr, union_types, allowed_nested_fields, schema_name) do
+  defp process_nested_allow_union(
+         resource,
+         attr,
+         union_types,
+         allowed_nested_fields,
+         schema_name,
+         resource_lookup
+       ) do
     {member_schema_defs, member_overrides} =
       union_types
       |> Enum.map(fn {member_name, member_config} ->
         member_type = Keyword.get(member_config, :type)
         inner_type = unwrap_array_type(member_type)
 
-        if is_atom(inner_type) and
-             (Introspection.is_embedded_resource?(inner_type) or
-                Ash.Resource.Info.resource?(inner_type)) do
+        if is_atom(inner_type) and Map.has_key?(resource_lookup, inner_type) do
           nested_resource_name = Helpers.build_resource_type_name(inner_type)
           nested_base = "#{nested_resource_name}ResourceSchema"
 
@@ -490,7 +629,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
               inner_type,
               allowed_nested_fields,
               member_schema_name,
-              nested_base
+              nested_base,
+              resource_lookup
             )
 
           {nested_def, {member_name, member_schema_name, member_type}}
@@ -511,71 +651,50 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     end
   end
 
-  defp resolve_field_info(resource, field_name) do
-    rel = Ash.Resource.Info.relationship(resource, field_name)
+  defp resolve_field_info(resource, field_name, resource_lookup) do
+    api_resource = Map.fetch!(resource_lookup, resource)
+    rel = AshApiSpec.Resource.get_relationship(api_resource, field_name)
 
     if rel do
       {:relationship, rel}
     else
-      attr = Ash.Resource.Info.attribute(resource, field_name)
+      field = AshApiSpec.Resource.get_field(api_resource, field_name)
 
-      if attr do
-        resolve_attribute_info(attr)
+      if field do
+        resolve_field_type_info(field)
       else
-        calc = Ash.Resource.Info.calculation(resource, field_name)
-
-        if calc do
-          resolve_calculation_info(calc)
-        else
-          :not_found
-        end
+        :not_found
       end
     end
   end
 
-  defp resolve_attribute_info(attr) do
-    inner_type = unwrap_array_type(attr.type)
+  defp resolve_field_type_info(%AshApiSpec.Field{} = field) do
+    api_type = resolve_inner_api_type(field.type)
 
     cond do
-      is_atom(inner_type) and Introspection.is_embedded_resource?(inner_type) ->
-        {:embedded, attr, inner_type}
+      api_type.kind in [:embedded_resource, :resource] ->
+        {:embedded, field, api_type.resource_module}
 
-      inner_type == Ash.Type.Union ->
-        union_types = get_union_types(attr)
-        {:union, attr, union_types}
+      api_type.kind == :union ->
+        union_types = Keyword.get(api_type.constraints || [], :types, [])
+        {:union, field, union_types}
 
       true ->
         :not_found
     end
   end
 
-  defp resolve_calculation_info(calc) do
-    inner_type = unwrap_array_type(calc.type)
+  # Unwraps :array types to get the inner AshApiSpec.Type, otherwise returns the type as-is.
+  defp resolve_inner_api_type(%AshApiSpec.Type{kind: :array, item_type: item_type}),
+    do: item_type
 
-    cond do
-      is_atom(inner_type) and Introspection.is_embedded_resource?(inner_type) ->
-        {:embedded, calc, inner_type}
+  defp resolve_inner_api_type(%AshApiSpec.Type{} = type), do: type
 
-      inner_type == Ash.Type.Union ->
-        union_types = get_union_types_from_calc(calc)
-        {:union, calc, union_types}
+  # Checks if an AshApiSpec.Field has an array type.
+  defp api_field_is_array?(%AshApiSpec.Field{type: %AshApiSpec.Type{kind: :array}}), do: true
+  defp api_field_is_array?(%AshApiSpec.Field{}), do: false
 
-      is_atom(inner_type) and Ash.Resource.Info.resource?(inner_type) ->
-        {:embedded, calc, inner_type}
-
-      true ->
-        :not_found
-    end
-  end
-
-  defp get_union_types(attr) do
-    Introspection.get_union_types_from_constraints(attr.type, attr.constraints)
-  end
-
-  defp get_union_types_from_calc(calc) do
-    Introspection.get_union_types_from_constraints(calc.type, calc.constraints)
-  end
-
+  # Unwraps raw Ash array types (used for union member type processing).
   defp unwrap_array_type({:array, inner}), do: inner
   defp unwrap_array_type(type), do: type
 
@@ -610,7 +729,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
 
   defp generate_embedded_override(resource, attr, nested_schema_name) do
     formatted_name = format_client_field_name(resource, attr.name)
-    is_array = match?({:array, _}, attr.type)
+    is_array = api_field_is_array?(attr)
 
     resource_type =
       if is_array do
@@ -635,7 +754,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
 
   defp generate_union_override(resource, attr, union_types, member_overrides) do
     formatted_name = format_client_field_name(resource, attr.name)
-    is_array = match?({:array, _}, attr.type)
+    is_array = api_field_is_array?(attr)
 
     member_type_strs =
       union_types
@@ -695,20 +814,22 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     {flat, nested}
   end
 
-  defp get_loadable_field_names(resource) do
+  defp get_loadable_field_names(resource, resource_lookup) do
+    api_resource = Map.fetch!(resource_lookup, resource)
+
     relationships =
-      resource
-      |> Ash.Resource.Info.public_relationships()
+      api_resource
+      |> AshApiSpec.Resource.all_relationships()
       |> Enum.map(& &1.name)
 
     calculations =
-      resource
-      |> Ash.Resource.Info.public_calculations()
+      api_resource
+      |> AshApiSpec.Resource.fields_by_kind(:calculation)
       |> Enum.map(& &1.name)
 
     aggregates =
-      resource
-      |> Ash.Resource.Info.public_aggregates()
+      api_resource
+      |> AshApiSpec.Resource.fields_by_kind(:aggregate)
       |> Enum.map(& &1.name)
 
     relationships ++ calculations ++ aggregates

@@ -6,7 +6,6 @@ defmodule AshTypescript.Rpc.Codegen do
   @moduledoc """
   Generates TypeScript code for interacting with Ash resources via Rpc.
   """
-  import AshTypescript.Codegen
   import AshTypescript.Helpers, only: [format_output_field: 1]
 
   alias AshTypescript.Codegen.{FilterTypes, ResourceSchemas, TypeAliases, TypeDiscovery}
@@ -90,14 +89,35 @@ defmodule AshTypescript.Rpc.Codegen do
       Keyword.get(opts, :rpc_validation_channel_hook_context_type) ||
         AshTypescript.rpc_validation_channel_hook_context_type()
 
-    resources_and_actions = RpcConfigCollector.get_rpc_resources_and_actions(otp_app)
-
+    # All resources listed in typescript_rpc blocks (including those without rpc_actions)
     rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
     domains = Ash.Info.domains(otp_app)
 
-    # Generate AshApiSpec and build resource lookup map for codegen fast path
-    {:ok, api_spec} = AshApiSpec.Generator.generate(otp_app: otp_app)
-    resource_lookup = Map.new(api_spec.resources, fn r -> {r.module, r} end)
+    # Build action filter tuples from DSL config (before spec exists)
+    action_tuples_from_rpc = RpcConfigCollector.get_rpc_action_tuples(otp_app)
+
+    # Ensure all typescript_rpc resources are roots (even those without rpc_actions)
+    resources_with_actions =
+      action_tuples_from_rpc |> Enum.map(fn {r, _} -> r end) |> MapSet.new()
+
+    extra_root_tuples =
+      rpc_resources
+      |> Enum.reject(&MapSet.member?(resources_with_actions, &1))
+      |> Enum.map(&{&1, :__reachability_root__})
+
+    all_action_tuples = action_tuples_from_rpc ++ extra_root_tuples
+
+    # Run reachability once for depth-first ordering (needed by Zod schema generation)
+    {reachable_resources, _} =
+      AshApiSpec.Generator.Reachability.find_reachable(rpc_resources)
+
+    # Generate AshApiSpec with action-scoped reachability
+    {:ok, api_spec} = AshApiSpec.Generator.generate(otp_app: otp_app, actions: all_action_tuples)
+    resource_lookup = AshApiSpec.resource_lookup(api_spec)
+
+    # Now resolve RPC actions from the spec (returns %AshApiSpec.Action{} structs)
+    resources_and_actions =
+      RpcConfigCollector.get_rpc_resources_and_actions(otp_app, resource_lookup)
 
     hook_config = %{
       rpc_action_before_request_hook: rpc_action_before_request_hook,
@@ -116,7 +136,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     case AshTypescript.VerifierChecker.check_all_verifiers(rpc_resources ++ domains) do
       :ok ->
-        case TypeDiscovery.build_rpc_warnings(otp_app) do
+        case TypeDiscovery.build_rpc_warnings(otp_app, resource_lookup, rpc_resources) do
           nil -> :ok
           message -> IO.warn(message)
         end
@@ -128,7 +148,8 @@ defmodule AshTypescript.Rpc.Codegen do
             endpoint_validate,
             hook_config,
             otp_app,
-            resource_lookup
+            resource_lookup,
+            reachable_resources
           )
         else
           {:ok,
@@ -138,7 +159,8 @@ defmodule AshTypescript.Rpc.Codegen do
              endpoint_validate,
              hook_config,
              otp_app,
-             resource_lookup
+             resource_lookup,
+             reachable_resources
            )}
         end
 
@@ -153,7 +175,8 @@ defmodule AshTypescript.Rpc.Codegen do
          endpoint_validate,
          hook_config,
          otp_app,
-         resource_lookup
+         resource_lookup,
+         reachable_resources
        ) do
     # Generate main file with ALL actions (namespaced and non-namespaced)
     main_content =
@@ -163,11 +186,12 @@ defmodule AshTypescript.Rpc.Codegen do
         endpoint_validate,
         hook_config,
         otp_app,
-        resource_lookup
+        resource_lookup,
+        reachable_resources
       )
 
     # Group actions by namespace for re-export files
-    grouped = RpcConfigCollector.get_rpc_resources_by_namespace(otp_app)
+    grouped = RpcConfigCollector.get_rpc_resources_by_namespace(otp_app, resource_lookup)
 
     # Generate namespace files (simple re-exports from main file)
     namespace_files =
@@ -326,73 +350,25 @@ defmodule AshTypescript.Rpc.Codegen do
          endpoint_validate,
          hook_config,
          otp_app,
-         resource_lookup
+         resource_lookup,
+         reachable_resources
        ) do
-    rpc_resources =
-      otp_app
-      |> Ash.Info.domains()
-      |> Enum.flat_map(fn domain ->
-        AshTypescript.Rpc.Info.typescript_rpc(domain)
-        |> Enum.map(fn %{resource: r} -> r end)
-      end)
-      |> Enum.uniq()
+    # All RPC resources (including those without rpc_actions) from typescript_rpc blocks
+    rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
 
-    action.type == :read and
-      not is_get_action and
-      ActionIntrospection.action_supports_pagination?(action) and
-      not ActionIntrospection.action_requires_pagination?(action)
-  end
+    actions = Enum.map(rpc_resources_and_actions, fn {_, action, _} -> action end)
 
-  @doc """
-  Generates RPC-specific TypeScript content for the multi-file architecture.
+    typed_queries = RpcConfigCollector.get_typed_queries(otp_app, resource_lookup)
 
-  Contains hook types, helper functions, typed queries, and RPC functions.
-  Types are imported from ash_types.ts via `export type * from` re-export
-  and a local `import type` for types actually referenced in the body.
+    # Embedded resources in depth-first order (dependencies before dependents, required by Zod)
+    embedded_resources =
+      Enum.filter(
+        reachable_resources,
+        &Ash.Resource.Info.embedded?/1
+      )
 
-  ## Parameters
-
-    * `resources_and_actions` - List of `{resource, action, rpc_action}` tuples
-    * `opts` - Hook configuration options (endpoint overrides, lifecycle hooks)
-    * `codegen_opts` - Additional codegen options:
-      * `:import_paths` - `%{types: path}` for import resolution
-      * `:otp_app` - The OTP application name
-      * `:all_resources` - All resources for typed query generation
-      * `:shared_type_names` - List of type names exported by ash_types.ts (for local import)
-  """
-  def generate_rpc_content(resources_and_actions, opts, codegen_opts) do
-    endpoint_process =
-      Keyword.get(opts, :run_endpoint, "/rpc/run")
-      |> format_endpoint_for_typescript()
-
-    endpoint_validate =
-      Keyword.get(opts, :validate_endpoint, "/rpc/validate")
-      |> format_endpoint_for_typescript()
-
-    hook_config = build_hook_config(opts)
-    import_paths = Keyword.fetch!(codegen_opts, :import_paths)
-    otp_app = Keyword.fetch!(codegen_opts, :otp_app)
-    all_resources = Keyword.fetch!(codegen_opts, :all_resources)
-    shared_type_names = Keyword.get(codegen_opts, :shared_type_names, [])
-    typed_queries = RpcConfigCollector.get_typed_queries(otp_app)
-
-    body =
-      [
-        TypescriptStatic.generate_hook_context_types(hook_config),
-        TypescriptStatic.generate_helper_functions(
-          hook_config,
-          endpoint_process,
-          endpoint_validate
-        ),
-        TypedQueries.generate_typed_queries_section(
-          typed_queries,
-          resources_and_actions,
-          all_resources
-        ),
-        generate_rpc_functions_no_zod(resources_and_actions)
-      ]
-      |> Enum.reject(&(&1 == ""))
-      |> Enum.join("\n\n")
+    struct_argument_resources =
+      find_struct_argument_resources_from_actions(rpc_resources_and_actions)
 
     shared_imports =
       AshTypescript.Codegen.ImportResolver.build_shared_type_imports(
@@ -588,6 +564,26 @@ defmodule AshTypescript.Rpc.Codegen do
           AshTypescript.rpc_validation_channel_hook_context_type()
     }
   end
+
+  # Finds resources used as struct/embedded arguments in the given RPC actions.
+  # These resources need InputSchema generation regardless of whether they're also RPC resources.
+  defp find_struct_argument_resources_from_actions(resources_and_actions) do
+    resources_and_actions
+    |> Enum.flat_map(fn {_resource, action, _rpc_action} ->
+      action.arguments
+      |> Enum.flat_map(&find_struct_resources_in_spec_type(&1.type))
+    end)
+    |> Enum.uniq()
+  end
+
+  defp find_struct_resources_in_spec_type(%AshApiSpec.Type{kind: kind, resource_module: mod})
+       when kind in [:resource, :embedded_resource] and not is_nil(mod),
+       do: [mod]
+
+  defp find_struct_resources_in_spec_type(%AshApiSpec.Type{kind: :array, item_type: item_type}),
+    do: find_struct_resources_in_spec_type(item_type)
+
+  defp find_struct_resources_in_spec_type(_), do: []
 
   # Augments the action with RPC-level settings (get?, get_by)
   # This allows TypeScript generators to see the full picture of what the action does

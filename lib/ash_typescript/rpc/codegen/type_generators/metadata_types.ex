@@ -92,11 +92,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes do
 
       metadata_field_defs =
         Enum.map(metadata_fields_to_include, fn metadata_field ->
-          ts_type =
-            get_ts_type(%{
-              type: metadata_field.type,
-              constraints: metadata_field.constraints || []
-            })
+          ts_type = get_ts_type(metadata_field)
 
           optional = Map.get(metadata_field, :allow_nil?, true)
 

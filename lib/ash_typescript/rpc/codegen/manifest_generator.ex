@@ -27,11 +27,15 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
   The manifest respects the following configuration:
   - `add_ash_internals_to_manifest` - When true, includes Elixir module paths and internal action names
   """
-  def generate_manifest(otp_app) do
+  def generate_manifest(otp_app, resource_lookup \\ nil) do
     include_internals? = AshTypescript.Rpc.add_ash_internals_to_manifest?()
 
+    resource_lookup = resource_lookup || build_resource_lookup(otp_app)
+
     # Get namespaced actions to determine if we should group by namespace
-    namespaced_actions = RpcConfigCollector.get_rpc_resources_by_namespace(otp_app)
+    namespaced_actions =
+      RpcConfigCollector.get_rpc_resources_by_namespace(otp_app, resource_lookup)
+
     has_namespaces? = has_meaningful_namespaces?(namespaced_actions)
 
     date = Date.utc_today() |> Date.to_string()
@@ -181,6 +185,8 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
          include_internals?
        ) do
     resource_name = resource_short_name(resource)
+    resource_lookup = build_resource_lookup(Mix.Project.config()[:app])
+    api_resource = Map.fetch!(resource_lookup, resource)
 
     sorted_actions =
       rpc_actions
@@ -192,6 +198,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
 
     actions_table =
       generate_actions_table(
+        api_resource,
         resource,
         sorted_actions,
         domain,
@@ -210,7 +217,14 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     |> String.trim_trailing()
   end
 
-  defp generate_actions_table(resource, rpc_actions, domain, resource_config, include_internals?) do
+  defp generate_actions_table(
+         api_resource,
+         resource,
+         rpc_actions,
+         domain,
+         resource_config,
+         include_internals?
+       ) do
     show_validation = AshTypescript.Rpc.generate_validation_functions?()
     show_zod = AshTypescript.Rpc.generate_zod_schemas?()
     show_channel = AshTypescript.Rpc.generate_phx_channel_rpc_actions?()
@@ -221,7 +235,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     rows =
       rpc_actions
       |> Enum.map_join("\n", fn rpc_action ->
-        action = Ash.Resource.Info.action(resource, rpc_action.action)
+        action = Map.get(api_resource.actions, rpc_action.action)
         namespace = RpcConfigCollector.resolve_namespace(domain, resource_config, rpc_action)
 
         build_row(
@@ -239,7 +253,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     details =
       rpc_actions
       |> Enum.map(fn rpc_action ->
-        action = Ash.Resource.Info.action(resource, rpc_action.action)
+        action = Map.get(api_resource.actions, rpc_action.action)
         namespace = RpcConfigCollector.resolve_namespace(domain, resource_config, rpc_action)
         build_action_details(resource, action, rpc_action, namespace, include_internals?)
       end)
@@ -466,106 +480,8 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     |> List.last()
   end
 
-  defp generate_typed_controller_manifest_section do
-    routes_config =
-      AshTypescript.TypedController.Codegen.RouteConfigCollector.get_typed_controllers()
-
-    if routes_config == [] do
-      ""
-    else
-      router = AshTypescript.router()
-
-      route_infos =
-        AshTypescript.TypedController.Codegen.resolve_route_infos(router, routes_config)
-
-      show_zod = AshTypescript.Rpc.generate_zod_schemas?()
-
-      headers = build_tc_headers(show_zod)
-      separator = build_tc_separator(show_zod)
-
-      sorted_infos =
-        Enum.sort_by(route_infos, fn info ->
-          {info.scope_prefix || "", info.route.name}
-        end)
-
-      rows =
-        sorted_infos
-        |> Enum.map_join("\n", fn info -> build_tc_row(info, show_zod) end)
-
-      """
-
-      ## Typed Controller Routes
-
-      #{headers}
-      #{separator}
-      #{rows}
-      """
-      |> String.trim_trailing()
-    end
-  end
-
-  defp build_tc_headers(show_zod) do
-    base = "| Method | Path | Function | Input Type |"
-    if show_zod, do: base <> " Zod Schema |", else: base
-  end
-
-  defp build_tc_separator(show_zod) do
-    base = "|--------|------|----------|------------|"
-    if show_zod, do: base <> "------------|", else: base
-  end
-
-  defp build_tc_row(info, show_zod) do
-    method = info.method |> to_string() |> String.upcase()
-    path = info.path || ""
-
-    function_name =
-      if info.method in @tc_mutation_methods and
-           AshTypescript.typed_controller_mode() == :full do
-        case info.scope_prefix do
-          nil -> Helpers.format_output_field(info.route.name)
-          prefix -> Helpers.format_output_field(:"#{prefix}_#{info.route.name}")
-        end
-      else
-        case info.scope_prefix do
-          nil -> Helpers.format_output_field(:"#{info.route.name}_path")
-          prefix -> Helpers.format_output_field(:"#{prefix}_#{info.route.name}_path")
-        end
-      end
-
-    path_param_set = MapSet.new(info.path_params)
-
-    input_args =
-      info.route.arguments
-      |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
-
-    input_type =
-      if info.method in @tc_mutation_methods and input_args != [] do
-        case info.scope_prefix do
-          nil -> Macro.camelize("#{info.route.name}_input")
-          prefix -> Macro.camelize("#{prefix}_#{info.route.name}_input")
-        end
-      else
-        "-"
-      end
-
-    base = "| #{method} | #{path} | `#{function_name}` | #{input_type} |"
-
-    if show_zod do
-      suffix = AshTypescript.Rpc.zod_schema_suffix()
-
-      zod_name =
-        if info.method in @tc_mutation_methods and input_args != [] do
-          case info.scope_prefix do
-            nil -> "`#{Helpers.format_output_field(:"#{info.route.name}#{suffix}")}`"
-            prefix -> "`#{Helpers.format_output_field(:"#{prefix}_#{info.route.name}#{suffix}")}`"
-          end
-        else
-          "-"
-        end
-
-      base <> " #{zod_name} |"
-    else
-      base
-    end
+  defp build_resource_lookup(otp_app) do
+    {:ok, api_spec} = AshApiSpec.Generator.generate(otp_app: otp_app)
+    AshApiSpec.resource_lookup(api_spec)
   end
 end

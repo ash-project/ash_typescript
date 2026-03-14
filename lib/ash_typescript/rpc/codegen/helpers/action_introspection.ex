@@ -104,32 +104,68 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   This is based on the action's public arguments and accepted attributes.
   """
   def action_input_type(resource, action) do
-    public_arguments = Enum.filter(action.arguments, & &1.public?)
+    arguments = action.arguments
 
-    accepted_attributes =
-      (Map.get(action, :accept) || [])
-      |> Enum.map(&Ash.Resource.Info.attribute(resource, &1))
-      |> Enum.reject(&is_nil/1)
+    # Get accepted attributes from the spec's fields
+    accepted_fields = get_accepted_fields(resource, action)
 
-    inputs = public_arguments ++ accepted_attributes
+    inputs = arguments ++ accepted_fields
 
     cond do
       Enum.empty?(inputs) ->
         :none
 
-      Enum.any?(inputs, fn
-        %Ash.Resource.Actions.Argument{} = input ->
-          not input.allow_nil? and is_nil(input.default)
-
-        %Ash.Resource.Attribute{} = input ->
-          input.name not in Map.get(action, :allow_nil_input, []) and
-              (input.name in Map.get(action, :require_attributes, []) ||
-                 (not input.allow_nil? and is_nil(input.default)))
-      end) ->
+      Enum.any?(inputs, &input_is_required?(&1, action)) ->
         :required
 
       true ->
         :optional
+    end
+  end
+
+  defp input_is_required?(%AshApiSpec.Argument{} = arg, _action) do
+    not arg.allow_nil? and not arg.has_default?
+  end
+
+  defp input_is_required?(%AshApiSpec.Field{} = field, action) do
+    field.name not in (action.allow_nil_input || []) and
+      (field.name in (action.require_attributes || []) ||
+         (not field.allow_nil? and not field.has_default?))
+  end
+
+  # Fallback for raw Ash structs (used in tests or legacy paths)
+  defp input_is_required?(%{allow_nil?: allow_nil?} = input, action) do
+    has_default? = Map.get(input, :has_default?, is_nil(Map.get(input, :default)))
+
+    if match?(%{name: _}, input) and Map.has_key?(action, :allow_nil_input) do
+      input.name not in (action.allow_nil_input || []) and
+        (input.name in (Map.get(action, :require_attributes) || []) ||
+           (not allow_nil? and not has_default?))
+    else
+      not allow_nil? and not has_default?
+    end
+  end
+
+  defp get_accepted_fields(resource, action) do
+    case Map.get(action, :accept) || [] do
+      [] ->
+        []
+
+      accept_list ->
+        # Look up from spec if available, fall back to Ash introspection
+        otp_app = Mix.Project.config()[:app]
+        {:ok, api_spec} = AshApiSpec.Generator.generate(otp_app: otp_app)
+        resource_lookup = AshApiSpec.resource_lookup(api_spec)
+
+        case Map.get(resource_lookup, resource) do
+          %AshApiSpec.Resource{} = api_resource ->
+            accept_list
+            |> Enum.map(&Map.get(api_resource.fields, &1))
+            |> Enum.reject(&is_nil/1)
+
+          nil ->
+            []
+        end
     end
   end
 
@@ -195,12 +231,21 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
 
   defp unwrap_return_type(action) do
     case action.returns do
+      # AshApiSpec.Type with array kind
+      %AshApiSpec.Type{kind: :array, item_type: item_type} ->
+        {item_type, [], true}
+
+      # AshApiSpec.Type (non-array)
+      %AshApiSpec.Type{} = type ->
+        {type, [], false}
+
+      # Legacy: raw Ash type tuple
       {:array, inner_type} ->
-        inner_constraints = Keyword.get(action.constraints || [], :items, [])
+        inner_constraints = Keyword.get(Map.get(action, :constraints) || [], :items, [])
         {inner_type, inner_constraints, true}
 
       type ->
-        {type, action.constraints || [], false}
+        {type, Map.get(action, :constraints) || [], false}
     end
   end
 
@@ -210,6 +255,47 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
           | {:typed_struct, {module(), keyword()}}
           | :unconstrained_map
           | {:error, atom()}
+  # AshApiSpec.Type classification
+  defp classify_return_type(%AshApiSpec.Type{kind: kind, resource_module: mod}, _constraints)
+       when kind in [:resource, :embedded_resource] and not is_nil(mod) do
+    {:resource, mod}
+  end
+
+  defp classify_return_type(
+         %AshApiSpec.Type{kind: :struct, fields: fields, instance_of: inst},
+         _constraints
+       )
+       when is_list(fields) and fields != [] and not is_nil(inst) do
+    {:typed_struct, {inst, fields}}
+  end
+
+  defp classify_return_type(%AshApiSpec.Type{kind: kind} = type_info, _constraints)
+       when kind in [:map, :keyword, :tuple] do
+    # Check fields from the spec struct, then fall back to constraints[:fields]
+    fields =
+      cond do
+        is_list(type_info.fields) and type_info.fields != [] ->
+          type_info.fields
+
+        is_list(type_info.element_types) and type_info.element_types != [] ->
+          type_info.element_types
+
+        true ->
+          Keyword.get(type_info.constraints || [], :fields)
+      end
+
+    if fields do
+      {:typed_map, fields}
+    else
+      :unconstrained_map
+    end
+  end
+
+  defp classify_return_type(%AshApiSpec.Type{}, _constraints) do
+    {:error, :not_field_selectable_type}
+  end
+
+  # Legacy raw Ash type classification
   defp classify_return_type(type, constraints) do
     cond do
       type == Ash.Type.Struct and Keyword.has_key?(constraints, :instance_of) ->
@@ -224,7 +310,6 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
       type in @field_constrained_types ->
         :unconstrained_map
 
-      # TypedStruct pattern - requires both fields and instance_of constraints
       is_atom(type) and has_field_constraints?(constraints) ->
         fields = Keyword.get(constraints, :fields, [])
         {:typed_struct, {type, fields}}

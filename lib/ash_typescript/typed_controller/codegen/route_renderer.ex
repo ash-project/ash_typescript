@@ -262,7 +262,8 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     route
     |> non_path_args(path_params)
     |> Enum.map(fn arg ->
-      optional = arg.allow_nil? || arg.default != nil
+      has_default = Map.get(arg, :has_default?, not is_nil(Map.get(arg, :default)))
+      optional = arg.allow_nil? || has_default
       ts_type = get_ts_input_type(%{type: arg.type, constraints: arg.constraints || []})
       {format_output_field(arg.name), ts_type, optional}
     end)

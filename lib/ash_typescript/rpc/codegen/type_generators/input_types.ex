@@ -15,6 +15,17 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
 
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
+  # Filters to public arguments only. Spec arguments are already public-only;
+  # raw Ash arguments (from tests) need filtering on .public? field.
+  defp filter_public_arguments(arguments) do
+    Enum.filter(arguments, &Map.get(&1, :public?, true))
+  end
+
+  # Works with both spec structs (has_default? field) and raw Ash structs (default field)
+  defp has_default?(%{has_default?: val}), do: val
+  defp has_default?(%{default: val}), do: not is_nil(val)
+  defp has_default?(_), do: false
+
   @doc """
   Generates the TypeScript input type for an RPC action.
 
@@ -36,14 +47,17 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
     if action_input_type != :none do
       input_type_name = "#{snake_to_pascal_case(rpc_action_name)}Input"
 
+      {:ok, resource_lookup} =
+        AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+
       input_field_defs =
         case action.type do
           :read ->
-            arguments = Enum.filter(action.arguments, & &1.public?)
+            arguments = filter_public_arguments(action.arguments)
 
             if arguments != [] do
               Enum.map(arguments, fn arg ->
-                optional = arg.allow_nil? || arg.default != nil
+                optional = arg.allow_nil? || has_default?(arg)
 
                 formatted_arg_name =
                   format_argument_name_for_client(resource, action.name, arg.name)
@@ -55,16 +69,16 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
             end
 
           :create ->
-            accepts = Ash.Resource.Info.action(resource, action.name).accept || []
-            arguments = Enum.filter(action.arguments, & &1.public?)
+            accepts = action.accept || []
+            arguments = filter_public_arguments(action.arguments)
 
             if accepts != [] || arguments != [] do
               accept_field_defs =
                 Enum.map(accepts, fn field_name ->
-                  attr = Ash.Resource.Info.attribute(resource, field_name)
+                  attr = AshApiSpec.get_field(resource_lookup, resource, field_name)
 
                   optional =
-                    field_name in action.allow_nil_input || attr.allow_nil? || attr.default != nil
+                    field_name in action.allow_nil_input || attr.allow_nil? || has_default?(attr)
 
                   base_type = AshTypescript.Codegen.get_ts_input_type(attr)
                   field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
@@ -81,7 +95,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
 
               argument_field_defs =
                 Enum.map(arguments, fn arg ->
-                  optional = arg.allow_nil? || arg.default != nil
+                  optional = arg.allow_nil? || has_default?(arg)
 
                   formatted_arg_name =
                     format_argument_name_for_client(resource, action.name, arg.name)
@@ -95,13 +109,15 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
             end
 
           action_type when action_type in [:update, :destroy] ->
-            arguments = Enum.filter(action.arguments, & &1.public?)
+            arguments = filter_public_arguments(action.arguments)
 
-            if action.accept != [] || arguments != [] do
+            accepts = action.accept || []
+
+            if accepts != [] || arguments != [] do
               accept_field_defs =
-                Enum.map(action.accept, fn field_name ->
-                  attr = Ash.Resource.Info.attribute(resource, field_name)
-                  optional = field_name not in action.require_attributes
+                Enum.map(accepts, fn field_name ->
+                  attr = AshApiSpec.get_field(resource_lookup, resource, field_name)
+                  optional = field_name not in (action.require_attributes || [])
                   base_type = AshTypescript.Codegen.get_ts_input_type(attr)
                   field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
 
@@ -115,11 +131,9 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                   {formatted_field_name, field_type, optional}
                 end)
 
-              arguments = Enum.filter(action.arguments, & &1.public?)
-
               argument_field_defs =
                 Enum.map(arguments, fn arg ->
-                  optional = arg.allow_nil? || arg.default != nil
+                  optional = arg.allow_nil? || has_default?(arg)
 
                   formatted_arg_name =
                     format_argument_name_for_client(resource, action.name, arg.name)
@@ -133,11 +147,11 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
             end
 
           :action ->
-            arguments = Enum.filter(action.arguments, & &1.public?)
+            arguments = filter_public_arguments(action.arguments)
 
             if arguments != [] do
               Enum.map(arguments, fn arg ->
-                optional = arg.allow_nil? || arg.default != nil
+                optional = arg.allow_nil? || has_default?(arg)
 
                 formatted_arg_name =
                   format_argument_name_for_client(resource, action.name, arg.name)
