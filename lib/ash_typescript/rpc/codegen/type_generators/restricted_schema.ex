@@ -38,7 +38,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
       - `schema_definition` is a string with TypeScript type def or nil if using base schema
       - `schema_reference` is the TypeScript type name to use in Fields type
   """
-  def get_schema_and_reference(resource, rpc_action, rpc_action_name_pascal) do
+  def get_schema_and_reference(resource, rpc_action, rpc_action_name_pascal, resource_lookup) do
     resource_name = Helpers.build_resource_type_name(resource)
     base_schema = "#{resource_name}ResourceSchema"
 
@@ -48,9 +48,6 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     if is_nil(deny) and is_nil(allow_only) do
       {nil, base_schema}
     else
-      {:ok, resource_lookup} =
-        AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
-
       cond do
         not is_nil(deny) ->
           schema_name = "#{rpc_action_name_pascal}Schema"

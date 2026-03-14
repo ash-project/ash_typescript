@@ -93,10 +93,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
     {formatted_name, zod_type}
   end
 
-  defp process_accept_field(resource, field_name, action) do
-    {:ok, resource_lookup} =
-      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
-
+  defp process_accept_field(resource, field_name, action, resource_lookup) do
     attr = AshApiSpec.get_field(resource_lookup, resource, field_name)
 
     optional =
@@ -392,6 +389,16 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   Generates a Zod schema definition for action input validation.
   """
   def generate_zod_schema(resource, action, rpc_action_name) do
+    {:ok, resource_lookup} =
+      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+
+    generate_zod_schema(resource, action, rpc_action_name, resource_lookup)
+  end
+
+  @doc """
+  Generates a Zod schema definition for action input validation with pre-computed resource_lookup.
+  """
+  def generate_zod_schema(resource, action, rpc_action_name, resource_lookup) do
     if ActionIntrospection.action_input_type(resource, action) != :none do
       suffix = AshTypescript.Rpc.zod_schema_suffix()
       schema_name = format_output_field("#{rpc_action_name}#{suffix}")
@@ -412,7 +419,8 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
             arguments = filter_public_arguments(action.arguments)
 
             if accepts != [] || arguments != [] do
-              accept_field_defs = Enum.map(accepts, &process_accept_field(resource, &1, action))
+              accept_field_defs =
+                Enum.map(accepts, &process_accept_field(resource, &1, action, resource_lookup))
 
               argument_field_defs =
                 Enum.map(arguments, &process_argument_field(resource, action, &1))
@@ -429,7 +437,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
             if accepts != [] || arguments != [] do
               # Pass action to check require_attributes for optionality
               accept_field_defs =
-                Enum.map(accepts, &process_accept_field(resource, &1, action))
+                Enum.map(accepts, &process_accept_field(resource, &1, action, resource_lookup))
 
               argument_field_defs =
                 Enum.map(arguments, &process_argument_field(resource, action, &1))
@@ -470,11 +478,21 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   This includes embedded resources and resources used as struct arguments in RPC actions.
   """
   def generate_zod_schemas_for_resources(resources) do
+    {:ok, resource_lookup} =
+      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+
+    generate_zod_schemas_for_resources(resources, resource_lookup)
+  end
+
+  @doc """
+  Generates Zod schemas for resources with pre-computed resource_lookup.
+  """
+  def generate_zod_schemas_for_resources(resources, resource_lookup) do
     if AshTypescript.Rpc.generate_zod_schemas?() and resources != [] do
       schemas =
         resources
         |> Enum.uniq()
-        |> Enum.map_join("\n\n", &generate_zod_schema_for_resource/1)
+        |> Enum.map_join("\n\n", &generate_zod_schema_for_resource(&1, resource_lookup))
 
       """
       // ============================
@@ -492,16 +510,23 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   Generates a Zod schema for a single resource.
   """
   def generate_zod_schema_for_resource(resource) do
-    generate_zod_schema_impl(resource)
+    {:ok, resource_lookup} =
+      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+
+    generate_zod_schema_for_resource(resource, resource_lookup)
   end
 
-  defp generate_zod_schema_impl(resource) do
+  @doc """
+  Generates a Zod schema for a single resource with pre-computed resource_lookup.
+  """
+  def generate_zod_schema_for_resource(resource, resource_lookup) do
+    generate_zod_schema_impl(resource, resource_lookup)
+  end
+
+  defp generate_zod_schema_impl(resource, resource_lookup) do
     resource_name = CodegenHelpers.build_resource_type_name(resource)
     suffix = AshTypescript.Rpc.zod_schema_suffix()
     schema_name = "#{resource_name}#{suffix}"
-
-    {:ok, resource_lookup} =
-      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
 
     zod_fields =
       resource_lookup

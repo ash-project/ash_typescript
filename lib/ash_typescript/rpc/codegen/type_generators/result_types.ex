@@ -41,12 +41,17 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
 
   A string containing the TypeScript type definitions for this action's result.
   """
-  def generate_result_type(resource, action, rpc_action, rpc_action_name) do
+  def generate_result_type(resource, action, rpc_action, rpc_action_name, resource_lookup) do
     rpc_action_name_pascal = snake_to_pascal_case(rpc_action_name)
 
     # Get restricted schema if load restrictions are configured
     {schema_def, schema_ref} =
-      RestrictedSchema.get_schema_and_reference(resource, rpc_action, rpc_action_name_pascal)
+      RestrictedSchema.get_schema_and_reference(
+        resource,
+        rpc_action,
+        rpc_action_name_pascal,
+        resource_lookup
+      )
 
     # Check both Ash's native get? and RPC's get?/get_by options
     ash_get? = action.type == :read and Map.get(action, :get?, false)

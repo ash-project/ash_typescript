@@ -138,12 +138,56 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
     end
   end
 
-  defp build_identity_config_field(resource, identities, opts) do
+  @doc """
+  Builds the identity configuration field for the TypeScript config type.
+
+  Generates a union type for all supported identities (primary key and/or named identities).
+
+  ## Parameters
+
+    * `resource` - The Ash resource
+    * `identities` - List of identity atoms (e.g., `[:_primary_key, :email]`)
+    * `opts` - Options keyword list:
+      - `:validation_function?` - If true, each field type becomes `Type | string` to accept
+        either the typed value or a string representation (for validation functions)
+
+  ## Returns
+
+  A list containing one TypeScript field definition string for the identity.
+
+  ## Examples
+
+      # Single primary key (non-composite)
+      ["  identity: UUID;"]
+
+      # Single primary key for validation function
+      ["  identity: UUID | string;"]
+
+      # Primary key and email identity (identity uses email field)
+      ["  identity: UUID | { email: string };"]
+
+      # Composite primary key
+      ["  identity: { id: UUID; tenantId: string };"]
+
+      # Composite primary key for validation function
+      ["  identity: { id: UUID | string; tenantId: string };"]
+  """
+  def build_identity_config_field(resource, identities, opts) do
+    {:ok, resource_lookup} =
+      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+
+    build_identity_config_field(resource, identities, opts, resource_lookup)
+  end
+
+  @doc """
+  Builds the identity configuration field with pre-computed resource_lookup.
+  """
+  def build_identity_config_field(resource, identities, opts, resource_lookup) do
     validation_function? = Keyword.get(opts, :validation_function?, false)
 
     identity_types =
       Enum.map(identities, fn identity ->
-        build_single_identity_type(resource, identity, validation_function?)
+        build_single_identity_type(resource, identity, validation_function?, resource_lookup)
       end)
 
     formatted_identity = format_output_field(:identity)
@@ -152,10 +196,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
     ["  #{formatted_identity}: #{union_type};"]
   end
 
-  defp build_single_identity_type(resource, :_primary_key, validation_function?) do
-    {:ok, resource_lookup} =
-      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
-
+  defp build_single_identity_type(resource, :_primary_key, validation_function?, resource_lookup) do
     primary_key_attrs = AshApiSpec.primary_key(resource_lookup, resource)
 
     if Enum.count(primary_key_attrs) == 1 do
@@ -189,10 +230,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
     end
   end
 
-  defp build_single_identity_type(resource, identity_name, validation_function?) do
-    {:ok, resource_lookup} =
-      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
-
+  defp build_single_identity_type(resource, identity_name, validation_function?, resource_lookup) do
     identity = AshApiSpec.get_identity(resource_lookup, resource, identity_name)
 
     if identity do
@@ -339,14 +377,21 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
       ["  getBy: {", "    userId: UUID;", "    status: Status;", "  };"]
   """
   def build_get_by_config_field(resource, rpc_action) do
+    {:ok, resource_lookup} =
+      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+
+    build_get_by_config_field(resource, rpc_action, resource_lookup)
+  end
+
+  @doc """
+  Builds the getBy configuration field with pre-computed resource_lookup.
+  """
+  def build_get_by_config_field(resource, rpc_action, resource_lookup) do
     get_by_fields = Map.get(rpc_action, :get_by) || []
 
     if get_by_fields == [] do
       []
     else
-      {:ok, resource_lookup} =
-        AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
-
       formatted_get_by = format_output_field(:get_by)
 
       field_lines =

@@ -154,9 +154,19 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   Generates validation error type for an RPC action.
   """
   def generate_validation_error_type(resource, action, rpc_action_name) do
+    {:ok, resource_lookup} =
+      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+
+    generate_validation_error_type(resource, action, rpc_action_name, resource_lookup)
+  end
+
+  @doc """
+  Generates validation error type for an RPC action with pre-computed resource_lookup.
+  """
+  def generate_validation_error_type(resource, action, rpc_action_name, resource_lookup) do
     if ActionIntrospection.action_input_type(resource, action) != :none do
       error_type_name = "#{snake_to_pascal_case(rpc_action_name)}ValidationErrors"
-      error_field_defs = generate_rpc_action_error_fields(resource, action)
+      error_field_defs = generate_rpc_action_error_fields(resource, action, resource_lookup)
 
       field_lines =
         Enum.map(error_field_defs, fn {name, type} ->
@@ -177,10 +187,23 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   Generates validation error schemas for embedded resources.
   """
   def generate_validation_error_schemas_for_embedded_resources(embedded_resources) do
+    {:ok, resource_lookup} =
+      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+
+    generate_validation_error_schemas_for_embedded_resources(embedded_resources, resource_lookup)
+  end
+
+  @doc """
+  Generates validation error schemas for embedded resources with pre-computed resource_lookup.
+  """
+  def generate_validation_error_schemas_for_embedded_resources(
+        embedded_resources,
+        resource_lookup
+      ) do
     if embedded_resources != [] do
       schemas =
         embedded_resources
-        |> Enum.map_join("\n\n", &generate_input_validation_errors_schema/1)
+        |> Enum.map_join("\n\n", &generate_input_validation_errors_schema(&1, resource_lookup))
 
       """
       // ============================
@@ -249,10 +272,17 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   Generates explicit validation error types for input schemas.
   """
   def generate_input_validation_errors_schema(resource) do
-    resource_name = build_resource_type_name(resource)
-
     {:ok, resource_lookup} =
       AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+
+    generate_input_validation_errors_schema(resource, resource_lookup)
+  end
+
+  @doc """
+  Generates explicit validation error types for input schemas with pre-computed resource_lookup.
+  """
+  def generate_input_validation_errors_schema(resource, resource_lookup) do
+    resource_name = build_resource_type_name(resource)
 
     api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
 
@@ -333,7 +363,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
     end
   end
 
-  defp generate_rpc_action_error_fields(resource, action) do
+  defp generate_rpc_action_error_fields(resource, action, resource_lookup) do
     cond do
       action.type in [:read, :action] ->
         arguments = filter_public_arguments(action.arguments)
@@ -350,9 +380,6 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
         arguments = filter_public_arguments(action.arguments)
 
         if action.accept != [] || arguments != [] do
-          {:ok, resource_lookup} =
-            AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
-
           accept_field_defs =
             Enum.map(action.accept, fn field_name ->
               attr = AshApiSpec.get_field(resource_lookup, resource, field_name)

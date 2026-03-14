@@ -104,10 +104,22 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   This is based on the action's public arguments and accepted attributes.
   """
   def action_input_type(resource, action) do
+    {:ok, resource_lookup} =
+      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+
+    action_input_type(resource, action, resource_lookup)
+  end
+
+  @doc """
+  Returns :required | :optional | :none (with pre-computed resource_lookup).
+
+  Same as `action_input_type/2` but avoids regenerating the resource lookup.
+  """
+  def action_input_type(resource, action, resource_lookup) do
     arguments = action.arguments
 
     # Get accepted attributes from the spec's fields
-    accepted_fields = get_accepted_fields(resource, action)
+    accepted_fields = get_accepted_fields(resource, action, resource_lookup)
 
     inputs = arguments ++ accepted_fields
 
@@ -146,17 +158,12 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
     end
   end
 
-  defp get_accepted_fields(resource, action) do
+  defp get_accepted_fields(resource, action, resource_lookup) do
     case Map.get(action, :accept) || [] do
       [] ->
         []
 
       accept_list ->
-        # Look up from spec if available, fall back to Ash introspection
-        otp_app = Mix.Project.config()[:app]
-        {:ok, api_spec} = AshApiSpec.Generator.generate(otp_app: otp_app)
-        resource_lookup = AshApiSpec.resource_lookup(api_spec)
-
         case Map.get(resource_lookup, resource) do
           %AshApiSpec.Resource{} = api_resource ->
             accept_list

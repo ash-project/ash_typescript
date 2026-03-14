@@ -41,14 +41,11 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
 
   A string containing the TypeScript input type definition, or an empty string if no input is required.
   """
-  def generate_input_type(resource, action, rpc_action_name) do
+  def generate_input_type(resource, action, rpc_action_name, resource_lookup) do
     action_input_type = ActionIntrospection.action_input_type(resource, action)
 
     if action_input_type != :none do
       input_type_name = "#{snake_to_pascal_case(rpc_action_name)}Input"
-
-      {:ok, resource_lookup} =
-        AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
 
       input_field_defs =
         case action.type do

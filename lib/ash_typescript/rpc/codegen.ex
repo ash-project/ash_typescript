@@ -390,7 +390,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     #{ResourceSchemas.generate_all_schemas_for_resources(all_resources_for_schemas, all_resources_for_schemas, struct_argument_resources, resource_lookup)}
 
-    #{ZodSchemaGenerator.generate_zod_schemas_for_resources(Enum.uniq(embedded_resources ++ struct_argument_resources))}
+    #{ZodSchemaGenerator.generate_zod_schemas_for_resources(Enum.uniq(embedded_resources ++ struct_argument_resources), resource_lookup)}
 
     #{FilterTypes.generate_filter_types(all_resources_for_schemas, all_resources_for_schemas, resource_lookup)}
 
@@ -400,12 +400,26 @@ defmodule AshTypescript.Rpc.Codegen do
 
     #{TypedQueries.generate_typed_queries_section(typed_queries, rpc_resources_and_actions, all_resources_for_schemas, resource_lookup)}
 
-    #{generate_rpc_functions(rpc_resources_and_actions, otp_app, all_resources_for_schemas)}
+    #{generate_rpc_functions(rpc_resources_and_actions, otp_app, all_resources_for_schemas, resource_lookup)}
     """
   end
 
-  @doc """
-  Generates only the per-action Zod schemas for all RPC actions.
+  defp generate_rpc_functions(
+         resources_and_actions,
+         otp_app,
+         _resources,
+         resource_lookup
+       ) do
+    rpc_functions =
+      resources_and_actions
+      |> Enum.map_join("\n\n", fn resource_and_action ->
+        generate_rpc_function(
+          resource_and_action,
+          resources_and_actions,
+          otp_app,
+          resource_lookup
+        )
+      end)
 
   Returns a list of Zod schema strings (one per action that has arguments).
   These are meant to be passed to SharedZodGenerator as `:additional_zod_schemas`.
@@ -420,21 +434,50 @@ defmodule AshTypescript.Rpc.Codegen do
     |> Enum.reject(&(&1 == ""))
   end
 
-  defp generate_rpc_functions_no_zod(resources_and_actions) do
-    resources_and_actions
-    |> Enum.map_join("\n\n", fn {resource, action, rpc_action} ->
-      namespace = Map.get(rpc_action, :namespace)
-      generate_rpc_function_no_zod({resource, action, rpc_action}, namespace)
-    end)
+  defp generate_rpc_function(
+         {resource, action, rpc_action},
+         _resources_and_actions,
+         otp_app,
+         resource_lookup
+       ) do
+    namespace = Map.get(rpc_action, :namespace)
+
+    generate_rpc_function_with_namespace(
+      {resource, action, rpc_action},
+      namespace,
+      otp_app,
+      resource_lookup
+    )
   end
 
-  defp generate_rpc_function_no_zod({resource, action, rpc_action}, namespace) do
+  defp generate_rpc_function_with_namespace(
+         {resource, action, rpc_action},
+         namespace,
+         _otp_app,
+         resource_lookup
+       ) do
     rpc_action_name = to_string(rpc_action.name)
     action = augment_action_with_rpc_settings(action, rpc_action, resource)
     render_opts = if namespace, do: [namespace: namespace], else: []
 
-    input_type = InputTypes.generate_input_type(resource, action, rpc_action_name)
-    result_type = ResultTypes.generate_result_type(resource, action, rpc_action, rpc_action_name)
+    input_type =
+      InputTypes.generate_input_type(resource, action, rpc_action_name, resource_lookup)
+
+    zod_schema =
+      if AshTypescript.Rpc.generate_zod_schemas?() do
+        ZodSchemaGenerator.generate_zod_schema(resource, action, rpc_action_name, resource_lookup)
+      else
+        ""
+      end
+
+    result_type =
+      ResultTypes.generate_result_type(
+        resource,
+        action,
+        rpc_action,
+        rpc_action_name,
+        resource_lookup
+      )
 
     rpc_function =
       HttpRenderer.render_execution_function(
