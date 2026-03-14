@@ -398,7 +398,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     #{TypescriptStatic.generate_helper_functions(hook_config, endpoint_process, endpoint_validate)}
 
-    #{TypedQueries.generate_typed_queries_section(typed_queries, rpc_resources_and_actions, all_resources_for_schemas)}
+    #{TypedQueries.generate_typed_queries_section(typed_queries, rpc_resources_and_actions, all_resources_for_schemas, resource_lookup)}
 
     #{generate_rpc_functions(rpc_resources_and_actions, otp_app, all_resources_for_schemas)}
     """

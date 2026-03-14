@@ -21,9 +21,20 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
 
   Returns an empty string if no typed queries are defined.
   """
-  def generate_typed_queries_section([], _rpc_resources_and_actions, _all_resources), do: ""
+  def generate_typed_queries_section(
+        [],
+        _rpc_resources_and_actions,
+        _all_resources,
+        _resource_lookup
+      ),
+      do: ""
 
-  def generate_typed_queries_section(typed_queries, rpc_resources_and_actions, all_resources) do
+  def generate_typed_queries_section(
+        typed_queries,
+        rpc_resources_and_actions,
+        all_resources,
+        resource_lookup
+      ) do
     queries_by_resource =
       Enum.group_by(typed_queries, fn {resource, _action, _query} -> resource end)
 
@@ -40,7 +51,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
               action,
               typed_query,
               rpc_resources_and_actions,
-              all_resources
+              all_resources,
+              resource_lookup
             )
           end)
 
@@ -61,19 +73,28 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
     """
   end
 
-  defp generate_typed_query_type_and_const(
-         resource,
-         action,
-         typed_query,
-         rpc_resources_and_actions,
-         _all_resources
-       ) do
+  @doc """
+  Generates a single typed query type and const declaration.
+  """
+  def generate_typed_query_type_and_const(
+        resource,
+        action,
+        typed_query,
+        rpc_resources_and_actions,
+        _all_resources,
+        resource_lookup
+      ) do
     resource_name = build_resource_type_name(resource)
 
     atomized_fields =
       RequestedFieldsProcessor.atomize_requested_fields(typed_query.fields, resource)
 
-    case RequestedFieldsProcessor.process(resource, action.name, atomized_fields) do
+    case RequestedFieldsProcessor.process(
+           resource,
+           action.name,
+           atomized_fields,
+           resource_lookup
+         ) do
       {:ok, {_select, _load, _template}} ->
         # Both type and const need to use mapped field names since UserResourceSchema has mapped names
         type_fields = format_typed_query_fields_type_for_typescript(atomized_fields, resource)
