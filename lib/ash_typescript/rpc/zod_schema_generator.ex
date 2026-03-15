@@ -389,8 +389,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   Generates a Zod schema definition for action input validation.
   """
   def generate_zod_schema(resource, action, rpc_action_name) do
-    {:ok, resource_lookup} =
-      AshTypescript.resource_lookup(Mix.Project.config()[:app])
+    resource_lookup = AshTypescript.resource_lookup(Mix.Project.config()[:app])
 
     generate_zod_schema(resource, action, rpc_action_name, resource_lookup)
   end
@@ -478,8 +477,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   This includes embedded resources and resources used as struct arguments in RPC actions.
   """
   def generate_zod_schemas_for_resources(resources) do
-    {:ok, resource_lookup} =
-      AshTypescript.resource_lookup(Mix.Project.config()[:app])
+    resource_lookup = AshTypescript.resource_lookup(Mix.Project.config()[:app])
 
     generate_zod_schemas_for_resources(resources, resource_lookup)
   end
@@ -510,8 +508,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   Generates a Zod schema for a single resource.
   """
   def generate_zod_schema_for_resource(resource) do
-    {:ok, resource_lookup} =
-      AshTypescript.resource_lookup(Mix.Project.config()[:app])
+    resource_lookup = AshTypescript.resource_lookup(Mix.Project.config()[:app])
 
     generate_zod_schema_for_resource(resource, resource_lookup)
   end

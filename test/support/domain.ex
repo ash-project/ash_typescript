@@ -215,6 +215,10 @@ defmodule AshTypescript.Test.Domain do
     resource AshTypescript.Test.MapFieldResource
     resource AshTypescript.Test.EmptyResource
 
+    resource AshTypescript.Test.NoRelationshipsResource do
+      rpc_action :read_no_relationships, :read
+    end
+
     resource AshTypescript.Test.Content do
       rpc_action :list_content, :read
       rpc_action :get_content, :get_by_id

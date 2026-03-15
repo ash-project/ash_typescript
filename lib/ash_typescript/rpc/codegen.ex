@@ -93,27 +93,12 @@ defmodule AshTypescript.Rpc.Codegen do
     rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
     domains = Ash.Info.domains(otp_app)
 
-    # Build action filter tuples from DSL config (before spec exists)
-    action_tuples_from_rpc = RpcConfigCollector.get_rpc_action_tuples(otp_app)
-
-    # Ensure all typescript_rpc resources are roots (even those without rpc_actions)
-    resources_with_actions =
-      action_tuples_from_rpc |> Enum.map(fn {r, _} -> r end) |> MapSet.new()
-
-    extra_root_tuples =
-      rpc_resources
-      |> Enum.reject(&MapSet.member?(resources_with_actions, &1))
-      |> Enum.map(&{&1, :__reachability_root__})
-
-    all_action_tuples = action_tuples_from_rpc ++ extra_root_tuples
+    # Use pre-computed resource lookup (from persistent_term or runtime fallback)
+    resource_lookup = AshTypescript.resource_lookup(otp_app)
 
     # Run reachability once for depth-first ordering (needed by Zod schema generation)
     {reachable_resources, _} =
       AshApiSpec.Generator.Reachability.find_reachable(rpc_resources)
-
-    # Generate AshApiSpec with action-scoped reachability
-    {:ok, api_spec} = AshApiSpec.Generator.generate(otp_app: otp_app, actions: all_action_tuples)
-    resource_lookup = AshApiSpec.resource_lookup(api_spec)
 
     # Now resolve RPC actions from the spec (returns %AshApiSpec.Action{} structs)
     resources_and_actions =

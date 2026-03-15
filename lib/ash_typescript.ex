@@ -726,22 +726,53 @@ defmodule AshTypescript do
     end
   Returns the pre-computed AshApiSpec resource lookup map for the given OTP app.
 
-  Reads the `%AshApiSpec.Resource{}` maps that were persisted on each domain
-  at compile time by the `PersistResourceLookups` transformer and merges them
-  into a single lookup map keyed by resource module.
+  ## Configuration
 
-  This is much faster than calling `AshApiSpec.generate_resource_lookup/1`
-  since it reads pre-computed data instead of regenerating the spec.
+      config :ash_typescript,
+        ash_api_spec: MyApp.AshApiSpec
+
+  ## Returns
+  The module atom, or `nil` if not configured.
+  """
+  def ash_api_spec do
+    Application.get_env(:ash_typescript, :ash_api_spec)
+  end
+
+  @doc """
+  Returns the AshApiSpec resource lookup map for the given OTP app.
+
+  Reads the pre-computed lookup from the configured `AshTypescript.AshApiSpec`
+  module (built at compile time). Falls back to generating the spec at runtime
+  if no module is configured.
   """
   @spec resource_lookup(atom()) :: AshApiSpec.resource_lookup()
   def resource_lookup(otp_app) do
-    otp_app
-    |> Ash.Info.domains()
-    |> Enum.reduce(%{}, fn domain, acc ->
-      case Spark.Dsl.Extension.get_persisted(domain, :ash_api_spec_lookups) do
-        lookups when is_map(lookups) -> Map.merge(acc, lookups)
-        _ -> acc
-      end
-    end)
+    case ash_api_spec() do
+      nil ->
+        build_resource_lookup_at_runtime(otp_app)
+
+      module ->
+        Spark.Dsl.Extension.get_persisted(module, :resource_lookup)
+    end
+  end
+
+  defp build_resource_lookup_at_runtime(otp_app) do
+    rpc_resources = AshTypescript.Codegen.TypeDiscovery.get_rpc_resources(otp_app)
+    action_tuples = AshTypescript.Rpc.Codegen.RpcConfigCollector.get_rpc_action_tuples(otp_app)
+
+    resources_with_actions =
+      action_tuples |> Enum.map(fn {r, _} -> r end) |> MapSet.new()
+
+    extra_root_tuples =
+      rpc_resources
+      |> Enum.reject(&MapSet.member?(resources_with_actions, &1))
+      |> Enum.map(&{&1, :__reachability_root__})
+
+    all_action_tuples = action_tuples ++ extra_root_tuples
+
+    {:ok, api_spec} =
+      AshApiSpec.Generator.generate(otp_app: otp_app, action_entrypoints: all_action_tuples)
+
+    AshApiSpec.resource_lookup(api_spec)
   end
 end

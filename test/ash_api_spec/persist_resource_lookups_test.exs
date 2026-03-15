@@ -2,97 +2,97 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Rpc.Transformers.PersistResourceLookupsTest do
+defmodule AshTypescript.AshApiSpec.UnifiedSpecTest do
   use ExUnit.Case, async: true
 
-  describe "persisted lookups on domain" do
-    test "domain has :ash_api_spec_lookups persisted" do
-      lookups =
+  describe "unified app-wide spec via AshTypescript.AshApiSpec" do
+    test "ApiSpec has :resource_lookup persisted" do
+      lookup =
         Spark.Dsl.Extension.get_persisted(
-          AshTypescript.Test.Domain,
-          :ash_api_spec_lookups
+          AshTypescript.Test.ApiSpec,
+          :resource_lookup
         )
 
-      assert is_map(lookups)
-      assert map_size(lookups) > 0
+      assert is_map(lookup)
+      assert map_size(lookup) > 0
     end
 
     test "includes RPC root resources" do
-      lookups =
+      lookup =
         Spark.Dsl.Extension.get_persisted(
-          AshTypescript.Test.Domain,
-          :ash_api_spec_lookups
+          AshTypescript.Test.ApiSpec,
+          :resource_lookup
         )
 
-      assert Map.has_key?(lookups, AshTypescript.Test.Todo)
-      assert Map.has_key?(lookups, AshTypescript.Test.User)
-      assert Map.has_key?(lookups, AshTypescript.Test.TodoComment)
+      assert Map.has_key?(lookup, AshTypescript.Test.Todo)
+      assert Map.has_key?(lookup, AshTypescript.Test.User)
+      assert Map.has_key?(lookup, AshTypescript.Test.TodoComment)
     end
 
-    test "lookup is a Resource struct" do
-      lookups =
+    test "User resource includes actions from BOTH Domain and SecondDomain" do
+      lookup =
         Spark.Dsl.Extension.get_persisted(
-          AshTypescript.Test.Domain,
-          :ash_api_spec_lookups
+          AshTypescript.Test.ApiSpec,
+          :resource_lookup
         )
 
-      todo = lookups[AshTypescript.Test.Todo]
+      user = lookup[AshTypescript.Test.User]
+      assert %AshApiSpec.Resource{} = user
+
+      # :read is used by both Domain (list_users) and SecondDomain (list_users_second)
+      assert Map.has_key?(user.actions, :read)
+
+      # :get_by_id is used by both Domain (get_by_id) and SecondDomain (get_user_by_id_second)
+      assert Map.has_key?(user.actions, :get_by_id)
+    end
+
+    test "lookup entries are Resource structs with correct fields" do
+      lookup =
+        Spark.Dsl.Extension.get_persisted(
+          AshTypescript.Test.ApiSpec,
+          :resource_lookup
+        )
+
+      todo = lookup[AshTypescript.Test.Todo]
       assert %AshApiSpec.Resource{} = todo
       assert todo.module == AshTypescript.Test.Todo
-    end
-
-    test "resource has indexed fields" do
-      lookups =
-        Spark.Dsl.Extension.get_persisted(
-          AshTypescript.Test.Domain,
-          :ash_api_spec_lookups
-        )
-
-      todo = lookups[AshTypescript.Test.Todo]
       assert todo.fields[:title] != nil
       assert todo.fields[:id] != nil
     end
 
-    test "resource has indexed relationships" do
-      lookups =
+    test "includes reachable embedded resources" do
+      lookup =
         Spark.Dsl.Extension.get_persisted(
-          AshTypescript.Test.Domain,
-          :ash_api_spec_lookups
+          AshTypescript.Test.ApiSpec,
+          :resource_lookup
         )
 
-      todo = lookups[AshTypescript.Test.Todo]
+      embedded_modules =
+        lookup
+        |> Map.values()
+        |> Enum.filter(& &1.embedded?)
+
+      assert length(embedded_modules) > 0
+    end
+
+    test "includes resource relationships" do
+      lookup =
+        Spark.Dsl.Extension.get_persisted(
+          AshTypescript.Test.ApiSpec,
+          :resource_lookup
+        )
+
+      todo = lookup[AshTypescript.Test.Todo]
       assert todo.relationships[:user] != nil
       assert todo.relationships[:comments] != nil
     end
 
-    test "resource has indexed actions" do
-      lookups =
-        Spark.Dsl.Extension.get_persisted(
-          AshTypescript.Test.Domain,
-          :ash_api_spec_lookups
-        )
+    test "AshTypescript.resource_lookup/1 returns correct data from persistent_term" do
+      lookup = AshTypescript.resource_lookup(:ash_typescript)
 
-      todo = lookups[AshTypescript.Test.Todo]
-      # The transformer only includes actions configured as RPC actions
-      assert todo.actions[:read] != nil
-      assert todo.actions[:create] != nil
-    end
-
-    test "includes reachable relationship resources" do
-      lookups =
-        Spark.Dsl.Extension.get_persisted(
-          AshTypescript.Test.Domain,
-          :ash_api_spec_lookups
-        )
-
-      # Embedded resources reachable from root resources should be included
-      embedded_modules =
-        lookups
-        |> Map.values()
-        |> Enum.filter(& &1.embedded?)
-
-      # At least some embedded resources should be present
-      assert length(Map.keys(lookups)) > 3
+      assert is_map(lookup)
+      assert Map.has_key?(lookup, AshTypescript.Test.Todo)
+      assert Map.has_key?(lookup, AshTypescript.Test.User)
     end
   end
 end

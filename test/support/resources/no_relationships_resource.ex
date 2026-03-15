@@ -8,7 +8,12 @@ defmodule AshTypescript.Test.NoRelationshipsResource do
   """
   use Ash.Resource,
     domain: AshTypescript.Test.Domain,
-    data_layer: Ash.DataLayer.Ets
+    data_layer: Ash.DataLayer.Ets,
+    extensions: [AshTypescript.Resource]
+
+  typescript do
+    type_name "NoRelationshipsResource"
+  end
 
   ets do
     private? true

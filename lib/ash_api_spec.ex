@@ -8,7 +8,7 @@ defmodule AshApiSpec do
 
   Given a list of `{resource, action_name}` tuples or an OTP app, traverses the
   type graph to find all reachable resources and types, producing structured IR
-  (Elixir structs) that can be serialized to JSON.
+  (Elixir structs) that can also be serialized to JSON.
   """
 
   alias AshApiSpec.Resource
@@ -35,8 +35,9 @@ defmodule AshApiSpec do
   ## Options
 
     * `:otp_app` - The OTP app to scan for Ash domains and resources (required)
-    * `:actions` - Optional list of `{resource_module, action_name}` tuples to
-      include. When omitted, all public actions across all domains are included.
+    * `:action_entrypoints` - Optional list of `{resource_module, action_name}` tuples
+      used as entrypoints for deriving the spec. When omitted, all public actions
+      across all domains are included.
   """
   @spec generate(keyword()) :: {:ok, t()} | {:error, term()}
   def generate(opts) do

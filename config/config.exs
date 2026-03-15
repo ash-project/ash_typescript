@@ -27,6 +27,7 @@ if Mix.env() == :test do
     disable_async?: true
 
   config :ash_typescript,
+    ash_api_spec: AshTypescript.Test.ApiSpec,
     ash_domains: [
       AshTypescript.Test.Domain,
       AshTypescript.Test.SecondDomain

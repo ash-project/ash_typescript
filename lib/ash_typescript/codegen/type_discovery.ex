@@ -50,8 +50,7 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
   def find_resources_missing_from_rpc_config(otp_app, resource_lookup \\ nil) do
     rpc_resources = get_rpc_resources(otp_app)
 
-    resource_lookup =
-      resource_lookup || elem(AshApiSpec.generate_resource_lookup(otp_app: otp_app), 1)
+    resource_lookup = resource_lookup || AshTypescript.resource_lookup(otp_app)
 
     all_resources_with_extension =
       otp_app

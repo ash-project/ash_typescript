@@ -154,8 +154,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   Generates validation error type for an RPC action.
   """
   def generate_validation_error_type(resource, action, rpc_action_name) do
-    {:ok, resource_lookup} =
-      AshTypescript.resource_lookup(Mix.Project.config()[:app])
+    resource_lookup = AshTypescript.resource_lookup(Mix.Project.config()[:app])
 
     generate_validation_error_type(resource, action, rpc_action_name, resource_lookup)
   end
@@ -187,8 +186,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   Generates validation error schemas for embedded resources.
   """
   def generate_validation_error_schemas_for_embedded_resources(embedded_resources) do
-    {:ok, resource_lookup} =
-      AshTypescript.resource_lookup(Mix.Project.config()[:app])
+    resource_lookup = AshTypescript.resource_lookup(Mix.Project.config()[:app])
 
     generate_validation_error_schemas_for_embedded_resources(embedded_resources, resource_lookup)
   end
@@ -272,8 +270,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   Generates explicit validation error types for input schemas.
   """
   def generate_input_validation_errors_schema(resource) do
-    {:ok, resource_lookup} =
-      AshTypescript.resource_lookup(Mix.Project.config()[:app])
+    resource_lookup = AshTypescript.resource_lookup(Mix.Project.config()[:app])
 
     generate_input_validation_errors_schema(resource, resource_lookup)
   end
