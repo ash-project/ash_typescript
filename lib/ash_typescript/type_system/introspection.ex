@@ -52,35 +52,6 @@ defmodule AshTypescript.TypeSystem.Introspection do
   def is_embedded_resource?(_), do: false
 
   @doc """
-  Extracts union types from type and constraints directly.
-
-  **Fallback helper** — when `%AshApiSpec.Type{}` is available, use
-  `type.constraints[:types]` instead.
-
-  Useful when you have constraints but not the full attribute struct.
-  Handles both direct union types and array union types.
-
-  ## Examples
-
-      iex> constraints = [types: [note: [...], url: [...]]]
-      iex> AshTypescript.TypeSystem.Introspection.get_union_types_from_constraints(Ash.Type.Union, constraints)
-      [note: [...], url: [...]]
-  """
-  def get_union_types_from_constraints(type, constraints) do
-    case type do
-      Ash.Type.Union ->
-        Keyword.get(constraints, :types, [])
-
-      {:array, Ash.Type.Union} ->
-        items_constraints = Keyword.get(constraints, :items, [])
-        Keyword.get(items_constraints, :types, [])
-
-      _ ->
-        []
-    end
-  end
-
-  @doc """
   Recursively unwraps Ash.Type.NewType to get the underlying type and constraints.
 
   When a type is wrapped in one or more NewType wrappers, this function
