@@ -407,10 +407,6 @@ defmodule AshTypescript.Codegen.TypeMapper do
       instance_of && function_exported?(instance_of, :typescript_field_names, 0) ->
         instance_of.typescript_field_names()
 
-      # Check the type itself (for NewTypes used directly as attribute types)
-      is_atom(type) && not is_nil(type) && function_exported?(type, :typescript_field_names, 0) ->
-        type.typescript_field_names()
-
       true ->
         nil
     end
