@@ -19,7 +19,7 @@ defmodule AshTypescript.Rpc.OutputFormatter do
   - Handle pagination structures and result data
   """
 
-  alias AshTypescript.{FieldFormatter, Rpc.ValueFormatter, TypeSystem.ResourceFields}
+  alias AshTypescript.{FieldFormatter, Rpc.ValueFormatter}
 
   @doc """
   Formats output data from internal format to client format.
@@ -66,8 +66,7 @@ defmodule AshTypescript.Rpc.OutputFormatter do
        )
        when maybe_offset_type in [:offset, :keyset] do
     Enum.into(map, %{}, fn {internal_key, value} ->
-      {type, constraints} =
-        ResourceFields.get_public_field_type_info(resource, internal_key, resource_lookups)
+      field_or_rel = lookup_field_or_relationship(resource, internal_key, resource_lookups)
 
       formatted_value =
         case internal_key do
@@ -77,7 +76,7 @@ defmodule AshTypescript.Rpc.OutputFormatter do
             end)
 
           _ ->
-            format_value(value, type, constraints, formatter, resource_lookups)
+            ValueFormatter.format(value, field_or_rel, [], formatter, :output, resource_lookups)
         end
 
       output_key = FieldFormatter.format_field_name(internal_key, formatter)
@@ -87,17 +86,20 @@ defmodule AshTypescript.Rpc.OutputFormatter do
 
   defp format_map(map, resource, _action_name, formatter, resource_lookups) do
     Enum.into(map, %{}, fn {internal_key, value} ->
-      {type, constraints} =
-        ResourceFields.get_public_field_type_info(resource, internal_key, resource_lookups)
+      field_or_rel = lookup_field_or_relationship(resource, internal_key, resource_lookups)
 
-      formatted_value = format_value(value, type, constraints, formatter, resource_lookups)
+      formatted_value = ValueFormatter.format(value, field_or_rel, [], formatter, :output, resource_lookups)
       output_key = FieldFormatter.format_field_for_client(internal_key, resource, formatter)
 
       {output_key, formatted_value}
     end)
   end
 
-  defp format_value(data, type, constraints, formatter, resource_lookups) do
-    ValueFormatter.format(data, type, constraints, formatter, :output, resource_lookups)
+  defp lookup_field_or_relationship(resource, field_name, resource_lookups)
+       when is_map(resource_lookups) do
+    case AshApiSpec.get_field(resource_lookups, resource, field_name) do
+      %AshApiSpec.Field{} = field -> field
+      nil -> AshApiSpec.get_relationship(resource_lookups, resource, field_name)
+    end
   end
 end

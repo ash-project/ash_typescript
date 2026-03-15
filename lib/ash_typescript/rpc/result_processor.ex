@@ -34,7 +34,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   alias AshTypescript.Rpc.FieldExtractor
   alias AshTypescript.Rpc.TypeIndex
-  alias AshTypescript.TypeSystem.ResourceFields
 
   @doc """
   Main entry point for processing Ash results.
@@ -108,30 +107,19 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   ## Returns
   `{type, constraints}` or `{nil, []}` if not found.
   """
-  @spec get_field_type_info(module() | nil, atom(), map() | nil) ::
-          {atom() | tuple() | nil, keyword()}
-  def get_field_type_info(resource, field_name, resource_lookups \\ nil)
+  @spec get_field_or_relationship(module() | nil, atom(), map() | nil) ::
+          AshApiSpec.Field.t() | AshApiSpec.Relationship.t() | nil
+  def get_field_or_relationship(nil, _field_name, _lookups), do: nil
 
-  def get_field_type_info(nil, _field_name, _lookups), do: {nil, []}
-
-  def get_field_type_info(resource, field_name, resource_lookups) when is_atom(resource) do
-    cond do
-      # For Ash resources, delegate to ResourceFields which handles all field types
-      # including proper aggregate type resolution
-      TypeIndex.resource?(%{}, resource) ->
-        ResourceFields.get_field_type_info(resource, field_name, resource_lookups)
-
-      # For modules with typescript_field_names (TypedStruct wrappers)
-      TypeIndex.has_ts_field_names?(%{}, resource) ->
-        # These are typically NewType wrappers - we may have field specs
-        {nil, []}
-
-      true ->
-        {nil, []}
+  def get_field_or_relationship(resource, field_name, resource_lookups)
+      when is_atom(resource) and is_map(resource_lookups) do
+    case AshApiSpec.get_field(resource_lookups, resource, field_name) do
+      %AshApiSpec.Field{} = field -> field
+      nil -> AshApiSpec.get_relationship(resource_lookups, resource, field_name)
     end
   end
 
-  def get_field_type_info(_resource, _field_name, _lookups), do: {nil, []}
+  def get_field_or_relationship(_resource, _field_name, _lookups), do: nil
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Type-Driven Extraction Dispatcher
@@ -175,6 +163,19 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   # Handle nil/unknown types
   # For maps with templates, filter to requested fields
   # For everything else, normalize as primitive
+  # Handle AshApiSpec structs — extract type and delegate
+  def extract_value(value, %AshApiSpec.Field{type: type}, _constraints, template, resource_lookups) do
+    extract_value(value, type, [], template, resource_lookups)
+  end
+
+  def extract_value(value, %AshApiSpec.Relationship{destination: dest, cardinality: :many}, _constraints, template, resource_lookups) do
+    extract_array_value(value, dest, [], template, resource_lookups)
+  end
+
+  def extract_value(value, %AshApiSpec.Relationship{destination: dest}, _constraints, template, resource_lookups) do
+    extract_resource_value(value, dest, template, resource_lookups)
+  end
+
   def extract_value(value, nil, _constraints, template, _resource_lookups)
       when is_map(value) and template != [] do
     extract_plain_map_value(value, template)
@@ -335,11 +336,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         acc
 
       value ->
-        {field_type, field_constraints} =
-          get_field_type_info(resource, field_atom, resource_lookups)
+        field_or_rel = get_field_or_relationship(resource, field_atom, resource_lookups)
 
         # Recurse with type info - NO template for simple fields
-        extracted = extract_value(value, field_type, field_constraints, [], resource_lookups)
+        extracted = extract_value(value, field_or_rel, [], [], resource_lookups)
         Map.put(acc, field_atom, extracted)
     end
   end
@@ -363,12 +363,11 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         Map.put(acc, field_atom, nil)
 
       value ->
-        {field_type, field_constraints} =
-          get_field_type_info(resource, field_atom, resource_lookups)
+        field_or_rel = get_field_or_relationship(resource, field_atom, resource_lookups)
 
         # Recurse with both type info AND nested template
         extracted =
-          extract_value(value, field_type, field_constraints, nested_template, resource_lookups)
+          extract_value(value, field_or_rel, [], nested_template, resource_lookups)
 
         Map.put(acc, field_atom, extracted)
     end

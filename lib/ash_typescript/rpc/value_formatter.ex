@@ -23,7 +23,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   which contain all the information needed to format that value correctly.
   """
 
-  alias AshTypescript.{FieldFormatter, Rpc.TypeIndex, TypeSystem.ResourceFields}
+  alias AshTypescript.{FieldFormatter, Rpc.TypeIndex}
   alias AshTypescript.Resource.Info, as: ResourceInfo
 
   @type direction :: :input | :output
@@ -62,6 +62,24 @@ defmodule AshTypescript.Rpc.ValueFormatter do
 
   def format(nil, _type, _constraints, _formatter, _direction, _lookups, _ti), do: nil
   def format(value, nil, _constraints, _formatter, _direction, _lookups, _ti), do: value
+
+  # %AshApiSpec.Field{} — extract type and delegate
+  def format(value, %AshApiSpec.Field{type: type}, _constraints, formatter, direction, lookups, ti) do
+    format(value, type, [], formatter, direction, lookups, ti)
+  end
+
+  # %AshApiSpec.Relationship{} — format as resource
+  def format(value, %AshApiSpec.Relationship{destination: dest, cardinality: :many}, _constraints, formatter, direction, lookups, _ti) do
+    if is_list(value) do
+      Enum.map(value, &format_resource(&1, dest, formatter, direction, lookups))
+    else
+      value
+    end
+  end
+
+  def format(value, %AshApiSpec.Relationship{destination: dest}, _constraints, formatter, direction, lookups, _ti) do
+    format_resource(value, dest, formatter, direction, lookups)
+  end
 
   # %Type{kind} dispatch — replaces unwrap_new_type + cond for the lookup path.
   # augment_type_constraints bridges the gap between TypeResolver (compile-time,
@@ -274,11 +292,11 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     Enum.into(value, %{}, fn {key, field_value} ->
       internal_key = convert_resource_key(key, resource, formatter, direction)
 
-      {field_type, field_constraints} =
-        ResourceFields.get_field_type_info(resource, internal_key, resource_lookups)
+      # Look up field or relationship from the spec directly
+      field_or_rel = lookup_field_or_relationship(resource, internal_key, resource_lookups)
 
       formatted_value =
-        format(field_value, field_type, field_constraints, formatter, direction, resource_lookups)
+        format(field_value, field_or_rel, [], formatter, direction, resource_lookups)
 
       output_key =
         case direction do
@@ -661,4 +679,14 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   end
 
   defp maybe_inject_tag(value, _member_spec), do: value
+
+  defp lookup_field_or_relationship(resource, field_name, resource_lookups)
+       when is_map(resource_lookups) do
+    case AshApiSpec.get_field(resource_lookups, resource, field_name) do
+      %AshApiSpec.Field{} = field -> field
+      nil -> AshApiSpec.get_relationship(resource_lookups, resource, field_name)
+    end
+  end
+
+  defp lookup_field_or_relationship(_resource, _field_name, _nil_lookups), do: nil
 end
