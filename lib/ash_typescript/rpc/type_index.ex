@@ -6,9 +6,8 @@ defmodule AshTypescript.Rpc.TypeIndex do
   @moduledoc """
   Pre-computed type metadata index for O(1) runtime lookups.
 
-  Replaces repeated `AshTypescript.TypeSystem.Introspection` calls at runtime
-  by pre-computing module-level type facts (NewType unwrapping, field name maps,
-  embedded resource status) from the AshApiSpec type graph.
+  Pre-computes module-level type facts (NewType unwrapping, field name maps,
+  embedded resource status) from the AshApiSpec type graph for O(1) lookups.
 
   Built once from `resource_lookups` and threaded through all runtime processing
   functions via the `%Request{}` struct.
@@ -23,7 +22,7 @@ defmodule AshTypescript.Rpc.TypeIndex do
   - `default_constraints` — cached `do_init([])` result with `instance_of` augmentation
   """
 
-  alias AshTypescript.TypeSystem.Introspection
+  alias AshApiSpec.Generator.TypeResolver
 
   @type type_entry :: %{
           new_type?: boolean(),
@@ -82,7 +81,7 @@ defmodule AshTypescript.Rpc.TypeIndex do
   `default_constraints` (including `instance_of` augmentation) without
   calling `do_init/1` at runtime.
 
-  Falls back to `Introspection.unwrap_new_type/2` for types not in the index.
+  Falls back to `TypeResolver.unwrap_new_type/2` for types not in the index.
   """
   @spec unwrap_new_type(t(), atom(), keyword()) :: {atom(), keyword()}
   def unwrap_new_type(index, type, constraints) when is_atom(type) do
@@ -111,7 +110,19 @@ defmodule AshTypescript.Rpc.TypeIndex do
         {type, constraints}
 
       nil ->
-        Introspection.unwrap_new_type(type, constraints)
+        {unwrapped, merged} = TypeResolver.unwrap_new_type(type, constraints)
+
+        augmented =
+          if unwrapped != type and
+               Code.ensure_loaded?(type) == true and
+               function_exported?(type, :typescript_field_names, 0) and
+               not Keyword.has_key?(merged, :instance_of) do
+            Keyword.put(merged, :instance_of, type)
+          else
+            merged
+          end
+
+        {unwrapped, augmented}
     end
   end
 
@@ -126,7 +137,7 @@ defmodule AshTypescript.Rpc.TypeIndex do
   def has_ts_field_names?(index, module) when is_atom(module) do
     case Map.get(index, module) do
       %{has_ts_field_names?: val} -> val
-      nil -> Introspection.has_typescript_field_names?(module)
+      nil -> has_field_names_callback?(module)
     end
   end
 
@@ -141,7 +152,7 @@ defmodule AshTypescript.Rpc.TypeIndex do
   def field_names(index, module) when is_atom(module) do
     case Map.get(index, module) do
       %{field_names: names} -> names
-      nil -> Introspection.get_typescript_field_names_map(module)
+      nil -> get_field_names_map(module)
     end
   end
 
@@ -156,7 +167,7 @@ defmodule AshTypescript.Rpc.TypeIndex do
   def field_names_reverse(index, module) when is_atom(module) do
     case Map.get(index, module) do
       %{field_names_reverse: names} -> names
-      nil -> Introspection.build_reverse_field_names_map(module)
+      nil -> get_field_names_map(module) |> Map.new(fn {k, v} -> {v, k} end)
     end
   end
 
@@ -171,7 +182,7 @@ defmodule AshTypescript.Rpc.TypeIndex do
   def embedded_resource?(index, module) do
     case Map.get(index, module) do
       %{embedded_resource?: val} -> val
-      nil -> Introspection.is_embedded_resource?(module)
+      nil -> is_ash_embedded_resource?(module)
     end
   end
 
@@ -360,5 +371,27 @@ defmodule AshTypescript.Rpc.TypeIndex do
       embedded_resource?: embedded_resource?,
       default_constraints: default_constraints
     }
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Fallback Helpers (for modules not in the index)
+  # ─────────────────────────────────────────────────────────────────
+
+  defp has_field_names_callback?(module) when is_atom(module) do
+    Code.ensure_loaded?(module) == true and function_exported?(module, :typescript_field_names, 0)
+  end
+
+  defp get_field_names_map(module) when is_atom(module) do
+    if has_field_names_callback?(module) do
+      module.typescript_field_names() |> Map.new()
+    else
+      %{}
+    end
+  end
+
+  defp is_ash_embedded_resource?(module) when is_atom(module) do
+    Code.ensure_loaded?(module) == true and
+      Ash.Resource.Info.resource?(module) and
+      Ash.Resource.Info.embedded?(module)
   end
 end
