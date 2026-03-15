@@ -9,7 +9,8 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   This module delegates to `AshTypescript.Codegen.ZodSchemaGenerator` for backward compatibility.
   """
 
-  defdelegate map_zod_type(type, constraints \\ []), to: AshTypescript.Codegen.ZodSchemaGenerator
+  alias AshTypescript.Codegen.Helpers, as: CodegenHelpers
+  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
   defdelegate get_zod_type(type_and_constraints, context \\ nil),
     to: AshTypescript.Codegen.ZodSchemaGenerator
@@ -141,15 +142,74 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   ## Returns
   A Zod schema string (e.g., "z.string().min(1)")
   """
-  @spec map_zod_type(atom() | tuple(), keyword()) :: String.t()
+  @spec map_zod_type(atom() | tuple() | AshApiSpec.Type.t(), keyword()) :: String.t()
   def map_zod_type(type, constraints \\ [])
 
   # Handle nil type
   def map_zod_type(nil, _constraints), do: "z.null()"
 
+  # ── %AshApiSpec.Type{} dispatch ──────────────────────────────────
+  def map_zod_type(%AshApiSpec.Type{} = type_info, _constraints) do
+    case type_info.kind do
+      :type_ref ->
+        full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_info.module)
+        map_zod_type(full_type, [])
+
+      :array ->
+        inner_zod = map_zod_type(type_info.item_type, [])
+        "z.array(#{inner_zod})"
+
+      kind when kind in [:resource, :embedded_resource] ->
+        resource = type_info.resource_module || type_info.module
+        map_resource_type(resource)
+
+      :enum ->
+        map_enum_values(type_info.values)
+
+      :union ->
+        map_union_type(type_info.constraints || [])
+
+      :string ->
+        map_string_type(type_info.constraints || [])
+
+      :ci_string ->
+        map_string_type(type_info.constraints || [])
+
+      :integer ->
+        map_integer_type(type_info.constraints || [])
+
+      :float ->
+        map_float_type(type_info.constraints || [])
+
+      :atom ->
+        map_atom_type(type_info.constraints || [])
+
+      kind when kind in [:map, :keyword, :tuple, :struct] ->
+        mod = kind_to_container_module(kind)
+        constraints = augment_constraints_with_instance_of(type_info)
+        map_typed_container(mod, constraints)
+
+      _ ->
+        cond do
+          Map.has_key?(@simple_primitives, type_info.module) ->
+            Map.get(@simple_primitives, type_info.module)
+
+          Map.has_key?(@third_party_types, type_info.module) ->
+            Map.get(@third_party_types, type_info.module)
+
+          is_custom_type?(type_info.module) ->
+            "z.string()"
+
+          true ->
+            "z.any()"
+        end
+    end
+  end
+
+  # ── Raw Ash type dispatch ────────────────────────────────────────
   def map_zod_type(type, constraints) do
     # Unwrap NewTypes first to get the underlying type
-    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+    {unwrapped_type, full_constraints} = unwrap_new_type(type, constraints)
 
     cond do
       # Aggregate atoms (fast path) - e.g., :count, :sum from aggregates
@@ -327,14 +387,13 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
     Map.get(@aggregate_zod_types, kind, "z.any()")
   end
 
-  # Handle AshApiSpec structs — extract raw type/constraints from the spec type
+  # Handle AshApiSpec structs — pass spec type directly
   def get_zod_type(
         %{type: %AshApiSpec.Type{} = spec_type} = field,
         _context
       ) do
     allow_nil? = Map.get(field, :allow_nil?, true)
-    {raw_type, raw_constraints} = spec_type_to_raw(spec_type)
-    map_zod_type_with_allow_nil(raw_type, raw_constraints, allow_nil?)
+    map_zod_type_with_allow_nil(spec_type, allow_nil?)
   end
 
   # Handle maps with type/constraints - delegate to unified dispatcher
@@ -349,34 +408,37 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
     map_zod_type_with_allow_nil(type, [], allow_nil?)
   end
 
-  # Converts an AshApiSpec.Type back to raw {type, constraints} for the Zod mapper
-  defp spec_type_to_raw(%AshApiSpec.Type{
-         kind: :array,
-         item_type: item_type,
-         constraints: constraints
-       }) do
-    {inner_type, _inner_constraints} = spec_type_to_raw(item_type)
-    {{:array, inner_type}, constraints || []}
+  # AshApiSpec.Type — check for string kind directly
+  defp map_zod_type_with_allow_nil(%AshApiSpec.Type{kind: kind} = type_info, allow_nil?)
+       when kind in [:string, :ci_string] do
+    require_non_empty = not allow_nil?
+    constraints = type_info.constraints || []
+
+    if constraints == [] do
+      if require_non_empty, do: "z.string().min(1)", else: "z.string()"
+    else
+      build_string_zod_with_constraints(constraints, require_non_empty)
+    end
   end
 
-  defp spec_type_to_raw(%AshApiSpec.Type{module: module, constraints: constraints}) do
-    {module, constraints || []}
+  defp map_zod_type_with_allow_nil(%AshApiSpec.Type{kind: :type_ref, module: module}, allow_nil?) do
+    full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(module)
+    map_zod_type_with_allow_nil(full_type, allow_nil?)
   end
 
-  # Helper that wraps map_zod_type and handles allow_nil? for string types
+  defp map_zod_type_with_allow_nil(%AshApiSpec.Type{} = type_info, _allow_nil?) do
+    map_zod_type(type_info, [])
+  end
+
+  # Raw type — unwrap and check for string
   defp map_zod_type_with_allow_nil(type, constraints, allow_nil?) do
-    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+    {unwrapped_type, full_constraints} = unwrap_new_type(type, constraints)
 
-    # For string types, pass require_non_empty to get correct ordering of constraints
     if unwrapped_type in [Ash.Type.String, Ash.Type.CiString] do
       require_non_empty = not allow_nil?
 
       if full_constraints == [] do
-        if require_non_empty do
-          "z.string().min(1)"
-        else
-          "z.string()"
-        end
+        if require_non_empty, do: "z.string().min(1)", else: "z.string()"
       else
         build_string_zod_with_constraints(full_constraints, require_non_empty)
       end
@@ -752,4 +814,51 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   end
 
   defp is_embedded_resource?(_), do: false
+
+  defp map_enum_values(values) when is_list(values) and values != [] do
+    enum_values = Enum.map_join(values, ", ", &"\"#{to_string(&1)}\"")
+    "z.enum([#{enum_values}])"
+  end
+
+  defp map_enum_values(_), do: "z.string()"
+
+  defp kind_to_container_module(:map), do: Ash.Type.Map
+  defp kind_to_container_module(:keyword), do: Ash.Type.Keyword
+  defp kind_to_container_module(:tuple), do: Ash.Type.Tuple
+  defp kind_to_container_module(:struct), do: Ash.Type.Struct
+
+  # Ensures instance_of is in constraints for types that have typescript_field_names.
+  # TypeResolver doesn't add instance_of, but the Zod generator needs it for field name mappings.
+  defp augment_constraints_with_instance_of(%AshApiSpec.Type{} = type_info) do
+    constraints = type_info.constraints || []
+    inst = type_info.instance_of || type_info.module
+
+    if inst && is_atom(inst) && !Keyword.has_key?(constraints, :instance_of) &&
+         Code.ensure_loaded?(inst) == true &&
+         function_exported?(inst, :typescript_field_names, 0) do
+      Keyword.put(constraints, :instance_of, inst)
+    else
+      constraints
+    end
+  end
+
+  defp unwrap_new_type(type, constraints) when is_atom(type) do
+    {unwrapped, merged_constraints} =
+      AshApiSpec.Generator.TypeResolver.unwrap_new_type(type, constraints)
+
+    # Preserve reference to outermost NewType with typescript_field_names
+    augmented =
+      if unwrapped != type and
+           Code.ensure_loaded?(type) == true and
+           function_exported?(type, :typescript_field_names, 0) and
+           not Keyword.has_key?(merged_constraints, :instance_of) do
+        Keyword.put(merged_constraints, :instance_of, type)
+      else
+        merged_constraints
+      end
+
+    {unwrapped, augmented}
+  end
+
+  defp unwrap_new_type(type, constraints), do: {type, constraints}
 end

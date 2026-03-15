@@ -174,7 +174,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
       get_type_mapping_override(type) != nil ->
         ""
 
-      AshTypescript.TypeSystem.Introspection.is_custom_type?(type) ->
+      is_custom_type?(type) ->
         ""
 
       Ash.Type.NewType.new_type?(type) or Spark.implements_behaviour?(type, Ash.Type.Enum) ->
@@ -199,4 +199,12 @@ defmodule AshTypescript.Codegen.TypeAliases do
   end
 
   defp get_type_mapping_override(_type), do: nil
+
+  defp is_custom_type?(type) when is_atom(type) and not is_nil(type) do
+    Code.ensure_loaded?(type) and
+      function_exported?(type, :typescript_type_name, 0) and
+      Spark.implements_behaviour?(type, Ash.Type)
+  end
+
+  defp is_custom_type?(_), do: false
 end

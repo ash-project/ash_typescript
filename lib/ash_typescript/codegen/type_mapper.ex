@@ -339,7 +339,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
   defp map_type_with_selection(type, constraints, select_and_loads) do
     # Unwrap NewTypes first
     {unwrapped_type, full_constraints} =
-      AshTypescript.TypeSystem.Introspection.unwrap_new_type(type, constraints)
+      AshApiSpec.Generator.TypeResolver.unwrap_new_type(type, constraints)
 
     cond do
       # Struct with instance_of - use build_resource_type with selection
@@ -819,7 +819,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
   defp is_complex_field_type?(type, constraints) when is_atom(type) do
     if Code.ensure_loaded?(type) and Ash.Type.NewType.new_type?(type) do
       {inner_type, inner_constraints} =
-        AshTypescript.TypeSystem.Introspection.unwrap_new_type(type, constraints)
+        AshApiSpec.Generator.TypeResolver.unwrap_new_type(type, constraints)
 
       # If unwrapping changed the type, check the inner type
       if inner_type != type do

@@ -39,16 +39,53 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   ## Returns
   A TypeScript error type string (e.g., "string[]", "FooValidationErrors")
   """
-  @spec map_error_type(atom() | tuple(), keyword()) :: String.t()
+  @spec map_error_type(atom() | tuple() | AshApiSpec.Type.t(), keyword()) :: String.t()
   def map_error_type(type, constraints \\ [])
 
   # Handle nil type
   def map_error_type(nil, _constraints), do: "string[]"
 
+  # ── %AshApiSpec.Type{} dispatch ──────────────────────────────────
+  def map_error_type(%AshApiSpec.Type{} = type_info, _constraints) do
+    case type_info.kind do
+      :type_ref ->
+        full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_info.module)
+        map_error_type(full_type, [])
+
+      :array ->
+        inner_error = map_error_type(type_info.item_type, [])
+        "#{inner_error}[]"
+
+      kind when kind in [:resource, :embedded_resource] ->
+        resource = type_info.resource_module || type_info.module
+        map_resource_error(resource)
+
+      :union ->
+        union_types = Keyword.get(type_info.constraints || [], :types, [])
+        build_union_error_type(union_types)
+
+      kind when kind in [:map, :keyword, :tuple] ->
+        map_typed_container_error(type_info.constraints || [])
+
+      :struct ->
+        map_struct_error(type_info.constraints || [])
+
+      :enum ->
+        "string[]"
+
+      _ ->
+        if is_custom_type?(type_info.module) do
+          "#{type_info.module.typescript_type_name()}ValidationErrors"
+        else
+          "string[]"
+        end
+    end
+  end
+
+  # ── Raw Ash type dispatch ────────────────────────────────────────
   def map_error_type(type, constraints) do
-    # Unwrap NewTypes FIRST (consistent with ValueFormatter pattern)
     {unwrapped_type, full_constraints} =
-      AshTypescript.TypeSystem.Introspection.unwrap_new_type(type, constraints)
+      AshApiSpec.Generator.TypeResolver.unwrap_new_type(type, constraints)
 
     cond do
       # Arrays - recurse into inner type
@@ -69,10 +106,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
 
       # Union types
       unwrapped_type == Ash.Type.Union ->
-        union_types =
-          Keyword.get(full_constraints, :types, [])
-
-        build_union_error_type(union_types)
+        build_union_error_type(Keyword.get(full_constraints, :types, []))
 
       # Typed containers (Map, Keyword, Tuple) with potential field constraints
       unwrapped_type in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] ->
@@ -314,10 +348,9 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   Maps Ash types to their corresponding validation error types.
   Backward compatible wrapper around map_error_type/2.
   """
-  # Handle AshApiSpec structs — extract raw type/constraints from the spec type
+  # Handle AshApiSpec structs — pass spec type directly
   def get_ts_error_type(%{type: %AshApiSpec.Type{} = spec_type}) do
-    {raw_type, raw_constraints} = spec_type_to_raw(spec_type)
-    map_error_type(raw_type, raw_constraints)
+    map_error_type(spec_type, [])
   end
 
   def get_ts_error_type(%{type: type, constraints: constraints}) do
@@ -486,17 +519,4 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
 
   defp is_embedded_resource?(_), do: false
 
-  # Converts an AshApiSpec.Type back to raw {type, constraints} for the error type mapper
-  defp spec_type_to_raw(%AshApiSpec.Type{
-         kind: :array,
-         item_type: item_type,
-         constraints: constraints
-       }) do
-    {inner_type, _inner_constraints} = spec_type_to_raw(item_type)
-    {{:array, inner_type}, constraints || []}
-  end
-
-  defp spec_type_to_raw(%AshApiSpec.Type{module: module, constraints: constraints}) do
-    {module, constraints || []}
-  end
 end
