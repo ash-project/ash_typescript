@@ -399,7 +399,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
     "{#{field_types}}"
   end
 
-  defp get_field_name_mappings(type, constraints) do
+  defp get_field_name_mappings(_type, constraints) do
     instance_of = Keyword.get(constraints, :instance_of)
 
     cond do

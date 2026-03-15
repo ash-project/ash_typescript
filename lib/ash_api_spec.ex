@@ -60,10 +60,8 @@ defmodule AshApiSpec do
   """
   @spec generate_resource_lookup(keyword()) :: {:ok, resource_lookup()} | {:error, term()}
   def generate_resource_lookup(opts) do
-    case generate(opts) do
-      {:ok, spec} -> {:ok, resource_lookup(spec)}
-      error -> error
-    end
+    {:ok, spec} = generate(opts)
+    {:ok, resource_lookup(spec)}
   end
 
   # ─────────────────────────────────────────────────────────────────
