@@ -218,9 +218,9 @@ defmodule AshTypescript.MixProject do
       ],
       credo: "credo --strict",
       "spark.formatter":
-        "spark.formatter --extensions AshTypescript.Rpc,AshTypescript.Resource,AshTypescript.TypedController.Dsl",
+        "spark.formatter --extensions AshTypescript.Rpc,AshTypescript.Resource,AshTypescript.TypedController.Dsl,AshTypescript.TypedChannel.Dsl",
       "spark.cheat_sheets":
-        "spark.cheat_sheets --extensions AshTypescript.Rpc,AshTypescript.Resource,AshTypescript.TypedController.Dsl"
+        "spark.cheat_sheets --extensions AshTypescript.Rpc,AshTypescript.Resource,AshTypescript.TypedController.Dsl,AshTypescript.TypedChannel.Dsl"
     ]
   end
 end
