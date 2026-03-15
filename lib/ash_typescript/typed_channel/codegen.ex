@@ -69,9 +69,11 @@ defmodule AshTypescript.TypedChannel.Codegen do
     if Enum.empty?(channel_data) do
       ""
     else
+      all_events = Enum.flat_map(channel_data, fn {_, _, events} -> events end)
+      validate_no_payload_type_conflicts!(all_events, channel_data)
+
       shared_payload_types =
-        channel_data
-        |> Enum.flat_map(fn {_, _, events} -> events end)
+        all_events
         |> Enum.uniq_by(fn %{payload_type_name: name} -> name end)
         |> Enum.sort_by(fn %{payload_type_name: name} -> name end)
         |> Enum.map_join("\n", fn %{payload_type_name: name, ts_type: ts_type} ->
@@ -353,6 +355,45 @@ defmodule AshTypescript.TypedChannel.Codegen do
       }
     }\
     """
+  end
+
+  defp validate_no_payload_type_conflicts!(all_events, channel_data) do
+    conflicts =
+      all_events
+      |> Enum.group_by(fn %{payload_type_name: name} -> name end)
+      |> Enum.filter(fn {_name, events} ->
+        events |> Enum.map(& &1.ts_type) |> Enum.uniq() |> length() > 1
+      end)
+
+    unless conflicts == [] do
+      details =
+        Enum.map_join(conflicts, "\n\n", fn {type_name, events} ->
+          variants =
+            events
+            |> Enum.uniq_by(& &1.ts_type)
+            |> Enum.map_join("\n", fn %{event: event, ts_type: ts_type} ->
+              channels =
+                channel_data
+                |> Enum.filter(fn {_, _, evts} -> Enum.any?(evts, &(&1.event == event)) end)
+                |> Enum.map_join(", ", fn {mod, _, _} -> inspect(mod) end)
+
+              "    event #{inspect(event)} (in #{channels}) → #{ts_type}"
+            end)
+
+          "  #{type_name}:\n#{variants}"
+        end)
+
+      raise """
+      Payload type name conflict detected across typed channels.
+
+      The following events produce the same TypeScript type name but map to different types:
+
+      #{details}
+
+      Rename the conflicting events so each event name maps to a unique payload type, \
+      or ensure they return the same type.
+      """
+    end
   end
 
   defp module_to_channel_name(module) do
