@@ -151,6 +151,14 @@ AshTypescript.Rpc.run_action(:ash_typescript, conn, params)
 - Path param error at codegen: Router path has `:param` without matching DSL argument
 - Invalid TypeScript names: Route or argument names contain `_1` or `?` patterns
 
+### Typed Channels
+- "No publication with event X found": Event name doesn't match any `event:` or action name in the resource's `pub_sub` block
+- "Duplicate event names found": Same event name across multiple resources in one channel — use unique event names
+- "Payload type name conflict": Same event name across different channels maps to different TypeScript types — rename events or ensure same `returns` type
+- `unknown` payload type: Publication missing `returns` option — add `returns: :some_type`
+- Channel types missing from output: `typed_channels` not configured in application config
+- Channel functions not generated: `typed_channels_output_file` not set in application config
+
 ## Validation Workflow
 
 1. `mix test.codegen`

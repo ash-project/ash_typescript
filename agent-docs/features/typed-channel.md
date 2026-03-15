@@ -171,7 +171,13 @@ The factory function adapts to the topic pattern:
 
 ### Payload Deduplication
 
-When `generate_all_channel_types/1` processes multiple channels, payload type aliases are deduplicated by name. If two channels both declare `post_created` events, only one `PostCreatedPayload` type is emitted.
+When `generate_all_channel_types/1` processes multiple channels, payload type aliases are deduplicated by name. If two channels both declare `article_published` events from the same resource, only one `ArticlePublishedPayload` type is emitted.
+
+### Payload Type Conflict Detection
+
+Before deduplication, `validate_no_payload_type_conflicts!/2` checks that events sharing a payload type name also share the same TypeScript type. If two events across different channels produce the same type name (e.g., `ItemCreatedPayload`) but map to different TypeScript types (e.g., `{id: UUID}` vs `string`), codegen raises a `RuntimeError` with details about the conflicting events and channels.
+
+This can happen when two resources declare publications with the same event name but different `returns` types, and those resources are used in separate channels. The verifier's unique-event check only applies within a single channel, so this cross-channel conflict is caught at codegen time instead.
 
 ## Configuration
 
@@ -214,14 +220,15 @@ Channel entries are collected once and reused for both steps.
 
 | File | Purpose |
 |------|---------|
-| `test/ash_typescript/typed_channel/codegen_test.exs` | Single-channel codegen, orchestrator integration |
-| `test/ash_typescript/typed_channel/multi_resource_codegen_test.exs` | Multi-resource channels, cross-channel isolation, batch generation |
+| `test/ash_typescript/typed_channel/codegen_test.exs` | Single-channel codegen, static topic, deduplication, orchestrator integration |
+| `test/ash_typescript/typed_channel/multi_resource_codegen_test.exs` | Multi-resource channels, cross-channel isolation, batch generation, payload type conflict detection |
+| `test/ash_typescript/typed_channel/verify_typed_channel_test.exs` | Verifier tests: missing events, duplicate events, missing returns/public warnings |
 
 ### Test Resources
 
 | File | Purpose |
 |------|---------|
-| `test/support/resources/channel_item.ex` | Resource with map, integer, and no-returns publications |
+| `test/support/resources/channel_item.ex` | Resource with map, integer, string publications |
 | `test/support/resources/channel_article.ex` | Resource with map, string, boolean publications |
 | `test/support/resources/channel_review.ex` | Resource with integer, boolean publications |
 | `test/support/resources/channel_alert.ex` | Resource with map, utc_datetime publications |
@@ -229,6 +236,14 @@ Channel entries are collected once and reused for both steps.
 | `test/support/resources/content_feed_channel.ex` | Two-resource channel (Article + Review) |
 | `test/support/resources/moderation_channel.ex` | Three-resource channel (Article + Review + Alert) |
 | `test/support/resources/full_activity_channel.ex` | All events from all resources |
+
+Inline test resources (defined in test files to avoid compile-time warnings in CI):
+
+| File | Inline Modules | Purpose |
+|------|---------------|---------|
+| `codegen_test.exs` | `NoReturnsItem`, `NoReturnsChannel`, `StaticTopicChannel` | Unknown payload type, static topic factory |
+| `multi_resource_codegen_test.exs` | `ConflictItemA/B`, `ConflictChannelA/B` | Payload type conflict detection |
+| `verify_typed_channel_test.exs` | `VerifierNoReturnsItem/Channel`, `VerifierNotPublicItem/Channel`, `DuplicateEventItem`, `ChannelWithMissingEvent`, `ChannelWithDuplicateEvents` | Verifier error and warning paths |
 
 ### Running Tests
 
@@ -242,7 +257,7 @@ mix test test/ash_typescript/typed_channel/   # Typed channel tests
 |-------|-------|----------|
 | "No publication with event X found" | Event name doesn't match any publication on the resource | Check the `event:` option (or action name fallback) on the resource's `pub_sub` block |
 | "Duplicate event names found" | Same event name used across multiple resources in one channel | Use unique event names per channel |
+| "Payload type name conflict" | Same event name across different channels maps to different TypeScript types | Rename conflicting events or ensure they return the same type |
 | `unknown` TypeScript payload type | Publication missing `returns` option | Add `returns: :some_type` to the publication |
 | Channel types not in output | `typed_channels` not configured | Add modules to `typed_channels: [...]` in config |
 | Channel functions not generated | `typed_channels_output_file` not configured | Set `typed_channels_output_file:` in config |
-| Payload deduplication conflict | Two events with different types map to the same payload type name | Rename events to avoid collisions |

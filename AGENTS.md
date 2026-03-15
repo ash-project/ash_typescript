@@ -365,6 +365,7 @@ mix credo --strict                   # Linting
 | `allow_nil?: false` on sometimes-present path param | Path param only at some mounts | Set `allow_nil?: true` (default) on the argument |
 | "No publication with event X found" | Typed channel event doesn't match any publication | Check `event:` option on the resource's `pub_sub` block |
 | "Duplicate event names found in typed_channel" | Same event name across resources in one channel | Use unique event names per channel |
+| "Payload type name conflict" | Same event name across different channels maps to different TS types | Rename events or ensure same `returns` type |
 | Channel `unknown` payload type | Publication missing `returns` option | Add `returns: :some_type` to the publication |
 
 ## RPC Resource Warnings

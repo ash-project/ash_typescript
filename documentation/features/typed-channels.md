@@ -288,6 +288,18 @@ The TypeScript payload type is derived from the publication's `returns` option:
 
 Map types with `:fields` constraints generate plain object types without the `__type`/`__primitiveFields` metadata used by the RPC field-selection system.
 
+### Multi-Channel Payload Deduplication
+
+When multiple channels are configured, payload type aliases are deduplicated by name. If two channels both subscribe to `article_published` from the same resource, only one `ArticlePublishedPayload` type is emitted in `ash_types.ts`.
+
+If two different resources declare publications with the same event name but different `returns` types and those resources appear in separate channels, codegen will raise an error:
+
+```
+Payload type name conflict detected across typed channels.
+```
+
+To fix this, rename the conflicting events to be unique, or ensure they return the same type.
+
 ## Frontend Usage Patterns
 
 ### Single-Event Subscription
