@@ -724,5 +724,24 @@ defmodule AshTypescript do
       nil -> nil
       output_file -> Path.join(Path.dirname(output_file), default_name)
     end
+  Returns the pre-computed AshApiSpec resource lookup map for the given OTP app.
+
+  Reads the `%AshApiSpec.Resource{}` maps that were persisted on each domain
+  at compile time by the `PersistResourceLookups` transformer and merges them
+  into a single lookup map keyed by resource module.
+
+  This is much faster than calling `AshApiSpec.generate_resource_lookup/1`
+  since it reads pre-computed data instead of regenerating the spec.
+  """
+  @spec resource_lookup(atom()) :: AshApiSpec.resource_lookup()
+  def resource_lookup(otp_app) do
+    otp_app
+    |> Ash.Info.domains()
+    |> Enum.reduce(%{}, fn domain, acc ->
+      case Spark.Dsl.Extension.get_persisted(domain, :ash_api_spec_lookups) do
+        lookups when is_map(lookups) -> Map.merge(acc, lookups)
+        _ -> acc
+      end
+    end)
   end
 end

@@ -265,8 +265,6 @@ defmodule AshTypescript.Codegen.FilterTypes do
   end
 
   defp build_resource_lookup do
-    otp_app = Mix.Project.config()[:app]
-    {:ok, api_spec} = AshApiSpec.Generator.generate(otp_app: otp_app)
-    AshApiSpec.resource_lookup(api_spec)
+    AshTypescript.resource_lookup(Mix.Project.config()[:app])
   end
 end

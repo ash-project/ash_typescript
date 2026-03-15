@@ -174,7 +174,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   """
   def build_identity_config_field(resource, identities, opts) do
     {:ok, resource_lookup} =
-      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+      AshTypescript.resource_lookup(Mix.Project.config()[:app])
 
     build_identity_config_field(resource, identities, opts, resource_lookup)
   end
@@ -378,7 +378,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   """
   def build_get_by_config_field(resource, rpc_action) do
     {:ok, resource_lookup} =
-      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+      AshTypescript.resource_lookup(Mix.Project.config()[:app])
 
     build_get_by_config_field(resource, rpc_action, resource_lookup)
   end

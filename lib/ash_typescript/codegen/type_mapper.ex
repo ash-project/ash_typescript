@@ -402,13 +402,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
   defp get_field_name_mappings(_type, constraints) do
     instance_of = Keyword.get(constraints, :instance_of)
 
-    cond do
-      # Check instance_of first (for Ash.Type.Struct with instance_of constraint)
-      instance_of && function_exported?(instance_of, :typescript_field_names, 0) ->
-        instance_of.typescript_field_names()
-
-      true ->
-        nil
+    if instance_of && function_exported?(instance_of, :typescript_field_names, 0) do
+      instance_of.typescript_field_names()
     end
   end
 

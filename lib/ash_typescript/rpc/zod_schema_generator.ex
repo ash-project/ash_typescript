@@ -390,7 +390,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   """
   def generate_zod_schema(resource, action, rpc_action_name) do
     {:ok, resource_lookup} =
-      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+      AshTypescript.resource_lookup(Mix.Project.config()[:app])
 
     generate_zod_schema(resource, action, rpc_action_name, resource_lookup)
   end
@@ -479,7 +479,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   """
   def generate_zod_schemas_for_resources(resources) do
     {:ok, resource_lookup} =
-      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+      AshTypescript.resource_lookup(Mix.Project.config()[:app])
 
     generate_zod_schemas_for_resources(resources, resource_lookup)
   end
@@ -511,7 +511,7 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   """
   def generate_zod_schema_for_resource(resource) do
     {:ok, resource_lookup} =
-      AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
+      AshTypescript.resource_lookup(Mix.Project.config()[:app])
 
     generate_zod_schema_for_resource(resource, resource_lookup)
   end

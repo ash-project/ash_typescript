@@ -85,9 +85,7 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
   """
   def build_rpc_warnings(otp_app) do
     rpc_resources = get_rpc_resources(otp_app)
-    {:ok, api_spec} = AshApiSpec.Generator.generate(otp_app: otp_app)
-    resource_lookup = AshApiSpec.resource_lookup(api_spec)
-    build_rpc_warnings(otp_app, resource_lookup, rpc_resources)
+    build_rpc_warnings(otp_app, AshTypescript.resource_lookup(otp_app), rpc_resources)
   end
 
   def build_rpc_warnings(otp_app, resource_lookup, rpc_resources) do

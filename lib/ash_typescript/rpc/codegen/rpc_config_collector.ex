@@ -105,9 +105,7 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   and values are lists of `{resource, action, rpc_action, domain, resource_config}` tuples.
   """
   def get_rpc_resources_by_namespace(otp_app) do
-    {:ok, api_spec} = AshApiSpec.Generator.generate(otp_app: otp_app)
-    resource_lookup = AshApiSpec.resource_lookup(api_spec)
-    get_rpc_resources_by_namespace(otp_app, resource_lookup)
+    get_rpc_resources_by_namespace(otp_app, AshTypescript.resource_lookup(otp_app))
   end
 
   def get_rpc_resources_by_namespace(otp_app, resource_lookup) do
