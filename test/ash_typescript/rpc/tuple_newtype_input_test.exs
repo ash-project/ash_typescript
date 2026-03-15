@@ -29,7 +29,7 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
     test "has typescript_field_names callback" do
       type = AshTypescript.Test.InputParsing.LocationTuple
 
-      assert Introspection.has_typescript_field_names?(type)
+      assert function_exported?(type, :typescript_field_names, 0)
 
       field_names = type.typescript_field_names()
       assert field_names[:lat_1] == "lat1"

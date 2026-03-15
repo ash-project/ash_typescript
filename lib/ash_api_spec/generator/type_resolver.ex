@@ -424,7 +424,7 @@ defmodule AshApiSpec.Generator.TypeResolver do
   defp resolve_field_constraints(_), do: []
 
   # ─────────────────────────────────────────────────────────────────
-  # Helpers (inlined from AshTypescript.TypeSystem.Introspection)
+  # Helpers
   # ─────────────────────────────────────────────────────────────────
 
   @doc false

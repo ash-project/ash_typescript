@@ -52,15 +52,4 @@ defmodule AshTypescript.TypeSystem.Introspection do
   end
 
   def unwrap_new_type(type, constraints), do: {type, constraints}
-
-  @doc """
-  Checks if a module has a `typescript_field_names/0` callback.
-  """
-  def has_typescript_field_names?(nil), do: false
-
-  def has_typescript_field_names?(module) when is_atom(module) do
-    Code.ensure_loaded?(module) && function_exported?(module, :typescript_field_names, 0)
-  end
-
-  def has_typescript_field_names?(_), do: false
 end
