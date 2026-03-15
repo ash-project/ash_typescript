@@ -22,10 +22,10 @@ defmodule AshApiSpec.Generator do
   ## Options
 
     * `:otp_app` - The OTP app to scan (required)
-    * `:action_entrypoints` - Optional list of `{resource_module, action_name}` tuples.
-      These actions serve as entrypoints for deriving the spec — reachability
-      analysis walks their arguments to discover dependent types and resources.
-      When omitted, all public actions across all domains are included.
+    * `:action_entrypoints` - Optional list of action entrypoints. Each entry can be:
+      * `{resource_module, action_name}` — simple tuple (config defaults to `%{}`)
+      * `%{resource: module, action: atom, config: map}` — with extension-specific config
+      When omitted, all actions across all domains are included.
     * `:overrides` - Optional keyword list of overrides:
       * `:always` - Keyword list of items to always include regardless of reachability:
         * `:resources` - List of resource modules. These are added as reachability roots
@@ -46,7 +46,8 @@ defmodule AshApiSpec.Generator do
     # Discover all domains and their resources
     domains = discover_domains(otp_app)
 
-    # Build the resource → action_names map
+    # Normalize entrypoints and build resource → action_names map for reachability
+    normalized_entries = normalize_action_filter(action_filter)
     resource_action_map = build_resource_action_map(domains, action_filter)
 
     # Build reachability entries: when filtering by actions, pass {resource, action_names}
@@ -80,8 +81,8 @@ defmodule AshApiSpec.Generator do
         ResourceBuilder.build(resource)
       end)
 
-    # Build entrypoints from the resource → action_names map
-    entrypoints = build_entrypoints(resource_action_map, action_filter)
+    # Build entrypoints — one per normalized entry (not per unique action)
+    entrypoints = build_entrypoints(normalized_entries, resource_action_map)
 
     # Build standalone type specs (full definitions, not references)
     types =
@@ -118,8 +119,20 @@ defmodule AshApiSpec.Generator do
   # Action Mapping
   # ─────────────────────────────────────────────────────────────────
 
+  # Normalizes action_filter entries into {resource, action_name, config} triples.
+  # Returns nil when no filter (all actions included).
+  defp normalize_action_filter(nil), do: nil
+
+  defp normalize_action_filter(entries) when is_list(entries) do
+    Enum.map(entries, fn
+      {resource, action_name} -> {resource, action_name, %{}}
+      %{resource: resource, action: action_name} = entry ->
+        {resource, action_name, Map.get(entry, :config, %{})}
+    end)
+  end
+
+  # Builds resource → unique action_names map for reachability.
   defp build_resource_action_map(domains, nil) do
-    # No filter: include all resources with all actions
     for domain <- domains,
         resource <- Ash.Domain.Info.resources(domain),
         reduce: %{} do
@@ -128,9 +141,16 @@ defmodule AshApiSpec.Generator do
   end
 
   defp build_resource_action_map(_domains, action_filter) when is_list(action_filter) do
-    # Filter: group by resource
-    Enum.reduce(action_filter, %{}, fn {resource, action_name}, acc ->
-      Map.update(acc, resource, [action_name], &[action_name | &1])
+    Enum.reduce(action_filter, %{}, fn entry, map ->
+      {resource, action_name, _config} =
+        case entry do
+          {r, a} -> {r, a, %{}}
+          %{resource: r, action: a} -> {r, a, %{}}
+        end
+
+      Map.update(map, resource, [action_name], fn names ->
+        if action_name in names, do: names, else: [action_name | names]
+      end)
     end)
   end
 
@@ -140,12 +160,13 @@ defmodule AshApiSpec.Generator do
   # Entrypoint Building
   # ─────────────────────────────────────────────────────────────────
 
-  defp build_entrypoints(resource_action_map, action_filter) do
+  # When no filter: one entrypoint per action on each resource
+  defp build_entrypoints(nil, resource_action_map) do
     resource_action_map
-    |> Enum.flat_map(fn {resource, action_names} ->
-      actions_to_include = get_actions_for_entrypoints(resource, action_names, action_filter)
-
-      Enum.map(actions_to_include, fn action ->
+    |> Enum.flat_map(fn {resource, _action_names} ->
+      resource
+      |> Ash.Resource.Info.actions()
+      |> Enum.map(fn action ->
         %AshApiSpec.Entrypoint{
           resource: resource,
           action: ActionBuilder.build(resource, action)
@@ -155,19 +176,24 @@ defmodule AshApiSpec.Generator do
     |> Enum.sort_by(fn e -> {Module.split(e.resource), e.action.name} end)
   end
 
-  defp get_actions_for_entrypoints(resource, action_names, _action_filter) do
-    case action_names do
-      nil ->
-        # No filter: include all actions
-        Ash.Resource.Info.actions(resource)
+  # When filtered: one entrypoint per normalized entry (preserves duplicates with different configs)
+  defp build_entrypoints(normalized_entries, _resource_action_map) do
+    normalized_entries
+    |> Enum.flat_map(fn {resource, action_name, config} ->
+      case Ash.Resource.Info.action(resource, action_name) do
+        nil ->
+          []
 
-      names when is_list(names) ->
-        Enum.flat_map(names, fn name ->
-          case Ash.Resource.Info.action(resource, name) do
-            nil -> []
-            action -> [action]
-          end
-        end)
-    end
+        action ->
+          [
+            %AshApiSpec.Entrypoint{
+              resource: resource,
+              action: ActionBuilder.build(resource, action),
+              config: config
+            }
+          ]
+      end
+    end)
+    |> Enum.sort_by(fn e -> {Module.split(e.resource), e.action.name} end)
   end
 end

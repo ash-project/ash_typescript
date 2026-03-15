@@ -29,23 +29,23 @@ defmodule AshTypescript.AshApiSpec.Transformers.BuildAppSpec do
     # All resources listed in typescript_rpc blocks (including those without rpc_actions)
     rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
 
-    # Build action filter tuples from DSL config (before spec exists)
-    action_tuples_from_rpc = RpcConfigCollector.get_rpc_action_tuples(otp_app)
+    # Build entrypoint configs with RPC metadata under config.ash_typescript
+    entrypoint_configs = RpcConfigCollector.get_rpc_action_entrypoint_configs(otp_app)
 
     # Ensure all typescript_rpc resources are roots (even those without rpc_actions)
     resources_with_actions =
-      action_tuples_from_rpc |> Enum.map(fn {r, _} -> r end) |> MapSet.new()
+      entrypoint_configs |> Enum.map(& &1.resource) |> MapSet.new()
 
     extra_root_tuples =
       rpc_resources
       |> Enum.reject(&MapSet.member?(resources_with_actions, &1))
       |> Enum.map(&{&1, :__reachability_root__})
 
-    all_action_tuples = action_tuples_from_rpc ++ extra_root_tuples
+    all_entrypoints = entrypoint_configs ++ extra_root_tuples
 
-    # Generate unified AshApiSpec with action-scoped reachability
+    # Generate unified AshApiSpec with action-scoped reachability and RPC config
     {:ok, api_spec} =
-      AshApiSpec.Generator.generate(otp_app: otp_app, action_entrypoints: all_action_tuples)
+      AshApiSpec.Generator.generate(otp_app: otp_app, action_entrypoints: all_entrypoints)
 
     resource_lookup = AshApiSpec.resource_lookup(api_spec)
     action_lookup = AshApiSpec.action_lookup(api_spec)

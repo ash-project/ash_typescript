@@ -739,6 +739,28 @@ defmodule AshTypescript do
   end
 
   @doc """
+  Returns the full `%AshApiSpec{}` for the given OTP app.
+  """
+  @spec api_spec(atom()) :: AshApiSpec.t()
+  def api_spec(otp_app) do
+    case ash_api_spec() do
+      nil ->
+        build_spec_at_runtime(otp_app)
+
+      module ->
+        Spark.Dsl.Extension.get_persisted(module, :ash_api_spec)
+    end
+  end
+
+  @doc """
+  Returns the entrypoints from the AshApiSpec for the given OTP app.
+  """
+  @spec entrypoints(atom()) :: [AshApiSpec.Entrypoint.t()]
+  def entrypoints(otp_app) do
+    api_spec(otp_app).entrypoints
+  end
+
+  @doc """
   Returns the AshApiSpec resource lookup map for the given OTP app.
 
   Reads the pre-computed lookup from the configured `AshTypescript.AshApiSpec`
@@ -748,12 +770,8 @@ defmodule AshTypescript do
   @spec resource_lookup(atom()) :: AshApiSpec.resource_lookup()
   def resource_lookup(otp_app) do
     case ash_api_spec() do
-      nil ->
-        {resource_lookup, _} = build_lookups_at_runtime(otp_app)
-        resource_lookup
-
-      module ->
-        Spark.Dsl.Extension.get_persisted(module, :resource_lookup)
+      nil -> AshApiSpec.resource_lookup(api_spec(otp_app))
+      module -> Spark.Dsl.Extension.get_persisted(module, :resource_lookup)
     end
   end
 
@@ -765,32 +783,30 @@ defmodule AshTypescript do
   @spec action_lookup(atom()) :: AshApiSpec.action_lookup()
   def action_lookup(otp_app) do
     case ash_api_spec() do
-      nil ->
-        {_, action_lookup} = build_lookups_at_runtime(otp_app)
-        action_lookup
-
-      module ->
-        Spark.Dsl.Extension.get_persisted(module, :action_lookup)
+      nil -> AshApiSpec.action_lookup(api_spec(otp_app))
+      module -> Spark.Dsl.Extension.get_persisted(module, :action_lookup)
     end
   end
 
-  defp build_lookups_at_runtime(otp_app) do
+  defp build_spec_at_runtime(otp_app) do
     rpc_resources = AshTypescript.Codegen.TypeDiscovery.get_rpc_resources(otp_app)
-    action_tuples = AshTypescript.Rpc.Codegen.RpcConfigCollector.get_rpc_action_tuples(otp_app)
+
+    entrypoint_configs =
+      AshTypescript.Rpc.Codegen.RpcConfigCollector.get_rpc_action_entrypoint_configs(otp_app)
 
     resources_with_actions =
-      action_tuples |> Enum.map(fn {r, _} -> r end) |> MapSet.new()
+      entrypoint_configs |> Enum.map(& &1.resource) |> MapSet.new()
 
     extra_root_tuples =
       rpc_resources
       |> Enum.reject(&MapSet.member?(resources_with_actions, &1))
       |> Enum.map(&{&1, :__reachability_root__})
 
-    all_action_tuples = action_tuples ++ extra_root_tuples
+    all_entrypoints = entrypoint_configs ++ extra_root_tuples
 
-    {:ok, api_spec} =
-      AshApiSpec.Generator.generate(otp_app: otp_app, action_entrypoints: all_action_tuples)
+    {:ok, spec} =
+      AshApiSpec.Generator.generate(otp_app: otp_app, action_entrypoints: all_entrypoints)
 
-    {AshApiSpec.resource_lookup(api_spec), AshApiSpec.action_lookup(api_spec)}
+    spec
   end
 end

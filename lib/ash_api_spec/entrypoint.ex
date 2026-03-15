@@ -8,12 +8,17 @@ defmodule AshApiSpec.Entrypoint do
 
   Each entrypoint pairs a resource module with an action definition,
   representing an operation that clients can invoke.
+
+  The `config` map carries extension-specific metadata, namespaced by
+  extension key (e.g., `config.ash_typescript`). The generator passes
+  this through opaquely — only the extension that populated it reads it.
   """
 
   @type t :: %__MODULE__{
           resource: atom(),
-          action: AshApiSpec.Action.t()
+          action: AshApiSpec.Action.t(),
+          config: map()
         }
 
-  defstruct [:resource, :action]
+  defstruct [:resource, :action, config: %{}]
 end

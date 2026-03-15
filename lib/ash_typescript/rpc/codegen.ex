@@ -93,16 +93,16 @@ defmodule AshTypescript.Rpc.Codegen do
     rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
     domains = Ash.Info.domains(otp_app)
 
-    # Use pre-computed resource lookup (from persistent_term or runtime fallback)
+    # Use pre-computed spec data
     resource_lookup = AshTypescript.resource_lookup(otp_app)
+    entrypoints = AshTypescript.entrypoints(otp_app)
 
     # Run reachability once for depth-first ordering (needed by Zod schema generation)
     {reachable_resources, _} =
       AshApiSpec.Generator.Reachability.find_reachable(rpc_resources)
 
-    # Now resolve RPC actions from the spec (returns %AshApiSpec.Action{} structs)
-    resources_and_actions =
-      RpcConfigCollector.get_rpc_resources_and_actions(otp_app, resource_lookup)
+    # Extract RPC actions from entrypoints (no domain re-scanning)
+    resources_and_actions = RpcConfigCollector.get_rpc_resources_and_actions(entrypoints)
 
     hook_config = %{
       rpc_action_before_request_hook: rpc_action_before_request_hook,
@@ -176,7 +176,8 @@ defmodule AshTypescript.Rpc.Codegen do
       )
 
     # Group actions by namespace for re-export files
-    grouped = RpcConfigCollector.get_rpc_resources_by_namespace(otp_app, resource_lookup)
+    entrypoints = AshTypescript.entrypoints(otp_app)
+    grouped = RpcConfigCollector.get_rpc_resources_by_namespace(entrypoints)
 
     # Generate namespace files (simple re-exports from main file)
     namespace_files =
@@ -340,10 +341,12 @@ defmodule AshTypescript.Rpc.Codegen do
        ) do
     # All RPC resources (including those without rpc_actions) from typescript_rpc blocks
     rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
+    entrypoints = AshTypescript.entrypoints(otp_app)
+    action_lookup = AshTypescript.action_lookup(otp_app)
 
     actions = Enum.map(rpc_resources_and_actions, fn {_, action, _} -> action end)
 
-    typed_queries = RpcConfigCollector.get_typed_queries(otp_app, resource_lookup)
+    typed_queries = RpcConfigCollector.get_typed_queries(entrypoints, action_lookup)
 
     # Embedded resources in depth-first order (dependencies before dependents, required by Zod)
     embedded_resources =

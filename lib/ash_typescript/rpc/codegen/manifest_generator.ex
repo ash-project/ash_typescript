@@ -27,14 +27,12 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
   The manifest respects the following configuration:
   - `add_ash_internals_to_manifest` - When true, includes Elixir module paths and internal action names
   """
-  def generate_manifest(otp_app, resource_lookup \\ nil) do
+  def generate_manifest(otp_app, _resource_lookup \\ nil) do
     include_internals? = AshTypescript.Rpc.add_ash_internals_to_manifest?()
-
-    resource_lookup = resource_lookup || build_resource_lookup(otp_app)
+    entrypoints = AshTypescript.entrypoints(otp_app)
 
     # Get namespaced actions to determine if we should group by namespace
-    namespaced_actions =
-      RpcConfigCollector.get_rpc_resources_by_namespace(otp_app, resource_lookup)
+    namespaced_actions = RpcConfigCollector.get_rpc_resources_by_namespace(entrypoints)
 
     has_namespaces? = has_meaningful_namespaces?(namespaced_actions)
 
@@ -44,7 +42,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
       if has_namespaces? do
         generate_namespace_grouped_content(namespaced_actions, include_internals?)
       else
-        generate_domain_grouped_content(otp_app, include_internals?)
+        generate_domain_grouped_content(entrypoints, include_internals?)
       end
 
     tc_section = generate_typed_controller_manifest_section()
@@ -141,8 +139,9 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     |> String.trim_trailing()
   end
 
-  defp generate_domain_grouped_content(otp_app, include_internals?) do
-    domain_configs = RpcConfigCollector.get_rpc_config_by_domain(otp_app)
+  # Generate content grouped by domain (original behavior)
+  defp generate_domain_grouped_content(entrypoints, include_internals?) do
+    domain_configs = RpcConfigCollector.get_rpc_config_by_domain(entrypoints)
 
     sorted_domains =
       domain_configs

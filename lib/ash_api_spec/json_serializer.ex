@@ -61,6 +61,7 @@ defmodule AshApiSpec.JsonSerializer do
   # ─────────────────────────────────────────────────────────────────
 
   defp serialize_entrypoint(%AshApiSpec.Entrypoint{} = entrypoint) do
+    # config is omitted from JSON — it carries internal extension-specific structs
     %{
       "resource" => module_to_string(entrypoint.resource),
       "action" => serialize_action(entrypoint.action)
