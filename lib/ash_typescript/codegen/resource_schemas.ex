@@ -103,64 +103,6 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   def classify_by_type(%AshApiSpec.Type{}), do: :primitive
 
-  def classify_by_type(field) do
-    # Unwrap NewTypes first
-    {unwrapped_type, unwrapped_constraints} =
-      AshTypescript.TypeSystem.Introspection.unwrap_new_type(field.type, field.constraints || [])
-
-    # Handle array wrapper - get the inner type and constraints
-    {base_type, constraints} =
-      case unwrapped_type do
-        {:array, inner} ->
-          inner_constraints = Keyword.get(unwrapped_constraints, :items, [])
-          {inner, inner_constraints}
-
-        type ->
-          {type, unwrapped_constraints}
-      end
-
-    cond do
-      # Union types
-      base_type == Ash.Type.Union ->
-        :union
-
-      # Embedded resources
-      is_atom(base_type) and embedded_resource?(base_type) ->
-        :embedded
-
-      # Typed containers with field constraints (Map, Keyword, Tuple)
-      base_type in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] and
-          Keyword.has_key?(constraints, :fields) ->
-        :typed_map
-
-      # Struct with instance_of pointing to embedded resource
-      base_type == Ash.Type.Struct and
-        Keyword.has_key?(constraints, :instance_of) and
-          embedded_resource?(constraints[:instance_of]) ->
-        :embedded
-
-      # Struct with instance_of pointing to non-embedded resource
-      base_type == Ash.Type.Struct and
-        Keyword.has_key?(constraints, :instance_of) and
-          Spark.Dsl.is?(constraints[:instance_of], Ash.Resource) ->
-        :embedded
-
-      # Struct with field constraints (TypedStruct pattern)
-      base_type == Ash.Type.Struct and
-        Keyword.has_key?(constraints, :fields) and
-          Keyword.has_key?(constraints, :instance_of) ->
-        :typed_struct
-
-      # Struct with just field constraints (no instance_of)
-      base_type == Ash.Type.Struct and Keyword.has_key?(constraints, :fields) ->
-        :typed_map
-
-      # Everything else is primitive
-      true ->
-        :primitive
-    end
-  end
-
   @doc """
   Generates all schemas (unified + input) for a list of resources.
 
@@ -830,12 +772,6 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   defp spec_type_name(_), do: nil
 
   # ─────────────────────────────────────────────────────────────────
-
-  defp embedded_resource?(module) when is_atom(module) and not is_nil(module) do
-    Ash.Resource.Info.resource?(module) and Ash.Resource.Info.embedded?(module)
-  end
-
-  defp embedded_resource?(_), do: false
 
   # Helper to format a resource field name for client output
   # Uses field_names DSL mapping if available, otherwise applies formatter

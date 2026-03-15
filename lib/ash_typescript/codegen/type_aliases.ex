@@ -176,33 +176,20 @@ defmodule AshTypescript.Codegen.TypeAliases do
       get_type_mapping_override(type) != nil ->
         ""
 
-      is_custom_type?(type) ->
+      AshTypescript.TypeSystem.Introspection.is_custom_type?(type) ->
         ""
 
       Ash.Type.NewType.new_type?(type) or Spark.implements_behaviour?(type, Ash.Type.Enum) ->
         ""
 
-      embedded_resource?(type) ->
+      is_atom(type) and not is_nil(type) and Ash.Resource.Info.resource?(type) and
+          Ash.Resource.Info.embedded?(type) ->
         ""
 
       true ->
         raise "Unknown type: #{type}"
     end
   end
-
-  defp embedded_resource?(module) when is_atom(module) and not is_nil(module) do
-    Ash.Resource.Info.resource?(module) and Ash.Resource.Info.embedded?(module)
-  end
-
-  defp embedded_resource?(_), do: false
-
-  defp is_custom_type?(type) when is_atom(type) and not is_nil(type) do
-    Code.ensure_loaded?(type) and
-      function_exported?(type, :typescript_type_name, 0) and
-      Spark.implements_behaviour?(type, Ash.Type)
-  end
-
-  defp is_custom_type?(_), do: false
 
   defp get_type_mapping_override(type) when is_atom(type) do
     type_mapping_overrides = AshTypescript.type_mapping_overrides()

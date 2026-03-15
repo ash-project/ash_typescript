@@ -301,12 +301,10 @@ defmodule AshTypescript.CodegenTest do
   end
 
   describe "error handling" do
-    test "raises error for unsupported type" do
+    test "unsupported type falls back to any" do
       unsupported_type = MyApp.CustomUnsupportedType
 
-      assert_raise RuntimeError, ~r/unsupported type/, fn ->
-        Codegen.get_ts_type(%{type: unsupported_type, constraints: []})
-      end
+      assert Codegen.get_ts_type(%{type: unsupported_type, constraints: []}) == "any"
     end
   end
 

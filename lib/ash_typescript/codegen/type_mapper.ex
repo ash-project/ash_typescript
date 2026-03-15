@@ -68,26 +68,6 @@ defmodule AshTypescript.Codegen.TypeMapper do
     Ash.Type.Module => "ModuleName"
   }
 
-  @atom_primitives %{
-    :string => "string",
-    :integer => "number",
-    :float => "number",
-    :decimal => "Decimal",
-    :boolean => "boolean",
-    :uuid => "UUID",
-    :date => "AshDate",
-    :time => "Time",
-    :datetime => "UtcDateTime",
-    :naive_datetime => "NaiveDateTime",
-    :utc_datetime => "UtcDateTime",
-    :utc_datetime_usec => "UtcDateTimeUsec",
-    :duration => "Duration",
-    :binary => "Binary",
-    :map => nil,
-    :sum => "number",
-    :count => "number"
-  }
-
   @aggregate_kinds %{
     :count => "number",
     :sum => "number",
@@ -237,167 +217,30 @@ defmodule AshTypescript.Codegen.TypeMapper do
             end
 
           true ->
-            # Last resort: delegate to existing module-based dispatch
-            map_type(type_info.module, type_info.constraints || [], direction)
+            "any"
         end
     end
   end
+
+  # Aggregate kind atoms (e.g., :count, :sum) are not real Ash types
+  # and are not handled by TypeResolver. Handle them directly.
+  def map_type(type, _constraints, _direction)
+      when is_atom(type) and is_map_key(@aggregate_kinds, type) do
+    Map.get(@aggregate_kinds, type)
+  end
+
+  # :map atom (Ecto shorthand, not Ash.Type.Map) is not handled by TypeResolver.
+  def map_type(:map, _constraints, _direction), do: AshTypescript.untyped_map_type()
 
   def map_type(type, constraints, direction) do
-    cond do
-      # Arrays - check before unwrapped handling since arrays have special tuple format
-      match?({:array, _}, type) ->
-        map_array(type, constraints, direction)
-
-      # Custom types with typescript_type_name - check BEFORE unwrapping NewTypes
-      # so that NewTypes with custom type names are respected (issue #52)
-      is_custom_type?(type) ->
-        type.typescript_type_name()
-
-      # Primitives - check original type FIRST (before unwrapping) to preserve specific types
-      # like UtcDatetimeUsec that would otherwise unwrap to DateTime
-      primitive_ts = map_primitive(type, constraints) ->
-        primitive_ts
-
-      # Now unwrap NewTypes for complex type handling
-      true ->
-        {unwrapped_type, full_constraints} =
-          AshTypescript.TypeSystem.Introspection.unwrap_new_type(type, constraints)
-
-        map_complex_type(unwrapped_type, full_constraints, direction)
-    end
-  end
-
-  # Handle complex (non-primitive) types after NewType unwrapping
-  defp map_complex_type(unwrapped_type, full_constraints, direction) do
-    cond do
-      # Check primitives again for unwrapped types (e.g., custom NewTypes wrapping primitives)
-      primitive_ts = map_primitive(unwrapped_type, full_constraints) ->
-        primitive_ts
-
-      # Ash Resources (embedded)
-      embedded_resource?(unwrapped_type) ->
-        map_resource(unwrapped_type, direction)
-
-      # Ash.Type.Struct (legacy raw-type codepath)
-      unwrapped_type == Ash.Type.Struct ->
-        instance_of = Keyword.get(full_constraints, :instance_of)
-
-        {:ok, rl} = AshApiSpec.generate_resource_lookup(otp_app: Mix.Project.config()[:app])
-
-        if instance_of && Map.has_key?(rl, instance_of) do
-          map_resource(instance_of, direction)
-        else
-          map_struct(full_constraints, direction)
-        end
-
-      # Typed containers (Map, Keyword, Tuple with fields)
-      unwrapped_type in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] ->
-        map_typed_container(unwrapped_type, full_constraints, direction)
-
-      # Union
-      unwrapped_type == Ash.Type.Union ->
-        map_union(full_constraints, direction)
-
-      # Enum types
-      is_atom(unwrapped_type) and Spark.implements_behaviour?(unwrapped_type, Ash.Type.Enum) ->
-        map_enum(unwrapped_type)
-
-      # Custom types with typescript_type_name
-      is_custom_type?(unwrapped_type) ->
-        unwrapped_type.typescript_type_name()
-
-      # Type mapping overrides
-      type_override = get_type_mapping_override(unwrapped_type) ->
-        type_override
-
-      # Third-party types
-      unwrapped_type == AshDoubleEntry.ULID ->
-        "ULID"
-
-      unwrapped_type == AshMoney.Types.Money ->
-        "Money"
-
-      unwrapped_type == AshPostgres.Ltree ->
-        map_ltree(full_constraints)
-
-      # Fallback
-      true ->
-        raise "unsupported type #{inspect(unwrapped_type)}"
-    end
+    # Build an %AshApiSpec.Type{} from raw Ash types for backward compatibility
+    type_info = AshApiSpec.Generator.TypeResolver.resolve(type, constraints)
+    map_type(type_info, constraints, direction)
   end
 
   # ─────────────────────────────────────────────────────────────────
   # Type-Specific Handlers
   # ─────────────────────────────────────────────────────────────────
-
-  defp map_primitive(type, constraints) do
-    cond do
-      # Module-based primitives
-      Map.has_key?(@primitives, type) ->
-        Map.get(@primitives, type)
-
-      # Atom-based primitives (from Ecto)
-      Map.has_key?(@atom_primitives, type) ->
-        case Map.get(@atom_primitives, type) do
-          nil -> AshTypescript.untyped_map_type()
-          value -> value
-        end
-
-      # Aggregate kinds
-      Map.has_key?(@aggregate_kinds, type) ->
-        Map.get(@aggregate_kinds, type)
-
-      # Ash.Type.Atom with one_of constraint
-      type == Ash.Type.Atom ->
-        case Keyword.get(constraints, :one_of) do
-          nil -> "string"
-          values -> values |> Enum.map_join(" | ", &"\"#{to_string(&1)}\"")
-        end
-
-      # Not a primitive
-      true ->
-        nil
-    end
-  end
-
-  defp map_ltree(constraints) do
-    if Keyword.get(constraints, :escape?, false) do
-      "AshPostgresLtreeArray"
-    else
-      "AshPostgresLtreeFlexible"
-    end
-  end
-
-  defp map_array({:array, inner_type}, constraints, direction) do
-    items_constraints = Keyword.get(constraints, :items, [])
-
-    # Special handling for Struct with instance_of inside arrays
-    cond do
-      inner_type == Ash.Type.Union ->
-        case Keyword.get(items_constraints, :types) do
-          nil -> "Array<any>"
-          types -> "Array<#{build_union_type_for_direction(types, direction)}>"
-        end
-
-      inner_type == Ash.Type.Struct ->
-        instance_of = Keyword.get(items_constraints, :instance_of)
-
-        if instance_of && Spark.Dsl.is?(instance_of, Ash.Resource) do
-          map_resource(instance_of, direction) |> wrap_array()
-        else
-          inner_ts = map_type(inner_type, items_constraints, direction)
-          wrap_array(inner_ts)
-        end
-
-      embedded_resource?(inner_type) ->
-        map_resource(inner_type, direction) |> wrap_array()
-
-      true ->
-        inner_ts = map_type(inner_type, items_constraints, direction)
-        wrap_array(inner_ts)
-    end
-  end
 
   defp wrap_array(inner_type), do: "Array<#{inner_type}>"
 
@@ -483,14 +326,6 @@ defmodule AshTypescript.Codegen.TypeMapper do
         map_type(type, constraints, direction)
     end
   end
-
-  defp map_enum(type) when is_atom(type) do
-    Enum.map_join(type.values(), " | ", &"\"#{to_string(&1)}\"")
-  rescue
-    _ -> "string"
-  end
-
-  defp map_enum(_), do: "string"
 
   # ─────────────────────────────────────────────────────────────────
   # Selection-Aware Type Mapping (for output with select_and_loads)
