@@ -55,6 +55,10 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
     end
   end
 
+  @resource_lookups %{
+    User => AshApiSpec.Generator.ResourceBuilder.build(User)
+  }
+
   describe "struct field filtering" do
     test "filters struct fields to only public attributes when no selection is specified" do
       # Create a struct with both public and private fields
@@ -90,7 +94,7 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
 
       # Process with specific field selection
       extraction_template = [:name]
-      result = ResultProcessor.process(user_struct, extraction_template, User)
+      result = ResultProcessor.process(user_struct, extraction_template, User, @resource_lookups)
 
       # Should only include selected field
       assert Map.has_key?(result, :name)
@@ -117,7 +121,7 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
 
       # Process with struct field included
       extraction_template = [:id, :name, :email, :self_struct]
-      result = ResultProcessor.process(record_with_struct, extraction_template, User)
+      result = ResultProcessor.process(record_with_struct, extraction_template, User, @resource_lookups)
 
       # Main record fields
       assert Map.has_key?(result, :id)
@@ -149,7 +153,7 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
 
       # Process with specific field selection on the struct field
       extraction_template = [:id, :name, {:self_struct, [:name]}]
-      result = ResultProcessor.process(record_with_struct, extraction_template, User)
+      result = ResultProcessor.process(record_with_struct, extraction_template, User, @resource_lookups)
 
       # Main record fields
       assert Map.has_key?(result, :id)
@@ -183,7 +187,7 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
       ]
 
       # Process without field selection
-      result = ResultProcessor.process(action_result, [], User)
+      result = ResultProcessor.process(action_result, [], User, @resource_lookups)
 
       assert length(result) == 2
 
@@ -209,7 +213,7 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
 
       # Process with field selection
       extraction_template = [:name]
-      result = ResultProcessor.process(action_result, extraction_template, User)
+      result = ResultProcessor.process(action_result, extraction_template, User, @resource_lookups)
 
       assert length(result) == 1
       [user] = result
