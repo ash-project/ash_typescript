@@ -126,7 +126,7 @@ defmodule AshTypescript.Rpc.Verifiers.VerifyActionTypes do
         validate_struct_type(resource, constraints, context, visited)
 
       # Embedded resources - check public fields (skip if already visited)
-      Introspection.is_embedded_resource?(type) ->
+      is_atom(type) and Ash.Resource.Info.resource?(type) and Ash.Resource.Info.embedded?(type) ->
         if MapSet.member?(visited, type) do
           []
         else

@@ -14,15 +14,6 @@ defmodule AshTypescript.TypeSystem.Introspection do
   """
 
   @doc """
-  Checks if a module is an embedded Ash resource.
-  """
-  def is_embedded_resource?(module) when is_atom(module) do
-    Ash.Resource.Info.resource?(module) and Ash.Resource.Info.embedded?(module)
-  end
-
-  def is_embedded_resource?(_), do: false
-
-  @doc """
   Recursively unwraps Ash.Type.NewType to get the underlying type and constraints.
 
   Adds `instance_of` to constraints when the NewType has `typescript_field_names/0`.
