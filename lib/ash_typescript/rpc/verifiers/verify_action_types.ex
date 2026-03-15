@@ -14,7 +14,6 @@ defmodule AshTypescript.Rpc.Verifiers.VerifyActionTypes do
   used in action signatures have valid TypeScript-compatible field names.
   """
   use Spark.Dsl.Verifier
-  alias AshTypescript.TypeSystem.Introspection
   alias Spark.Dsl.Verifier
 
   # Suppress dialyzer warnings about MapSet opaque type - these are false positives
@@ -99,7 +98,7 @@ defmodule AshTypescript.Rpc.Verifiers.VerifyActionTypes do
 
     # Unwrap NewType if applicable
     {unwrapped_type, unwrapped_constraints} =
-      Introspection.unwrap_new_type(inner_type, inner_constraints)
+      unwrap_new_type(inner_type, inner_constraints)
 
     validate_unwrapped_type(resource, unwrapped_type, unwrapped_constraints, context, visited)
   end
@@ -294,7 +293,7 @@ defmodule AshTypescript.Rpc.Verifiers.VerifyActionTypes do
   defp validate_new_type_fields(resource, new_type_module, context, visited) do
     # Unwrap the NewType to get the underlying type and constraints
     {_unwrapped_type, unwrapped_constraints} =
-      Introspection.unwrap_new_type(new_type_module, [])
+      unwrap_new_type(new_type_module, [])
 
     # Get field name mappings from the module if available
     field_name_mappings = get_typed_struct_mappings(new_type_module)
@@ -581,4 +580,31 @@ defmodule AshTypescript.Rpc.Verifiers.VerifyActionTypes do
   defp format_context({:argument, rpc_name, action_name, arg_name}) do
     "Invalid field names in argument #{arg_name} of RPC action #{rpc_name} (action: #{action_name})"
   end
+
+  # Unwraps NewType with instance_of augmentation for typescript_field_names detection.
+  defp unwrap_new_type(type, constraints) when is_atom(type) do
+    if Ash.Type.NewType.new_type?(type) do
+      subtype = Ash.Type.NewType.subtype_of(type)
+
+      constraints =
+        case type.do_init(constraints) do
+          {:ok, merged_constraints} -> merged_constraints
+          {:error, _} -> constraints
+        end
+
+      augmented_constraints =
+        if function_exported?(type, :typescript_field_names, 0) and
+             not Keyword.has_key?(constraints, :instance_of) do
+          Keyword.put(constraints, :instance_of, type)
+        else
+          constraints
+        end
+
+      {subtype, augmented_constraints}
+    else
+      {type, constraints}
+    end
+  end
+
+  defp unwrap_new_type(type, constraints), do: {type, constraints}
 end
