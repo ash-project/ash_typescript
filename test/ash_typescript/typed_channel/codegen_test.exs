@@ -41,6 +41,20 @@ defmodule AshTypescript.Test.TypedChannel.NoReturnsChannel do
   end
 end
 
+# Channel with a static topic (no wildcard) — exercises the no-suffix factory path.
+defmodule AshTypescript.Test.TypedChannel.StaticTopicChannel do
+  @moduledoc false
+  use AshTypescript.TypedChannel
+
+  typed_channel do
+    topic "notifications"
+
+    resource AshTypescript.Test.ChannelItem do
+      publish(:item_created)
+    end
+  end
+end
+
 defmodule AshTypescript.TypedChannel.CodegenTest do
   use ExUnit.Case
 
@@ -222,6 +236,54 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
 
     test "returns empty string for empty list" do
       assert Codegen.generate_all_channel_functions([]) == ""
+    end
+  end
+
+  describe "generate_channel_functions/2 — static topic (no wildcard)" do
+    setup do
+      content =
+        Codegen.generate_channel_functions(
+          AshTypescript.Test.TypedChannel.StaticTopicChannel,
+          "notifications"
+        )
+
+      %{content: content}
+    end
+
+    test "factory takes no suffix parameter", %{content: content} do
+      assert content =~ "export function createStaticTopicChannel("
+      assert content =~ ~s[socket.channel("notifications") as StaticTopicChannel]
+      refute content =~ "suffix"
+    end
+
+    test "factory signature has only socket parameter", %{content: content} do
+      # Extract factory function — should have socket param but no suffix
+      assert content =~
+               """
+               export function createStaticTopicChannel(
+                 socket: { channel(topic: string, params?: object): unknown }
+               ): StaticTopicChannel {\
+               """
+    end
+  end
+
+  describe "generate_all_channel_types/1 — payload type deduplication" do
+    test "shared payload type appears exactly once in batch output" do
+      # ContentFeedChannel and FullActivityChannel both include article_published
+      # (from ChannelArticle), producing ArticlePublishedPayload. It should appear only once.
+      content =
+        Codegen.generate_all_channel_types([
+          {AshTypescript.Test.ContentFeedChannel, "content_feed:*"},
+          {AshTypescript.Test.FullActivityChannel, "activity:*"}
+        ])
+
+      occurrences =
+        content
+        |> String.split("export type ArticlePublishedPayload")
+        |> length()
+        |> Kernel.-(1)
+
+      assert occurrences == 1
     end
   end
 

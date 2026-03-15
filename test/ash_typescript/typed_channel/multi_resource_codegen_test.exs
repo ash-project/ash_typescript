@@ -2,6 +2,86 @@
 #
 # SPDX-License-Identifier: MIT
 
+# Inline resources for payload type conflict test.
+# Resource A publishes item_created as :map, Resource B publishes item_created as :string.
+# They live in separate channels, so the verifier's unique-event-per-channel check passes,
+# but generate_all_channel_types/1 should detect the type name collision.
+
+defmodule AshTypescript.Test.TypedChannel.ConflictItemA do
+  @moduledoc false
+  use Ash.Resource, domain: nil, notifiers: [Ash.Notifier.PubSub]
+
+  pub_sub do
+    module AshTypescript.Test.TestEndpoint
+    prefix "conflict_a"
+
+    publish :create, [:id],
+      event: "item_created",
+      public?: true,
+      returns: :map,
+      constraints: [fields: [id: [type: :uuid, allow_nil?: false]]],
+      transform: fn n -> %{id: n.data.id} end
+  end
+
+  attributes do
+    uuid_primary_key :id
+  end
+
+  actions do
+    defaults [:create]
+  end
+end
+
+defmodule AshTypescript.Test.TypedChannel.ConflictItemB do
+  @moduledoc false
+  use Ash.Resource, domain: nil, notifiers: [Ash.Notifier.PubSub]
+
+  pub_sub do
+    module AshTypescript.Test.TestEndpoint
+    prefix "conflict_b"
+
+    publish :create, [:id],
+      event: "item_created",
+      public?: true,
+      returns: :string,
+      transform: fn n -> n.data.id end
+  end
+
+  attributes do
+    uuid_primary_key :id
+  end
+
+  actions do
+    defaults [:create]
+  end
+end
+
+defmodule AshTypescript.Test.TypedChannel.ConflictChannelA do
+  @moduledoc false
+  use AshTypescript.TypedChannel
+
+  typed_channel do
+    topic "conflict_a:*"
+
+    resource AshTypescript.Test.TypedChannel.ConflictItemA do
+      publish(:item_created)
+    end
+  end
+end
+
+defmodule AshTypescript.Test.TypedChannel.ConflictChannelB do
+  @moduledoc false
+  use AshTypescript.TypedChannel
+
+  typed_channel do
+    topic "conflict_b:*"
+
+    resource AshTypescript.Test.TypedChannel.ConflictItemB do
+      publish(:item_created)
+    end
+  end
+end
+
 defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
   use ExUnit.Case
 
@@ -430,6 +510,46 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
     test "subscription functions are absent from ash_types.ts", %{types_content: types_content} do
       refute types_content =~ "export function createOrgChannel"
       refute types_content =~ "export function onOrgChannelMessage"
+    end
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Payload type name conflict detection
+  # ─────────────────────────────────────────────────────────────────
+
+  describe "generate_all_channel_types/1 — payload type conflict" do
+    test "raises when same event name maps to different TypeScript types across channels" do
+      assert_raise RuntimeError, ~r/Payload type name conflict/, fn ->
+        Codegen.generate_all_channel_types([
+          {AshTypescript.Test.TypedChannel.ConflictChannelA, "conflict_a:*"},
+          {AshTypescript.Test.TypedChannel.ConflictChannelB, "conflict_b:*"}
+        ])
+      end
+    end
+
+    test "error message includes conflicting type name and details" do
+      error =
+        assert_raise RuntimeError, fn ->
+          Codegen.generate_all_channel_types([
+            {AshTypescript.Test.TypedChannel.ConflictChannelA, "conflict_a:*"},
+            {AshTypescript.Test.TypedChannel.ConflictChannelB, "conflict_b:*"}
+          ])
+        end
+
+      assert error.message =~ "ItemCreatedPayload"
+      assert error.message =~ "item_created"
+    end
+
+    test "no conflict when same event name maps to identical TypeScript type" do
+      # OrgChannel's item_created is :map with {id, name} — using the same channel twice
+      # produces identical types, so no conflict.
+      content =
+        Codegen.generate_all_channel_types([
+          {AshTypescript.Test.OrgChannel, "org:*"},
+          {AshTypescript.Test.OrgChannel, "org:*"}
+        ])
+
+      assert content =~ "ItemCreatedPayload"
     end
   end
 end
