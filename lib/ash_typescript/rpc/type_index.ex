@@ -206,8 +206,7 @@ defmodule AshTypescript.Rpc.TypeIndex do
   @doc """
   Checks if constraints include non-empty field definitions.
 
-  Inlined replacement for `Introspection.has_field_constraints?/1` — no index
-  needed since this is a trivial keyword list check.
+  Trivial keyword list check — no index needed.
   """
   @spec has_field_constraints?(keyword()) :: boolean()
   def has_field_constraints?(constraints) when is_list(constraints) do
@@ -238,8 +237,7 @@ defmodule AshTypescript.Rpc.TypeIndex do
   @doc """
   Gets the type and constraints for a field from field specs.
 
-  Delegate to `Introspection.get_field_spec_type/2` — this is a constraint-level
-  lookup, not a module-level one, so indexing doesn't apply.
+  Constraint-level lookup — no index needed.
   """
   @spec get_field_spec_type(keyword(), atom()) :: {atom() | nil, keyword()}
   def get_field_spec_type(field_specs, field_name) when is_list(field_specs) do
