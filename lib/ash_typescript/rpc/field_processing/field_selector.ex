@@ -164,6 +164,10 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     inst = type_info.instance_of || type_info.module
 
     case type_info.kind do
+      :type_ref ->
+        full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_info.module)
+        select_fields(full_type, [], requested_fields, path, resource_lookups, type_index)
+
       :array ->
         select_fields(
           type_info.item_type,
@@ -743,11 +747,20 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
+  defp classify_attribute_category_from_type(%AshApiSpec.Type{kind: :type_ref} = type_info) do
+    full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_info.module)
+    classify_attribute_category_from_type(full_type)
+  end
+
   defp classify_attribute_category_from_type(%AshApiSpec.Type{} = type_info) do
     # For array types, classify based on the inner type
     effective_type = if type_info.kind == :array, do: type_info.item_type, else: type_info
 
     case effective_type do
+      %AshApiSpec.Type{kind: :type_ref} = ref ->
+        full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(ref.module)
+        classify_attribute_category_from_type(full_type)
+
       %AshApiSpec.Type{kind: kind} when kind in [:resource, :embedded_resource] ->
         :embedded_resource
 
@@ -1444,11 +1457,24 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
   defp requires_nested_selection?(type, constraints, type_index \\ %{})
 
+  defp requires_nested_selection?(
+         %AshApiSpec.Type{kind: :type_ref} = type_info,
+         _type_constraints,
+         type_index
+       ) do
+    full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_info.module)
+    requires_nested_selection?(full_type, [], type_index)
+  end
+
   defp requires_nested_selection?(%AshApiSpec.Type{} = type_info, _type_constraints, _type_index) do
     # For %AshApiSpec.Type{}, use kind-based classification directly
     effective_type = if type_info.kind == :array, do: type_info.item_type, else: type_info
 
     case effective_type do
+      %AshApiSpec.Type{kind: :type_ref} = ref ->
+        full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(ref.module)
+        requires_nested_selection?(full_type, [], %{})
+
       %AshApiSpec.Type{kind: kind} when kind in [:resource, :embedded_resource] ->
         true
 

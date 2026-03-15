@@ -683,7 +683,10 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
 
   # Unwraps :array types to get the inner AshApiSpec.Type, otherwise returns the type as-is.
   defp resolve_inner_api_type(%AshApiSpec.Type{kind: :array, item_type: item_type}),
-    do: item_type
+    do: resolve_inner_api_type(item_type)
+
+  defp resolve_inner_api_type(%AshApiSpec.Type{kind: :type_ref, module: module}),
+    do: AshApiSpec.Generator.TypeResolver.resolve_definition(module)
 
   defp resolve_inner_api_type(%AshApiSpec.Type{} = type), do: type
 

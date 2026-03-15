@@ -79,6 +79,10 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     inst = type_info.instance_of || type_info.module
 
     case type_info.kind do
+      :type_ref ->
+        full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_info.module)
+        format(value, full_type, [], formatter, direction, resource_lookups)
+
       :array ->
         if is_list(value) do
           Enum.map(value, fn item ->

@@ -61,8 +61,7 @@ defmodule AshTypescript.Rpc.Pipeline do
 
     with {:ok, {domain, resource, action, rpc_action}} <-
            discover_action(otp_app, normalized_params),
-         resource_lookups =
-           Spark.Dsl.Extension.get_persisted(domain, :ash_api_spec_lookups),
+         resource_lookups = AshTypescript.resource_lookup(otp_app),
          type_index = TypeIndex.build(resource_lookups),
          :ok <-
            validate_required_parameters_for_action_type(
@@ -527,6 +526,14 @@ defmodule AshTypescript.Rpc.Pipeline do
          _constraints
        ) do
     {:keyword, c || []}
+  end
+
+  defp classify_tuple_or_keyword_type(
+         %AshApiSpec.Type{kind: :type_ref, module: module},
+         _constraints
+       ) do
+    full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(module)
+    classify_tuple_or_keyword_type(full_type, [])
   end
 
   defp classify_tuple_or_keyword_type(%AshApiSpec.Type{}, _constraints), do: :other
@@ -1330,14 +1337,14 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp lookup_field_exists?(resource, field_name, resource_lookups) do
-    case AshApiSpec.get_resource(resource_lookups || %{}, resource) do
+    case AshApiSpec.get_resource(resource_lookups, resource) do
       %AshApiSpec.Resource{} = r -> AshApiSpec.Resource.has_field?(r, field_name)
       nil -> Ash.Resource.Info.attribute(resource, field_name) != nil
     end
   end
 
   defp lookup_field_type(resource, field_name, resource_lookups) do
-    case AshApiSpec.get_field(resource_lookups || %{}, resource, field_name) do
+    case AshApiSpec.get_field(resource_lookups, resource, field_name) do
       %AshApiSpec.Field{type: %AshApiSpec.Type{} = type} -> {type, []}
       _ -> {nil, []}
     end

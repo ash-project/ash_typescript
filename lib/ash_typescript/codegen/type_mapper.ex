@@ -173,6 +173,11 @@ defmodule AshTypescript.Codegen.TypeMapper do
   # are available (e.g., from ResourceBuilder or persisted Resource specs).
   def map_type(%AshApiSpec.Type{} = type_info, _constraints, direction) do
     case type_info.kind do
+      :type_ref ->
+        # Resolve the named type module to its full definition and re-dispatch
+        full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_info.module)
+        map_type(full_type, [], direction)
+
       :array ->
         inner_ts = map_type(type_info.item_type, [], direction)
         wrap_array(inner_ts)
@@ -539,6 +544,11 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
   defp is_nested_typed_map_field?({_name, field_config}), do: is_nested_typed_map?(field_config)
 
+  defp is_nested_typed_map_field?(%{type: %AshApiSpec.Type{kind: :type_ref} = type_ref}) do
+    full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_ref.module)
+    is_nested_typed_map_field?(%{type: full_type})
+  end
+
   defp is_nested_typed_map_field?(%{type: %AshApiSpec.Type{kind: kind}}),
     do: kind in [:map, :struct, :keyword, :tuple]
 
@@ -602,6 +612,11 @@ defmodule AshTypescript.Codegen.TypeMapper do
   @doc """
   Determines if a union member is a "primitive" (no selectable fields).
   """
+  def is_primitive_union_member?(%AshApiSpec.Type{kind: :type_ref} = type_info) do
+    full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_info.module)
+    is_primitive_union_member?(full_type)
+  end
+
   def is_primitive_union_member?(%AshApiSpec.Type{} = type_info) do
     case type_info.kind do
       kind when kind in [:embedded_resource, :resource, :union] -> false

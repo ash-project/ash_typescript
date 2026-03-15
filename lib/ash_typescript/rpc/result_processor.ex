@@ -195,6 +195,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     inst = type_info.instance_of || type_info.module
 
     case type_info.kind do
+      :type_ref ->
+        full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_info.module)
+        extract_value(value, full_type, [], template, resource_lookups)
+
       :array ->
         extract_array_value(value, type_info.item_type, [], template, resource_lookups)
 
