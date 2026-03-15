@@ -6,10 +6,12 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
+  @resource_lookups AshTypescript.resource_lookup(:ash_typescript)
+
   describe "calculation field selection" do
     test "rejects simple atom selection for calculation without arguments that returns complex type" do
       # This should be rejected - complex types require field selection
-      result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [:summary])
+      result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [:summary], @resource_lookups)
 
       assert {:error, {:requires_field_selection, :calculation_complex, :summary, []}} = result
     end
@@ -18,7 +20,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
       # This currently fails but should work - requesting fields from the calculation result
       requested_fields = [%{summary: [:view_count, :edit_count]}]
 
-      result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
+      result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields, @resource_lookups)
 
       # Currently this throws {:invalid_calculation_args, :summary, [:view_count, :edit_count]}
       # But it should allow field selection since the calculation returns a complex type
@@ -44,7 +46,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
         %{summary: [%{performance_metrics: [:focus_time_seconds, :efficiency_score]}]}
       ]
 
-      result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
+      result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields, @resource_lookups)
 
       case result do
         {:ok, _} ->
@@ -65,7 +67,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
       # The :self calculation has arguments, so this should work as before
       requested_fields = [%{self: %{args: %{prefix: "test"}, fields: [:id, :title]}}]
 
-      result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
+      result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields, @resource_lookups)
 
       assert {:ok, {[], [{:self, {%{prefix: "test"}, [:id, :title]}}], [{:self, [:id, :title]}]}} =
                result
@@ -92,7 +94,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
 
       # Note: This test assumes the TodoStatistics type is updated to have nested_data
       # For now, this serves as a documentation of the expected behavior
-      result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
+      result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields, @resource_lookups)
 
       case result do
         {:ok, {[], load_fields, template}} ->
@@ -133,7 +135,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
         }
       ]
 
-      result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
+      result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields, @resource_lookups)
 
       assert {:ok,
               {[:statistics], [],

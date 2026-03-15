@@ -6,6 +6,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
+  @resource_lookups AshTypescript.resource_lookup(:ash_typescript)
+
   describe "simple embedded resource fields" do
     test "processes embedded resource attribute fields correctly" do
       {:ok, {select, load, extraction_template}} =
@@ -13,7 +15,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           :id,
           :title,
           %{metadata: [:id, :category, :priority_score]}
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :title, :metadata]
       assert load == []
@@ -25,7 +27,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           :id,
           %{metadata: [:category, :display_category, :is_overdue]}
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :metadata]
       assert load == [{:metadata, [:display_category, :is_overdue]}]
@@ -46,7 +48,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
               }
             ]
           }
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :metadata]
 
@@ -73,7 +75,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
               :is_overdue
             ]
           }
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :metadata]
 
@@ -94,7 +96,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           :id,
           %{metadata: [:category, :priority_score, :is_urgent]}
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :metadata]
       assert load == []
@@ -106,7 +108,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           :id,
           %{metadata: [:category, :display_category, :is_overdue]}
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :metadata]
       assert load == [{:metadata, [:display_category, :is_overdue]}]
@@ -121,7 +123,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           :id,
           :title,
           %{metadata_history: [:id, :category, :created_at]}
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :title, :metadata_history]
       assert load == []
@@ -133,7 +135,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           :id,
           %{metadata_history: [:category, :priority_score, :display_category]}
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :metadata_history]
       assert load == [{:metadata_history, [:display_category]}]
@@ -151,7 +153,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           :id,
           %{content: %{text: [:id, :text, :formatting]}}
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :content]
       assert load == []
@@ -163,7 +165,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           :id,
           %{content: %{checklist: [:id, :title, %{items: [:text, :completed]}]}}
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :content]
       assert load == []
@@ -179,7 +181,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           :id,
           %{content: %{link: [:id, :url, :title]}}
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :content]
       assert load == []
@@ -191,7 +193,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           :id,
           %{content: %{text: [:text, :display_text, :is_formatted]}}
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :content]
 
@@ -210,7 +212,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           %{metadata: [:invalid_field]}
-        ])
+        ], @resource_lookups)
 
       assert error ==
                {:unknown_field, :invalid_field, AshTypescript.Test.TodoMetadata, [:metadata]}
@@ -220,7 +222,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           %{metadata_history: [:category, :invalid_field]}
-        ])
+        ], @resource_lookups)
 
       assert error ==
                {:unknown_field, :invalid_field, AshTypescript.Test.TodoMetadata,
@@ -231,7 +233,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           %{content: %{text: [:invalid_field]}}
-        ])
+        ], @resource_lookups)
 
       assert error ==
                {:unknown_field, :invalid_field, AshTypescript.Test.TodoContent.TextContent,
@@ -242,7 +244,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           %{metadata: [:internal_notes]}
-        ])
+        ], @resource_lookups)
 
       assert error ==
                {:unknown_field, :internal_notes, AshTypescript.Test.TodoMetadata, [:metadata]}
@@ -252,7 +254,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           %{metadata: [:adjusted_priority]}
-        ])
+        ], @resource_lookups)
 
       assert error ==
                {:calculation_requires_args, :adjusted_priority, [:metadata]}
@@ -270,7 +272,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
               }
             ]
           }
-        ])
+        ], @resource_lookups)
 
       assert error == {:invalid_calculation_args, :display_category, [:metadata]}
     end
@@ -279,7 +281,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           %{metadata: [:category, :priority_score, :category]}
-        ])
+        ], @resource_lookups)
 
       assert error == {:duplicate_field, :category, [:metadata]}
     end
@@ -288,7 +290,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           :metadata
-        ])
+        ], @resource_lookups)
 
       assert error == {:requires_field_selection, :embedded_resource, :metadata, []}
     end
@@ -306,7 +308,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
               }
             ]
           }
-        ])
+        ], @resource_lookups)
 
       assert error ==
                {:invalid_field_selection, :adjusted_priority, :calculation, [:metadata]}
@@ -320,7 +322,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           :id,
           :title,
           %{metadata: [:category, :priority_score]}
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :title, :metadata]
       assert load == []
@@ -332,7 +334,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :create, [
           :id,
           %{content: %{text: [:text, :formatting]}}
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :content]
       assert load == []
@@ -347,7 +349,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           :id,
           :title,
           %{metadata: [:category, :priority_score, :is_urgent]}
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :title, :metadata]
       assert load == []

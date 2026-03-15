@@ -518,5 +518,4 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   end
 
   defp is_embedded_resource?(_), do: false
-
 end

@@ -33,7 +33,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   alias AshTypescript.Resource.Info, as: ResourceInfo
   alias AshTypescript.Rpc.FieldProcessing.FieldSelector.Validation
   alias AshTypescript.Rpc.TypeIndex
-  alias AshTypescript.TypeSystem.ResourceFields
 
   @type select_result :: {select :: [atom()], load :: [term()], template :: [term()]}
 
@@ -665,17 +664,13 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
   defp get_resource_field_info(resource, field_name, path, resource_lookups)
        when is_atom(resource) and is_map(resource_lookups) do
-    case AshApiSpec.get_resource(resource_lookups, resource) do
-      %AshApiSpec.Resource{} = api_resource ->
-        get_resource_field_info_from_spec(api_resource, resource, field_name, path)
-
-      nil ->
-        get_resource_field_info_fallback(resource, field_name, path)
-    end
+    api_resource = AshApiSpec.get_resource!(resource_lookups, resource)
+    get_resource_field_info_from_spec(api_resource, resource, field_name, path)
   end
 
-  defp get_resource_field_info(resource, field_name, path, _nil_lookups) do
-    get_resource_field_info_fallback(resource, field_name, path)
+  defp get_resource_field_info(resource, field_name, path, _nil_lookups) when is_atom(resource) do
+    api_resource = AshApiSpec.Generator.ResourceBuilder.build(resource)
+    get_resource_field_info_from_spec(api_resource, resource, field_name, path)
   end
 
   defp get_resource_field_info_from_spec(api_resource, resource, field_name, path) do
@@ -770,81 +765,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         end
 
       _ ->
-        :attribute
-    end
-  end
-
-  defp get_resource_field_info_fallback(resource, field_name, path) do
-    cond do
-      attr = Ash.Resource.Info.public_attribute(resource, field_name) ->
-        constraints = attr.constraints || []
-        category = classify_attribute_category(attr.type, constraints)
-        {attr.type, constraints, category}
-
-      rel = Ash.Resource.Info.public_relationship(resource, field_name) ->
-        type = if rel.cardinality == :many, do: {:array, rel.destination}, else: rel.destination
-        {type, [], :relationship}
-
-      calc = Ash.Resource.Info.public_calculation(resource, field_name) ->
-        constraints = calc.constraints || []
-
-        category =
-          cond do
-            has_any_arguments?(calc) -> :calculation_with_args
-            requires_nested_selection?(calc.type, constraints) -> :calculation_complex
-            true -> :calculation
-          end
-
-        {calc.type, constraints, category}
-
-      agg = Ash.Resource.Info.public_aggregate(resource, field_name) ->
-        {type, constraints} = ResourceFields.resolve_aggregate_type_info(resource, agg)
-        {type, constraints, :aggregate}
-
-      true ->
-        throw({:unknown_field, field_name, resource, path})
-    end
-  end
-
-  defp classify_attribute_category(type, constraints, type_index \\ %{}) do
-    {unwrapped_type, unwrapped_constraints} =
-      case type do
-        {:array, inner} ->
-          TypeIndex.unwrap_new_type(type_index, inner, Keyword.get(constraints, :items, []))
-
-        t when is_atom(t) ->
-          TypeIndex.unwrap_new_type(type_index, t, constraints)
-
-        _ ->
-          {type, constraints}
-      end
-
-    cond do
-      # Embedded resources
-      is_atom(unwrapped_type) && TypeIndex.embedded_resource?(type_index, unwrapped_type) ->
-        :embedded_resource
-
-      # Tuple types with fields
-      unwrapped_type == Ash.Type.Tuple &&
-          Keyword.has_key?(unwrapped_constraints, :fields) ->
-        :tuple
-
-      # Keyword types with fields
-      unwrapped_type == Ash.Type.Keyword &&
-          Keyword.has_key?(unwrapped_constraints, :fields) ->
-        :field_constrained_type
-
-      # Union types
-      unwrapped_type == Ash.Type.Union ->
-        :union_attribute
-
-      # Other types with field constraints
-      Keyword.has_key?(unwrapped_constraints, :fields) &&
-          Keyword.get(unwrapped_constraints, :fields) != [] ->
-        :field_constrained_type
-
-      # Simple attribute
-      true ->
         :attribute
     end
   end

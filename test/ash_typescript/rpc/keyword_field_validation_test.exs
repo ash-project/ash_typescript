@@ -6,6 +6,8 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
   use ExUnit.Case, async: true
 
   alias AshTypescript.Rpc.RequestedFieldsProcessor
+
+  @resource_lookups AshTypescript.resource_lookup(:ash_typescript)
   alias AshTypescript.Test.Todo
 
   describe "keyword field selection validation" do
@@ -13,7 +15,7 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
       # This should fail because keyword fields require field selection
       fields = ["id", "title", "options"]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields)
+      result = RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
 
       assert {:error, {:requires_field_selection, :field_constrained_type, :options, []}} = result
     end
@@ -22,7 +24,7 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
       # This should fail because empty field selection is not allowed
       fields = ["id", "title", %{"options" => []}]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields)
+      result = RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
 
       assert {:error, _error} = result
       # The exact error might be about empty fields
@@ -32,7 +34,7 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
       # This should succeed because we're requesting specific keyword fields
       fields = ["id", "title", %{"options" => ["priority", "category", "notify"]}]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields)
+      result = RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
 
       assert {:ok, {select, _load, template}} = result
       assert :id in select
@@ -49,7 +51,7 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
       # This should succeed with only some keyword fields requested
       fields = ["id", "title", %{"options" => ["priority"]}]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields)
+      result = RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
 
       assert {:ok, {select, _load, template}} = result
       assert :id in select
@@ -66,7 +68,7 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
       # This should fail because 'invalid_field' doesn't exist in the options keyword definition
       fields = ["id", "title", %{"options" => ["priority", "invalid_field"]}]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields)
+      result = RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
 
       # Field names are preserved as strings for reverse mapping lookup
       assert {:error, {:unknown_field, "invalid_field", "field_constrained_type", [:options]}} =
@@ -84,7 +86,7 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
         %{"coordinates" => ["latitude", "longitude"]}
       ]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields)
+      result = RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
 
       assert {:ok, {select, load, template}} = result
 
@@ -123,7 +125,7 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
       # This should also fail because tuple fields require field selection
       fields = ["id", "title", "coordinates"]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields)
+      result = RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
 
       assert {:error, {:requires_field_selection, :tuple, :coordinates, []}} = result
     end
@@ -132,7 +134,7 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
       # This should succeed
       fields = ["id", "title", %{"coordinates" => ["latitude", "longitude"]}]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields)
+      result = RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
 
       assert {:ok, {select, _load, template}} = result
       assert :id in select

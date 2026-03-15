@@ -478,5 +478,4 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     |> Module.split()
     |> List.last()
   end
-
 end

@@ -6,6 +6,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
+  @resource_lookups AshTypescript.resource_lookup(:ash_typescript)
+
   describe "read actions" do
     test "processes valid fields correctly" do
       {:ok, {select, load, extraction_template}} =
@@ -13,7 +15,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
           :id,
           :title,
           :completed
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :title, :completed]
       assert load == []
@@ -27,7 +29,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
           :title,
           # aggregate
           :comment_count
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :title]
       assert load == [:comment_count]
@@ -40,7 +42,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
           :id,
           :title,
           %{user: [:id, :email]}
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :title]
       assert load == [{:user, [:id, :email]}]
@@ -55,7 +57,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
           :id,
           :title,
           :completed
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :title, :completed]
       assert load == []
@@ -68,7 +70,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
           :id,
           :title,
           %{user: [:id, :name]}
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :title]
       assert load == [{:user, [:id, :name]}]
@@ -84,7 +86,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
           :title,
           :completed,
           :created_at
-        ])
+        ], @resource_lookups)
 
       assert select == [:id, :title, :completed, :created_at]
       assert load == []
@@ -97,7 +99,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           :invalid_field
-        ])
+        ], @resource_lookups)
 
       assert error == {:unknown_field, :invalid_field, AshTypescript.Test.Todo, []}
     end
@@ -106,7 +108,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           %{user: [:invalid_field]}
-        ])
+        ], @resource_lookups)
 
       assert error ==
                {:unknown_field, :invalid_field, AshTypescript.Test.User, [:user]}
@@ -116,7 +118,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
       {:error, error} =
         RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
           %{invalid_relationship: [:id]}
-        ])
+        ], @resource_lookups)
 
       assert error ==
                {:unknown_field, :invalid_relationship, AshTypescript.Test.Todo, []}
