@@ -22,8 +22,10 @@ defmodule AshApiSpec.GeneratorTest do
         assert is_boolean(resource.embedded?)
         assert is_map(resource.fields)
         assert is_map(resource.relationships)
-        assert is_map(resource.actions)
       end
+
+      assert is_list(spec.entrypoints)
+      assert spec.entrypoints != []
     end
 
     test "includes Todo resource" do
@@ -45,19 +47,22 @@ defmodule AshApiSpec.GeneratorTest do
       assert user != nil
     end
 
-    test "with action filter narrows to specified actions" do
+    test "with action filter narrows entrypoints to specified actions" do
       {:ok, spec} =
         AshApiSpec.generate(
           otp_app: :ash_typescript,
           action_entrypoints: [{AshTypescript.Test.Todo, :read}]
         )
 
-      todo = Enum.find(spec.resources, &(&1.module == AshTypescript.Test.Todo))
-      assert todo != nil
-      assert Map.has_key?(todo.actions, :read)
+      assert Enum.any?(spec.entrypoints, fn e ->
+               e.resource == AshTypescript.Test.Todo and e.action.name == :read
+             end)
+
+      # Only one entrypoint for Todo :read
+      assert length(spec.entrypoints) == 1
     end
 
-    test "with action filter, reachable resources have no actions" do
+    test "with action filter, reachable resources have no entrypoints" do
       {:ok, spec} =
         AshApiSpec.generate(
           otp_app: :ash_typescript,
@@ -67,7 +72,7 @@ defmodule AshApiSpec.GeneratorTest do
       # User is reachable via Todo's belongs_to but was not explicitly listed
       user = Enum.find(spec.resources, &(&1.module == AshTypescript.Test.User))
       assert user != nil
-      assert user.actions == %{}
+      refute Enum.any?(spec.entrypoints, &(&1.resource == AshTypescript.Test.User))
     end
 
     test "resources have properly resolved field types" do
@@ -129,8 +134,8 @@ defmodule AshApiSpec.GeneratorTest do
 
       user = Enum.find(spec_with.resources, &(&1.module == AshTypescript.Test.User))
       assert user != nil
-      # Always-resources have no actions (they were added with [] action names)
-      assert user.actions == %{}
+      # Always-resources have no entrypoints
+      refute Enum.any?(spec_with.entrypoints, &(&1.resource == AshTypescript.Test.User))
     end
 
     test "always_resources also discovers their field types via reachability" do

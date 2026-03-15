@@ -6,8 +6,9 @@ defmodule AshApiSpec.Resource do
   @moduledoc """
   Represents a resource in the API specification.
 
-  Fields, relationships, and actions are stored as maps keyed by atom name
-  for O(1) lookup access.
+  Resources are pure type/shape definitions. Fields and relationships are
+  stored as maps keyed by atom name for O(1) lookup. Actions live separately
+  in `%AshApiSpec{}.entrypoints`.
   """
 
   @type t :: %__MODULE__{
@@ -18,7 +19,6 @@ defmodule AshApiSpec.Resource do
           description: String.t() | nil,
           fields: %{atom() => AshApiSpec.Field.t()},
           relationships: %{atom() => AshApiSpec.Relationship.t()},
-          actions: %{atom() => AshApiSpec.Action.t()},
           identities: %{atom() => %{keys: [atom()]}},
           multitenancy: %{strategy: atom(), global?: boolean(), attribute: atom()} | nil
         }
@@ -32,7 +32,6 @@ defmodule AshApiSpec.Resource do
     :multitenancy,
     fields: %{},
     relationships: %{},
-    actions: %{},
     identities: %{}
   ]
 
@@ -47,10 +46,6 @@ defmodule AshApiSpec.Resource do
   @doc "Gets a relationship by name."
   @spec get_relationship(t(), atom()) :: AshApiSpec.Relationship.t() | nil
   def get_relationship(%__MODULE__{relationships: rels}, name), do: Map.get(rels, name)
-
-  @doc "Gets an action by name."
-  @spec get_action(t(), atom()) :: AshApiSpec.Action.t() | nil
-  def get_action(%__MODULE__{actions: actions}, name), do: Map.get(actions, name)
 
   @doc "Gets an identity by name."
   @spec get_identity(t(), atom()) :: %{keys: [atom()]} | nil
@@ -79,10 +74,6 @@ defmodule AshApiSpec.Resource do
   @doc "Returns all relationships as a list."
   @spec all_relationships(t()) :: [AshApiSpec.Relationship.t()]
   def all_relationships(%__MODULE__{relationships: rels}), do: Map.values(rels)
-
-  @doc "Returns all actions as a list."
-  @spec all_actions(t()) :: [AshApiSpec.Action.t()]
-  def all_actions(%__MODULE__{actions: actions}), do: Map.values(actions)
 
   @doc "Returns all field names (attributes, calculations, aggregates)."
   @spec field_names(t()) :: [atom()]

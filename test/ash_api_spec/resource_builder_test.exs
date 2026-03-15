@@ -104,24 +104,6 @@ defmodule AshApiSpec.Generator.ResourceBuilderTest do
       assert comments_rel.cardinality == :many
     end
 
-    test "includes all actions when no filter" do
-      resource = ResourceBuilder.build(AshTypescript.Test.Todo)
-
-      assert Map.has_key?(resource.actions, :read)
-      assert Map.has_key?(resource.actions, :create)
-      assert Map.has_key?(resource.actions, :update)
-      assert Map.has_key?(resource.actions, :destroy)
-    end
-
-    test "filters actions when action_names provided" do
-      resource = ResourceBuilder.build(AshTypescript.Test.Todo, action_names: [:read, :create])
-
-      assert Map.has_key?(resource.actions, :read)
-      assert Map.has_key?(resource.actions, :create)
-      refute Map.has_key?(resource.actions, :update)
-      refute Map.has_key?(resource.actions, :destroy)
-    end
-
     test "builds embedded resource" do
       resource = ResourceBuilder.build(AshTypescript.Test.TodoMetadata)
       assert resource.embedded? == true

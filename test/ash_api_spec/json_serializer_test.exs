@@ -37,7 +37,7 @@ defmodule AshApiSpec.JsonSerializerTest do
       assert is_list(todo["primary_key"])
       assert is_map(todo["fields"])
       assert is_map(todo["relationships"])
-      assert is_map(todo["actions"])
+      refute Map.has_key?(todo, "actions")
     end
 
     test "fields have expected structure" do
@@ -68,30 +68,41 @@ defmodule AshApiSpec.JsonSerializerTest do
       assert is_binary(user_rel["destination"])
     end
 
-    test "actions have expected structure" do
+    test "entrypoints have expected structure" do
       {:ok, spec} = AshApiSpec.generate(otp_app: :ash_typescript)
       {:ok, json} = JsonSerializer.to_json(spec)
       {:ok, decoded} = Jason.decode(json)
 
-      todo = Enum.find(decoded["resources"], &(&1["name"] == "Todo"))
-      read_action = todo["actions"]["read"]
+      assert is_list(decoded["entrypoints"])
+      assert decoded["entrypoints"] != []
 
-      assert read_action["type"] == "read"
-      assert is_boolean(read_action["primary"])
-      assert is_list(read_action["arguments"])
+      todo_read =
+        Enum.find(decoded["entrypoints"], fn e ->
+          String.ends_with?(e["resource"], "Todo") and e["action"]["type"] == "read"
+        end)
+
+      assert todo_read != nil
+      assert is_binary(todo_read["resource"])
+      assert is_boolean(todo_read["action"]["primary"])
+      assert is_list(todo_read["action"]["arguments"])
     end
 
-    test "pagination is serialized when present" do
+    test "pagination is serialized in entrypoints" do
       {:ok, spec} = AshApiSpec.generate(otp_app: :ash_typescript)
       {:ok, json} = JsonSerializer.to_json(spec)
       {:ok, decoded} = Jason.decode(json)
 
-      todo = Enum.find(decoded["resources"], &(&1["name"] == "Todo"))
-      read_action = todo["actions"]["read"]
+      todo_read =
+        Enum.find(decoded["entrypoints"], fn e ->
+          String.ends_with?(e["resource"], ".Todo") and
+            e["action"]["type"] == "read" and
+            e["action"]["primary"] == true
+        end)
 
-      assert read_action["pagination"] != nil
-      assert is_boolean(read_action["pagination"]["offset"])
-      assert is_boolean(read_action["pagination"]["keyset"])
+      assert todo_read != nil
+      assert todo_read["action"]["pagination"] != nil
+      assert is_boolean(todo_read["action"]["pagination"]["offset"])
+      assert is_boolean(todo_read["action"]["pagination"]["keyset"])
     end
 
     test "generic action returns type is serialized" do

@@ -8,20 +8,15 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
   """
 
   alias AshApiSpec.{Argument, Field, Relationship, Resource}
-  alias AshApiSpec.Generator.{ActionBuilder, TypeResolver}
+  alias AshApiSpec.Generator.TypeResolver
 
   @doc """
   Build a `%AshApiSpec.Resource{}` from an Ash resource module.
 
-  ## Options
-
-    * `:action_names` - Optional list of action names to include. When nil,
-      all actions are included.
+  Resources are pure type/shape definitions — actions live in entrypoints.
   """
-  @spec build(atom(), keyword()) :: Resource.t()
-  def build(resource, opts \\ []) do
-    action_names = Keyword.get(opts, :action_names)
-
+  @spec build(atom()) :: Resource.t()
+  def build(resource) do
     %Resource{
       name: resource_name(resource),
       module: resource,
@@ -30,7 +25,6 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
       description: Ash.Resource.Info.description(resource),
       fields: build_fields(resource),
       relationships: build_relationships(resource),
-      actions: build_actions(resource, action_names),
       identities: build_identities(resource),
       multitenancy: build_multitenancy(resource)
     }
@@ -178,29 +172,6 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
   defp relationship_cardinality(%Ash.Resource.Relationships.HasMany{}), do: :many
   defp relationship_cardinality(%Ash.Resource.Relationships.ManyToMany{}), do: :many
   defp relationship_cardinality(_), do: :one
-
-  # ─────────────────────────────────────────────────────────────────
-  # Actions
-  # ─────────────────────────────────────────────────────────────────
-
-  defp build_actions(resource, nil) do
-    resource
-    |> Ash.Resource.Info.actions()
-    |> Map.new(fn action ->
-      built = ActionBuilder.build(resource, action)
-      {built.name, built}
-    end)
-  end
-
-  defp build_actions(resource, action_names) when is_list(action_names) do
-    resource
-    |> Ash.Resource.Info.actions()
-    |> Enum.filter(&(&1.name in action_names))
-    |> Map.new(fn action ->
-      built = ActionBuilder.build(resource, action)
-      {built.name, built}
-    end)
-  end
 
   # ─────────────────────────────────────────────────────────────────
   # Identities

@@ -29,21 +29,18 @@ defmodule AshTypescript.AshApiSpec.UnifiedSpecTest do
       assert Map.has_key?(lookup, AshTypescript.Test.TodoComment)
     end
 
-    test "User resource includes actions from BOTH Domain and SecondDomain" do
-      lookup =
+    test "User actions from BOTH Domain and SecondDomain appear in action_lookup" do
+      action_lookup =
         Spark.Dsl.Extension.get_persisted(
           AshTypescript.Test.ApiSpec,
-          :resource_lookup
+          :action_lookup
         )
 
-      user = lookup[AshTypescript.Test.User]
-      assert %AshApiSpec.Resource{} = user
-
       # :read is used by both Domain (list_users) and SecondDomain (list_users_second)
-      assert Map.has_key?(user.actions, :read)
+      assert Map.has_key?(action_lookup, {AshTypescript.Test.User, :read})
 
       # :get_by_id is used by both Domain (get_by_id) and SecondDomain (get_user_by_id_second)
-      assert Map.has_key?(user.actions, :get_by_id)
+      assert Map.has_key?(action_lookup, {AshTypescript.Test.User, :get_by_id})
     end
 
     test "lookup entries are Resource structs with correct fields" do

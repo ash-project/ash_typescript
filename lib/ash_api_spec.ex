@@ -11,19 +11,22 @@ defmodule AshApiSpec do
   (Elixir structs) that can also be serialized to JSON.
   """
 
-  alias AshApiSpec.Resource
+  alias AshApiSpec.{Entrypoint, Resource}
 
   @type t :: %__MODULE__{
           version: String.t(),
           resources: [Resource.t()],
-          types: [AshApiSpec.Type.t()]
+          types: [AshApiSpec.Type.t()],
+          entrypoints: [Entrypoint.t()]
         }
 
   @type resource_lookup :: %{atom() => Resource.t()}
+  @type action_lookup :: %{{atom(), atom()} => AshApiSpec.Action.t()}
 
   defstruct version: "1.0.0",
             resources: [],
-            types: []
+            types: [],
+            entrypoints: []
 
   # ─────────────────────────────────────────────────────────────────
   # Generation
@@ -54,6 +57,14 @@ defmodule AshApiSpec do
   @spec resource_lookup(t()) :: resource_lookup()
   def resource_lookup(%__MODULE__{resources: resources}) do
     Map.new(resources, fn r -> {r.module, r} end)
+  end
+
+  @doc """
+  Builds an action lookup map from the spec, keyed by `{resource_module, action_name}`.
+  """
+  @spec action_lookup(t()) :: action_lookup()
+  def action_lookup(%__MODULE__{entrypoints: entrypoints}) do
+    Map.new(entrypoints, fn e -> {{e.resource, e.action.name}, e.action} end)
   end
 
   @doc """
@@ -110,12 +121,10 @@ defmodule AshApiSpec do
     end
   end
 
-  @doc "Gets an action by resource module and action name."
-  @spec get_action(resource_lookup(), atom(), atom()) :: AshApiSpec.Action.t() | nil
-  def get_action(resource_lookup, resource_module, action_name) do
-    with %Resource{} = r <- Map.get(resource_lookup, resource_module) do
-      Resource.get_action(r, action_name)
-    end
+  @doc "Gets an action by resource module and action name from an action lookup."
+  @spec get_action(action_lookup(), atom(), atom()) :: AshApiSpec.Action.t() | nil
+  def get_action(action_lookup, resource_module, action_name) do
+    Map.get(action_lookup, {resource_module, action_name})
   end
 
   @doc "Gets an identity by resource module and identity name."

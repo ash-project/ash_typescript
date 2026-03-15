@@ -749,14 +749,32 @@ defmodule AshTypescript do
   def resource_lookup(otp_app) do
     case ash_api_spec() do
       nil ->
-        build_resource_lookup_at_runtime(otp_app)
+        {resource_lookup, _} = build_lookups_at_runtime(otp_app)
+        resource_lookup
 
       module ->
         Spark.Dsl.Extension.get_persisted(module, :resource_lookup)
     end
   end
 
-  defp build_resource_lookup_at_runtime(otp_app) do
+  @doc """
+  Returns the AshApiSpec action lookup map for the given OTP app.
+
+  Keyed by `{resource_module, action_name}` tuples.
+  """
+  @spec action_lookup(atom()) :: AshApiSpec.action_lookup()
+  def action_lookup(otp_app) do
+    case ash_api_spec() do
+      nil ->
+        {_, action_lookup} = build_lookups_at_runtime(otp_app)
+        action_lookup
+
+      module ->
+        Spark.Dsl.Extension.get_persisted(module, :action_lookup)
+    end
+  end
+
+  defp build_lookups_at_runtime(otp_app) do
     rpc_resources = AshTypescript.Codegen.TypeDiscovery.get_rpc_resources(otp_app)
     action_tuples = AshTypescript.Rpc.Codegen.RpcConfigCollector.get_rpc_action_tuples(otp_app)
 
@@ -773,6 +791,6 @@ defmodule AshTypescript do
     {:ok, api_spec} =
       AshApiSpec.Generator.generate(otp_app: otp_app, action_entrypoints: all_action_tuples)
 
-    AshApiSpec.resource_lookup(api_spec)
+    {AshApiSpec.resource_lookup(api_spec), AshApiSpec.action_lookup(api_spec)}
   end
 end

@@ -14,7 +14,7 @@ defmodule AshApiSpec.Generator do
   5. Produce `%AshApiSpec{}`
   """
 
-  alias AshApiSpec.Generator.{Reachability, ResourceBuilder, TypeResolver}
+  alias AshApiSpec.Generator.{ActionBuilder, Reachability, ResourceBuilder, TypeResolver}
 
   @doc """
   Generate an API specification.
@@ -72,18 +72,16 @@ defmodule AshApiSpec.Generator do
     reachable_resources = Enum.uniq(reachable_resources ++ always_resources)
     standalone_types = Enum.uniq(standalone_types ++ always_types)
 
-    # When filtering, resources not explicitly listed get no actions (empty list).
-    # When not filtering, nil means "include all actions".
-    default_actions = if action_filter, do: [], else: nil
-
-    # Build resource specs
+    # Build resource specs (no actions — those live in entrypoints)
     resources =
       reachable_resources
       |> Enum.sort_by(&Module.split/1)
       |> Enum.map(fn resource ->
-        action_names = Map.get(resource_action_map, resource, default_actions)
-        ResourceBuilder.build(resource, action_names: action_names)
+        ResourceBuilder.build(resource)
       end)
+
+    # Build entrypoints from the resource → action_names map
+    entrypoints = build_entrypoints(resource_action_map, action_filter)
 
     # Build standalone type specs (full definitions, not references)
     types =
@@ -103,7 +101,8 @@ defmodule AshApiSpec.Generator do
      %AshApiSpec{
        version: "1.0.0",
        resources: resources,
-       types: types
+       types: types,
+       entrypoints: entrypoints
      }}
   end
 
@@ -136,4 +135,39 @@ defmodule AshApiSpec.Generator do
   end
 
   defp build_resource_action_map(domains, _), do: build_resource_action_map(domains, nil)
+
+  # ─────────────────────────────────────────────────────────────────
+  # Entrypoint Building
+  # ─────────────────────────────────────────────────────────────────
+
+  defp build_entrypoints(resource_action_map, action_filter) do
+    resource_action_map
+    |> Enum.flat_map(fn {resource, action_names} ->
+      actions_to_include = get_actions_for_entrypoints(resource, action_names, action_filter)
+
+      Enum.map(actions_to_include, fn action ->
+        %AshApiSpec.Entrypoint{
+          resource: resource,
+          action: ActionBuilder.build(resource, action)
+        }
+      end)
+    end)
+    |> Enum.sort_by(fn e -> {Module.split(e.resource), e.action.name} end)
+  end
+
+  defp get_actions_for_entrypoints(resource, action_names, _action_filter) do
+    case action_names do
+      nil ->
+        # No filter: include all actions
+        Ash.Resource.Info.actions(resource)
+
+      names when is_list(names) ->
+        Enum.flat_map(names, fn name ->
+          case Ash.Resource.Info.action(resource, name) do
+            nil -> []
+            action -> [action]
+          end
+        end)
+    end
+  end
 end

@@ -34,7 +34,8 @@ defmodule AshApiSpec.JsonSerializer do
     %{
       "version" => spec.version,
       "resources" => Enum.map(spec.resources, &serialize_resource/1),
-      "types" => Enum.map(spec.types, &serialize_type/1)
+      "types" => Enum.map(spec.types, &serialize_type/1),
+      "entrypoints" => Enum.map(spec.entrypoints, &serialize_entrypoint/1)
     }
   end
 
@@ -49,11 +50,21 @@ defmodule AshApiSpec.JsonSerializer do
       "embedded" => resource.embedded?,
       "primary_key" => Enum.map(resource.primary_key || [], &to_string/1),
       "fields" => serialize_named_map(resource.fields, &serialize_field/1),
-      "relationships" => serialize_named_map(resource.relationships, &serialize_relationship/1),
-      "actions" => serialize_named_map(resource.actions, &serialize_action/1)
+      "relationships" => serialize_named_map(resource.relationships, &serialize_relationship/1)
     }
     |> put_if_present("description", resource.description)
     |> put_if_present("multitenancy", serialize_multitenancy(resource.multitenancy))
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Entrypoint
+  # ─────────────────────────────────────────────────────────────────
+
+  defp serialize_entrypoint(%AshApiSpec.Entrypoint{} = entrypoint) do
+    %{
+      "resource" => module_to_string(entrypoint.resource),
+      "action" => serialize_action(entrypoint.action)
+    }
   end
 
   # ─────────────────────────────────────────────────────────────────

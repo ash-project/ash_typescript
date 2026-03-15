@@ -48,11 +48,13 @@ defmodule AshTypescript.AshApiSpec.Transformers.BuildAppSpec do
       AshApiSpec.Generator.generate(otp_app: otp_app, action_entrypoints: all_action_tuples)
 
     resource_lookup = AshApiSpec.resource_lookup(api_spec)
+    action_lookup = AshApiSpec.action_lookup(api_spec)
 
     # Persist on DSL state (stored as module attribute, available at runtime)
     dsl_state =
       dsl_state
       |> Transformer.persist(:resource_lookup, resource_lookup)
+      |> Transformer.persist(:action_lookup, action_lookup)
       |> Transformer.persist(:ash_api_spec, api_spec)
 
     {:ok, dsl_state}
