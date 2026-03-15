@@ -2,6 +2,45 @@
 #
 # SPDX-License-Identifier: MIT
 
+# Inline resource/channel defined here (not in test/support/) so that the
+# intentional missing `returns` triggers IO.warn only during `mix test`, not
+# during `mix compile --warnings-as-errors` which would block CI.
+defmodule AshTypescript.Test.TypedChannel.NoReturnsItem do
+  @moduledoc false
+  use Ash.Resource, domain: nil, notifiers: [Ash.Notifier.PubSub]
+
+  pub_sub do
+    module AshTypescript.Test.TestEndpoint
+    prefix "no_returns_items"
+
+    publish :destroy, [:id],
+      event: "thing_removed",
+      public?: true
+    # intentionally no `returns` — TypeScript payload type should be `unknown`
+  end
+
+  attributes do
+    uuid_primary_key :id
+  end
+
+  actions do
+    defaults [:destroy]
+  end
+end
+
+defmodule AshTypescript.Test.TypedChannel.NoReturnsChannel do
+  @moduledoc false
+  use AshTypescript.TypedChannel
+
+  typed_channel do
+    topic "things:*"
+
+    resource AshTypescript.Test.TypedChannel.NoReturnsItem do
+      publish(:thing_removed)
+    end
+  end
+end
+
 defmodule AshTypescript.TypedChannel.CodegenTest do
   use ExUnit.Case
 
@@ -65,6 +104,22 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
 
     test "includes comment identifying the channel module", %{content: content} do
       assert content =~ "// Channel types for AshTypescript.Test.OrgChannel"
+    end
+  end
+
+  describe "generate_channel_types/2 — unknown payload type" do
+    setup do
+      content =
+        Codegen.generate_channel_types(
+          AshTypescript.Test.TypedChannel.NoReturnsChannel,
+          "things:*"
+        )
+
+      %{content: content}
+    end
+
+    test "generates unknown payload type for event without returns", %{content: content} do
+      assert content =~ "export type ThingRemovedPayload = unknown;"
     end
   end
 
