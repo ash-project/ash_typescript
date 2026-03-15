@@ -239,6 +239,11 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
       %AshApiSpec.Type{kind: :array, item_type: item_type} ->
         {item_type, [], true}
 
+      # AshApiSpec.Type ref — resolve before continuing
+      %AshApiSpec.Type{kind: :type_ref, module: module} ->
+        full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(module)
+        {full_type, [], false}
+
       # AshApiSpec.Type (non-array)
       %AshApiSpec.Type{} = type ->
         {type, [], false}
@@ -253,13 +258,19 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
     end
   end
 
-  @spec classify_return_type(atom() | tuple(), keyword()) ::
+  # Classifies a return type into a category for field selectability
+  @spec classify_return_type(atom() | tuple() | AshApiSpec.Type.t(), keyword()) ::
           {:resource, module()}
           | {:typed_map, keyword()}
           | {:typed_struct, {module(), keyword()}}
           | :unconstrained_map
           | {:error, atom()}
   # AshApiSpec.Type classification
+  defp classify_return_type(%AshApiSpec.Type{kind: :type_ref, module: module}, _constraints) do
+    full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(module)
+    classify_return_type(full_type, [])
+  end
+
   defp classify_return_type(%AshApiSpec.Type{kind: kind, resource_module: mod}, _constraints)
        when kind in [:resource, :embedded_resource] and not is_nil(mod) do
     {:resource, mod}

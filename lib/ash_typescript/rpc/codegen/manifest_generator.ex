@@ -479,7 +479,4 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     |> List.last()
   end
 
-  defp build_resource_lookup(otp_app) do
-    AshTypescript.resource_lookup(otp_app)
-  end
 end

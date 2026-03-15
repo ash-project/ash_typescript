@@ -125,7 +125,9 @@ defmodule AshApiSpec.Generator do
 
   defp normalize_action_filter(entries) when is_list(entries) do
     Enum.map(entries, fn
-      {resource, action_name} -> {resource, action_name, %{}}
+      {resource, action_name} ->
+        {resource, action_name, %{}}
+
       %{resource: resource, action: action_name} = entry ->
         {resource, action_name, Map.get(entry, :config, %{})}
     end)

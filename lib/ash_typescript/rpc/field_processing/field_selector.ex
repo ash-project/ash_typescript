@@ -78,17 +78,10 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     error_tuple -> {:error, error_tuple}
   end
 
-  # Looks up action from AshApiSpec resource_lookups first, falls back to Ash.Resource.Info
-  defp lookup_action(resource, action_name, resource_lookups) do
-    case get_in_resource_lookups(resource_lookups, resource, action_name) do
-      %AshApiSpec.Action{} = action -> action
-      nil -> Ash.Resource.Info.action(resource, action_name)
-    end
+  # Actions live in entrypoints, not on resources. Use Ash.Resource.Info directly.
+  defp lookup_action(resource, action_name, _resource_lookups) do
+    Ash.Resource.Info.action(resource, action_name)
   end
-
-  # Actions live in entrypoints, not on resources. Always falls back to
-  # Ash.Resource.Info.action/2 via lookup_action/3.
-  defp get_in_resource_lookups(_resource_lookups, _resource, _action_name), do: nil
 
   @doc """
   Converts an action to its type specification.

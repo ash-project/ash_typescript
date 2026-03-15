@@ -70,6 +70,11 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   @spec classify_by_type(map() | AshApiSpec.Type.t()) :: field_category()
 
   # %AshApiSpec.Type{} dispatch — direct kind matching, no unwrapping needed
+  def classify_by_type(%AshApiSpec.Type{kind: :type_ref, module: module}) do
+    full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(module)
+    classify_by_type(full_type)
+  end
+
   def classify_by_type(%AshApiSpec.Type{kind: :array, item_type: item_type}) do
     classify_by_type(item_type)
   end

@@ -278,9 +278,8 @@ defmodule AshApiSpec.Generator.TypeResolver do
     end
   end
 
-  defp resolve_complex(_type, constraints) do
-    %Type{kind: :unknown, name: "Unknown", module: nil, constraints: constraints}
-  end
+  # Note: resolve_complex/2 is only called from resolve_unwrapped/2 with atom types,
+  # so the is_atom guard above covers all cases.
 
   # ─────────────────────────────────────────────────────────────────
   # Specific Type Resolvers
