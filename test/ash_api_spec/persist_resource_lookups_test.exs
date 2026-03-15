@@ -69,7 +69,7 @@ defmodule AshTypescript.AshApiSpec.UnifiedSpecTest do
         |> Map.values()
         |> Enum.filter(& &1.embedded?)
 
-      assert length(embedded_modules) > 0
+      assert embedded_modules != []
     end
 
     test "includes resource relationships" do
