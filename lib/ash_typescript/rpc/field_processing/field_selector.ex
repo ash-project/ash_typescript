@@ -86,11 +86,9 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
-  defp get_in_resource_lookups(nil, _resource, _action_name), do: nil
-
-  defp get_in_resource_lookups(resource_lookups, resource, action_name) do
-    AshApiSpec.get_action(resource_lookups, resource, action_name)
-  end
+  # Actions live in entrypoints, not on resources. Always falls back to
+  # Ash.Resource.Info.action/2 via lookup_action/3.
+  defp get_in_resource_lookups(_resource_lookups, _resource, _action_name), do: nil
 
   @doc """
   Converts an action to its type specification.

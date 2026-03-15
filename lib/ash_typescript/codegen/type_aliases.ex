@@ -12,7 +12,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
   """
   def generate_ash_type_aliases(resources, actions, otp_app, resource_lookup \\ nil)
 
-  def generate_ash_type_aliases(resources, _actions, _otp_app, resource_lookup)
+  def generate_ash_type_aliases(resources, _actions, otp_app, resource_lookup)
       when is_map(resource_lookup) and map_size(resource_lookup) > 0 do
     # Derive embedded resources from resource_lookup instead of re-scanning
     embedded_resources =
@@ -22,6 +22,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
       |> Enum.map(& &1.module)
 
     all_resources = Enum.uniq(resources ++ embedded_resources)
+    action_lookup = AshTypescript.action_lookup(otp_app)
 
     # Collect all types from spec resources (fields + action arguments + returns)
     types =
@@ -29,7 +30,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
         case Map.get(resource_lookup, resource) do
           %AshApiSpec.Resource{} = api_resource ->
             types = collect_types_from_api_resource(api_resource, types)
-            collect_types_from_api_actions(api_resource, types)
+            collect_types_from_action_lookup(resource, action_lookup, types)
 
           nil ->
             raise "TypeAliases: resource #{inspect(resource)} not found in resource_lookup"
@@ -88,11 +89,11 @@ defmodule AshTypescript.Codegen.TypeAliases do
 
   defp collect_type_module(_, types), do: types
 
-  # Collects type modules from spec action arguments and returns
-  defp collect_types_from_api_actions(api_resource, types) do
-    api_resource.actions
-    |> Map.values()
-    |> Enum.reduce(types, fn action, types ->
+  # Collects type modules from action_lookup entries for a given resource
+  defp collect_types_from_action_lookup(resource_module, action_lookup, types) do
+    action_lookup
+    |> Enum.filter(fn {{res, _action_name}, _action} -> res == resource_module end)
+    |> Enum.reduce(types, fn {_key, action}, types ->
       # Collect from action arguments
       types =
         Enum.reduce(action.arguments || [], types, fn arg, types ->

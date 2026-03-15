@@ -185,8 +185,8 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
          include_internals?
        ) do
     resource_name = resource_short_name(resource)
-    resource_lookup = build_resource_lookup(Mix.Project.config()[:app])
-    api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
+    otp_app = Mix.Project.config()[:app]
+    action_lookup = AshTypescript.action_lookup(otp_app)
 
     sorted_actions =
       rpc_actions
@@ -198,7 +198,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
 
     actions_table =
       generate_actions_table(
-        api_resource,
+        action_lookup,
         resource,
         sorted_actions,
         domain,
@@ -218,7 +218,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
   end
 
   defp generate_actions_table(
-         api_resource,
+         action_lookup,
          resource,
          rpc_actions,
          domain,
@@ -235,7 +235,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     rows =
       rpc_actions
       |> Enum.map_join("\n", fn rpc_action ->
-        action = Map.get(api_resource.actions, rpc_action.action)
+        action = Map.get(action_lookup, {resource, rpc_action.action})
         namespace = RpcConfigCollector.resolve_namespace(domain, resource_config, rpc_action)
 
         build_row(
@@ -253,7 +253,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     details =
       rpc_actions
       |> Enum.map(fn rpc_action ->
-        action = Map.get(api_resource.actions, rpc_action.action)
+        action = Map.get(action_lookup, {resource, rpc_action.action})
         namespace = RpcConfigCollector.resolve_namespace(domain, resource_config, rpc_action)
         build_action_details(resource, action, rpc_action, namespace, include_internals?)
       end)

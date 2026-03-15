@@ -49,17 +49,24 @@ defmodule AshTypescript.Rpc.TypeIndex do
   action returns, metadata, relationships, and nested types (arrays, unions,
   typed structs/maps/keywords/tuples). Pre-computes module-level facts for each.
   """
-  @spec build(%{atom() => AshApiSpec.Resource.t()} | nil) :: t()
-  def build(nil), do: %{}
+  @spec build(%{atom() => AshApiSpec.Resource.t()} | nil, AshApiSpec.action_lookup()) :: t()
+  def build(resource_lookups, action_lookup \\ %{})
+  def build(nil, _action_lookup), do: %{}
 
-  def build(resource_lookups) when is_map(resource_lookups) do
-    # Collect all type modules from the AshApiSpec type graph
+  def build(resource_lookups, action_lookup) when is_map(resource_lookups) do
+    # Collect type modules from resources (fields, relationships)
     type_modules = collect_type_modules(resource_lookups)
+
+    # Collect type modules from action entrypoints (arguments, returns, metadata)
+    action_type_modules = collect_type_modules_from_actions(action_lookup)
 
     # Also include resource modules (for is_embedded_resource? / resource? checks)
     resource_modules = MapSet.new(Map.keys(resource_lookups))
 
-    all_modules = MapSet.union(type_modules, resource_modules)
+    all_modules =
+      type_modules
+      |> MapSet.union(action_type_modules)
+      |> MapSet.union(resource_modules)
 
     Map.new(all_modules, fn module -> {module, build_entry(module)} end)
   end
@@ -243,6 +250,22 @@ defmodule AshTypescript.Rpc.TypeIndex do
     |> MapSet.new()
   end
 
+  defp collect_type_modules_from_actions(action_lookup) do
+    action_lookup
+    |> Enum.flat_map(fn {_key, action} ->
+      arg_modules = Enum.flat_map(action.arguments, &collect_from_type(&1.type))
+
+      returns_modules =
+        if action.returns, do: collect_from_type(action.returns), else: []
+
+      metadata_modules =
+        Enum.flat_map(action.metadata || [], &collect_from_type(&1.type))
+
+      arg_modules ++ returns_modules ++ metadata_modules
+    end)
+    |> MapSet.new()
+  end
+
   defp collect_from_resource(%AshApiSpec.Resource{} = resource) do
     field_modules =
       Enum.flat_map(Map.values(resource.fields), &collect_from_type(&1.type))
@@ -250,20 +273,7 @@ defmodule AshTypescript.Rpc.TypeIndex do
     rel_modules =
       Enum.flat_map(Map.values(resource.relationships), fn rel -> [rel.destination] end)
 
-    action_modules =
-      Enum.flat_map(Map.values(resource.actions), fn action ->
-        arg_modules = Enum.flat_map(action.arguments, &collect_from_type(&1.type))
-
-        returns_modules =
-          if action.returns, do: collect_from_type(action.returns), else: []
-
-        metadata_modules =
-          Enum.flat_map(action.metadata || [], &collect_from_type(&1.type))
-
-        arg_modules ++ returns_modules ++ metadata_modules
-      end)
-
-    field_modules ++ rel_modules ++ action_modules
+    field_modules ++ rel_modules
   end
 
   defp collect_from_type(nil), do: []

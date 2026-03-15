@@ -62,7 +62,8 @@ defmodule AshTypescript.Rpc.Pipeline do
     with {:ok, {domain, resource, action, rpc_action}} <-
            discover_action(otp_app, normalized_params),
          resource_lookups = AshTypescript.resource_lookup(otp_app),
-         type_index = TypeIndex.build(resource_lookups),
+         action_lookup = AshTypescript.action_lookup(otp_app),
+         type_index = TypeIndex.build(resource_lookups, action_lookup),
          :ok <-
            validate_required_parameters_for_action_type(
              normalized_params,
