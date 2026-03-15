@@ -6,9 +6,13 @@ defmodule AshApiSpec.Type do
   @moduledoc """
   Represents a resolved type in the API specification.
 
-  Types are always inline — resource fields contain full `%Type{}` structs.
-  The top-level `types` list in `%AshApiSpec{}` is an index of standalone
-  types (enums, unions, typed structs) for convenience.
+  Named type modules (Ash.Type.Enum implementations and Ash.Type.NewType subtypes)
+  are referenced via `kind: :type_ref` inline, with their full definitions in
+  `%AshApiSpec{}.types`. This prevents circular references and mirrors how resources
+  are referenced via `kind: :resource` with definitions in `%AshApiSpec{}.resources`.
+
+  Primitive types (string, integer, etc.) and anonymous containers (map/keyword/tuple
+  without a named module) are still resolved inline.
   """
 
   @type kind ::
@@ -39,6 +43,7 @@ defmodule AshApiSpec.Type do
           | :array
           | :tuple
           | :keyword
+          | :type_ref
           | :unknown
 
   @type t :: %__MODULE__{

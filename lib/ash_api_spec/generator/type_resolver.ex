@@ -63,6 +63,10 @@ defmodule AshApiSpec.Generator.TypeResolver do
 
   @doc """
   Resolve an Ash type and its constraints into an `%AshApiSpec.Type{}`.
+
+  Named type modules (Ash.Type.Enum implementations and Ash.Type.NewType subtypes)
+  are resolved as `kind: :type_ref` references. Use `resolve_definition/1` to get
+  the full type definition for `spec.types`.
   """
   @spec resolve(term(), term()) :: Type.t()
   def resolve(type, constraints \\ [])
@@ -114,6 +118,40 @@ defmodule AshApiSpec.Generator.TypeResolver do
     %Type{kind: :unknown, name: "Unknown", module: nil, constraints: constraints}
   end
 
+  @doc """
+  Resolve a named type module into its full definition for `spec.types`.
+
+  Unlike `resolve/2`, which emits `kind: :type_ref` for named type modules,
+  this function expands the top-level type. Nested named type references
+  within the definition still become `:type_ref`.
+  """
+  @spec resolve_definition(atom()) :: Type.t()
+  def resolve_definition(type_module) when is_atom(type_module) do
+    cond do
+      is_enum_type?(type_module) ->
+        resolve_enum(type_module, [])
+
+      Ash.Type.NewType.new_type?(type_module) ->
+        {unwrapped, constraints} = unwrap_new_type(type_module, [])
+        resolved = resolve(unwrapped, constraints)
+        %{resolved | module: type_module, name: type_name_from_module(type_module)}
+
+      true ->
+        resolve(type_module, [])
+    end
+  end
+
+  @doc """
+  Returns true if the given type is a named type module (Ash.Type.Enum or Ash.Type.NewType).
+  """
+  @spec named_type_module?(term()) :: boolean()
+  def named_type_module?(type) when is_atom(type) do
+    Code.ensure_loaded?(type) == true and
+      (is_enum_type?(type) or Ash.Type.NewType.new_type?(type))
+  end
+
+  def named_type_module?(_), do: false
+
   # ─────────────────────────────────────────────────────────────────
   # Private
   # ─────────────────────────────────────────────────────────────────
@@ -141,20 +179,17 @@ defmodule AshApiSpec.Generator.TypeResolver do
         %Type{kind: kind, name: name, module: type, constraints: constraints}
 
       nil ->
-        # Check if it's an enum type before unwrapping
-        if is_enum_type?(type) do
-          resolve_enum(type, constraints)
+        # Named type modules (enums and NewTypes) become references.
+        # Their full definitions live in spec.types.
+        if named_type_module?(type) do
+          %Type{
+            kind: :type_ref,
+            name: type_name_from_module(type),
+            module: type,
+            constraints: constraints
+          }
         else
-          # Unwrap NewType and resolve the underlying type
-          {unwrapped, unwrapped_constraints} = unwrap_new_type(type, constraints)
-
-          if unwrapped != type do
-            # It was a NewType — resolve the unwrapped type with the original module preserved
-            resolved = resolve_unwrapped(unwrapped, unwrapped_constraints)
-            %{resolved | module: type}
-          else
-            resolve_unwrapped(type, constraints)
-          end
+          resolve_unwrapped(type, constraints)
         end
     end
   end

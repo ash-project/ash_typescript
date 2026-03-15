@@ -22,13 +22,26 @@ defmodule AshApiSpec.Generator do
   ## Options
 
     * `:otp_app` - The OTP app to scan (required)
-    * `:actions` - Optional list of `{resource_module, action_name}` tuples.
+    * `:action_entrypoints` - Optional list of `{resource_module, action_name}` tuples.
+      These actions serve as entrypoints for deriving the spec — reachability
+      analysis walks their arguments to discover dependent types and resources.
       When omitted, all public actions across all domains are included.
+    * `:overrides` - Optional keyword list of overrides:
+      * `:always` - Keyword list of items to always include regardless of reachability:
+        * `:resources` - List of resource modules. These are added as reachability roots
+          (with no action arguments traversed) so their field types and relationships
+          are also discovered.
+        * `:types` - List of Ash type modules to include as standalone types directly.
   """
   @spec generate(keyword()) :: {:ok, AshApiSpec.t()} | {:error, term()}
   def generate(opts) do
     otp_app = Keyword.fetch!(opts, :otp_app)
-    action_filter = Keyword.get(opts, :actions)
+    action_filter = Keyword.get(opts, :action_entrypoints)
+    overrides = Keyword.get(opts, :overrides, [])
+
+    always_opts = Keyword.get(overrides, :always, [])
+    always_resources = Keyword.get(always_opts, :resources, [])
+    always_types = Keyword.get(always_opts, :types, [])
 
     # Discover all domains and their resources
     domains = discover_domains(otp_app)
@@ -47,8 +60,17 @@ defmodule AshApiSpec.Generator do
         Map.keys(resource_action_map)
       end
 
+    # Add always-resources as reachability roots with [] action names
+    # (include fields/relationships but no action arguments)
+    always_resource_entries = Enum.map(always_resources, &{&1, []})
+    reachability_entries = reachability_entries ++ always_resource_entries
+
     # Run reachability analysis
     {reachable_resources, standalone_types} = Reachability.find_reachable(reachability_entries)
+
+    # Merge always-resources and always-types into reachability results
+    reachable_resources = Enum.uniq(reachable_resources ++ always_resources)
+    standalone_types = Enum.uniq(standalone_types ++ always_types)
 
     # When filtering, resources not explicitly listed get no actions (empty list).
     # When not filtering, nil means "include all actions".
@@ -63,7 +85,7 @@ defmodule AshApiSpec.Generator do
         ResourceBuilder.build(resource, action_names: action_names)
       end)
 
-    # Build standalone type specs
+    # Build standalone type specs (full definitions, not references)
     types =
       standalone_types
       |> Enum.sort_by(fn module ->
@@ -74,7 +96,7 @@ defmodule AshApiSpec.Generator do
         end
       end)
       |> Enum.map(fn type_module ->
-        TypeResolver.resolve(type_module, [])
+        TypeResolver.resolve_definition(type_module)
       end)
 
     {:ok,

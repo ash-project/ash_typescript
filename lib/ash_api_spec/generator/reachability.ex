@@ -150,23 +150,47 @@ defmodule AshApiSpec.Generator.Reachability do
   defp traverse_type(type, constraints, visited) when is_list(constraints) do
     {unwrapped_type, unwrapped_constraints} = TypeResolver.unwrap_new_type(type, constraints)
 
+    # Detect named type modules: NewTypes (type differs after unwrap) or enums
+    is_named = is_atom(type) and TypeResolver.named_type_module?(type)
+
+    if is_named and MapSet.member?(visited, type) do
+      # Cycle detected — stop traversal
+      {[], [], visited}
+    else
+      visited = if is_named, do: MapSet.put(visited, type), else: visited
+
+      {found_r, found_t, visited} =
+        traverse_unwrapped_type(unwrapped_type, unwrapped_constraints, visited)
+
+      if is_named do
+        {found_r, [type | found_t], visited}
+      else
+        {found_r, found_t, visited}
+      end
+    end
+  end
+
+  defp traverse_type(_type, _constraints, visited) do
+    {[], [], visited}
+  end
+
+  defp traverse_unwrapped_type(unwrapped_type, constraints, visited) do
     case unwrapped_type do
       {:array, inner_type} ->
-        items_constraints = Keyword.get(unwrapped_constraints, :items, [])
+        items_constraints = Keyword.get(constraints, :items, [])
         traverse_type(inner_type, items_constraints, visited)
 
       Ash.Type.Struct ->
-        instance_of = Keyword.get(unwrapped_constraints, :instance_of)
+        instance_of = Keyword.get(constraints, :instance_of)
 
         if instance_of && is_resource?(instance_of) do
           traverse_resource_ref(instance_of, visited)
         else
-          # Check for field constraints
-          traverse_field_constraints(unwrapped_constraints, visited)
+          traverse_field_constraints(constraints, visited)
         end
 
       Ash.Type.Union ->
-        union_types = Keyword.get(unwrapped_constraints, :types, [])
+        union_types = Keyword.get(constraints, :types, [])
 
         Enum.reduce(union_types, {[], [], visited}, fn {_name, config},
                                                        {resources, types, visited} ->
@@ -184,18 +208,15 @@ defmodule AshApiSpec.Generator.Reachability do
         end)
 
       type when type in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] ->
-        traverse_field_constraints(unwrapped_constraints, visited)
+        traverse_field_constraints(constraints, visited)
 
       type when is_atom(type) ->
         cond do
           is_resource?(type) ->
             traverse_resource_ref(type, visited)
 
-          is_enum_type?(type) ->
-            {[], [type], visited}
-
           Code.ensure_loaded?(type) == true ->
-            traverse_field_constraints(unwrapped_constraints, visited)
+            traverse_field_constraints(constraints, visited)
 
           true ->
             {[], [], visited}
@@ -204,10 +225,6 @@ defmodule AshApiSpec.Generator.Reachability do
       _ ->
         {[], [], visited}
     end
-  end
-
-  defp traverse_type(_type, _constraints, visited) do
-    {[], [], visited}
   end
 
   defp traverse_resource_ref(resource, visited) do
@@ -256,9 +273,4 @@ defmodule AshApiSpec.Generator.Reachability do
   end
 
   defp is_resource?(_), do: false
-
-  defp is_enum_type?(type) when is_atom(type) do
-    Code.ensure_loaded?(type) == true and
-      Spark.implements_behaviour?(type, Ash.Type.Enum)
-  end
 end

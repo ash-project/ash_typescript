@@ -89,14 +89,12 @@ defmodule AshApiSpec.Generator.TypeResolverTest do
   end
 
   describe "resolve/2 enums" do
-    test "resolves enum type with values" do
+    test "resolves named enum type as type_ref" do
       result = TypeResolver.resolve(AshTypescript.Test.Todo.Status, [])
-      assert %Type{kind: :enum, values: values} = result
-      assert is_list(values)
-      assert :pending in values
+      assert %Type{kind: :type_ref, module: AshTypescript.Test.Todo.Status} = result
     end
 
-    test "resolves atom with one_of constraint as enum" do
+    test "resolves atom with one_of constraint as inline enum" do
       result = TypeResolver.resolve(Ash.Type.Atom, one_of: [:low, :medium, :high])
       assert %Type{kind: :enum, values: [:low, :medium, :high]} = result
     end
@@ -220,10 +218,9 @@ defmodule AshApiSpec.Generator.TypeResolverTest do
       assert %Type{kind: :term, name: "Vector"} = result
     end
 
-    test "resolves Ash.Type.DurationName as enum" do
+    test "resolves Ash.Type.DurationName as type_ref" do
       result = TypeResolver.resolve(Ash.Type.DurationName, [])
-      assert %Type{kind: :enum} = result
-      assert :year in result.values
+      assert %Type{kind: :type_ref, module: Ash.Type.DurationName} = result
     end
   end
 
@@ -248,6 +245,44 @@ defmodule AshApiSpec.Generator.TypeResolverTest do
       {unwrapped, constraints} = TypeResolver.unwrap_new_type(Ash.Type.String, [])
       assert unwrapped == Ash.Type.String
       assert constraints == []
+    end
+  end
+
+  describe "resolve_definition/1" do
+    test "resolves enum to full definition with values" do
+      result = TypeResolver.resolve_definition(AshTypescript.Test.Todo.Status)
+      assert %Type{kind: :enum, module: AshTypescript.Test.Todo.Status, values: values} = result
+      assert is_list(values)
+      assert :pending in values
+    end
+
+    test "resolves Ash.Type.DurationName to full enum definition" do
+      result = TypeResolver.resolve_definition(Ash.Type.DurationName)
+      assert %Type{kind: :enum, module: Ash.Type.DurationName} = result
+      assert :year in result.values
+    end
+  end
+
+  describe "named_type_module?/1" do
+    test "returns true for enum types" do
+      assert TypeResolver.named_type_module?(AshTypescript.Test.Todo.Status)
+    end
+
+    test "returns true for Ash.Type.DurationName" do
+      assert TypeResolver.named_type_module?(Ash.Type.DurationName)
+    end
+
+    test "returns false for primitives" do
+      refute TypeResolver.named_type_module?(Ash.Type.String)
+      refute TypeResolver.named_type_module?(Ash.Type.Integer)
+    end
+
+    test "returns false for resources" do
+      refute TypeResolver.named_type_module?(AshTypescript.Test.Todo)
+    end
+
+    test "returns false for non-atoms" do
+      refute TypeResolver.named_type_module?({:array, :string})
     end
   end
 end
