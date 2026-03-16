@@ -121,6 +121,20 @@ defmodule AshApiSpec do
     end
   end
 
+  @doc """
+  Gets a field or relationship by name, checking fields first.
+
+  Returns `%AshApiSpec.Field{}`, `%AshApiSpec.Relationship{}`, or nil.
+  """
+  @spec get_field_or_relationship(resource_lookup(), atom(), atom()) ::
+          AshApiSpec.Field.t() | AshApiSpec.Relationship.t() | nil
+  def get_field_or_relationship(resource_lookup, resource_module, name) do
+    case get_field(resource_lookup, resource_module, name) do
+      %AshApiSpec.Field{} = field -> field
+      nil -> get_relationship(resource_lookup, resource_module, name)
+    end
+  end
+
   @doc "Gets an action by resource module and action name from an action lookup."
   @spec get_action(action_lookup(), atom(), atom()) :: AshApiSpec.Action.t() | nil
   def get_action(action_lookup, resource_module, action_name) do
