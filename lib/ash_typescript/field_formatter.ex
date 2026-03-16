@@ -11,7 +11,6 @@ defmodule AshTypescript.FieldFormatter do
 
   import AshTypescript.Helpers
 
-  alias AshTypescript.Rpc.TypeIndex
 
   @doc """
   Formats a field name for client output, optionally applying resource/type-level
@@ -41,8 +40,8 @@ defmodule AshTypescript.FieldFormatter do
       # This includes TypedStructs, NewTypes wrapping maps, and custom Ash types.
       # Takes priority over Ash resource field_names DSL when both are present.
       resource_or_type_module &&
-          TypeIndex.has_ts_field_names?(%{}, resource_or_type_module) ->
-        ts_field_names = TypeIndex.field_names(%{}, resource_or_type_module)
+          has_typescript_field_names?(resource_or_type_module) ->
+        ts_field_names = get_typescript_field_names(resource_or_type_module)
 
         case Map.get(ts_field_names, field) do
           mapped when is_binary(mapped) -> mapped
@@ -279,6 +278,23 @@ defmodule AshTypescript.FieldFormatter do
 
       _ ->
         raise ArgumentError, "Unsupported formatter: #{inspect(formatter)}"
+    end
+  end
+
+  defp has_typescript_field_names?(nil), do: false
+
+  defp has_typescript_field_names?(module) when is_atom(module) do
+    Code.ensure_loaded?(module) == true and
+      function_exported?(module, :typescript_field_names, 0)
+  end
+
+  defp has_typescript_field_names?(_), do: false
+
+  defp get_typescript_field_names(module) do
+    if has_typescript_field_names?(module) do
+      module.typescript_field_names() |> Map.new()
+    else
+      %{}
     end
   end
 end

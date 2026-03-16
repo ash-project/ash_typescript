@@ -17,7 +17,6 @@ defmodule AshTypescript.Rpc.Pipeline do
     Request,
     RequestedFieldsProcessor,
     ResultProcessor,
-    TypeIndex,
     ValueFormatter
   }
 
@@ -63,7 +62,7 @@ defmodule AshTypescript.Rpc.Pipeline do
            discover_action(otp_app, normalized_params),
          resource_lookups = AshTypescript.resource_lookup(otp_app),
          action_lookup = AshTypescript.action_lookup(otp_app),
-         type_index = TypeIndex.build(resource_lookups, action_lookup),
+         type_index = %{},
          :ok <-
            validate_required_parameters_for_action_type(
              normalized_params,
@@ -516,17 +515,17 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   # Classifies a type as tuple, keyword, or other, handling NewTypes and AshApiSpec types
   defp classify_tuple_or_keyword_type(
-         %AshApiSpec.Type{kind: :tuple, constraints: c},
+         %AshApiSpec.Type{kind: :tuple} = type_info,
          _constraints
        ) do
-    {:tuple, c || []}
+    {:tuple, type_info}
   end
 
   defp classify_tuple_or_keyword_type(
-         %AshApiSpec.Type{kind: :keyword, constraints: c},
+         %AshApiSpec.Type{kind: :keyword} = type_info,
          _constraints
        ) do
-    {:keyword, c || []}
+    {:keyword, type_info}
   end
 
   defp classify_tuple_or_keyword_type(
@@ -540,25 +539,13 @@ defmodule AshTypescript.Rpc.Pipeline do
   defp classify_tuple_or_keyword_type(%AshApiSpec.Type{}, _constraints), do: :other
 
   defp classify_tuple_or_keyword_type(type, constraints) do
-    # Unwrap NewType to get the underlying type
-    {unwrapped_type, full_constraints} =
-      TypeIndex.unwrap_new_type(%{}, type, constraints)
-
-    case unwrapped_type do
-      Ash.Type.Tuple ->
-        {:tuple, full_constraints}
-
-      Ash.Type.Keyword ->
-        {:keyword, full_constraints}
-
-      _ ->
-        :other
-    end
+    # Unwrap NewType to get the underlying type, then resolve to spec type
+    resolved = AshApiSpec.Generator.TypeResolver.resolve(type, constraints)
+    classify_tuple_or_keyword_type(resolved, [])
   end
 
-  defp convert_map_to_tuple(value, constraints) when is_map(value) do
-    field_constraints = Keyword.get(constraints, :fields, [])
-    field_order = Enum.map(field_constraints, fn {field_name, _constraints} -> field_name end)
+  defp convert_map_to_tuple(value, type_info_or_constraints) when is_map(value) do
+    field_order = get_tuple_field_names(type_info_or_constraints)
 
     tuple_values =
       Enum.map(field_order, fn field_name ->
@@ -571,13 +558,10 @@ defmodule AshTypescript.Rpc.Pipeline do
     List.to_tuple(tuple_values)
   end
 
-  defp convert_map_to_tuple(value, _constraints), do: value
+  defp convert_map_to_tuple(value, _type_info_or_constraints), do: value
 
-  defp convert_map_to_keyword(value, constraints) when is_map(value) do
-    field_constraints = Keyword.get(constraints, :fields, [])
-
-    allowed_fields =
-      Enum.map(field_constraints, fn {field_name, _constraints} -> field_name end) |> MapSet.new()
+  defp convert_map_to_keyword(value, type_info_or_constraints) when is_map(value) do
+    allowed_fields = get_tuple_field_names(type_info_or_constraints) |> MapSet.new()
 
     Enum.reduce(value, %{}, fn {key, val}, acc ->
       atom_key =
@@ -608,7 +592,19 @@ defmodule AshTypescript.Rpc.Pipeline do
     end)
   end
 
-  defp convert_map_to_keyword(value, _constraints), do: value
+  defp convert_map_to_keyword(value, _type_info_or_constraints), do: value
+
+  defp get_tuple_field_names(%AshApiSpec.Type{fields: fields})
+       when is_list(fields) and fields != [] do
+    Enum.map(fields, & &1.name)
+  end
+
+  defp get_tuple_field_names(%AshApiSpec.Type{element_types: ets})
+       when is_list(ets) and ets != [] do
+    Enum.map(ets, & &1.name)
+  end
+
+  defp get_tuple_field_names(_), do: []
 
   defp parse_get_by(params, rpc_action, resource, resource_lookups) do
     rpc_get_by = Map.get(rpc_action, :get_by) || []

@@ -29,7 +29,7 @@ defmodule AshTypescript.Rpc.Request do
           pagination: map() | nil,
           show_metadata: list(atom()),
           resource_lookups: %{module() => AshApiSpec.Resource.t()} | nil,
-          type_index: AshTypescript.Rpc.TypeIndex.t()
+          type_index: map()
         }
 
   defstruct [

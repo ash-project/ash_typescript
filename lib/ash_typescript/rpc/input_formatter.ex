@@ -6,37 +6,16 @@ defmodule AshTypescript.Rpc.InputFormatter do
   @moduledoc """
   Formats input data from client format to internal format.
 
-  This module handles the conversion of client-provided field names and values
-  to the internal representation expected by Ash actions. It focuses specifically
-  on action arguments and accepted attributes, then delegates to ValueFormatter
-  for recursive type-aware formatting of nested values.
-
-  Key responsibilities:
-  - Convert client field names to internal atom keys (e.g., "userId" -> :user_id)
-  - Preserve untyped map keys exactly as received
-  - Handle nested structures within input data via ValueFormatter
-  - Work only with action arguments and accepted attributes (simplified scope)
+  Converts client-provided field names and values to the internal representation
+  expected by Ash actions. Delegates to ValueFormatter for recursive type-aware
+  formatting of nested values using `%AshApiSpec.Type{}` structs.
   """
 
-  alias AshTypescript.{FieldFormatter, Rpc.TypeIndex, Rpc.ValueFormatter}
+  alias AshTypescript.{FieldFormatter, Rpc.ValueFormatter}
   alias AshTypescript.Resource.Info, as: ResourceInfo
 
   @doc """
   Formats input data from client format to internal format.
-
-  Converts client field names to internal format while preserving untyped map keys.
-  Only processes action arguments and accepted attributes - no relationships,
-  calculations, or aggregates.
-
-  ## Parameters
-  - `data`: The input data from the client
-  - `resource`: The Ash resource module
-  - `action_name_or_action`: The name of the action or the action struct itself
-  - `formatter`: The field formatter to use for conversion
-
-  ## Returns
-  The formatted data with client field names converted to internal atom keys,
-  except for untyped map keys which are preserved exactly.
   """
   def format(
         data,
@@ -86,10 +65,10 @@ defmodule AshTypescript.Rpc.InputFormatter do
           {key, value}
 
         internal_key ->
-          {type, constraints} =
+          field_type =
             get_input_field_type(action, resource, internal_key, resource_lookups)
 
-          formatted_value = format_value(value, type, constraints, formatter, resource_lookups)
+          formatted_value = format_value(value, field_type, formatter, resource_lookups)
           {internal_key, formatted_value}
       end
     end)
@@ -97,26 +76,6 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   @doc """
   Builds a map of expected client field names to internal Elixir field names.
-
-  This map is used to correctly parse incoming input data by looking up the
-  exact client name that codegen would have generated, rather than blindly
-  applying formatter transformations.
-
-  ## Parameters
-  - `resource`: The Ash resource module
-  - `action`: The action struct
-  - `formatter`: The field formatter configuration
-
-  ## Returns
-  A map where keys are client field names (strings) and values are internal
-  Elixir field names (atoms).
-
-  ## Example
-      %{
-        "userName" => :user_name,
-        "isActive" => :is_active?,
-        "addressLine1" => :address_line_1
-      }
   """
   def build_expected_keys_map(resource, action, _input_formatter, resource_lookups \\ nil) do
     output_formatter = AshTypescript.Rpc.output_field_formatter()
@@ -127,7 +86,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   defp build_argument_keys(resource, action, output_formatter) do
     action.arguments
-    |> Enum.filter(& &1.public?)
+    |> Enum.filter(&Map.get(&1, :public?, true))
     |> Enum.into(%{}, fn arg ->
       mapped = ResourceInfo.get_mapped_argument_name(resource, action.name, arg.name)
 
@@ -164,58 +123,82 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end)
   end
 
-  defp format_value(data, type, constraints, formatter, resource_lookups) do
-    case type do
-      struct_type when struct_type in [Ash.Type.Struct, :struct] ->
-        instance_of = Keyword.get(constraints, :instance_of)
+  # Resolve the field type to %AshApiSpec.Type{} and handle struct resources specially
+  defp format_value(value, %AshApiSpec.Type{kind: kind} = type_info, formatter, resource_lookups)
+       when kind in [:struct, :map] do
+    inst = type_info.instance_of || type_info.module
 
-        if instance_of && TypeIndex.resource?(%{}, instance_of) && is_map(data) &&
-             not is_struct(data) do
-          formatted_data =
-            ValueFormatter.format(
-              data,
-              instance_of,
-              constraints,
-              formatter,
-              :input,
-              resource_lookups
-            )
+    if inst && is_ash_resource?(inst) && is_map(value) && not is_struct(value) do
+      formatted_data =
+        ValueFormatter.format(value, type_info, [], formatter, :input, resource_lookups)
 
-          cast_map_to_struct(formatted_data, instance_of)
-        else
-          ValueFormatter.format(data, type, constraints, formatter, :input, resource_lookups)
-        end
+      cast_map_to_struct(formatted_data, inst)
+    else
+      ValueFormatter.format(value, type_info, [], formatter, :input, resource_lookups)
+    end
+  end
 
-      {:array, inner_type} when inner_type in [Ash.Type.Struct, :struct] ->
-        items_constraints = Keyword.get(constraints, :items, [])
-        instance_of = Keyword.get(items_constraints, :instance_of)
+  defp format_value(value, %AshApiSpec.Type{kind: :resource} = type_info, formatter, resource_lookups) do
+    inst = type_info.resource_module || type_info.module
 
-        if instance_of && TypeIndex.resource?(%{}, instance_of) && is_list(data) do
-          Enum.map(data, fn item ->
+    if inst && is_map(value) && not is_struct(value) do
+      formatted_data =
+        ValueFormatter.format(value, type_info, [], formatter, :input, resource_lookups)
+
+      cast_map_to_struct(formatted_data, inst)
+    else
+      ValueFormatter.format(value, type_info, [], formatter, :input, resource_lookups)
+    end
+  end
+
+  # Embedded resources: only format field names, don't cast to struct.
+  # Ash handles embedded resource input casting internally.
+  defp format_value(value, %AshApiSpec.Type{kind: :embedded_resource} = type_info, formatter, resource_lookups) do
+    ValueFormatter.format(value, type_info, [], formatter, :input, resource_lookups)
+  end
+
+  defp format_value(value, %AshApiSpec.Type{kind: :array} = type_info, formatter, resource_lookups) do
+    item_type = type_info.item_type
+
+    cond do
+      # Non-embedded struct/resource items need struct casting
+      item_type && match?(%AshApiSpec.Type{kind: k} when k in [:struct, :resource], item_type) ->
+        inst = item_type.instance_of || item_type.resource_module || item_type.module
+
+        if inst && is_ash_resource?(inst) && is_list(value) do
+          Enum.map(value, fn item ->
             if is_map(item) && not is_struct(item) do
               formatted_item =
-                ValueFormatter.format(
-                  item,
-                  instance_of,
-                  items_constraints,
-                  formatter,
-                  :input,
-                  resource_lookups
-                )
+                ValueFormatter.format(item, item_type, [], formatter, :input, resource_lookups)
 
-              cast_map_to_struct(formatted_item, instance_of)
+              cast_map_to_struct(formatted_item, inst)
             else
               item
             end
           end)
         else
-          ValueFormatter.format(data, type, constraints, formatter, :input, resource_lookups)
+          ValueFormatter.format(value, type_info, [], formatter, :input, resource_lookups)
         end
 
-      _ ->
-        ValueFormatter.format(data, type, constraints, formatter, :input, resource_lookups)
+      # Embedded resources and everything else: just format, Ash handles casting
+      true ->
+        ValueFormatter.format(value, type_info, [], formatter, :input, resource_lookups)
     end
   end
+
+  defp format_value(value, %AshApiSpec.Type{} = type_info, formatter, resource_lookups) do
+    ValueFormatter.format(value, type_info, [], formatter, :input, resource_lookups)
+  end
+
+  # Fallback for nil type
+  defp format_value(value, nil, _formatter, _resource_lookups), do: value
+
+  defp is_ash_resource?(module) when is_atom(module) and not is_nil(module) do
+    Code.ensure_loaded?(module) == true and
+      Ash.Resource.Info.resource?(module)
+  end
+
+  defp is_ash_resource?(_), do: false
 
   defp cast_map_to_struct(map, struct_module) when is_map(map) and is_atom(struct_module) do
     with {:ok, casted} <-
@@ -229,28 +212,60 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end
   end
 
+  # Returns %AshApiSpec.Type{} for the field, using spec data when available
   defp get_input_field_type(action, resource, field_key, resource_lookups) do
     case get_action_argument(action, field_key) do
       nil ->
-        get_accepted_attribute_type(action, resource, field_key, resource_lookups)
+        get_accepted_attribute_type(resource, field_key, resource_lookups)
 
       arg ->
-        {arg.type, arg.constraints || []}
+        resolve_arg_type(arg)
     end
   end
 
   defp get_action_argument(action, field_key) do
-    Enum.find(action.arguments, &(&1.public? && &1.name == field_key))
+    Enum.find(action.arguments, fn arg ->
+      Map.get(arg, :public?, true) && arg.name == field_key
+    end)
   end
 
-  defp get_accepted_attribute_type(action, resource, field_key, _resource_lookups) do
-    accept = Map.get(action, :accept, [])
+  # Resolve argument type to %AshApiSpec.Type{}
+  defp resolve_arg_type(%{type: %AshApiSpec.Type{} = spec_type}), do: spec_type
 
-    if field_key in accept do
-      attr = Ash.Resource.Info.attribute(resource, field_key)
-      {attr.type, attr.constraints || []}
-    else
-      {nil, []}
+  defp resolve_arg_type(%{type: type, constraints: constraints}) when is_atom(type) do
+    AshApiSpec.Generator.TypeResolver.resolve(type, constraints || [])
+  end
+
+  defp resolve_arg_type(%{type: {:array, _} = type, constraints: constraints}) do
+    AshApiSpec.Generator.TypeResolver.resolve(type, constraints || [])
+  end
+
+  defp resolve_arg_type(%{type: type}) when is_atom(type) do
+    AshApiSpec.Generator.TypeResolver.resolve(type, [])
+  end
+
+  defp resolve_arg_type(_), do: nil
+
+  # Get accepted attribute type from resource_lookups or Ash introspection
+  defp get_accepted_attribute_type(resource, field_key, resource_lookups)
+       when is_map(resource_lookups) do
+    case AshApiSpec.get_field(resource_lookups, resource, field_key) do
+      %AshApiSpec.Field{type: type} -> type
+      nil -> get_accepted_attribute_type_from_ash(resource, field_key)
+    end
+  end
+
+  defp get_accepted_attribute_type(resource, field_key, _nil_lookups) do
+    get_accepted_attribute_type_from_ash(resource, field_key)
+  end
+
+  defp get_accepted_attribute_type_from_ash(resource, field_key) do
+    case Ash.Resource.Info.attribute(resource, field_key) do
+      nil ->
+        nil
+
+      attr ->
+        AshApiSpec.Generator.TypeResolver.resolve(attr.type, attr.constraints || [])
     end
   end
 end
