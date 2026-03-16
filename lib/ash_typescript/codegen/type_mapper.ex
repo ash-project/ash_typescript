@@ -421,7 +421,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
   """
   @spec map_channel_payload_type(atom() | tuple(), keyword()) :: String.t()
   def map_channel_payload_type(type, constraints) do
-    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+    {unwrapped_type, full_constraints} =
+      AshApiSpec.Generator.TypeResolver.unwrap_new_type(type, constraints)
 
     cond do
       unwrapped_type in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] ->
@@ -447,6 +448,30 @@ defmodule AshTypescript.Codegen.TypeMapper do
       true ->
         map_type(type, constraints, :output)
     end
+  end
+
+  defp build_plain_map_type(fields, field_name_mappings) do
+    field_types =
+      fields
+      |> Enum.map_join(", ", fn {field_name, field_config} ->
+        field_type = map_type(field_config[:type], field_config[:constraints] || [], :output)
+
+        formatted_field_name =
+          if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
+            Keyword.get(field_name_mappings, field_name) |> to_string()
+          else
+            field_name
+          end
+          |> AshTypescript.FieldFormatter.format_field_name(
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        allow_nil = Keyword.get(field_config, :allow_nil?, true)
+        optional = if allow_nil, do: " | null", else: ""
+        "#{formatted_field_name}: #{field_type}#{optional}"
+      end)
+
+    "{#{field_types}}"
   end
 
   @doc """

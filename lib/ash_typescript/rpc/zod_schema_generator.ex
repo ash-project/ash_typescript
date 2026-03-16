@@ -12,14 +12,22 @@ defmodule AshTypescript.Rpc.ZodSchemaGenerator do
   alias AshTypescript.Codegen.Helpers, as: CodegenHelpers
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
-  defdelegate get_zod_type(type_and_constraints, context \\ nil),
-    to: AshTypescript.Codegen.ZodSchemaGenerator
+  import AshTypescript.Helpers
 
-  defdelegate generate_zod_schema(resource, action, rpc_action_name),
-    to: AshTypescript.Codegen.ZodSchemaGenerator
-
-  defdelegate generate_zod_schemas_for_resources(resources),
-    to: AshTypescript.Codegen.ZodSchemaGenerator
+  # Aggregate kind atoms -> Zod schemas
+  @aggregate_zod_types %{
+    :count => "z.number().int()",
+    :sum => "z.number()",
+    :exists => "z.boolean()",
+    :avg => "z.number()",
+    :min => "z.any()",
+    :max => "z.any()",
+    :first => "z.any()",
+    :last => "z.any()",
+    :list => "z.array(z.any())",
+    :custom => "z.any()",
+    :integer => "z.number().int()"
+  }
 
   # Simple primitive types (no constraint handling needed)
   # Note: Ash.Type.Atom is NOT here - it needs constraint handling for one_of

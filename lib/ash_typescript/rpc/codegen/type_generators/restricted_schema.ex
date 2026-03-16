@@ -20,6 +20,11 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
 
   alias AshTypescript.Codegen.Helpers
 
+  def has_load_restrictions?(rpc_action) do
+    not is_nil(Map.get(rpc_action, :allowed_loads)) or
+      not is_nil(Map.get(rpc_action, :denied_loads))
+  end
+
   @doc """
   Returns the schema reference and optional schema definition for an RPC action.
 

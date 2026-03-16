@@ -17,7 +17,6 @@ defmodule AshTypescript.TypedController.Codegen do
     TypescriptStatic
   }
 
-  alias AshTypescript.TypeSystem.Introspection
 
   @doc false
   def resolve_route_infos(router, routes_config) do
@@ -231,7 +230,7 @@ defmodule AshTypescript.TypedController.Codegen do
       info.route.arguments
       |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
       |> Enum.map(fn arg -> Ash.Type.get_type(arg.type) end)
-      |> Enum.filter(&Introspection.is_embedded_resource?/1)
+      |> Enum.filter(&is_embedded_resource?/1)
     end)
     |> Enum.uniq()
     |> Enum.sort_by(&AshTypescript.Codegen.Helpers.build_resource_type_name/1)
@@ -428,4 +427,10 @@ defmodule AshTypescript.TypedController.Codegen do
   defp build_export_zod_schema_name(action_name, scope_prefix, suffix) do
     AshTypescript.Helpers.format_output_field(:"#{scope_prefix}_#{action_name}#{suffix}")
   end
+
+  defp is_embedded_resource?(module) when is_atom(module) and not is_nil(module) do
+    Ash.Resource.Info.resource?(module) and Ash.Resource.Info.embedded?(module)
+  end
+
+  defp is_embedded_resource?(_), do: false
 end

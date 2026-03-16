@@ -65,6 +65,12 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   Extracts `{resource, action, rpc_action}` tuples from entrypoints that
   have `config.ash_typescript` populated.
   """
+  def get_rpc_resources_and_actions(otp_app) when is_atom(otp_app) do
+    otp_app
+    |> get_entrypoints()
+    |> get_rpc_resources_and_actions()
+  end
+
   def get_rpc_resources_and_actions(entrypoints) when is_list(entrypoints) do
     entrypoints
     |> Enum.filter(&has_ash_typescript_config?/1)

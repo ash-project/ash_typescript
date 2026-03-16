@@ -18,7 +18,6 @@ defmodule AshTypescript.Codegen do
 
   alias AshTypescript.Codegen.{
     Helpers,
-    ImportResolver,
     ResourceSchemas,
     TypeAliases,
     TypeMapper

@@ -74,6 +74,89 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
   end
 
   @doc """
+  Discovers embedded resources from RPC resources by scanning reachable resources.
+
+  ## Parameters
+
+    * `otp_app` - The OTP application name
+
+  ## Returns
+
+  A list of embedded resource modules referenced by RPC resources.
+  """
+  def find_embedded_resources(otp_app) do
+    rpc_resources = get_rpc_resources(otp_app)
+
+    {reachable_resources, _} =
+      AshApiSpec.Generator.Reachability.find_reachable(rpc_resources)
+
+    Enum.filter(reachable_resources, fn resource ->
+      Ash.Resource.Info.resource?(resource) and Ash.Resource.Info.embedded?(resource)
+    end)
+  end
+
+  @doc """
+  Finds all Ash resources used as struct arguments in RPC actions.
+
+  Scans all RPC actions for arguments whose resolved type points to an
+  embedded resource or struct with instance_of pointing to an Ash resource.
+
+  ## Parameters
+
+    * `otp_app` - The OTP application name
+
+  ## Returns
+
+  A list of unique Ash resource modules used as struct arguments in RPC actions.
+  """
+  def find_struct_argument_resources(otp_app) do
+    otp_app
+    |> Ash.Info.domains()
+    |> Enum.flat_map(fn domain ->
+      AshTypescript.Rpc.Info.typescript_rpc(domain)
+      |> Enum.flat_map(fn %{resource: resource, rpc_actions: rpc_actions} ->
+        Enum.flat_map(rpc_actions, fn %{action: action_name} ->
+          action = Ash.Resource.Info.action(resource, action_name)
+          find_struct_resources_in_arguments(Enum.filter(action.arguments, & &1.public?))
+        end)
+      end)
+    end)
+    |> Enum.uniq()
+  end
+
+  defp find_struct_resources_in_arguments(arguments) when is_list(arguments) do
+    arguments
+    |> Enum.flat_map(fn arg ->
+      find_struct_resources_in_type(arg.type, arg.constraints || [])
+    end)
+  end
+
+  defp find_struct_resources_in_type(type, constraints) do
+    cond do
+      is_atom(type) and not is_nil(type) and Ash.Resource.Info.resource?(type) and
+          Ash.Resource.Info.embedded?(type) ->
+        [type]
+
+      type == Ash.Type.Struct ->
+        instance_of = Keyword.get(constraints, :instance_of)
+
+        if instance_of && Spark.Dsl.is?(instance_of, Ash.Resource) do
+          [instance_of]
+        else
+          []
+        end
+
+      match?({:array, _}, type) ->
+        {:array, inner_type} = type
+        items_constraints = Keyword.get(constraints, :items, [])
+        find_struct_resources_in_type(inner_type, items_constraints)
+
+      true ->
+        []
+    end
+  end
+
+  @doc """
   Builds a formatted warning message for resources that may be misconfigured.
 
   The 1-arity version generates its own spec for resource discovery.

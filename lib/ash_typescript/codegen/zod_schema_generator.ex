@@ -12,7 +12,7 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
 
   alias AshTypescript.Codegen.Helpers, as: CodegenHelpers
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
-  alias AshTypescript.TypeSystem.Introspection
+  alias AshApiSpec.Generator.TypeResolver
 
   import AshTypescript.Helpers
 
@@ -88,8 +88,13 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
     AshTypescript.Rpc.output_field_formatter()
   end
 
+  # Works with both spec structs (has_default? field) and raw Ash structs (default field)
+  defp has_default?(%{has_default?: val}), do: val
+  defp has_default?(%{default: val}), do: not is_nil(val)
+  defp has_default?(_), do: false
+
   defp process_argument_field(resource, action, arg) do
-    optional = arg.allow_nil? || arg.default != nil
+    optional = arg.allow_nil? || has_default?(arg)
     formatted_name = format_argument_for_client(resource, action.name, arg.name)
     zod_type = get_zod_type(arg)
     zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
@@ -104,7 +109,7 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
       if action.type in [:update, :destroy] do
         field_name not in action.require_attributes
       else
-        field_name in action.allow_nil_input || attr.allow_nil? || attr.default != nil
+        field_name in (action.allow_nil_input || []) || attr.allow_nil? || has_default?(attr)
       end
 
     formatted_name =
@@ -162,8 +167,22 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   end
 
   defp map_zod_type_inner(type, constraints) do
+    # Resolve shorthand atoms (e.g., :uuid -> Ash.Type.UUID) before processing
+    type = if is_atom(type), do: Ash.Type.get_type(type) || type, else: type
+
     # Unwrap NewTypes first to get the underlying type
-    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+    {unwrapped_type, merged_constraints} = TypeResolver.unwrap_new_type(type, constraints)
+
+    # Preserve reference to outermost NewType with typescript_field_names
+    full_constraints =
+      if unwrapped_type != type and is_atom(type) and
+           Code.ensure_loaded?(type) == true and
+           function_exported?(type, :typescript_field_names, 0) and
+           not Keyword.has_key?(merged_constraints, :instance_of) do
+        Keyword.put(merged_constraints, :instance_of, type)
+      else
+        merged_constraints
+      end
 
     cond do
       # Aggregate atoms (fast path) - e.g., :count, :sum from aggregates
@@ -217,7 +236,7 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
         map_ltree_type(full_constraints)
 
       # Embedded resource
-      Introspection.is_embedded_resource?(unwrapped_type) ->
+      is_embedded_resource?(unwrapped_type) ->
         map_resource_type(unwrapped_type)
 
       # Enum type
@@ -341,6 +360,12 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
     Map.get(@aggregate_zod_types, kind, "z.any()")
   end
 
+  # Handle AshApiSpec structs — pass spec type directly
+  def get_zod_type(%{type: %AshApiSpec.Type{} = spec_type} = field, _context) do
+    allow_nil? = Map.get(field, :allow_nil?, true)
+    map_zod_type_with_allow_nil_spec(spec_type, allow_nil?)
+  end
+
   # Handle maps with type/constraints - delegate to unified dispatcher
   def get_zod_type(%{type: type, constraints: constraints} = attr, _context) do
     allow_nil? = Map.get(attr, :allow_nil?, true)
@@ -353,9 +378,27 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
     map_zod_type_with_allow_nil(type, [], allow_nil?)
   end
 
+  # Handle AshApiSpec.Type structs by extracting the module and constraints
+  defp map_zod_type_with_allow_nil_spec(%AshApiSpec.Type{kind: kind} = type_info, allow_nil?)
+       when kind in [:string, :ci_string] do
+    require_non_empty = not allow_nil?
+    constraints = type_info.constraints || []
+
+    if constraints == [] do
+      if require_non_empty, do: "z.string().min(1)", else: "z.string()"
+    else
+      build_string_zod_with_constraints(constraints, require_non_empty)
+    end
+  end
+
+  defp map_zod_type_with_allow_nil_spec(%AshApiSpec.Type{} = type_info, _allow_nil?) do
+    # Delegate to map_zod_type using the module and constraints from the spec type
+    map_zod_type(type_info.module, type_info.constraints || [])
+  end
+
   # Helper that wraps map_zod_type and handles allow_nil? for string types
   defp map_zod_type_with_allow_nil(type, constraints, allow_nil?) do
-    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+    {unwrapped_type, full_constraints} = TypeResolver.unwrap_new_type(type, constraints)
 
     # For string types, pass require_non_empty to get correct ordering of constraints
     if unwrapped_type in [Ash.Type.String, Ash.Type.CiString] do
@@ -386,7 +429,7 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
       zod_field_defs =
         case action.type do
           :read ->
-            arguments = Enum.filter(action.arguments, & &1.public?)
+            arguments = Enum.filter(action.arguments, &Map.get(&1, :public?, true))
 
             if arguments != [] do
               Enum.map(arguments, &process_argument_field(resource, action, &1))
@@ -395,8 +438,8 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
             end
 
           :create ->
-            accepts = Ash.Resource.Info.action(resource, action.name).accept || []
-            arguments = Enum.filter(action.arguments, & &1.public?)
+            accepts = action.accept || []
+            arguments = Enum.filter(action.arguments, &Map.get(&1, :public?, true))
 
             if accepts != [] || arguments != [] do
               accept_field_defs = Enum.map(accepts, &process_accept_field(resource, &1, action))
@@ -410,7 +453,7 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
             end
 
           action_type when action_type in [:update, :destroy] ->
-            arguments = Enum.filter(action.arguments, & &1.public?)
+            arguments = Enum.filter(action.arguments, &Map.get(&1, :public?, true))
 
             if action.accept != [] || arguments != [] do
               # Pass action to check require_attributes for optionality
@@ -426,7 +469,7 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
             end
 
           :action ->
-            arguments = Enum.filter(action.arguments, & &1.public?)
+            arguments = Enum.filter(action.arguments, &Map.get(&1, :public?, true))
 
             if arguments != [] do
               Enum.map(arguments, &process_argument_field(resource, action, &1))
@@ -539,10 +582,10 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
 
   defp extract_resource_deps(type, constraints, resource_set)
        when is_atom(type) and not is_nil(type) do
-    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+    {unwrapped_type, full_constraints} = TypeResolver.unwrap_new_type(type, constraints)
 
     cond do
-      Introspection.is_embedded_resource?(unwrapped_type) and
+      is_embedded_resource?(unwrapped_type) and
           MapSet.member?(resource_set, unwrapped_type) ->
         [unwrapped_type]
 
@@ -582,7 +625,7 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
         zod_type = get_zod_type(attr)
 
         zod_type =
-          if attr.allow_nil? || attr.default != nil do
+          if attr.allow_nil? || has_default?(attr) do
             "#{zod_type}.optional()"
           else
             zod_type
@@ -663,7 +706,19 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
     end
   end
 
-  defp is_custom_type?(type), do: Introspection.is_custom_type?(type)
+  defp is_custom_type?(type) when is_atom(type) and not is_nil(type) do
+    Code.ensure_loaded?(type) and
+      function_exported?(type, :typescript_type_name, 0) and
+      Spark.implements_behaviour?(type, Ash.Type)
+  end
+
+  defp is_custom_type?(_), do: false
+
+  defp is_embedded_resource?(module) when is_atom(module) and not is_nil(module) do
+    Ash.Resource.Info.resource?(module) and Ash.Resource.Info.embedded?(module)
+  end
+
+  defp is_embedded_resource?(_), do: false
 
   defp build_integer_zod_with_constraints(constraints) do
     base = "z.number().int()"

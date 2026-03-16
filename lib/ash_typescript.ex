@@ -724,9 +724,11 @@ defmodule AshTypescript do
       nil -> nil
       output_file -> Path.join(Path.dirname(output_file), default_name)
     end
-  Returns the pre-computed AshApiSpec resource lookup map for the given OTP app.
+  end
 
-  ## Configuration
+  @doc """
+  Returns the pre-computed AshApiSpec resource lookup map for the given OTP app.
+  Configuration
 
       config :ash_typescript,
         ash_api_spec: MyApp.AshApiSpec
