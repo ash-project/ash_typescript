@@ -29,7 +29,9 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   | Primitive | Default | Validate no fields requested |
   """
 
+  alias AshApiSpec.Type
   alias AshTypescript.FieldFormatter
+  alias AshTypescript.Helpers
   alias AshTypescript.Resource.Info, as: ResourceInfo
   alias AshTypescript.Rpc.FieldProcessing.FieldSelector.Validation
 
@@ -165,7 +167,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         resource_lookups,
         _type_index
       ) do
-    inst = type_info.instance_of || type_info.module
+    inst = Type.effective_module(type_info)
 
     case type_info.kind do
       :type_ref ->
@@ -182,24 +184,24 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         )
 
       kind when kind in [:resource, :embedded_resource] ->
-        resource = type_info.resource_module || inst
+        resource = Type.effective_resource(type_info)
         select_resource_fields(resource, requested_fields, path, resource_lookups)
 
       :union ->
         select_union_fields(type_info, requested_fields, path, "union_attribute")
 
       :tuple ->
-        if has_typescript_field_names?(inst) do
+        if Helpers.has_typescript_field_names?(inst) do
           select_typed_struct_fields(type_info, requested_fields, path)
         else
           select_tuple_fields(type_info, requested_fields, path)
         end
 
       :keyword ->
-        if has_typescript_field_names?(inst) do
+        if Helpers.has_typescript_field_names?(inst) do
           select_typed_struct_fields(type_info, requested_fields, path)
         else
-          if has_spec_fields?(type_info) do
+          if Type.has_fields?(type_info) do
             select_typed_map_fields(type_info, requested_fields, path)
           else
             if requested_fields != [] do
@@ -214,13 +216,13 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
       kind when kind in [:struct, :map] ->
         cond do
-          inst && is_atom(inst) && is_ash_resource?(inst) ->
+          inst && is_atom(inst) && Helpers.ash_resource?(inst) ->
             select_resource_fields(inst, requested_fields, path, resource_lookups)
 
-          has_typescript_field_names?(inst) ->
+          Helpers.has_typescript_field_names?(inst) ->
             select_typed_struct_fields(type_info, requested_fields, path)
 
-          has_spec_fields?(type_info) ->
+          Type.has_fields?(type_info) ->
             error_type = if kind == :map, do: "map", else: "field_constrained_type"
             select_typed_map_fields(type_info, requested_fields, path, error_type)
 
@@ -709,7 +711,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
       %AshApiSpec.Type{kind: kind} = t
       when kind in [:struct, :map, :keyword] ->
-        if has_spec_fields?(t) do
+        if Type.has_fields?(t) do
           :field_constrained_type
         else
           :attribute
@@ -760,9 +762,9 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       throw({:requires_field_selection, :field_constrained_type, nil})
     end
 
-    inst = type_info.instance_of || type_info.module
-    reverse_map = get_typescript_field_names_reverse(inst)
-    {field_source, fields} = get_type_fields(type_info)
+    inst = Type.effective_module(type_info)
+    reverse_map = Helpers.typescript_field_names_reverse(inst)
+    fields = Type.get_fields(type_info)
 
     Validation.check_for_duplicates(requested_fields, path)
 
@@ -770,14 +772,14 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       case parse_field_request(field) do
         {:simple, field_name} ->
           internal_name = resolve_typed_struct_field(field_name, reverse_map)
-          validate_field_exists_for_source!(internal_name, field_source, fields, path)
+          validate_field_exists_in_fields!(internal_name, fields, path)
           {select, load, template ++ [internal_name]}
 
         {:nested, field_name, nested_fields} ->
           internal_name = resolve_typed_struct_field(field_name, reverse_map)
-          validate_field_exists_for_source!(internal_name, field_source, fields, path)
+          validate_field_exists_in_fields!(internal_name, fields, path)
 
-          sub_type = find_field_type(field_source, fields, internal_name)
+          sub_type = Type.find_field_type(type_info, internal_name)
           new_path = path ++ [internal_name]
 
           {_nested_select, _nested_load, nested_template} =
@@ -830,7 +832,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         path,
         error_type
       ) do
-    {field_source, fields} = get_type_fields(type_info)
+    fields = Type.get_fields(type_info)
 
     if fields == [] do
       {[], [], []}
@@ -845,14 +847,14 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         case parse_field_request(field) do
           {:simple, field_name} ->
             internal_name = convert_to_field_atom(field_name)
-            validate_field_exists_for_source!(internal_name, field_source, fields, path, error_type)
+            validate_field_exists_in_fields!(internal_name, fields, path, error_type)
             {select, load, template ++ [internal_name]}
 
           {:nested, field_name, nested_fields} ->
             internal_name = convert_to_field_atom(field_name)
-            validate_field_exists_for_source!(internal_name, field_source, fields, path, error_type)
+            validate_field_exists_in_fields!(internal_name, fields, path, error_type)
 
-            sub_type = find_field_type(field_source, fields, internal_name)
+            sub_type = Type.find_field_type(type_info, internal_name)
             new_path = path ++ [internal_name]
 
             {_nested_select, _nested_load, nested_template} =
@@ -866,9 +868,9 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
           {:multi_nested, entries} ->
             Enum.reduce(entries, {select, load, template}, fn {field_name, nested}, {s, l, t} ->
               internal_name = convert_to_field_atom(field_name)
-              validate_field_exists_for_source!(internal_name, field_source, fields, path, error_type)
+              validate_field_exists_in_fields!(internal_name, fields, path, error_type)
 
-              sub_type = find_field_type(field_source, fields, internal_name)
+              sub_type = Type.find_field_type(type_info, internal_name)
               new_path = path ++ [internal_name]
 
               {_nested_select, _nested_load, nested_template} =
@@ -894,8 +896,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   When no fields are requested, all fields are returned.
   """
   def select_tuple_fields(%AshApiSpec.Type{} = type_info, requested_fields, path) do
-    {field_source, fields} = get_type_fields(type_info)
-    field_names = get_field_names(field_source, fields)
+    fields = Type.get_fields(type_info)
+    field_names = Enum.map(fields, fn f -> f.name end)
 
     # If no fields requested, return all fields
     if requested_fields == [] do
@@ -913,7 +915,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
           {:simple, field_name} ->
             field_atom = convert_to_field_atom(field_name)
 
-            unless field_name_exists?(field_source, fields, field_atom) do
+            unless Enum.any?(fields, fn f -> f.name == field_atom end) do
               throw({:unknown_field, field_atom, "tuple", path})
             end
 
@@ -923,11 +925,11 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
           {:nested, field_name, nested_fields} ->
             field_atom = convert_to_field_atom(field_name)
 
-            unless field_name_exists?(field_source, fields, field_atom) do
+            unless Enum.any?(fields, fn f -> f.name == field_atom end) do
               throw({:unknown_field, field_atom, "tuple", path})
             end
 
-            sub_type = find_field_type(field_source, fields, field_atom)
+            sub_type = Type.find_field_type(type_info, field_atom)
             new_path = path ++ [field_atom]
 
             {_nested_select, _nested_load, nested_template} =
@@ -940,14 +942,14 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
                                                               {s, l, t} ->
               field_atom = convert_to_field_atom(field_name)
 
-              unless field_name_exists?(field_source, fields, field_atom) do
+              unless Enum.any?(fields, fn f -> f.name == field_atom end) do
                 throw({:unknown_field, field_atom, "tuple", path})
               end
 
               index = Enum.find_index(field_names, &(&1 == field_atom))
 
               if is_list(nested_fields) do
-                sub_type = find_field_type(field_source, fields, field_atom)
+                sub_type = Type.find_field_type(type_info, field_atom)
                 new_path = path ++ [field_atom]
 
                 {_nested_select, _nested_load, nested_template} =
@@ -1317,7 +1319,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         true
 
       %AshApiSpec.Type{kind: kind} = t when kind in [:tuple, :keyword, :struct, :map] ->
-        has_spec_fields?(t)
+        Type.has_fields?(t)
 
       _ ->
         false
@@ -1356,135 +1358,15 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   end
 
   # ---------------------------------------------------------------------------
-  # Type checking helpers
+  # Field validation helpers
   # ---------------------------------------------------------------------------
 
-  defp is_ash_resource?(module) when is_atom(module) and not is_nil(module) do
-    Code.ensure_loaded?(module) == true and Ash.Resource.Info.resource?(module)
-  end
+  # Validate a field exists in the fields list (list of %{name, type, ...}), throwing on failure
+  defp validate_field_exists_in_fields!(name, fields, path, error_type \\ "field_constrained_type")
 
-  defp is_ash_resource?(_), do: false
-
-  defp is_embedded_resource?(module) when is_atom(module) and not is_nil(module) do
-    Code.ensure_loaded?(module) == true and Ash.Resource.Info.resource?(module) and
-      Ash.Resource.Info.embedded?(module)
-  end
-
-  defp is_embedded_resource?(_), do: false
-
-  defp has_typescript_field_names?(nil), do: false
-
-  defp has_typescript_field_names?(module) when is_atom(module) do
-    Code.ensure_loaded?(module) == true and function_exported?(module, :typescript_field_names, 0)
-  end
-
-  defp has_typescript_field_names?(_), do: false
-
-
-  defp get_typescript_field_names_reverse(module) do
-    if has_typescript_field_names?(module) do
-      module.typescript_field_names() |> Map.new() |> Enum.into(%{}, fn {k, v} -> {v, k} end)
-    else
-      %{}
-    end
-  end
-
-  # ---------------------------------------------------------------------------
-  # Spec field helpers (mirroring ValueFormatter patterns)
-  # ---------------------------------------------------------------------------
-
-  # Check if type has hydrated spec fields
-  defp has_spec_fields?(%AshApiSpec.Type{fields: fields}) when is_list(fields) and fields != [],
-    do: true
-
-  defp has_spec_fields?(%AshApiSpec.Type{element_types: ets})
-       when is_list(ets) and ets != [],
-       do: true
-
-  defp has_spec_fields?(_), do: false
-
-  # Get the list of field descriptors from a type
-  defp get_type_fields(%AshApiSpec.Type{fields: fields}) when is_list(fields) and fields != [],
-    do: {:spec, fields}
-
-  defp get_type_fields(%AshApiSpec.Type{element_types: ets})
-       when is_list(ets) and ets != [],
-       do: {:spec, ets}
-
-  defp get_type_fields(_), do: {:none, []}
-
-  # Look up a sub-field's type from spec fields (list of %{name, type, allow_nil?})
-  defp find_spec_field_type(fields, field_name) do
-    case Enum.find(fields, fn f -> f.name == field_name end) do
-      %{type: type} -> type
-      nil -> nil
-    end
-  end
-
-  # Look up a sub-field's type from raw constraint fields (keyword list)
-  defp find_raw_field_type(fields, field_name) do
-    case Keyword.get(fields, field_name) do
-      nil -> nil
-      config when is_list(config) -> Keyword.get(config, :type)
-      _ -> nil
-    end
-  end
-
-  # Find sub-field type from either spec or raw field lists
-  defp find_field_type(:spec, fields, field_name), do: find_spec_field_type(fields, field_name)
-
-  defp find_field_type(:raw, fields, field_name) do
-    case find_raw_field_type(fields, field_name) do
-      nil -> nil
-      raw_type -> resolve_raw_field_type(raw_type)
-    end
-  end
-
-  defp find_field_type(:none, _fields, _field_name), do: nil
-
-  # Resolve a raw Ash type atom to %AshApiSpec.Type{} for recursion
-  defp resolve_raw_field_type(type) when is_atom(type) and not is_nil(type) do
-    AshApiSpec.Generator.TypeResolver.resolve(type, [])
-  end
-
-  defp resolve_raw_field_type({:array, inner_type}) do
-    AshApiSpec.Generator.TypeResolver.resolve({:array, inner_type}, [])
-  end
-
-  defp resolve_raw_field_type(_), do: nil
-
-  # Get field names from either spec or raw field lists
-  defp get_field_names(:spec, fields), do: Enum.map(fields, fn f -> f.name end)
-  defp get_field_names(:raw, fields), do: Enum.map(fields, &elem(&1, 0))
-  defp get_field_names(:none, _fields), do: []
-
-  # Check if a field name exists in either spec or raw field lists
-  defp field_name_exists?(:spec, fields, name) do
-    Enum.any?(fields, fn f -> f.name == name end)
-  end
-
-  defp field_name_exists?(:raw, fields, name) do
-    Keyword.has_key?(fields, name)
-  end
-
-  defp field_name_exists?(:none, _fields, _name), do: false
-
-  # Validate a field exists in the appropriate field source, throwing on failure
-  defp validate_field_exists_for_source!(name, field_source, fields, path, error_type \\ "field_constrained_type")
-
-  defp validate_field_exists_for_source!(name, :spec, fields, path, error_type) do
+  defp validate_field_exists_in_fields!(name, fields, path, error_type) when is_list(fields) do
     unless Enum.any?(fields, fn f -> f.name == name end) do
       throw({:unknown_field, name, error_type, path})
     end
-  end
-
-  defp validate_field_exists_for_source!(name, :raw, fields, path, error_type) do
-    unless Keyword.has_key?(fields, name) do
-      throw({:unknown_field, name, error_type, path})
-    end
-  end
-
-  defp validate_field_exists_for_source!(name, :none, _fields, path, error_type) do
-    throw({:unknown_field, name, error_type, path})
   end
 end

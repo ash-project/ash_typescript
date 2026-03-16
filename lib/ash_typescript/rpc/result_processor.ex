@@ -23,6 +23,8 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   ```
   """
 
+  alias AshApiSpec.Type
+  alias AshTypescript.Helpers
   alias AshTypescript.Rpc.FieldExtractor
 
   @doc """
@@ -91,10 +93,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   def get_field_or_relationship(resource, field_name, resource_lookups)
       when is_atom(resource) and is_map(resource_lookups) do
-    case AshApiSpec.get_field(resource_lookups, resource, field_name) do
-      %AshApiSpec.Field{} = field -> field
-      nil -> AshApiSpec.get_relationship(resource_lookups, resource, field_name)
-    end
+    AshApiSpec.get_field_or_relationship(resource_lookups, resource, field_name)
   end
 
   def get_field_or_relationship(_resource, _field_name, _lookups), do: nil
@@ -156,7 +155,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         template,
         resource_lookups
       ) do
-    inst = type_info.instance_of || type_info.module
+    inst = Type.effective_module(type_info)
 
     case type_info.kind do
       :type_ref ->
@@ -167,7 +166,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         extract_array_value(value, type_info.item_type, template, resource_lookups)
 
       kind when kind in [:resource, :embedded_resource] ->
-        resource = type_info.resource_module || inst
+        resource = Type.effective_resource(type_info)
         extract_resource_value(value, resource, template, resource_lookups)
 
       :union ->
@@ -175,10 +174,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
       kind when kind in [:struct, :map] ->
         cond do
-          inst && is_atom(inst) && is_ash_resource?(inst) ->
+          inst && is_atom(inst) && Helpers.ash_resource?(inst) ->
             extract_resource_value(value, inst, template, resource_lookups)
 
-          has_typescript_field_names?(inst) ->
+          Helpers.has_typescript_field_names?(inst) ->
             extract_typed_struct_value(value, type_info, template, resource_lookups)
 
           true ->
@@ -186,7 +185,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         end
 
       kind when kind in [:tuple, :keyword] ->
-        if has_typescript_field_names?(inst) do
+        if Helpers.has_typescript_field_names?(inst) do
           extract_typed_struct_value(value, type_info, template, resource_lookups)
         else
           extract_typed_map_value(value, type_info, template, resource_lookups)
@@ -201,44 +200,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   def extract_value(value, _type, _constraints, _template, _resource_lookups),
     do: normalize_primitive(value)
 
-  # ─────────────────────────────────────────────────────────────────────────────
-  # Type checking helpers (same as ValueFormatter)
-  # ─────────────────────────────────────────────────────────────────────────────
-
-  defp is_ash_resource?(module) when is_atom(module) and not is_nil(module) do
-    Code.ensure_loaded?(module) == true and
-      Ash.Resource.Info.resource?(module)
-  end
-
-  defp is_ash_resource?(_), do: false
-
-  defp has_typescript_field_names?(nil), do: false
-
-  defp has_typescript_field_names?(module) when is_atom(module) do
-    Code.ensure_loaded?(module) == true and
-      function_exported?(module, :typescript_field_names, 0)
-  end
-
-  defp has_typescript_field_names?(_), do: false
-
-  # Get field descriptors from a type
-  defp get_type_fields(%AshApiSpec.Type{fields: fields}) when is_list(fields) and fields != [],
-    do: {:spec, fields}
-
-  defp get_type_fields(%AshApiSpec.Type{element_types: ets}) when is_list(ets) and ets != [],
-    do: {:spec, ets}
-
-  defp get_type_fields(_), do: {:none, []}
-
-  # Look up a sub-field's type from spec fields
-  defp find_field_type(:spec, fields, field_name) do
-    case Enum.find(fields, fn f -> f.name == field_name end) do
-      %{type: type} -> type
-      nil -> nil
-    end
-  end
-
-  defp find_field_type(:none, _fields, _field_name), do: nil
+  # (Type checking helpers are now in AshTypescript.Helpers and AshApiSpec.Type)
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Type-Specific Handlers
@@ -397,20 +359,19 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   defp extract_typed_struct_value(value, type_info, template, resource_lookups)
        when is_map(value) do
-    {field_source, fields} = get_type_fields(type_info)
     normalized = FieldExtractor.normalize_for_extraction(value, template)
 
     Enum.reduce(template, %{}, fn field_spec, acc ->
       case field_spec do
         field_atom when is_atom(field_atom) ->
           field_value = Map.get(normalized, field_atom)
-          sub_type = find_field_type(field_source, fields, field_atom)
+          sub_type = Type.find_field_type(type_info, field_atom)
           extracted = extract_value(field_value, sub_type, [], [], resource_lookups)
           Map.put(acc, field_atom, extracted)
 
         {field_atom, nested_template} when is_atom(field_atom) ->
           field_value = Map.get(normalized, field_atom)
-          sub_type = find_field_type(field_source, fields, field_atom)
+          sub_type = Type.find_field_type(type_info, field_atom)
 
           extracted =
             extract_value(field_value, sub_type, [], nested_template, resource_lookups)
@@ -435,7 +396,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   defp extract_typed_map_value(value, type_info, template, resource_lookups)
        when is_map(value) do
-    {field_source, fields} = get_type_fields(type_info)
+    fields = Type.get_fields(type_info)
     normalized = FieldExtractor.normalize_for_extraction(value, template)
 
     cond do
@@ -443,42 +404,24 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         normalize_primitive(value)
 
       template == [] ->
-        case field_source do
-          :spec ->
-            Enum.reduce(fields, %{}, fn field_desc, acc ->
-              field_value = Map.get(normalized, field_desc.name)
-              extracted = extract_value(field_value, field_desc.type, [], [], resource_lookups)
-              Map.put(acc, field_desc.name, extracted)
-            end)
-
-          :raw ->
-            Enum.reduce(fields, %{}, fn {field_name, field_spec}, acc ->
-              field_value = Map.get(normalized, field_name)
-              field_type = Keyword.get(field_spec, :type)
-              field_constraints = Keyword.get(field_spec, :constraints, [])
-
-              extracted =
-                extract_value(field_value, field_type, field_constraints, [], resource_lookups)
-
-              Map.put(acc, field_name, extracted)
-            end)
-
-          :none ->
-            normalize_primitive(value)
-        end
+        Enum.reduce(fields, %{}, fn field_desc, acc ->
+          field_value = Map.get(normalized, field_desc.name)
+          extracted = extract_value(field_value, field_desc.type, [], [], resource_lookups)
+          Map.put(acc, field_desc.name, extracted)
+        end)
 
       true ->
         Enum.reduce(template, %{}, fn field_spec, acc ->
           case field_spec do
             field_atom when is_atom(field_atom) ->
               field_value = Map.get(normalized, field_atom)
-              sub_type = find_field_type(field_source, fields, field_atom)
+              sub_type = Type.find_field_type(type_info, field_atom)
               extracted = extract_value(field_value, sub_type, [], [], resource_lookups)
               Map.put(acc, field_atom, extracted)
 
             {field_atom, nested_template} when is_atom(field_atom) ->
               field_value = Map.get(normalized, field_atom)
-              sub_type = find_field_type(field_source, fields, field_atom)
+              sub_type = Type.find_field_type(type_info, field_atom)
 
               extracted =
                 extract_value(field_value, sub_type, [], nested_template, resource_lookups)
@@ -487,7 +430,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
             %{field_name: field_name, index: _index} ->
               field_value = Map.get(normalized, field_name)
-              sub_type = find_field_type(field_source, fields, field_name)
+              sub_type = Type.find_field_type(type_info, field_name)
               extracted = extract_value(field_value, sub_type, [], [], resource_lookups)
               Map.put(acc, field_name, extracted)
 
@@ -584,7 +527,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       is_atom(value) and not is_boolean(value) ->
         Atom.to_string(value)
 
-      is_struct(value) && is_ash_resource?(value.__struct__) ->
+      is_struct(value) && Helpers.ash_resource?(value.__struct__) ->
         # Resource structs: filter to public fields only
         # Uses Ash introspection since normalize_primitive doesn't have resource_lookups
         normalize_resource_struct_primitive(value)
@@ -730,10 +673,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   def determine_data_type(data, resource, resource_lookups) do
     cond do
-      is_struct(data) && is_ash_resource?(data.__struct__) ->
+      is_struct(data) && Helpers.ash_resource?(data.__struct__) ->
         resolve_resource_type(data.__struct__, resource_lookups)
 
-      is_struct(data) && has_typescript_field_names?(data.__struct__) ->
+      is_struct(data) && Helpers.has_typescript_field_names?(data.__struct__) ->
         AshApiSpec.Generator.TypeResolver.resolve(Ash.Type.Struct, instance_of: data.__struct__)
 
       match?(%Ash.Union{}, data) ->
@@ -748,7 +691,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       is_map(data) && not is_struct(data) ->
         nil
 
-      resource && is_ash_resource?(resource) && is_struct(data) ->
+      resource && Helpers.ash_resource?(resource) && is_struct(data) ->
         resolve_resource_type(resource, resource_lookups)
 
       true ->
@@ -759,7 +702,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   defp resolve_resource_type(nil, _resource_lookups), do: nil
 
   defp resolve_resource_type(resource, _resource_lookups) when is_atom(resource) do
-    if is_ash_resource?(resource) do
+    if Helpers.ash_resource?(resource) do
       %AshApiSpec.Type{
         kind: :resource,
         name: "Resource",

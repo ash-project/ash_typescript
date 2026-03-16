@@ -41,7 +41,7 @@ defmodule AshTypescript.FieldFormatter do
       # Takes priority over Ash resource field_names DSL when both are present.
       resource_or_type_module &&
           has_typescript_field_names?(resource_or_type_module) ->
-        ts_field_names = get_typescript_field_names(resource_or_type_module)
+        ts_field_names = typescript_field_names(resource_or_type_module)
 
         case Map.get(ts_field_names, field) do
           mapped when is_binary(mapped) -> mapped
@@ -281,20 +281,4 @@ defmodule AshTypescript.FieldFormatter do
     end
   end
 
-  defp has_typescript_field_names?(nil), do: false
-
-  defp has_typescript_field_names?(module) when is_atom(module) do
-    Code.ensure_loaded?(module) == true and
-      function_exported?(module, :typescript_field_names, 0)
-  end
-
-  defp has_typescript_field_names?(_), do: false
-
-  defp get_typescript_field_names(module) do
-    if has_typescript_field_names?(module) do
-      module.typescript_field_names() |> Map.new()
-    else
-      %{}
-    end
-  end
 end

@@ -11,7 +11,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
   formatting of nested values using `%AshApiSpec.Type{}` structs.
   """
 
-  alias AshTypescript.{FieldFormatter, Rpc.ValueFormatter}
+  alias AshTypescript.{FieldFormatter, Helpers, Rpc.ValueFormatter}
   alias AshTypescript.Resource.Info, as: ResourceInfo
 
   @doc """
@@ -128,7 +128,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
        when kind in [:struct, :map] do
     inst = type_info.instance_of || type_info.module
 
-    if inst && is_ash_resource?(inst) && is_map(value) && not is_struct(value) do
+    if inst && Helpers.ash_resource?(inst) && is_map(value) && not is_struct(value) do
       formatted_data =
         ValueFormatter.format(value, type_info, [], formatter, :input, resource_lookups)
 
@@ -165,7 +165,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
       item_type && match?(%AshApiSpec.Type{kind: k} when k in [:struct, :resource], item_type) ->
         inst = item_type.instance_of || item_type.resource_module || item_type.module
 
-        if inst && is_ash_resource?(inst) && is_list(value) do
+        if inst && Helpers.ash_resource?(inst) && is_list(value) do
           Enum.map(value, fn item ->
             if is_map(item) && not is_struct(item) do
               formatted_item =
@@ -192,13 +192,6 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   # Fallback for nil type
   defp format_value(value, nil, _formatter, _resource_lookups), do: value
-
-  defp is_ash_resource?(module) when is_atom(module) and not is_nil(module) do
-    Code.ensure_loaded?(module) == true and
-      Ash.Resource.Info.resource?(module)
-  end
-
-  defp is_ash_resource?(_), do: false
 
   defp cast_map_to_struct(map, struct_module) when is_map(map) and is_atom(struct_module) do
     with {:ok, casted} <-

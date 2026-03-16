@@ -18,7 +18,9 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   `%AshApiSpec.Type{}` which contains all type information needed.
   """
 
+  alias AshApiSpec.Type
   alias AshTypescript.FieldFormatter
+  alias AshTypescript.Helpers
   alias AshTypescript.Resource.Info, as: ResourceInfo
 
   @type direction :: :input | :output
@@ -84,7 +86,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
         resource_lookups,
         _type_index
       ) do
-    inst = type_info.instance_of || type_info.module
+    inst = Type.effective_module(type_info)
 
     case type_info.kind do
       :type_ref ->
@@ -101,7 +103,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
         end
 
       kind when kind in [:resource, :embedded_resource] ->
-        resource = type_info.resource_module || inst
+        resource = Type.effective_resource(type_info)
         format_resource(value, resource, formatter, direction, resource_lookups)
 
       :union ->
@@ -115,13 +117,13 @@ defmodule AshTypescript.Rpc.ValueFormatter do
 
       kind when kind in [:struct, :map] ->
         cond do
-          inst && is_atom(inst) && is_ash_resource?(inst) ->
+          inst && is_atom(inst) && Helpers.ash_resource?(inst) ->
             format_resource(value, inst, formatter, direction, resource_lookups)
 
-          has_typescript_field_names?(inst) ->
+          Helpers.has_typescript_field_names?(inst) ->
             format_typed_struct(value, type_info, formatter, direction, resource_lookups)
 
-          has_spec_fields?(type_info) ->
+          Type.has_fields?(type_info) ->
             format_typed_map(value, type_info, formatter, direction, resource_lookups)
 
           true ->
@@ -154,61 +156,6 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   # Catch-all for any unrecognized type — return value unchanged.
   def format(value, _type, _constraints, _formatter, _direction, _resource_lookups, _type_index) do
     value
-  end
-
-  # ---------------------------------------------------------------------------
-  # Type checking helpers
-  # ---------------------------------------------------------------------------
-
-  defp is_ash_resource?(module) when is_atom(module) and not is_nil(module) do
-    Code.ensure_loaded?(module) == true and
-      Ash.Resource.Info.resource?(module)
-  end
-
-  defp is_ash_resource?(_), do: false
-
-  defp has_typescript_field_names?(nil), do: false
-
-  defp has_typescript_field_names?(module) when is_atom(module) do
-    Code.ensure_loaded?(module) == true and
-      function_exported?(module, :typescript_field_names, 0)
-  end
-
-  defp has_typescript_field_names?(_), do: false
-
-  defp get_typescript_field_names(module) do
-    if has_typescript_field_names?(module) do
-      module.typescript_field_names() |> Map.new()
-    else
-      %{}
-    end
-  end
-
-  defp get_typescript_field_names_reverse(module) do
-    get_typescript_field_names(module)
-    |> Enum.into(%{}, fn {k, v} -> {v, k} end)
-  end
-
-  defp has_spec_fields?(%AshApiSpec.Type{fields: fields}) when is_list(fields) and fields != [],
-    do: true
-
-  defp has_spec_fields?(_), do: false
-
-  # Get the list of field descriptors from a type
-  defp get_type_fields(%AshApiSpec.Type{fields: fields}) when is_list(fields) and fields != [],
-    do: {:spec, fields}
-
-  defp get_type_fields(%AshApiSpec.Type{element_types: ets}) when is_list(ets) and ets != [],
-    do: {:spec, ets}
-
-  defp get_type_fields(_), do: {:none, []}
-
-  # Look up a sub-field's type from spec fields (list of %{name, type, allow_nil?})
-  defp find_spec_field_type(fields, field_name) do
-    case Enum.find(fields, fn f -> f.name == field_name end) do
-      %{type: type} -> type
-      nil -> nil
-    end
   end
 
   defp is_custom_type_with_map_storage?(module) when is_atom(module) do
@@ -287,7 +234,10 @@ defmodule AshTypescript.Rpc.ValueFormatter do
       internal_key = convert_resource_key(key, resource, formatter, direction)
 
       # Look up field or relationship from the spec directly
-      field_or_rel = lookup_field_or_relationship(resource, internal_key, resource_lookups)
+      field_or_rel =
+        if is_map(resource_lookups) do
+          AshApiSpec.get_field_or_relationship(resource_lookups, resource, internal_key)
+        end
 
       formatted_value =
         format(field_value, field_or_rel, [], formatter, direction, resource_lookups)
@@ -320,16 +270,14 @@ defmodule AshTypescript.Rpc.ValueFormatter do
 
   defp format_typed_struct(value, type_info, formatter, direction, resource_lookups)
        when is_map(value) do
-    inst = type_info.instance_of || type_info.module
-    ts_field_names = get_typescript_field_names(inst)
-    reverse_map = get_typescript_field_names_reverse(inst)
-
-    {field_source, fields} = get_type_fields(type_info)
+    inst = Type.effective_module(type_info)
+    ts_field_names = Helpers.typescript_field_names(inst)
+    reverse_map = Helpers.typescript_field_names_reverse(inst)
 
     Enum.into(value, %{}, fn {key, field_value} ->
       internal_key = convert_typed_struct_key(key, reverse_map, formatter, direction)
 
-      sub_type = find_field_type(field_source, fields, internal_key)
+      sub_type = Type.find_field_type(type_info, internal_key)
 
       formatted_value =
         format(field_value, sub_type, [], formatter, direction, resource_lookups)
@@ -369,7 +317,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
 
   defp format_typed_map(value, type_info, formatter, direction, resource_lookups)
        when is_map(value) do
-    {field_source, fields} = get_type_fields(type_info)
+    fields = Type.get_fields(type_info)
 
     if fields == [] do
       value
@@ -381,7 +329,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
             :output -> key
           end
 
-        sub_type = find_field_type(field_source, fields, internal_key)
+        sub_type = Type.find_field_type(type_info, internal_key)
 
         formatted_value =
           format(field_value, sub_type, [], formatter, direction, resource_lookups)
@@ -399,17 +347,13 @@ defmodule AshTypescript.Rpc.ValueFormatter do
 
   defp format_typed_map(value, _type_info, _formatter, _direction, _resource_lookups), do: value
 
-  # Find sub-field type from spec fields
-  defp find_field_type(:spec, fields, field_name), do: find_spec_field_type(fields, field_name)
-  defp find_field_type(:none, _fields, _field_name), do: nil
-
   # ---------------------------------------------------------------------------
   # Tuple Handler
   # ---------------------------------------------------------------------------
 
   defp format_tuple(value, type_info, formatter, direction, resource_lookups)
        when is_tuple(value) do
-    {_field_source, fields} = get_type_fields(type_info)
+    fields = Type.get_fields(type_info)
 
     # Convert tuple to map using field names as keys
     map_value =
@@ -463,9 +407,9 @@ defmodule AshTypescript.Rpc.ValueFormatter do
 
   # Shared: dispatch to typed_struct (if has field name mapping) or typed_map
   defp dispatch_struct_or_map(map_value, type_info, formatter, direction, resource_lookups) do
-    inst = type_info.instance_of || type_info.module
+    inst = Type.effective_module(type_info)
 
-    if has_typescript_field_names?(inst) do
+    if Helpers.has_typescript_field_names?(inst) do
       format_typed_struct(map_value, type_info, formatter, direction, resource_lookups)
     else
       format_typed_map(map_value, type_info, formatter, direction, resource_lookups)
@@ -644,13 +588,4 @@ defmodule AshTypescript.Rpc.ValueFormatter do
 
   defp maybe_inject_tag(value, _member), do: value
 
-  defp lookup_field_or_relationship(resource, field_name, resource_lookups)
-       when is_map(resource_lookups) do
-    case AshApiSpec.get_field(resource_lookups, resource, field_name) do
-      %AshApiSpec.Field{} = field -> field
-      nil -> AshApiSpec.get_relationship(resource_lookups, resource, field_name)
-    end
-  end
-
-  defp lookup_field_or_relationship(_resource, _field_name, _nil_lookups), do: nil
 end

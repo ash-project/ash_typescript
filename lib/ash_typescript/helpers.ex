@@ -144,4 +144,44 @@ defmodule AshTypescript.Helpers do
   def formatted_success_field, do: format_output_field(:success)
   def formatted_errors_field, do: format_output_field(:errors)
   def formatted_data_field, do: format_output_field(:data)
+
+  # ─────────────────────────────────────────────────────────────────
+  # Type Introspection Helpers
+  # ─────────────────────────────────────────────────────────────────
+
+  @doc "Returns true if the module is an Ash resource."
+  @spec ash_resource?(atom()) :: boolean()
+  def ash_resource?(module) when is_atom(module) and not is_nil(module) do
+    Code.ensure_loaded?(module) == true and Ash.Resource.Info.resource?(module)
+  end
+
+  def ash_resource?(_), do: false
+
+  @doc "Returns true if the module has a `typescript_field_names/0` callback."
+  @spec has_typescript_field_names?(atom()) :: boolean()
+  def has_typescript_field_names?(nil), do: false
+
+  def has_typescript_field_names?(module) when is_atom(module) do
+    Code.ensure_loaded?(module) == true and
+      function_exported?(module, :typescript_field_names, 0)
+  end
+
+  def has_typescript_field_names?(_), do: false
+
+  @doc "Returns the typescript field name mapping as a map, or empty map if not available."
+  @spec typescript_field_names(atom()) :: %{atom() => String.t()}
+  def typescript_field_names(module) do
+    if has_typescript_field_names?(module) do
+      module.typescript_field_names() |> Map.new()
+    else
+      %{}
+    end
+  end
+
+  @doc "Returns the reverse typescript field name mapping (client name → internal name)."
+  @spec typescript_field_names_reverse(atom()) :: %{String.t() => atom()}
+  def typescript_field_names_reverse(module) do
+    typescript_field_names(module)
+    |> Enum.into(%{}, fn {k, v} -> {v, k} end)
+  end
 end
