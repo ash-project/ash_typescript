@@ -252,8 +252,8 @@ defmodule AshTypescript.CodegenTest do
   describe "build_map_type/2" do
     test "builds map type with all fields" do
       fields = [
-        name: [type: :string, allow_nil?: false],
-        age: [type: :integer, allow_nil?: true]
+        %{name: :name, type: AshApiSpec.Generator.TypeResolver.resolve(Ash.Type.String, []), allow_nil?: false},
+        %{name: :age, type: AshApiSpec.Generator.TypeResolver.resolve(Ash.Type.Integer, []), allow_nil?: true}
       ]
 
       result = Codegen.build_map_type(fields)
@@ -264,9 +264,9 @@ defmodule AshTypescript.CodegenTest do
 
     test "builds map type with selected fields only" do
       fields = [
-        name: [type: :string, allow_nil?: false],
-        age: [type: :integer, allow_nil?: true],
-        email: [type: :string, allow_nil?: false]
+        %{name: :name, type: AshApiSpec.Generator.TypeResolver.resolve(Ash.Type.String, []), allow_nil?: false},
+        %{name: :age, type: AshApiSpec.Generator.TypeResolver.resolve(Ash.Type.Integer, []), allow_nil?: true},
+        %{name: :email, type: AshApiSpec.Generator.TypeResolver.resolve(Ash.Type.String, []), allow_nil?: false}
       ]
 
       result = Codegen.build_map_type(fields, ["name", "age"])

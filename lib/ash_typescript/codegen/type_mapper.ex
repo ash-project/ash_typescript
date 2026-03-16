@@ -447,12 +447,6 @@ defmodule AshTypescript.Codegen.TypeMapper do
     {field_name, field_type_str, allow_nil || false}
   end
 
-  # Legacy format support for raw {name, config} tuples
-  defp extract_field_info_for_input({field_name, field_config}) do
-    field_type_str = map_type(field_config[:type], field_config[:constraints] || [], :input)
-    allow_nil = Keyword.get(field_config, :allow_nil?, true)
-    {field_name, field_type_str, allow_nil}
-  end
 
   defp get_field_name_mappings_from_module(nil), do: nil
 
@@ -603,15 +597,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
     {field_name, field_type_str, allow_nil || false}
   end
 
-  # Legacy format support for raw {name, config} tuples
-  defp extract_field_info({field_name, field_config}) do
-    field_type_str = map_type(field_config[:type], field_config[:constraints] || [], :output)
-    allow_nil = Keyword.get(field_config, :allow_nil?, true)
-    {field_name, field_type_str, allow_nil}
-  end
-
   defp extract_field_name(%{name: field_name}), do: field_name
-  defp extract_field_name({field_name, _}), do: field_name
 
   defp is_nested_typed_map_field?(%{type: %Type{kind: :type_ref} = ref}) do
     full = AshApiSpec.Generator.TypeResolver.resolve_definition(ref.module)
@@ -627,8 +613,6 @@ defmodule AshTypescript.Codegen.TypeMapper do
        do: is_nested_typed_map_field?(%{type: item})
 
   # Legacy format support for raw {name, config} tuples
-  defp is_nested_typed_map_field?({_name, field_config}), do: is_nested_typed_map?(field_config)
-
   defp is_nested_typed_map_field?(_), do: false
 
   @doc """
@@ -867,65 +851,4 @@ defmodule AshTypescript.Codegen.TypeMapper do
     Keyword.has_key?(constraints || [], :fields)
   end
 
-  # Helper to check if a field config represents a complex type that supports nested field selection
-  # This includes: TypedMaps (maps with :fields), Unions, and NewTypes wrapping these
-  defp is_nested_typed_map?(field_config) when is_list(field_config) do
-    type = Keyword.get(field_config, :type)
-    constraints = Keyword.get(field_config, :constraints, [])
-    is_complex_field_type?(type, constraints)
-  end
-
-  defp is_nested_typed_map?(field_config) when is_map(field_config) do
-    type = Map.get(field_config, :type)
-    constraints = Map.get(field_config, :constraints, [])
-    is_complex_field_type?(type, constraints)
-  end
-
-  defp is_nested_typed_map?(_), do: false
-
-  # TypedMap: :map or Ash.Type.Map with :fields constraint
-  defp is_complex_field_type?(:map, constraints) do
-    Keyword.has_key?(constraints, :fields)
-  end
-
-  defp is_complex_field_type?(Ash.Type.Map, constraints) do
-    Keyword.has_key?(constraints, :fields)
-  end
-
-  # Keyword and Tuple with :fields are also typed containers (generate TypedMap)
-  defp is_complex_field_type?(Ash.Type.Keyword, constraints) do
-    Keyword.has_key?(constraints, :fields)
-  end
-
-  defp is_complex_field_type?(Ash.Type.Tuple, constraints) do
-    Keyword.has_key?(constraints, :fields)
-  end
-
-  # Union types are always complex
-  defp is_complex_field_type?(Ash.Type.Union, _constraints), do: true
-
-  # Arrays: check the inner type
-  defp is_complex_field_type?({:array, inner_type}, constraints) do
-    items_constraints = Keyword.get(constraints, :items, [])
-    is_complex_field_type?(inner_type, items_constraints)
-  end
-
-  # NewTypes: unwrap and check the underlying type
-  defp is_complex_field_type?(type, constraints) when is_atom(type) do
-    if Code.ensure_loaded?(type) and Ash.Type.NewType.new_type?(type) do
-      {inner_type, inner_constraints} =
-        AshApiSpec.Generator.TypeResolver.unwrap_new_type(type, constraints)
-
-      # If unwrapping changed the type, check the inner type
-      if inner_type != type do
-        is_complex_field_type?(inner_type, inner_constraints)
-      else
-        false
-      end
-    else
-      false
-    end
-  end
-
-  defp is_complex_field_type?(_type, _constraints), do: false
 end
