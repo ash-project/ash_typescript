@@ -512,9 +512,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   defp is_custom_type?(_), do: false
 
   defp is_embedded_resource?(module) when is_atom(module) and not is_nil(module) do
-    Code.ensure_loaded?(module) == true and
-      Ash.Resource.Info.resource?(module) and
-      Ash.Resource.Info.embedded?(module)
+    AshTypescript.Helpers.ash_resource?(module) and Ash.Resource.Info.embedded?(module)
   end
 
   defp is_embedded_resource?(_), do: false

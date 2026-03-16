@@ -31,9 +31,8 @@ defmodule AshTypescript.Rpc.InputFormatter do
       {:error, error}
   end
 
-  # Helper to get action from name or struct
-  defp get_action(resource, action_name_or_action) when is_atom(action_name_or_action) do
-    Ash.Resource.Info.action(resource, action_name_or_action)
+  defp get_action(resource, action_name) when is_atom(action_name) do
+    Ash.Resource.Info.action(resource, action_name)
   end
 
   defp get_action(_resource, %{} = action), do: action

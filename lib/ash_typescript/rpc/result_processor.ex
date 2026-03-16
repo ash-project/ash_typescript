@@ -585,28 +585,43 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   end
 
   # Normalize a resource struct by filtering to public fields.
-  # Used when resource_lookups is unavailable (e.g., from normalize_primitive).
   defp normalize_resource_struct_primitive(value) when is_struct(value) do
     resource = value.__struct__
-    public_attrs = Ash.Resource.Info.public_attributes(resource)
-    public_calcs = Ash.Resource.Info.public_calculations(resource)
-    public_aggs = Ash.Resource.Info.public_aggregates(resource)
+    resource_lookups = AshTypescript.resource_lookup()
 
-    public_field_names =
-      (Enum.map(public_attrs, & &1.name) ++
-         Enum.map(public_calcs, & &1.name) ++
-         Enum.map(public_aggs, & &1.name))
-      |> MapSet.new()
+    case Map.get(resource_lookups, resource) do
+      %AshApiSpec.Resource{fields: fields} when is_map(fields) ->
+        public_field_names = MapSet.new(Map.keys(fields))
 
-    value
-    |> Map.from_struct()
-    |> Enum.reduce(%{}, fn {key, val}, acc ->
-      if MapSet.member?(public_field_names, key) do
-        Map.put(acc, key, normalize_primitive(val))
-      else
-        acc
-      end
-    end)
+        value
+        |> Map.from_struct()
+        |> Enum.reduce(%{}, fn {key, val}, acc ->
+          if MapSet.member?(public_field_names, key) do
+            Map.put(acc, key, normalize_primitive(val))
+          else
+            acc
+          end
+        end)
+
+      _ ->
+        # Resource not in spec — use Ash introspection for public field filtering
+        public_field_names =
+          (Ash.Resource.Info.public_attributes(resource) ++
+             Ash.Resource.Info.public_calculations(resource) ++
+             Ash.Resource.Info.public_aggregates(resource))
+          |> Enum.map(& &1.name)
+          |> MapSet.new()
+
+        value
+        |> Map.from_struct()
+        |> Enum.reduce(%{}, fn {key, val}, acc ->
+          if MapSet.member?(public_field_names, key) do
+            Map.put(acc, key, normalize_primitive(val))
+          else
+            acc
+          end
+        end)
+    end
   end
 
   # ─────────────────────────────────────────────────────────────────────────────

@@ -366,7 +366,12 @@ defmodule AshTypescript.Rpc.Codegen do
     embedded_resources =
       Enum.filter(
         reachable_resources,
-        &Ash.Resource.Info.embedded?/1
+        fn r ->
+          case Map.get(resource_lookup, r) do
+            %AshApiSpec.Resource{embedded?: true} -> true
+            _ -> false
+          end
+        end
       )
 
     struct_argument_resources =
