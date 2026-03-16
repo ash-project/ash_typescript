@@ -8,9 +8,9 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
 
   Checks:
   1. All declared events exist as publications on their respective resources.
-  2. Publications are marked `public?: true` (warning if not).
-  3. Publications have `returns` set (warning if not — TypeScript type falls back to `unknown`).
-  4. Event names are unique across all resources in the channel.
+  2. Event names are unique across all resources in the channel.
+  3. Publications are marked `public?: true` (warning if not).
+  4. Publications have `returns` set (warning if not — TypeScript type falls back to `unknown`).
   """
 
   use Spark.Dsl.Verifier
@@ -101,28 +101,17 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
             )
           end
 
-          unless matching_pub.returns || has_typed_calc_transform?(matching_pub, resource_module) do
+          unless matching_pub.returns do
             IO.warn(
               "Publication #{inspect(pub.event)} on #{inspect(resource_module)} does not have " <>
                 "`returns` set. The TypeScript payload type will be `unknown`. " <>
-                "Add `returns: SomeAshType` to get a typed payload, or use " <>
-                "`transform: :calculation_name` to derive the type from a calculation."
+                "Add `returns: SomeAshType` to get a typed payload."
             )
           end
         end
       end)
     end)
   end
-
-  defp has_typed_calc_transform?(%{transform: calc_name}, resource_module)
-       when is_atom(calc_name) and not is_nil(calc_name) do
-    case Ash.Resource.Info.calculation(resource_module, calc_name) do
-      %{type: type} when not is_nil(type) -> true
-      _ -> false
-    end
-  end
-
-  defp has_typed_calc_transform?(_, _), do: false
 
   defp find_publication(publications, event_str) do
     Enum.find(publications, fn pub ->

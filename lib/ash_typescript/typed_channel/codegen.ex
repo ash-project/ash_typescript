@@ -239,22 +239,9 @@ defmodule AshTypescript.TypedChannel.Codegen do
     end)
   end
 
-  defp resolve_payload_type(nil, _resource_module), do: "unknown"
-
   defp resolve_payload_type(%{returns: returns} = pub, _resource_module)
        when not is_nil(returns) do
     TypeMapper.map_channel_payload_type(returns, pub.constraints || [])
-  end
-
-  defp resolve_payload_type(%{transform: calc_name}, resource_module)
-       when is_atom(calc_name) and not is_nil(calc_name) do
-    case Ash.Resource.Info.calculation(resource_module, calc_name) do
-      %{type: type, constraints: constraints} when not is_nil(type) ->
-        TypeMapper.map_channel_payload_type(type, constraints)
-
-      _ ->
-        "unknown"
-    end
   end
 
   defp resolve_payload_type(_, _), do: "unknown"
