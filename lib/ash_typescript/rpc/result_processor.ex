@@ -604,22 +604,11 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         end)
 
       _ ->
-        # Resource not in spec — use Ash introspection for public field filtering
-        public_field_names =
-          (Ash.Resource.Info.public_attributes(resource) ++
-             Ash.Resource.Info.public_calculations(resource) ++
-             Ash.Resource.Info.public_aggregates(resource))
-          |> Enum.map(& &1.name)
-          |> MapSet.new()
-
+        # Resource not in spec — normalize all fields as a plain struct
         value
         |> Map.from_struct()
         |> Enum.reduce(%{}, fn {key, val}, acc ->
-          if MapSet.member?(public_field_names, key) do
-            Map.put(acc, key, normalize_primitive(val))
-          else
-            acc
-          end
+          Map.put(acc, key, normalize_primitive(val))
         end)
     end
   end

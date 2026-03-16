@@ -53,6 +53,19 @@ defmodule AshTypescript.SpecCache do
     :persistent_term.get(@spec_key, nil) != nil
   end
 
+  @doc """
+  Merges additional resources into the cached resource lookup.
+
+  Useful for tests that define inline resources not in the main spec.
+  Returns the previous lookup for cleanup.
+  """
+  def merge_resources(extra_resources) when is_map(extra_resources) do
+    current = resource_lookup()
+    merged = Map.merge(current, extra_resources)
+    :persistent_term.put(@resource_lookup_key, merged)
+    current
+  end
+
   @doc "Clears the cache (useful for tests)."
   def clear do
     :persistent_term.erase(@spec_key)

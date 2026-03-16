@@ -59,6 +59,12 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
     User => AshApiSpec.Generator.ResourceBuilder.build(User)
   }
 
+  setup do
+    previous = AshTypescript.SpecCache.merge_resources(@resource_lookups)
+    on_exit(fn -> :persistent_term.put({AshTypescript.SpecCache, :resource_lookup}, previous) end)
+    :ok
+  end
+
   describe "struct field filtering" do
     test "filters struct fields to only public attributes when no selection is specified" do
       # Create a struct with both public and private fields
