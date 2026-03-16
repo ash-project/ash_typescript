@@ -173,7 +173,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
       ["  identity: { id: UUID | string; tenantId: string };"]
   """
   def build_identity_config_field(resource, identities, opts) do
-    resource_lookup = AshTypescript.resource_lookup(Mix.Project.config()[:app])
+    resource_lookup = AshTypescript.resource_lookup()
 
     build_identity_config_field(resource, identities, opts, resource_lookup)
   end
@@ -376,7 +376,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
       ["  getBy: {", "    userId: UUID;", "    status: Status;", "  };"]
   """
   def build_get_by_config_field(resource, rpc_action) do
-    resource_lookup = AshTypescript.resource_lookup(Mix.Project.config()[:app])
+    resource_lookup = AshTypescript.resource_lookup()
 
     build_get_by_config_field(resource, rpc_action, resource_lookup)
   end

@@ -104,7 +104,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   This is based on the action's public arguments and accepted attributes.
   """
   def action_input_type(resource, action) do
-    action_input_type(resource, action, AshTypescript.resource_lookup(Mix.Project.config()[:app]))
+    action_input_type(resource, action, AshTypescript.resource_lookup())
   end
 
   @doc """

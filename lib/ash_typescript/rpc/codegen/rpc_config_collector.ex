@@ -174,7 +174,7 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   # Legacy: fetch entrypoints from otp_app
   def get_typed_queries(otp_app, _resource_lookup) do
     entrypoints = get_entrypoints(otp_app)
-    action_lookup = AshTypescript.action_lookup(otp_app)
+    action_lookup = AshTypescript.action_lookup()
     get_typed_queries(entrypoints, action_lookup)
   end
 
@@ -214,6 +214,6 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   defp has_ash_typescript_config?(_), do: false
 
   defp get_entrypoints(otp_app) do
-    AshTypescript.entrypoints(otp_app)
+    AshTypescript.entrypoints()
   end
 end

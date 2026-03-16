@@ -7,7 +7,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTupleTest do
 
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup(:ash_typescript)
+  @resource_lookups AshTypescript.resource_lookup()
   alias AshTypescript.Test.Todo
 
   describe "tuple type processing" do

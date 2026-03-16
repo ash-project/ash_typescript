@@ -22,7 +22,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
       |> Enum.map(& &1.module)
 
     all_resources = Enum.uniq(resources ++ embedded_resources)
-    action_lookup = AshTypescript.action_lookup(otp_app)
+    action_lookup = AshTypescript.action_lookup()
 
     # Collect all types from spec resources (fields + action arguments + returns)
     types =
@@ -41,7 +41,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
   end
 
   def generate_ash_type_aliases(resources, _actions, otp_app, _no_lookup) do
-    generate_ash_type_aliases(resources, [], otp_app, AshTypescript.resource_lookup(otp_app))
+    generate_ash_type_aliases(resources, [], otp_app, AshTypescript.resource_lookup())
   end
 
   defp collect_types_from_api_resource(api_resource, types) do

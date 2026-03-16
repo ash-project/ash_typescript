@@ -94,8 +94,8 @@ defmodule AshTypescript.Rpc.Codegen do
     domains = Ash.Info.domains(otp_app)
 
     # Use pre-computed spec data
-    resource_lookup = AshTypescript.resource_lookup(otp_app)
-    entrypoints = AshTypescript.entrypoints(otp_app)
+    resource_lookup = AshTypescript.resource_lookup()
+    entrypoints = AshTypescript.entrypoints()
 
     # Run reachability once for depth-first ordering (needed by Zod schema generation)
     {reachable_resources, _} =
@@ -176,7 +176,7 @@ defmodule AshTypescript.Rpc.Codegen do
       )
 
     # Group actions by namespace for re-export files
-    entrypoints = AshTypescript.entrypoints(otp_app)
+    entrypoints = AshTypescript.entrypoints()
     grouped = RpcConfigCollector.get_rpc_resources_by_namespace(entrypoints)
 
     # Generate namespace files (simple re-exports from main file)
@@ -353,8 +353,8 @@ defmodule AshTypescript.Rpc.Codegen do
        ) do
     # All RPC resources (including those without rpc_actions) from typescript_rpc blocks
     rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
-    entrypoints = AshTypescript.entrypoints(otp_app)
-    action_lookup = AshTypescript.action_lookup(otp_app)
+    entrypoints = AshTypescript.entrypoints()
+    action_lookup = AshTypescript.action_lookup()
 
     actions = Enum.map(rpc_resources_and_actions, fn {_, action, _} -> action end)
 
@@ -449,7 +449,7 @@ defmodule AshTypescript.Rpc.Codegen do
     otp_app = Keyword.fetch!(codegen_opts, :otp_app)
     all_resources = Keyword.fetch!(codegen_opts, :all_resources)
     shared_type_names = Keyword.get(codegen_opts, :shared_type_names, [])
-    resource_lookup = AshTypescript.resource_lookup(otp_app)
+    resource_lookup = AshTypescript.resource_lookup()
     typed_queries = RpcConfigCollector.get_typed_queries(otp_app, resource_lookup)
 
     body =

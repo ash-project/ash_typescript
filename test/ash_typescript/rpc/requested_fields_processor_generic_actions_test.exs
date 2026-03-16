@@ -6,7 +6,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup(:ash_typescript)
+  @resource_lookups AshTypescript.resource_lookup()
 
   describe "map return type actions" do
     test "processes valid fields correctly" do

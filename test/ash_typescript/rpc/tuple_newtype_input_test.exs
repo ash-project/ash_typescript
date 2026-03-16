@@ -75,7 +75,7 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
         }
       }
 
-      resource_lookups = AshTypescript.resource_lookup(:ash_typescript)
+      resource_lookups = AshTypescript.resource_lookup()
       {:ok, formatted} = InputFormatter.format(raw_input, resource, action, formatter, resource_lookups)
 
       # Check that tuple field names are converted correctly

@@ -29,7 +29,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
   """
   def generate_manifest(otp_app, _resource_lookup \\ nil) do
     include_internals? = AshTypescript.Rpc.add_ash_internals_to_manifest?()
-    entrypoints = AshTypescript.entrypoints(otp_app)
+    entrypoints = AshTypescript.entrypoints()
 
     # Get namespaced actions to determine if we should group by namespace
     namespaced_actions = RpcConfigCollector.get_rpc_resources_by_namespace(entrypoints)
@@ -185,7 +185,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
        ) do
     resource_name = resource_short_name(resource)
     otp_app = Mix.Project.config()[:app]
-    action_lookup = AshTypescript.action_lookup(otp_app)
+    action_lookup = AshTypescript.action_lookup()
 
     sorted_actions =
       rpc_actions

@@ -6,7 +6,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup(:ash_typescript)
+  @resource_lookups AshTypescript.resource_lookup()
 
   describe "atomize_requested_fields/2" do
     test "preserves string fields without resource context" do

@@ -7,7 +7,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorKeywordTest do
 
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup(:ash_typescript)
+  @resource_lookups AshTypescript.resource_lookup()
   alias AshTypescript.Test.Todo
 
   describe "keyword type processing" do

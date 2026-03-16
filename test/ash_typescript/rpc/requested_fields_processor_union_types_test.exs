@@ -6,7 +6,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup(:ash_typescript)
+  @resource_lookups AshTypescript.resource_lookup()
 
   describe "content union type - embedded resource members" do
     test "processes TextContent union member with field selection" do

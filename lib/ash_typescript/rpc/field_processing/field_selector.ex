@@ -81,8 +81,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   # Look up action from AshApiSpec action_lookup (spec actions have resolved returns).
   # Falls back to raw Ash action for non-RPC actions or when action_lookup is unavailable.
   defp lookup_action(resource, action_name, _resource_lookups) do
-    otp_app = Mix.Project.config()[:app]
-    action_lookup = AshTypescript.action_lookup(otp_app)
+    action_lookup = AshTypescript.action_lookup()
 
     case Map.get(action_lookup, {resource, action_name}) do
       %AshApiSpec.Action{} = spec_action -> spec_action
@@ -543,7 +542,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     internal_name = resolve_resource_field_name(resource, calc_name)
 
     # Look up calculation from AshApiSpec resource spec
-    lookups = resource_lookups || AshTypescript.resource_lookup(Mix.Project.config()[:app])
+    lookups = resource_lookups || AshTypescript.resource_lookup()
 
     calc_field =
       case AshApiSpec.get_field(lookups, resource, internal_name) do

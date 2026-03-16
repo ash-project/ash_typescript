@@ -804,6 +804,6 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   end
 
   defp build_resource_lookup do
-    AshTypescript.resource_lookup(Mix.Project.config()[:app])
+    AshTypescript.resource_lookup()
   end
 end

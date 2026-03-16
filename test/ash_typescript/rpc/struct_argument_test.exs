@@ -81,7 +81,7 @@ defmodule AshTypescript.Rpc.StructArgumentTest do
         "email" => "test@example.com"
       }
 
-      resource_lookups = AshTypescript.resource_lookup(:ash_typescript)
+      resource_lookups = AshTypescript.resource_lookup()
       result = InputFormatter.format(input_data, AshTypescript.Test.User, :create, formatter, resource_lookups)
 
       assert {:ok, formatted} = result

@@ -6,7 +6,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup(:ash_typescript)
+  @resource_lookups AshTypescript.resource_lookup()
 
   describe "primitive aggregates (no nested field selection)" do
     test "processes simple count aggregate" do

@@ -6,7 +6,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup(:ash_typescript)
+  @resource_lookups AshTypescript.resource_lookup()
 
   describe "calculation field selection" do
     test "rejects simple atom selection for calculation without arguments that returns complex type" do

@@ -6,7 +6,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup(:ash_typescript)
+  @resource_lookups AshTypescript.resource_lookup()
 
   describe "simple typed struct fields" do
     test "processes typed struct attribute fields correctly" do

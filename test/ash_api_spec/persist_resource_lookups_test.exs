@@ -58,11 +58,7 @@ defmodule AshTypescript.AshApiSpec.UnifiedSpecTest do
     end
 
     test "includes reachable embedded resources" do
-      lookup =
-        Spark.Dsl.Extension.get_persisted(
-          AshTypescript.Test.ApiSpec,
-          :resource_lookup
-        )
+      lookup = AshTypescript.resource_lookup()
 
       embedded_modules =
         lookup
@@ -84,8 +80,8 @@ defmodule AshTypescript.AshApiSpec.UnifiedSpecTest do
       assert todo.relationships[:comments] != nil
     end
 
-    test "AshTypescript.resource_lookup/1 returns correct data from persistent_term" do
-      lookup = AshTypescript.resource_lookup(:ash_typescript)
+    test "AshTypescript.resource_lookup/0 returns correct data from persistent_term" do
+      lookup = AshTypescript.resource_lookup()
 
       assert is_map(lookup)
       assert Map.has_key?(lookup, AshTypescript.Test.Todo)

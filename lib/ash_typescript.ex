@@ -738,9 +738,4 @@ defmodule AshTypescript do
   @doc "Returns the AshApiSpec action lookup map (cached in persistent_term)."
   defdelegate action_lookup(), to: AshTypescript.SpecCache
 
-  # Backward-compatible arities that ignore the otp_app parameter
-  def api_spec(_otp_app), do: api_spec()
-  def entrypoints(_otp_app), do: entrypoints()
-  def resource_lookup(_otp_app), do: resource_lookup()
-  def action_lookup(_otp_app), do: action_lookup()
 end
