@@ -737,7 +737,7 @@ defmodule AshTypescript do
   The module atom, or `nil` if not configured.
   """
   def ash_api_spec do
-    Application.get_env(:ash_typescript, :ash_api_spec)
+    Application.get_env(:ash_typescript, :ash_api_spec, AshTypescript.ApiSpec)
   end
 
   @doc """
@@ -745,13 +745,7 @@ defmodule AshTypescript do
   """
   @spec api_spec(atom()) :: AshApiSpec.t()
   def api_spec(_otp_app) do
-    module = ash_api_spec() || raise """
-    No AshApiSpec module configured. Add to your config:
-
-        config :ash_typescript, ash_api_spec: MyApp.AshApiSpec
-    """
-
-    Spark.Dsl.Extension.get_persisted(module, :ash_api_spec)
+    Spark.Dsl.Extension.get_persisted(ash_api_spec(), :ash_api_spec)
   end
 
   @doc """
@@ -765,14 +759,12 @@ defmodule AshTypescript do
   @doc """
   Returns the AshApiSpec resource lookup map for the given OTP app.
 
-  Reads the pre-computed lookup from the configured `AshTypescript.AshApiSpec`
-  module (built at compile time). Falls back to generating the spec at runtime
-  if no module is configured.
+  Reads the pre-computed lookup from the `AshTypescript.AshApiSpec` module
+  (built at compile time). Defaults to `AshTypescript.ApiSpec`.
   """
   @spec resource_lookup(atom()) :: AshApiSpec.resource_lookup()
   def resource_lookup(_otp_app) do
-    module = ash_api_spec() || raise "No AshApiSpec module configured"
-    Spark.Dsl.Extension.get_persisted(module, :resource_lookup)
+    Spark.Dsl.Extension.get_persisted(ash_api_spec(), :resource_lookup)
   end
 
   @doc """
@@ -782,8 +774,7 @@ defmodule AshTypescript do
   """
   @spec action_lookup(atom()) :: AshApiSpec.action_lookup()
   def action_lookup(_otp_app) do
-    module = ash_api_spec() || raise "No AshApiSpec module configured"
-    Spark.Dsl.Extension.get_persisted(module, :action_lookup)
+    Spark.Dsl.Extension.get_persisted(ash_api_spec(), :action_lookup)
   end
 
 end
