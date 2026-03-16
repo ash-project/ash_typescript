@@ -42,74 +42,6 @@ defmodule AshTypescript.Test.TypedChannel.NoReturnsChannel do
   end
 end
 
-# Resource with calc-based transforms for auto-derivation testing.
-defmodule AshTypescript.Test.TypedChannel.CalcTransformItem do
-  @moduledoc false
-  use Ash.Resource, domain: nil, notifiers: [Ash.Notifier.PubSub]
-
-  pub_sub do
-    module AshTypescript.Test.TestEndpoint
-    prefix "calc_items"
-
-    # transform: :calc_name with explicit returns — returns takes precedence
-    publish :create, [:id],
-      event: "calc_item_created",
-      public?: true,
-      returns: :integer,
-      transform: :title_length
-
-    # transform: :calc_name WITHOUT returns — should derive :string from calc type
-    publish :update, [:id],
-      event: "calc_item_changed",
-      public?: true,
-      transform: :display_title
-
-    # transform: :auto_calc WITHOUT returns — auto calc resolves to :string
-    publish :destroy, [:id],
-      event: "calc_item_removed",
-      public?: true,
-      transform: :auto_label
-  end
-
-  attributes do
-    uuid_primary_key :id
-    attribute :title, :string, public?: true
-  end
-
-  calculations do
-    calculate :title_length, :integer, expr(string_length(title)) do
-      public?(true)
-    end
-
-    calculate :display_title, :string, expr("Item: " <> title) do
-      public?(true)
-    end
-
-    calculate :auto_label, :auto, expr(title <> " (auto)") do
-      public?(true)
-    end
-  end
-
-  actions do
-    defaults [:read, :create, :update, :destroy]
-  end
-end
-
-defmodule AshTypescript.Test.TypedChannel.CalcTransformChannel do
-  @moduledoc false
-  use AshTypescript.TypedChannel
-
-  typed_channel do
-    topic "calc_items:*"
-
-    resource AshTypescript.Test.TypedChannel.CalcTransformItem do
-      publish(:calc_item_created)
-      publish(:calc_item_changed)
-      publish(:calc_item_removed)
-    end
-  end
-end
-
 # Channel with a static topic (no wildcard) — exercises the no-suffix factory path.
 defmodule AshTypescript.Test.TypedChannel.StaticTopicChannel do
   @moduledoc false
@@ -356,40 +288,7 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
     end
   end
 
-  describe "generate_channel_types/2 — calc-based transform auto-derivation" do
-    setup do
-      content =
-        Codegen.generate_channel_types(
-          AshTypescript.Test.TypedChannel.CalcTransformChannel,
-          "calc_items:*"
-        )
-
-      %{content: content}
-    end
-
-    test "explicit returns takes precedence over calc type", %{content: content} do
-      # transform: :title_length (integer calc) with returns: :integer → number
-      assert content =~ "export type CalcItemCreatedPayload = number;"
-    end
-
-    test "derives string type from explicitly typed calc transform", %{content: content} do
-      # transform: :display_title (string calc) without returns → string
-      assert content =~ "export type CalcItemChangedPayload = string;"
-    end
-
-    test "derives type from :auto calc transform after resolution", %{content: content} do
-      # transform: :auto_label (:auto calc, resolved to :string) without returns → string
-      assert content =~ "export type CalcItemRemovedPayload = string;"
-    end
-
-    test "generates events map with all derived types", %{content: content} do
-      assert content =~ "calc_item_created: CalcItemCreatedPayload;"
-      assert content =~ "calc_item_changed: CalcItemChangedPayload;"
-      assert content =~ "calc_item_removed: CalcItemRemovedPayload;"
-    end
-  end
-
-  describe "orchestrator integration — TrackerChannel with calc transforms" do
+  describe "orchestrator integration — TrackerChannel" do
     setup do
       {:ok, files} = AshTypescript.Codegen.Orchestrator.generate(:ash_typescript)
       types_file = AshTypescript.types_output_file()
@@ -399,25 +298,25 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
       %{types_content: types_content, channels_content: channels_content}
     end
 
-    test "string calc payload types (all auto-derived from calc)", %{types_content: content} do
+    test "string calc transform payload types", %{types_content: content} do
       assert content =~ "export type TrackerSummaryPayload = string;"
       assert content =~ "export type TrackerLabelPayload = string;"
       assert content =~ "export type TrackerStatusChangedPayload = string;"
     end
 
-    test "auto-derived map calc payload type with local fields and correct nullability", %{
+    test "map calc transform payload type with local fields and correct nullability", %{
       types_content: content
     } do
-      # :auto resolves %{id: id, name: name, status: status}
+      # %{id: id, name: name, status: status}
       # id is non-null (primary key), name/status are nullable
       assert content =~
                "export type TrackerSnapshotPayload = {id: UUID, name: string | null, status: string | null};"
     end
 
-    test "auto-derived map calc payload type with relationship traversal", %{
+    test "map calc transform payload type with relationship traversal", %{
       types_content: content
     } do
-      # :auto resolves %{id: id, name: name, latest_entry_body: first(entries, :body)}
+      # %{id: id, name: name, latest_entry_body: first(entries, :body)}
       # id non-null, name nullable, first() nullable
       assert content =~
                "export type TrackerDetailPayload = {id: UUID, name: string | null, latestEntryBody: string | null};"
@@ -427,7 +326,7 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
       assert content =~ "export type TrackerEntryCountPayload = number;"
     end
 
-    test "boolean expression calc payload type (auto-derived)", %{types_content: content} do
+    test "boolean expression calc transform payload type", %{types_content: content} do
       assert content =~ "export type TrackerIsActivePayload = boolean;"
     end
 

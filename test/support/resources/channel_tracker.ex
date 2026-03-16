@@ -4,14 +4,10 @@
 
 defmodule AshTypescript.Test.ChannelTracker do
   @moduledoc """
-  Test resource for TypedChannel codegen with ash automagic features.
+  Test resource for TypedChannel codegen with calculation transforms.
 
-  Exercises two new Ash core capabilities:
-  1. `transform: :calc_name` — atom-based transforms that reference a calculation
-  2. `:auto` type calculations — types inferred from expressions at compile time
-
-  All publications use `transform: :calc_name` without explicit `returns:`.
-  The typed channel codegen auto-derives the payload type from the calculation.
+  All publications use `transform: :calc_name`. Ash auto-populates the
+  `returns` type from the calculation, which AshTypescript reads directly.
 
   Expression types covered:
   - String concat (explicit and :auto)

@@ -197,21 +197,6 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
       assert warnings =~ "thing_gone"
     end
 
-    test "does not warn when transform is a typed calculation (no explicit returns needed)" do
-      warnings =
-        ExUnit.CaptureIO.capture_io(:stderr, fn ->
-          result =
-            VerifyTypedChannel.verify(AshTypescript.Test.TrackerChannel.spark_dsl_config())
-
-          assert :ok = result
-        end)
-
-      # tracker_status_changed uses transform: :status_display (typed calc) without returns
-      # The verifier should NOT warn because the type can be derived from the calc
-      refute warnings =~ "tracker_status_changed"
-      refute warnings =~ "does not have `returns` set"
-    end
-
     test "warns when publication is not marked public?" do
       warnings =
         ExUnit.CaptureIO.capture_io(:stderr, fn ->
