@@ -37,7 +37,8 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
     typed_controller_routes = build_typed_controller_routes()
 
     manifest = %{
-      "$schema" => "https://github.com/ash-project/ash_typescript/blob/main/json-manifest-schema.json",
+      "$schema" =>
+        "https://github.com/ash-project/ash_typescript/blob/main/json-manifest-schema.json",
       "version" => @manifest_version,
       "generatedAt" => Date.utc_today() |> Date.to_string(),
       "files" => build_files(manifest_path),
@@ -83,7 +84,8 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
           files
 
         path ->
-          if AshTypescript.TypedController.Codegen.RouteConfigCollector.get_typed_controllers() != [] do
+          if AshTypescript.TypedController.Codegen.RouteConfigCollector.get_typed_controllers() !=
+               [] do
             Map.put(files, "routes", file_entry(manifest_path, path))
           else
             files
@@ -164,7 +166,8 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
         (rpc_action.see || [])
         |> Enum.map(&Helpers.format_output_field/1),
       "input" => build_input_info(input_requirement),
-      "types" => build_types(pascal_name, resource, action, rpc_action, has_fields, is_optional_pagination),
+      "types" =>
+        build_types(pascal_name, resource, action, rpc_action, has_fields, is_optional_pagination),
       "pagination" => build_pagination(action, is_get_action),
       "enableFilter" => Map.get(rpc_action, :enable_filter?, true),
       "enableSort" => Map.get(rpc_action, :enable_sort?, true),
@@ -173,7 +176,8 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
         "zod" => show_zod,
         "channel" => show_channel
       },
-      "variantNames" => build_variant_names(rpc_action_name, show_validation, show_zod, show_channel)
+      "variantNames" =>
+        build_variant_names(rpc_action_name, show_validation, show_zod, show_channel)
     }
   end
 
@@ -226,9 +230,15 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
       "supported" => supports,
       "required" => ActionIntrospection.action_requires_pagination?(action),
       "offset" =>
-        if(supports, do: ActionIntrospection.action_supports_offset_pagination?(action), else: false),
+        if(supports,
+          do: ActionIntrospection.action_supports_offset_pagination?(action),
+          else: false
+        ),
       "keyset" =>
-        if(supports, do: ActionIntrospection.action_supports_keyset_pagination?(action), else: false),
+        if(supports,
+          do: ActionIntrospection.action_supports_keyset_pagination?(action),
+          else: false
+        ),
       "get" => is_get_action
     }
   end
@@ -289,7 +299,9 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
   defp default_description(:create, resource_name), do: "Create a new #{resource_name}"
   defp default_description(:update, resource_name), do: "Update an existing #{resource_name}"
   defp default_description(:destroy, resource_name), do: "Delete a #{resource_name}"
-  defp default_description(:action, resource_name), do: "Execute generic action on #{resource_name}"
+
+  defp default_description(:action, resource_name),
+    do: "Execute generic action on #{resource_name}"
 
   # Mirrors Rpc.Codegen.augment_action_with_rpc_settings/3
   defp augment_action_with_rpc_settings(action, rpc_action) do
@@ -297,9 +309,14 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
     rpc_get_by = Map.get(rpc_action, :get_by) || []
 
     cond do
-      rpc_get? -> Map.put(action, :get?, true)
-      rpc_get_by != [] -> action |> Map.put(:get?, true) |> Map.put(:rpc_get_by_fields, rpc_get_by)
-      true -> action
+      rpc_get? ->
+        Map.put(action, :get?, true)
+
+      rpc_get_by != [] ->
+        action |> Map.put(:get?, true) |> Map.put(:rpc_get_by_fields, rpc_get_by)
+
+      true ->
+        action
     end
   end
 
