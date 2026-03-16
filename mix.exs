@@ -176,7 +176,8 @@ defmodule AshTypescript.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, "~> 3.20"},
+      # {:ash, git: "https://github.com/ash-project/ash", branch: "automagic", override: true},
+      {:ash, path: "../ash", override: true},
       {:ash_phoenix, "~> 2.0"},
       {:ash_postgres, "~> 2.0", only: [:dev, :test]},
       {:git_ops, "~> 2.0", only: [:dev], runtime: false},
