@@ -315,6 +315,11 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
             export type Infer#{rpc_action_name_pascal}Result = Record<string, any>;
             """
 
+          {:ok, :array_of_unconstrained_map, _} ->
+            """
+            export type Infer#{rpc_action_name_pascal}Result = Array<Record<string, any>>;
+            """
+
           _ ->
             if action.returns do
               return_type = get_ts_type(%{type: action.returns, constraints: action.constraints})

@@ -144,6 +144,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   - `{:ok, :typed_struct, {module, fields}}` - Type with field constraints (TypedStruct or similar)
   - `{:ok, :array_of_typed_struct, {module, fields}}` - Array of types with field constraints
   - `{:ok, :unconstrained_map, nil}` - Map without field constraints
+  - `{:ok, :array_of_unconstrained_map, nil}` - Array of maps without field constraints
   - `{:error, :not_generic_action}` - Not a generic action
   - `{:error, reason}` - Other errors
   """
@@ -181,7 +182,11 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
         end
 
       :unconstrained_map ->
-        {:ok, :unconstrained_map, nil}
+        if is_array do
+          {:ok, :array_of_unconstrained_map, nil}
+        else
+          {:ok, :unconstrained_map, nil}
+        end
 
       {:error, reason} ->
         {:error, reason}
