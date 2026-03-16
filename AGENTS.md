@@ -11,7 +11,7 @@ SPDX-License-Identifier: MIT
 
 **AshTypescript** generates TypeScript types and RPC clients from Ash resources, providing end-to-end type safety between Elixir backends and TypeScript frontends.
 
-**Key Features**: Type generation, RPC client generation, Phoenix channel RPC actions, typed channel event subscriptions, typed controller route helpers, action metadata support, nested calculations, multitenancy, embedded resources, union types, field/argument/metadata name mapping, load restrictions, configurable RPC warnings
+**Key Features**: Type generation, RPC client generation, Phoenix channel RPC actions, typed channel event subscriptions, typed controller route helpers, action metadata support, nested calculations, multitenancy, embedded resources, union types, field/argument/metadata name mapping, load restrictions, configurable RPC warnings, JSON manifest for third-party integrations
 
 ## 🚨 Critical Development Rules
 
@@ -200,7 +200,8 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Multi-file orchestrator** | `lib/ash_typescript/codegen/orchestrator.ex` |
 | **RPC client generation** | `lib/ash_typescript/rpc/codegen.ex` |
 | **JSDoc comment generation** | `lib/ash_typescript/rpc/codegen/function_generators/jsdoc_generator.ex` |
-| **Manifest generation** | `lib/ash_typescript/rpc/codegen/manifest_generator.ex` |
+| **Manifest generation (Markdown)** | `lib/ash_typescript/rpc/codegen/manifest_generator.ex` |
+| **Manifest generation (JSON)** | `lib/ash_typescript/rpc/codegen/json_manifest_generator.ex` |
 | **Namespace resolution** | `lib/ash_typescript/rpc/codegen/rpc_config_collector.ex` |
 | **Pipeline orchestration** | `lib/ash_typescript/rpc/pipeline.ex` |
 | **Field processing (entry point)** | `lib/ash_typescript/rpc/requested_fields_processor.ex` (delegator) |
@@ -290,7 +291,7 @@ mix credo --strict                   # Linting
 | **Zod validation schemas** | [features/zod-schemas.md](agent-docs/features/zod-schemas.md) | `test/ash_typescript/rpc/rpc_codegen_test.exs` |
 | **Embedded resources** | [features/embedded-resources.md](agent-docs/features/embedded-resources.md) | `test/support/resources/embedded/` |
 | **Union types** | [features/union-systems-core.md](agent-docs/features/union-systems-core.md) | `test/ash_typescript/rpc/rpc_union_*_test.exs` |
-| **Namespaces, JSDoc, Manifest** | [features/developer-experience.md](agent-docs/features/developer-experience.md) | `test/ash_typescript/rpc/namespace_test.exs` |
+| **Namespaces, JSDoc, Manifest, JSON Manifest** | [features/developer-experience.md](agent-docs/features/developer-experience.md) | `test/ash_typescript/rpc/namespace_test.exs`, `test/ash_typescript/rpc/json_manifest_generator_test.exs` |
 | **Typed controllers & route helpers** | [features/typed-controller.md](agent-docs/features/typed-controller.md) | `test/ash_typescript/typed_controller/` |
 | **Typed channel event subscriptions** | [features/typed-channel.md](agent-docs/features/typed-channel.md) | `test/ash_typescript/typed_channel/` |
 | **Development patterns** | [development-workflows.md](agent-docs/development-workflows.md) | N/A |
@@ -428,6 +429,23 @@ config :ash_typescript,
 Channel types (branded types, payload aliases, event maps) are appended to `ash_types.ts`. Channel functions (factory, subscription helpers) go into the separate `typed_channels_output_file`.
 
 **Implementation:** `lib/ash_typescript.ex` (`typed_channels/0`, `typed_channels_output_file/0`) + `lib/ash_typescript/typed_channel/` + `lib/ash_typescript/codegen/orchestrator.ex`
+
+## JSON Manifest (Machine-Readable)
+
+When `json_manifest_file` is configured, `mix ash_typescript.codegen` generates a machine-readable JSON manifest alongside the TypeScript output. This manifest contains structured metadata about every RPC action (function names, types, pagination, variants) and typed controller routes, enabling third-party packages to build typed wrappers (e.g., TanStack Query integrations) without coupling to ash_typescript internals.
+
+**Configuration:**
+```elixir
+config :ash_typescript,
+  json_manifest_file: "assets/js/ash_rpc_manifest.json",
+  json_manifest_filename_format: :relative  # :relative (default) | :absolute | :basename
+```
+
+- `json_manifest_filename_format` controls the `filename` field in each `files` entry. `importPath` (no `.ts`, for TypeScript imports) is always relative to the manifest.
+- The manifest includes a `"version": "1.0"` field using semver for consumer compatibility detection.
+- The manifest is written independently of other file changes — it's always generated if the file doesn't exist or content changed.
+
+**Implementation:** `lib/ash_typescript/rpc.ex` (`json_manifest_file/0`, `json_manifest_filename_format/0`) + `lib/ash_typescript/rpc/codegen/json_manifest_generator.ex` + `lib/mix/tasks/ash_typescript.codegen.ex`
 
 ## Always Regenerate Mode
 
