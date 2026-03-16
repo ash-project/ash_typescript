@@ -10,9 +10,9 @@ defmodule AshTypescript.Codegen.TypeAliases do
   @doc """
   Generates TypeScript type aliases for all Ash types used in resources, actions, and calculations.
   """
-  def generate_ash_type_aliases(resources, actions, otp_app, resource_lookup \\ nil)
+  def generate_ash_type_aliases(resources, resource_lookup \\ nil)
 
-  def generate_ash_type_aliases(resources, _actions, otp_app, resource_lookup)
+  def generate_ash_type_aliases(resources, resource_lookup)
       when is_map(resource_lookup) and map_size(resource_lookup) > 0 do
     # Derive embedded resources from resource_lookup instead of re-scanning
     embedded_resources =
@@ -40,8 +40,8 @@ defmodule AshTypescript.Codegen.TypeAliases do
     generate_aliases(types)
   end
 
-  def generate_ash_type_aliases(resources, _actions, otp_app, _no_lookup) do
-    generate_ash_type_aliases(resources, [], otp_app, AshTypescript.resource_lookup())
+  def generate_ash_type_aliases(resources, _no_lookup) do
+    generate_ash_type_aliases(resources, AshTypescript.resource_lookup())
   end
 
   defp collect_types_from_api_resource(api_resource, types) do

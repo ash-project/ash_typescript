@@ -23,9 +23,7 @@ defmodule AshTypescript.Codegen.SharedTypesGenerator do
     * `opts` - A keyword list with:
       * `:all_resources` - All resources needing schemas (required)
       * `:rpc_resources` - RPC-configured resources (required)
-      * `:actions` - RPC actions (required)
       * `:struct_argument_resources` - Resources used as struct arguments (default: [])
-      * `:otp_app` - The OTP application name (required)
       * `:types_output_file` - Path to the types output file, for resolving custom import paths (required)
 
   ## Returns
@@ -35,9 +33,7 @@ defmodule AshTypescript.Codegen.SharedTypesGenerator do
   def generate(opts) do
     all_resources = Keyword.fetch!(opts, :all_resources)
     rpc_resources = Keyword.fetch!(opts, :rpc_resources)
-    actions = Keyword.fetch!(opts, :actions)
     struct_argument_resources = Keyword.get(opts, :struct_argument_resources, [])
-    otp_app = Keyword.fetch!(opts, :otp_app)
     types_output_file = Keyword.fetch!(opts, :types_output_file)
 
     custom_imports = generate_custom_imports(types_output_file)
@@ -48,7 +44,7 @@ defmodule AshTypescript.Codegen.SharedTypesGenerator do
 
     #{custom_imports}
 
-    #{generate_ash_type_aliases(rpc_resources, actions, otp_app)}
+    #{generate_ash_type_aliases(rpc_resources)}
 
     #{generate_all_schemas_for_resources(all_resources, all_resources, struct_argument_resources)}
 

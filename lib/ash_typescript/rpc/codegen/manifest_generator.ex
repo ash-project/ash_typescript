@@ -19,7 +19,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
 
   @doc """
-  Generates a Markdown manifest of all RPC actions for the given OTP application.
+  Generates a Markdown manifest of all RPC actions.
 
   Returns a string containing the complete manifest in Markdown format.
 
@@ -27,7 +27,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
   The manifest respects the following configuration:
   - `add_ash_internals_to_manifest` - When true, includes Elixir module paths and internal action names
   """
-  def generate_manifest(otp_app, _resource_lookup \\ nil) do
+  def generate_manifest do
     include_internals? = AshTypescript.Rpc.add_ash_internals_to_manifest?()
     entrypoints = AshTypescript.entrypoints()
 
@@ -184,7 +184,6 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
          include_internals?
        ) do
     resource_name = resource_short_name(resource)
-    otp_app = Mix.Project.config()[:app]
     action_lookup = AshTypescript.action_lookup()
 
     sorted_actions =

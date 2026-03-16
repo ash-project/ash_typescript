@@ -23,7 +23,7 @@ defmodule AshTypescript.Codegen do
     TypeMapper
   }
 
-  defdelegate generate_ash_type_aliases(resources, actions, otp_app), to: TypeAliases
+  defdelegate generate_ash_type_aliases(resources), to: TypeAliases
 
   defdelegate generate_all_schemas_for_resources(
                 resources,

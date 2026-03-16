@@ -154,7 +154,7 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
 
   defp maybe_write_manifests(otp_app) do
     if path = AshTypescript.Rpc.manifest_file() do
-      write_if_changed(path, ManifestGenerator.generate_manifest(otp_app))
+      write_if_changed(path, ManifestGenerator.generate_manifest())
     end
 
     if path = AshTypescript.Rpc.json_manifest_file() do

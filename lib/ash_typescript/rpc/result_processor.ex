@@ -441,17 +441,17 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  defp extract_typed_map_value(value, _type_info, template, resource_lookups)
+  defp extract_typed_map_value(value, type_info, template, resource_lookups)
        when is_tuple(value) do
     normalized = FieldExtractor.normalize_for_extraction(value, template)
-    extract_typed_map_value(normalized, _type_info, template, resource_lookups)
+    extract_typed_map_value(normalized, type_info, template, resource_lookups)
   end
 
-  defp extract_typed_map_value(value, _type_info, _template, resource_lookups)
+  defp extract_typed_map_value(value, type_info, template, resource_lookups)
        when is_list(value) do
     if value != [] and Keyword.keyword?(value) do
       normalized = Map.new(value)
-      extract_typed_map_value(normalized, _type_info, _template, resource_lookups)
+      extract_typed_map_value(normalized, type_info, template, resource_lookups)
     else
       normalize_primitive(value)
     end

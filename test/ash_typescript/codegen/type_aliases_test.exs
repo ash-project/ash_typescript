@@ -7,15 +7,14 @@ defmodule AshTypescript.Codegen.TypeAliasesTest do
 
   alias AshTypescript.Codegen.TypeAliases
 
-  describe "generate_ash_type_aliases/3 for calculation arguments" do
+  describe "generate_ash_type_aliases for calculation arguments" do
     test "discovers types from calculation arguments" do
       # Todo has a :filtered_data calculation with arguments using Ash.Type.Date and Ash.Type.UUID
       # These types should be discovered and generate type aliases
 
       resources = [AshTypescript.Test.Todo]
-      actions = []
 
-      result = TypeAliases.generate_ash_type_aliases(resources, actions, :ash_typescript)
+      result = TypeAliases.generate_ash_type_aliases(resources)
 
       # Ash.Type.UUID should generate a UUID type alias
       assert result =~ "export type UUID = string;"
@@ -30,9 +29,8 @@ defmodule AshTypescript.Codegen.TypeAliasesTest do
       # 2. The calculation's argument types
 
       resources = [AshTypescript.Test.TodoMetadata]
-      actions = []
 
-      result = TypeAliases.generate_ash_type_aliases(resources, actions, :ash_typescript)
+      result = TypeAliases.generate_ash_type_aliases(resources)
 
       # TodoMetadata has calculations with various argument types
       # The :adjusted_priority calculation has :float, :boolean, :integer arguments
@@ -46,9 +44,8 @@ defmodule AshTypescript.Codegen.TypeAliasesTest do
       # Calculations without arguments should still work correctly
 
       resources = [AshTypescript.Test.TodoComment]
-      actions = []
 
-      result = TypeAliases.generate_ash_type_aliases(resources, actions, :ash_typescript)
+      result = TypeAliases.generate_ash_type_aliases(resources)
 
       # TodoComment has a :weighted_score calculation with no arguments
       # This should not cause any errors

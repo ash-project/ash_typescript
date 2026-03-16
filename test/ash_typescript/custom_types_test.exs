@@ -66,7 +66,7 @@ defmodule AshTypescript.CustomTypesTest do
 
   describe "TypeScript type generation - custom types" do
     test "custom types do not generate type aliases (they are imported)" do
-      result = Codegen.generate_ash_type_aliases([AshTypescript.Test.Todo], [], :ash_typescript)
+      result = Codegen.generate_ash_type_aliases([AshTypescript.Test.Todo])
       refute result =~ "type PriorityScore = number;"
     end
 
@@ -86,7 +86,7 @@ defmodule AshTypescript.CustomTypesTest do
     end
 
     test "complex custom type no longer generates type definition (it is imported)" do
-      result = Codegen.generate_ash_type_aliases([AshTypescript.Test.Todo], [], :ash_typescript)
+      result = Codegen.generate_ash_type_aliases([AshTypescript.Test.Todo])
       refute result =~ "type ColorPalette = {"
       refute result =~ "primary: string;"
       refute result =~ "secondary: string;"

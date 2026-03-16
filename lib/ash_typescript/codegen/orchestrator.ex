@@ -86,18 +86,6 @@ defmodule AshTypescript.Codegen.Orchestrator do
       |> Enum.uniq()
       |> Enum.sort_by(&inspect/1)
 
-    actions =
-      otp_app
-      |> Ash.Info.domains()
-      |> Enum.flat_map(fn domain ->
-        AshTypescript.Rpc.Info.typescript_rpc(domain)
-        |> Enum.flat_map(fn %{resource: resource, rpc_actions: rpc_actions} ->
-          Enum.map(rpc_actions, fn %{action: action} ->
-            Ash.Resource.Info.action(resource, action)
-          end)
-        end)
-      end)
-
     resources_and_actions = RpcConfigCollector.get_rpc_resources_and_actions(otp_app)
 
     files = %{}
@@ -108,9 +96,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
           SharedTypesGenerator.generate(
             all_resources: all_resources,
             rpc_resources: rpc_resources,
-            actions: actions,
             struct_argument_resources: struct_argument_resources,
-            otp_app: otp_app,
             types_output_file: types_output_file
           )
 

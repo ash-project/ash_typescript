@@ -92,7 +92,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
 
   describe "ManifestGenerator.generate_manifest/1 - basic structure" do
     setup do
-      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      manifest = ManifestGenerator.generate_manifest()
       {:ok, manifest: manifest}
     end
 
@@ -121,7 +121,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
 
   describe "ManifestGenerator.generate_manifest/1 - sorting" do
     setup do
-      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      manifest = ManifestGenerator.generate_manifest()
       {:ok, manifest: manifest}
     end
 
@@ -196,7 +196,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
 
   describe "ManifestGenerator.generate_manifest/1 - table columns" do
     setup do
-      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      manifest = ManifestGenerator.generate_manifest()
       {:ok, manifest: manifest}
     end
 
@@ -244,7 +244,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
 
   describe "ManifestGenerator.generate_manifest/1 - action types" do
     setup do
-      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      manifest = ManifestGenerator.generate_manifest()
       {:ok, manifest: manifest}
     end
 
@@ -261,7 +261,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
   describe "ManifestGenerator.generate_manifest/1 - action details" do
     setup do
       Application.put_env(:ash_typescript, :add_ash_internals_to_manifest, true)
-      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      manifest = ManifestGenerator.generate_manifest()
       {:ok, manifest: manifest}
     end
 
@@ -286,7 +286,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
 
   describe "ManifestGenerator.generate_manifest/1 - typed queries" do
     setup do
-      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      manifest = ManifestGenerator.generate_manifest()
       {:ok, manifest: manifest}
     end
 
@@ -307,7 +307,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
 
   describe "ManifestGenerator.generate_manifest/1 - resources without actions" do
     setup do
-      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      manifest = ManifestGenerator.generate_manifest()
       {:ok, manifest: manifest}
     end
 
@@ -327,7 +327,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
 
   describe "ManifestGenerator.generate_manifest/1 - function naming" do
     setup do
-      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      manifest = ManifestGenerator.generate_manifest()
       {:ok, manifest: manifest}
     end
 
@@ -362,7 +362,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
   describe "ManifestGenerator - add_ash_internals_to_manifest config" do
     test "excludes Ash Action and Resource columns when internals disabled" do
       Application.put_env(:ash_typescript, :add_ash_internals_to_manifest, false)
-      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      manifest = ManifestGenerator.generate_manifest()
 
       # Should NOT have Ash Action or Resource columns
       refute manifest =~ "| Ash Action |"
@@ -375,7 +375,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
 
     test "includes Ash Action and Resource columns when internals enabled" do
       Application.put_env(:ash_typescript, :add_ash_internals_to_manifest, true)
-      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      manifest = ManifestGenerator.generate_manifest()
 
       assert manifest =~ "| Ash Action |"
       assert manifest =~ "| Resource |"
@@ -383,7 +383,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
 
     test "shows action description when internals enabled and rpc_action has no description" do
       Application.put_env(:ash_typescript, :add_ash_internals_to_manifest, true)
-      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      manifest = ManifestGenerator.generate_manifest()
 
       # The update_me action on User has an action description
       # If there's no rpc_action description, the action description should be shown
@@ -396,7 +396,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
 
     test "uses default description when internals disabled and no rpc_action description" do
       Application.put_env(:ash_typescript, :add_ash_internals_to_manifest, false)
-      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      manifest = ManifestGenerator.generate_manifest()
 
       # Default descriptions should appear
       assert manifest =~ "Read Todo records" or manifest =~ "Create a new"
@@ -416,7 +416,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
         Application.put_env(:ash_typescript, :generate_phx_channel_rpc_actions, false)
         Application.put_env(:ash_typescript, :add_ash_internals_to_manifest, false)
 
-        manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+        manifest = ManifestGenerator.generate_manifest()
 
         # Should have Function and Action Type columns
         assert manifest =~ "| Function | Action Type |"
@@ -448,7 +448,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
         Application.put_env(:ash_typescript, :generate_phx_channel_rpc_actions, false)
         Application.put_env(:ash_typescript, :add_ash_internals_to_manifest, false)
 
-        manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+        manifest = ManifestGenerator.generate_manifest()
 
         # Should have validation column
         assert manifest =~ "| Validation |"
@@ -468,14 +468,14 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
 
   describe "ManifestGenerator - namespace grouping" do
     test "groups by namespace when namespaces are configured" do
-      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      manifest = ManifestGenerator.generate_manifest()
 
       # Test config has todos and users namespaces
       assert manifest =~ "## Namespace: todos" or manifest =~ "## Default (No Namespace)"
     end
 
     test "actions in the same namespace are grouped together" do
-      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      manifest = ManifestGenerator.generate_manifest()
 
       # listTodos is in the todos namespace
       if manifest =~ "## Namespace: todos" do
@@ -494,7 +494,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
 
   describe "ManifestGenerator - typed controller routes section" do
     setup do
-      manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+      manifest = ManifestGenerator.generate_manifest()
       {:ok, manifest: manifest}
     end
 
@@ -535,7 +535,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
 
       try do
         Application.put_env(:ash_typescript, :typed_controllers, [])
-        manifest = ManifestGenerator.generate_manifest(:ash_typescript)
+        manifest = ManifestGenerator.generate_manifest()
 
         refute manifest =~ "## Typed Controller Routes"
       after

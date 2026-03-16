@@ -66,8 +66,7 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   have `config.ash_typescript` populated.
   """
   def get_rpc_resources_and_actions(otp_app) when is_atom(otp_app) do
-    otp_app
-    |> get_entrypoints()
+    get_entrypoints()
     |> get_rpc_resources_and_actions()
   end
 
@@ -79,12 +78,6 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
     end)
   end
 
-  # Legacy: fetch entrypoints from otp_app
-  def get_rpc_resources_and_actions(otp_app, _resource_lookup) do
-    otp_app
-    |> get_entrypoints()
-    |> get_rpc_resources_and_actions()
-  end
 
   @doc """
   Gets all RPC resources and their actions with domain and resource config context.
@@ -100,12 +93,6 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
     end)
   end
 
-  # Legacy: fetch entrypoints from otp_app
-  def get_rpc_resources_and_actions_with_context(otp_app, _resource_lookup) do
-    otp_app
-    |> get_entrypoints()
-    |> get_rpc_resources_and_actions_with_context()
-  end
 
   @doc """
   Resolves the namespace for an RPC action.
@@ -143,14 +130,10 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   end
 
   def get_rpc_resources_by_namespace(otp_app) when is_atom(otp_app) do
-    otp_app
-    |> get_entrypoints()
+    get_entrypoints()
     |> get_rpc_resources_by_namespace()
   end
 
-  def get_rpc_resources_by_namespace(otp_app, _resource_lookup) do
-    get_rpc_resources_by_namespace(otp_app)
-  end
 
   @doc """
   Gets all typed queries from entrypoints.
@@ -171,12 +154,6 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
     |> Enum.uniq_by(fn {resource, _action, tq} -> {resource, tq.name} end)
   end
 
-  # Legacy: fetch entrypoints from otp_app
-  def get_typed_queries(otp_app, _resource_lookup) do
-    entrypoints = get_entrypoints(otp_app)
-    action_lookup = AshTypescript.action_lookup()
-    get_typed_queries(entrypoints, action_lookup)
-  end
 
   @doc """
   Gets RPC configuration grouped by domain, derived from entrypoints.
@@ -200,9 +177,8 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
     |> Enum.reject(fn {_domain, config} -> config == [] end)
   end
 
-  def get_rpc_config_by_domain(otp_app) do
-    otp_app
-    |> get_entrypoints()
+  def get_rpc_config_by_domain(_otp_app) do
+    get_entrypoints()
     |> get_rpc_config_by_domain()
   end
 
@@ -213,7 +189,7 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   defp has_ash_typescript_config?(%AshApiSpec.Entrypoint{config: %{ash_typescript: _}}), do: true
   defp has_ash_typescript_config?(_), do: false
 
-  defp get_entrypoints(otp_app) do
+  defp get_entrypoints do
     AshTypescript.entrypoints()
   end
 end

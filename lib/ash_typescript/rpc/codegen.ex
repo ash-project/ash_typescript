@@ -356,8 +356,6 @@ defmodule AshTypescript.Rpc.Codegen do
     entrypoints = AshTypescript.entrypoints()
     action_lookup = AshTypescript.action_lookup()
 
-    actions = Enum.map(rpc_resources_and_actions, fn {_, action, _} -> action end)
-
     typed_queries = RpcConfigCollector.get_typed_queries(entrypoints, action_lookup)
 
     all_resources_for_schemas = reachable_resources
@@ -387,7 +385,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     #{TypescriptStatic.generate_hook_context_types(hook_config)}
 
-    #{TypeAliases.generate_ash_type_aliases(rpc_resources, actions, otp_app, resource_lookup)}
+    #{TypeAliases.generate_ash_type_aliases(rpc_resources, resource_lookup)}
 
     #{ResourceSchemas.generate_all_schemas_for_resources(all_resources_for_schemas, all_resources_for_schemas, struct_argument_resources, resource_lookup)}
 
@@ -451,11 +449,12 @@ defmodule AshTypescript.Rpc.Codegen do
 
     hook_config = build_hook_config(opts)
     import_paths = Keyword.fetch!(codegen_opts, :import_paths)
-    otp_app = Keyword.fetch!(codegen_opts, :otp_app)
     all_resources = Keyword.fetch!(codegen_opts, :all_resources)
     shared_type_names = Keyword.get(codegen_opts, :shared_type_names, [])
     resource_lookup = AshTypescript.resource_lookup()
-    typed_queries = RpcConfigCollector.get_typed_queries(otp_app, resource_lookup)
+    entrypoints = AshTypescript.entrypoints()
+    action_lookup = AshTypescript.action_lookup()
+    typed_queries = RpcConfigCollector.get_typed_queries(entrypoints, action_lookup)
 
     body =
       [
