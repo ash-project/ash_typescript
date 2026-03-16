@@ -277,12 +277,13 @@ defmodule AshApiSpec.CodegenTypeDispatchTest do
       assert TypeMapper.is_primitive_union_member?(type) == true
     end
 
-    test "map with fields constraint is not primitive" do
+    test "map with fields is not primitive" do
       type = %Type{
         kind: :map,
         name: "Map",
         module: Ash.Type.Map,
-        constraints: [fields: [name: [type: :string]]]
+        constraints: [],
+        fields: [%{name: :name, type: %Type{kind: :string, name: "String", module: Ash.Type.String, constraints: []}, allow_nil?: true}]
       }
 
       assert TypeMapper.is_primitive_union_member?(type) == false

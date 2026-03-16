@@ -45,7 +45,5 @@ defmodule AshTypescript.Codegen do
   defdelegate get_ts_type(type_and_constraints, select_and_loads \\ nil), to: TypeMapper
   defdelegate get_ts_input_type(attr), to: TypeMapper
   defdelegate build_map_type(fields, select \\ nil, field_name_mappings \\ nil), to: TypeMapper
-  defdelegate build_union_type(types), to: TypeMapper
-  defdelegate build_union_input_type(types), to: TypeMapper
   defdelegate build_resource_type_name(resource_module), to: Helpers
 end

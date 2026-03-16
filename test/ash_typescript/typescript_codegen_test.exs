@@ -281,25 +281,6 @@ defmodule AshTypescript.CodegenTest do
     end
   end
 
-  describe "build_union_type/1" do
-    test "builds union from type configurations" do
-      types = [
-        string: [type: :string, constraints: []],
-        integer: [type: :integer, constraints: []]
-      ]
-
-      result = Codegen.build_union_type(types)
-
-      assert result ==
-               "{ __type: \"Union\"; __primitiveFields: \"string\" | \"integer\"; string?: string; integer?: number; }"
-    end
-
-    test "handles empty types list" do
-      result = Codegen.build_union_type([])
-      assert result == "{ __type: \"Union\"; __primitiveFields: never; }"
-    end
-  end
-
   describe "error handling" do
     test "unsupported type falls back to any" do
       unsupported_type = MyApp.CustomUnsupportedType
