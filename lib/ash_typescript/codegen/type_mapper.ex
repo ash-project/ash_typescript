@@ -10,6 +10,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
   dispatcher (`map_type/3`) that handles both input and output directions.
   """
 
+  alias AshApiSpec.Type
   alias AshTypescript.Codegen.Helpers
 
   # ─────────────────────────────────────────────────────────────────
@@ -190,14 +191,13 @@ defmodule AshTypescript.Codegen.TypeMapper do
         map_enum_from_type(type_info)
 
       :union ->
-        map_union(type_info.constraints || [], direction)
+        map_union(type_info, direction)
 
       :struct ->
-        map_struct(ensure_codegen_instance_of(type_info), direction)
+        map_struct(type_info, direction)
 
       kind when kind in [:map, :keyword, :tuple] ->
-        mod = kind_to_container_module(kind)
-        map_typed_container(mod, ensure_codegen_instance_of(type_info), direction)
+        map_typed_container(type_info, direction)
 
       _ ->
         # For primitive kinds: check module lookup, custom types, then kind fallback
@@ -258,15 +258,16 @@ defmodule AshTypescript.Codegen.TypeMapper do
   defp type_suffix(:input), do: "InputSchema"
   defp type_suffix(:output), do: "ResourceSchema"
 
-  defp map_struct(constraints, direction) do
-    instance_of = Keyword.get(constraints, :instance_of)
-    fields = Keyword.get(constraints, :fields)
+  defp map_struct(%Type{} = type_info, direction) do
+    fields = Type.get_fields(type_info)
+    # Use instance_of (not effective_module) — we only want the explicit
+    # TypedStruct/NewType backing module, not the generic Ash.Type.Struct module.
+    inst = type_info.instance_of
+    field_name_mappings = get_field_name_mappings_from_module(inst)
 
     cond do
-      # Has fields constraint - treat as typed container
-      fields != nil ->
-        field_name_mappings = get_field_name_mappings(Ash.Type.Struct, constraints)
-
+      # Has fields - treat as typed container
+      fields != [] ->
         case direction do
           :input -> build_field_input_type(fields, field_name_mappings)
           :output -> build_map_type(fields, nil, field_name_mappings)
@@ -275,9 +276,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
       # instance_of pointing to TypedStruct (output only uses this)
       # Note: resource instance_of types are already handled as kind: :resource
       # by the TypeResolver, so they never reach this :struct branch
-      instance_of && direction == :output ->
-        field_name_mappings = get_field_name_mappings(Ash.Type.Struct, constraints)
-        build_map_type(fields || [], nil, field_name_mappings)
+      inst && direction == :output ->
+        build_map_type([], nil, field_name_mappings)
 
       # Fallback to untyped map
       true ->
@@ -285,13 +285,14 @@ defmodule AshTypescript.Codegen.TypeMapper do
     end
   end
 
-  defp map_typed_container(type, constraints, direction) do
-    fields = Keyword.get(constraints, :fields, [])
+  defp map_typed_container(%Type{} = type_info, direction) do
+    fields = Type.get_fields(type_info)
 
     if fields == [] do
       AshTypescript.untyped_map_type()
     else
-      field_name_mappings = get_field_name_mappings(type, constraints)
+      inst = Type.effective_module(type_info)
+      field_name_mappings = get_field_name_mappings_from_module(inst)
 
       case direction do
         :input -> build_field_input_type(fields, field_name_mappings)
@@ -300,15 +301,51 @@ defmodule AshTypescript.Codegen.TypeMapper do
     end
   end
 
-  defp map_union(constraints, direction) do
-    case Keyword.get(constraints, :types) do
-      nil -> "any"
-      types -> build_union_type_for_direction(types, direction)
+  defp map_union(%Type{} = type_info, direction) do
+    case type_info.members do
+      nil ->
+        # Fallback to constraints[:types] for backward compatibility
+        case Keyword.get(type_info.constraints || [], :types) do
+          nil -> "any"
+          types -> build_union_type_for_direction(types, direction)
+        end
+
+      members ->
+        build_union_type_for_direction_from_members(members, direction)
     end
   end
 
   defp build_union_type_for_direction(types, :input), do: build_union_input_type(types)
   defp build_union_type_for_direction(types, :output), do: build_union_type(types)
+
+  defp build_union_type_for_direction_from_members(members, :input),
+    do: build_union_input_type_from_members(members)
+
+  defp build_union_type_for_direction_from_members(members, :output),
+    do: build_union_type_from_members(members)
+
+  defp map_union_member_from_spec(%Type{} = member_type, direction) do
+    cond do
+      # Struct with instance_of and fields (TypedStruct)
+      member_type.kind == :struct and member_type.instance_of != nil and
+          Type.has_fields?(member_type) ->
+        resource_name = Helpers.build_resource_type_name(member_type.instance_of)
+
+        case direction do
+          :input -> map_type(member_type, [], :input)
+          :output -> "#{resource_name}TypedStructFieldSelection"
+        end
+
+      # Resource / embedded resource
+      member_type.kind in [:resource, :embedded_resource] ->
+        resource = member_type.resource_module || member_type.module
+        map_resource(resource, direction)
+
+      # Other types - recurse
+      true ->
+        map_type(member_type, [], direction)
+    end
+  end
 
   defp map_union_member(type, constraints, direction) do
     cond do
@@ -350,7 +387,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
           resource_name = Helpers.build_resource_type_name(instance_of)
           "#{resource_name}ResourceSchema"
         else
-          field_name_mappings = get_field_name_mappings(Ash.Type.Struct, full_constraints)
+          field_name_mappings = get_field_name_mappings_from_module(instance_of)
 
           build_map_type(
             Keyword.get(full_constraints, :fields, []),
@@ -362,7 +399,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
       # Map with fields - use build_map_type with selection
       unwrapped_type == Ash.Type.Map and Keyword.has_key?(full_constraints, :fields) ->
         fields = Keyword.get(full_constraints, :fields)
-        field_name_mappings = get_field_name_mappings(Ash.Type.Map, full_constraints)
+        instance_of = Keyword.get(full_constraints, :instance_of)
+        field_name_mappings = get_field_name_mappings_from_module(instance_of)
         build_map_type(fields, select_and_loads, field_name_mappings)
 
       # Other types - fall back to regular mapping
@@ -378,8 +416,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
   defp build_field_input_type(fields, field_name_mappings) do
     field_types =
       fields
-      |> Enum.map_join(", ", fn {field_name, field_config} ->
-        field_type = map_type(field_config[:type], field_config[:constraints] || [], :input)
+      |> Enum.map_join(", ", fn field ->
+        {field_name, field_type_str, allow_nil} = extract_field_info_for_input(field)
 
         # Apply field name mapping if available
         mapped_field_name =
@@ -395,20 +433,34 @@ defmodule AshTypescript.Codegen.TypeMapper do
             AshTypescript.Rpc.output_field_formatter()
           )
 
-        allow_nil = Keyword.get(field_config, :allow_nil?, true)
         optional_marker = if allow_nil, do: "?", else: ""
         null_type = if allow_nil, do: " | null", else: ""
-        "#{formatted_field_name}#{optional_marker}: #{field_type}#{null_type}"
+        "#{formatted_field_name}#{optional_marker}: #{field_type_str}#{null_type}"
       end)
 
     "{#{field_types}}"
   end
 
-  defp get_field_name_mappings(_type, constraints) do
-    instance_of = Keyword.get(constraints, :instance_of)
+  # Extract field info for input direction from spec fields
+  defp extract_field_info_for_input(%{name: field_name, type: %Type{} = type, allow_nil?: allow_nil}) do
+    field_type_str = map_type(type, [], :input)
+    {field_name, field_type_str, allow_nil || false}
+  end
 
-    if instance_of && function_exported?(instance_of, :typescript_field_names, 0) do
-      instance_of.typescript_field_names()
+  # Legacy format support for raw {name, config} tuples
+  defp extract_field_info_for_input({field_name, field_config}) do
+    field_type_str = map_type(field_config[:type], field_config[:constraints] || [], :input)
+    allow_nil = Keyword.get(field_config, :allow_nil?, true)
+    {field_name, field_type_str, allow_nil}
+  end
+
+  defp get_field_name_mappings_from_module(nil), do: nil
+
+  defp get_field_name_mappings_from_module(module) when is_atom(module) do
+    if Code.ensure_loaded?(module) and function_exported?(module, :typescript_field_names, 0) do
+      module.typescript_field_names()
+    else
+      nil
     end
   end
 
@@ -431,7 +483,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
         if fields == [] do
           AshTypescript.untyped_map_type()
         else
-          field_name_mappings = get_field_name_mappings(unwrapped_type, full_constraints)
+          instance_of = Keyword.get(full_constraints, :instance_of)
+          field_name_mappings = get_field_name_mappings_from_module(instance_of)
           build_plain_map_type(fields, field_name_mappings)
         end
 
@@ -439,7 +492,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
         fields = Keyword.get(full_constraints, :fields)
 
         if fields do
-          field_name_mappings = get_field_name_mappings(Ash.Type.Struct, full_constraints)
+          instance_of = Keyword.get(full_constraints, :instance_of)
+          field_name_mappings = get_field_name_mappings_from_module(instance_of)
           build_plain_map_type(fields, field_name_mappings)
         else
           map_type(type, constraints, :output)
@@ -543,39 +597,37 @@ defmodule AshTypescript.Codegen.TypeMapper do
     "{#{field_types}, __type: \"TypedMap\", __primitiveFields: #{primitive_fields_union}}"
   end
 
-  # Extracts field info from both legacy {name, config} tuples and spec field maps
+  # Extracts field info from spec field maps
+  defp extract_field_info(%{name: field_name, type: %Type{} = type, allow_nil?: allow_nil}) do
+    field_type_str = map_type(type, [], :output)
+    {field_name, field_type_str, allow_nil || false}
+  end
+
+  # Legacy format support for raw {name, config} tuples
   defp extract_field_info({field_name, field_config}) do
-    field_type = map_type(field_config[:type], field_config[:constraints] || [], :output)
+    field_type_str = map_type(field_config[:type], field_config[:constraints] || [], :output)
     allow_nil = Keyword.get(field_config, :allow_nil?, true)
-    {field_name, field_type, allow_nil}
+    {field_name, field_type_str, allow_nil}
   end
 
-  defp extract_field_info(%{
-         name: field_name,
-         type: %AshApiSpec.Type{} = type,
-         allow_nil?: allow_nil
-       }) do
-    field_type = map_type(type, [], :output)
-    {field_name, field_type, allow_nil}
-  end
-
-  defp extract_field_info(%{name: field_name, type: type, allow_nil?: allow_nil}) do
-    field_type = map_type(type, [], :output)
-    {field_name, field_type, allow_nil}
-  end
-
-  defp extract_field_name({field_name, _}), do: field_name
   defp extract_field_name(%{name: field_name}), do: field_name
+  defp extract_field_name({field_name, _}), do: field_name
 
-  defp is_nested_typed_map_field?({_name, field_config}), do: is_nested_typed_map?(field_config)
-
-  defp is_nested_typed_map_field?(%{type: %AshApiSpec.Type{kind: :type_ref} = type_ref}) do
-    full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_ref.module)
-    is_nested_typed_map_field?(%{type: full_type})
+  defp is_nested_typed_map_field?(%{type: %Type{kind: :type_ref} = ref}) do
+    full = AshApiSpec.Generator.TypeResolver.resolve_definition(ref.module)
+    is_nested_typed_map_field?(%{type: full})
   end
 
-  defp is_nested_typed_map_field?(%{type: %AshApiSpec.Type{kind: kind}}),
-    do: kind in [:map, :struct, :keyword, :tuple]
+  defp is_nested_typed_map_field?(%{type: %Type{kind: kind}})
+       when kind in [:map, :struct, :keyword, :tuple, :union, :resource, :embedded_resource],
+       do: true
+
+  defp is_nested_typed_map_field?(%{type: %Type{kind: :array, item_type: item}})
+       when not is_nil(item),
+       do: is_nested_typed_map_field?(%{type: item})
+
+  # Legacy format support for raw {name, config} tuples
+  defp is_nested_typed_map_field?({_name, field_config}), do: is_nested_typed_map?(field_config)
 
   defp is_nested_typed_map_field?(_), do: false
 
@@ -620,6 +672,61 @@ defmodule AshTypescript.Codegen.TypeMapper do
           )
 
         ts_type = map_union_member(type_config[:type], type_config[:constraints] || [], :input)
+
+        "{ #{formatted_name}: #{ts_type} }"
+      end)
+
+    case member_objects do
+      "" -> "any"
+      objects -> objects
+    end
+  end
+
+  @doc """
+  Builds a union output type from spec members (list of `%{name, type}` maps).
+  """
+  def build_union_type_from_members(members) do
+    primitive_fields =
+      members
+      |> Enum.filter(fn %{type: type} -> is_primitive_union_member?(type) end)
+      |> Enum.map(fn %{name: name} -> name end)
+
+    primitive_union = generate_primitive_fields_union(primitive_fields)
+
+    member_properties =
+      members
+      |> Enum.map_join("; ", fn %{name: name, type: type} ->
+        formatted_name =
+          AshTypescript.FieldFormatter.format_field_name(
+            name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        ts_type = map_union_member_from_spec(type, :output)
+
+        "#{formatted_name}?: #{ts_type}"
+      end)
+
+    case member_properties do
+      "" -> "{ __type: \"Union\"; __primitiveFields: #{primitive_union}; }"
+      properties -> "{ __type: \"Union\"; __primitiveFields: #{primitive_union}; #{properties}; }"
+    end
+  end
+
+  @doc """
+  Builds a union input type from spec members (discriminated union syntax).
+  """
+  def build_union_input_type_from_members(members) do
+    member_objects =
+      members
+      |> Enum.map_join(" | ", fn %{name: name, type: type} ->
+        formatted_name =
+          AshTypescript.FieldFormatter.format_field_name(
+            name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+
+        ts_type = map_union_member_from_spec(type, :input)
 
         "{ #{formatted_name}: #{ts_type} }"
       end)
@@ -744,43 +851,6 @@ defmodule AshTypescript.Codegen.TypeMapper do
   end
 
   defp is_custom_type?(_), do: false
-
-  defp has_typescript_field_names?(nil), do: false
-
-  defp has_typescript_field_names?(module) when is_atom(module) do
-    Code.ensure_loaded?(module) && function_exported?(module, :typescript_field_names, 0)
-  end
-
-  defp has_typescript_field_names?(_), do: false
-
-  # Ensures instance_of is in constraints for %Type{} structs (bridges
-  # TypeResolver compile-time output and map_struct/map_typed_container expectations).
-  # Checks both type_info.instance_of and type_info.module for typescript_field_names.
-  defp ensure_codegen_instance_of(%AshApiSpec.Type{} = type_info) do
-    constraints = type_info.constraints || []
-
-    if Keyword.has_key?(constraints, :instance_of) do
-      constraints
-    else
-      # Prefer instance_of, fall back to module if it has typescript_field_names
-      instance =
-        type_info.instance_of ||
-          if is_atom(type_info.module) and not is_nil(type_info.module) and
-               has_typescript_field_names?(type_info.module) do
-            type_info.module
-          end
-
-      if instance do
-        Keyword.put(constraints, :instance_of, instance)
-      else
-        constraints
-      end
-    end
-  end
-
-  defp kind_to_container_module(:map), do: Ash.Type.Map
-  defp kind_to_container_module(:keyword), do: Ash.Type.Keyword
-  defp kind_to_container_module(:tuple), do: Ash.Type.Tuple
 
   defp map_enum_from_type(%AshApiSpec.Type{values: values})
        when is_list(values) and values != [] do

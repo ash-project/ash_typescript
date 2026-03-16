@@ -286,20 +286,9 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
 
   defp classify_return_type(%AshApiSpec.Type{kind: kind} = type_info, _constraints)
        when kind in [:map, :keyword, :tuple] do
-    # Check fields from the spec struct, then fall back to constraints[:fields]
-    fields =
-      cond do
-        is_list(type_info.fields) and type_info.fields != [] ->
-          type_info.fields
+    fields = AshApiSpec.Type.get_fields(type_info)
 
-        is_list(type_info.element_types) and type_info.element_types != [] ->
-          type_info.element_types
-
-        true ->
-          Keyword.get(type_info.constraints || [], :fields)
-      end
-
-    if fields do
+    if fields != [] do
       {:typed_map, fields}
     else
       :unconstrained_map
