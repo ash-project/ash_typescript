@@ -36,6 +36,7 @@ defmodule AshTypescript.MixProject do
     [
       preferred_envs: [
         "test.codegen": :test,
+        "test.test_valibot": :test,
         tidewave: :test
       ]
     ]
@@ -205,6 +206,7 @@ defmodule AshTypescript.MixProject do
       "test.compile_should_pass": "cmd cd test/ts && npm run compileShouldPass",
       "test.compile_should_fail": "cmd cd test/ts && npm run compileShouldFail",
       "test.test_zod": "cmd cd test/ts && npm run testZod",
+      "test.test_valibot": "cmd cd test/ts && npm run testValibot",
       tidewave:
         "run --no-halt -e 'Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4012) end)'",
       sobelow: "sobelow --skip",
