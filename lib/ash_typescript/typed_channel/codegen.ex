@@ -227,15 +227,7 @@ defmodule AshTypescript.TypedChannel.Codegen do
         event_str = to_string(pub.event)
         matching_pub = find_publication(publications, event_str)
 
-        ts_type =
-          if matching_pub && matching_pub.returns do
-            TypeMapper.map_channel_payload_type(
-              matching_pub.returns,
-              matching_pub.constraints || []
-            )
-          else
-            "unknown"
-          end
+        ts_type = resolve_payload_type(matching_pub, resource_module)
 
         %{
           event: event_str,
@@ -246,6 +238,26 @@ defmodule AshTypescript.TypedChannel.Codegen do
       |> Enum.sort_by(fn %{event: event} -> event end)
     end)
   end
+
+  defp resolve_payload_type(nil, _resource_module), do: "unknown"
+
+  defp resolve_payload_type(%{returns: returns} = pub, _resource_module)
+       when not is_nil(returns) do
+    TypeMapper.map_channel_payload_type(returns, pub.constraints || [])
+  end
+
+  defp resolve_payload_type(%{transform: calc_name}, resource_module)
+       when is_atom(calc_name) and not is_nil(calc_name) do
+    case Ash.Resource.Info.calculation(resource_module, calc_name) do
+      %{type: type, constraints: constraints} when not is_nil(type) ->
+        TypeMapper.map_channel_payload_type(type, constraints)
+
+      _ ->
+        "unknown"
+    end
+  end
+
+  defp resolve_payload_type(_, _), do: "unknown"
 
   defp build_channel_brand_type(channel_name) do
     """
