@@ -502,7 +502,7 @@ export async function afterChannelResponse(
 ### Check Generated Output Without Writing
 
 ```bash
-mix ash_typescript.codegen --dry_run
+mix ash_typescript.codegen --dry-run
 ```
 
 ### Validate TypeScript Compilation

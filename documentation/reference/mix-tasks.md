@@ -94,14 +94,14 @@ mix ash_typescript.codegen --output "frontend/src/api/ash.ts"
 
 # Custom RPC endpoints
 mix ash_typescript.codegen \
-  --run_endpoint "/api/rpc/run" \
-  --validate_endpoint "/api/rpc/validate"
+  --run-endpoint "/api/rpc/run" \
+  --validate-endpoint "/api/rpc/validate"
 
 # Check if generated code is up to date (CI usage)
 mix ash_typescript.codegen --check
 
 # Preview generated code without writing to file
-mix ash_typescript.codegen --dry_run
+mix ash_typescript.codegen --dry-run
 ```
 
 #### Options
@@ -109,10 +109,10 @@ mix ash_typescript.codegen --dry_run
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `--output FILE` | `string` | `assets/js/ash_rpc.ts` | Output file path for generated TypeScript |
-| `--run_endpoint PATH` | `string` | `/rpc/run` | RPC run endpoint path |
-| `--validate_endpoint PATH` | `string` | `/rpc/validate` | RPC validate endpoint path |
+| `--run-endpoint PATH` | `string` | `/rpc/run` | RPC run endpoint path |
+| `--validate-endpoint PATH` | `string` | `/rpc/validate` | RPC validate endpoint path |
 | `--check` | `boolean` | `false` | Check if generated code is up to date (exit 1 if not). Skipped when `always_regenerate: true` is configured. |
-| `--dry_run` | `boolean` | `false` | Print generated code to stdout without writing file |
+| `--dry-run` | `boolean` | `false` | Print generated code to stdout without writing file |
 
 #### Generated Content
 
@@ -174,8 +174,8 @@ mix ash_typescript.codegen --output "frontend/src/api/ash.ts"
 **Custom RPC Endpoints:**
 ```bash
 mix ash_typescript.codegen \
-  --run_endpoint "/api/rpc/run" \
-  --validate_endpoint "/api/rpc/validate"
+  --run-endpoint "/api/rpc/run" \
+  --validate-endpoint "/api/rpc/validate"
 ```
 
 **CI Check:**
@@ -187,7 +187,7 @@ mix ash_typescript.codegen --check
 **Preview Without Writing:**
 ```bash
 # See what would be generated
-mix ash_typescript.codegen --dry_run | less
+mix ash_typescript.codegen --dry-run | less
 ```
 
 #### When to Use
