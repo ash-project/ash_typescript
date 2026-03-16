@@ -16,6 +16,7 @@ defmodule AshTypescript.Test.TypedChannel.VerifierNoReturnsItem do
     publish :destroy, [:id],
       event: "thing_gone",
       public?: true
+
     # intentionally no `returns`
   end
 
@@ -54,6 +55,7 @@ defmodule AshTypescript.Test.TypedChannel.VerifierNotPublicItem do
       event: "secret_removed",
       returns: :string,
       transform: fn n -> n.data.id end
+
     # intentionally no `public?: true`
   end
 
@@ -93,9 +95,7 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
 
     test "ContentFeedChannel passes verification" do
       assert :ok =
-               VerifyTypedChannel.verify(
-                 AshTypescript.Test.ContentFeedChannel.spark_dsl_config()
-               )
+               VerifyTypedChannel.verify(AshTypescript.Test.ContentFeedChannel.spark_dsl_config())
     end
   end
 

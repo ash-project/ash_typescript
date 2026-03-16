@@ -16,6 +16,7 @@ defmodule AshTypescript.Test.TypedChannel.NoReturnsItem do
     publish :destroy, [:id],
       event: "thing_removed",
       public?: true
+
     # intentionally no `returns` — TypeScript payload type should be `unknown`
   end
 
