@@ -103,13 +103,13 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   defp build_attribute_keys(resource, action, output_formatter, resource_lookups) do
     accept_list = Map.get(action, :accept) || []
-    resource_spec = resource_lookups && Map.get(resource_lookups || %{}, resource)
+    resource_spec = resource_lookups && Map.get(resource_lookups, resource)
 
     accept_list
     |> Enum.filter(fn attr_name ->
       case resource_spec do
         %AshApiSpec.Resource{fields: fields} -> Map.has_key?(fields, attr_name)
-        _ -> Ash.Resource.Info.attribute(resource, attr_name) != nil
+        _ -> false
       end
     end)
     |> Enum.into(%{}, fn attr_name ->
@@ -239,26 +239,13 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   defp resolve_arg_type(_), do: nil
 
-  # Get accepted attribute type from resource_lookups or Ash introspection
   defp get_accepted_attribute_type(resource, field_key, resource_lookups)
        when is_map(resource_lookups) do
     case AshApiSpec.get_field(resource_lookups, resource, field_key) do
       %AshApiSpec.Field{type: type} -> type
-      nil -> get_accepted_attribute_type_from_ash(resource, field_key)
+      nil -> nil
     end
   end
 
-  defp get_accepted_attribute_type(resource, field_key, _nil_lookups) do
-    get_accepted_attribute_type_from_ash(resource, field_key)
-  end
-
-  defp get_accepted_attribute_type_from_ash(resource, field_key) do
-    case Ash.Resource.Info.attribute(resource, field_key) do
-      nil ->
-        nil
-
-      attr ->
-        AshApiSpec.Generator.TypeResolver.resolve(attr.type, attr.constraints || [])
-    end
-  end
+  defp get_accepted_attribute_type(_resource, _field_key, _nil_lookups), do: nil
 end

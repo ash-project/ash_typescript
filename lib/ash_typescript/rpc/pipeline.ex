@@ -1319,24 +1319,18 @@ defmodule AshTypescript.Rpc.Pipeline do
     |> Enum.uniq()
   end
 
-  # AshApiSpec-first lookups with Ash.Resource.Info fallback
-
   defp lookup_primary_key(resource, resource_lookups) do
-    case AshApiSpec.primary_key(resource_lookups || %{}, resource) do
-      [] -> Ash.Resource.Info.primary_key(resource)
-      pk -> pk
-    end
+    AshApiSpec.primary_key(resource_lookups, resource)
   end
 
   defp lookup_identity(resource, identity_name, resource_lookups) do
-    AshApiSpec.get_identity(resource_lookups || %{}, resource, identity_name) ||
-      Ash.Resource.Info.identity(resource, identity_name)
+    AshApiSpec.get_identity(resource_lookups, resource, identity_name)
   end
 
   defp lookup_field_exists?(resource, field_name, resource_lookups) do
     case AshApiSpec.get_resource(resource_lookups, resource) do
       %AshApiSpec.Resource{} = r -> AshApiSpec.Resource.has_field?(r, field_name)
-      nil -> Ash.Resource.Info.attribute(resource, field_name) != nil
+      nil -> false
     end
   end
 

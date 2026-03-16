@@ -332,7 +332,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
             args,
             fields,
             path,
-            acc
+            acc,
+            resource_lookups
           )
 
         {:multi_nested, entries} ->
@@ -357,7 +358,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
                       args,
                       fields,
                       path,
-                      inner_acc
+                      inner_acc,
+                      resource_lookups
                     )
 
                   :not_args_structure ->
@@ -535,21 +537,30 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
          args,
          fields,
          path,
-         {select, load, template}
+         {select, load, template},
+         resource_lookups
        ) do
     internal_name = resolve_resource_field_name(resource, calc_name)
-    calc = Ash.Resource.Info.calculation(resource, internal_name)
 
-    if is_nil(calc) do
+    # Look up calculation from AshApiSpec resource spec
+    lookups = resource_lookups || AshTypescript.resource_lookup(Mix.Project.config()[:app])
+
+    calc_field =
+      case AshApiSpec.get_field(lookups, resource, internal_name) do
+        %AshApiSpec.Field{kind: :calculation} = f -> f
+        _ -> nil
+      end
+
+    if is_nil(calc_field) do
       throw({:unknown_field, internal_name, resource, path})
     end
 
-    field_type = AshApiSpec.Generator.TypeResolver.resolve(calc.type, calc.constraints || [])
+    field_type = calc_field.type
     new_path = path ++ [internal_name]
     is_complex_return_type = requires_nested_selection?(field_type, [])
 
-    calc_accepts_args = has_any_arguments?(calc)
-    calc_requires_args = has_required_arguments?(calc)
+    calc_accepts_args = has_any_arguments?(calc_field)
+    calc_requires_args = has_required_arguments?(calc_field)
     has_non_empty_args = args != nil && args != %{}
 
     cond do
@@ -1285,13 +1296,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
        when not is_nil(dest),
        do: dest
 
-  defp extract_relationship_destination(%AshApiSpec.Type{}, _resource, _name), do: nil
-
-  # Fallback for non-AshApiSpec types (atom resource modules, raw Ash types)
-  defp extract_relationship_destination(_type, resource, internal_name) do
-    rel = Ash.Resource.Info.relationship(resource, internal_name)
-    rel && rel.destination
-  end
+  defp extract_relationship_destination(_, _resource, _name), do: nil
 
   defp requires_nested_selection?(type, constraints, _type_index \\ %{})
 
