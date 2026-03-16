@@ -47,6 +47,7 @@ if Mix.env() == :test do
     add_ash_internals_to_jsdoc: true,
     add_ash_internals_to_manifest: true,
     manifest_file: "./test/ts/MANIFEST.md",
+    json_manifest_file: "./test/ts/ash_rpc_manifest.json",
     output_file: "./test/ts/generated.ts",
     enable_namespace_files: false,
     enable_controller_namespace_files: true,

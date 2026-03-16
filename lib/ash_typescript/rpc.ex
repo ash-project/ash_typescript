@@ -440,6 +440,35 @@ defmodule AshTypescript.Rpc do
   end
 
   @doc """
+  Gets the configured path for the JSON manifest file.
+
+  When set, `mix ash_typescript.codegen` generates a machine-readable JSON manifest
+  alongside the TypeScript output. This manifest contains structured metadata about
+  every RPC action (function names, types, pagination, variants) that third-party
+  packages can consume to generate typed wrappers (e.g., TanStack Query integrations).
+
+  Example config:
+      config :ash_typescript, json_manifest_file: "./assets/js/ash_rpc_manifest.json"
+  """
+  def json_manifest_file do
+    Application.get_env(:ash_typescript, :json_manifest_file)
+  end
+
+  @doc """
+  Controls how `filename` is formatted in the JSON manifest `files` entries.
+
+  - `:relative` (default) — path relative to the manifest file (e.g., `./generated.ts`, `../other/file.ts`)
+  - `:absolute` — absolute filesystem path (e.g., `/home/user/app/assets/js/generated.ts`)
+  - `:basename` — bare filename only (e.g., `generated.ts`)
+
+  Example config:
+      config :ash_typescript, json_manifest_filename_format: :relative
+  """
+  def json_manifest_filename_format do
+    Application.get_env(:ash_typescript, :json_manifest_filename_format, :relative)
+  end
+
+  @doc """
   Gets the Phoenix import path for generated TypeScript.
 
   This determines the import statement used for Phoenix channels in generated TypeScript files.

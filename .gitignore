@@ -38,6 +38,7 @@ test/ts/account.ts
 test/ts/auth.ts
 test/ts/**/*.js
 test/ts/MANIFEST.md
+test/ts/ash_rpc_manifest.json
 test/ts/namespace/
 
 .DS_Store
