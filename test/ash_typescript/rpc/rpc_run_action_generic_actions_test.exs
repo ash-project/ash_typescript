@@ -530,14 +530,14 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
     end
 
     test "generated result type is Array<Record<string, any>>" do
-      {:ok, typescript} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~
                "export type InferGetCustomDataListTodoResult = Array<Record<string, any>>;"
     end
 
     test "non-array unconstrained map result type remains Record<string, any>" do
-      {:ok, typescript} = AshTypescript.Rpc.Codegen.generate_typescript_types(:ash_typescript)
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 
       assert typescript =~
                "export type InferGetCustomDataTodoResult = Record<string, any>;"
