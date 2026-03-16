@@ -310,10 +310,22 @@ defmodule AshApiSpec.Generator.TypeResolver do
         member_type = Keyword.get(config, :type)
         member_constraints = Keyword.get(config, :constraints, [])
 
-        %{
+        member = %{
           name: name,
           type: resolve(member_type, member_constraints)
         }
+
+        # Include tag info when present (for tagged unions)
+        member =
+          case Keyword.get(config, :tag) do
+            nil -> member
+            tag -> Map.put(member, :tag, tag)
+          end
+
+        case Keyword.get(config, :tag_value) do
+          nil -> member
+          tag_value -> Map.put(member, :tag_value, tag_value)
+        end
       end)
 
     %Type{
