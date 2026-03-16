@@ -39,7 +39,8 @@ defmodule AshTypescript.Codegen.SharedValibotGenerator do
     types_import_path = ImportResolver.resolve_import_path(valibot_output_file, types_output_file)
 
     # Resource-level schemas come first (topologically sorted) since per-action/per-route schemas reference them
-    resource_valibot_schemas = ValibotSchemaGenerator.generate_valibot_schemas_for_resources(valibot_resources)
+    resource_valibot_schemas =
+      ValibotSchemaGenerator.generate_valibot_schemas_for_resources(valibot_resources)
 
     # Collect type names exported from the types file that the Valibot schemas reference
     type_imports = collect_type_imports(resource_valibot_schemas)
