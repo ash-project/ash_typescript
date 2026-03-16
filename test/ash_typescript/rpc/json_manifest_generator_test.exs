@@ -45,7 +45,7 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
 
     test "actions is a non-empty list", %{manifest: manifest} do
       assert is_list(manifest["actions"])
-      assert length(manifest["actions"]) > 0
+      assert manifest["actions"] != []
     end
 
     test "has files section with generated file entries", %{manifest: manifest} do
@@ -376,7 +376,7 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
   describe "typed controller routes" do
     test "routes is a list", %{manifest: manifest} do
       assert is_list(manifest["typedControllerRoutes"])
-      assert length(manifest["typedControllerRoutes"]) > 0
+      assert manifest["typedControllerRoutes"] != []
     end
 
     test "each route has required fields", %{manifest: manifest} do
