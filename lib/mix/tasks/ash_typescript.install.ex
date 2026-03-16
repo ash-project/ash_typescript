@@ -136,7 +136,7 @@ if Code.ensure_loaded?(Igniter) do
           # The install function modifies the project, so we need to start fresh
           # but preserve our args
           Igniter.Util.Install.install(
-            [{:phoenix_vite, "~> 0.4.0"}],
+            [{:phoenix_vite, "~> 0.4.2"}],
             install_args,
             igniter
           )
@@ -1574,8 +1574,6 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     # Create spa_root.html.heex layout for vite + react (includes React Refresh preamble)
-    # TODO: Remove __ENTRY_FILE__ dev/prod split in Vite layout templates once
-    # https://github.com/LostKobrakai/phoenix_vite/pull/24 is merged. Otherwise keep as is.
     defp create_spa_root_layout(igniter, web_module, "vite", framework)
          when framework in ["react", "react18"] do
       app_name = Igniter.Project.Application.app_name(igniter)
