@@ -13,7 +13,8 @@
     "compileGeneratedTypedChannels": "tsc generated_typed_channels.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop -noErrorTruncation",
     "compileShouldPass": "tsc shouldPass.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop -noErrorTruncation",
     "compileShouldFail": "tsc shouldFail.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop -noErrorTruncation",
-    "testZod": "tsc runZodTests.ts --lib DOM,es2022 --module commonjs --target es2022 --strict --moduleResolution node --esModuleInterop --skipLibCheck && node runZodTests.js"
+    "testZod": "tsc runZodTests.ts --lib DOM,es2022 --module commonjs --target es2022 --strict --moduleResolution node --esModuleInterop --skipLibCheck && node runZodTests.js",
+    "testValibot": "tsc runValibotTests.ts --lib DOM,es2022 --module commonjs --target es2022 --strict --moduleResolution node --esModuleInterop --skipLibCheck && node runValibotTests.js"
   },
   "devDependencies": {
     "@types/phoenix": "^1.6.6",
@@ -21,6 +22,7 @@
   },
   "dependencies": {
     "phoenix": "^1.8.1",
+    "valibot": "^1.2.0",
     "zod": "^4.0.17"
   }
 }
