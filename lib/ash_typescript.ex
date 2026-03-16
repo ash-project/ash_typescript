@@ -726,55 +726,21 @@ defmodule AshTypescript do
     end
   end
 
-  @doc """
-  Returns the pre-computed AshApiSpec resource lookup map for the given OTP app.
-  Configuration
+  @doc "Returns the full `%AshApiSpec{}`."
+  defdelegate api_spec(), to: AshTypescript.SpecCache
 
-      config :ash_typescript,
-        ash_api_spec: MyApp.AshApiSpec
+  @doc "Returns the entrypoints from the AshApiSpec."
+  defdelegate entrypoints(), to: AshTypescript.SpecCache
 
-  ## Returns
-  The module atom, or `nil` if not configured.
-  """
-  def ash_api_spec do
-    Application.get_env(:ash_typescript, :ash_api_spec, AshTypescript.ApiSpec)
-  end
+  @doc "Returns the AshApiSpec resource lookup map (cached in persistent_term)."
+  defdelegate resource_lookup(), to: AshTypescript.SpecCache
 
-  @doc """
-  Returns the full `%AshApiSpec{}` for the given OTP app.
-  """
-  @spec api_spec(atom()) :: AshApiSpec.t()
-  def api_spec(_otp_app) do
-    Spark.Dsl.Extension.get_persisted(ash_api_spec(), :ash_api_spec)
-  end
+  @doc "Returns the AshApiSpec action lookup map (cached in persistent_term)."
+  defdelegate action_lookup(), to: AshTypescript.SpecCache
 
-  @doc """
-  Returns the entrypoints from the AshApiSpec for the given OTP app.
-  """
-  @spec entrypoints(atom()) :: [AshApiSpec.Entrypoint.t()]
-  def entrypoints(otp_app) do
-    api_spec(otp_app).entrypoints
-  end
-
-  @doc """
-  Returns the AshApiSpec resource lookup map for the given OTP app.
-
-  Reads the pre-computed lookup from the `AshTypescript.AshApiSpec` module
-  (built at compile time). Defaults to `AshTypescript.ApiSpec`.
-  """
-  @spec resource_lookup(atom()) :: AshApiSpec.resource_lookup()
-  def resource_lookup(_otp_app) do
-    Spark.Dsl.Extension.get_persisted(ash_api_spec(), :resource_lookup)
-  end
-
-  @doc """
-  Returns the AshApiSpec action lookup map for the given OTP app.
-
-  Keyed by `{resource_module, action_name}` tuples.
-  """
-  @spec action_lookup(atom()) :: AshApiSpec.action_lookup()
-  def action_lookup(_otp_app) do
-    Spark.Dsl.Extension.get_persisted(ash_api_spec(), :action_lookup)
-  end
-
+  # Backward-compatible arities that ignore the otp_app parameter
+  def api_spec(_otp_app), do: api_spec()
+  def entrypoints(_otp_app), do: entrypoints()
+  def resource_lookup(_otp_app), do: resource_lookup()
+  def action_lookup(_otp_app), do: action_lookup()
 end
