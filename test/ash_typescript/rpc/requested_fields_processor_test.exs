@@ -149,8 +149,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
         @resource_lookups
         )
 
-      assert error ==
-               {:invalid_field_selection, :primitive_type, Ash.Type.UUID, [:id], []}
+      assert {:invalid_field_selection, :primitive_type, %AshApiSpec.Type{kind: :uuid}, [:id], []} =
+               error
     end
 
     test "processes fields for array of structs correctly" do

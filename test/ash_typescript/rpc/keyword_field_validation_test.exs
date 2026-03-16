@@ -70,8 +70,8 @@ defmodule AshTypescript.Rpc.KeywordFieldValidationTest do
 
       result = RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
 
-      # Field names are preserved as strings for reverse mapping lookup
-      assert {:error, {:unknown_field, "invalid_field", "field_constrained_type", [:options]}} =
+      # Field names are atomized via convert_to_field_atom before validation
+      assert {:error, {:unknown_field, :invalid_field, "field_constrained_type", [:options]}} =
                result
     end
 
