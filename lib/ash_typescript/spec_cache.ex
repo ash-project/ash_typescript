@@ -35,12 +35,26 @@ defmodule AshTypescript.SpecCache do
 
   @doc "Returns the cached resource lookup map."
   def resource_lookup do
-    :persistent_term.get(@resource_lookup_key, nil) || (build_and_cache() && :persistent_term.get(@resource_lookup_key))
+    case :persistent_term.get(@resource_lookup_key, nil) do
+      nil ->
+        build_and_cache()
+        :persistent_term.get(@resource_lookup_key)
+
+      lookup ->
+        lookup
+    end
   end
 
   @doc "Returns the cached action lookup map."
   def action_lookup do
-    :persistent_term.get(@action_lookup_key, nil) || (build_and_cache() && :persistent_term.get(@action_lookup_key))
+    case :persistent_term.get(@action_lookup_key, nil) do
+      nil ->
+        build_and_cache()
+        :persistent_term.get(@action_lookup_key)
+
+      lookup ->
+        lookup
+    end
   end
 
   @doc "Returns the cached entrypoints."

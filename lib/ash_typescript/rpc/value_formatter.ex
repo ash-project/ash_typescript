@@ -166,8 +166,6 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     _ -> false
   end
 
-  defp is_custom_type_with_map_storage?(_), do: false
-
   defp format_map_keys_only(map, formatter, :output) when is_map(map) do
     Enum.into(map, %{}, fn {key, value} ->
       string_key = FieldFormatter.format_field_name(key, formatter)
@@ -358,20 +356,11 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     # Convert tuple to map using field names as keys
     map_value =
       case fields do
-        # Spec fields: list of %{name, type, ...}
         [%{name: _} | _] ->
           fields
           |> Enum.with_index()
           |> Enum.into(%{}, fn {field, index} ->
             {field.name, elem(value, index)}
-          end)
-
-        # Raw constraint fields: keyword list [{name, config}]
-        [{name, _config} | _] when is_atom(name) ->
-          fields
-          |> Enum.with_index()
-          |> Enum.into(%{}, fn {{field_name, _field_spec}, index} ->
-            {field_name, elem(value, index)}
           end)
 
         _ ->
