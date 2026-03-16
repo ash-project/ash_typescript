@@ -23,11 +23,19 @@ defmodule AshApiSpec.Generator.Reachability do
   - A list of resource modules (traverses all fields, relationships, and public action arguments)
   - A list of `{resource_module, [action_name]}` tuples (only traverses arguments of specified actions)
 
+  ## Visibility Options
+
+    * `:include_private_attributes?` - Traverse private attributes (default: `false`)
+    * `:include_private_calculations?` - Traverse private calculations (default: `false`)
+    * `:include_private_aggregates?` - Traverse private aggregates (default: `false`)
+    * `:include_private_relationships?` - Traverse private relationships (default: `false`)
+    * `:include_private_arguments?` - Traverse private action arguments (default: `false`)
+
   Returns `{reachable_resources, standalone_types}` where both are lists of modules
   in depth-first discovery order (dependencies before dependents).
   """
-  @spec find_reachable([atom() | {atom(), [atom()]}]) :: {[atom()], [atom()]}
-  def find_reachable(resource_entries) do
+  @spec find_reachable([atom() | {atom(), [atom()]}], keyword()) :: {[atom()], [atom()]}
+  def find_reachable(resource_entries, visibility_opts \\ []) do
     {resources, types, _visited} =
       Enum.reduce(resource_entries, {[], [], MapSet.new()}, fn entry,
                                                                {resources, types, visited} ->
@@ -37,7 +45,12 @@ defmodule AshApiSpec.Generator.Reachability do
           {resources, types, visited}
         else
           {found_resources, found_types, new_visited} =
-            traverse_resource(resource, MapSet.put(visited, resource), action_names)
+            traverse_resource(
+              resource,
+              MapSet.put(visited, resource),
+              action_names,
+              visibility_opts
+            )
 
           {
             resources ++ found_resources ++ [resource],
@@ -61,22 +74,22 @@ defmodule AshApiSpec.Generator.Reachability do
   # ─────────────────────────────────────────────────────────────────
 
   # action_names: nil means "traverse all public actions", list means "only these actions"
-  defp traverse_resource(resource, visited, action_names) do
+  defp traverse_resource(resource, visited, action_names, visibility_opts) do
     if is_resource?(resource) do
-      # Traverse all public fields
-      fields =
-        resource
-        |> Ash.Resource.Info.fields([:attributes, :aggregates, :calculations])
-        |> Enum.filter(& &1.public?)
+      # Traverse fields (respecting visibility options)
+      fields = get_fields(resource, visibility_opts)
 
-      # Traverse all public relationships
-      relationships = Ash.Resource.Info.public_relationships(resource)
+      # Traverse relationships (respecting visibility options)
+      relationships = get_relationships(resource, visibility_opts)
 
       # Walk fields
       {field_resources, field_types, visited} =
         Enum.reduce(fields, {[], [], visited}, fn field, {resources, types, visited} ->
           {type, constraints} = get_field_type_and_constraints(field)
-          {found_r, found_t, new_visited} = traverse_type(type, constraints, visited)
+
+          {found_r, found_t, new_visited} =
+            traverse_type(type, constraints, visited, visibility_opts)
+
           {resources ++ found_r, types ++ found_t, new_visited}
         end)
 
@@ -93,7 +106,8 @@ defmodule AshApiSpec.Generator.Reachability do
             else
               new_visited = MapSet.put(visited, destination)
               # Discovered resources only traverse fields/relationships, not action arguments
-              {found_r, found_t, newer_visited} = traverse_resource(destination, new_visited, [])
+              {found_r, found_t, newer_visited} =
+                traverse_resource(destination, new_visited, [], visibility_opts)
 
               {
                 resources ++ found_r ++ [destination],
@@ -104,9 +118,16 @@ defmodule AshApiSpec.Generator.Reachability do
           end
         )
 
-      # Walk public action arguments
+      # Walk action arguments
       {arg_resources, arg_types, visited} =
-        traverse_action_arguments(resource, action_names, rel_resources, rel_types, visited)
+        traverse_action_arguments(
+          resource,
+          action_names,
+          rel_resources,
+          rel_types,
+          visited,
+          visibility_opts
+        )
 
       {arg_resources, arg_types, visited}
     else
@@ -114,15 +135,21 @@ defmodule AshApiSpec.Generator.Reachability do
     end
   end
 
-  defp traverse_action_arguments(resource, action_names, resources, types, visited) do
+  defp traverse_action_arguments(resource, action_names, resources, types, visited, visibility_opts) do
     actions = get_actions_to_traverse(resource, action_names)
+    include_private_args? = Keyword.get(visibility_opts, :include_private_arguments?, false)
 
     Enum.reduce(actions, {resources, types, visited}, fn action, {resources, types, visited} ->
-      action.arguments
-      |> Enum.filter(& &1.public?)
-      |> Enum.reduce({resources, types, visited}, fn arg, {resources, types, visited} ->
+      args =
+        if include_private_args? do
+          action.arguments
+        else
+          Enum.filter(action.arguments, & &1.public?)
+        end
+
+      Enum.reduce(args, {resources, types, visited}, fn arg, {resources, types, visited} ->
         {type, constraints} = {arg.type, arg.constraints || []}
-        {found_r, found_t, new_visited} = traverse_type(type, constraints, visited)
+        {found_r, found_t, new_visited} = traverse_type(type, constraints, visited, visibility_opts)
         {resources ++ found_r, types ++ found_t, new_visited}
       end)
     end)
@@ -147,7 +174,7 @@ defmodule AshApiSpec.Generator.Reachability do
   # Type Traversal
   # ─────────────────────────────────────────────────────────────────
 
-  defp traverse_type(type, constraints, visited) when is_list(constraints) do
+  defp traverse_type(type, constraints, visited, visibility_opts) when is_list(constraints) do
     {unwrapped_type, unwrapped_constraints} = TypeResolver.unwrap_new_type(type, constraints)
 
     # Detect named type modules: NewTypes (type differs after unwrap) or enums
@@ -160,7 +187,7 @@ defmodule AshApiSpec.Generator.Reachability do
       visited = if is_named, do: MapSet.put(visited, type), else: visited
 
       {found_r, found_t, visited} =
-        traverse_unwrapped_type(unwrapped_type, unwrapped_constraints, visited)
+        traverse_unwrapped_type(unwrapped_type, unwrapped_constraints, visited, visibility_opts)
 
       if is_named do
         {found_r, [type | found_t], visited}
@@ -170,23 +197,23 @@ defmodule AshApiSpec.Generator.Reachability do
     end
   end
 
-  defp traverse_type(_type, _constraints, visited) do
+  defp traverse_type(_type, _constraints, visited, _visibility_opts) do
     {[], [], visited}
   end
 
-  defp traverse_unwrapped_type(unwrapped_type, constraints, visited) do
+  defp traverse_unwrapped_type(unwrapped_type, constraints, visited, visibility_opts) do
     case unwrapped_type do
       {:array, inner_type} ->
         items_constraints = Keyword.get(constraints, :items, [])
-        traverse_type(inner_type, items_constraints, visited)
+        traverse_type(inner_type, items_constraints, visited, visibility_opts)
 
       Ash.Type.Struct ->
         instance_of = Keyword.get(constraints, :instance_of)
 
         if instance_of && is_resource?(instance_of) do
-          traverse_resource_ref(instance_of, visited)
+          traverse_resource_ref(instance_of, visited, visibility_opts)
         else
-          traverse_field_constraints(constraints, visited)
+          traverse_field_constraints(constraints, visited, visibility_opts)
         end
 
       Ash.Type.Union ->
@@ -199,7 +226,7 @@ defmodule AshApiSpec.Generator.Reachability do
 
           if member_type do
             {found_r, found_t, new_visited} =
-              traverse_type(member_type, member_constraints, visited)
+              traverse_type(member_type, member_constraints, visited, visibility_opts)
 
             {resources ++ found_r, types ++ found_t, new_visited}
           else
@@ -208,15 +235,15 @@ defmodule AshApiSpec.Generator.Reachability do
         end)
 
       type when type in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] ->
-        traverse_field_constraints(constraints, visited)
+        traverse_field_constraints(constraints, visited, visibility_opts)
 
       type when is_atom(type) ->
         cond do
           is_resource?(type) ->
-            traverse_resource_ref(type, visited)
+            traverse_resource_ref(type, visited, visibility_opts)
 
           Code.ensure_loaded?(type) == true ->
-            traverse_field_constraints(constraints, visited)
+            traverse_field_constraints(constraints, visited, visibility_opts)
 
           true ->
             {[], [], visited}
@@ -227,18 +254,20 @@ defmodule AshApiSpec.Generator.Reachability do
     end
   end
 
-  defp traverse_resource_ref(resource, visited) do
+  defp traverse_resource_ref(resource, visited, visibility_opts) do
     if MapSet.member?(visited, resource) do
       {[], [], visited}
     else
       new_visited = MapSet.put(visited, resource)
       # Discovered resources only traverse fields/relationships, not action arguments
-      {found_r, found_t, newer_visited} = traverse_resource(resource, new_visited, [])
+      {found_r, found_t, newer_visited} =
+        traverse_resource(resource, new_visited, [], visibility_opts)
+
       {found_r ++ [resource], found_t, newer_visited}
     end
   end
 
-  defp traverse_field_constraints(constraints, visited) do
+  defp traverse_field_constraints(constraints, visited, visibility_opts) do
     fields = Keyword.get(constraints, :fields)
 
     if fields && is_list(fields) do
@@ -248,7 +277,7 @@ defmodule AshApiSpec.Generator.Reachability do
 
         if field_type do
           {found_r, found_t, new_visited} =
-            traverse_type(field_type, field_constraints, visited)
+            traverse_type(field_type, field_constraints, visited, visibility_opts)
 
           {resources ++ found_r, types ++ found_t, new_visited}
         else
@@ -257,6 +286,54 @@ defmodule AshApiSpec.Generator.Reachability do
       end)
     else
       {[], [], visited}
+    end
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Visibility Helpers
+  # ─────────────────────────────────────────────────────────────────
+
+  defp get_fields(resource, visibility_opts) do
+    include_private_attrs? = Keyword.get(visibility_opts, :include_private_attributes?, false)
+    include_private_calcs? = Keyword.get(visibility_opts, :include_private_calculations?, false)
+    include_private_aggs? = Keyword.get(visibility_opts, :include_private_aggregates?, false)
+
+    # If all three are the same (all public or all include-private), fetch in one call
+    if include_private_attrs? == include_private_calcs? and
+         include_private_calcs? == include_private_aggs? do
+      if include_private_attrs? do
+        Ash.Resource.Info.fields(resource, [:attributes, :aggregates, :calculations])
+      else
+        resource
+        |> Ash.Resource.Info.fields([:attributes, :aggregates, :calculations])
+        |> Enum.filter(& &1.public?)
+      end
+    else
+      # Mix-and-match: fetch each kind separately
+      attrs =
+        if include_private_attrs?,
+          do: Ash.Resource.Info.attributes(resource),
+          else: Ash.Resource.Info.public_attributes(resource)
+
+      calcs =
+        if include_private_calcs?,
+          do: Ash.Resource.Info.calculations(resource),
+          else: Ash.Resource.Info.public_calculations(resource)
+
+      aggs =
+        if include_private_aggs?,
+          do: Ash.Resource.Info.aggregates(resource),
+          else: Ash.Resource.Info.public_aggregates(resource)
+
+      Enum.concat([attrs, calcs, aggs])
+    end
+  end
+
+  defp get_relationships(resource, visibility_opts) do
+    if Keyword.get(visibility_opts, :include_private_relationships?, false) do
+      Ash.Resource.Info.relationships(resource)
+    else
+      Ash.Resource.Info.public_relationships(resource)
     end
   end
 

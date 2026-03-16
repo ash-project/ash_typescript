@@ -12,16 +12,20 @@ defmodule AshApiSpec.Generator.ActionBuilder do
 
   @doc """
   Build an `%AshApiSpec.Action{}` from an Ash action struct.
+
+  ## Visibility Options
+
+    * `:include_private_arguments?` - Include private arguments (default: `false`)
   """
-  @spec build(atom(), struct()) :: Action.t()
-  def build(resource, action) do
+  @spec build(atom(), struct(), keyword()) :: Action.t()
+  def build(resource, action, visibility_opts \\ []) do
     %Action{
       name: action.name,
       type: action.type,
       description: Map.get(action, :description),
       primary?: Map.get(action, :primary?, false),
       get?: Map.get(action, :get?, false),
-      arguments: build_arguments(action),
+      arguments: build_arguments(action, visibility_opts),
       accept: build_accept(action),
       require_attributes: build_require_attributes(action),
       allow_nil_input: build_allow_nil_input(action),
@@ -35,10 +39,15 @@ defmodule AshApiSpec.Generator.ActionBuilder do
   # Arguments
   # ─────────────────────────────────────────────────────────────────
 
-  defp build_arguments(action) do
-    action.arguments
-    |> Enum.filter(& &1.public?)
-    |> Enum.map(&build_argument/1)
+  defp build_arguments(action, visibility_opts) do
+    args =
+      if Keyword.get(visibility_opts, :include_private_arguments?, false) do
+        action.arguments
+      else
+        Enum.filter(action.arguments, & &1.public?)
+      end
+
+    Enum.map(args, &build_argument/1)
   end
 
   defp build_argument(arg) do

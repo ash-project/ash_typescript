@@ -14,17 +14,24 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
   Build a `%AshApiSpec.Resource{}` from an Ash resource module.
 
   Resources are pure type/shape definitions — actions live in entrypoints.
+
+  ## Visibility Options
+
+    * `:include_private_attributes?` - Include private attributes (default: `false`)
+    * `:include_private_calculations?` - Include private calculations (default: `false`)
+    * `:include_private_aggregates?` - Include private aggregates (default: `false`)
+    * `:include_private_relationships?` - Include private relationships (default: `false`)
   """
-  @spec build(atom()) :: Resource.t()
-  def build(resource) do
+  @spec build(atom(), keyword()) :: Resource.t()
+  def build(resource, visibility_opts \\ []) do
     %Resource{
       name: resource_name(resource),
       module: resource,
       embedded?: Ash.Resource.Info.embedded?(resource),
       primary_key: Ash.Resource.Info.primary_key(resource),
       description: Ash.Resource.Info.description(resource),
-      fields: build_fields(resource),
-      relationships: build_relationships(resource),
+      fields: build_fields(resource, visibility_opts),
+      relationships: build_relationships(resource, visibility_opts),
       identities: build_identities(resource),
       multitenancy: build_multitenancy(resource)
     }
@@ -34,17 +41,17 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
   # Fields
   # ─────────────────────────────────────────────────────────────────
 
-  defp build_fields(resource) do
-    attributes = build_attributes(resource)
-    calculations = build_calculations(resource)
-    aggregates = build_aggregates(resource)
+  defp build_fields(resource, visibility_opts) do
+    attributes = build_attributes(resource, visibility_opts)
+    calculations = build_calculations(resource, visibility_opts)
+    aggregates = build_aggregates(resource, visibility_opts)
 
     Map.new(attributes ++ calculations ++ aggregates, fn field -> {field.name, field} end)
   end
 
-  defp build_attributes(resource) do
+  defp build_attributes(resource, visibility_opts) do
     resource
-    |> Ash.Resource.Info.public_attributes()
+    |> get_attributes(visibility_opts)
     |> Enum.map(fn attr ->
       %Field{
         name: attr.name,
@@ -63,9 +70,9 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
     end)
   end
 
-  defp build_calculations(resource) do
+  defp build_calculations(resource, visibility_opts) do
     resource
-    |> Ash.Resource.Info.public_calculations()
+    |> get_calculations(visibility_opts)
     |> Enum.map(fn calc ->
       arguments =
         Enum.map(calc.arguments, fn arg ->
@@ -97,9 +104,9 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
     end)
   end
 
-  defp build_aggregates(resource) do
+  defp build_aggregates(resource, visibility_opts) do
     resource
-    |> Ash.Resource.Info.public_aggregates()
+    |> get_aggregates(visibility_opts)
     |> Enum.map(fn aggregate ->
       {type, constraints} = resolve_aggregate_type(resource, aggregate)
 
@@ -145,9 +152,9 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
   # Relationships
   # ─────────────────────────────────────────────────────────────────
 
-  defp build_relationships(resource) do
+  defp build_relationships(resource, visibility_opts) do
     resource
-    |> Ash.Resource.Info.public_relationships()
+    |> get_relationships(visibility_opts)
     |> Map.new(fn rel ->
       relationship = %Relationship{
         name: rel.name,
@@ -200,6 +207,42 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
       }
     else
       nil
+    end
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Visibility Helpers
+  # ─────────────────────────────────────────────────────────────────
+
+  defp get_attributes(resource, visibility_opts) do
+    if Keyword.get(visibility_opts, :include_private_attributes?, false) do
+      Ash.Resource.Info.attributes(resource)
+    else
+      Ash.Resource.Info.public_attributes(resource)
+    end
+  end
+
+  defp get_calculations(resource, visibility_opts) do
+    if Keyword.get(visibility_opts, :include_private_calculations?, false) do
+      Ash.Resource.Info.calculations(resource)
+    else
+      Ash.Resource.Info.public_calculations(resource)
+    end
+  end
+
+  defp get_aggregates(resource, visibility_opts) do
+    if Keyword.get(visibility_opts, :include_private_aggregates?, false) do
+      Ash.Resource.Info.aggregates(resource)
+    else
+      Ash.Resource.Info.public_aggregates(resource)
+    end
+  end
+
+  defp get_relationships(resource, visibility_opts) do
+    if Keyword.get(visibility_opts, :include_private_relationships?, false) do
+      Ash.Resource.Info.relationships(resource)
+    else
+      Ash.Resource.Info.public_relationships(resource)
     end
   end
 

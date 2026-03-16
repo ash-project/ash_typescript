@@ -32,12 +32,32 @@ defmodule AshApiSpec.Generator do
           (with no action arguments traversed) so their field types and relationships
           are also discovered.
         * `:types` - List of Ash type modules to include as standalone types directly.
+
+  ## Visibility Options
+
+  By default, only items with `public?: true` are included. Set any of these to `true`
+  to also include private items:
+
+    * `:include_private_attributes?` - Include private attributes (default: `false`)
+    * `:include_private_calculations?` - Include private calculations (default: `false`)
+    * `:include_private_aggregates?` - Include private aggregates (default: `false`)
+    * `:include_private_relationships?` - Include private relationships (default: `false`)
+    * `:include_private_arguments?` - Include private action arguments (default: `false`)
   """
+  @visibility_keys [
+    :include_private_attributes?,
+    :include_private_calculations?,
+    :include_private_aggregates?,
+    :include_private_relationships?,
+    :include_private_arguments?
+  ]
+
   @spec generate(keyword()) :: {:ok, AshApiSpec.t()} | {:error, term()}
   def generate(opts) do
     otp_app = Keyword.fetch!(opts, :otp_app)
     action_filter = Keyword.get(opts, :action_entrypoints)
     overrides = Keyword.get(opts, :overrides, [])
+    visibility_opts = Keyword.take(opts, @visibility_keys)
 
     always_opts = Keyword.get(overrides, :always, [])
     always_resources = Keyword.get(always_opts, :resources, [])
@@ -67,7 +87,8 @@ defmodule AshApiSpec.Generator do
     reachability_entries = reachability_entries ++ always_resource_entries
 
     # Run reachability analysis
-    {reachable_resources, standalone_types} = Reachability.find_reachable(reachability_entries)
+    {reachable_resources, standalone_types} =
+      Reachability.find_reachable(reachability_entries, visibility_opts)
 
     # Merge always-resources and always-types into reachability results
     reachable_resources = Enum.uniq(reachable_resources ++ always_resources)
@@ -78,11 +99,11 @@ defmodule AshApiSpec.Generator do
       reachable_resources
       |> Enum.sort_by(&Module.split/1)
       |> Enum.map(fn resource ->
-        ResourceBuilder.build(resource)
+        ResourceBuilder.build(resource, visibility_opts)
       end)
 
     # Build entrypoints — one per normalized entry (not per unique action)
-    entrypoints = build_entrypoints(normalized_entries, resource_action_map)
+    entrypoints = build_entrypoints(normalized_entries, resource_action_map, visibility_opts)
 
     # Build standalone type specs (full definitions, not references)
     types =
@@ -163,7 +184,7 @@ defmodule AshApiSpec.Generator do
   # ─────────────────────────────────────────────────────────────────
 
   # When no filter: one entrypoint per action on each resource
-  defp build_entrypoints(nil, resource_action_map) do
+  defp build_entrypoints(nil, resource_action_map, visibility_opts) do
     resource_action_map
     |> Enum.flat_map(fn {resource, _action_names} ->
       resource
@@ -171,7 +192,7 @@ defmodule AshApiSpec.Generator do
       |> Enum.map(fn action ->
         %AshApiSpec.Entrypoint{
           resource: resource,
-          action: ActionBuilder.build(resource, action)
+          action: ActionBuilder.build(resource, action, visibility_opts)
         }
       end)
     end)
@@ -179,7 +200,7 @@ defmodule AshApiSpec.Generator do
   end
 
   # When filtered: one entrypoint per normalized entry (preserves duplicates with different configs)
-  defp build_entrypoints(normalized_entries, _resource_action_map) do
+  defp build_entrypoints(normalized_entries, _resource_action_map, visibility_opts) do
     normalized_entries
     |> Enum.flat_map(fn {resource, action_name, config} ->
       case Ash.Resource.Info.action(resource, action_name) do
@@ -190,7 +211,7 @@ defmodule AshApiSpec.Generator do
           [
             %AshApiSpec.Entrypoint{
               resource: resource,
-              action: ActionBuilder.build(resource, action),
+              action: ActionBuilder.build(resource, action, visibility_opts),
               config: config
             }
           ]
