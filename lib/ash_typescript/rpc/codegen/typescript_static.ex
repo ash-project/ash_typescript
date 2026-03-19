@@ -32,12 +32,21 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
   """
   def generate_imports(opts \\ []) do
     skip_zod = Keyword.get(opts, :skip_zod, false)
+    skip_valibot = Keyword.get(opts, :skip_valibot, false)
     output_file = Keyword.get(opts, :output_file)
 
     zod_import =
       if not skip_zod and AshTypescript.Rpc.generate_zod_schemas?() do
         zod_path = AshTypescript.Rpc.zod_import_path()
         "import { z } from \"#{zod_path}\";"
+      else
+        ""
+      end
+
+    valibot_import =
+      if not skip_valibot and AshTypescript.Rpc.generate_valibot_schemas?() do
+        valibot_path = AshTypescript.Rpc.valibot_import_path()
+        "import * as v from \"#{valibot_path}\";"
       else
         ""
       end
@@ -63,7 +72,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
       end
 
     all_imports =
-      [zod_import, phoenix_import, config_imports]
+      [zod_import, valibot_import, phoenix_import, config_imports]
       |> Enum.reject(&(&1 == ""))
       |> Enum.join("\n")
       |> case do
