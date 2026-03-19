@@ -15,6 +15,7 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
   use Mix.Task
 
   alias AshTypescript.Codegen.Orchestrator
+  alias AshTypescript.Rpc.Codegen.JsonManifestGenerator
   alias AshTypescript.Rpc.Codegen.ManifestGenerator
 
   def run(args) do
@@ -120,12 +121,9 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
           Enum.each(changed_files, fn {path, content} ->
             File.write!(path, content)
           end)
-
-          if manifest_path = AshTypescript.Rpc.manifest_file() do
-            manifest = ManifestGenerator.generate_manifest(otp_app)
-            File.write!(manifest_path, manifest)
-          end
         end
+
+        maybe_write_manifests(otp_app)
     end
   end
 
@@ -151,6 +149,25 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
       end
     else
       new_content
+    end
+  end
+
+  defp maybe_write_manifests(otp_app) do
+    if path = AshTypescript.Rpc.manifest_file() do
+      write_if_changed(path, ManifestGenerator.generate_manifest(otp_app))
+    end
+
+    if path = AshTypescript.Rpc.json_manifest_file() do
+      write_if_changed(path, JsonManifestGenerator.generate_json_manifest(otp_app))
+    end
+  end
+
+  defp write_if_changed(path, content) do
+    current = if File.exists?(path), do: File.read!(path), else: ""
+
+    if content != current do
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, content)
     end
   end
 end

@@ -81,6 +81,8 @@ SPDX-License-Identifier: MIT
 | **Channel Unsubscribe** | `unsubscribeOrgChannel(channel, refs)` | Cleanup all refs |
 | **Typed Channels** | `config :ash_typescript, typed_channels: [M]` | Module discovery |
 | **Channels Output** | `config :ash_typescript, typed_channels_output_file: "..."` | Channel functions file |
+| **JSON Manifest** | `config :ash_typescript, json_manifest_file: "manifest.json"` | Machine-readable action metadata |
+| **Manifest Filename** | `json_manifest_filename_format: :relative` | `:relative`, `:absolute`, or `:basename` |
 
 ## Action Feature Matrix
 
@@ -293,6 +295,34 @@ unsubscribeOrgChannel(channel, refs);
 - Publications need `returns:` option for typed payloads (warning if missing, falls back to `unknown`)
 - Channel types go in `ash_types.ts`; channel functions go in `typed_channels_output_file`
 
+## JSON Manifest (Third-Party Integrations)
+
+When `json_manifest_file` is configured, `mix ash_typescript.codegen` generates a machine-readable JSON manifest. This enables third-party packages (e.g., TanStack Query wrappers) to introspect the generated API without coupling to ash_typescript internals.
+
+```elixir
+config :ash_typescript,
+  json_manifest_file: "assets/js/ash_rpc_manifest.json",
+  json_manifest_filename_format: :relative  # :relative | :absolute | :basename
+```
+
+The manifest contains:
+- **`files`** — generated file locations with `importPath` (for TS imports, always relative, no `.ts`) and `filename` (format controlled by config)
+- **`actions`** — every RPC action with: `functionName`, `actionType` (read/create/update/destroy/action), `get`, `namespace`, `types` (result, fields, input, config, filterInput — only present when applicable), `pagination`, `enableFilter`, `enableSort`, `variants`/`variantNames`, `deprecated`, `see`, `input` (none/optional/required)
+- **`typedControllerRoutes`** — each route with: `functionName`, `method`, `path`, `pathParams`, `mutation`, `types`
+- **`version`** — semver string (currently `"1.0"`) for consumer compatibility
+
+### Consumer Example
+
+```typescript
+import manifest from "./ash_rpc_manifest.json";
+
+for (const action of manifest.actions) {
+  const isQuery = action.actionType === "read";
+  // Import from manifest.files.rpc.importPath
+  // Generate queryOptions/mutationOptions wrappers
+}
+```
+
 ## Common Gotchas
 
 | Error Pattern | Fix |
@@ -350,6 +380,8 @@ config :ash_typescript,
   add_ash_internals_to_jsdoc: false,
   add_ash_internals_to_manifest: false,
   manifest_file: nil,
+  json_manifest_file: nil,              # Machine-readable JSON manifest for third-party tools
+  json_manifest_filename_format: :relative,  # :relative | :absolute | :basename
   source_path_prefix: nil,  # For monorepos: "backend"
   # Warnings
   warn_on_missing_rpc_config: true,

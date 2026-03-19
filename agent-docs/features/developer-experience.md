@@ -243,7 +243,146 @@ Output:
  */
 ```
 
-## Manifest Generation
+## JSON Manifest (Machine-Readable)
+
+### Purpose
+
+Generate a machine-readable JSON manifest of all RPC actions and their metadata. This enables third-party packages (e.g., TanStack Query integrations, SWR wrappers, custom codegen tools) to introspect the generated API surface and build typed wrappers without coupling to ash_typescript internals.
+
+### Configuration
+
+```elixir
+config :ash_typescript,
+  json_manifest_file: "./assets/js/ash_rpc_manifest.json",
+  json_manifest_filename_format: :relative  # :relative (default) | :absolute | :basename
+```
+
+### Filename Format Options
+
+| Format | Example | Use Case |
+|--------|---------|----------|
+| `:relative` | `./generated.ts` | Default. Path relative to manifest file location |
+| `:absolute` | `/home/user/app/assets/js/generated.ts` | CI/tooling that needs full paths |
+| `:basename` | `generated.ts` | When only the filename matters |
+
+Note: `importPath` (used for TypeScript imports) is always relative to the manifest, regardless of this setting.
+
+### Schema
+
+The manifest includes a `version` field (currently `"1.0"`) using semver so consumers can detect breaking changes. Additive changes bump the minor version.
+
+### Generated Structure
+
+```json
+{
+  "$schema": "https://github.com/ash-project/ash_typescript/blob/main/json-manifest-schema.json",
+  "version": "1.0",
+  "generatedAt": "2026-03-16",
+  "files": {
+    "rpc": { "importPath": "./generated", "filename": "./generated.ts" },
+    "types": { "importPath": "./ash_types", "filename": "./ash_types.ts" },
+    "zod": { "importPath": "./ash_zod", "filename": "./ash_zod.ts" },
+    "routes": { "importPath": "./routes", "filename": "./routes.ts" },
+    "typedChannels": { "importPath": "./ash_typed_channels", "filename": "./ash_typed_channels.ts" }
+  },
+  "actions": [
+    {
+      "functionName": "listTodos",
+      "actionType": "read",
+      "get": false,
+      "namespace": "todos",
+      "resource": "Todo",
+      "description": "Read Todo records",
+      "deprecated": false,
+      "see": ["createTodo"],
+      "input": "optional",
+      "types": {
+        "result": "ListTodosResult",
+        "fields": "ListTodosFields",
+        "inferResult": "InferListTodosResult",
+        "input": "ListTodosInput",
+        "config": "ListTodosConfig",
+        "filterInput": "TodoFilterInput"
+      },
+      "pagination": {
+        "supported": true,
+        "required": false,
+        "offset": true,
+        "keyset": true,
+        "get": false
+      },
+      "enableFilter": true,
+      "enableSort": true,
+      "variants": { "validation": true, "zod": true, "channel": true },
+      "variantNames": {
+        "validation": "validateListTodos",
+        "zod": "listTodosZodSchema",
+        "channel": "listTodosChannel"
+      }
+    }
+  ],
+  "typedControllerRoutes": [
+    {
+      "functionName": "login",
+      "method": "POST",
+      "path": "/auth/login",
+      "pathParams": [],
+      "mutation": true,
+      "types": { "input": "LoginInput", "zod": "loginZodSchema" }
+    }
+  ]
+}
+```
+
+### Action Entry Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `functionName` | string | camelCase function name to import |
+| `actionType` | string | `"read"`, `"create"`, `"update"`, `"destroy"`, or `"action"` |
+| `get` | boolean | `true` for single-record retrieval actions |
+| `namespace` | string\|null | Namespace group if configured |
+| `resource` | string | Short resource name (e.g., `"Todo"`) |
+| `description` | string | Human-readable description |
+| `deprecated` | false\|true\|string | Deprecation status/message |
+| `see` | string[] | Related function names |
+| `input` | string | `"none"`, `"optional"`, or `"required"` |
+| `types` | object | TypeScript type names (only keys that apply are present) |
+| `types.result` | string | Always present. Success/error wrapper type |
+| `types.fields` | string | Field selection type. Absent for destroy actions |
+| `types.inferResult` | string | Inferred result type. Absent for destroy actions |
+| `types.input` | string | Input argument type. Absent when no arguments |
+| `types.config` | string | Pagination config type. Only for optional-pagination reads |
+| `types.filterInput` | string | Filter type (per-resource). Only for reads with filtering enabled |
+| `pagination` | object | Pagination capabilities |
+| `enableFilter` | boolean | Whether client-side filtering is enabled |
+| `enableSort` | boolean | Whether client-side sorting is enabled |
+| `variants` | object | Which variant functions exist (global config flags) |
+| `variantNames` | object | Concrete variant function/schema names |
+
+### Files Section
+
+Each entry in `files` provides two paths:
+- `importPath` — relative to the manifest, no `.ts` extension (use directly in TypeScript imports)
+- `filename` — format controlled by `json_manifest_filename_format` config
+
+Only files that are actually generated appear (e.g., `zod` is absent if Zod schemas are disabled).
+
+### Consumer Example (TanStack Query)
+
+```typescript
+import manifest from "./ash_rpc_manifest.json";
+
+// A codegen tool could generate:
+for (const action of manifest.actions) {
+  const isQuery = action.actionType === "read";
+  // Generate queryOptions/mutationOptions wrapper
+  // Import function from manifest.files.rpc.importPath
+  // Import types from manifest.files.types.importPath
+}
+```
+
+## Markdown Manifest
 
 ### Purpose
 
@@ -316,9 +455,13 @@ config :ash_typescript,
   add_ash_internals_to_jsdoc: false,  # Show Ash module/action details in JSDoc
   source_path_prefix: nil,            # Prefix for source file paths (monorepos)
 
-  # Manifest configuration
+  # Markdown manifest configuration
   manifest_file: nil,                 # Path to generate manifest (nil = disabled)
   add_ash_internals_to_manifest: false,  # Show Ash details in manifest
+
+  # JSON manifest configuration
+  json_manifest_file: nil,            # Path to generate JSON manifest (nil = disabled)
+  json_manifest_filename_format: :relative,  # :relative | :absolute | :basename
 
   # Namespace configuration
   enable_namespace_files: false,      # Split output by namespace
@@ -351,10 +494,12 @@ config :ash_typescript,
 | File | Purpose |
 |------|---------|
 | `lib/ash_typescript/rpc/codegen/function_generators/jsdoc_generator.ex` | JSDoc comment generation |
-| `lib/ash_typescript/rpc/codegen/manifest_generator.ex` | Manifest file generation |
+| `lib/ash_typescript/rpc/codegen/manifest_generator.ex` | Markdown manifest generation |
+| `lib/ash_typescript/rpc/codegen/json_manifest_generator.ex` | JSON manifest generation |
 | `lib/ash_typescript/rpc/codegen/rpc_config_collector.ex` | Namespace resolution and action collection |
-| `lib/ash_typescript/rpc.ex` | DSL definitions for namespace, description, see, deprecated |
+| `lib/ash_typescript/rpc.ex` | DSL definitions and config accessors (`json_manifest_file`, `json_manifest_filename_format`) |
 | `test/ash_typescript/rpc/namespace_test.exs` | Namespace and JSDoc tests |
+| `test/ash_typescript/rpc/json_manifest_generator_test.exs` | JSON manifest tests |
 
 ## Testing
 
