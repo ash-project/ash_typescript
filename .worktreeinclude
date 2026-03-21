@@ -1,0 +1,9 @@
+# Gitignored files to copy into new worktrees (speeds up cold start)
+# Uses gitignore-style patterns
+
+# Elixir compiled artifacts and dependencies
+/_build/
+/deps/
+
+# Frontend dependencies (TypeScript validation)
+/test/ts/node_modules/

@@ -1,0 +1,8 @@
+# Worktrunk project configuration for parallel dev environments
+# Docs: https://worktrunk.dev
+
+[post-create]
+# Copy build caches and dependencies from primary worktree (blocks until done)
+copy = "wt step copy-ignored"
+# Install deps and write sandboxed Claude settings
+setup = "{{ primary_worktree_path }}/.config/worktree-setup.sh"
