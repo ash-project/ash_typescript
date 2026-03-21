@@ -368,6 +368,9 @@ mix credo --strict                   # Linting
 | "Duplicate event names found in typed_channel" | Same event name across resources in one channel | Use unique event names per channel |
 | "Payload type name conflict" | Same event name across different channels maps to different TS types | Rename events or ensure same `returns` type |
 | Channel `unknown` payload type | Publication missing `returns` option | Add `returns: :some_type` to the publication |
+| "not `public?`" error on RPC action | Action has `public? false` | Set `public? true` on the action or remove it from `typescript_rpc` |
+| "not `public?`" error on read_action | `read_action` has `public? false` | Set `public? true` on the read action |
+| "not `public?`" error on relationship read action | Relationship destination's read action has `public? false` | Set `public? true` on the destination's read action |
 
 ## RPC Resource Warnings
 
