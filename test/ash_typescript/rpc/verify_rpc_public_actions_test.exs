@@ -84,7 +84,8 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelSourcePublicDest do
   end
 
   relationships do
-    belongs_to :dest, AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelDestPublicRead, public?: true
+    belongs_to :dest, AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelDestPublicRead,
+      public?: true
   end
 
   actions do
@@ -121,7 +122,8 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelSourcePlainDest do
   end
 
   relationships do
-    belongs_to :plain, AshTypescript.Rpc.VerifyRpcPublicActionsTest.PlainDestination, public?: true
+    belongs_to :plain, AshTypescript.Rpc.VerifyRpcPublicActionsTest.PlainDestination,
+      public?: true
   end
 
   actions do
