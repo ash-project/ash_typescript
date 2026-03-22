@@ -32,6 +32,7 @@ test/ts/generated_routes.ts
 test/ts/generated_typed_channels.ts
 test/ts/ash_types.ts
 test/ts/ash_zod.ts
+test/ts/ash_rpc_manifest.json
 test/ts/todos.ts
 test/ts/users.ts
 test/ts/account.ts
