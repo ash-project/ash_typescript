@@ -9,7 +9,7 @@ defmodule AshTypescript.Test.ChannelTrackerEntry do
 
   Has a belongs_to :author for nested relationship traversal tests.
   """
-  use Ash.Resource, domain: nil
+  use Ash.Resource, domain: nil, data_layer: Ash.DataLayer.Ets
 
   attributes do
     uuid_primary_key :id

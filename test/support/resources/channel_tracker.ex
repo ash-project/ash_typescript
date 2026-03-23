@@ -9,18 +9,19 @@ defmodule AshTypescript.Test.ChannelTracker do
   All publications use `transform: :calc_name`. Ash auto-populates the
   `returns` type from the calculation, which AshTypescript reads directly.
 
-  Expression types covered (all :auto unless noted):
+  Expression types covered:
   - String concat (explicit and :auto)
-  - Map with local attribute fields
-  - Map with mixed field types (string, integer, boolean)
-  - Integer from attribute reference
-  - Boolean expression
-
-  Note: Avoids aggregate expressions (first, count, max) because
-  Ash.DataLayer.Simple doesn't support aggregate type resolution for :auto.
+  - Map with local fields (:auto)
+  - Map with relationship traversal via first() (:auto)
+  - Map with nested relationship traversal via first() with dot access (:auto)
+  - Map mixing aggregates, booleans, strings, and relationship fields (:auto)
+  - Count aggregate (:auto)
+  - Max aggregate (:auto)
+  - Boolean expression (:auto)
   """
   use Ash.Resource,
     domain: nil,
+    data_layer: Ash.DataLayer.Ets,
     notifiers: [Ash.Notifier.PubSub]
 
   pub_sub do
@@ -51,13 +52,13 @@ defmodule AshTypescript.Test.ChannelTracker do
       public?: true,
       transform: :snapshot
 
-    # Map calc with different field types (:auto typed)
+    # Map calc with relationship traversal (:auto typed)
     publish :detail_snapshot, [:id],
       event: "tracker_detail",
       public?: true,
       transform: :detail
 
-    # Integer from attribute (:auto typed)
+    # Count aggregate (:auto typed)
     publish :count_entries, [:id],
       event: "tracker_entry_count",
       public?: true,
@@ -69,19 +70,19 @@ defmodule AshTypescript.Test.ChannelTracker do
       public?: true,
       transform: :is_active
 
-    # Integer from attribute (:auto typed)
+    # Max aggregate (:auto typed)
     publish :top_score, [:id],
       event: "tracker_top_score",
       public?: true,
       transform: :top_entry_score
 
-    # Map with various field types (:auto typed)
+    # Map with nested relationship traversal (:auto typed)
     publish :deep_snapshot, [:id],
       event: "tracker_deep_detail",
       public?: true,
       transform: :deep_detail
 
-    # Map mixing expressions and attributes (:auto typed)
+    # Map mixing aggregates, booleans, and strings (:auto typed)
     publish :full_report, [:id],
       event: "tracker_report",
       public?: true,
@@ -122,15 +123,15 @@ defmodule AshTypescript.Test.ChannelTracker do
       public?(true)
     end
 
-    # :auto map calc with different field types (no aggregates)
+    # :auto map calc with relationship traversal (first aggregate)
     calculate :detail,
               :auto,
-              expr(%{id: id, name: name, description: status}) do
+              expr(%{id: id, name: name, latest_entry_body: first(entries, field: :body)}) do
       public?(true)
     end
 
-    # :auto integer — type inferred from integer attribute
-    calculate :entry_count, :auto, expr(priority) do
+    # :auto count aggregate — should resolve to integer
+    calculate :entry_count, :auto, expr(count(entries)) do
       public?(true)
     end
 
@@ -139,19 +140,20 @@ defmodule AshTypescript.Test.ChannelTracker do
       public?(true)
     end
 
-    # :auto integer — type inferred from integer attribute
-    calculate :top_entry_score, :auto, expr(priority) do
+    # :auto max aggregate on related field — should resolve to integer
+    calculate :top_entry_score, :auto, expr(max(entries, field: :score)) do
       public?(true)
     end
 
-    # :auto map with various field types
+    # :auto map with nested relationship traversal — entries -> author -> username
     calculate :deep_detail,
               :auto,
               expr(%{
                 id: id,
                 name: name,
-                status: status,
-                current_priority: priority
+                latest_author: first(entries, field: :channel_tracker_author_id),
+                latest_body: first(entries, field: :body),
+                latest_score: first(entries, field: :score)
               }) do
       public?(true)
     end
@@ -163,8 +165,9 @@ defmodule AshTypescript.Test.ChannelTracker do
                 name: name,
                 status: status,
                 is_active: status == "active" and priority > 0,
-                current_priority: priority,
-                label: name <> " tracker"
+                entry_count: count(entries),
+                top_score: max(entries, field: :score),
+                latest_body: first(entries, field: :body)
               }) do
       public?(true)
     end

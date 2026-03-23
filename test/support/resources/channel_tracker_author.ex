@@ -6,7 +6,7 @@ defmodule AshTypescript.Test.ChannelTrackerAuthor do
   @moduledoc """
   Author resource for nested relationship traversal testing in :auto calculations.
   """
-  use Ash.Resource, domain: nil
+  use Ash.Resource, domain: nil, data_layer: Ash.DataLayer.Ets
 
   attributes do
     uuid_primary_key :id
