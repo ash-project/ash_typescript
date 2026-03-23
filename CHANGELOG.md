@@ -11,6 +11,65 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.16.0](https://github.com/ash-project/ash_typescript/compare/v0.15.3...v0.16.0) (2026-03-23)
+
+
+### Breaking Changes:
+
+import_into_generated and typed_controller_import_into_generated file paths are now project-root-relative (e.g., "assets/js/hooks.ts") instead of JS-relative import paths (e.g., "./hooks")
+
+### Features:
+
+* codegen: exclude calculations with field?: false from generated types by [@Torkan](https://github.com/Torkan)
+
+* typed-channel: auto-derive payload types from calculation transforms by [@Torkan](https://github.com/Torkan)
+
+* rpc: verify actions and relationship read actions are public? by [@Torkan](https://github.com/Torkan)
+
+* rpc: add machine-readable JSON manifest generation by [@Torkan](https://github.com/Torkan)
+
+* typed-channel: detect payload type name conflicts across channels by [@Torkan](https://github.com/Torkan)
+
+* typed-channel: add config accessors and orchestrator integration by [@Torkan](https://github.com/Torkan)
+
+* typed-channel: add DSL, verifier, and codegen for typed channel event subscriptions by [@Torkan](https://github.com/Torkan)
+
+* add typed_controller_base_path config for route URL prefixing by [@Torkan](https://github.com/Torkan)
+
+* add HTTP verb shortcuts and positional method arg to typed controller DSL by [@Torkan](https://github.com/Torkan)
+
+* add controller namespace support and simplify codegen orchestration by [@Torkan](https://github.com/Torkan)
+
+* add multi-file codegen architecture and typed controller enhancements by [@Torkan](https://github.com/Torkan)
+
+### Bug Fixes:
+
+* test: use domain: nil for inline test resource not registered in a domain by [@Torkan](https://github.com/Torkan)
+
+* bump minimum ash dep to >= 3.21.1 for field? support by [@Torkan](https://github.com/Torkan)
+
+* rpc: unwrap Reactor.Error.Invalid.RunStepError to inner error by [@Torkan](https://github.com/Torkan)
+
+* test: replace length/1 comparisons with empty list checks by [@Torkan](https://github.com/Torkan)
+
+* test: use CodegenTestHelper instead of removed Rpc.Codegen API by [@Torkan](https://github.com/Torkan)
+
+* codegen: generate Array<Record<string, any>> for {:array, :map} return types by [@barnabasJ](https://github.com/barnabasJ) [(#56)](https://github.com/ash-project/ash_typescript/pull/56)
+
+* codegen: prefix unused actionName param with underscore when hooks disabled by [@Torkan](https://github.com/Torkan)
+
+* test: add returns type to item_deleted publication to fix compile warning by [@Torkan](https://github.com/Torkan)
+
+* codegen: resolve relative import paths correctly for parent directories by [@Torkan](https://github.com/Torkan)
+
+* rpc: apply output formatter to channel field in channel functions by [@Torkan](https://github.com/Torkan)
+
+* test: redirect typed_channels_output_file to tmp dir in codegen tests by [@Torkan](https://github.com/Torkan)
+
+* typed-controller: default route method to nil instead of :get by [@Torkan](https://github.com/Torkan)
+
+* use field formatter for channel handler fields by [@Torkan](https://github.com/Torkan)
+
 ## [v0.15.3](https://github.com/ash-project/ash_typescript/compare/v0.15.2...v0.15.3) (2026-02-21)
 
 
