@@ -5,7 +5,7 @@ SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash
 SPDX-License-Identifier: MIT
 -->
 
-# Typed Channel Event Subscriptions
+# Typed Channels
 
 AshTypescript can generate typed TypeScript event subscriptions from Ash PubSub publications. This enables type-safe handling of server-pushed events over Phoenix channels.
 

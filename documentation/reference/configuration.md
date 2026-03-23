@@ -309,7 +309,7 @@ config :ash_typescript,
 
 Channel types (branded types, payload aliases, event maps) are appended to the shared types file (`ash_types.ts`). Channel functions (factory, subscription helpers) go into `typed_channels_output_file` and import their types from `ash_types.ts`.
 
-See [Typed Channels](../features/typed-channels.md) for complete documentation.
+See [Typed Channels](../guides/typed-channels.md) for complete documentation.
 
 ## Typed Controller Configuration
 
@@ -376,7 +376,7 @@ For in-depth configuration guides, see:
 - [Developer Experience](../features/developer-experience.md) - Namespaces, JSDoc, and manifest generation
 - [Lifecycle Hooks](../features/lifecycle-hooks.md) - HTTP and channel lifecycle hooks
 - [Phoenix Channels](../features/phoenix-channels.md) - Channel-based RPC configuration
-- [Typed Channels](../features/typed-channels.md) - Typed event subscriptions from PubSub
+- [Typed Channels](../guides/typed-channels.md) - Typed event subscriptions from PubSub
 - [Multitenancy](../features/multitenancy.md) - Tenant parameter configuration
 - [Form Validation](../guides/form-validation.md) - Zod and Valibot schema configuration
 - [Typed Controllers](../guides/typed-controllers.md) - Controller route helpers

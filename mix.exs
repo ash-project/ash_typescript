@@ -114,11 +114,11 @@ defmodule AshTypescript.MixProject do
         "documentation/guides/error-handling.md",
         "documentation/guides/form-validation.md",
         "documentation/guides/typed-controllers.md",
+        "documentation/guides/typed-channels.md",
 
         # Features
         "documentation/features/rpc-action-options.md",
         "documentation/features/phoenix-channels.md",
-        "documentation/features/typed-channels.md",
         "documentation/features/lifecycle-hooks.md",
         "documentation/features/multitenancy.md",
         "documentation/features/action-metadata.md",
@@ -141,6 +141,8 @@ defmodule AshTypescript.MixProject do
          search_data: Spark.Docs.search_data_for(AshTypescript.Rpc)},
         {"documentation/dsls/DSL-AshTypescript.Resource.md",
          search_data: Spark.Docs.search_data_for(AshTypescript.Resource)},
+        "documentation/dsls/DSL-AshTypescript.TypedController.md",
+        "documentation/dsls/DSL-AshTypescript.TypedChannel.md",
 
         # About
         "CHANGELOG.md"
