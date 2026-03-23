@@ -377,6 +377,12 @@ defmodule AshTypescript.Test.Todo do
       public? true
     end
 
+    # Calculation with field?: false should be excluded from generated TypeScript types
+    calculate :internal_score, :integer, expr(1) do
+      public? true
+      field? false
+    end
+
     # Calculation with arguments that use types requiring type aliases
     # This tests that calculation argument types are discovered for type alias generation
     calculate :filtered_data, :string, expr("filtered") do

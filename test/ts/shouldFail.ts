@@ -21,6 +21,7 @@ import "./shouldFail/noFieldsReadActions";
 import "./shouldFail/loadRestrictions";
 import "./shouldFail/firstAggregates";
 import "./shouldFail/invalidTypedChannelUsage";
+import "./shouldFail/nonFieldCalculations";
 
 // Import Zod schema validation failure tests
 import "./zod/shouldFail/invalidZodUsage";
