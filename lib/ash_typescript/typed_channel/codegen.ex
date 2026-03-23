@@ -7,7 +7,8 @@ defmodule AshTypescript.TypedChannel.Codegen do
   Generates TypeScript types and functions for typed channel event subscriptions.
 
   For each declared event in a typed channel module, introspects the matching
-  Ash PubSub publication's `returns` type and maps it to a TypeScript type.
+  Ash PubSub publication's `returns` type (auto-derived via `transform :calc`
+  or explicitly set) and maps it to a TypeScript type.
 
   ## Generated Output
 

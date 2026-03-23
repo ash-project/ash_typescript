@@ -20,9 +20,19 @@ Use `AshTypescript.TypedChannel` when your application pushes events to clients 
 | Client sends requests over WebSocket | [Channel-based RPC](phoenix-channels.md) |
 | Controller-style routes (Inertia, redirects) | [Typed Controllers](../guides/typed-controllers.md) |
 
+## Requirements
+
+Typed channels require **Ash >= 3.17.1**, which introduced `returns`, `public?`, and calculation `transform` support on PubSub publications. **Ash >= 3.21.1 is recommended**, as it added support for `:auto`-typed calculations as transforms, allowing Ash to automatically derive the `returns` type from the calculation expression.
+
 ## Quick Start
 
-### 1. Add PubSub publications with `returns` types
+### 1. Add PubSub publications with calculation transforms
+
+The recommended way to get typed payloads is to use `transform :some_calc` on
+publications, pointing to a resource calculation with `:auto` typing. Ash
+automatically derives the `returns` type from the calculation expression, so
+AshTypescript gets the type information it needs without manual `returns`
+declarations.
 
 ```elixir
 defmodule MyApp.Post do
@@ -37,26 +47,45 @@ defmodule MyApp.Post do
     publish :create, [:id],
       event: "post_created",
       public?: true,
-      returns: :map,
-      constraints: [
-        fields: [
-          id: [type: :uuid, allow_nil?: false],
-          title: [type: :string, allow_nil?: true]
-        ]
-      ],
-      transform: fn notification ->
-        %{id: notification.data.id, title: notification.data.title}
-      end
+      transform: :post_summary
 
     publish :update, [:id],
       event: "post_updated",
       public?: true,
-      returns: :string,
-      transform: fn notification -> notification.data.title end
+      transform: :post_title
+  end
+
+  calculations do
+    calculate :post_summary, :auto, expr(%{id: id, title: title}) do
+      public? true
+    end
+
+    calculate :post_title, :auto, expr(title) do
+      public? true
+    end
   end
 
   # ... attributes, actions, etc.
 end
+```
+
+You can also use explicit `returns` with an anonymous function transform, but
+this requires manually keeping the type and transform in sync:
+
+```elixir
+publish :create, [:id],
+  event: "post_created",
+  public?: true,
+  returns: :map,
+  constraints: [
+    fields: [
+      id: [type: :uuid, allow_nil?: false],
+      title: [type: :string, allow_nil?: true]
+    ]
+  ],
+  transform: fn notification ->
+    %{id: notification.data.id, title: notification.data.title}
+  end
 ```
 
 ### 2. Define your channel
@@ -274,17 +303,17 @@ Wildcard topics require a `suffix` parameter that replaces the `*`. The factory 
 
 ## Payload Type Resolution
 
-The TypeScript payload type is derived from the publication's `returns` option:
+The TypeScript payload type is derived from the publication's `returns` type. When using `transform :some_calc`, Ash auto-populates `returns` from the calculation's type. You can also set `returns` explicitly.
 
-| `returns` Value | TypeScript Type |
-|----------------|-----------------|
-| `:string` | `string` |
-| `:integer` | `number` |
-| `:boolean` | `boolean` |
-| `:uuid` | `UUID` |
-| `:utc_datetime` | `UtcDateTime` |
-| `:map` with `fields` | `{fieldName: type, ...}` |
-| Not set | `unknown` |
+| `returns` Value | TypeScript Type | How to Get It |
+|----------------|-----------------|---------------|
+| `:string` | `string` | `calculate :my_calc, :auto, expr(name)` or explicit `returns: :string` |
+| `:integer` | `number` | `calculate :my_calc, :auto, expr(priority)` or explicit `returns: :integer` |
+| `:boolean` | `boolean` | `calculate :my_calc, :auto, expr(active == true)` or explicit `returns: :boolean` |
+| `:uuid` | `UUID` | `calculate :my_calc, :auto, expr(id)` or explicit `returns: :uuid` |
+| `:utc_datetime` | `UtcDateTime` | Explicit `returns: :utc_datetime` |
+| `:map` with `fields` | `{fieldName: type, ...}` | `calculate :my_calc, :auto, expr(%{id: id, name: name})` or explicit `returns: :map` with `constraints` |
+| Not set | `unknown` | Missing `transform :calc` and no explicit `returns` |
 
 Map types with `:fields` constraints generate plain object types without the `__type`/`__primitiveFields` metadata used by the RPC field-selection system.
 
@@ -292,7 +321,7 @@ Map types with `:fields` constraints generate plain object types without the `__
 
 When multiple channels are configured, payload type aliases are deduplicated by name. If two channels both subscribe to `article_published` from the same resource, only one `ArticlePublishedPayload` type is emitted in `ash_types.ts`.
 
-If two different resources declare publications with the same event name but different `returns` types and those resources appear in separate channels, codegen will raise an error:
+If two different resources declare publications with the same event name but different `returns` types (whether auto-derived or explicit) and those resources appear in separate channels, codegen will raise an error:
 
 ```
 Payload type name conflict detected across typed channels.
@@ -355,7 +384,7 @@ The DSL verifier checks your configuration at compile time:
 | Event exists | Error | Declared event doesn't match any publication on the resource |
 | Unique events | Error | Same event name used across multiple resources in one channel |
 | `public?: true` | Warning | Publication not marked as public |
-| `returns` set | Warning | Publication missing `returns` (payload type becomes `unknown`) |
+| `returns` set | Warning | Publication missing `returns` — no `transform :calc` or explicit `returns:` (payload type becomes `unknown`) |
 
 ## Configuration
 

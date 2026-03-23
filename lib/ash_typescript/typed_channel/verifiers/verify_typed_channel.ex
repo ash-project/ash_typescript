@@ -10,7 +10,8 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
   1. All declared events exist as publications on their respective resources.
   2. Event names are unique across all resources in the channel.
   3. Publications are marked `public?: true` (warning if not).
-  4. Publications have `returns` set (warning if not — TypeScript type falls back to `unknown`).
+  4. Publications have `returns` set — either auto-derived via `transform :calc`
+     or explicitly declared (warning if not — TypeScript type falls back to `unknown`).
   """
 
   use Spark.Dsl.Verifier
@@ -105,7 +106,8 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
             IO.warn(
               "Publication #{inspect(pub.event)} on #{inspect(resource_module)} does not have " <>
                 "`returns` set. The TypeScript payload type will be `unknown`. " <>
-                "Add `returns: SomeAshType` to get a typed payload."
+                "Use `transform :some_calc` with an `:auto`-typed calculation (recommended), " <>
+                "or add explicit `returns: SomeAshType` to get a typed payload."
             )
           end
         end
