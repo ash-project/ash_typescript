@@ -345,4 +345,59 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       assert {:unknown_field, :unknown_user_field, User, [:user]} = error_response
     end
   end
+
+  describe "Reactor.Error.Invalid.RunStepError handling" do
+    test "delegates to inner Ash error" do
+      inner_error = Ash.Error.Changes.InvalidChanges.exception(message: "bad input")
+
+      run_step_error =
+        Reactor.Error.Invalid.RunStepError.exception(
+          error: inner_error,
+          step: %Reactor.Step{name: :test_step}
+        )
+
+      result = ErrorBuilder.build_error_response(run_step_error)
+
+      assert is_list(result)
+      assert [error] = result
+      assert error.type == "invalid_changes"
+      assert error.message == "bad input"
+    end
+
+    test "delegates to inner Ash error class wrapper" do
+      inner_error =
+        Ash.Error.Changes.InvalidChanges.exception(message: "wrapped error")
+        |> Ash.Error.to_error_class()
+
+      run_step_error =
+        Reactor.Error.Invalid.RunStepError.exception(
+          error: inner_error,
+          step: %Reactor.Step{name: :test_step}
+        )
+
+      result = ErrorBuilder.build_error_response(run_step_error)
+
+      assert is_list(result)
+      assert [error] = result
+      assert error.type == "invalid_changes"
+      assert error.message == "wrapped error"
+    end
+
+    @tag capture_log: true
+    test "falls back to generic error for unknown inner errors" do
+      inner_error = RuntimeError.exception("something unexpected")
+
+      run_step_error =
+        Reactor.Error.Invalid.RunStepError.exception(
+          error: inner_error,
+          step: %Reactor.Step{name: :test_step}
+        )
+
+      result = ErrorBuilder.build_error_response(run_step_error)
+
+      assert is_list(result)
+      assert [error] = result
+      assert error.type == "unknown_error"
+    end
+  end
 end
