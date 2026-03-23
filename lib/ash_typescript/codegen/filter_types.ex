@@ -84,6 +84,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
     calcs =
       resource
       |> Ash.Resource.Info.public_calculations()
+      |> Enum.filter(fn calc -> Map.get(calc, :field?, true) end)
 
     (attrs ++ calcs)
     |> Enum.map_join("\n", &generate_attribute_filter(&1, resource))

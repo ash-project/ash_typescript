@@ -704,6 +704,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     calculations =
       resource
       |> Ash.Resource.Info.public_calculations()
+      |> Enum.filter(fn calc -> Map.get(calc, :field?, true) end)
       |> Enum.map(& &1.name)
 
     aggregates =

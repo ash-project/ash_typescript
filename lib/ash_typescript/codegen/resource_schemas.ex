@@ -201,6 +201,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       resource
       |> Ash.Resource.Info.fields([:attributes, :aggregates, :calculations])
       |> Enum.filter(& &1.public?)
+      |> Enum.reject(fn field -> Map.get(field, :field?, true) == false end)
       |> Enum.map(fn
         %Ash.Resource.Aggregate{} = aggregate ->
           field =

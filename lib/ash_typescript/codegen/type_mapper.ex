@@ -749,7 +749,10 @@ defmodule AshTypescript.Codegen.TypeMapper do
         do: [Ash.Resource.Info.attribute(resource, :id)],
         else: Ash.Resource.Info.public_attributes(resource)
 
-    calculations = Ash.Resource.Info.public_calculations(resource)
+    calculations =
+      Ash.Resource.Info.public_calculations(resource)
+      |> Enum.filter(fn calc -> Map.get(calc, :field?, true) end)
+
     aggregates = Ash.Resource.Info.public_aggregates(resource)
 
     with nil <- Enum.find(attributes, &(&1.name == field)),

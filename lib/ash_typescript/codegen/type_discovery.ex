@@ -707,7 +707,11 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
       visited = MapSet.put(visited, resource)
 
       attributes = Ash.Resource.Info.public_attributes(resource)
-      calculations = Ash.Resource.Info.public_calculations(resource)
+
+      calculations =
+        Ash.Resource.Info.public_calculations(resource)
+        |> Enum.filter(fn calc -> Map.get(calc, :field?, true) end)
+
       aggregates = Ash.Resource.Info.public_aggregates(resource)
 
       {attribute_resources, visited} =

@@ -27,6 +27,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
         types =
           resource
           |> Ash.Resource.Info.public_calculations()
+          |> Enum.filter(fn calc -> Map.get(calc, :field?, true) end)
           |> Enum.reduce(types, fn calc, types ->
             types = MapSet.put(types, calc.type)
 
