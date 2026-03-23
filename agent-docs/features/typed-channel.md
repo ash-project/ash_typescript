@@ -18,7 +18,7 @@ The `AshTypescript.TypedChannel` DSL generates typed TypeScript event subscripti
 
 ## Requirements
 
-Typed channels require **Ash >= 3.17.1**, which introduced `returns`, `public?`, and calculation `transform` support on PubSub publications. **Ash >= 3.21.1 is recommended**, as it added support for `:auto`-typed calculations as transforms, allowing Ash to automatically derive the `returns` type from the calculation expression.
+Typed channels require **Ash >= 3.21.1**, which introduced `returns`, `public?`, and calculation `transform` support on PubSub publications, as well as `:auto`-typed calculations as transforms.
 
 ## Architecture
 
