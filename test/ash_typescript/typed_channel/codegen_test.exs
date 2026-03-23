@@ -313,16 +313,16 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
                "export type TrackerSnapshotPayload = {id: UUID, name: string | null, status: string | null};"
     end
 
-    test "map calc transform payload type with relationship traversal", %{
+    test "map calc transform payload type with different field types", %{
       types_content: content
     } do
-      # %{id: id, name: name, latest_entry_body: first(entries, :body)}
-      # id non-null, name nullable, first() nullable
+      # %{id: id, name: name, description: status}
+      # id non-null (PK), name/description nullable (attributes)
       assert content =~
-               "export type TrackerDetailPayload = {id: UUID, name: string | null, latestEntryBody: string | null};"
+               "export type TrackerDetailPayload = {id: UUID, name: string | null, description: string | null};"
     end
 
-    test "integer calc payload type (count aggregate)", %{types_content: content} do
+    test "integer calc payload type from attribute", %{types_content: content} do
       assert content =~ "export type TrackerEntryCountPayload = number;"
     end
 
@@ -330,22 +330,23 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
       assert content =~ "export type TrackerIsActivePayload = boolean;"
     end
 
-    test "integer aggregate calc payload type (max)", %{types_content: content} do
+    test "integer calc payload type from attribute (alt)", %{types_content: content} do
       assert content =~ "export type TrackerTopScorePayload = number;"
     end
 
-    test "map with nested relationship fields (first on related FK)", %{types_content: content} do
-      # id non-null (PK), name nullable, aggregates (first) nullable
+    test "map with various field types", %{types_content: content} do
+      # id non-null (PK), name/status nullable, currentPriority nullable (integer attr)
       assert content =~
-               "export type TrackerDeepDetailPayload = {id: UUID, name: string | null, latestAuthor: UUID | null, latestBody: string | null, latestScore: number | null};"
+               "export type TrackerDeepDetailPayload = {id: UUID, name: string | null, status: string | null, currentPriority: number | null};"
     end
 
-    test "map mixing aggregates, booleans, and strings with correct nullability", %{
+    test "map mixing expressions, booleans, and attributes with correct nullability", %{
       types_content: content
     } do
-      # count → non-null, boolean expr → non-null, max/first → nullable, attributes → nullable
+      # boolean expr → nullable (operands are nullable), attributes → nullable, string concat → nullable
+      # Fields are alphabetically ordered in output
       assert content =~
-               "export type TrackerReportPayload = {name: string | null, status: string | null, entryCount: number, isActive: boolean, topScore: number | null, latestBody: string | null};"
+               "export type TrackerReportPayload = {label: string | null, name: string | null, status: string | null, isActive: boolean | null, currentPriority: number | null};"
     end
 
     test "no payload types are unknown", %{types_content: content} do
