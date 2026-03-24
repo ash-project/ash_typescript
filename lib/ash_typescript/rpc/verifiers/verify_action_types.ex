@@ -339,7 +339,11 @@ defmodule AshTypescript.Rpc.Verifiers.VerifyActionTypes do
     field_name_mappings = get_resource_field_mappings(embedded_module)
 
     attributes = Ash.Resource.Info.public_attributes(embedded_module)
-    calculations = Ash.Resource.Info.public_calculations(embedded_module)
+
+    calculations =
+      Ash.Resource.Info.public_calculations(embedded_module)
+      |> Enum.filter(fn calc -> Map.get(calc, :field?, true) end)
+
     aggregates = Ash.Resource.Info.public_aggregates(embedded_module)
     relationships = Ash.Resource.Info.public_relationships(embedded_module)
 
@@ -386,7 +390,11 @@ defmodule AshTypescript.Rpc.Verifiers.VerifyActionTypes do
     field_name_mappings = get_resource_field_mappings(target_resource)
 
     attributes = Ash.Resource.Info.public_attributes(target_resource)
-    calculations = Ash.Resource.Info.public_calculations(target_resource)
+
+    calculations =
+      Ash.Resource.Info.public_calculations(target_resource)
+      |> Enum.filter(fn calc -> Map.get(calc, :field?, true) end)
+
     aggregates = Ash.Resource.Info.public_aggregates(target_resource)
     relationships = Ash.Resource.Info.public_relationships(target_resource)
 

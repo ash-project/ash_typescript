@@ -288,6 +288,92 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
     end
   end
 
+  describe "orchestrator integration — TrackerChannel" do
+    setup do
+      {:ok, files} = AshTypescript.Codegen.Orchestrator.generate(:ash_typescript)
+      types_file = AshTypescript.types_output_file()
+      types_content = Map.get(files, types_file, "")
+      channels_file = AshTypescript.typed_channels_output_file()
+      channels_content = Map.get(files, channels_file, "")
+      %{types_content: types_content, channels_content: channels_content}
+    end
+
+    test "string calc transform payload types", %{types_content: content} do
+      assert content =~ "export type TrackerSummaryPayload = string;"
+      assert content =~ "export type TrackerLabelPayload = string;"
+      assert content =~ "export type TrackerStatusChangedPayload = string;"
+    end
+
+    test "map calc transform payload type with local fields and correct nullability", %{
+      types_content: content
+    } do
+      # %{id: id, name: name, status: status}
+      # id is non-null (primary key), name/status are nullable
+      assert content =~
+               "export type TrackerSnapshotPayload = {id: UUID, name: string | null, status: string | null};"
+    end
+
+    test "map calc transform payload type with relationship traversal", %{
+      types_content: content
+    } do
+      # %{id: id, name: name, latest_entry_body: first(entries, :body)}
+      # id non-null, name nullable, first() nullable
+      assert content =~
+               "export type TrackerDetailPayload = {id: UUID, name: string | null, latestEntryBody: string | null};"
+    end
+
+    test "integer calc payload type (count aggregate)", %{types_content: content} do
+      assert content =~ "export type TrackerEntryCountPayload = number;"
+    end
+
+    test "boolean expression calc transform payload type", %{types_content: content} do
+      assert content =~ "export type TrackerIsActivePayload = boolean;"
+    end
+
+    test "integer aggregate calc payload type (max)", %{types_content: content} do
+      assert content =~ "export type TrackerTopScorePayload = number;"
+    end
+
+    test "map with nested relationship fields (first on related FK)", %{types_content: content} do
+      # id non-null (PK), name nullable, aggregates (first) nullable
+      assert content =~
+               "export type TrackerDeepDetailPayload = {id: UUID, name: string | null, latestAuthor: UUID | null, latestBody: string | null, latestScore: number | null};"
+    end
+
+    test "map mixing aggregates, booleans, and strings with correct nullability", %{
+      types_content: content
+    } do
+      # all fields nullable: attributes nullable, aggregates nullable, boolean expr with nullable operands nullable
+      assert content =~
+               "export type TrackerReportPayload = {name: string | null, status: string | null, entryCount: number | null, isActive: boolean | null, topScore: number | null, latestBody: string | null};"
+    end
+
+    test "no payload types are unknown", %{types_content: content} do
+      refute content =~ "Payload = unknown"
+    end
+
+    test "events map includes all 10 events", %{types_content: content} do
+      assert content =~ "export type TrackerChannelEvents = {"
+      assert content =~ "tracker_summary: TrackerSummaryPayload;"
+      assert content =~ "tracker_label: TrackerLabelPayload;"
+      assert content =~ "tracker_status_changed: TrackerStatusChangedPayload;"
+      assert content =~ "tracker_snapshot: TrackerSnapshotPayload;"
+      assert content =~ "tracker_detail: TrackerDetailPayload;"
+      assert content =~ "tracker_entry_count: TrackerEntryCountPayload;"
+      assert content =~ "tracker_is_active: TrackerIsActivePayload;"
+      assert content =~ "tracker_top_score: TrackerTopScorePayload;"
+      assert content =~ "tracker_deep_detail: TrackerDeepDetailPayload;"
+      assert content =~ "tracker_report: TrackerReportPayload;"
+    end
+
+    test "tracker subscription functions appear in channels file", %{channels_content: content} do
+      assert content =~ "export function createTrackerChannel("
+      assert content =~ "export function onTrackerChannelMessage"
+      assert content =~ "export function onTrackerChannelMessages"
+      assert content =~ "export function unsubscribeTrackerChannel"
+    end
+  end
+
   describe "orchestrator integration" do
     setup do
       {:ok, files} = AshTypescript.Codegen.Orchestrator.generate(:ash_typescript)

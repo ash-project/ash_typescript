@@ -130,9 +130,34 @@ listTodosChannel({
 
 ### Typed Channel Event Subscriptions
 
-For typed one-way push events from Ash PubSub publications:
+For typed one-way push events from Ash PubSub publications.
+
+**Recommended**: Use `transform :some_calc` to reference a resource calculation.
+Ash auto-derives the `returns` type when the calculation uses `:auto`, so
+AshTypescript gets the type information it needs without manual `returns` declarations.
 
 ```elixir
+# Resource with calculation transforms (recommended)
+defmodule MyApp.Post do
+  use Ash.Resource, notifiers: [Ash.Notifier.PubSub]
+
+  pub_sub do
+    module MyApp.Endpoint
+    prefix "posts"
+
+    publish :create, [:id], event: "post_created", public?: true, transform: :post_summary
+    publish :update, [:id], event: "post_updated", public?: true, transform: :post_summary
+  end
+
+  calculations do
+    calculate :post_summary, :auto, expr(%{id: id, title: title}) do
+      public? true
+    end
+  end
+  # ...
+end
+
+# Channel definition (unchanged — only references events)
 defmodule MyApp.OrgChannel do
   use AshTypescript.TypedChannel
 
@@ -145,6 +170,18 @@ defmodule MyApp.OrgChannel do
     end
   end
 end
+```
+
+You can also use explicit `returns` with an anonymous function transform, but
+this requires manually keeping the type and transform in sync:
+
+```elixir
+publish :create, [:id],
+  event: "post_created",
+  public?: true,
+  returns: :map,
+  constraints: [fields: [id: [type: :uuid], title: [type: :string]]],
+  transform: fn notification -> %{id: notification.data.id, title: notification.data.title} end
 ```
 
 ```typescript
@@ -367,7 +404,10 @@ mix credo --strict                   # Linting
 | "No publication with event X found" | Typed channel event doesn't match any publication | Check `event:` option on the resource's `pub_sub` block |
 | "Duplicate event names found in typed_channel" | Same event name across resources in one channel | Use unique event names per channel |
 | "Payload type name conflict" | Same event name across different channels maps to different TS types | Rename events or ensure same `returns` type |
-| Channel `unknown` payload type | Publication missing `returns` option | Add `returns: :some_type` to the publication |
+| Channel `unknown` payload type | Publication missing `returns` type (no `transform :calc` or explicit `returns`) | Use `transform :some_calc` with an `:auto`-typed calculation (recommended), or add explicit `returns:` |
+| "not `public?`" error on RPC action | Action has `public? false` | Set `public? true` on the action or remove it from `typescript_rpc` |
+| "not `public?`" error on read_action | `read_action` has `public? false` | Set `public? true` on the read action |
+| "not `public?`" error on relationship read action | Relationship destination's read action has `public? false` | Set `public? true` on the destination's read action |
 
 ## RPC Resource Warnings
 

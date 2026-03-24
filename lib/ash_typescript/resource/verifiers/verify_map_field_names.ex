@@ -43,6 +43,7 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMapFieldNames do
     invalid_fields =
       invalid_fields ++
         (Ash.Resource.Info.public_calculations(resource)
+         |> Enum.filter(fn calc -> Map.get(calc, :field?, true) end)
          |> Enum.flat_map(fn calc ->
            validate_type_constraints(
              resource,

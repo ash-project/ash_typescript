@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__tidewave__project_eval",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/tidewave-recompile.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

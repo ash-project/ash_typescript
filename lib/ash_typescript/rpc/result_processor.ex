@@ -570,7 +570,11 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   defp normalize_resource_struct(value, resource) do
     public_attrs = Ash.Resource.Info.public_attributes(resource)
-    public_calcs = Ash.Resource.Info.public_calculations(resource)
+
+    public_calcs =
+      Ash.Resource.Info.public_calculations(resource)
+      |> Enum.filter(fn calc -> Map.get(calc, :field?, true) end)
+
     public_aggs = Ash.Resource.Info.public_aggregates(resource)
 
     public_field_names =

@@ -21,21 +21,40 @@ Generate type-safe TypeScript clients directly from your Elixir Ash resources, e
 
 ## Breaking Changes
 
-### 0.16.0 - Multi-File Output
+### 0.16.0
+
+#### Multi-File Output & Project-Root-Relative Import Paths
 
 AshTypescript now generates multiple output files instead of a single monolithic file. Shared types and Zod schemas are extracted into dedicated files (`ash_types.ts` and `ash_zod.ts`) that both RPC and controller code import from.
+
+Additionally, `import_into_generated` and `typed_controller_import_into_generated` file paths are now **project-root-relative** instead of JS-relative import paths. The codegen resolves the correct relative import path for each output file automatically.
 
 **What changed:**
 - Types and Zod schemas are no longer inlined in `ash_rpc.ts` — they live in separate files
 - Two new config options auto-derive from `output_file`: `types_output_file` (→ `ash_types.ts`) and `zod_output_file` (→ `ash_zod.ts`)
 - If you import types directly from the generated RPC file, update imports to use the new shared types file
+- `import_into_generated` and `typed_controller_import_into_generated` use project-root-relative paths
 
 **Migration:**
 1. Run `mix ash_typescript.codegen` — new files will be created alongside the existing output
 2. Update any TypeScript imports that referenced types from `ash_rpc.ts` to import from `ash_types.ts` instead
 3. If you use Zod schemas, update imports to use `ash_zod.ts`
+4. Update import paths from JS-relative to project-root-relative:
+```elixir
+# Before (JS-relative)
+config :ash_typescript,
+  import_into_generated: [%{import_name: "RpcHooks", file: "./rpcHooks"}]
+
+# After (project-root-relative)
+config :ash_typescript,
+  import_into_generated: [%{import_name: "RpcHooks", file: "assets/js/rpcHooks.ts"}]
+```
 
 No changes are needed if you only import the RPC functions themselves (e.g., `import { listTodos } from './ash_rpc'`).
+
+#### Compile-Time Verification of `public?` Actions
+
+Actions and relationship read actions referenced in `typescript_rpc` blocks are now verified to be `public? true` at compile time. Previously, non-public actions would silently generate types but fail at runtime. If you see new compile errors like `"action :foo is not public?"`, set `public? true` on the action or remove it from the `typescript_rpc` block.
 
 ## Features
 

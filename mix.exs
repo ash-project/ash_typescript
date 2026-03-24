@@ -5,7 +5,7 @@
 defmodule AshTypescript.MixProject do
   use Mix.Project
 
-  @version "0.15.3"
+  @version "0.16.0"
 
   @description """
   Generate type-safe TypeScript clients directly from your Ash resources and actions, ensuring end-to-end type safety between your backend and frontend.
@@ -177,7 +177,7 @@ defmodule AshTypescript.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, "~> 3.18"},
+      {:ash, "~> 3.2 and >= 3.21.1"},
       {:ash_phoenix, "~> 2.0"},
       {:ash_postgres, "~> 2.0", only: [:dev, :test]},
       {:git_ops, "~> 2.0", only: [:dev], runtime: false},
