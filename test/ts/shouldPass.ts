@@ -46,6 +46,7 @@ import "./shouldPass/compositePrimaryKey";
 import "./shouldPass/loadRestrictions";
 import "./shouldPass/firstAggregates";
 import "./shouldPass/typedChannelOperations";
+import "./shouldPass/sortFields";
 import "./rpcHooks";
 
 // Import Zod schema validation tests
