@@ -854,6 +854,90 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
     end
   end
 
+  describe "NewType wrapping map return type (get_suggestion)" do
+    setup do
+      conn = TestHelpers.build_rpc_conn()
+      %{conn: conn}
+    end
+
+    test "processes valid fields correctly for NewType map", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_suggestion",
+          "input" => %{"query" => "test"},
+          "fields" => ["name", "score"]
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+
+      assert is_map(data)
+      assert Map.has_key?(data, "name")
+      assert Map.has_key?(data, "score")
+      refute Map.has_key?(data, "category")
+
+      assert data["name"] == "Test Suggestion"
+      assert data["score"] == 85
+    end
+
+    test "processes all fields for NewType map", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_suggestion",
+          "input" => %{"query" => "test"},
+          "fields" => ["name", "category", "score"]
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+
+      assert Map.has_key?(data, "name")
+      assert Map.has_key?(data, "category")
+      assert Map.has_key?(data, "score")
+      assert map_size(data) == 3
+    end
+
+    test "codegen generates fields type for NewType map return", _context do
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
+
+      assert typescript =~ "GetSuggestionFields"
+    end
+  end
+
+  describe "array of NewType wrapping map return type (list_suggestions)" do
+    setup do
+      conn = TestHelpers.build_rpc_conn()
+      %{conn: conn}
+    end
+
+    test "processes valid fields correctly for array of NewType maps", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_suggestions",
+          "input" => %{"query" => "test"},
+          "fields" => ["name", "score"]
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+
+      assert is_list(data)
+      assert length(data) == 2
+
+      Enum.each(data, fn item ->
+        assert Map.has_key?(item, "name")
+        assert Map.has_key?(item, "score")
+        refute Map.has_key?(item, "category")
+      end)
+    end
+
+    test "codegen generates fields type for array of NewType map return", _context do
+      {:ok, typescript} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
+
+      assert typescript =~ "ListSuggestionsFields"
+    end
+  end
+
   describe "date array return type action (get_important_dates)" do
     setup do
       conn = TestHelpers.build_rpc_conn()

@@ -234,5 +234,25 @@ defmodule AshTypescript.Test.Task do
         {:ok, stats_list}
       end
     end
+
+    action :get_suggestion, AshTypescript.Test.Suggestion do
+      argument :query, :string, allow_nil?: false
+
+      run fn _input, _context ->
+        {:ok, %{name: "Test Suggestion", category: nil, score: 85}}
+      end
+    end
+
+    action :list_suggestions, {:array, AshTypescript.Test.Suggestion} do
+      argument :query, :string, default: ""
+
+      run fn _input, _context ->
+        {:ok,
+         [
+           %{name: "Suggestion A", category: "work", score: 90},
+           %{name: "Suggestion B", category: nil, score: 75}
+         ]}
+      end
+    end
   end
 end
