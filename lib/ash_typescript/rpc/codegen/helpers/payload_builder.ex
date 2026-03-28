@@ -130,7 +130,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder do
       if include_filtering_pagination and context.supports_sorting do
         payload_fields ++
           [
-            "...(config.#{format_output_field(:sort)} && { #{format_output_field(:sort)}: config.#{format_output_field(:sort)} })"
+            "...(config.#{format_output_field(:sort)} && { #{format_output_field(:sort)}: Array.isArray(config.#{format_output_field(:sort)}) ? config.#{format_output_field(:sort)}.join(\",\") : config.#{format_output_field(:sort)} })"
           ]
       else
         payload_fields

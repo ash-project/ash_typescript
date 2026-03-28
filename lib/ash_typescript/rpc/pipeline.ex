@@ -861,6 +861,11 @@ defmodule AshTypescript.Rpc.Pipeline do
   """
   def format_sort_string(nil, _formatter), do: nil
 
+  def format_sort_string(sort_list, formatter) when is_list(sort_list) do
+    sort_list
+    |> Enum.map_join(",", &format_single_sort_field(&1, formatter))
+  end
+
   def format_sort_string(sort_string, formatter) when is_binary(sort_string) do
     sort_string
     |> String.split(",")

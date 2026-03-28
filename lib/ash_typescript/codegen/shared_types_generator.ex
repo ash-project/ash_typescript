@@ -13,7 +13,7 @@ defmodule AshTypescript.Codegen.SharedTypesGenerator do
   import AshTypescript.Codegen
   import AshTypescript.Codegen.FilterTypes
 
-  alias AshTypescript.Codegen.{ImportResolver, UtilityTypes}
+  alias AshTypescript.Codegen.{ImportResolver, SortTypes, UtilityTypes}
 
   @doc """
   Generates the content for the shared types file.
@@ -53,6 +53,10 @@ defmodule AshTypescript.Codegen.SharedTypesGenerator do
     #{generate_all_schemas_for_resources(all_resources, all_resources, struct_argument_resources)}
 
     #{generate_filter_types(all_resources, all_resources)}
+
+    #{generate_filter_field_arrays(all_resources)}
+
+    #{SortTypes.generate_sort_types(all_resources)}
 
     #{UtilityTypes.generate_utility_types()}
     """
