@@ -218,7 +218,18 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   defp classify_return_type(type, constraints) do
     cond do
       type == Ash.Type.Struct and Keyword.has_key?(constraints, :instance_of) ->
-        {:resource, Keyword.get(constraints, :instance_of)}
+        instance_of = Keyword.get(constraints, :instance_of)
+
+        cond do
+          Ash.Resource.Info.resource?(instance_of) ->
+            {:resource, instance_of}
+
+          Keyword.has_key?(constraints, :fields) ->
+            {:typed_struct, {instance_of, Keyword.get(constraints, :fields, [])}}
+
+          true ->
+            {:error, :not_field_selectable_type}
+        end
 
       type == Ash.Type.Struct ->
         {:error, :no_instance_of_defined}
