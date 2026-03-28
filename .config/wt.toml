@@ -8,5 +8,28 @@
 [post-create]
 # Copy build caches and dependencies from primary worktree (blocks until done)
 copy = "wt step copy-ignored"
+
+# Generate a mise.local.toml with a unique tidewave port for this worktree
+mise-local = """
+cat > mise.local.toml <<MISE
+[env]
+TIDEWAVE_PORT = "{{ branch | hash_port }}"
+MISE
+"""
+mise-trust = "mise trust"
+
+# Update .mcp.json to point at this worktree's tidewave port
+mcp-servers = """
+git update-index --skip-worktree .mcp.json
+python3 -c "
+import json, os
+path = '.mcp.json'
+data = json.load(open(path)) if os.path.exists(path) else {'mcpServers': {}}
+data.setdefault('mcpServers', {})
+data['mcpServers']['tidewave'] = {'type': 'http', 'url': 'http://localhost:{{ branch | hash_port }}/mcp'}
+json.dump(data, open(path, 'w'), indent=4)
+"
+"""
+
 # Install deps and write sandboxed Claude settings
 setup = "{{ primary_worktree_path }}/.config/worktree-setup.sh"
