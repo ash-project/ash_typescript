@@ -20,6 +20,7 @@ config :ash_typescript,
   output_file: "assets/js/ash_rpc.ts",
   types_output_file: nil,             # Auto-derives as ash_types.ts in output_file dir
   zod_output_file: nil,               # Auto-derives as ash_zod.ts in output_file dir
+  valibot_output_file: nil,           # Auto-derives as ash_valibot.ts in output_file dir
 
   # RPC endpoints
   run_endpoint: "/rpc/run",
@@ -32,10 +33,13 @@ config :ash_typescript,
   # Multitenancy
   require_tenant_parameters: false,
 
-  # Zod schema generation
+  # Validation schema generation
   generate_zod_schemas: false,
   zod_import_path: "zod",
   zod_schema_suffix: "ZodSchema",
+  generate_valibot_schemas: false,
+  valibot_import_path: "valibot",
+  valibot_schema_suffix: "ValibotSchema",
 
   # Validation functions
   generate_validation_functions: false,
@@ -109,12 +113,13 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | RPC functions | `output_file` | `assets/js/ash_rpc.ts` | RPC functions, hook types, helpers |
 | Shared types | `types_output_file` | Auto-derived as `ash_types.ts` | Type aliases, resource schemas, filter types, utility types |
 | Shared Zod schemas | `zod_output_file` | Auto-derived as `ash_zod.ts` | Zod schemas for all resources (when `generate_zod_schemas: true`) |
+| Shared Valibot schemas | `valibot_output_file` | Auto-derived as `ash_valibot.ts` | Valibot schemas for all resources (when `generate_valibot_schemas: true`) |
 | Route helpers | `routes_output_file` | `nil` (disabled) | Path helpers, typed fetch functions, controller input types |
 | Typed channel functions | `typed_channels_output_file` | `nil` (disabled) | Channel factory, subscription helpers, cleanup functions |
 | RPC namespace re-exports | `namespace_output_dir` | Same dir as `output_file` | Per-namespace re-export files (when `enable_namespace_files: true`) |
 | Controller namespace re-exports | `controller_namespace_output_dir` | Same dir as `routes_output_file` | Per-namespace re-export files (when `enable_controller_namespace_files: true`) |
 
-`types_output_file` and `zod_output_file` auto-derive from the `output_file` directory — set `output_file` and the others follow. Override individually if needed.
+`types_output_file`, `zod_output_file`, and `valibot_output_file` auto-derive from the `output_file` directory — set `output_file` and the others follow. Override individually if needed.
 
 ## Quick Reference
 
@@ -123,6 +128,7 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `output_file` | `string` | `"assets/js/ash_rpc.ts"` | Path where generated TypeScript code will be written |
 | `types_output_file` | `string \| nil` | `nil` | Path for shared types file (auto-derives from `output_file` dir as `ash_types.ts`) |
 | `zod_output_file` | `string \| nil` | `nil` | Path for shared Zod schemas file (auto-derives from `output_file` dir as `ash_zod.ts`) |
+| `valibot_output_file` | `string \| nil` | `nil` | Path for shared Valibot schemas file (auto-derives from `output_file` dir as `ash_valibot.ts`) |
 | `run_endpoint` | `string \| {:runtime_expr, string}` | `"/rpc/run"` | Endpoint for executing RPC actions |
 | `validate_endpoint` | `string \| {:runtime_expr, string}` | `"/rpc/validate"` | Endpoint for validating RPC requests |
 | `input_field_formatter` | `:camel_case \| :snake_case` | `:camel_case` | How to format field names in request inputs |
@@ -131,6 +137,9 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `generate_zod_schemas` | `boolean` | `false` | Whether to generate Zod validation schemas |
 | `zod_import_path` | `string` | `"zod"` | Import path for Zod library |
 | `zod_schema_suffix` | `string` | `"ZodSchema"` | Suffix for generated Zod schema names |
+| `generate_valibot_schemas` | `boolean` | `false` | Whether to generate Valibot validation schemas |
+| `valibot_import_path` | `string` | `"valibot"` | Import path for Valibot library |
+| `valibot_schema_suffix` | `string` | `"ValibotSchema"` | Suffix for generated Valibot schema names |
 | `generate_validation_functions` | `boolean` | `false` | Whether to generate form validation functions |
 | `generate_phx_channel_rpc_actions` | `boolean` | `false` | Whether to generate Phoenix channel-based RPC functions |
 | `phoenix_import_path` | `string` | `"phoenix"` | Import path for Phoenix library |
@@ -369,7 +378,7 @@ For in-depth configuration guides, see:
 - [Phoenix Channels](../features/phoenix-channels.md) - Channel-based RPC configuration
 - [Typed Channels](../features/typed-channels.md) - Typed event subscriptions from PubSub
 - [Multitenancy](../features/multitenancy.md) - Tenant parameter configuration
-- [Form Validation](../guides/form-validation.md) - Zod schema configuration
+- [Form Validation](../guides/form-validation.md) - Zod and Valibot schema configuration
 - [Typed Controllers](../guides/typed-controllers.md) - Controller route helpers
 
 ## See Also

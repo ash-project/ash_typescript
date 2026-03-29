@@ -230,6 +230,7 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Resource schema generation** | `lib/ash_typescript/codegen/resource_schemas.ex` |
 | **Filter types generation** | `lib/ash_typescript/codegen/filter_types.ex` |
 | **Zod schema generation** | `lib/ash_typescript/codegen/zod_schema_generator.ex` |
+| **Valibot schema generation** | `lib/ash_typescript/codegen/valibot_schema_generator.ex` |
 | **Utility types generation** | `lib/ash_typescript/codegen/utility_types.ex` |
 | **Import path resolution** | `lib/ash_typescript/codegen/import_resolver.ex` |
 | **Shared types generator** | `lib/ash_typescript/codegen/shared_types_generator.ex` |
@@ -327,7 +328,7 @@ mix credo --strict                   # Linting
 | **Action metadata** | [features/action-metadata.md](agent-docs/features/action-metadata.md) | `test/ash_typescript/rpc/rpc_metadata_test.exs`, `test/ash_typescript/rpc/verify_metadata_field_names_test.exs` |
 | **RPC pipeline or field processing** | [features/rpc-pipeline.md](agent-docs/features/rpc-pipeline.md) | `test/ash_typescript/rpc/rpc_*_test.exs` |
 | **Load restrictions** | [features/rpc-pipeline.md](agent-docs/features/rpc-pipeline.md) (RPC Action Options) | `test/ash_typescript/rpc/load_restrictions_test.exs` |
-| **Zod validation schemas** | [features/zod-schemas.md](agent-docs/features/zod-schemas.md) | `test/ash_typescript/rpc/rpc_codegen_test.exs` |
+| **Validation schemas (Zod & Valibot)** | [features/validation-schemas.md](agent-docs/features/validation-schemas.md) | `test/ash_typescript/rpc/zod_constraints_test.exs`, `test/ash_typescript/rpc/valibot_constraints_test.exs` |
 | **Embedded resources** | [features/embedded-resources.md](agent-docs/features/embedded-resources.md) | `test/support/resources/embedded/` |
 | **Union types** | [features/union-systems-core.md](agent-docs/features/union-systems-core.md) | `test/ash_typescript/rpc/rpc_union_*_test.exs` |
 | **Namespaces, JSDoc, Manifest, JSON Manifest** | [features/developer-experience.md](agent-docs/features/developer-experience.md) | `test/ash_typescript/rpc/namespace_test.exs`, `test/ash_typescript/rpc/json_manifest_generator_test.exs` |
@@ -355,7 +356,8 @@ mix credo --strict                   # Linting
 - **ValueFormatter** - Unified type-aware value formatting
 
 ### Multi-File Codegen Architecture
-- **Orchestrator** (`codegen/orchestrator.ex`): Coordinates all file generation — types, Zod, RPC, routes, typed channels, namespace re-exports
+- **Orchestrator** (`codegen/orchestrator.ex`): Coordinates all file generation — types, Zod, Valibot, RPC, routes, typed channels, namespace re-exports
+- **SchemaCore** (`codegen/schema_core.ex`): Shared validation schema logic (topological sort, type mapping, field introspection) used by both Zod and Valibot via `SchemaFormatter` behaviour
 - **ImportResolver** (`codegen/import_resolver.ex`): Shared utility for import path resolution and namespace re-export generation (used by both RPC and controller codegen)
 - **CodegenTestHelper** (`test/support/codegen_test_helper.ex`): Test wrapper for orchestrator — use `generate_all_content/0` for string assertions, `generate_files/0` for file-level assertions
 

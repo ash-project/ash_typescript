@@ -7,7 +7,7 @@ SPDX-License-Identifier: MIT
 
 # Form Validation
 
-AshTypescript provides two complementary validation mechanisms: Zod schemas for instant client-side feedback and validation functions for server-side business logic.
+AshTypescript provides two complementary validation mechanisms: client-side validation schemas (Zod or Valibot) for instant feedback and validation functions for server-side business logic.
 
 ## Two-Layer Validation Strategy
 
@@ -369,6 +369,31 @@ export function TodoForm({ onSuccess }: { onSuccess: () => void }) {
 
 **Important**: Zod schemas cannot represent all Ash validations. Complex validations, database constraints, and business rules only exist on the server. Always combine both layers.
 
+## Valibot Alternative
+
+AshTypescript also supports [Valibot](https://valibot.dev/) as a lighter alternative to Zod. Enable it alongside or instead of Zod:
+
+```elixir
+config :ash_typescript,
+  generate_valibot_schemas: true,
+  valibot_import_path: "valibot",
+  valibot_schema_suffix: "ValibotSchema"
+```
+
+Valibot schemas use pipe-based composition instead of method chaining:
+
+```typescript
+import { createTodoValibotSchema } from './ash_valibot';
+import * as v from 'valibot';
+
+const result = v.safeParse(createTodoValibotSchema, formData);
+if (!result.success) {
+  // Handle validation errors
+}
+```
+
+Both Zod and Valibot can be enabled simultaneously — they generate into separate files (`ash_zod.ts` and `ash_valibot.ts`).
+
 ## Configuration Reference
 
 | Option | Type | Default | Description |
@@ -376,6 +401,9 @@ export function TodoForm({ onSuccess }: { onSuccess: () => void }) {
 | `generate_zod_schemas` | `boolean` | `false` | Generate Zod validation schemas |
 | `zod_import_path` | `string` | `"zod"` | Import path for Zod library |
 | `zod_schema_suffix` | `string` | `"ZodSchema"` | Suffix for schema names |
+| `generate_valibot_schemas` | `boolean` | `false` | Generate Valibot validation schemas |
+| `valibot_import_path` | `string` | `"valibot"` | Import path for Valibot library |
+| `valibot_schema_suffix` | `string` | `"ValibotSchema"` | Suffix for schema names |
 | `generate_validation_functions` | `boolean` | `false` | Generate server validation functions |
 
 ## Next Steps
