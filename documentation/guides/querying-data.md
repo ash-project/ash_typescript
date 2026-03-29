@@ -99,35 +99,47 @@ TypeScript automatically infers the correct return type.
 
 ## Sorting
 
-Sort results using a comma-separated string with direction prefixes.
+Sort results using typed sort strings with direction prefixes. AshTypescript generates per-resource sort field types, so your IDE autocompletes valid field names and catches typos at compile time.
 
-### Basic Sorting
+### Type-Safe Sort Fields
+
+For each resource, AshTypescript generates:
+- A `{Resource}SortField` union type of all sortable field names
+- A `{resource}SortFields` runtime const array for iteration
+
+The `sort` parameter accepts `SortString<TodoSortField>` — a template literal type that allows bare field names or prefixed variants:
 
 ```typescript
 // Sort by priority descending
 const byPriority = await listTodos({
   fields: ["id", "title", "priority"],
-  sort: "-priority"
+  sort: "-priority"       // Type-checked: "priority" must be a valid TodoSortField
 });
 
 // Sort by created date ascending
 const byDate = await listTodos({
   fields: ["id", "title", "createdAt"],
-  sort: "+createdAt"
+  sort: "+createdAt"      // Autocompleted by your IDE
 });
+
+// sort: "-nonExistent"   // TypeScript error: not a valid TodoSortField
 ```
 
 **Sort syntax:**
-- `+` prefix: ascending order (default)
-- `-` prefix: descending order
+- `fieldName` or `+fieldName`: ascending order
+- `-fieldName`: descending order
+- `++fieldName`: ascending, nulls first
+- `--fieldName`: descending, nulls first
 
 ### Multiple Sort Fields
+
+Pass an array for multi-field sorting:
 
 ```typescript
 // Sort by priority (desc), then by title (asc)
 const sorted = await listTodos({
   fields: ["id", "title", "priority"],
-  sort: "-priority,+title"
+  sort: ["-priority", "+title"]   // Each element is type-checked
 });
 ```
 
