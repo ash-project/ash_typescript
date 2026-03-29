@@ -369,7 +369,7 @@ defmodule AshTypescript.Rpc do
 
   This determines the import statement used in generated TypeScript files.
   Defaults to "valibot" for standard npm package.
-  Can be customized for different package managers or custom Zod builds.
+  Can be customized for different package managers or custom Valibot builds.
   """
   def valibot_import_path do
     Application.get_env(:ash_typescript, :valibot_import_path)
@@ -379,7 +379,7 @@ defmodule AshTypescript.Rpc do
   Gets the suffix used for generated Valibot schema constants.
 
   This determines the naming pattern for Valibot schemas.
-  Defaults to "Schema" (e.g., createTodoSchema).
+  Defaults to "ValibotSchema" (e.g., createTodoValibotSchema).
   """
   def valibot_schema_suffix do
     Application.get_env(:ash_typescript, :valibot_schema_suffix)
