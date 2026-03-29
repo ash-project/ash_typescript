@@ -123,7 +123,7 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
 
   @impl true
   def format_integer(constraints) do
-    pipes = ["v.integer()" | number_constraint_pipes(constraints)]
+    pipes = number_constraint_pipes(constraints) ++ ["v.integer()"]
     build_pipe("v.number()", pipes)
   end
 
@@ -176,11 +176,16 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
 
   defp number_constraint_pipes(constraints) do
     []
-    |> add_pipe_if("v.minValue(#{Keyword.get(constraints, :min)})", not is_nil(Keyword.get(constraints, :min)))
-    |> add_pipe_if("v.maxValue(#{Keyword.get(constraints, :max)})", not is_nil(Keyword.get(constraints, :max)))
-    |> add_pipe_if("v.gtValue(#{Keyword.get(constraints, :greater_than)})", not is_nil(Keyword.get(constraints, :greater_than)))
-    |> add_pipe_if("v.ltValue(#{Keyword.get(constraints, :less_than)})", not is_nil(Keyword.get(constraints, :less_than)))
+    |> add_pipe_if("v.minValue(#{fmt_num(Keyword.get(constraints, :min))})", not is_nil(Keyword.get(constraints, :min)))
+    |> add_pipe_if("v.maxValue(#{fmt_num(Keyword.get(constraints, :max))})", not is_nil(Keyword.get(constraints, :max)))
+    |> add_pipe_if("v.gtValue(#{fmt_num(Keyword.get(constraints, :greater_than))})", not is_nil(Keyword.get(constraints, :greater_than)))
+    |> add_pipe_if("v.ltValue(#{fmt_num(Keyword.get(constraints, :less_than))})", not is_nil(Keyword.get(constraints, :less_than)))
   end
+
+  defp fmt_num(value) when is_float(value),
+    do: :erlang.float_to_binary(value, [:compact, {:decimals, 10}])
+
+  defp fmt_num(value), do: "#{value}"
 
   defp add_pipe_if(pipes, _entry, false), do: pipes
   defp add_pipe_if(pipes, entry, true), do: [entry | pipes]
