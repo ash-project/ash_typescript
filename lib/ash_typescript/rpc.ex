@@ -355,6 +355,37 @@ defmodule AshTypescript.Rpc do
   end
 
   @doc """
+  Determines if Valibot schema generation is enabled.
+
+  When true, generates Valibot schemas alongside TypeScript types for runtime validation.
+  Defaults to false (opt-in feature).
+  """
+  def generate_valibot_schemas? do
+    Application.get_env(:ash_typescript, :generate_valibot_schemas, false)
+  end
+
+  @doc """
+  Gets the Valibot import path for generated TypeScript.
+
+  This determines the import statement used in generated TypeScript files.
+  Defaults to "valibot" for standard npm package.
+  Can be customized for different package managers or custom Valibot builds.
+  """
+  def valibot_import_path do
+    Application.get_env(:ash_typescript, :valibot_import_path)
+  end
+
+  @doc """
+  Gets the suffix used for generated Valibot schema constants.
+
+  This determines the naming pattern for Valibot schemas.
+  Defaults to "ValibotSchema" (e.g., createTodoValibotSchema).
+  """
+  def valibot_schema_suffix do
+    Application.get_env(:ash_typescript, :valibot_schema_suffix)
+  end
+
+  @doc """
   Determines if Phoenix channel-based RPC actions should be generated.
 
   This controls whether channel functions are generated alongside fetch-based functions.

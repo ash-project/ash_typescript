@@ -23,8 +23,10 @@ defmodule AshTypescript.Codegen.Orchestrator do
   alias AshTypescript.Codegen.{
     ImportResolver,
     SharedTypesGenerator,
+    SharedValibotGenerator,
     SharedZodGenerator,
     TypeDiscovery,
+    ValibotSchemaGenerator,
     ZodSchemaGenerator
   }
 
@@ -50,9 +52,11 @@ defmodule AshTypescript.Codegen.Orchestrator do
     rpc_output_file = Application.get_env(:ash_typescript, :output_file)
     types_output_file = AshTypescript.types_output_file()
     zod_output_file = AshTypescript.zod_output_file()
+    valibot_output_file = AshTypescript.valibot_output_file()
     routes_output_file = AshTypescript.routes_output_file()
     typed_channels_output_file = AshTypescript.typed_channels_output_file()
     zod_enabled? = AshTypescript.Rpc.generate_zod_schemas?()
+    valibot_enabled? = AshTypescript.Rpc.generate_valibot_schemas?()
 
     rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
     channel_entries = collect_typed_channel_entries()
@@ -81,7 +85,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
       |> Enum.uniq()
       |> Enum.sort_by(&inspect/1)
 
-    zod_resources =
+    schema_resources =
       (embedded_resources ++ struct_argument_resources ++ controller_resources)
       |> Enum.uniq()
       |> Enum.sort_by(&inspect/1)
@@ -148,20 +152,53 @@ defmodule AshTypescript.Codegen.Orchestrator do
         additional_zod_schemas = rpc_zod_schemas ++ controller_zod_schemas
 
         resource_zod_schemas_str =
-          ZodSchemaGenerator.generate_zod_schemas_for_resources(zod_resources)
+          ZodSchemaGenerator.generate_zod_schemas_for_resources(schema_resources)
 
         all_schema_strings = [resource_zod_schemas_str | additional_zod_schemas]
         validate_unique_zod_schema_names!(all_schema_strings)
 
         zod_content =
           SharedZodGenerator.generate(
-            zod_resources: zod_resources,
+            zod_resources: schema_resources,
             types_output_file: types_output_file,
             zod_output_file: zod_output_file,
             additional_zod_schemas: additional_zod_schemas
           )
 
         Map.put(files, zod_output_file, zod_content)
+      else
+        files
+      end
+
+    files =
+      if valibot_enabled? do
+        rpc_valibot_schemas =
+          if rpc_output_file do
+            RpcCodegen.generate_rpc_valibot_schemas(resources_and_actions)
+          else
+            []
+          end
+
+        # Controller Valibot schemas not yet implemented
+        controller_valibot_schemas = []
+
+        additional_valibot_schemas = rpc_valibot_schemas ++ controller_valibot_schemas
+
+        resource_valibot_schemas_str =
+          ValibotSchemaGenerator.generate_valibot_schemas_for_resources(schema_resources)
+
+        all_schema_strings = [resource_valibot_schemas_str | additional_valibot_schemas]
+        validate_unique_valibot_schema_names!(all_schema_strings)
+
+        valibot_content =
+          SharedValibotGenerator.generate(
+            valibot_resources: schema_resources,
+            types_output_file: types_output_file,
+            valibot_output_file: valibot_output_file,
+            additional_valibot_schemas: additional_valibot_schemas
+          )
+
+        Map.put(files, valibot_output_file, valibot_content)
       else
         files
       end
@@ -254,7 +291,8 @@ defmodule AshTypescript.Codegen.Orchestrator do
             namespace,
             items,
             rpc_output_file,
-            zod_output_file
+            zod_output_file,
+            valibot_output_file
           )
         end)
       else
@@ -325,6 +363,37 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
          This usually happens when an RPC action and a typed controller route share the same name.
          To fix this, add `zod_schema_name: :custom_name` to the typed controller route definition.
+         """}
+      )
+    end
+  end
+
+  defp validate_unique_valibot_schema_names!(schema_strings) do
+    all_names =
+      schema_strings
+      |> Enum.flat_map(fn schema ->
+        Regex.scan(~r/export const (\w+)/, schema)
+        |> Enum.map(fn [_, name] -> name end)
+      end)
+
+    duplicates =
+      all_names
+      |> Enum.frequencies()
+      |> Enum.filter(fn {_name, count} -> count > 1 end)
+      |> Enum.map(fn {name, _count} -> name end)
+      |> Enum.sort()
+
+    if duplicates != [] do
+      names_list = Enum.map_join(duplicates, "\n  - ", & &1)
+
+      throw(
+        {:error,
+         """
+         Duplicate Valibot schema names detected in ash_valibot.ts:
+           - #{names_list}
+
+         This usually happens when an RPC action and a typed controller route share the same name.
+         To fix this, add `valibot_schema_name: :custom_name` to the typed controller route definition.
          """}
       )
     end

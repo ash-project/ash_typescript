@@ -8,7 +8,7 @@ defmodule AshTypescript.Rpc.Codegen do
   """
   import AshTypescript.Helpers, only: [format_output_field: 1]
 
-  alias AshTypescript.Codegen.ZodSchemaGenerator
+  alias AshTypescript.Codegen.{ValibotSchemaGenerator, ZodSchemaGenerator}
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries
@@ -60,6 +60,16 @@ defmodule AshTypescript.Rpc.Codegen do
       if AshTypescript.Rpc.generate_zod_schemas?() and action.arguments != [] do
         zod_schema_name = format_output_field("#{rpc_action_name}_zod_schema")
         exports ++ [{zod_schema_name, :zod_value}]
+      else
+        exports
+      end
+
+    # Classified as :valibot_value so namespace files can re-export from ash_valibot.ts
+    exports =
+      if AshTypescript.Rpc.generate_valibot_schemas?() and action.arguments != [] do
+        suffix = AshTypescript.Rpc.valibot_schema_suffix()
+        valibot_schema_name = format_output_field("#{rpc_action_name}#{suffix}")
+        exports ++ [{valibot_schema_name, :valibot_value}]
       else
         exports
       end
@@ -211,6 +221,22 @@ defmodule AshTypescript.Rpc.Codegen do
     |> Enum.reject(&(&1 == ""))
   end
 
+  @doc """
+  Generates only the per-action Valibot schemas for all RPC actions.
+
+  Returns a list of Valibot schema strings (one per action that has arguments).
+  These are meant to be passed to SharedValibotGenerator as `:additional_valibot_schemas`.
+  """
+  def generate_rpc_valibot_schemas(resources_and_actions) do
+    resources_and_actions
+    |> Enum.map(fn {resource, action, rpc_action} ->
+      rpc_action_name = to_string(rpc_action.name)
+      action = augment_action_with_rpc_settings(action, rpc_action, resource)
+      ValibotSchemaGenerator.generate_valibot_schema(resource, action, rpc_action_name)
+    end)
+    |> Enum.reject(&(&1 == ""))
+  end
+
   defp generate_rpc_functions_no_zod(resources_and_actions) do
     resources_and_actions
     |> Enum.map_join("\n\n", fn {resource, action, rpc_action} ->
@@ -300,7 +326,8 @@ defmodule AshTypescript.Rpc.Codegen do
         namespace,
         actions,
         main_file_path,
-        zod_file_path \\ nil
+        zod_file_path \\ nil,
+        valibot_file_path \\ nil
       ) do
     namespace_dir = AshTypescript.Rpc.namespace_output_dir() || Path.dirname(main_file_path)
     namespace_file = Path.join(namespace_dir, "#{namespace}.ts")
@@ -311,7 +338,8 @@ defmodule AshTypescript.Rpc.Codegen do
       exports,
       namespace_file,
       main_file_path,
-      zod_file_path
+      zod_file_path,
+      valibot_file_path
     )
   end
 

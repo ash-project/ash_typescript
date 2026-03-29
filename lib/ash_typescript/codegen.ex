@@ -24,6 +24,7 @@ defmodule AshTypescript.Codegen do
     TypeDiscovery,
     TypeMapper,
     UtilityTypes,
+    ValibotSchemaGenerator,
     ZodSchemaGenerator
   }
 
@@ -71,6 +72,14 @@ defmodule AshTypescript.Codegen do
   defdelegate generate_zod_schemas_for_resources(resources), to: ZodSchemaGenerator
   defdelegate generate_zod_schema(resource, action, rpc_action_name), to: ZodSchemaGenerator
   defdelegate get_zod_type(type_and_constraints, context \\ nil), to: ZodSchemaGenerator
+
+  defdelegate generate_valibot_schema_for_resource(resource), to: ValibotSchemaGenerator
+  defdelegate generate_valibot_schemas_for_resources(resources), to: ValibotSchemaGenerator
+
+  defdelegate generate_valibot_schema(resource, action, rpc_action_name),
+    to: ValibotSchemaGenerator
+
+  defdelegate get_valibot_type(type_and_constraints, context \\ nil), to: ValibotSchemaGenerator
 
   defdelegate generate_utility_types, to: UtilityTypes
 
