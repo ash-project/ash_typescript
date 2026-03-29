@@ -377,6 +377,11 @@ defmodule AshTypescript.Test.Todo do
       public? true
     end
 
+    calculate :creator, :struct, AshTypescript.Test.CreatorCalculation do
+      constraints instance_of: AshTypescript.Test.User
+      public? true
+    end
+
     # Calculation with field?: false should be excluded from generated TypeScript types
     calculate :internal_score, :integer, expr(1) do
       public? true

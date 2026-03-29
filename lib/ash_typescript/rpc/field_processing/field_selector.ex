@@ -339,8 +339,35 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         load_spec = build_load_spec(internal_name, nested_select, nested_load)
         {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
 
-      cat when cat in [:calculation, :calculation_complex] ->
+      :calculation ->
         load_spec = build_load_spec(internal_name, nested_select, nested_load)
+        {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
+
+      :calculation_complex ->
+        # Calculations returning complex types need different load formats depending
+        # on whether the return type is a resource (which supports load_through via
+        # Ash queries) or a non-resource type (TypedStruct/map where sub-field
+        # extraction is handled by the template).
+        {unwrapped_type, unwrapped_constraints} =
+          Introspection.unwrap_new_type(field_type, field_constraints)
+
+        returns_resource =
+          (unwrapped_type == Ash.Type.Struct &&
+             Introspection.is_resource_instance_of?(unwrapped_constraints)) ||
+            Introspection.is_embedded_resource?(unwrapped_type)
+
+        load_spec =
+          if returns_resource do
+            # Resource-returning calculations use load_through format:
+            # {calc_name, {args_map, load_through_fields}}
+            load_fields = build_load_through_fields(nested_select, nested_load)
+            {internal_name, {%{}, load_fields}}
+          else
+            # Non-resource types (TypedStruct/map): load the calculation itself,
+            # template handles sub-field extraction
+            internal_name
+          end
+
         {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
 
       :aggregate ->
@@ -1132,6 +1159,13 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       end
 
     {field_name, load_fields}
+  end
+
+  defp build_load_through_fields(nested_select, nested_load) do
+    case nested_load do
+      [] -> nested_select
+      _ -> nested_select ++ nested_load
+    end
   end
 
   defp format_extraction_template(template) do

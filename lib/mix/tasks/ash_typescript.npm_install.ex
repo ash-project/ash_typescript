@@ -7,7 +7,14 @@ defmodule Mix.Tasks.AshTypescript.NpmInstall do
   use Mix.Task
 
   @impl true
-  def run(_) do
-    System.cmd("npm", ["install"], cd: "assets")
+  def run(args) do
+    package_manager =
+      if args == ["--bun"] do
+        "bun"
+      else
+        "npm"
+      end
+
+    System.cmd(package_manager, ["install"], cd: "assets")
   end
 end

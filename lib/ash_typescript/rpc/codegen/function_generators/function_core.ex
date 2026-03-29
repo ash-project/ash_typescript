@@ -181,7 +181,12 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore do
       end
 
     if context.supports_sorting do
-      config_fields ++ ["  #{format_output_field(:sort)}?: string;"]
+      sort_field = format_output_field(:sort)
+
+      config_fields ++
+        [
+          "  #{sort_field}?: SortString<#{resource_name}SortField> | SortString<#{resource_name}SortField>[];"
+        ]
     else
       config_fields
     end

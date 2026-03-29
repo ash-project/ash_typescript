@@ -283,7 +283,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
           #{formatted_identity_field()}?: any;
           #{formatted_fields_field()}?: ReadonlyArray<string | Record<string, any>>;
           #{formatted_filter_field()}?: Record<string, any>;
-          #{formatted_sort_field()}?: string;
+          #{formatted_sort_field()}?: string | string[];
           #{formatted_page_field()}?:
             | {
                 #{formatted_limit_field()}?: number;
@@ -360,7 +360,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
       #{formatted_identity_field()}?: any;
       #{formatted_fields_field()}?: Array<string | Record<string, any>>; // Field selection
       #{formatted_filter_field()}?: Record<string, any>; // Filter options (for reads)
-      #{formatted_sort_field()}?: string; // Sort options
+      #{formatted_sort_field()}?: string | string[]; // Sort options
       #{formatted_page_field()}?:
         | {
             // Offset-based pagination

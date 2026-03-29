@@ -17,7 +17,7 @@ import {
 // Advanced custom fetch with comprehensive header management
 const advancedCustomFetch = async (
   input: RequestInfo | URL,
-  init?: RequestInit
+  init?: RequestInit,
 ): Promise<Response> => {
   // Simulate getting user preferences from safe storage
   const preferences = {
@@ -35,14 +35,14 @@ const advancedCustomFetch = async (
     // Preserve existing headers
     ...init?.headers,
     // Add user preference headers
-    'Accept-Language': preferences.language,
-    'X-User-Timezone': preferences.timezone,
-    'X-API-Version': preferences.apiVersion,
-    'X-User-Theme': preferences.theme,
+    "Accept-Language": preferences.language,
+    "X-User-Timezone": preferences.timezone,
+    "X-API-Version": preferences.apiVersion,
+    "X-User-Theme": preferences.theme,
     // Add tracking headers
-    'X-Correlation-ID': correlationId,
-    'X-Request-Source': 'ash-typescript-client',
-    'X-Timestamp': new Date().toISOString(),
+    "X-Correlation-ID": correlationId,
+    "X-Request-Source": "ash-typescript-client",
+    "X-Timestamp": new Date().toISOString(),
   };
 
   // Apply default timeout if not specified
@@ -75,23 +75,23 @@ export const productionLikeRequest = await listTodos({
     "completed",
     "priority",
     "createdAt",
-    { user: ["id", "name"] }
+    { user: ["id", "name"] },
   ],
   filter: {
     and: [
       { completed: { eq: false } },
-      { priority: { in: ["high", "urgent"] } }
-    ]
+      { priority: { in: ["high", "urgent"] } },
+    ],
   },
   page: { limit: 50, offset: 0 },
-  sort: "-priority,+createdAt",
+  sort: ["-priority", "+createdAt"],
   headers: buildCSRFHeaders(),
   customFetch: advancedCustomFetch,
   fetchOptions: {
-    credentials: 'include',
-    mode: 'cors',
-    cache: 'no-cache',
-    referrerPolicy: 'strict-origin-when-cross-origin',
+    credentials: "include",
+    mode: "cors",
+    cache: "no-cache",
+    referrerPolicy: "strict-origin-when-cross-origin",
     keepalive: true,
   },
 });
@@ -105,7 +105,7 @@ export const abortableRequest = await getTodo({
   customFetch: advancedCustomFetch,
   fetchOptions: {
     signal: manualAbortController.signal,
-    priority: 'high',
+    priority: "high",
   },
 });
 
@@ -116,7 +116,7 @@ export const abortableRequest = await getTodo({
 let retryCount = 0;
 const retryFetch = async (
   input: RequestInfo | URL,
-  init?: RequestInit
+  init?: RequestInit,
 ): Promise<Response> => {
   const maxRetries = 3;
 
@@ -127,9 +127,9 @@ const retryFetch = async (
         ...init,
         headers: {
           ...init?.headers,
-          'X-Retry-Attempt': attempt.toString(),
-          'X-Max-Retries': maxRetries.toString(),
-        }
+          "X-Retry-Attempt": attempt.toString(),
+          "X-Max-Retries": maxRetries.toString(),
+        },
       });
 
       // If response is successful, return it
@@ -143,46 +143,49 @@ const retryFetch = async (
       }
 
       // Wait before retrying (exponential backoff)
-      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
-
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.pow(2, attempt) * 1000),
+      );
     } catch (error) {
       if (attempt === maxRetries) {
         throw error;
       }
       // Wait before retrying on network errors
-      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.pow(2, attempt) * 1000),
+      );
     }
   }
 
-  throw new Error('Maximum retries exceeded');
+  throw new Error("Maximum retries exceeded");
 };
 
 export const requestWithRetry = await createTodo({
   input: {
     title: "Todo with Retry Logic",
     description: "This request will retry on failure",
-    userId: "retry-user-123"
+    userId: "retry-user-123",
   },
   fields: ["id", "title", "createdAt"],
   customFetch: retryFetch,
   fetchOptions: {
-    credentials: 'include',
+    credentials: "include",
   },
 });
 
 // Test 4: Request with custom content-type and body processing
 const jsonApiCustomFetch = async (
   input: RequestInfo | URL,
-  init?: RequestInit
+  init?: RequestInit,
 ): Promise<Response> => {
   // Modify requests to use JSON API format
   const enhancedInit = {
     ...init,
     headers: {
       ...init?.headers,
-      'Content-Type': 'application/vnd.api+json',
-      'Accept': 'application/vnd.api+json',
-    }
+      "Content-Type": "application/vnd.api+json",
+      Accept: "application/vnd.api+json",
+    },
   };
 
   return advancedCustomFetch(input, enhancedInit);
@@ -192,7 +195,7 @@ export const jsonApiRequest = await updateTodo({
   identity: "todo-456",
   input: {
     title: "Updated via JSON API",
-    completed: true
+    completed: true,
   },
   fields: ["id", "title", "completed", "createdAt"],
   customFetch: jsonApiCustomFetch,
@@ -201,23 +204,23 @@ export const jsonApiRequest = await updateTodo({
 // Test 5: Validation with comprehensive error handling
 const validationCustomFetch = async (
   input: RequestInfo | URL,
-  init?: RequestInit
+  init?: RequestInit,
 ): Promise<Response> => {
   try {
     const response = await advancedCustomFetch(input, init);
 
     // Log validation requests specifically
-    if (input.toString().includes('/validate')) {
-      console.log('Validation request completed:', {
+    if (input.toString().includes("/validate")) {
+      console.log("Validation request completed:", {
         status: response.status,
         url: input,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
     return response;
   } catch (error) {
-    console.error('Validation request failed:', error);
+    console.error("Validation request failed:", error);
     throw error;
   }
 };
@@ -227,28 +230,28 @@ export const comprehensiveValidation = await validateCreateTodo({
     title: "Validation Test Todo",
     priority: "high",
     tags: ["validation", "test", "comprehensive"],
-    userId: "validation-user-123"
+    userId: "validation-user-123",
   },
   headers: buildCSRFHeaders(),
   customFetch: validationCustomFetch,
   fetchOptions: {
-    cache: 'no-store', // Never cache validation requests
-    credentials: 'include',
+    cache: "no-store", // Never cache validation requests
+    credentials: "include",
   },
 });
 
 // Test 6: Streaming/large response handling
 const streamingCustomFetch = async (
   input: RequestInfo | URL,
-  init?: RequestInit
+  init?: RequestInit,
 ): Promise<Response> => {
   return advancedCustomFetch(input, {
     ...init,
     // Enable streaming for large responses
     headers: {
       ...init?.headers,
-      'Accept-Encoding': 'gzip, deflate, br',
-    }
+      "Accept-Encoding": "gzip, deflate, br",
+    },
   });
 };
 
@@ -261,22 +264,22 @@ export const largeDatasetRequest = await listTodos({
     "tags",
     {
       user: ["id", "name", "email"],
-      comments: ["id", "content", "authorName"]
-    }
+      comments: ["id", "content", "authorName"],
+    },
   ],
   page: { limit: 1000, offset: 0 },
   customFetch: streamingCustomFetch,
   fetchOptions: {
-    credentials: 'include',
+    credentials: "include",
     // Use high priority for important data
-    priority: 'high',
+    priority: "high",
   },
 });
 
 // Type validation for advanced usage
 if (productionLikeRequest.success) {
   const todos = productionLikeRequest.data.results;
-  todos.forEach(todo => {
+  todos.forEach((todo) => {
     const id: string = todo.id;
     const title: string = todo.title;
     const completed: boolean | null = todo.completed;
@@ -307,7 +310,7 @@ if (comprehensiveValidation.success) {
   console.log("Comprehensive validation passed");
 } else {
   const errors = comprehensiveValidation.errors;
-  errors.forEach(error => {
+  errors.forEach((error) => {
     const type: string = error.type;
     const message: string = error.message;
     const shortMessage: string = error.shortMessage;
