@@ -49,15 +49,15 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
     Ash.Type.Decimal => "v.string()",
     Ash.Type.Binary => "v.string()",
     Ash.Type.UrlEncodedBinary => "v.string()",
-    Ash.Type.File => "v.unknown()",
+    Ash.Type.File => "v.any()",
     Ash.Type.Function => "v.function()",
-    Ash.Type.Term => "v.unknown()",
+    Ash.Type.Term => "v.any()",
     Ash.Type.Vector => "v.array(v.number())",
     Ash.Type.Module => "v.string()"
   }
 
   @atom_primitives %{
-    map: "v.record(v.string(), v.unknown())",
+    map: "v.record(v.string(), v.any())",
     sum: "v.number()",
     count: "v.pipe(v.number(), v.integer())"
   }
@@ -108,7 +108,13 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
   @impl true
   def section_header, do: "Valibot Schemas for Input Resources"
   @impl true
-  def object_keyword, do: "v"
+  def library_prefix, do: "v"
+  @impl true
+  def import_statement(path), do: "import * as v from \"#{path}\";"
+  @impl true
+  def library_name, do: "Valibot"
+  @impl true
+  def configured_import_path, do: AshTypescript.Rpc.valibot_import_path()
 
   @impl true
   def format_string(constraints, require_non_empty) do
@@ -137,20 +143,9 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
   # Public API (delegates to SchemaCore)
   # ─────────────────────────────────────────────────────────────────
 
-  @doc "Maps an Ash type to a Valibot schema string."
-  def map_valibot_type(type, constraints \\ []), do: SchemaCore.map_type(__MODULE__, type, constraints)
-
-  @doc "Maps Ash type structs (attribute/argument maps) to a Valibot schema string."
-  def get_valibot_type(type_and_constraints, context \\ nil),
-    do: SchemaCore.get_type(__MODULE__, type_and_constraints, context)
-
   @doc "Generates a Valibot schema definition for an RPC action's input."
   def generate_valibot_schema(resource, action, rpc_action_name),
     do: SchemaCore.generate_action_schema(__MODULE__, resource, action, rpc_action_name)
-
-  @doc "Generates Valibot schemas for embedded resources and struct arguments."
-  def generate_valibot_schemas_for_resources(resources),
-    do: SchemaCore.generate_schemas_for_resources(__MODULE__, resources)
 
   @doc "Generates a Valibot schema for a single resource."
   def generate_valibot_schema_for_resource(resource),
@@ -176,10 +171,22 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
 
   defp number_constraint_pipes(constraints) do
     []
-    |> add_pipe_if("v.minValue(#{fmt_num(Keyword.get(constraints, :min))})", not is_nil(Keyword.get(constraints, :min)))
-    |> add_pipe_if("v.maxValue(#{fmt_num(Keyword.get(constraints, :max))})", not is_nil(Keyword.get(constraints, :max)))
-    |> add_pipe_if("v.gtValue(#{fmt_num(Keyword.get(constraints, :greater_than))})", not is_nil(Keyword.get(constraints, :greater_than)))
-    |> add_pipe_if("v.ltValue(#{fmt_num(Keyword.get(constraints, :less_than))})", not is_nil(Keyword.get(constraints, :less_than)))
+    |> add_pipe_if(
+      "v.minValue(#{fmt_num(Keyword.get(constraints, :min))})",
+      not is_nil(Keyword.get(constraints, :min))
+    )
+    |> add_pipe_if(
+      "v.maxValue(#{fmt_num(Keyword.get(constraints, :max))})",
+      not is_nil(Keyword.get(constraints, :max))
+    )
+    |> add_pipe_if(
+      "v.gtValue(#{fmt_num(Keyword.get(constraints, :greater_than))})",
+      not is_nil(Keyword.get(constraints, :greater_than))
+    )
+    |> add_pipe_if(
+      "v.ltValue(#{fmt_num(Keyword.get(constraints, :less_than))})",
+      not is_nil(Keyword.get(constraints, :less_than))
+    )
   end
 
   defp fmt_num(value) when is_float(value),

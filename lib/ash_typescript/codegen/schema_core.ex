@@ -26,12 +26,10 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # Core Type Mapping
   # ─────────────────────────────────────────────────────────────────
 
-  @doc """
-  Maps an Ash type + constraints to a schema string using the given formatter.
-  """
-  def map_type(formatter, nil, _constraints), do: formatter.null_schema()
+  # Maps an Ash type + constraints to a schema string using the given formatter.
+  defp map_type(formatter, nil, _constraints), do: formatter.null_schema()
 
-  def map_type(formatter, type, constraints) do
+  defp map_type(formatter, type, constraints) do
     if is_custom_type?(type) do
       formatter.any_schema()
     else
@@ -153,7 +151,10 @@ defmodule AshTypescript.Codegen.SchemaCore do
         case action.type do
           :read ->
             arguments = Enum.filter(action.arguments, & &1.public?)
-            if arguments != [], do: Enum.map(arguments, &process_argument_field(formatter, resource, action, &1)), else: []
+
+            if arguments != [],
+              do: Enum.map(arguments, &process_argument_field(formatter, resource, action, &1)),
+              else: []
 
           :create ->
             accepts = Ash.Resource.Info.action(resource, action.name).accept || []
@@ -178,11 +179,14 @@ defmodule AshTypescript.Codegen.SchemaCore do
 
           :action ->
             arguments = Enum.filter(action.arguments, & &1.public?)
-            if arguments != [], do: Enum.map(arguments, &process_argument_field(formatter, resource, action, &1)), else: []
+
+            if arguments != [],
+              do: Enum.map(arguments, &process_argument_field(formatter, resource, action, &1)),
+              else: []
         end
 
       field_lines = Enum.map(field_defs, fn {name, type} -> "  #{name}: #{type}," end)
-      kw = formatter.object_keyword()
+      kw = formatter.library_prefix()
 
       """
       export const #{schema_name} = #{kw}.object({
@@ -327,7 +331,9 @@ defmodule AshTypescript.Codegen.SchemaCore do
         field_constraints = Keyword.get(field_config, :constraints, [])
         allow_nil = Keyword.get(field_config, :allow_nil?, false)
 
-        schema_type = get_type(formatter, %{type: field_type, constraints: field_constraints}, context)
+        schema_type =
+          get_type(formatter, %{type: field_type, constraints: field_constraints}, context)
+
         schema_type = if allow_nil, do: formatter.wrap_optional(schema_type), else: schema_type
 
         base_name =
@@ -399,7 +405,10 @@ defmodule AshTypescript.Codegen.SchemaCore do
   end
 
   defp format_field(field_name) do
-    AshTypescript.FieldFormatter.format_field_name(field_name, AshTypescript.Rpc.output_field_formatter())
+    AshTypescript.FieldFormatter.format_field_name(
+      field_name,
+      AshTypescript.Rpc.output_field_formatter()
+    )
   end
 
   defp get_field_name_mappings(constraints) do
@@ -421,7 +430,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
   defp generate_schema_impl(formatter, resource) do
     resource_name = CodegenHelpers.build_resource_type_name(resource)
     schema_name = "#{resource_name}#{formatter.schema_suffix()}"
-    kw = formatter.object_keyword()
+    kw = formatter.library_prefix()
 
     fields =
       resource
@@ -510,7 +519,8 @@ defmodule AshTypescript.Codegen.SchemaCore do
     {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
 
     cond do
-      Introspection.is_embedded_resource?(unwrapped_type) and MapSet.member?(resource_set, unwrapped_type) ->
+      Introspection.is_embedded_resource?(unwrapped_type) and
+          MapSet.member?(resource_set, unwrapped_type) ->
         [unwrapped_type]
 
       unwrapped_type == Ash.Type.Struct ->

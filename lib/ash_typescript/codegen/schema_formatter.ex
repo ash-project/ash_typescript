@@ -79,7 +79,7 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
   @doc "Ltree type represented as a string-or-array-of-strings union."
   @callback ltree_union() :: String.t()
 
-  @doc "The schema variable name suffix (e.g. `\"Schema\"` or `\"ValibotSchema\"`)."
+  @doc ~S'The schema variable name suffix (e.g. `"Schema"` or `"ValibotSchema"`).'
   @callback schema_suffix() :: String.t()
 
   @doc "Whether schema generation is enabled in the current project config."
@@ -88,6 +88,15 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
   @doc "Human-readable label for the resource schemas section comment header."
   @callback section_header() :: String.t()
 
-  @doc "The library namespace prefix used when building schema declarations (\"z\" or \"v\")."
-  @callback object_keyword() :: String.t()
+  @doc ~S'The library namespace prefix used when building schema declarations ("z" or "v").'
+  @callback library_prefix() :: String.t()
+
+  @doc ~S'The TypeScript import statement for the validation library (e.g. `import { z } from "zod"`).'
+  @callback import_statement(import_path :: String.t()) :: String.t()
+
+  @doc ~S'Human-readable library name for comments and error messages (e.g. "Zod" or "Valibot").'
+  @callback library_name() :: String.t()
+
+  @doc "The import path for the validation library from application config."
+  @callback configured_import_path() :: String.t()
 end

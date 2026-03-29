@@ -200,7 +200,7 @@ defmodule AshTypescript.TypedController.Codegen do
   Collects all per-route Zod schemas from typed controller routes.
 
   Returns a list of Zod schema strings (one per mutation route that has non-path arguments).
-  These are meant to be passed to SharedZodGenerator as `:additional_zod_schemas`.
+  These are meant to be passed to SharedSchemaGenerator as `:additional_schemas`.
   """
   def collect_route_zod_schemas(opts \\ []) do
     router = Keyword.get(opts, :router) || AshTypescript.router()

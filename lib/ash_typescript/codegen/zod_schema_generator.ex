@@ -108,7 +108,13 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   @impl true
   def section_header, do: "Zod Schemas for Input Resources"
   @impl true
-  def object_keyword, do: "z"
+  def library_prefix, do: "z"
+  @impl true
+  def import_statement(path), do: "import { z } from \"#{path}\";"
+  @impl true
+  def library_name, do: "Zod"
+  @impl true
+  def configured_import_path, do: AshTypescript.Rpc.zod_import_path()
 
   @impl true
   def format_string(constraints, require_non_empty) do
@@ -146,9 +152,6 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   # ─────────────────────────────────────────────────────────────────
   # Public API (delegates to SchemaCore)
   # ─────────────────────────────────────────────────────────────────
-
-  @doc "Maps an Ash type to a Zod schema string."
-  def map_zod_type(type, constraints \\ []), do: SchemaCore.map_type(__MODULE__, type, constraints)
 
   @doc "Maps Ash type structs (attribute/argument maps) to a Zod schema string."
   def get_zod_type(type_and_constraints, context \\ nil),

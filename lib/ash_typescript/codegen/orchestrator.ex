@@ -22,9 +22,9 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
   alias AshTypescript.Codegen.{
     ImportResolver,
+    SchemaCore,
+    SharedSchemaGenerator,
     SharedTypesGenerator,
-    SharedValibotGenerator,
-    SharedZodGenerator,
     TypeDiscovery,
     ValibotSchemaGenerator,
     ZodSchemaGenerator
@@ -135,13 +135,6 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
     files =
       if zod_enabled? do
-        rpc_zod_schemas =
-          if rpc_output_file do
-            RpcCodegen.generate_rpc_zod_schemas(resources_and_actions)
-          else
-            []
-          end
-
         controller_zod_schemas =
           if routes_output_file do
             ControllerCodegen.collect_route_zod_schemas(router: AshTypescript.router())
@@ -149,56 +142,33 @@ defmodule AshTypescript.Codegen.Orchestrator do
             []
           end
 
-        additional_zod_schemas = rpc_zod_schemas ++ controller_zod_schemas
-
-        resource_zod_schemas_str =
-          ZodSchemaGenerator.generate_zod_schemas_for_resources(schema_resources)
-
-        all_schema_strings = [resource_zod_schemas_str | additional_zod_schemas]
-        validate_unique_zod_schema_names!(all_schema_strings)
-
-        zod_content =
-          SharedZodGenerator.generate(
-            zod_resources: schema_resources,
-            types_output_file: types_output_file,
-            zod_output_file: zod_output_file,
-            additional_zod_schemas: additional_zod_schemas
-          )
-
-        Map.put(files, zod_output_file, zod_content)
+        generate_schema_file(
+          files,
+          ZodSchemaGenerator,
+          zod_output_file,
+          types_output_file,
+          schema_resources,
+          resources_and_actions,
+          rpc_output_file,
+          controller_zod_schemas
+        )
       else
         files
       end
 
     files =
       if valibot_enabled? do
-        rpc_valibot_schemas =
-          if rpc_output_file do
-            RpcCodegen.generate_rpc_valibot_schemas(resources_and_actions)
-          else
-            []
-          end
-
         # Controller Valibot schemas not yet implemented
-        controller_valibot_schemas = []
-
-        additional_valibot_schemas = rpc_valibot_schemas ++ controller_valibot_schemas
-
-        resource_valibot_schemas_str =
-          ValibotSchemaGenerator.generate_valibot_schemas_for_resources(schema_resources)
-
-        all_schema_strings = [resource_valibot_schemas_str | additional_valibot_schemas]
-        validate_unique_valibot_schema_names!(all_schema_strings)
-
-        valibot_content =
-          SharedValibotGenerator.generate(
-            valibot_resources: schema_resources,
-            types_output_file: types_output_file,
-            valibot_output_file: valibot_output_file,
-            additional_valibot_schemas: additional_valibot_schemas
-          )
-
-        Map.put(files, valibot_output_file, valibot_content)
+        generate_schema_file(
+          files,
+          ValibotSchemaGenerator,
+          valibot_output_file,
+          types_output_file,
+          schema_resources,
+          resources_and_actions,
+          rpc_output_file,
+          []
+        )
       else
         files
       end
@@ -337,38 +307,43 @@ defmodule AshTypescript.Codegen.Orchestrator do
     Map.merge(files, namespace_files)
   end
 
-  defp validate_unique_zod_schema_names!(schema_strings) do
-    all_names =
-      schema_strings
-      |> Enum.flat_map(fn schema ->
-        Regex.scan(~r/export const (\w+)/, schema)
-        |> Enum.map(fn [_, name] -> name end)
-      end)
+  defp generate_schema_file(
+         files,
+         formatter,
+         output_file,
+         types_output_file,
+         schema_resources,
+         resources_and_actions,
+         rpc_output_file,
+         controller_schemas
+       ) do
+    rpc_schemas =
+      if rpc_output_file do
+        RpcCodegen.generate_rpc_schemas(formatter, resources_and_actions)
+      else
+        []
+      end
 
-    duplicates =
-      all_names
-      |> Enum.frequencies()
-      |> Enum.filter(fn {_name, count} -> count > 1 end)
-      |> Enum.map(fn {name, _count} -> name end)
-      |> Enum.sort()
+    additional_schemas = rpc_schemas ++ controller_schemas
 
-    if duplicates != [] do
-      names_list = Enum.map_join(duplicates, "\n  - ", & &1)
+    resource_schemas_str =
+      SchemaCore.generate_schemas_for_resources(formatter, schema_resources)
 
-      throw(
-        {:error,
-         """
-         Duplicate Zod schema names detected in ash_zod.ts:
-           - #{names_list}
+    all_schema_strings = [resource_schemas_str | additional_schemas]
+    validate_unique_schema_names!(formatter, all_schema_strings)
 
-         This usually happens when an RPC action and a typed controller route share the same name.
-         To fix this, add `zod_schema_name: :custom_name` to the typed controller route definition.
-         """}
+    content =
+      SharedSchemaGenerator.generate(formatter,
+        resource_schemas: resource_schemas_str,
+        types_output_file: types_output_file,
+        schema_output_file: output_file,
+        additional_schemas: additional_schemas
       )
-    end
+
+    Map.put(files, output_file, content)
   end
 
-  defp validate_unique_valibot_schema_names!(schema_strings) do
+  defp validate_unique_schema_names!(formatter, schema_strings) do
     all_names =
       schema_strings
       |> Enum.flat_map(fn schema ->
@@ -384,16 +359,17 @@ defmodule AshTypescript.Codegen.Orchestrator do
       |> Enum.sort()
 
     if duplicates != [] do
+      library_name = formatter.library_name()
       names_list = Enum.map_join(duplicates, "\n  - ", & &1)
 
       throw(
         {:error,
          """
-         Duplicate Valibot schema names detected in ash_valibot.ts:
+         Duplicate #{library_name} schema names detected:
            - #{names_list}
 
          This usually happens when an RPC action and a typed controller route share the same name.
-         To fix this, add `valibot_schema_name: :custom_name` to the typed controller route definition.
+         To fix this, add a custom schema name to the typed controller route definition.
          """}
       )
     end
