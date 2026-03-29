@@ -211,6 +211,7 @@ const overdueTodos = await listTodos({
 - `in`: Value in array
 - `greaterThan`, `greaterThanOrEqual`: Greater than (numbers, dates)
 - `lessThan`, `lessThanOrEqual`: Less than (numbers, dates)
+- `isNil`: Check for null/nil values (boolean)
 
 ### Logical Operators
 
@@ -242,6 +243,40 @@ const incomplete = await listTodos({
   fields: ["id", "title"],
   filter: {
     not: [{ completed: { eq: true } }]
+  }
+});
+```
+
+### Null Checks with isNil
+
+Use `isNil` to filter for null or non-null values:
+
+```typescript
+// Find todos without a due date
+const noDueDate = await listTodos({
+  fields: ["id", "title"],
+  filter: { dueDate: { isNil: true } }
+});
+
+// Find todos that have a due date set
+const hasDueDate = await listTodos({
+  fields: ["id", "title", "dueDate"],
+  filter: { dueDate: { isNil: false } }
+});
+```
+
+The `isNil` operator is available on nullable fields and accepts a boolean value.
+
+### Filtering on Aggregates
+
+Aggregates (count, sum, avg, etc.) are filterable just like regular fields:
+
+```typescript
+// Find todos with highly-rated comments
+const popularTodos = await listTodos({
+  fields: ["id", "title"],
+  filter: {
+    commentCount: { greaterThan: 10 }
   }
 });
 ```
@@ -345,6 +380,27 @@ const results = await listUsers({
 ```
 
 ## Type Safety
+
+### Filter Field Arrays
+
+For each resource, AshTypescript generates runtime arrays and union types of all filterable field names:
+
+```typescript
+import type { TodoFilterField } from './ash_types';
+import { todoFilterFields } from './ash_types';
+
+// Runtime array for building dynamic filter UIs
+todoFilterFields.forEach(field => {
+  console.log(`Can filter by: ${field}`);
+});
+
+// Type-safe field reference
+const field: TodoFilterField = "priority";  // Autocompleted by IDE
+```
+
+These include attributes, relationships, and aggregates that are filterable on the resource.
+
+### Filter Operators
 
 All filter operators are fully type-safe:
 
