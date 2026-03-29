@@ -10,7 +10,7 @@ Implementation of Zod validation schema generation for AshTypescript runtime val
 
 ## Overview
 
-The Zod schema generation feature provides runtime validation schemas alongside TypeScript types. It's implemented in `lib/ash_typescript/rpc/zod_schema_generator.ex` and integrates with the existing type generation pipeline.
+The Zod schema generation feature provides runtime validation schemas alongside TypeScript types. It's implemented in `lib/ash_typescript/codegen/zod_schema_generator.ex` and integrates with the existing type generation pipeline.
 
 ## Architecture
 
@@ -65,7 +65,7 @@ Ash.Type.Atom with constraints -> "z.enum([...])"
 ## Advanced Type Support
 
 ### Union Types
-- Uses `build_zod_union_type/2` for union schemas
+- Uses `SchemaCore.build_simple_union/3` for union schemas
 - Handles both simple and discriminated unions
 - Falls back to simple union format
 
@@ -104,7 +104,7 @@ export const TodoMetadataSchema = z.object({...});
 
 ## Key Files
 
-- **Main implementation**: `lib/ash_typescript/rpc/zod_schema_generator.ex`
+- **Main implementation**: `lib/ash_typescript/codegen/zod_schema_generator.ex`
 - **Integration point**: `lib/ash_typescript/rpc/codegen.ex`
 - **Type mapping reference**: `lib/ash_typescript/codegen/type_mapper.ex`
 

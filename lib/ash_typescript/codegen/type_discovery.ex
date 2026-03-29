@@ -24,7 +24,6 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
 
   - `scan_rpc_resources/1` - Finds all Ash resources referenced by RPC resources
   - `find_embedded_resources/1` - Filters for embedded resources only
-  - `find_field_constrained_types/1` - Finds all field-constrained types in resources
   - `get_rpc_resources/1` - Gets RPC-configured resources from domains
 
   ## Validation & Warnings
@@ -46,10 +45,6 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
   - `{:map_field, :field_name}` - Map field
 
   ## Examples
-
-      # Get all types that need TypeScript definitions
-      all_resources = TypeDiscovery.scan_rpc_resources(:my_app)
-      field_constrained_types = TypeDiscovery.find_field_constrained_types(all_resources)
 
       # Get non-RPC resources with paths showing where they're referenced
       TypeDiscovery.find_non_rpc_referenced_resources_with_paths(:my_app)
@@ -136,36 +131,6 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
   end
 
   @doc """
-  Discovers all types with field constraints referenced by the given resources.
-
-  Scans public attributes of resources to find types with field constraints
-  (Map with fields, Keyword with fields, Tuple with fields, Struct with fields, TypedStruct)
-  in direct types, arrays, and union types.
-
-  ## Parameters
-
-    * `resources` - A list of Ash resource modules to scan
-
-  ## Returns
-
-  A list of unique type info maps containing:
-    * `:instance_of` - The module (if available)
-    * `:constraints` - The type constraints
-    * `:field_name_mappings` - Field name mappings (if available)
-
-  ## Examples
-
-      iex> resources = TypeDiscovery.scan_rpc_resources(:my_app)
-      iex> TypeDiscovery.find_field_constrained_types(resources)
-      [%{instance_of: MyApp.TaskStats, constraints: [...], field_name_mappings: [...]}]
-  """
-  def find_field_constrained_types(resources) do
-    resources
-    |> Enum.flat_map(&extract_field_constrained_types_from_resource/1)
-    |> Enum.uniq_by(fn type_info -> type_info.instance_of end)
-  end
-
-  @doc """
   Gets all RPC resources configured in the given OTP application.
 
   ## Parameters
@@ -203,40 +168,6 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
   def scan_rpc_resource(resource, visited \\ MapSet.new()) do
     path = [{:root, resource}]
     find_referenced_resources_with_visited(resource, path, visited)
-  end
-
-  @doc """
-  Finds all embedded resources referenced by a single resource.
-
-  ## Parameters
-
-    * `resource` - An Ash resource module to scan
-
-  ## Returns
-
-  A list of embedded resource modules.
-  """
-  def find_referenced_embedded_resources(resource) do
-    resource
-    |> find_referenced_resources()
-    |> Enum.filter(&Ash.Resource.Info.embedded?/1)
-  end
-
-  @doc """
-  Finds all non-embedded resources referenced by a single resource.
-
-  ## Parameters
-
-    * `resource` - An Ash resource module to scan
-
-  ## Returns
-
-  A list of non-embedded resource modules.
-  """
-  def find_referenced_non_embedded_resources(resource) do
-    resource
-    |> find_referenced_resources()
-    |> Enum.reject(&Ash.Resource.Info.embedded?/1)
   end
 
   @doc """
@@ -584,111 +515,6 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
     )
     |> Enum.map(fn {resource, paths} -> {resource, Enum.uniq(paths)} end)
     |> Enum.into(%{})
-  end
-
-  defp extract_field_constrained_types_from_resource(resource) do
-    resource
-    |> Ash.Resource.Info.public_attributes()
-    |> Enum.filter(&has_field_constraints?/1)
-    |> Enum.flat_map(&extract_field_constrained_type_info/1)
-    |> Enum.filter(fn type_info -> type_info.instance_of != nil end)
-  end
-
-  defp has_field_constraints?(%Ash.Resource.Attribute{
-         type: type,
-         constraints: constraints
-       }) do
-    case type do
-      Ash.Type.Union ->
-        union_types = Introspection.get_union_types_from_constraints(type, constraints)
-
-        Enum.any?(union_types, fn {_type_name, type_config} ->
-          member_constraints = Keyword.get(type_config, :constraints, [])
-
-          Keyword.has_key?(member_constraints, :fields) and
-            Keyword.has_key?(member_constraints, :instance_of)
-        end)
-
-      {:array, Ash.Type.Union} ->
-        items_constraints = Keyword.get(constraints, :items, [])
-
-        union_types =
-          Introspection.get_union_types_from_constraints(Ash.Type.Union, items_constraints)
-
-        Enum.any?(union_types, fn {_type_name, type_config} ->
-          member_constraints = Keyword.get(type_config, :constraints, [])
-
-          Keyword.has_key?(member_constraints, :fields) and
-            Keyword.has_key?(member_constraints, :instance_of)
-        end)
-
-      _ ->
-        Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of)
-    end
-  end
-
-  defp has_field_constraints?(_), do: false
-
-  defp extract_field_constrained_type_info(%Ash.Resource.Attribute{
-         type: type,
-         constraints: constraints
-       }) do
-    case type do
-      Ash.Type.Union ->
-        union_types = Introspection.get_union_types_from_constraints(type, constraints)
-
-        Enum.flat_map(union_types, fn {_type_name, type_config} ->
-          member_constraints = Keyword.get(type_config, :constraints, [])
-
-          if Keyword.has_key?(member_constraints, :fields) and
-               Keyword.has_key?(member_constraints, :instance_of) do
-            [build_type_info(member_constraints)]
-          else
-            []
-          end
-        end)
-
-      {:array, Ash.Type.Union} ->
-        items_constraints = Keyword.get(constraints, :items, [])
-
-        union_types =
-          Introspection.get_union_types_from_constraints(Ash.Type.Union, items_constraints)
-
-        Enum.flat_map(union_types, fn {_type_name, type_config} ->
-          member_constraints = Keyword.get(type_config, :constraints, [])
-
-          if Keyword.has_key?(member_constraints, :fields) and
-               Keyword.has_key?(member_constraints, :instance_of) do
-            [build_type_info(member_constraints)]
-          else
-            []
-          end
-        end)
-
-      _ ->
-        if Keyword.has_key?(constraints, :fields) and Keyword.has_key?(constraints, :instance_of) do
-          [build_type_info(constraints)]
-        else
-          []
-        end
-    end
-  end
-
-  defp build_type_info(constraints) do
-    instance_of = Keyword.get(constraints, :instance_of)
-
-    field_name_mappings =
-      if instance_of && function_exported?(instance_of, :typescript_field_names, 0) do
-        instance_of.typescript_field_names()
-      else
-        nil
-      end
-
-    %{
-      instance_of: instance_of,
-      constraints: constraints,
-      field_name_mappings: field_name_mappings
-    }
   end
 
   defp get_related_resource(resource, relationship_path) do

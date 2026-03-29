@@ -60,7 +60,7 @@ Embedded resources use the same syntax as relationships:
 
 ### Key Files
 - `lib/ash_typescript/codegen.ex` - Main entrypoint (delegator)
-- `lib/ash_typescript/codegen/embedded_scanner.ex` - Embedded resource discovery
+- `lib/ash_typescript/codegen/type_discovery.ex` - Resource and embedded type discovery
 - `lib/ash_typescript/codegen/resource_schemas.ex` - Schema generation
 - `lib/ash_typescript/type_system/introspection.ex` - Type introspection and classification
 - `lib/ash_typescript/rpc/requested_fields_processor.ex` - Field selection parsing and validation

@@ -18,20 +18,10 @@ defmodule AshTypescript.Codegen do
 
   alias AshTypescript.Codegen.{
     Helpers,
-    ImportResolver,
     ResourceSchemas,
     TypeAliases,
-    TypeDiscovery,
-    TypeMapper,
-    UtilityTypes,
-    ValibotSchemaGenerator,
-    ZodSchemaGenerator
+    TypeMapper
   }
-
-  alias AshTypescript.TypeSystem.Introspection
-
-  defdelegate find_embedded_resources(otp_app), to: TypeDiscovery
-  defdelegate find_field_constrained_types(resources), to: TypeDiscovery
 
   defdelegate generate_ash_type_aliases(resources, actions, otp_app), to: TypeAliases
 
@@ -61,27 +51,5 @@ defmodule AshTypescript.Codegen do
   defdelegate get_resource_field_spec(field, resource), to: TypeMapper
 
   defdelegate build_resource_type_name(resource_module), to: Helpers
-  defdelegate is_simple_calculation(calc), to: Helpers
-  defdelegate is_complex_return_type(type, constraints), to: Helpers
   defdelegate lookup_aggregate_type(resource, relationship_path, field), to: Helpers
-
-  defdelegate is_embedded_resource?(module), to: Introspection
-  defdelegate unwrap_new_type(type, constraints), to: Introspection
-
-  defdelegate generate_zod_schema_for_resource(resource), to: ZodSchemaGenerator
-  defdelegate generate_zod_schemas_for_resources(resources), to: ZodSchemaGenerator
-  defdelegate generate_zod_schema(resource, action, rpc_action_name), to: ZodSchemaGenerator
-  defdelegate get_zod_type(type_and_constraints, context \\ nil), to: ZodSchemaGenerator
-
-  defdelegate generate_valibot_schema_for_resource(resource), to: ValibotSchemaGenerator
-  defdelegate generate_valibot_schemas_for_resources(resources), to: ValibotSchemaGenerator
-
-  defdelegate generate_valibot_schema(resource, action, rpc_action_name),
-    to: ValibotSchemaGenerator
-
-  defdelegate get_valibot_type(type_and_constraints, context \\ nil), to: ValibotSchemaGenerator
-
-  defdelegate generate_utility_types, to: UtilityTypes
-
-  defdelegate resolve_import_path(from_file, to_file), to: ImportResolver
 end

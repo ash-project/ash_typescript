@@ -80,7 +80,7 @@ Key architectural decisions and their reasoning for AI assistant context.
 - Filter types: Moved from top-level to `codegen/filter_types.ex` for logical grouping
 **Key Modules Created**:
 - `lib/ash_typescript/type_system/introspection.ex` - Centralized type introspection
-- `lib/ash_typescript/codegen/` - 5 focused modules (embedded_scanner, type_aliases, type_mapper, resource_schemas, helpers) + filter_types
+- `lib/ash_typescript/codegen/` - focused modules (type_discovery, type_aliases, type_mapper, resource_schemas, helpers, schema_core, schema_formatter) + filter_types
 - `lib/ash_typescript/rpc/value_formatter.ex` - Unified type-aware value formatting
 - `lib/ash_typescript/rpc/field_processing/` - 3 specialized modules (atomizer, field_selector, field_selector/validation)
 - `lib/ash_typescript/resource/verifiers/` - Organized verifier modules

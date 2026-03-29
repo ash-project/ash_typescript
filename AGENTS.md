@@ -224,7 +224,7 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 |---------|----------|
 | **Core type generation (entry point)** | `lib/ash_typescript/codegen.ex` (delegator) |
 | **Type system introspection** | `lib/ash_typescript/type_system/introspection.ex` |
-| **Resource discovery** | `lib/ash_typescript/codegen/embedded_scanner.ex` |
+| **Resource discovery** | `lib/ash_typescript/codegen/type_discovery.ex` |
 | **Type aliases generation** | `lib/ash_typescript/codegen/type_aliases.ex` |
 | **TypeScript type mapping** | `lib/ash_typescript/codegen/type_mapper.ex` |
 | **Resource schema generation** | `lib/ash_typescript/codegen/resource_schemas.ex` |
@@ -233,7 +233,9 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Utility types generation** | `lib/ash_typescript/codegen/utility_types.ex` |
 | **Import path resolution** | `lib/ash_typescript/codegen/import_resolver.ex` |
 | **Shared types generator** | `lib/ash_typescript/codegen/shared_types_generator.ex` |
-| **Shared Zod generator** | `lib/ash_typescript/codegen/shared_zod_generator.ex` |
+| **Shared schema generator** | `lib/ash_typescript/codegen/shared_schema_generator.ex` |
+| **Schema formatter behaviour** | `lib/ash_typescript/codegen/schema_formatter.ex` |
+| **Schema core (shared logic)** | `lib/ash_typescript/codegen/schema_core.ex` |
 | **Multi-file orchestrator** | `lib/ash_typescript/codegen/orchestrator.ex` |
 | **RPC client generation** | `lib/ash_typescript/rpc/codegen.ex` |
 | **JSDoc comment generation** | `lib/ash_typescript/rpc/codegen/function_generators/jsdoc_generator.ex` |
