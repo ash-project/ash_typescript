@@ -48,6 +48,26 @@ runTest("testRegexConstraintHttpUrl", () => shouldPass.testRegexConstraintHttpUr
 runTest("testAllConstraintsTogether", () => shouldPass.testAllConstraintsTogether());
 runTest("testSafeParsingWithConstraints", () => shouldPass.testSafeParsingWithConstraints());
 runTest("testOptionalConstrainedField", () => shouldPass.testOptionalConstrainedField());
+runTest("testValidEmails", () => shouldPass.testValidEmails());
+runTest("testValidPhoneNumbers", () => shouldPass.testValidPhoneNumbers());
+runTest("testValidHexColors", () => shouldPass.testValidHexColors());
+runTest("testValidSlugs", () => shouldPass.testValidSlugs());
+runTest("testValidVersions", () => shouldPass.testValidVersions());
+runTest("testCaseInsensitiveCodes", () => shouldPass.testCaseInsensitiveCodes());
+runTest("testOptionalUrlOmitted", () => shouldPass.testOptionalUrlOmitted());
+runTest("testOptionalUrlProvided", () => shouldPass.testOptionalUrlProvided());
+runTest("testFloatPriceValid", () => shouldPass.testFloatPriceValid());
+runTest("testFloatTemperatureValid", () => shouldPass.testFloatTemperatureValid());
+runTest("testFloatPercentageValid", () => shouldPass.testFloatPercentageValid());
+runTest("testOptionalFloatOmitted", () => shouldPass.testOptionalFloatOmitted());
+runTest("testOptionalFloatProvided", () => shouldPass.testOptionalFloatProvided());
+runTest("testFloatPrecision", () => shouldPass.testFloatPrecision());
+runTest("testCiStringUsernameValid", () => shouldPass.testCiStringUsernameValid());
+runTest("testCiStringCompanyNameValid", () => shouldPass.testCiStringCompanyNameValid());
+runTest("testCiStringCountryCodeValid", () => shouldPass.testCiStringCountryCodeValid());
+runTest("testOptionalCiStringOmitted", () => shouldPass.testOptionalCiStringOmitted());
+runTest("testOptionalCiStringProvided", () => shouldPass.testOptionalCiStringProvided());
+runTest("testCiStringCaseVariations", () => shouldPass.testCiStringCaseVariations());
 
 console.log("\n--- Tests that SHOULD FAIL (invalid constraints) ---\n");
 

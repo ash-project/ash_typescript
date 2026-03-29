@@ -24,7 +24,8 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
       schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
 
       # number_of_employees has constraints [min: 1, max: 1000]
-      assert schema =~ "numberOfEmployees: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(1000))"
+      assert schema =~
+               "numberOfEmployees: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(1000))"
     end
 
     test "integer without constraints generates plain v.pipe(v.number(), v.integer())" do
@@ -142,7 +143,9 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
       action = Ash.Resource.Info.action(OrgTodo, :create)
       schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
 
-      assert schema =~ "numberOfEmployees: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(1000))"
+      assert schema =~
+               "numberOfEmployees: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(1000))"
+
       assert schema =~ "someString: v.pipe(v.string(), v.minLength(1), v.maxLength(100))"
 
       # Constraints must not bleed across fields
@@ -202,6 +205,178 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
     end
   end
 
+  describe "Edge cases and error handling" do
+    test "nil constraints are handled gracefully" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      # Fields without constraints should not crash
+      assert schema =~ "userId: v.pipe(v.string(), v.uuid())"
+      assert is_binary(schema)
+    end
+
+    test "empty constraints list is handled gracefully" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      assert schema =~ "export const createOrgTodoValibotSchema = v.object({"
+      assert schema =~ "});"
+    end
+  end
+
+  describe "Optional float constraints in Valibot schemas" do
+    test "optional float with constraints uses v.optional wrapping v.pipe" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      # optional_rating is optional with min/max constraints
+      assert schema =~
+               "optionalRating: v.optional(v.pipe(v.number(), v.minValue(0.0), v.maxValue(5.0)))"
+    end
+  end
+
+  describe "Float vs integer distinction in Valibot schemas" do
+    test "floats do not get v.integer() in their pipe" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      # Integers should have v.integer() but floats should not
+      assert schema =~ "numberOfEmployees: v.pipe(v.number(), v.integer()"
+      assert schema =~ "price: v.pipe(v.number(), v.minValue"
+      refute schema =~ ~r/price.*v\.integer\(\)/
+    end
+  end
+
+  describe "CiString constraints in Valibot schemas" do
+    test "generates min_length and max_length constraints for ci_string arguments" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      # username has constraints [min_length: 3, max_length: 20]
+      assert schema =~ "username: v.pipe(v.string(), v.minLength(3), v.maxLength(20))"
+    end
+
+    test "generates regex constraint for ci_string arguments via v.pipe" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      # company_name has regex constraint
+      assert schema =~
+               "companyName: v.pipe(v.string(), v.minLength(2), v.maxLength(100), v.regex(/^[a-zA-Z0-9\\s]+$/))"
+    end
+
+    test "ci_string with only regex constraint gets v.minLength(1) for required field" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      # country_code has only regex, but since it's non-nullable it gets minLength(1)
+      assert schema =~ "countryCode: v.pipe(v.string(), v.minLength(1), v.regex(/^[A-Z]{2}$/i))"
+    end
+
+    test "optional ci_string with constraints" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      assert schema =~
+               "optionalNickname: v.optional(v.pipe(v.string(), v.minLength(2), v.maxLength(15)))"
+    end
+
+    test "ci_string with case-insensitive regex includes i flag" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      assert schema =~ "/^[A-Z]{2}$/i"
+    end
+
+    test "ci_string constraints work same as regular string" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      # CiString generates the same Valibot schema as regular String
+      assert schema =~ "username: v.pipe(v.string(), v.minLength(3), v.maxLength(20))"
+      assert schema =~ "companyName: v.pipe(v.string(), v.minLength(2), v.maxLength(100), v.regex"
+    end
+  end
+
+  describe "Regex constraint handling (safe conversion only)" do
+    test "simple regex patterns are converted to JavaScript" do
+      embedded_resource = AshTypescript.Test.TodoContent.LinkContent
+      schema = ValibotSchemaGenerator.generate_valibot_schema_for_resource(embedded_resource)
+
+      assert schema =~ "v.regex(/^https?:\\/\\//)"
+    end
+
+    test "email regex pattern is properly converted" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      assert schema =~
+               "email: v.pipe(v.string(), v.minLength(1), v.regex(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/))"
+    end
+
+    test "phone number regex pattern is properly converted" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      assert schema =~
+               "phoneNumber: v.pipe(v.string(), v.minLength(1), v.regex(/^\\+?[1-9]\\d{1,14}$/))"
+    end
+
+    test "hex color regex pattern is properly converted" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      assert schema =~
+               "hexColor: v.pipe(v.string(), v.minLength(1), v.regex(/^#[0-9A-Fa-f]{6}$/))"
+    end
+
+    test "slug regex pattern is properly converted" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      assert schema =~
+               "slug: v.pipe(v.string(), v.minLength(1), v.regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/))"
+    end
+
+    test "semantic version regex pattern is properly converted" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      assert schema =~
+               "version: v.pipe(v.string(), v.minLength(1), v.regex(/^\\d+\\.\\d+\\.\\d+$/))"
+    end
+
+    test "case-insensitive regex includes i flag" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      assert schema =~
+               "caseInsensitiveCode: v.pipe(v.string(), v.minLength(1), v.regex(/^[A-Z]{3}-\\d{4}$/i))"
+    end
+
+    test "optional field with regex constraint" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      assert schema =~ "optionalUrl: v.optional(v.pipe(v.string(), v.regex(/^https?:\\/\\/.+/)))"
+    end
+
+    test "regex constraints are properly escaped for JavaScript" do
+      action = Ash.Resource.Info.action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      assert schema =~ "\\/"
+      assert schema =~ "\\d"
+    end
+
+    test "complex PCRE patterns are skipped to avoid incorrect validation" do
+      embedded_resource = AshTypescript.Test.TodoContent.LinkContent
+      schema = ValibotSchemaGenerator.generate_valibot_schema_for_resource(embedded_resource)
+
+      assert schema =~ "v.regex("
+    end
+  end
+
   describe "Constraint definitions match Ash resource" do
     test "generated constraints exactly match the Ash attribute definitions" do
       action = Ash.Resource.Info.action(OrgTodo, :create)
@@ -210,11 +385,19 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
       assert number_arg.constraints == [min: 1, max: 1000]
 
       string_arg = Enum.find(action.arguments, &(&1.public? && &1.name == :some_string))
-      assert string_arg.constraints == [min_length: 1, max_length: 100, trim?: true, allow_empty?: false]
+
+      assert string_arg.constraints == [
+               min_length: 1,
+               max_length: 100,
+               trim?: true,
+               allow_empty?: false
+             ]
 
       schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
 
-      assert schema =~ "numberOfEmployees: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(1000))"
+      assert schema =~
+               "numberOfEmployees: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(1000))"
+
       assert schema =~ "someString: v.pipe(v.string(), v.minLength(1), v.maxLength(100))"
     end
   end
