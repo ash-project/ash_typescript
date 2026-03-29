@@ -31,5 +31,6 @@ json.dump(data, open(path, 'w'), indent=4)
 "
 """
 
-# Install deps and write sandboxed Claude settings
-setup = "{{ primary_worktree_path }}/.config/worktree-setup.sh"
+# Install dependencies
+elixir-deps = "mix deps.get --quiet"
+ts-deps = "cd test/ts && npm install --silent"
