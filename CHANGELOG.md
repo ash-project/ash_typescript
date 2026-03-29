@@ -11,6 +11,53 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.17.0](https://github.com/ash-project/ash_typescript/compare/v0.16.0...v0.17.0) (2026-03-29)
+
+
+
+
+### Features:
+
+* manifest: add valibot entries to JSON manifest by [@Torkan](https://github.com/Torkan)
+
+* codegen: add typed sort fields with SortString utility type and array support by [@Torkan](https://github.com/Torkan)
+
+* codegen: add isNil operator, expand aggregate filters, generate filter field arrays by [@Torkan](https://github.com/Torkan)
+
+* valibot by [@directormac](https://github.com/directormac)
+
+* add valibot to resolver and orchestrator by [@directormac](https://github.com/directormac)
+
+* valibot generators by [@directormac](https://github.com/directormac)
+
+### Bug Fixes:
+
+* codegen: remove dead valibot import from generated RPC file by [@Torkan](https://github.com/Torkan)
+
+* valibot: namespace export harcoded suffix by [@directormac](https://github.com/directormac)
+
+* valibot: piped constraints by [@directormac](https://github.com/directormac)
+
+* rpc: use load-through format for resource-returning calculations by [@Torkan](https://github.com/Torkan)
+
+* codegen: distinguish resource from typed struct in return type classification by [@Torkan](https://github.com/Torkan)
+
+* test: scope typed query const assertion to Typed Queries section by [@Torkan](https://github.com/Torkan)
+
+* codegen: unwrap NewTypes before classifying return types for field selection by Mike Wilson
+
+* delete vite/inertia combo as SSR didnt really work by Victor Batarse
+
+* in prod if there was no manifest.json assets.deploy would crash with vite by Victor Batarse
+
+* add csrf headers in all layouts by Victor Batarse
+
+* colocated hooks on non react version by Victor Batarse
+
+* on non-jsx framework caused crash by Victor Batarse
+
+* esbuild versions CSS issues by Victor Batarse
+
 ## [v0.16.0](https://github.com/ash-project/ash_typescript/compare/v0.15.3...v0.16.0) (2026-03-23)
 
 
