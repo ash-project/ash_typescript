@@ -142,7 +142,12 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
 
   @impl true
   def generic_filter_schemas do
-    fmt = fn field -> AshTypescript.FieldFormatter.format_field_name(field, AshTypescript.Rpc.output_field_formatter()) end
+    fmt = fn field ->
+      AshTypescript.FieldFormatter.format_field_name(
+        field,
+        AshTypescript.Rpc.output_field_formatter()
+      )
+    end
 
     """
     export const stringFilterFieldSchema = z.union([

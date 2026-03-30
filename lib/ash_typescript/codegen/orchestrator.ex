@@ -82,7 +82,8 @@ defmodule AshTypescript.Codegen.Orchestrator do
     extra_structs = AshTypescript.extra_structs()
 
     all_resources =
-      (rpc_resources ++ embedded_resources ++ struct_argument_resources ++ controller_resources ++ extra_structs)
+      (rpc_resources ++
+         embedded_resources ++ struct_argument_resources ++ controller_resources ++ extra_structs)
       |> Enum.uniq()
       |> Enum.sort_by(&inspect/1)
 

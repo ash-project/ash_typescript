@@ -27,7 +27,12 @@ defmodule AshTypescript.Codegen.UtilityTypes do
   - AshRpcError type
   """
   def generate_utility_types do
-    fmt = fn field -> AshTypescript.FieldFormatter.format_field_name(field, AshTypescript.Rpc.output_field_formatter()) end
+    fmt = fn field ->
+      AshTypescript.FieldFormatter.format_field_name(
+        field,
+        AshTypescript.Rpc.output_field_formatter()
+      )
+    end
 
     """
     // Utility Types
@@ -90,7 +95,7 @@ defmodule AshTypescript.Codegen.UtilityTypes do
     };
 
     export type BooleanFilter = GenericFilter<boolean>;
-    
+
     export type AtomFilter = GenericFilter<string>;
 
     // Utility type to convert union to intersection

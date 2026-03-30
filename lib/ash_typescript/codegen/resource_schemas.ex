@@ -270,7 +270,8 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       if Enum.empty?(primitive_fields) do
         {"never", ""}
       else
-        {"(typeof #{const_name})[number]", "export const #{const_name} = [#{primitive_array_elements}] as const;"}
+        {"(typeof #{const_name})[number]",
+         "export const #{const_name} = [#{primitive_array_elements}] as const;"}
       end
 
     enum_fields =
@@ -284,7 +285,10 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       enum_fields
       |> Enum.map_join("\n", fn field ->
         {base, _} = Introspection.unwrap_new_type(field.type, field.constraints || [])
-        const_name = "#{Helpers.camel_case_prefix(resource_name)}#{Helpers.camel_case_prefix(to_string(field.name))}Enum"
+
+        const_name =
+          "#{Helpers.camel_case_prefix(resource_name)}#{Helpers.camel_case_prefix(to_string(field.name))}Enum"
+
         values = Enum.map_join(base.values(), ", ", &"\"#{to_string(&1)}\"")
         "export const #{const_name} = [#{values}] as const;"
       end)
@@ -302,7 +306,9 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
         type_str =
           if is_atom(base) and Spark.implements_behaviour?(base, Ash.Type.Enum) do
-            const_name = "#{Helpers.camel_case_prefix(resource_name)}#{Helpers.camel_case_prefix(to_string(field.name))}Enum"
+            const_name =
+              "#{Helpers.camel_case_prefix(resource_name)}#{Helpers.camel_case_prefix(to_string(field.name))}Enum"
+
             "(typeof #{const_name})[number]"
           else
             TypeMapper.get_ts_type(field)
@@ -372,7 +378,8 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       if Enum.empty?(primitive_attrs) do
         {"never", ""}
       else
-        {"(typeof #{const_name})[number]", "export const #{const_name} = [#{primitive_array_elements}] as const;"}
+        {"(typeof #{const_name})[number]",
+         "export const #{const_name} = [#{primitive_array_elements}] as const;"}
       end
 
     enum_consts = ""
@@ -390,7 +397,9 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
         type_str =
           if is_atom(base) and Spark.implements_behaviour?(base, Ash.Type.Enum) do
-            const_name = "#{Helpers.camel_case_prefix(resource_name)}#{Helpers.camel_case_prefix(to_string(field.name))}Enum"
+            const_name =
+              "#{Helpers.camel_case_prefix(resource_name)}#{Helpers.camel_case_prefix(to_string(field.name))}Enum"
+
             "(typeof #{const_name})[number]"
           else
             TypeMapper.get_ts_type(field)
@@ -714,8 +723,6 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         end
     end
   end
-
-
 
   defp relationship_field_definition(resource, rel) do
     formatted_name = format_client_field_name(resource, rel.name)

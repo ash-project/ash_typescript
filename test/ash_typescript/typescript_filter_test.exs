@@ -52,7 +52,10 @@ defmodule AshTypescript.FilterTest do
     test "includes constrained atom attribute filters" do
       result = FilterTypes.generate_filter_type(Post)
 
-      assert String.contains?(result, "status?: GenericFilter<\"draft\" | \"published\" | \"archived\">;")
+      assert String.contains?(
+               result,
+               "status?: GenericFilter<\"draft\" | \"published\" | \"archived\">;"
+             )
     end
 
     test "includes array attribute filters" do
@@ -74,8 +77,6 @@ defmodule AshTypescript.FilterTest do
       assert String.contains?(result, "comments?: PostCommentFilterInput")
     end
   end
-
-
 
   describe "generate_all_filter_types/1" do
     # This would require setting up a full domain with resources
@@ -119,6 +120,4 @@ defmodule AshTypescript.FilterTest do
       assert String.contains?(result, "totalWeightedScore?: NumberFilter<number>;")
     end
   end
-
-
 end
