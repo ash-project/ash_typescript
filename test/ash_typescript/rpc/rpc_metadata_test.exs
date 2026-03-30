@@ -729,6 +729,38 @@ defmodule AshTypescript.Rpc.MetadataTest do
     end
   end
 
+  describe "READ actions - typed map metadata nested key formatting" do
+    test "typed map metadata values have camelCase nested keys" do
+      task = create_task("Test Task")
+
+      params = %{
+        "action" => "read_tasks_with_typed_map_metadata",
+        "fields" => ["id", "title"],
+        "metadataFields" => ["auditEntries", "completionInfo"]
+      }
+
+      conn = %Plug.Conn{}
+      result = Rpc.run_action(:ash_typescript, conn, params)
+
+      assert result["success"] == true
+      tasks = result["data"]
+      task_result = Enum.find(tasks, &(&1["id"] == task.id))
+
+      # Nested keys in {:array, :map} metadata should be camelCase
+      first_entry = List.first(task_result["auditEntries"])
+      assert first_entry["fieldName"] == "title"
+      assert first_entry["oldValue"] == "Old Title"
+      refute Map.has_key?(first_entry, "field_name")
+      refute Map.has_key?(first_entry, "old_value")
+
+      # Nested keys in :map metadata should be camelCase
+      assert task_result["completionInfo"]["completedAt"] == "2025-01-15T10:30:00Z"
+      assert task_result["completionInfo"]["completedBy"] == "user_123"
+      refute Map.has_key?(task_result["completionInfo"], "completed_at")
+      refute Map.has_key?(task_result["completionInfo"], "completed_by")
+    end
+  end
+
   # Helper function to create tasks
   defp create_task(title) do
     Task

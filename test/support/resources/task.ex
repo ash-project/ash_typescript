@@ -89,6 +89,45 @@ defmodule AshTypescript.Test.Task do
       end
     end
 
+    read :read_with_typed_map_metadata do
+      metadata :audit_entries, {:array, :map},
+        constraints: [
+          items: [
+            fields: [
+              field_name: [type: :string],
+              old_value: [type: :string]
+            ]
+          ]
+        ]
+
+      metadata :completion_info, :map,
+        constraints: [
+          fields: [
+            completed_at: [type: :string],
+            completed_by: [type: :string]
+          ]
+        ]
+
+      prepare fn query, _context ->
+        Ash.Query.after_action(query, fn _query, results ->
+          results_with_metadata =
+            Enum.map(results, fn record ->
+              record
+              |> Ash.Resource.put_metadata(:audit_entries, [
+                %{field_name: "title", old_value: "Old Title"},
+                %{field_name: "completed", old_value: "false"}
+              ])
+              |> Ash.Resource.put_metadata(:completion_info, %{
+                completed_at: "2025-01-15T10:30:00Z",
+                completed_by: "user_123"
+              })
+            end)
+
+          {:ok, results_with_metadata}
+        end)
+      end
+    end
+
     read :read_with_invalid_metadata_names do
       metadata :meta_1, :string, allow_nil?: false, default: "metadata_value"
       metadata :is_valid?, :boolean, allow_nil?: false, default: true

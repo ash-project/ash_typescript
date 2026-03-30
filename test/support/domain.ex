@@ -211,6 +211,9 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :destroy_task_metadata_empty, :destroy, show_metadata: []
       rpc_action :destroy_task_metadata_one, :destroy, show_metadata: [:some_string]
       rpc_action :destroy_task_metadata_two, :destroy, show_metadata: [:some_string, :some_number]
+
+      rpc_action :read_tasks_with_typed_map_metadata, :read_with_typed_map_metadata,
+        show_metadata: nil
     end
 
     resource AshTypescript.Test.PostComment
