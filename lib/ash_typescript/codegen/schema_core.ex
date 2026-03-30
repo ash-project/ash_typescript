@@ -224,7 +224,32 @@ defmodule AshTypescript.Codegen.SchemaCore do
 
   @doc "Generates a schema for a single resource."
   def generate_schema_for_resource(formatter, resource) do
-    generate_schema_impl(formatter, resource)
+    schema = generate_schema_impl(formatter, resource)
+
+    if AshTypescript.generate_filter_schemas?() do
+      resource_name = CodegenHelpers.build_resource_type_name(resource)
+      filter_schema_name = "#{resource_name}FilterSchema"
+      filter_schema = "export const #{filter_schema_name} = #{formatter.wrap_record()};"
+      schema <> "\n" <> filter_schema
+    else
+      schema
+    end
+  end
+
+  @doc "Generates generic generic schemas for validation."
+  def generate_generic_schemas(formatter) do
+    if formatter.generate_schemas_enabled?() do
+      """
+      // ============================
+      // Generic base schemas
+      // ============================
+
+      #{formatter.pagination_schemas()}
+      #{formatter.generic_filter_schemas()}
+      """
+    else
+      ""
+    end
   end
 
   # ─────────────────────────────────────────────────────────────────

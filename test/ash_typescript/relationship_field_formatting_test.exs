@@ -126,11 +126,10 @@ defmodule AshTypescript.RelationshipFieldFormattingTest do
       assert String.contains?(typescript_output, "FilterConfig") ||
                String.contains?(typescript_output, "Filter")
 
+      # Filter fields now use generic filter type references
       filter_field_found =
-        typescript_output
-        |> String.contains?("IsSuperAdmin?: {") ||
-          typescript_output
-          |> String.contains?("CommentCount?: {")
+        String.contains?(typescript_output, "IsSuperAdmin?: BooleanFilter;") ||
+          String.contains?(typescript_output, "CommentCount?: NumberFilter<number>;")
 
       assert filter_field_found
     end

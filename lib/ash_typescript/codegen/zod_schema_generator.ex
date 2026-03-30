@@ -117,6 +117,104 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   def configured_import_path, do: AshTypescript.Rpc.zod_import_path()
 
   @impl true
+  def pagination_schemas do
+    """
+    export const paginationKeysetInputSchema = z.object({
+      after: z.string().optional(),
+      before: z.string().optional(),
+      limit: z.number().int().optional(),
+      filter: z.record(z.string(), z.any()).optional(),
+    });
+
+    export const paginationOffsetInputSchema = z.object({
+      limit: z.number().int().optional(),
+      offset: z.number().int().optional(),
+      filter: z.record(z.string(), z.any()).optional(),
+      count: z.boolean().optional(),
+    });
+
+    export const paginationInputSchema = z.union([
+      paginationKeysetInputSchema,
+      paginationOffsetInputSchema,
+    ]);
+    """
+  end
+
+  @impl true
+  def generic_filter_schemas do
+    fmt = fn field -> AshTypescript.FieldFormatter.format_field_name(field, AshTypescript.Rpc.output_field_formatter()) end
+
+    """
+    export const stringFilterFieldSchema = z.union([
+      z.string(),
+      z.object({
+        #{fmt.("eq")}: z.string().optional(),
+        #{fmt.("not_eq")}: z.string().optional(),
+        #{fmt.("contains")}: z.string().optional(),
+        #{fmt.("icontains")}: z.string().optional(),
+        #{fmt.("is_nil")}: z.boolean().optional(),
+        #{fmt.("in")}: z.array(z.string()).optional(),
+      }),
+    ]);
+
+    export const numberFilterFieldSchema = z.union([
+      z.number(),
+      z.object({
+        #{fmt.("eq")}: z.number().optional(),
+        #{fmt.("not_eq")}: z.number().optional(),
+        #{fmt.("gt")}: z.number().optional(),
+        #{fmt.("gte")}: z.number().optional(),
+        #{fmt.("lt")}: z.number().optional(),
+        #{fmt.("lte")}: z.number().optional(),
+        #{fmt.("is_nil")}: z.boolean().optional(),
+        #{fmt.("in")}: z.array(z.number()).optional(),
+        // aliases
+        #{fmt.("greater_than")}: z.number().optional(),
+        #{fmt.("greater_than_or_equal")}: z.number().optional(),
+        #{fmt.("less_than")}: z.number().optional(),
+        #{fmt.("less_than_or_equal")}: z.number().optional(),
+      }),
+    ]);
+
+    export const booleanFilterFieldSchema = z.union([
+      z.boolean(),
+      z.object({
+        #{fmt.("eq")}: z.boolean().optional(),
+        #{fmt.("is_nil")}: z.boolean().optional(),
+      }),
+    ]);
+
+    export const dateFilterFieldSchema = z.union([
+      z.string(),
+      z.object({
+        #{fmt.("eq")}: z.string().optional(),
+        #{fmt.("not_eq")}: z.string().optional(),
+        #{fmt.("gt")}: z.string().optional(),
+        #{fmt.("gte")}: z.string().optional(),
+        #{fmt.("lt")}: z.string().optional(),
+        #{fmt.("lte")}: z.string().optional(),
+        #{fmt.("is_nil")}: z.boolean().optional(),
+        // aliases
+        #{fmt.("greater_than")}: z.string().optional(),
+        #{fmt.("greater_than_or_equal")}: z.string().optional(),
+        #{fmt.("less_than")}: z.string().optional(),
+        #{fmt.("less_than_or_equal")}: z.string().optional(),
+      }),
+    ]);
+
+    export const atomFilterFieldSchema = z.union([
+      z.string(),
+      z.object({
+        #{fmt.("eq")}: z.string().optional(),
+        #{fmt.("not_eq")}: z.string().optional(),
+        #{fmt.("is_nil")}: z.boolean().optional(),
+        #{fmt.("in")}: z.array(z.string()).optional(),
+      }),
+    ]);
+    """
+  end
+
+  @impl true
   def format_string(constraints, require_non_empty) do
     if constraints == [] do
       if require_non_empty, do: "z.string().min(1)", else: "z.string()"

@@ -79,14 +79,15 @@ defmodule AshTypescript.Codegen.Orchestrator do
     embedded_resources = TypeDiscovery.find_embedded_resources(otp_app)
     struct_argument_resources = TypeDiscovery.find_struct_argument_resources(otp_app)
     controller_resources = collect_typed_controller_resources()
+    extra_structs = AshTypescript.extra_structs()
 
     all_resources =
-      (rpc_resources ++ embedded_resources ++ struct_argument_resources ++ controller_resources)
+      (rpc_resources ++ embedded_resources ++ struct_argument_resources ++ controller_resources ++ extra_structs)
       |> Enum.uniq()
       |> Enum.sort_by(&inspect/1)
 
     schema_resources =
-      (embedded_resources ++ struct_argument_resources ++ controller_resources)
+      (embedded_resources ++ struct_argument_resources ++ controller_resources ++ extra_structs)
       |> Enum.uniq()
       |> Enum.sort_by(&inspect/1)
 
@@ -329,12 +330,15 @@ defmodule AshTypescript.Codegen.Orchestrator do
     resource_schemas_str =
       SchemaCore.generate_schemas_for_resources(formatter, schema_resources)
 
-    all_schema_strings = [resource_schemas_str | additional_schemas]
+    generic_schemas_str = SchemaCore.generate_generic_schemas(formatter)
+
+    all_schema_strings = [resource_schemas_str, generic_schemas_str | additional_schemas]
     validate_unique_schema_names!(formatter, all_schema_strings)
 
     content =
       SharedSchemaGenerator.generate(formatter,
         resource_schemas: resource_schemas_str,
+        generic_schemas: generic_schemas_str,
         types_output_file: types_output_file,
         schema_output_file: output_file,
         additional_schemas: additional_schemas

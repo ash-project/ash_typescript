@@ -117,6 +117,104 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
   def configured_import_path, do: AshTypescript.Rpc.valibot_import_path()
 
   @impl true
+  def pagination_schemas do
+    """
+    export const paginationKeysetInputSchema = v.object({
+      after: v.optional(v.string()),
+      before: v.optional(v.string()),
+      limit: v.optional(v.pipe(v.number(), v.integer())),
+      filter: v.optional(v.record(v.string(), v.any())),
+    });
+
+    export const paginationOffsetInputSchema = v.object({
+      limit: v.optional(v.pipe(v.number(), v.integer())),
+      offset: v.optional(v.pipe(v.number(), v.integer())),
+      filter: v.optional(v.record(v.string(), v.any())),
+      count: v.optional(v.boolean()),
+    });
+
+    export const paginationInputSchema = v.union([
+      paginationKeysetInputSchema,
+      paginationOffsetInputSchema,
+    ]);
+    """
+  end
+
+  @impl true
+  def generic_filter_schemas do
+    fmt = fn field -> AshTypescript.FieldFormatter.format_field_name(field, AshTypescript.Rpc.output_field_formatter()) end
+
+    """
+    export const stringFilterFieldSchema = v.union([
+      v.string(),
+      v.object({
+        #{fmt.("eq")}: v.optional(v.string()),
+        #{fmt.("not_eq")}: v.optional(v.string()),
+        #{fmt.("contains")}: v.optional(v.string()),
+        #{fmt.("icontains")}: v.optional(v.string()),
+        #{fmt.("is_nil")}: v.optional(v.boolean()),
+        #{fmt.("in")}: v.optional(v.array(v.string())),
+      }),
+    ]);
+
+    export const numberFilterFieldSchema = v.union([
+      v.number(),
+      v.object({
+        #{fmt.("eq")}: v.optional(v.number()),
+        #{fmt.("not_eq")}: v.optional(v.number()),
+        #{fmt.("gt")}: v.optional(v.number()),
+        #{fmt.("gte")}: v.optional(v.number()),
+        #{fmt.("lt")}: v.optional(v.number()),
+        #{fmt.("lte")}: v.optional(v.number()),
+        #{fmt.("is_nil")}: v.optional(v.boolean()),
+        #{fmt.("in")}: v.optional(v.array(v.number())),
+        // aliases
+        #{fmt.("greater_than")}: v.optional(v.number()),
+        #{fmt.("greater_than_or_equal")}: v.optional(v.number()),
+        #{fmt.("less_than")}: v.optional(v.number()),
+        #{fmt.("less_than_or_equal")}: v.optional(v.number()),
+      }),
+    ]);
+
+    export const booleanFilterFieldSchema = v.union([
+      v.boolean(),
+      v.object({
+        #{fmt.("eq")}: v.optional(v.boolean()),
+        #{fmt.("is_nil")}: v.optional(v.boolean()),
+      }),
+    ]);
+
+    export const dateFilterFieldSchema = v.union([
+      v.string(),
+      v.object({
+        #{fmt.("eq")}: v.optional(v.string()),
+        #{fmt.("not_eq")}: v.optional(v.string()),
+        #{fmt.("gt")}: v.optional(v.string()),
+        #{fmt.("gte")}: v.optional(v.string()),
+        #{fmt.("lt")}: v.optional(v.string()),
+        #{fmt.("lte")}: v.optional(v.string()),
+        #{fmt.("is_nil")}: v.optional(v.boolean()),
+        // aliases
+        #{fmt.("greater_than")}: v.optional(v.string()),
+        #{fmt.("greater_than_or_equal")}: v.optional(v.string()),
+        #{fmt.("less_than")}: v.optional(v.string()),
+        #{fmt.("less_than_or_equal")}: v.optional(v.string()),
+      }),
+    ]);
+
+    export const atomFilterFieldSchema = v.union([
+      v.string(),
+      v.object({
+        #{fmt.("eq")}: v.optional(v.string()),
+        #{fmt.("not_eq")}: v.optional(v.string()),
+        #{fmt.("is_nil")}: v.optional(v.boolean()),
+        #{fmt.("in")}: v.optional(v.array(v.string())),
+      }),
+    ]);
+    """
+  end
+
+  @impl true
   def format_string(constraints, require_non_empty) do
     if constraints == [] do
       if require_non_empty,

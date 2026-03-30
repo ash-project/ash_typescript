@@ -75,11 +75,10 @@ defmodule AshTypescript.AggregateFieldFormattingTest do
       assert String.contains?(typescript_output, "FilterConfig") ||
                String.contains?(typescript_output, "Filter")
 
+      # Filter fields now use generic filter type references
       filter_field_found =
-        typescript_output
-        |> String.contains?("CommentCount?: {") ||
-          typescript_output
-          |> String.contains?("HelpfulCommentCount?: {")
+        String.contains?(typescript_output, "CommentCount?: NumberFilter<number>;") ||
+          String.contains?(typescript_output, "HelpfulCommentCount?: NumberFilter<number>;")
 
       assert filter_field_found
     end

@@ -97,6 +97,12 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
   @doc ~S'Human-readable library name for comments and error messages (e.g. "Zod" or "Valibot").'
   @callback library_name() :: String.t()
 
+  @doc "Valibot/Zod pagination input schemas"
+  @callback pagination_schemas() :: String.t()
+
+  @doc "Generic filter struct schemas"
+  @callback generic_filter_schemas() :: String.t()
+
   @doc "The import path for the validation library from application config."
   @callback configured_import_path() :: String.t()
 end

@@ -128,10 +128,8 @@ defmodule AshTypescript.Codegen.FilterTypes do
 
   defp generate_attribute_filter(attribute, resource) do
     base_type = TypeMapper.get_ts_type(attribute)
-    allow_nil? = Map.get(attribute, :allow_nil?, true)
 
-    # Generate specific filter operations based on the attribute type
-    operations = get_applicable_operations(attribute.type, base_type, allow_nil?)
+    filter_type = map_to_generic_filter(attribute.type, base_type)
 
     formatted_name =
       AshTypescript.FieldFormatter.format_field_for_client(
@@ -141,9 +139,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
       )
 
     """
-      #{formatted_name}?: {
-    #{Enum.join(operations, "\n")}
-      };
+      #{formatted_name}?: #{filter_type};
     """
   end
 
@@ -176,16 +172,12 @@ defmodule AshTypescript.Codegen.FilterTypes do
         base_type = TypeMapper.get_ts_type(field)
         array_type = "Array<#{base_type}>"
 
-        operations =
-          [:eq, :not_eq, :in, :is_nil]
-          |> Enum.map(&format_operation(&1, array_type))
+        filter_type = "GenericFilter<#{array_type}>"
 
         formatted_name = format_aggregate_name(aggregate.name, resource)
 
         """
-          #{formatted_name}?: {
-        #{Enum.join(operations, "\n")}
-          };
+          #{formatted_name}?: #{filter_type};
         """
     end
   end
@@ -195,13 +187,11 @@ defmodule AshTypescript.Codegen.FilterTypes do
 
   defp generate_fixed_type_aggregate_filter(aggregate, type, resource) do
     base_type = TypeMapper.get_ts_type(%{type: type}, nil)
-    operations = get_applicable_operations(type, base_type, _allow_nil? = true)
+    filter_type = map_to_generic_filter(type, base_type)
     formatted_name = format_aggregate_name(aggregate.name, resource)
 
     """
-      #{formatted_name}?: {
-    #{Enum.join(operations, "\n")}
-      };
+      #{formatted_name}?: #{filter_type};
     """
   end
 
@@ -229,15 +219,17 @@ defmodule AshTypescript.Codegen.FilterTypes do
     AshTypescript.FieldFormatter.format_field_for_client(name, resource, formatter())
   end
 
-  defp get_applicable_operations(type, base_type, allow_nil?) do
-    ops =
-      type
-      |> classify_filter_type()
-      |> get_operations_for_type()
+  defp map_to_generic_filter(type, base_type) do
+    category = classify_filter_type(type)
 
-    ops = if allow_nil?, do: ops ++ [:is_nil], else: ops
-
-    Enum.map(ops, &format_operation(&1, base_type))
+    case category do
+      :string -> "StringFilter"
+      :numeric -> "NumberFilter<#{base_type}>"
+      :datetime -> "DateFilter<#{base_type}>"
+      :boolean -> "BooleanFilter"
+      :atom -> "AtomFilter"
+      :default -> "GenericFilter<#{base_type}>"
+    end
   end
 
   defp classify_filter_type(type) do
@@ -270,46 +262,6 @@ defmodule AshTypescript.Codegen.FilterTypes do
       true ->
         :default
     end
-  end
-
-  defp get_operations_for_type(:string), do: [:eq, :not_eq, :in]
-
-  defp get_operations_for_type(:numeric),
-    do: [
-      :eq,
-      :not_eq,
-      :greater_than,
-      :greater_than_or_equal,
-      :less_than,
-      :less_than_or_equal,
-      :in
-    ]
-
-  defp get_operations_for_type(:datetime),
-    do: [
-      :eq,
-      :not_eq,
-      :greater_than,
-      :greater_than_or_equal,
-      :less_than,
-      :less_than_or_equal,
-      :in
-    ]
-
-  defp get_operations_for_type(:boolean), do: [:eq, :not_eq]
-  defp get_operations_for_type(:atom), do: [:eq, :not_eq, :in]
-  defp get_operations_for_type(:default), do: [:eq, :not_eq, :in]
-
-  defp format_operation(:is_nil, _base_type) do
-    "    #{format_field("is_nil")}?: boolean;"
-  end
-
-  defp format_operation(:in, base_type) do
-    "    #{format_field("in")}?: Array<#{base_type}>;"
-  end
-
-  defp format_operation(op, base_type) do
-    "    #{format_field(Atom.to_string(op))}?: #{base_type};"
   end
 
   defp generate_relationship_filters(resource, allowed_resources) do

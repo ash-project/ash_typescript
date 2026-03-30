@@ -267,80 +267,36 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       {:ok, ts_output: ts_output}
     end
 
-    test "string fields include isNil", %{ts_output: ts_output} do
-      # Find PostFilterInput section
-      post_filter_section =
-        ts_output
-        |> String.split("export type PostFilterInput")
-        |> Enum.at(1)
-        |> String.split("export type")
-        |> Enum.at(0)
-
-      assert post_filter_section != nil
-      assert post_filter_section =~ "isNil?: boolean"
+    test "string fields include isNil in utility types", %{ts_output: ts_output} do
+      # isNil is now part of the generic StringFilter type in utility types
+      assert ts_output =~ "isNil?: boolean"
     end
 
-    test "numeric fields include isNil" do
-      result = FilterTypes.generate_filter_type(AshTypescript.Test.Post)
-
-      # viewCount is an integer
-      view_count_section =
-        result
-        |> String.split("viewCount?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      assert view_count_section =~ "isNil?: boolean"
-      assert view_count_section =~ "greaterThan?: number"
+    test "numeric fields use NumberFilter", %{ts_output: ts_output} do
+      # Post filter - viewCount uses NumberFilter<number>
+      assert ts_output =~ "NumberFilter<number>"
     end
 
-    test "datetime fields include isNil" do
-      result = FilterTypes.generate_filter_type(AshTypescript.Test.Post)
-
-      published_at_section =
-        result
-        |> String.split("publishedAt?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      assert published_at_section =~ "isNil?: boolean"
-      assert published_at_section =~ "greaterThan?: UtcDateTime"
+    test "datetime fields use DateFilter", %{ts_output: ts_output} do
+      # Post filter - publishedAt uses DateFilter
+      assert ts_output =~ "DateFilter<UtcDateTime>"
     end
 
-    test "boolean fields include isNil" do
-      result = FilterTypes.generate_filter_type(AshTypescript.Test.Post)
-
-      published_section =
-        result
-        |> String.split("published?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      assert published_section =~ "isNil?: boolean"
-      assert published_section =~ "eq?: boolean"
+    test "boolean fields use BooleanFilter", %{ts_output: ts_output} do
+      # Post filter - published uses BooleanFilter
+      assert ts_output =~ "BooleanFilter"
     end
 
-    test "atom/enum fields include isNil" do
-      result = FilterTypes.generate_filter_type(AshTypescript.Test.Post)
-
-      status_section =
-        result
-        |> String.split("status?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      assert status_section =~ "isNil?: boolean"
+    test "atom/enum fields use GenericFilter", %{ts_output: ts_output} do
+      # Post filter - status uses GenericFilter
+      assert ts_output =~ "GenericFilter<"
     end
 
-    test "isNil type is boolean, not the field type" do
-      result = FilterTypes.generate_filter_type(AshTypescript.Test.Post)
+    test "isNil type is boolean in utility types" do
+      utility_result = AshTypescript.Codegen.UtilityTypes.generate_utility_types()
 
-      # Verify isNil is always boolean, never the field's base type
-      is_nil_matches = Regex.scan(~r/isNil\?: (\w+);/, result)
+      # Verify isNil is always boolean in the generic filter types
+      is_nil_matches = Regex.scan(~r/isNil\?: (\w+);/, utility_result)
 
       for [_full, type] <- is_nil_matches do
         assert type == "boolean", "isNil should always be boolean, got: #{type}"
@@ -580,109 +536,44 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
     test ":exists aggregate generates boolean filter" do
       result = FilterTypes.generate_filter_type(AshTypescript.Test.Todo)
 
-      has_comments_section =
-        result
-        |> String.split("hasComments?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      assert has_comments_section =~ "eq?: boolean"
-      assert has_comments_section =~ "notEq?: boolean"
-      assert has_comments_section =~ "isNil?: boolean"
-      refute has_comments_section =~ "greaterThan"
+      assert result =~ "hasComments?: BooleanFilter;"
     end
 
     test ":max aggregate generates numeric filter with comparisons" do
       result = FilterTypes.generate_filter_type(AshTypescript.Test.Todo)
 
-      highest_rating_section =
-        result
-        |> String.split("highestRating?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      assert highest_rating_section =~ "eq?: number"
-      assert highest_rating_section =~ "greaterThan?: number"
-      assert highest_rating_section =~ "lessThan?: number"
-      assert highest_rating_section =~ "isNil?: boolean"
+      assert result =~ "highestRating?: NumberFilter<number>;"
     end
 
     test ":avg aggregate generates numeric filter" do
       result = FilterTypes.generate_filter_type(AshTypescript.Test.Todo)
 
-      avg_section =
-        result
-        |> String.split("averageRating?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      assert avg_section =~ "eq?: number"
-      assert avg_section =~ "greaterThanOrEqual?: number"
-      assert avg_section =~ "isNil?: boolean"
+      assert result =~ "averageRating?: NumberFilter<number>;"
     end
 
     test ":first aggregate generates typed filter based on source field" do
       result = FilterTypes.generate_filter_type(AshTypescript.Test.Todo)
 
       # latestCommentContent is a :first on :content (string)
-      content_section =
-        result
-        |> String.split("latestCommentContent?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      assert content_section =~ "eq?: string"
-      assert content_section =~ "notEq?: string"
-      assert content_section =~ "isNil?: boolean"
+      assert result =~ "latestCommentContent?: StringFilter;"
     end
 
     test ":list aggregate generates array filter" do
       result = FilterTypes.generate_filter_type(AshTypescript.Test.Todo)
 
-      list_section =
-        result
-        |> String.split("commentAuthors?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      assert list_section =~ "eq?: Array<string>"
-      assert list_section =~ "notEq?: Array<string>"
-      assert list_section =~ "isNil?: boolean"
+      assert result =~ "commentAuthors?: GenericFilter<Array<string>>;"
     end
 
     test ":sum aggregate generates numeric filter" do
       result = FilterTypes.generate_filter_type(AshTypescript.Test.Todo)
 
-      sum_section =
-        result
-        |> String.split("totalWeightedScore?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      assert sum_section =~ "eq?: number"
-      assert sum_section =~ "greaterThan?: number"
-      assert sum_section =~ "isNil?: boolean"
+      assert result =~ "totalWeightedScore?: NumberFilter<number>;"
     end
 
     test ":count aggregate generates integer filter" do
       result = FilterTypes.generate_filter_type(AshTypescript.Test.Todo)
 
-      count_section =
-        result
-        |> String.split("commentCount?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      assert count_section =~ "eq?: number"
-      assert count_section =~ "greaterThan?: number"
-      assert count_section =~ "isNil?: boolean"
+      assert result =~ "commentCount?: NumberFilter<number>;"
     end
   end
 end

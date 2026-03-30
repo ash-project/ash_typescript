@@ -27,9 +27,7 @@ defmodule AshTypescript.Codegen.AggregateCalculationSupportTest do
     test "generates filter type for sum aggregate over calculation" do
       result = FilterTypes.generate_filter_type(AshTypescript.Test.Todo)
 
-      assert result =~ "totalWeightedScore?: {"
-      assert result =~ "eq?: number"
-      assert result =~ "greaterThan?: number"
+      assert result =~ "totalWeightedScore?: NumberFilter<number>;"
     end
   end
 

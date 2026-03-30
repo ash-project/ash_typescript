@@ -65,7 +65,7 @@ defmodule AshTypescript.NonFieldCalculationTest do
   end
 
   defp extract_primitive_fields(schema_string) do
-    case Regex.run(~r/__primitiveFields: (.+?);/, schema_string) do
+    case Regex.run(~r/export const .*?PrimitiveFields = \[(.+?)\] as const;/, schema_string) do
       [_, fields] -> fields
       _ -> ""
     end

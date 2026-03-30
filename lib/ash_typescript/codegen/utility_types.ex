@@ -27,6 +27,8 @@ defmodule AshTypescript.Codegen.UtilityTypes do
   - AshRpcError type
   """
   def generate_utility_types do
+    fmt = fn field -> AshTypescript.FieldFormatter.format_field_name(field, AshTypescript.Rpc.output_field_formatter()) end
+
     """
     // Utility Types
 
@@ -39,6 +41,57 @@ defmodule AshTypescript.Codegen.UtilityTypes do
       __type: "Resource" | "TypedMap" | "Union";
       __primitiveFields: string;
     };
+
+    // Clean public mapping
+    export type Clean<T> = T extends null | undefined ? T :
+      T extends { __type: "Relationship", __array: true, __resource: infer R } ? Array<Clean<R>> :
+      T extends { __type: "Relationship", __resource: infer R } ? Clean<R> :
+      T extends { __type: "ComplexCalculation", __returnType: infer R } ? Clean<R> :
+      T extends { __type: "Union" } ? Omit<T, "__type" | "__primitiveFields"> :
+      T extends { __type: "Resource" | "TypedMap" } ? { [K in keyof Omit<T, "__type" | "__primitiveFields">]: Clean<T[K]> } :
+      T extends Array<infer E> ? Array<Clean<E>> :
+      T;
+
+    // Generic Filter operations
+    export type GenericFilter<T> = { 
+      #{fmt.("eq")}?: T; 
+      #{fmt.("not_eq")}?: T; 
+      #{fmt.("in")}?: T[]; 
+      #{fmt.("is_nil")}?: boolean; 
+    };
+
+    export type StringFilter = GenericFilter<string> & { 
+      #{fmt.("contains")}?: string; 
+      #{fmt.("icontains")}?: string; 
+      #{fmt.("like")}?: string; 
+      #{fmt.("ilike")}?: string;
+    };
+
+    export type NumberFilter<T> = GenericFilter<T> & { 
+      #{fmt.("gt")}?: T; 
+      #{fmt.("greater_than")}?: T; 
+      #{fmt.("gte")}?: T; 
+      #{fmt.("greater_than_or_equal")}?: T; 
+      #{fmt.("lt")}?: T; 
+      #{fmt.("less_than")}?: T; 
+      #{fmt.("lte")}?: T; 
+      #{fmt.("less_than_or_equal")}?: T; 
+    };
+
+    export type DateFilter<T> = GenericFilter<T> & { 
+      #{fmt.("gt")}?: T; 
+      #{fmt.("greater_than")}?: T; 
+      #{fmt.("gte")}?: T; 
+      #{fmt.("greater_than_or_equal")}?: T; 
+      #{fmt.("lt")}?: T; 
+      #{fmt.("less_than")}?: T; 
+      #{fmt.("lte")}?: T; 
+      #{fmt.("less_than_or_equal")}?: T; 
+    };
+
+    export type BooleanFilter = GenericFilter<boolean>;
+    
+    export type AtomFilter = GenericFilter<string>;
 
     // Utility type to convert union to intersection
     export type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (

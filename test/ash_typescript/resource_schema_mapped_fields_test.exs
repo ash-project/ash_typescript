@@ -47,16 +47,19 @@ defmodule AshTypescript.ResourceSchemaMappedFieldsTest do
     test "__primitiveFields union includes mapped field names" do
       result = Codegen.generate_unified_resource_schema(Task, [])
 
-      # Find the __primitiveFields line
-      primitive_fields_line =
+      # __primitiveFields now references a typeof extracted const array
+      assert result =~ "__primitiveFields: (typeof taskResourcePrimitiveFields)[number];"
+
+      # Find the const array definition for the actual field names
+      primitive_array_line =
         result
         |> String.split("\n")
-        |> Enum.find(&String.contains?(&1, "__primitiveFields:"))
+        |> Enum.find(&String.contains?(&1, "taskResourcePrimitiveFields"))
 
-      # Should contain mapped field name in the union
-      assert primitive_fields_line =~ "\"isArchived\""
+      # Should contain mapped field name in the array
+      assert primitive_array_line =~ "\"isArchived\""
       # Should NOT contain internal field name
-      refute primitive_fields_line =~ "\"archived?\""
+      refute primitive_array_line =~ "\"archived?\""
     end
 
     test "unmapped fields appear correctly in schema" do
@@ -79,18 +82,18 @@ defmodule AshTypescript.ResourceSchemaMappedFieldsTest do
     test "all primitive fields are present in __primitiveFields union" do
       result = Codegen.generate_unified_resource_schema(Task, [])
 
-      # Extract the __primitiveFields line
-      primitive_fields_line =
+      # Find the const array that holds the primitive field names
+      primitive_array_line =
         result
         |> String.split("\n")
-        |> Enum.find(&String.contains?(&1, "__primitiveFields:"))
+        |> Enum.find(&String.contains?(&1, "taskResourcePrimitiveFields"))
 
       # Should contain all primitive field names
-      assert primitive_fields_line =~ "\"id\""
-      assert primitive_fields_line =~ "\"title\""
-      assert primitive_fields_line =~ "\"completed\""
-      assert primitive_fields_line =~ "\"isArchived\""
-      refute primitive_fields_line =~ "\"archived?\""
+      assert primitive_array_line =~ "\"id\""
+      assert primitive_array_line =~ "\"title\""
+      assert primitive_array_line =~ "\"completed\""
+      assert primitive_array_line =~ "\"isArchived\""
+      refute primitive_array_line =~ "\"archived?\""
     end
 
     test "primitive fields exclude embedded resources when not in allowed list" do
@@ -178,22 +181,22 @@ defmodule AshTypescript.ResourceSchemaMappedFieldsTest do
       embedded_resource = AshTypescript.Test.TaskMetadata
       result = Codegen.generate_unified_resource_schema(embedded_resource, [])
 
-      # Extract the __primitiveFields line
-      primitive_fields_line =
+      # Find the const array that holds the primitive field names
+      primitive_array_line =
         result
         |> String.split("\n")
-        |> Enum.find(&String.contains?(&1, "__primitiveFields:"))
+        |> Enum.find(&String.contains?(&1, "taskMetadataResourcePrimitiveFields"))
 
       # Should contain mapped field names
-      assert primitive_fields_line =~ "\"createdBy\""
-      refute primitive_fields_line =~ "\"created_by?\""
+      assert primitive_array_line =~ "\"createdBy\""
+      refute primitive_array_line =~ "\"created_by?\""
 
-      assert primitive_fields_line =~ "\"isPublic\""
-      refute primitive_fields_line =~ "\"is_public?\""
+      assert primitive_array_line =~ "\"isPublic\""
+      refute primitive_array_line =~ "\"is_public?\""
 
       # Should also contain unmapped fields
-      assert primitive_fields_line =~ "\"notes\""
-      assert primitive_fields_line =~ "\"priorityLevel\""
+      assert primitive_array_line =~ "\"notes\""
+      assert primitive_array_line =~ "\"priorityLevel\""
     end
 
     test "embedded resource non-nullable mapped fields are not marked nullable" do
@@ -336,18 +339,20 @@ defmodule AshTypescript.ResourceSchemaMappedFieldsTest do
       assert result =~ "__primitiveFields:"
     end
 
-    test "__primitiveFields is a union of string literals" do
+    test "__primitiveFields references extracted const array" do
       result = Codegen.generate_unified_resource_schema(Task, [])
 
-      # Extract the __primitiveFields line
-      primitive_fields_line =
+      # __primitiveFields should reference the typeof the const array
+      assert result =~ "__primitiveFields: (typeof taskResourcePrimitiveFields)[number];"
+
+      # The const array should exist with quoted string literals
+      primitive_array_line =
         result
         |> String.split("\n")
-        |> Enum.find(&String.contains?(&1, "__primitiveFields:"))
+        |> Enum.find(&String.contains?(&1, "taskResourcePrimitiveFields = ["))
 
-      # Should be a union of quoted strings
-      assert primitive_fields_line =~ "\""
-      assert primitive_fields_line =~ "|"
+      assert primitive_array_line != nil
+      assert primitive_array_line =~ "\""
     end
 
     test "schema contains only primitive fields when allowed_resources is empty" do

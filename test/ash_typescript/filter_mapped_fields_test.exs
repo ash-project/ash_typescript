@@ -9,7 +9,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
   This test module verifies that FilterInput types correctly use mapped field names
   for TypeScript filter generation. It ensures that:
   1. Attribute filters use mapped field names
-  2. Filter operations are available on mapped fields
+  2. Filter operations are available on mapped fields (via generic types)
   3. Aggregate filters with mapped names work correctly
   4. Generated filter types match TypeScript client expectations
 
@@ -26,29 +26,16 @@ defmodule AshTypescript.FilterMappedFieldsTest do
       result = FilterTypes.generate_filter_type(Task)
 
       # Should contain the mapped name 'isArchived' (from archived?)
-      assert result =~ "isArchived?: {"
+      assert result =~ "isArchived?: BooleanFilter;"
       # Should NOT contain the internal field name
       refute result =~ "archived?:"
     end
 
-    test "mapped boolean field has correct filter operations" do
+    test "mapped boolean field uses BooleanFilter generic type" do
       result = FilterTypes.generate_filter_type(Task)
 
-      # Find the isArchived filter section
-      is_archived_section =
-        result
-        |> String.split("isArchived?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      # Boolean fields should have eq and notEq operations
-      assert is_archived_section =~ "eq?: boolean"
-      assert is_archived_section =~ "notEq?: boolean"
-
-      # Boolean fields should NOT have comparison operations
-      refute is_archived_section =~ "greaterThan"
-      refute is_archived_section =~ "lessThan"
+      # isArchived should use the BooleanFilter generic type
+      assert result =~ "isArchived?: BooleanFilter;"
 
       # Should not reference the internal field name
       refute result =~ "archived?:"
@@ -58,8 +45,8 @@ defmodule AshTypescript.FilterMappedFieldsTest do
       result = FilterTypes.generate_filter_type(Task)
 
       # 'title' has no mapping and should appear as-is
-      assert result =~ "title?: {"
-      assert result =~ "completed?: {"
+      assert result =~ "title?: StringFilter;"
+      assert result =~ "completed?: BooleanFilter;"
     end
 
     test "filter type structure is valid TypeScript" do
@@ -77,86 +64,29 @@ defmodule AshTypescript.FilterMappedFieldsTest do
       result = FilterTypes.generate_filter_type(Task)
 
       # Verify that archived? -> is_archived mapping is consistently applied
-      assert result =~ "isArchived?: {"
+      assert result =~ "isArchived?: BooleanFilter;"
       refute result =~ "archived?:"
-
-      # Check that the filter is a boolean filter
-      is_archived_section =
-        result
-        |> String.split("isArchived?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      assert is_archived_section =~ "eq?: boolean"
-      assert is_archived_section =~ "notEq?: boolean"
     end
 
-    test "filter includes id field with UUID operations" do
+    test "filter includes id field with UUID type" do
       result = FilterTypes.generate_filter_type(Task)
 
-      # Should have id field
-      assert result =~ "id?: {"
-
-      # Find the id filter section
-      id_section =
-        result
-        |> String.split("id?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      # UUID fields should have basic operations
-      assert id_section =~ "eq?: UUID"
-      assert id_section =~ "notEq?: UUID"
-      assert id_section =~ "in?: Array<UUID>"
+      # Should have id field with GenericFilter<UUID>
+      assert result =~ "id?: GenericFilter<UUID>;"
     end
 
-    test "filter includes string field operations" do
+    test "filter includes string field type" do
       result = FilterTypes.generate_filter_type(Task)
 
-      # Should have title field
-      assert result =~ "title?: {"
-
-      # Find the title filter section
-      title_section =
-        result
-        |> String.split("title?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      # String fields should have basic operations
-      assert title_section =~ "eq?: string"
-      assert title_section =~ "notEq?: string"
-      assert title_section =~ "in?: Array<string>"
-
-      # String fields should NOT have comparison operations
-      refute title_section =~ "greaterThan"
-      refute title_section =~ "lessThan"
+      # Should have title field with StringFilter
+      assert result =~ "title?: StringFilter;"
     end
 
-    test "filter includes boolean field operations" do
+    test "filter includes boolean field type" do
       result = FilterTypes.generate_filter_type(Task)
 
-      # Should have completed field
-      assert result =~ "completed?: {"
-
-      # Find the completed filter section
-      completed_section =
-        result
-        |> String.split("completed?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      # Boolean fields should have limited operations
-      assert completed_section =~ "eq?: boolean"
-      assert completed_section =~ "notEq?: boolean"
-
-      # Boolean fields should NOT have comparison or array operations
-      refute completed_section =~ "greaterThan"
-      refute completed_section =~ "in?: Array"
+      # Should have completed field with BooleanFilter
+      assert result =~ "completed?: BooleanFilter;"
     end
   end
 
@@ -164,21 +94,8 @@ defmodule AshTypescript.FilterMappedFieldsTest do
     test "embedded resource field appears in filter" do
       result = FilterTypes.generate_filter_type(Task)
 
-      # Should have metadata field (embedded resource)
-      assert result =~ "metadata?: {"
-
-      # Find the metadata filter section
-      metadata_section =
-        result
-        |> String.split("metadata?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      # Embedded resource should have basic operations
-      assert metadata_section =~ "eq?: TaskMetadataResourceSchema"
-      assert metadata_section =~ "notEq?: TaskMetadataResourceSchema"
-      assert metadata_section =~ "in?: Array<TaskMetadataResourceSchema>"
+      # Should have metadata field with GenericFilter
+      assert result =~ "metadata?: GenericFilter<TaskMetadataResourceSchema>;"
     end
   end
 
@@ -186,36 +103,20 @@ defmodule AshTypescript.FilterMappedFieldsTest do
     test "mapped fields maintain consistent ordering with other fields" do
       result = FilterTypes.generate_filter_type(Task)
 
-      # Extract field names in order (looking for field definitions ending with ?: {)
-      field_pattern = ~r/(\w+)\?:\s*\{/
-      fields = Regex.scan(field_pattern, result) |> Enum.map(fn [_, field] -> field end)
-
-      # Should contain mapped field name, not internal name
-      assert "isArchived" in fields
-      refute "archived?" in fields
+      # Verify mapped field names appear in the output
+      assert result =~ "isArchived?:"
+      refute result =~ "archived?:"
 
       # Should also contain unmapped fields
-      assert "title" in fields
-      assert "completed" in fields
+      assert result =~ "title?:"
+      assert result =~ "completed?:"
     end
 
-    test "each field has proper closing brace" do
+    test "each field has proper type ending with semicolon" do
       result = FilterTypes.generate_filter_type(Task)
 
-      # Count opening and closing braces for isArchived
-      is_archived_full =
-        result
-        |> String.split("isArchived?: {")
-        |> Enum.at(1)
-        |> String.split("\n\n")
-        |> Enum.at(0)
-
-      # Should have balanced braces
-      _opening_braces = String.graphemes(is_archived_full) |> Enum.count(&(&1 == "{"))
-      closing_braces = String.graphemes(is_archived_full) |> Enum.count(&(&1 == "}"))
-
-      # One opening brace for the field definition, should have matching closing
-      assert closing_braces > 0
+      # isArchived should be properly terminated
+      assert result =~ "isArchived?: BooleanFilter;"
     end
   end
 
@@ -224,16 +125,16 @@ defmodule AshTypescript.FilterMappedFieldsTest do
       result = FilterTypes.generate_filter_type(Task)
 
       # Standard fields (unmapped)
-      assert result =~ "id?: {"
-      assert result =~ "title?: {"
-      assert result =~ "completed?: {"
+      assert result =~ "id?: GenericFilter<UUID>;"
+      assert result =~ "title?: StringFilter;"
+      assert result =~ "completed?: BooleanFilter;"
 
       # Mapped field
-      assert result =~ "isArchived?: {"
+      assert result =~ "isArchived?: BooleanFilter;"
       refute result =~ "archived?:"
 
       # Embedded resource field
-      assert result =~ "metadata?: {"
+      assert result =~ "metadata?: GenericFilter<TaskMetadataResourceSchema>;"
     end
 
     test "logical operators are present in filter type" do
@@ -246,15 +147,16 @@ defmodule AshTypescript.FilterMappedFieldsTest do
     end
 
     test "filter operations use camelCase formatting" do
-      result = FilterTypes.generate_filter_type(Task)
+      # Operations are in the generic filter types (UtilityTypes), not inline
+      utility_result = AshTypescript.Codegen.UtilityTypes.generate_utility_types()
 
-      # Check that filter operations are formatted
-      assert result =~ "eq?:"
-      assert result =~ "notEq?:"
-      assert result =~ "in?: Array"
+      # Check that operations are formatted
+      assert utility_result =~ "eq?:"
+      assert utility_result =~ "notEq?:"
+      assert utility_result =~ "in?:"
 
       # Should not have snake_case operation names
-      refute result =~ "not_eq?:"
+      refute utility_result =~ "not_eq?:"
     end
   end
 
@@ -276,69 +178,35 @@ defmodule AshTypescript.FilterMappedFieldsTest do
       embedded_resource = AshTypescript.Test.TaskMetadata
       result = FilterTypes.generate_filter_type(embedded_resource)
 
-      # Should contain mapped field names
-      assert result =~ "createdBy?: {"
+      # Should contain mapped field names with generic filter types
+      assert result =~ "createdBy?: StringFilter;"
       refute result =~ "created_by?:"
 
-      assert result =~ "isPublic?: {"
+      assert result =~ "isPublic?: BooleanFilter;"
       refute result =~ "is_public?:"
 
       # Should also have unmapped fields
-      assert result =~ "notes?: {"
-      assert result =~ "priorityLevel?: {"
+      assert result =~ "notes?: StringFilter;"
+      assert result =~ "priorityLevel?: NumberFilter<number>;"
     end
 
-    test "embedded resource mapped fields have correct filter operations" do
+    test "embedded resource mapped fields have correct filter types" do
       embedded_resource = AshTypescript.Test.TaskMetadata
       result = FilterTypes.generate_filter_type(embedded_resource)
 
-      # Find the createdBy filter section (string field)
-      created_by_section =
-        result
-        |> String.split("createdBy?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
+      # createdBy (string field) -> StringFilter
+      assert result =~ "createdBy?: StringFilter;"
 
-      assert created_by_section =~ "eq?: string"
-      assert created_by_section =~ "notEq?: string"
-      assert created_by_section =~ "in?: Array<string>"
-      refute created_by_section =~ "greaterThan"
-
-      # Find the isPublic filter section (boolean field)
-      is_public_section =
-        result
-        |> String.split("isPublic?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      assert is_public_section =~ "eq?: boolean"
-      assert is_public_section =~ "notEq?: boolean"
-      refute is_public_section =~ "in?: Array"
-      refute is_public_section =~ "greaterThan"
+      # isPublic (boolean field) -> BooleanFilter
+      assert result =~ "isPublic?: BooleanFilter;"
     end
 
-    test "embedded resource integer field has comparison operations" do
+    test "embedded resource integer field has NumberFilter" do
       embedded_resource = AshTypescript.Test.TaskMetadata
       result = FilterTypes.generate_filter_type(embedded_resource)
 
-      # Find the priorityLevel filter section (integer field)
-      priority_section =
-        result
-        |> String.split("priorityLevel?: {")
-        |> Enum.at(1)
-        |> String.split("};")
-        |> Enum.at(0)
-
-      # Integer fields should have full comparison operations
-      assert priority_section =~ "eq?: number"
-      assert priority_section =~ "notEq?: number"
-      assert priority_section =~ "greaterThan?: number"
-      assert priority_section =~ "greaterThanOrEqual?: number"
-      assert priority_section =~ "lessThan?: number"
-      assert priority_section =~ "lessThanOrEqual?: number"
-      assert priority_section =~ "in?: Array<number>"
+      # priorityLevel (integer field) -> NumberFilter<number>
+      assert result =~ "priorityLevel?: NumberFilter<number>;"
     end
   end
 
@@ -347,12 +215,8 @@ defmodule AshTypescript.FilterMappedFieldsTest do
       result = FilterTypes.generate_filter_type(Task)
 
       # TypeScript client sends filter with mapped names
-      assert result =~ "isArchived?: {"
+      assert result =~ "isArchived?: BooleanFilter;"
       refute result =~ "archived?:"
-
-      # Filter operations should be camelCase
-      assert result =~ "notEq?:"
-      assert result =~ "greaterThan?:" or result =~ "eq?:"
     end
 
     test "nested filter structures work with mapped names" do
@@ -362,7 +226,7 @@ defmodule AshTypescript.FilterMappedFieldsTest do
       assert result =~ "and?: Array<TaskFilterInput>;"
 
       # This allows nested filters like: { and: [{ isArchived: { eq: true } }] }
-      assert result =~ "isArchived?: {"
+      assert result =~ "isArchived?: BooleanFilter;"
       refute result =~ "archived?:"
     end
   end

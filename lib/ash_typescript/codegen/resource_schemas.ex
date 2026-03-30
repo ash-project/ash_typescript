@@ -180,12 +180,16 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     # Used by first aggregates and load restrictions (allowed_loads with flat allows)
     attributes_only_schema = generate_attributes_only_schema(resource, allowed_resources)
 
+    clean_mapped_type = """
+    export type #{resource_name} = Clean<#{resource_name}ResourceSchema>;
+    """
+
     base_schemas = """
     // #{resource_name} Schema
     #{unified_schema}
     """
 
-    [base_schemas, attributes_only_schema, input_schema]
+    [base_schemas, attributes_only_schema, clean_mapped_type, input_schema]
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n\n")
   end
@@ -252,8 +256,38 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         )
       )
 
-    primitive_fields_union =
-      generate_primitive_fields_union(Enum.map(primitive_fields, & &1.name), resource)
+    primitive_fields_structs = primitive_fields
+    primitive_fields = Enum.map(primitive_fields, & &1.name)
+
+    const_name = "#{Helpers.camel_case_prefix(resource_name)}ResourcePrimitiveFields"
+
+    primitive_array_elements =
+      Enum.map_join(primitive_fields, ", ", fn field ->
+        "\"#{format_client_field_name(resource, field)}\""
+      end)
+
+    {primitive_fields_union, const_declaration} =
+      if Enum.empty?(primitive_fields) do
+        {"never", ""}
+      else
+        {"(typeof #{const_name})[number]", "export const #{const_name} = [#{primitive_array_elements}] as const;"}
+      end
+
+    enum_fields =
+      primitive_fields_structs
+      |> Enum.filter(fn field ->
+        {base, _} = Introspection.unwrap_new_type(field.type, field.constraints || [])
+        is_atom(base) and Spark.implements_behaviour?(base, Ash.Type.Enum)
+      end)
+
+    enum_consts =
+      enum_fields
+      |> Enum.map_join("\n", fn field ->
+        {base, _} = Introspection.unwrap_new_type(field.type, field.constraints || [])
+        const_name = "#{Helpers.camel_case_prefix(resource_name)}#{Helpers.camel_case_prefix(to_string(field.name))}Enum"
+        values = Enum.map_join(base.values(), ", ", &"\"#{to_string(&1)}\"")
+        "export const #{const_name} = [#{values}] as const;"
+      end)
 
     metadata_schema_fields = [
       "  __type: \"Resource\";",
@@ -261,10 +295,18 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     ]
 
     all_field_lines =
-      primitive_fields
+      primitive_fields_structs
       |> Enum.map(fn field ->
         formatted_name = format_client_field_name(resource, field.name)
-        type_str = TypeMapper.get_ts_type(field)
+        {base, _} = Introspection.unwrap_new_type(field.type, field.constraints || [])
+
+        type_str =
+          if is_atom(base) and Spark.implements_behaviour?(base, Ash.Type.Enum) do
+            const_name = "#{Helpers.camel_case_prefix(resource_name)}#{Helpers.camel_case_prefix(to_string(field.name))}Enum"
+            "(typeof #{const_name})[number]"
+          else
+            TypeMapper.get_ts_type(field)
+          end
 
         if allow_nil?(field) do
           "  #{formatted_name}: #{type_str} | null;"
@@ -281,8 +323,15 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       |> then(&Enum.concat(metadata_schema_fields, &1))
       |> Enum.join("\n")
 
+    const_out =
+      [const_declaration, enum_consts]
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.join("\n")
+
+    const_out = if const_out != "", do: "#{const_out}\n", else: ""
+
     """
-    export type #{resource_name}ResourceSchema = {
+    #{const_out}export type #{resource_name}ResourceSchema = {
     #{all_field_lines}
     };
     """
@@ -309,8 +358,24 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         is_complex_attr?(attr)
       end)
 
-    primitive_fields_union =
-      generate_primitive_fields_union(Enum.map(primitive_attrs, & &1.name), resource)
+    primitive_attrs_structs = primitive_attrs
+    primitive_attrs = Enum.map(primitive_attrs, & &1.name)
+
+    const_name = "#{Helpers.camel_case_prefix(resource_name)}AttributesOnlyPrimitiveFields"
+
+    primitive_array_elements =
+      Enum.map_join(primitive_attrs, ", ", fn field ->
+        "\"#{format_client_field_name(resource, field)}\""
+      end)
+
+    {primitive_fields_union, const_declaration} =
+      if Enum.empty?(primitive_attrs) do
+        {"never", ""}
+      else
+        {"(typeof #{const_name})[number]", "export const #{const_name} = [#{primitive_array_elements}] as const;"}
+      end
+
+    enum_consts = ""
 
     metadata_schema_fields = [
       "  __type: \"Resource\";",
@@ -318,10 +383,18 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     ]
 
     all_field_lines =
-      primitive_attrs
+      primitive_attrs_structs
       |> Enum.map(fn field ->
         formatted_name = format_client_field_name(resource, field.name)
-        type_str = TypeMapper.get_ts_type(field)
+        {base, _} = Introspection.unwrap_new_type(field.type, field.constraints || [])
+
+        type_str =
+          if is_atom(base) and Spark.implements_behaviour?(base, Ash.Type.Enum) do
+            const_name = "#{Helpers.camel_case_prefix(resource_name)}#{Helpers.camel_case_prefix(to_string(field.name))}Enum"
+            "(typeof #{const_name})[number]"
+          else
+            TypeMapper.get_ts_type(field)
+          end
 
         if allow_nil?(field) do
           "  #{formatted_name}: #{type_str} | null;"
@@ -338,8 +411,15 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       |> then(&Enum.concat(metadata_schema_fields, &1))
       |> Enum.join("\n")
 
+    const_out =
+      [const_declaration, enum_consts]
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.join("\n")
+
+    const_out = if const_out != "", do: "#{const_out}\n", else: ""
+
     """
-    export type #{resource_name}AttributesOnlySchema = {
+    #{const_out}export type #{resource_name}AttributesOnlySchema = {
     #{all_field_lines}
     };
     """
@@ -635,20 +715,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     end
   end
 
-  defp generate_primitive_fields_union(fields, resource) do
-    if Enum.empty?(fields) do
-      "never"
-    else
-      fields
-      |> Enum.map_join(
-        " | ",
-        fn field_name ->
-          formatted = format_client_field_name(resource, field_name)
-          "\"#{formatted}\""
-        end
-      )
-    end
-  end
+
 
   defp relationship_field_definition(resource, rel) do
     formatted_name = format_client_field_name(resource, rel.name)

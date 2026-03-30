@@ -27,6 +27,36 @@ defmodule AshTypescript do
   end
 
   @doc """
+  Gets extra TypedStructs to generate types for, even if not referenced by RPC resources.
+
+  ## Configuration
+
+      config :ash_typescript,
+        extra_structs: [Platform.Auth.SessionInfo]
+
+  ## Returns
+  A list of TypedStruct module atoms.
+  """
+  def extra_structs do
+    Application.get_env(:ash_typescript, :extra_structs, [])
+  end
+
+  @doc """
+  Gets whether to generate generic filter schemas (e.g. UserFilterSchema) for Zod/Valibot.
+  Defaults to false.
+  """
+  def generate_filter_schemas? do
+    Application.get_env(:ash_typescript, :generate_filter_schemas, false)
+  end
+
+  @doc """
+  Gets whether to generate clean types for resources. Defaults to true.
+  """
+  def generate_clean_types? do
+    Application.get_env(:ash_typescript, :generate_clean_types, true)
+  end
+
+  @doc """
   Gets the TypeScript type to use for untyped maps from application configuration.
 
   This controls the TypeScript type generated for Ash.Type.Map, Ash.Type.Keyword,
