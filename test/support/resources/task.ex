@@ -128,6 +128,32 @@ defmodule AshTypescript.Test.Task do
       end
     end
 
+    read :read_with_unconstrained_map_metadata do
+      metadata :raw_audit, :map
+      metadata :raw_events, {:array, :map}
+
+      prepare fn query, _context ->
+        Ash.Query.after_action(query, fn _query, results ->
+          results_with_metadata =
+            Enum.map(results, fn record ->
+              record
+              |> Ash.Resource.put_metadata(:raw_audit, %{
+                "_id" => "audit-1",
+                "_type" => "audit.event",
+                "_createdAt" => "2026-04-14T00:00:00Z",
+                "nested" => %{"_rev" => "rev-1", "field_name" => "title"}
+              })
+              |> Ash.Resource.put_metadata(:raw_events, [
+                %{"_id" => "evt-1", "event_type" => "created"},
+                %{"_id" => "evt-2", "event_type" => "updated"}
+              ])
+            end)
+
+          {:ok, results_with_metadata}
+        end)
+      end
+    end
+
     read :read_with_invalid_metadata_names do
       metadata :meta_1, :string, allow_nil?: false, default: "metadata_value"
       metadata :is_valid?, :boolean, allow_nil?: false, default: true
@@ -163,6 +189,22 @@ defmodule AshTypescript.Test.Task do
            |> Ash.Resource.put_metadata(:some_string, "created")
            |> Ash.Resource.put_metadata(:some_number, 456)
            |> Ash.Resource.put_metadata(:some_boolean, false)}
+        end)
+      end
+    end
+
+    create :create_with_unconstrained_map_metadata do
+      accept [:title]
+      metadata :raw_result, :map
+
+      change fn changeset, _context ->
+        Ash.Changeset.after_action(changeset, fn _changeset, record ->
+          {:ok,
+           Ash.Resource.put_metadata(record, :raw_result, %{
+             "_id" => "doc-42",
+             "_type" => "task",
+             "_createdAt" => "2026-04-14T12:00:00Z"
+           })}
         end)
       end
     end

@@ -761,6 +761,56 @@ defmodule AshTypescript.Rpc.MetadataTest do
     end
   end
 
+  describe "unconstrained map metadata preserves caller-provided keys" do
+    test "READ action: :map and {:array, :map} metadata pass through unchanged" do
+      task = create_task("Test Task")
+
+      params = %{
+        "action" => "read_tasks_with_unconstrained_map_metadata",
+        "fields" => ["id"],
+        "metadataFields" => ["rawAudit", "rawEvents"]
+      }
+
+      conn = %Plug.Conn{}
+      result = Rpc.run_action(:ash_typescript, conn, params)
+
+      assert result["success"] == true
+      task_result = Enum.find(result["data"], &(&1["id"] == task.id))
+
+      raw_audit = task_result["rawAudit"]
+      assert raw_audit["_id"] == "audit-1"
+      assert raw_audit["_type"] == "audit.event"
+      assert raw_audit["_createdAt"] == "2026-04-14T00:00:00Z"
+      # Nested maps also pass through — snake_case and underscore-prefixed
+      # keys both survive verbatim.
+      assert raw_audit["nested"]["_rev"] == "rev-1"
+      assert raw_audit["nested"]["field_name"] == "title"
+
+      assert [first, second] = task_result["rawEvents"]
+      assert first["_id"] == "evt-1"
+      assert first["event_type"] == "created"
+      assert second["_id"] == "evt-2"
+      assert second["event_type"] == "updated"
+    end
+
+    test "CREATE action: :map metadata passes through unchanged" do
+      params = %{
+        "action" => "create_task_with_unconstrained_map_metadata",
+        "input" => %{"title" => "Sanity Task"},
+        "fields" => ["id", "title"]
+      }
+
+      conn = %Plug.Conn{}
+      result = Rpc.run_action(:ash_typescript, conn, params)
+
+      assert result["success"] == true
+      raw = result["metadata"]["rawResult"]
+      assert raw["_id"] == "doc-42"
+      assert raw["_type"] == "task"
+      assert raw["_createdAt"] == "2026-04-14T12:00:00Z"
+    end
+  end
+
   # Helper function to create tasks
   defp create_task(title) do
     Task

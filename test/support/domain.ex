@@ -215,6 +215,14 @@ defmodule AshTypescript.Test.Domain do
 
       rpc_action :read_tasks_with_typed_map_metadata, :read_with_typed_map_metadata,
         show_metadata: nil
+
+      rpc_action :read_tasks_with_unconstrained_map_metadata,
+                 :read_with_unconstrained_map_metadata,
+                 show_metadata: nil
+
+      rpc_action :create_task_with_unconstrained_map_metadata,
+                 :create_with_unconstrained_map_metadata,
+                 show_metadata: nil
     end
 
     resource AshTypescript.Test.PostComment
