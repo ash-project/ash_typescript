@@ -1341,7 +1341,14 @@ defmodule AshTypescript.Rpc.Pipeline do
        when is_map(filtered_record) do
     metadata_map = Map.get(original_record, :__metadata__, %{})
     extracted_metadata = extract_metadata_fields(metadata_map, show_metadata, rpc_action)
-    Map.merge(filtered_record, extracted_metadata)
+    formatter = Rpc.output_field_formatter()
+
+    formatted_metadata =
+      Enum.into(extracted_metadata, %{}, fn {key, value} ->
+        {key, format_field_names(value, formatter)}
+      end)
+
+    Map.merge(filtered_record, formatted_metadata)
   end
 
   defp do_add_read_metadata(filtered_record, _original_record, _show_metadata, _rpc_action) do
