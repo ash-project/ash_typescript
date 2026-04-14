@@ -685,6 +685,19 @@ defmodule AshTypescript.Test.Todo do
       end
     end
 
+    action :get_underscored_document, :map do
+      run fn _input, _context ->
+        {:ok,
+         %{
+           "_id" => "doc-123",
+           "_type" => "post",
+           "_rev" => "rev-1",
+           "_createdAt" => "2026-04-14T00:00:00Z",
+           "title" => "Hello"
+         }}
+      end
+    end
+
     # Additional read action with different pagination configuration for testing
     read :search_paginated do
       argument :query, :string, allow_nil?: false

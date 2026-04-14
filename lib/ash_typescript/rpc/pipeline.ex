@@ -974,7 +974,8 @@ defmodule AshTypescript.Rpc.Pipeline do
   # Formats action output based on action return type
   # - Resource-returning actions use OutputFormatter for full resource field mapping
   # - Composite types (typed maps, typed structs) use ValueFormatter with type constraints
-  # - Unconstrained maps just get key formatting applied
+  # - Unconstrained maps are passed through unchanged — the action opted out of
+  #   typing, so its keys are the caller's responsibility and must not be renamed
   defp format_action_output(data, action, default_resource, formatter) do
     if action.type != :action do
       OutputFormatter.format(data, default_resource, action.name, formatter)
@@ -988,7 +989,7 @@ defmodule AshTypescript.Rpc.Pipeline do
           format_generic_action_output(data, action, formatter)
 
         {:ok, type, _} when type in [:unconstrained_map, :array_of_unconstrained_map] ->
-          format_field_names(data, formatter)
+          data
 
         _ ->
           format_generic_action_output(data, action, formatter)

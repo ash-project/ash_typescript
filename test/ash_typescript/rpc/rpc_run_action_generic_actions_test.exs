@@ -442,24 +442,22 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
       assert result["success"] == true
       data = result["data"]
 
-      # Verify we get the exact hardcoded map
+      # Unconstrained maps pass through unchanged — no snake→camel conversion.
       assert is_map(data)
-      assert data["userId"] == "123e4567-e89b-12d3-a456-426614174000"
-      assert data["status"] == "active"
-      assert data["count"] == 42
-      assert data["timestamp"] == 1_640_995_200
+      assert data[:user_id] == "123e4567-e89b-12d3-a456-426614174000"
+      assert data[:status] == "active"
+      assert data[:count] == 42
+      assert data[:timestamp] == 1_640_995_200
 
-      # Verify nested metadata structure
-      assert is_map(data["metadata"])
-      metadata = data["metadata"]
-      assert metadata["version"] == "1.0"
-      assert metadata["tags"] == ["important", "urgent"]
+      assert is_map(data[:metadata])
+      metadata = data[:metadata]
+      assert metadata[:version] == "1.0"
+      assert metadata[:tags] == ["important", "urgent"]
 
-      # Verify deeply nested settings
-      assert is_map(metadata["settings"])
-      settings = metadata["settings"]
-      assert settings["notifications"] == true
-      assert settings["theme"] == "dark"
+      assert is_map(metadata[:settings])
+      settings = metadata[:settings]
+      assert settings[:notifications] == true
+      assert settings[:theme] == "dark"
     end
 
     test "returns full map data when no fields specified", %{conn: conn} do
@@ -471,13 +469,12 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
       assert result["success"] == true
       data = result["data"]
 
-      # Since it's an unconstrained map, it should return the full data
       assert is_map(data)
-      assert data["userId"] == "123e4567-e89b-12d3-a456-426614174000"
-      assert data["status"] == "active"
-      assert data["count"] == 42
-      assert data["timestamp"] == 1_640_995_200
-      assert is_map(data["metadata"])
+      assert data[:user_id] == "123e4567-e89b-12d3-a456-426614174000"
+      assert data[:status] == "active"
+      assert data[:count] == 42
+      assert data[:timestamp] == 1_640_995_200
+      assert is_map(data[:metadata])
     end
 
     test "works with empty fields array (legacy compatibility)", %{conn: conn} do
@@ -490,17 +487,31 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
       assert result["success"] == true
       data = result["data"]
 
-      # Should return the same full map as when no fields are specified
       assert is_map(data)
-      assert data["userId"] == "123e4567-e89b-12d3-a456-426614174000"
-      assert data["status"] == "active"
-      assert data["count"] == 42
-      assert data["timestamp"] == 1_640_995_200
-      # All metadata fields should be present
-      metadata = data["metadata"]
-      assert metadata["version"] == "1.0"
-      assert metadata["tags"] == ["important", "urgent"]
-      assert is_map(metadata["settings"])
+      assert data[:user_id] == "123e4567-e89b-12d3-a456-426614174000"
+      assert data[:status] == "active"
+      assert data[:count] == 42
+      assert data[:timestamp] == 1_640_995_200
+      metadata = data[:metadata]
+      assert metadata[:version] == "1.0"
+      assert metadata[:tags] == ["important", "urgent"]
+      assert is_map(metadata[:settings])
+    end
+
+    test "preserves underscore-prefixed keys verbatim", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_underscored_document_todo"
+        })
+
+      assert result["success"] == true
+      data = result["data"]
+
+      assert data["_id"] == "doc-123"
+      assert data["_type"] == "post"
+      assert data["_rev"] == "rev-1"
+      assert data["_createdAt"] == "2026-04-14T00:00:00Z"
+      assert data["title"] == "Hello"
     end
   end
 
@@ -523,10 +534,11 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
       assert length(data) == 2
 
       [first, second] = data
-      assert first["userId"] == "123e4567-e89b-12d3-a456-426614174000"
-      assert first["status"] == "active"
-      assert second["userId"] == "223e4567-e89b-12d3-a456-426614174001"
-      assert second["status"] == "pending"
+      # Unconstrained arrays pass through unchanged — no snake→camel conversion.
+      assert first[:user_id] == "123e4567-e89b-12d3-a456-426614174000"
+      assert first[:status] == "active"
+      assert second[:user_id] == "223e4567-e89b-12d3-a456-426614174001"
+      assert second[:status] == "pending"
     end
 
     test "generated result type is Array<Record<string, any>>" do

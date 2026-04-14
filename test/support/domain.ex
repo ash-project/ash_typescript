@@ -76,6 +76,7 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :get_coordinates_info_todo, :get_coordinates_info
       rpc_action :get_custom_data_todo, :get_custom_data
       rpc_action :get_custom_data_list_todo, :get_custom_data_list
+      rpc_action :get_underscored_document_todo, :get_underscored_document
       rpc_action :destroy_todo, :destroy
       rpc_action :assign_to_user_todo, :assign_to_user
       rpc_action :assign_to_users_todo, :assign_to_users
