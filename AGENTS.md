@@ -292,9 +292,17 @@ mix test test/ash_typescript/rpc/    # Test RPC functionality
 ### TypeScript Validation (from test/ts/)
 ```bash
 npm run compileGenerated             # Test generated types compile
-npm run compileShouldPass            # Test valid patterns
-npm run compileShouldFail            # Test invalid patterns fail
+npm run compileShouldPass            # Test valid patterns (type-level)
+npm run compileShouldFail            # Test invalid patterns fail (type-level)
+npm run testZod                      # Run generated Zod schemas against real data
+npm run testValibot                  # Run generated Valibot schemas against real data
 ```
+
+`testZod` / `testValibot` compile and **execute** the generated validation
+schemas against fixture inputs — they are the only path that exercises schema
+runtime behavior (e.g. catches a bug like an empty `z.object({})` for a type
+that should validate `{ amount, currency }`). Always run them after touching
+`third_party_types`, constraint generation, or any other validation codegen.
 
 ### Quality Checks
 ```bash
@@ -505,8 +513,10 @@ When `config :ash_typescript, always_regenerate: true` is set, `mix ash_typescri
 ```bash
 mix test.codegen                     # Generate types
 cd test/ts && npm run compileGenerated # Validate compilation
-npm run compileShouldPass            # Test valid patterns
-npm run compileShouldFail            # Test invalid patterns (must fail)
+npm run compileShouldPass            # Test valid patterns (type-level)
+npm run compileShouldFail            # Test invalid patterns fail (type-level)
+npm run testZod                      # Run generated Zod schemas at runtime
+npm run testValibot                  # Run generated Valibot schemas at runtime
 mix test                             # Run Elixir tests (do NOT prefix with MIX_ENV=test)
 ```
 
