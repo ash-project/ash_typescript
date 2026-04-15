@@ -1332,7 +1332,13 @@ defmodule AshTypescript.Rpc.Pipeline do
       updated_results =
         Enum.zip(filtered_result[:results] || [], original_result.results)
         |> Enum.map(fn {filtered_record, original_record} ->
-          do_add_read_metadata(filtered_record, original_record, show_metadata, rpc_action, action)
+          do_add_read_metadata(
+            filtered_record,
+            original_record,
+            show_metadata,
+            rpc_action,
+            action
+          )
         end)
 
       Map.put(filtered_result, :results, updated_results)
@@ -1349,18 +1355,30 @@ defmodule AshTypescript.Rpc.Pipeline do
        when is_map(filtered_record) do
     metadata_map = Map.get(original_record, :__metadata__, %{})
     formatter = Rpc.output_field_formatter()
-    formatted_metadata = format_metadata(metadata_map, show_metadata, rpc_action, action, formatter)
+
+    formatted_metadata =
+      format_metadata(metadata_map, show_metadata, rpc_action, action, formatter)
+
     Map.merge(filtered_record, formatted_metadata)
   end
 
-  defp do_add_read_metadata(filtered_record, _original_record, _show_metadata, _rpc_action, _action) do
+  defp do_add_read_metadata(
+         filtered_record,
+         _original_record,
+         _show_metadata,
+         _rpc_action,
+         _action
+       ) do
     filtered_record
   end
 
   defp add_mutation_metadata(filtered_result, original_result, show_metadata, rpc_action, action) do
     metadata_map = Map.get(original_result, :__metadata__, %{})
     formatter = Rpc.output_field_formatter()
-    extracted_metadata = format_metadata(metadata_map, show_metadata, rpc_action, action, formatter)
+
+    extracted_metadata =
+      format_metadata(metadata_map, show_metadata, rpc_action, action, formatter)
+
     %{data: filtered_result, metadata: extracted_metadata}
   end
 
