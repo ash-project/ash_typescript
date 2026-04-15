@@ -11,6 +11,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.17.1](https://github.com/ash-project/ash_typescript/compare/v0.17.0...v0.17.1) (2026-04-15)
+
+
+
+
+### Bug Fixes:
+
+* generate correct validation schemas for AshMoney.Types.Money by [@Torkan](https://github.com/Torkan)
+
+* preserve unconstrained map keys in action metadata by [@Torkan](https://github.com/Torkan)
+
+* preserve unconstrained map keys in generic action output by [@Torkan](https://github.com/Torkan)
+
+* camelize nested keys in read action typed map metadata by Mike Wilson [(#63)](https://github.com/ash-project/ash_typescript/pull/63)
+
 ## [v0.17.0](https://github.com/ash-project/ash_typescript/compare/v0.16.0...v0.17.0) (2026-03-29)
 
 
