@@ -62,6 +62,11 @@ defmodule AshTypescript.Test.Task do
       public? true
     end
 
+    attribute :price, AshMoney.Types.Money do
+      allow_nil? true
+      public? true
+    end
+
     timestamps()
   end
 
@@ -176,7 +181,7 @@ defmodule AshTypescript.Test.Task do
     end
 
     create :create do
-      accept [:title]
+      accept [:title, :price]
       primary? true
       metadata :some_string, :string, allow_nil?: false
       metadata :some_number, :integer, allow_nil?: false

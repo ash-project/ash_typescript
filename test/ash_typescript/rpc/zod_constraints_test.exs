@@ -402,4 +402,13 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       # validation would apply. This is safer than incorrect client-side validation.
     end
   end
+
+  describe "third-party type schemas" do
+    test "AshMoney.Types.Money maps to object matching the TS Money alias" do
+      # Must stay in sync with type_aliases.ex:
+      #   export type Money = { amount: string; currency: string };
+      assert ZodSchemaGenerator.third_party_types()[AshMoney.Types.Money] ==
+               "z.object({ amount: z.string(), currency: z.string() })"
+    end
+  end
 end

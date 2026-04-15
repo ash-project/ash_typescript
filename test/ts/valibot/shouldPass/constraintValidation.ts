@@ -5,6 +5,7 @@
 import * as v from "valibot";
 import {
   createOrgTodoValibotSchema,
+  createTaskValibotSchema,
   AshTypescriptTestTodoContentLinkContentValibotSchema,
 } from "../../ash_valibot";
 
@@ -483,6 +484,24 @@ export function testCiStringCaseVariations() {
 
   console.log("All case variations passed!");
   return true;
+}
+
+// Third-party type: AshMoney.Types.Money
+// Expected validation shape: { amount: string; currency: string }
+
+export function testMoneyValidShape() {
+  const validated = v.parse(createTaskValibotSchema, {
+    title: "Buy milk",
+    price: { amount: "4.99", currency: "USD" },
+  });
+  console.log("Money valid shape passed:", validated.price);
+  return validated;
+}
+
+export function testMoneyOptionalOmitted() {
+  const validated = v.parse(createTaskValibotSchema, { title: "Priceless" });
+  console.log("Money optional omitted passed:", validated.price);
+  return validated;
 }
 
 console.log("Valibot Constraint validation tests should compile and pass successfully!");

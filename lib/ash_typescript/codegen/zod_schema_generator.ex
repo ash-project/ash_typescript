@@ -64,7 +64,7 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
 
   @third_party_types %{
     AshDoubleEntry.ULID => "z.string()",
-    AshMoney.Types.Money => "z.object({})"
+    AshMoney.Types.Money => "z.object({ amount: z.string(), currency: z.string() })"
   }
 
   # ─────────────────────────────────────────────────────────────────

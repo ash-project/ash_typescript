@@ -64,7 +64,7 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
 
   @third_party_types %{
     AshDoubleEntry.ULID => "v.string()",
-    AshMoney.Types.Money => "v.object({})"
+    AshMoney.Types.Money => "v.object({ amount: v.string(), currency: v.string() })"
   }
 
   # ─────────────────────────────────────────────────────────────────

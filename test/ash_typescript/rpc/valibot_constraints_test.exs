@@ -401,4 +401,13 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
       assert schema =~ "someString: v.pipe(v.string(), v.minLength(1), v.maxLength(100))"
     end
   end
+
+  describe "third-party type schemas" do
+    test "AshMoney.Types.Money maps to object matching the TS Money alias" do
+      # Must stay in sync with type_aliases.ex:
+      #   export type Money = { amount: string; currency: string };
+      assert ValibotSchemaGenerator.third_party_types()[AshMoney.Types.Money] ==
+               "v.object({ amount: v.string(), currency: v.string() })"
+    end
+  end
 end

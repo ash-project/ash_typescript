@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createOrgTodo } from "../../generated";
 import {
   createOrgTodoZodSchema,
+  createTaskZodSchema,
   AshTypescriptTestTodoContentLinkContentZodSchema,
 } from "../../ash_zod";
 
@@ -497,6 +498,24 @@ export function testCiStringCaseVariations() {
 
   console.log("All case variations passed!");
   return true;
+}
+
+// Third-party type: AshMoney.Types.Money
+// Expected validation shape: { amount: string; currency: string }
+
+export function testMoneyValidShape() {
+  const validated = createTaskZodSchema.parse({
+    title: "Buy milk",
+    price: { amount: "4.99", currency: "USD" },
+  });
+  console.log("Money valid shape passed:", validated.price);
+  return validated;
+}
+
+export function testMoneyOptionalOmitted() {
+  const validated = createTaskZodSchema.parse({ title: "Priceless" });
+  console.log("Money optional omitted passed:", validated.price);
+  return validated;
 }
 
 console.log("Constraint validation tests should compile and pass successfully!");

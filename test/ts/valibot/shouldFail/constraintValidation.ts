@@ -5,6 +5,7 @@
 import * as v from "valibot";
 import {
   createOrgTodoValibotSchema,
+  createTaskValibotSchema,
   AshTypescriptTestTodoContentLinkContentValibotSchema,
 } from "../../ash_valibot";
 
@@ -935,6 +936,51 @@ export function testMultipleCiStringViolations() {
         );
       }
       return valiError.issues;
+    }
+    throw error;
+  }
+}
+
+// Third-party type: AshMoney.Types.Money
+// Reject inputs that don't match the { amount: string; currency: string } shape
+// at both compile time (via @ts-expect-error on the inferred input type) and
+// runtime (via v.parse throwing a ValiError).
+
+export function testMoneyMissingAmount() {
+  const bad: v.InferInput<typeof createTaskValibotSchema> = {
+    title: "Bad",
+    // @ts-expect-error - Money input requires `amount: string`
+    price: { currency: "USD" },
+  };
+
+  try {
+    v.parse(createTaskValibotSchema, bad);
+    throw new Error("Should have thrown for missing amount");
+  } catch (error) {
+    if (error instanceof v.ValiError) {
+      return error.issues;
+    }
+    throw error;
+  }
+}
+
+export function testMoneyWrongFieldTypes() {
+  const bad: v.InferInput<typeof createTaskValibotSchema> = {
+    title: "Bad",
+    price: {
+      // @ts-expect-error - Money `amount` must be string, not number
+      amount: 99,
+      // @ts-expect-error - Money `currency` must be string, not number
+      currency: 42,
+    },
+  };
+
+  try {
+    v.parse(createTaskValibotSchema, bad);
+    throw new Error("Should have thrown for non-string amount/currency");
+  } catch (error) {
+    if (error instanceof v.ValiError) {
+      return error.issues;
     }
     throw error;
   }

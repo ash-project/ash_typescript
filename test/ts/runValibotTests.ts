@@ -68,6 +68,8 @@ runTest("testCiStringCountryCodeValid", () => shouldPass.testCiStringCountryCode
 runTest("testOptionalCiStringOmitted", () => shouldPass.testOptionalCiStringOmitted());
 runTest("testOptionalCiStringProvided", () => shouldPass.testOptionalCiStringProvided());
 runTest("testCiStringCaseVariations", () => shouldPass.testCiStringCaseVariations());
+runTest("testMoneyValidShape", () => shouldPass.testMoneyValidShape());
+runTest("testMoneyOptionalOmitted", () => shouldPass.testMoneyOptionalOmitted());
 
 console.log("\n--- Tests that SHOULD FAIL (invalid constraints) ---\n");
 
@@ -112,6 +114,8 @@ runTest("testCiStringCountryCodeWrongLength", () => shouldFail.testCiStringCount
 runTest("testCiStringCountryCodeWithNumber", () => shouldFail.testCiStringCountryCodeWithNumber());
 runTest("testOptionalCiStringInvalid", () => shouldFail.testOptionalCiStringInvalid());
 runTest("testMultipleCiStringViolations", () => shouldFail.testMultipleCiStringViolations());
+runTest("testMoneyMissingAmount", () => shouldFail.testMoneyMissingAmount());
+runTest("testMoneyWrongFieldTypes", () => shouldFail.testMoneyWrongFieldTypes());
 
 console.log("\n========================================");
 console.log("Test Results Summary");
