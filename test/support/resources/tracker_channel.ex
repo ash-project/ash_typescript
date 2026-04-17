@@ -21,6 +21,7 @@ defmodule AshTypescript.Test.TrackerChannel do
       publish(:tracker_label)
       publish(:tracker_status_changed)
       publish(:tracker_snapshot)
+      publish(:tracker_ordered_card)
       publish(:tracker_detail)
       publish(:tracker_entry_count)
       publish(:tracker_is_active)

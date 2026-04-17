@@ -794,7 +794,10 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
           end
 
         _ ->
-          TypeMapper.get_ts_type(calc)
+          TypeMapper.get_ts_type(%{
+            type: calc.type,
+            constraints: Helpers.auto_safe_calc_constraints(calc)
+          })
       end
 
     if allow_nil? do

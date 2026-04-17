@@ -48,7 +48,7 @@ defmodule AshTypescript.TypedChannel.Codegen do
       export function unsubscribeOrgChannel(channel: OrgChannel, refs: OrgChannelRefs): void { ... }
   """
 
-  alias AshTypescript.Codegen.TypeMapper
+  alias AshTypescript.Codegen.{Helpers, TypeMapper}
   alias AshTypescript.TypedChannel.Info
 
   @doc """
@@ -242,10 +242,21 @@ defmodule AshTypescript.TypedChannel.Codegen do
 
   defp resolve_payload_type(%{returns: returns} = pub, _resource_module)
        when not is_nil(returns) do
-    TypeMapper.map_channel_payload_type(returns, pub.constraints || [])
+    TypeMapper.map_channel_payload_type(returns, pub_constraints(pub))
   end
 
   defp resolve_payload_type(_, _), do: "unknown"
+
+  # When a publication derives its return type via `transform :some_calc`
+  # (atom transform), Ash copies the calc's type+constraints onto the pub.
+  # For `:auto`-typed calcs this copy includes a non-deterministically
+  # ordered `:fields` list — sort it here to stabilize TS output.
+  defp pub_constraints(%{transform: transform, constraints: constraints})
+       when is_atom(transform) and not is_nil(transform) do
+    Helpers.sort_auto_fields(constraints || [])
+  end
+
+  defp pub_constraints(%{constraints: constraints}), do: constraints || []
 
   defp build_channel_brand_type(channel_name) do
     """

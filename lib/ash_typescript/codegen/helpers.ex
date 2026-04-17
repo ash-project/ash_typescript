@@ -57,6 +57,48 @@ defmodule AshTypescript.Codegen.Helpers do
   def is_complex_return_type(Ash.Type.Tuple, _constraints), do: true
   def is_complex_return_type(_, _), do: false
 
+  # Sort the `:fields` entry of a typed-map/struct constraint list
+  # alphabetically by key.
+  #
+  # Why: `:auto`-typed calcs use Ash's expression-to-type resolver, which
+  # materializes literal map exprs (`expr(%{a: id, b: name})`) through a
+  # runtime Erlang map. Map iteration order depends on atom term ordering,
+  # which varies between BEAM loads (e.g. warm `_build/dev` vs clean
+  # `_build/test`). Left unsorted, the emitted TypeScript would reshuffle
+  # across compiles. TS field order is cosmetic, so alphabetical is fine.
+  #
+  # How to apply: call only on constraints derived from an `:auto` calc
+  # (calcs whose `calculation` is `Ash.Resource.Calculation.Expression`, or
+  # publications whose `transform:` resolves to such a calc). Other
+  # `:fields` lists come from user DSL and already have a stable order.
+  def sort_auto_fields(constraints) when is_list(constraints) do
+    case Keyword.fetch(constraints, :fields) do
+      {:ok, fields} when is_list(fields) ->
+        sorted = Enum.sort_by(fields, fn {name, _} -> Atom.to_string(name) end)
+        Keyword.put(constraints, :fields, sorted)
+
+      _ ->
+        constraints
+    end
+  end
+
+  def sort_auto_fields(constraints), do: constraints
+
+  # Returns `calc.constraints` with `:fields` sorted when the calculation
+  # is expression-based (the only source of non-deterministic map-literal
+  # field ordering). For all other calcs, returns constraints unchanged.
+  def auto_safe_calc_constraints(
+        %Ash.Resource.Calculation{
+          calculation: {Ash.Resource.Calculation.Expression, _}
+        } = calc
+      ) do
+    sort_auto_fields(calc.constraints || [])
+  end
+
+  def auto_safe_calc_constraints(%Ash.Resource.Calculation{} = calc) do
+    calc.constraints || []
+  end
+
   @doc """
   Looks up the type of an aggregate field by traversing relationship paths.
   """

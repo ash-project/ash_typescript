@@ -782,7 +782,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
             AshTypescript.Rpc.output_field_formatter()
           )
 
-        ts_type = map_type(calc.type, calc.constraints, :output)
+        ts_type = map_type(calc.type, Helpers.auto_safe_calc_constraints(calc), :output)
 
         if calc.allow_nil? do
           "  #{formatted_field}: #{ts_type} | null;"

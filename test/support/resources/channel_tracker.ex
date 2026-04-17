@@ -52,6 +52,13 @@ defmodule AshTypescript.Test.ChannelTracker do
       public?: true,
       transform: :snapshot
 
+    # :auto map calc with deliberately-non-alphabetic source keys —
+    # used to verify deterministic TS field ordering.
+    publish :ordered_card, [:id],
+      event: "tracker_ordered_card",
+      public?: true,
+      transform: :ordered_card
+
     # Map calc with relationship traversal (:auto typed)
     publish :detail_snapshot, [:id],
       event: "tracker_detail",
@@ -158,6 +165,12 @@ defmodule AshTypescript.Test.ChannelTracker do
       public?(true)
     end
 
+    # :auto map whose source keys are deliberately not in alphabetic order —
+    # used to verify deterministic (sorted) TypeScript field emission.
+    calculate :ordered_card, :auto, expr(%{z: id, a: name, m: status}) do
+      public?(true)
+    end
+
     # :auto map mixing different expression types in a single map
     calculate :report,
               :auto,
@@ -177,6 +190,10 @@ defmodule AshTypescript.Test.ChannelTracker do
     defaults [:read, :create, :update, :destroy]
 
     update :snapshot do
+      accept []
+    end
+
+    update :ordered_card do
       accept []
     end
 
