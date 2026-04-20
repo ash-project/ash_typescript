@@ -6,8 +6,20 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
   @moduledoc """
   Generates TypeScript types for Ash Rpc-calls.
 
-  Usage:
-    mix ash_typescript.codegen --output "assets/js/ash_generated.ts"
+  ## Usage
+
+      mix ash_typescript.codegen
+      mix ash_typescript.codegen --output assets/js/
+      mix ash_typescript.codegen --output assets/js/ash_generated.ts
+
+  ## Options
+
+    * `--output` (`-o`) — Override the output destination. When the value ends
+      with `.ts` it is treated as the RPC output file path; otherwise it is
+      treated as a directory and the standard filenames (`ash_rpc.ts`,
+      `ash_types.ts`, etc.) are written into it. Companion files
+      (`types_output_file`, `zod_output_file`, ...) are derived from the same
+      directory unless they are individually configured.
   """
 
   @shortdoc "Generates TypeScript types for Ash Rpc-calls"
@@ -31,8 +43,10 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
           run_endpoint: :string,
           validate_endpoint: :string
         ],
-        aliases: [o: :string, r: :run_endpoint, v: :validate_endpoint]
+        aliases: [o: :output, r: :run_endpoint, v: :validate_endpoint]
       )
+
+    apply_output_override(opts[:output])
 
     otp_app = Mix.Project.config()[:app]
 
@@ -160,6 +174,19 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
     if path = AshTypescript.Rpc.json_manifest_file() do
       write_if_changed(path, JsonManifestGenerator.generate_json_manifest(otp_app))
     end
+  end
+
+  defp apply_output_override(nil), do: :ok
+
+  defp apply_output_override(path) do
+    rpc_path =
+      if String.ends_with?(path, ".ts") do
+        path
+      else
+        Path.join(path, "ash_rpc.ts")
+      end
+
+    Application.put_env(:ash_typescript, :output_file, rpc_path)
   end
 
   defp write_if_changed(path, content) do
