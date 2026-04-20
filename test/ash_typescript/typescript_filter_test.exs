@@ -81,8 +81,8 @@ defmodule AshTypescript.FilterTest do
       result = FilterTypes.generate_filter_type(Post)
 
       assert String.contains?(result, "status?: {")
-      assert String.contains?(result, "eq?: \"draft\" | \"published\" | \"archived\"")
-      assert String.contains?(result, "in?: Array<\"draft\" | \"published\" | \"archived\">")
+      assert String.contains?(result, "eq?: \"archived\" | \"draft\" | \"published\"")
+      assert String.contains?(result, "in?: Array<\"archived\" | \"draft\" | \"published\">")
     end
 
     test "includes array attribute filters" do

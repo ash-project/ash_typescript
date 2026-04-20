@@ -64,12 +64,12 @@ defmodule AshTypescript.CodegenTest do
     test "converts constrained atom with one_of to union type" do
       constraints = [one_of: [:pending, :completed]]
       result = Codegen.get_ts_type(%{type: Ash.Type.Atom, constraints: constraints})
-      assert result == "\"pending\" | \"completed\""
+      assert result == "\"completed\" | \"pending\""
     end
 
     test "converts Ash.Type.Enum to union type" do
       result = Codegen.get_ts_type(%{type: AshTypescript.Test.Todo.Status, constraints: []})
-      assert result == "\"pending\" | \"ongoing\" | \"finished\" | \"cancelled\""
+      assert result == "\"cancelled\" | \"finished\" | \"ongoing\" | \"pending\""
     end
 
     test "converts unconstrained map to generic record" do
@@ -199,14 +199,14 @@ defmodule AshTypescript.CodegenTest do
   describe "get_ts_type/2 - enum types" do
     test "converts Ash.Type.Enum to union type via behaviour check" do
       result = Codegen.get_ts_type(%{type: AshTypescript.Test.Todo.Status, constraints: []})
-      assert result == "\"pending\" | \"ongoing\" | \"finished\" | \"cancelled\""
+      assert result == "\"cancelled\" | \"finished\" | \"ongoing\" | \"pending\""
     end
 
     test "converts enum in array to array of union types" do
       result =
         Codegen.get_ts_type(%{type: {:array, AshTypescript.Test.Todo.Status}, constraints: []})
 
-      assert result == "Array<\"pending\" | \"ongoing\" | \"finished\" | \"cancelled\">"
+      assert result == "Array<\"cancelled\" | \"finished\" | \"ongoing\" | \"pending\">"
     end
 
     test "handles enum in map field constraints" do
@@ -219,7 +219,7 @@ defmodule AshTypescript.CodegenTest do
       result = Codegen.get_ts_type(%{type: Ash.Type.Map, constraints: constraints})
 
       assert result ==
-               "{status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\", __type: \"TypedMap\", __primitiveFields: \"status\"}"
+               "{status: \"cancelled\" | \"finished\" | \"ongoing\" | \"pending\", __type: \"TypedMap\", __primitiveFields: \"status\"}"
     end
 
     test "handles enum in union type" do
@@ -311,7 +311,7 @@ defmodule AshTypescript.CodegenTest do
 
       assert String.contains?(
                result,
-               "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
+               "status: \"cancelled\" | \"finished\" | \"ongoing\" | \"pending\" | null;"
              )
     end
 
@@ -324,7 +324,7 @@ defmodule AshTypescript.CodegenTest do
 
       assert String.contains?(
                result,
-               "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
+               "status: \"cancelled\" | \"finished\" | \"ongoing\" | \"pending\" | null;"
              )
     end
   end
@@ -349,7 +349,7 @@ defmodule AshTypescript.CodegenTest do
       result = Codegen.get_resource_field_spec(:status, Todo)
 
       assert result ==
-               "  status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
+               "  status: \"cancelled\" | \"finished\" | \"ongoing\" | \"pending\" | null;"
     end
 
     test "generates field spec for array attribute" do
@@ -359,7 +359,7 @@ defmodule AshTypescript.CodegenTest do
 
     test "generates field spec for enum attribute" do
       result = Codegen.get_resource_field_spec(:priority, Todo)
-      assert result == "  priority: \"low\" | \"medium\" | \"high\" | \"urgent\" | null;"
+      assert result == "  priority: \"high\" | \"low\" | \"medium\" | \"urgent\" | null;"
     end
 
     test "generates field spec for embedded resource attribute" do
@@ -442,12 +442,12 @@ defmodule AshTypescript.CodegenTest do
 
       assert String.contains?(
                result,
-               "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
+               "status: \"cancelled\" | \"finished\" | \"ongoing\" | \"pending\" | null;"
              )
 
       assert String.contains?(
                result,
-               "priority: \"low\" | \"medium\" | \"high\" | \"urgent\" | null;"
+               "priority: \"high\" | \"low\" | \"medium\" | \"urgent\" | null;"
              )
 
       assert String.contains?(result, "dueDate: AshDate | null;")
@@ -482,7 +482,7 @@ defmodule AshTypescript.CodegenTest do
 
       assert String.contains?(
                result,
-               "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
+               "status: \"cancelled\" | \"finished\" | \"ongoing\" | \"pending\" | null;"
              )
     end
   end

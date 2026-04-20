@@ -283,7 +283,7 @@ if (productionLikeRequest.success) {
     const id: string = todo.id;
     const title: string = todo.title;
     const completed: boolean | null = todo.completed;
-    const priority: "low" | "medium" | "high" | "urgent" | null = todo.priority;
+    const priority: "high" | "low" | "medium" | "urgent" | null = todo.priority;
     const createdAt: string = todo.createdAt;
 
     if (todo.user) {

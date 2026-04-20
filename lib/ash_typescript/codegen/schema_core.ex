@@ -268,7 +268,11 @@ defmodule AshTypescript.Codegen.SchemaCore do
         formatter.format_string([], false)
 
       values ->
-        enum_values = Enum.map_join(values, ", ", &"\"#{to_string(&1)}\"")
+        enum_values =
+          values
+          |> Enum.sort_by(&to_string/1)
+          |> Enum.map_join(", ", &"\"#{to_string(&1)}\"")
+
         formatter.format_enum(enum_values)
     end
   end
@@ -299,7 +303,11 @@ defmodule AshTypescript.Codegen.SchemaCore do
   end
 
   defp map_enum_type(formatter, type) do
-    enum_values = Enum.map_join(type.values(), ", ", &"\"#{to_string(&1)}\"")
+    enum_values =
+      type.values()
+      |> Enum.sort_by(&to_string/1)
+      |> Enum.map_join(", ", &"\"#{to_string(&1)}\"")
+
     formatter.format_enum(enum_values)
   rescue
     _ -> formatter.format_string([], false)

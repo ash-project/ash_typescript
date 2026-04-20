@@ -242,8 +242,13 @@ defmodule AshTypescript.Codegen.TypeMapper do
       # Ash.Type.Atom with one_of constraint
       type == Ash.Type.Atom ->
         case Keyword.get(constraints, :one_of) do
-          nil -> "string"
-          values -> values |> Enum.map_join(" | ", &"\"#{to_string(&1)}\"")
+          nil ->
+            "string"
+
+          values ->
+            values
+            |> Enum.sort_by(&to_string/1)
+            |> Enum.map_join(" | ", &"\"#{to_string(&1)}\"")
         end
 
       # Not a primitive
@@ -377,7 +382,9 @@ defmodule AshTypescript.Codegen.TypeMapper do
   end
 
   defp map_enum(type) when is_atom(type) do
-    Enum.map_join(type.values(), " | ", &"\"#{to_string(&1)}\"")
+    type.values()
+    |> Enum.sort_by(&to_string/1)
+    |> Enum.map_join(" | ", &"\"#{to_string(&1)}\"")
   rescue
     _ -> "string"
   end
