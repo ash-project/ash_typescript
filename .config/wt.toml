@@ -34,3 +34,63 @@ json.dump(data, open(path, 'w'), indent=4)
 # Install dependencies
 elixir-deps = "mix deps.get --quiet"
 ts-deps = "cd test/ts && npm install --silent"
+
+# Write a per-worktree .claude/settings.local.json with this worktree's tidewave port
+claude-settings = """
+mkdir -p .claude
+cat > .claude/settings.local.json <<'SETTINGS'
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Edit(*)",
+      "Write(*)",
+      "Read(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "WebFetch(domain:hexdocs.pm)",
+      "WebFetch(domain:hex.pm)",
+      "WebFetch(domain:elixir-lang.org)",
+      "WebFetch(domain:www.erlang.org)",
+      "WebFetch(domain:npmjs.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:nodejs.org)",
+      "WebFetch(domain:pnpm.io)",
+      "WebFetch(domain:svelte.dev)",
+      "WebFetch(domain:tailwindcss.com)",
+      "WebFetch(domain:inertiajs.com)",
+      "WebFetch(domain:phoenixframework.org)",
+      "WebSearch(*)",
+      "mcp__*"
+    ],
+    "deny": [
+      "Bash(git push*main*)",
+      "Bash(git push*master*)",
+      "Bash(git push*--all*)",
+      "Bash(git push*--mirror*)",
+      "Bash(git checkout main*)",
+      "Bash(git checkout master*)",
+      "Bash(git switch main*)",
+      "Bash(git switch master*)",
+      "Bash(gh pr merge*)"
+    ]
+  },
+  "sandbox": {
+    "enabled": false
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -c '{hookSpecificOutput: {hookEventName: \\"PreToolUse\\", updatedInput: (.tool_input | . + {command: (\\"/bin/zsh -ic \\" + (.command | @sh))})}}'"
+          }
+        ]
+      }
+    ]
+  }
+}
+SETTINGS
+"""
