@@ -78,15 +78,19 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
     embedded_resources = TypeDiscovery.find_embedded_resources(otp_app)
     struct_argument_resources = TypeDiscovery.find_struct_argument_resources(otp_app)
+    struct_return_resources = TypeDiscovery.find_struct_return_resources(otp_app)
     controller_resources = collect_typed_controller_resources()
 
     all_resources =
-      (rpc_resources ++ embedded_resources ++ struct_argument_resources ++ controller_resources)
+      (rpc_resources ++
+         embedded_resources ++
+         struct_argument_resources ++ struct_return_resources ++ controller_resources)
       |> Enum.uniq()
       |> Enum.sort_by(&inspect/1)
 
     schema_resources =
-      (embedded_resources ++ struct_argument_resources ++ controller_resources)
+      (embedded_resources ++
+         struct_argument_resources ++ struct_return_resources ++ controller_resources)
       |> Enum.uniq()
       |> Enum.sort_by(&inspect/1)
 

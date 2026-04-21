@@ -861,5 +861,36 @@ defmodule AshTypescript.Test.Todo do
         {:ok, results}
       end
     end
+
+    # Regression fixture for issue #66: returns an embedded resource that is
+    # not referenced anywhere else, to prove it gets discovered for schema
+    # generation via struct return types.
+    action :get_return_only_metadata, :struct do
+      constraints instance_of: AshTypescript.Test.ReturnOnlyMetadata
+
+      run fn _input, _context ->
+        {:ok,
+         %AshTypescript.Test.ReturnOnlyMetadata{
+           id: Ash.UUID.generate(),
+           label: "example",
+           score: 1
+         }}
+      end
+    end
+
+    action :list_return_only_metadata, {:array, :struct} do
+      constraints items: [instance_of: AshTypescript.Test.ReturnOnlyMetadata]
+
+      run fn _input, _context ->
+        {:ok,
+         [
+           %AshTypescript.Test.ReturnOnlyMetadata{
+             id: Ash.UUID.generate(),
+             label: "example",
+             score: 1
+           }
+         ]}
+      end
+    end
   end
 end

@@ -84,6 +84,9 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :process_metadata_todo, :process_metadata
       rpc_action :process_metadata_batch_todo, :process_metadata_batch
 
+      rpc_action :get_return_only_metadata_todo, :get_return_only_metadata
+      rpc_action :list_return_only_metadata_todos, :list_return_only_metadata
+
       typed_query :list_todos_user_page, :read do
         description "Pre-configured query for the user dashboard page"
         ts_fields_const_name "listTodosUserPage"

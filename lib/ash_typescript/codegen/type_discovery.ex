@@ -324,12 +324,54 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
     |> Enum.uniq()
   end
 
+  @doc """
+  Finds all Ash resources used as struct return types in RPC generic actions.
+
+  Scans all RPC generic actions for return types of `:struct` or `Ash.Type.Struct`
+  (including arrays) that have an `instance_of` constraint pointing to an Ash resource.
+  This is required so embedded resources referenced only as generic action return
+  types still get TypeScript types generated.
+
+  ## Parameters
+
+    * `otp_app` - The OTP application name
+
+  ## Returns
+
+  A list of unique Ash resource modules used as struct return types in RPC generic actions.
+  """
+  def find_struct_return_resources(otp_app) do
+    otp_app
+    |> Ash.Info.domains()
+    |> Enum.flat_map(fn domain ->
+      AshTypescript.Rpc.Info.typescript_rpc(domain)
+      |> Enum.flat_map(fn %{resource: resource, rpc_actions: rpc_actions} ->
+        Enum.flat_map(rpc_actions, fn %{action: action_name} ->
+          action = Ash.Resource.Info.action(resource, action_name)
+          find_struct_resources_in_return(action)
+        end)
+      end)
+    end)
+    |> Enum.uniq()
+  end
+
   defp find_struct_resources_in_arguments(arguments) when is_list(arguments) do
     arguments
     |> Enum.flat_map(fn arg ->
       find_struct_resources_in_type(arg.type, arg.constraints || [])
     end)
   end
+
+  defp find_struct_resources_in_return(%{
+         type: :action,
+         returns: returns,
+         constraints: constraints
+       })
+       when not is_nil(returns) do
+    find_struct_resources_in_type(returns, constraints || [])
+  end
+
+  defp find_struct_resources_in_return(_action), do: []
 
   defp find_struct_resources_in_type(type, constraints) do
     cond do
