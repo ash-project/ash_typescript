@@ -13,6 +13,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
   import AshTypescript.Codegen
   import AshTypescript.Helpers
 
+  alias AshTypescript.Codegen.ManagedRelationshipInput
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
   @doc """
@@ -48,7 +49,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                 formatted_arg_name =
                   format_argument_name_for_client(resource, action.name, arg.name)
 
-                {formatted_arg_name, get_ts_input_type(arg), optional}
+                {formatted_arg_name, argument_input_type(resource, action, arg), optional}
               end)
             else
               []
@@ -86,7 +87,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                   formatted_arg_name =
                     format_argument_name_for_client(resource, action.name, arg.name)
 
-                  {formatted_arg_name, get_ts_input_type(arg), optional}
+                  {formatted_arg_name, argument_input_type(resource, action, arg), optional}
                 end)
 
               accept_field_defs ++ argument_field_defs
@@ -124,7 +125,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                   formatted_arg_name =
                     format_argument_name_for_client(resource, action.name, arg.name)
 
-                  {formatted_arg_name, get_ts_input_type(arg), optional}
+                  {formatted_arg_name, argument_input_type(resource, action, arg), optional}
                 end)
 
               accept_field_defs ++ argument_field_defs
@@ -142,7 +143,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
                 formatted_arg_name =
                   format_argument_name_for_client(resource, action.name, arg.name)
 
-                {formatted_arg_name, get_ts_input_type(arg), optional}
+                {formatted_arg_name, argument_input_type(resource, action, arg), optional}
               end)
             else
               []
@@ -161,6 +162,16 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
       """
     else
       ""
+    end
+  end
+
+  # Map-typed arguments driven by a `manage_relationship` change resolve to a
+  # typed object derived from the destination resource's reachable actions;
+  # everything else falls back to the standard type mapper.
+  defp argument_input_type(resource, action, arg) do
+    case ManagedRelationshipInput.maybe_build_type(resource, action, arg) do
+      nil -> get_ts_input_type(arg)
+      ts_type -> ts_type
     end
   end
 
