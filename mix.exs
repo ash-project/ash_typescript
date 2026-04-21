@@ -195,7 +195,8 @@ defmodule AshTypescript.MixProject do
       {:usage_rules, "~> 0.1", only: [:dev]},
       {:tidewave, "~> 0.5", only: [:dev, :test]},
       {:ex_check, "~> 0.12", only: [:dev, :test]},
-      {:bandit, "~> 1.0", only: [:dev, :test]}
+      {:bandit, "~> 1.0", only: [:dev, :test]},
+      {:benchee, "~> 1.3", only: [:dev, :test]}
     ]
   end
 

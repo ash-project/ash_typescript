@@ -35,7 +35,39 @@ defmodule AshTypescript.FieldFormatter do
   """
   def format_field_for_client(field, resource_or_type_module \\ nil, formatter)
 
+  # Per-process memoization: when the inputs are fully static (atom field,
+  # module-or-nil resource, built-in formatter) the result is a pure function of
+  # those three values. Caching on the process dict captures the per-request hot
+  # loop in OutputFormatter where the same (field, resource, formatter) triple
+  # is looked up once per record (~1500× for a full sync). No global state, no
+  # invalidation — the cache dies with the process.
+  def format_field_for_client(field, resource, formatter)
+      when is_atom(field) and is_atom(resource) and
+             formatter in [:camel_case, :snake_case, :pascal_case] do
+    cache_key = {:ash_typescript_ffc, field, resource, formatter}
+
+    case Process.get(cache_key) do
+      nil ->
+        result = compute_field_for_client(field, resource, formatter)
+        Process.put(cache_key, result)
+        result
+
+      cached ->
+        cached
+    end
+  end
+
   def format_field_for_client(field, resource_or_type_module, formatter) when is_atom(field) do
+    compute_field_for_client(field, resource_or_type_module, formatter)
+  end
+
+  def format_field_for_client(field, _resource, formatter) when is_binary(field) do
+    format_field_name(field, formatter)
+  end
+
+  def format_field_for_client(other, _resource, _formatter), do: other
+
+  defp compute_field_for_client(field, resource_or_type_module, formatter) do
     cond do
       # Check typescript_field_names/0 callback FIRST (for any type module with fields)
       # This includes TypedStructs, NewTypes wrapping maps, and custom Ash types.
@@ -62,12 +94,6 @@ defmodule AshTypescript.FieldFormatter do
         format_field_name(field, formatter)
     end
   end
-
-  def format_field_for_client(field, _resource, formatter) when is_binary(field) do
-    format_field_name(field, formatter)
-  end
-
-  def format_field_for_client(other, _resource, _formatter), do: other
 
   # Check if module is an Ash resource with AshTypescript.Resource extension
   defp is_ash_resource_with_extension?(module) do
@@ -208,7 +234,27 @@ defmodule AshTypescript.FieldFormatter do
       iex> AshTypescript.FieldFormatter.format_field_name("user_name", :pascal_case)
       "UserName"
   """
-  def format_field_name(field_name, formatter) do
+  # Per-process memoization for atom inputs with built-in formatters. See
+  # format_field_for_client/3 above for the rationale; the same logic applies
+  # here, just keyed on (field_atom, formatter).
+  def format_field_name(field_name, formatter)
+      when is_atom(field_name) and formatter in [:camel_case, :snake_case, :pascal_case] do
+    cache_key = {:ash_typescript_ffn, field_name, formatter}
+
+    case Process.get(cache_key) do
+      nil ->
+        result = compute_field_name(field_name, formatter)
+        Process.put(cache_key, result)
+        result
+
+      cached ->
+        cached
+    end
+  end
+
+  def format_field_name(field_name, formatter), do: compute_field_name(field_name, formatter)
+
+  defp compute_field_name(field_name, formatter) do
     string_field = to_string(field_name)
 
     case formatter do
