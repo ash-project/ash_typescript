@@ -45,8 +45,25 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
   @doc "Wrap an inner schema string in an array type."
   @callback wrap_array(inner :: String.t()) :: String.t()
 
-  @doc "Wrap a schema string as optional/nullable."
+  @doc """
+  Wrap a schema string as omittable — i.e. the field may be absent from the
+  input object. In zod this is `.optional()`; in valibot, `v.optional(...)`.
+  Both libraries' optional accepts `undefined` only — not `null`. To accept
+  `null`, compose with `wrap_nullable/1`.
+  """
   @callback wrap_optional(schema :: String.t()) :: String.t()
+
+  @doc """
+  Wrap a schema string as nullable — i.e. the field's value may be `null`.
+  In zod this is `.nullable()`; in valibot, `v.nullable(...)`.
+
+  For fields that may be both omitted *and* null (the common case for nullable
+  Ash attributes — `JSON.stringify` drops `undefined` keys, so clearing a
+  nullable attribute requires sending `"field": null`), compose with
+  `wrap_optional/1`. Convention: apply `wrap_nullable` first (innermost), then
+  `wrap_optional`. The result is equivalent to zod's `.nullish()` shorthand.
+  """
+  @callback wrap_nullable(schema :: String.t()) :: String.t()
 
   @doc "Wrap a comma-joined set of `key: schema` fields in an inline object schema."
   @callback wrap_object(fields :: String.t()) :: String.t()

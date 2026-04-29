@@ -35,8 +35,9 @@ defmodule AshTypescript.RpcInputOptionalityTest do
 
       input_type = List.first(input_type_match)
 
-      # heroImageUrl is optional via allow_nil_input even though the attribute has allow_nil?: false
-      assert input_type =~ "heroImageUrl?: string;"
+      # heroImageUrl is omittable AND nullable via allow_nil_input, even though
+      # the attribute has allow_nil?: false. So the TS type permits `null` too.
+      assert input_type =~ "heroImageUrl?: string | null;"
     end
 
     test "attribute not in allow_nil_input remains required when allow_nil?: false", %{

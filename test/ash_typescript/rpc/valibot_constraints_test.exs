@@ -8,7 +8,8 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
 
   Mirrors `ZodConstraintsTest` but verifies Valibot-specific output:
   - Constraints use `v.pipe()` composition, not method chaining
-  - Optional fields wrap as `v.optional(schema)`, not `schema.optional()`
+  - Omittable fields wrap as `v.optional(schema)`, not `schema.optional()`
+  - Nullable + omittable fields wrap as `v.optional(v.nullable(schema))`
   - Enums use `v.picklist([...])`, not `z.enum([...])`
   - UUID uses `v.pipe(v.string(), v.uuid())`, not `z.uuid()`
   - Required non-nullable strings get `v.pipe(v.string(), v.minLength(1))`, not `z.string().min(1)`
@@ -53,11 +54,11 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
       assert schema =~ "title: v.pipe(v.string(), v.minLength(1))"
     end
 
-    test "optional string without constraints generates v.optional(v.string())" do
+    test "nullable+omittable string without constraints generates v.optional(v.nullable(v.string()))" do
       action = Ash.Resource.Info.action(OrgTodo, :create)
       schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
 
-      assert schema =~ "description: v.optional(v.string())"
+      assert schema =~ "description: v.optional(v.nullable(v.string()))"
       refute schema =~ ~r/description.*v\.minLength/
       refute schema =~ ~r/description.*v\.maxLength/
     end
@@ -224,14 +225,14 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
     end
   end
 
-  describe "Optional float constraints in Valibot schemas" do
-    test "optional float with constraints uses v.optional wrapping v.pipe" do
+  describe "Nullable+omittable float constraints in Valibot schemas" do
+    test "nullable+omittable float with constraints wraps v.pipe in v.optional(v.nullable(...))" do
       action = Ash.Resource.Info.action(OrgTodo, :create)
       schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
 
-      # optional_rating is optional with min/max constraints
+      # optional_rating is allow_nil? true with min/max constraints
       assert schema =~
-               "optionalRating: v.optional(v.pipe(v.number(), v.minValue(0.0), v.maxValue(5.0)))"
+               "optionalRating: v.optional(v.nullable(v.pipe(v.number(), v.minValue(0.0), v.maxValue(5.0))))"
     end
   end
 
@@ -273,12 +274,12 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
       assert schema =~ "countryCode: v.pipe(v.string(), v.minLength(1), v.regex(/^[A-Z]{2}$/i))"
     end
 
-    test "optional ci_string with constraints" do
+    test "nullable+omittable ci_string with constraints wraps v.pipe in v.optional(v.nullable(...))" do
       action = Ash.Resource.Info.action(OrgTodo, :create)
       schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
 
       assert schema =~
-               "optionalNickname: v.optional(v.pipe(v.string(), v.minLength(2), v.maxLength(15)))"
+               "optionalNickname: v.optional(v.nullable(v.pipe(v.string(), v.minLength(2), v.maxLength(15))))"
     end
 
     test "ci_string with case-insensitive regex includes i flag" do
@@ -354,11 +355,12 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
                "caseInsensitiveCode: v.pipe(v.string(), v.minLength(1), v.regex(/^[A-Z]{3}-\\d{4}$/i))"
     end
 
-    test "optional field with regex constraint" do
+    test "nullable+omittable field with regex constraint wraps in v.optional(v.nullable(...))" do
       action = Ash.Resource.Info.action(OrgTodo, :create)
       schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
 
-      assert schema =~ "optionalUrl: v.optional(v.pipe(v.string(), v.regex(/^https?:\\/\\/.+/)))"
+      assert schema =~
+               "optionalUrl: v.optional(v.nullable(v.pipe(v.string(), v.regex(/^https?:\\/\\/.+/))))"
     end
 
     test "regex constraints are properly escaped for JavaScript" do
