@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   createOrgTodoZodSchema,
   createTaskZodSchema,
+  updateTaskZodSchema,
   AshTypescriptTestTodoContentLinkContentZodSchema,
 } from "../../ash_zod";
 
@@ -978,6 +979,54 @@ export function testMoneyWrongFieldTypes() {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return error;
+    }
+    throw error;
+  }
+}
+
+// Omittable-only fields (`.optional()` without `.nullable()`) accept
+// `undefined` / absent keys but reject explicit `null`.
+
+export function testOmittableOnlyTitleRejectsNull() {
+  // updateTaskZodSchema.title is z.string().min(1).optional() — omittable
+  // (update doesn't require it) but not nullable (attr has allow_nil?: false).
+  try {
+    updateTaskZodSchema.parse({ title: null });
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      console.log("Correctly rejected null for omittable-only title:", error.issues);
+      return error.issues;
+    }
+    throw error;
+  }
+}
+
+export function testOmittableOnlyArchivedRejectsNull() {
+  // updateTaskZodSchema.isArchived is z.boolean().optional() — omittable
+  // but not nullable.
+  try {
+    updateTaskZodSchema.parse({ isArchived: null });
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      console.log("Correctly rejected null for omittable-only isArchived:", error.issues);
+      return error.issues;
+    }
+    throw error;
+  }
+}
+
+export function testRequiredTitleRejectsNullOnCreate() {
+  // createTaskZodSchema.title is z.string().min(1) — neither nullable nor
+  // omittable. Sending null must fail.
+  try {
+    createTaskZodSchema.parse({ title: null });
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      console.log("Correctly rejected null for required title:", error.issues);
+      return error.issues;
     }
     throw error;
   }

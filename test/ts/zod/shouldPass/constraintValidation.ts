@@ -7,6 +7,7 @@ import { createOrgTodo } from "../../generated";
 import {
   createOrgTodoZodSchema,
   createTaskZodSchema,
+  updateTaskZodSchema,
   AshTypescriptTestTodoContentLinkContentZodSchema,
 } from "../../ash_zod";
 
@@ -515,6 +516,94 @@ export function testMoneyValidShape() {
 export function testMoneyOptionalOmitted() {
   const validated = createTaskZodSchema.parse({ title: "Priceless" });
   console.log("Money optional omitted passed:", validated.price);
+  return validated;
+}
+
+// Nullable + omittable fields (allow_nil?: true): accept both `null`
+// and an absent key.
+
+export function testNullableDescriptionAcceptsNull() {
+  const validData = { ...createValidBaseData(), description: null };
+  const validated = createOrgTodoZodSchema.parse(validData);
+  if (validated.description !== null) {
+    throw new Error(`Expected description to be null, got ${validated.description}`);
+  }
+  console.log("Nullable description accepts null");
+  return validated;
+}
+
+export function testNullableOptionalUrlAcceptsNull() {
+  const validData = { ...createValidBaseData(), optionalUrl: null };
+  const validated = createOrgTodoZodSchema.parse(validData);
+  if (validated.optionalUrl !== null) {
+    throw new Error(`Expected optionalUrl to be null, got ${validated.optionalUrl}`);
+  }
+  console.log("Nullable optional URL accepts null (regex skipped for null)");
+  return validated;
+}
+
+export function testNullableOptionalRatingAcceptsNull() {
+  const validData = { ...createValidBaseData(), optionalRating: null };
+  const validated = createOrgTodoZodSchema.parse(validData);
+  if (validated.optionalRating !== null) {
+    throw new Error(`Expected optionalRating to be null, got ${validated.optionalRating}`);
+  }
+  console.log("Nullable optional rating accepts null (min/max skipped for null)");
+  return validated;
+}
+
+export function testNullableOptionalNicknameAcceptsNull() {
+  const validData = { ...createValidBaseData(), optionalNickname: null };
+  const validated = createOrgTodoZodSchema.parse(validData);
+  if (validated.optionalNickname !== null) {
+    throw new Error(`Expected optionalNickname to be null, got ${validated.optionalNickname}`);
+  }
+  console.log("Nullable optional nickname accepts null (min/max skipped for null)");
+  return validated;
+}
+
+export function testNullableMoneyAcceptsNull() {
+  const validated = createTaskZodSchema.parse({ title: "Free", price: null });
+  if (validated.price !== null) {
+    throw new Error(`Expected price to be null, got ${JSON.stringify(validated.price)}`);
+  }
+  console.log("Nullable money accepts null");
+  return validated;
+}
+
+export function testNullableTypedStructAcceptsNull() {
+  const validated = updateTaskZodSchema.parse({ stats: null });
+  if (validated.stats !== null) {
+    throw new Error(`Expected stats to be null, got ${JSON.stringify(validated.stats)}`);
+  }
+  console.log("Nullable typed struct accepts null");
+  return validated;
+}
+
+// Omittable-only fields (allow_nil?: false on update): accept absent
+// keys and supplied values. Rejecting `null` is in the shouldFail suite.
+
+export function testUpdateTaskAllOmittable() {
+  const validated = updateTaskZodSchema.parse({});
+  console.log("Update task with empty object passed (all fields omittable)");
+  return validated;
+}
+
+export function testUpdateTaskOmittableTitleAcceptsValue() {
+  const validated = updateTaskZodSchema.parse({ title: "Updated" });
+  if (validated.title !== "Updated") {
+    throw new Error(`Expected title to be 'Updated', got ${validated.title}`);
+  }
+  console.log("Omittable-only title accepts a value");
+  return validated;
+}
+
+export function testUpdateTaskOmittableArchivedAcceptsValue() {
+  const validated = updateTaskZodSchema.parse({ isArchived: true });
+  if (validated.isArchived !== true) {
+    throw new Error(`Expected isArchived to be true, got ${validated.isArchived}`);
+  }
+  console.log("Omittable-only isArchived accepts a value");
   return validated;
 }
 
