@@ -108,35 +108,40 @@ typed_struct_field = :all_completed?
 Benchee.run(
   %{
     # format_field_name/2 — pure name conversion, no resource context.
-    "format_field_name/atom" =>
-      fn -> FieldFormatter.format_field_name(:user_name, :camel_case) end,
-    "format_field_name/atom_already_short" =>
-      fn -> FieldFormatter.format_field_name(:title, :camel_case) end,
-    "format_field_name/string" =>
-      fn -> FieldFormatter.format_field_name("user_name", :camel_case) end,
-    "format_field_name/snake_case_passthrough" =>
-      fn -> FieldFormatter.format_field_name(:user_name, :snake_case) end,
+    "format_field_name/atom" => fn ->
+      FieldFormatter.format_field_name(:user_name, :camel_case)
+    end,
+    "format_field_name/atom_already_short" => fn ->
+      FieldFormatter.format_field_name(:title, :camel_case)
+    end,
+    "format_field_name/string" => fn ->
+      FieldFormatter.format_field_name("user_name", :camel_case)
+    end,
+    "format_field_name/snake_case_passthrough" => fn ->
+      FieldFormatter.format_field_name(:user_name, :snake_case)
+    end,
 
     # format_field_for_client/3 — adds resource introspection on top.
-    "format_field_for_client/nil_resource" =>
-      fn -> FieldFormatter.format_field_for_client(:user_name, nil, :camel_case) end,
-    "format_field_for_client/resource_unmapped" =>
-      fn -> FieldFormatter.format_field_for_client(unmapped_field, Todo, :camel_case) end,
-    "format_field_for_client/resource_mapped" =>
-      fn -> FieldFormatter.format_field_for_client(mapped_field, Ticket, :camel_case) end,
-    "format_field_for_client/typed_struct_mapped" =>
-      fn ->
-        FieldFormatter.format_field_for_client(typed_struct_field, TodoStatistics, :camel_case)
-      end,
+    "format_field_for_client/nil_resource" => fn ->
+      FieldFormatter.format_field_for_client(:user_name, nil, :camel_case)
+    end,
+    "format_field_for_client/resource_unmapped" => fn ->
+      FieldFormatter.format_field_for_client(unmapped_field, Todo, :camel_case)
+    end,
+    "format_field_for_client/resource_mapped" => fn ->
+      FieldFormatter.format_field_for_client(mapped_field, Ticket, :camel_case)
+    end,
+    "format_field_for_client/typed_struct_mapped" => fn ->
+      FieldFormatter.format_field_for_client(typed_struct_field, TodoStatistics, :camel_case)
+    end,
 
     # Full per-record loop over every Todo public field — closest to what
     # OutputFormatter runs in a list response.
-    "per_record_loop/todo_all_fields" =>
-      fn ->
-        Enum.map(todo_fields, fn field ->
-          FieldFormatter.format_field_for_client(field, Todo, :camel_case)
-        end)
-      end
+    "per_record_loop/todo_all_fields" => fn ->
+      Enum.map(todo_fields, fn field ->
+        FieldFormatter.format_field_for_client(field, Todo, :camel_case)
+      end)
+    end
   },
   memory_time: 2
 )

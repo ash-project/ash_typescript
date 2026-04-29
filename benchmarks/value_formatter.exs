@@ -121,72 +121,74 @@ typed_struct_constraints = [
 Benchee.run(
   %{
     # Built-in scalars — the guard-clause targets.
-    "scalar/string" =>
-      fn -> ValueFormatter.format(sample_string, Ash.Type.String, [], :camel_case, :output) end,
-    "scalar/uuid" =>
-      fn -> ValueFormatter.format(sample_uuid, Ash.Type.UUID, [], :camel_case, :output) end,
-    "scalar/boolean" =>
-      fn -> ValueFormatter.format(true, Ash.Type.Boolean, [], :camel_case, :output) end,
-    "scalar/integer" =>
-      fn -> ValueFormatter.format(42, Ash.Type.Integer, [], :camel_case, :output) end,
-    "scalar/float" =>
-      fn -> ValueFormatter.format(3.14, Ash.Type.Float, [], :camel_case, :output) end,
-    "scalar/decimal" =>
-      fn ->
-        ValueFormatter.format(sample_decimal_str, Ash.Type.Decimal, [], :camel_case, :output)
-      end,
-    "scalar/date" =>
-      fn -> ValueFormatter.format(sample_iso_date, Ash.Type.Date, [], :camel_case, :output) end,
-    "scalar/utc_datetime" =>
-      fn ->
-        ValueFormatter.format(
-          sample_iso_datetime,
-          Ash.Type.UtcDatetime,
-          [],
-          :camel_case,
-          :output
-        )
-      end,
-    "scalar/atom" =>
-      fn -> ValueFormatter.format(sample_atom_str, Ash.Type.Atom, [], :camel_case, :output) end,
+    "scalar/string" => fn ->
+      ValueFormatter.format(sample_string, Ash.Type.String, [], :camel_case, :output)
+    end,
+    "scalar/uuid" => fn ->
+      ValueFormatter.format(sample_uuid, Ash.Type.UUID, [], :camel_case, :output)
+    end,
+    "scalar/boolean" => fn ->
+      ValueFormatter.format(true, Ash.Type.Boolean, [], :camel_case, :output)
+    end,
+    "scalar/integer" => fn ->
+      ValueFormatter.format(42, Ash.Type.Integer, [], :camel_case, :output)
+    end,
+    "scalar/float" => fn ->
+      ValueFormatter.format(3.14, Ash.Type.Float, [], :camel_case, :output)
+    end,
+    "scalar/decimal" => fn ->
+      ValueFormatter.format(sample_decimal_str, Ash.Type.Decimal, [], :camel_case, :output)
+    end,
+    "scalar/date" => fn ->
+      ValueFormatter.format(sample_iso_date, Ash.Type.Date, [], :camel_case, :output)
+    end,
+    "scalar/utc_datetime" => fn ->
+      ValueFormatter.format(
+        sample_iso_datetime,
+        Ash.Type.UtcDatetime,
+        [],
+        :camel_case,
+        :output
+      )
+    end,
+    "scalar/atom" => fn ->
+      ValueFormatter.format(sample_atom_str, Ash.Type.Atom, [], :camel_case, :output)
+    end,
 
     # Composite types — no change expected after the guard clause (regression checks).
-    "composite/embedded_resource" =>
-      fn ->
-        ValueFormatter.format(
-          sample_embedded,
-          Ash.Type.Struct,
-          embedded_constraints,
-          :camel_case,
-          :output
-        )
-      end,
-    "composite/typed_struct" =>
-      fn ->
-        ValueFormatter.format(
-          sample_typed_map,
-          Ash.Type.Struct,
-          typed_struct_constraints,
-          :camel_case,
-          :output
-        )
-      end,
-    "composite/resource_map" =>
-      fn ->
-        ValueFormatter.format(
-          %{title: "x", description: "y", completed: false},
-          Todo,
-          [],
-          :camel_case,
-          :output
-        )
-      end,
+    "composite/embedded_resource" => fn ->
+      ValueFormatter.format(
+        sample_embedded,
+        Ash.Type.Struct,
+        embedded_constraints,
+        :camel_case,
+        :output
+      )
+    end,
+    "composite/typed_struct" => fn ->
+      ValueFormatter.format(
+        sample_typed_map,
+        Ash.Type.Struct,
+        typed_struct_constraints,
+        :camel_case,
+        :output
+      )
+    end,
+    "composite/resource_map" => fn ->
+      ValueFormatter.format(
+        %{title: "x", description: "y", completed: false},
+        Todo,
+        [],
+        :camel_case,
+        :output
+      )
+    end,
 
     # Existing nil fast paths.
-    "fastpath/nil_value" =>
-      fn -> ValueFormatter.format(nil, Ash.Type.String, [], :camel_case, :output) end,
-    "fastpath/nil_type" =>
-      fn -> ValueFormatter.format("hi", nil, [], :camel_case, :output) end
+    "fastpath/nil_value" => fn ->
+      ValueFormatter.format(nil, Ash.Type.String, [], :camel_case, :output)
+    end,
+    "fastpath/nil_type" => fn -> ValueFormatter.format("hi", nil, [], :camel_case, :output) end
   },
   memory_time: 2
 )

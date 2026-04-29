@@ -53,12 +53,15 @@ todos_1500 = Enum.map(1..1500, build_todo)
 
 Benchee.run(
   %{
-    "format_list/25_records" =>
-      fn -> OutputFormatter.format(todos_25, Todo, :read, :camel_case) end,
-    "format_list/250_records" =>
-      fn -> OutputFormatter.format(todos_250, Todo, :read, :camel_case) end,
-    "format_list/1500_records" =>
-      fn -> OutputFormatter.format(todos_1500, Todo, :read, :camel_case) end
+    "format_list/25_records" => fn ->
+      OutputFormatter.format(todos_25, Todo, :read, :camel_case)
+    end,
+    "format_list/250_records" => fn ->
+      OutputFormatter.format(todos_250, Todo, :read, :camel_case)
+    end,
+    "format_list/1500_records" => fn ->
+      OutputFormatter.format(todos_1500, Todo, :read, :camel_case)
+    end
   },
   memory_time: 2
 )
