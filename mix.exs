@@ -141,8 +141,10 @@ defmodule AshTypescript.MixProject do
          search_data: Spark.Docs.search_data_for(AshTypescript.Rpc)},
         {"documentation/dsls/DSL-AshTypescript.Resource.md",
          search_data: Spark.Docs.search_data_for(AshTypescript.Resource)},
-        "documentation/dsls/DSL-AshTypescript.TypedController.md",
-        "documentation/dsls/DSL-AshTypescript.TypedChannel.md",
+        {"documentation/dsls/DSL-AshTypescript.TypedController.md",
+         search_data: Spark.Docs.search_data_for(AshTypescript.TypedController.Dsl)},
+        {"documentation/dsls/DSL-AshTypescript.TypedChannel.md",
+         search_data: Spark.Docs.search_data_for(AshTypescript.TypedChannel.Dsl)},
 
         # About
         "CHANGELOG.md"
