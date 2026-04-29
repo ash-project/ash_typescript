@@ -6,6 +6,7 @@ import * as v from "valibot";
 import {
   createOrgTodoValibotSchema,
   createTaskValibotSchema,
+  updateTaskValibotSchema,
   AshTypescriptTestTodoContentLinkContentValibotSchema,
 } from "../../ash_valibot";
 
@@ -981,6 +982,64 @@ export function testMoneyWrongFieldTypes() {
   } catch (error) {
     if (error instanceof v.ValiError) {
       return error.issues;
+    }
+    throw error;
+  }
+}
+
+// Omittable-only fields (`v.optional(...)` without `v.nullable(...)`)
+// accept `undefined` / absent keys but reject explicit `null`.
+
+export function testOmittableOnlyTitleRejectsNull() {
+  // updateTaskValibotSchema.title is v.optional(v.pipe(v.string(), v.minLength(1)))
+  // — omittable (update doesn't require it) but not nullable (attr has
+  // allow_nil?: false).
+  try {
+    v.parse(updateTaskValibotSchema, { title: null });
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (v.isValiError(error)) {
+      console.log(
+        "Correctly rejected null for omittable-only title:",
+        (error as v.ValiError<any>).issues,
+      );
+      return (error as v.ValiError<any>).issues;
+    }
+    throw error;
+  }
+}
+
+export function testOmittableOnlyArchivedRejectsNull() {
+  // updateTaskValibotSchema.isArchived is v.optional(v.boolean()) — omittable
+  // but not nullable.
+  try {
+    v.parse(updateTaskValibotSchema, { isArchived: null });
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (v.isValiError(error)) {
+      console.log(
+        "Correctly rejected null for omittable-only isArchived:",
+        (error as v.ValiError<any>).issues,
+      );
+      return (error as v.ValiError<any>).issues;
+    }
+    throw error;
+  }
+}
+
+export function testRequiredTitleRejectsNullOnCreate() {
+  // createTaskValibotSchema.title is v.pipe(v.string(), v.minLength(1)) —
+  // neither nullable nor omittable. Sending null must fail.
+  try {
+    v.parse(createTaskValibotSchema, { title: null });
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (v.isValiError(error)) {
+      console.log(
+        "Correctly rejected null for required title:",
+        (error as v.ValiError<any>).issues,
+      );
+      return (error as v.ValiError<any>).issues;
     }
     throw error;
   }

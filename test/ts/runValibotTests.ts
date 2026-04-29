@@ -70,6 +70,15 @@ runTest("testOptionalCiStringProvided", () => shouldPass.testOptionalCiStringPro
 runTest("testCiStringCaseVariations", () => shouldPass.testCiStringCaseVariations());
 runTest("testMoneyValidShape", () => shouldPass.testMoneyValidShape());
 runTest("testMoneyOptionalOmitted", () => shouldPass.testMoneyOptionalOmitted());
+runTest("testNullableDescriptionAcceptsNull", () => shouldPass.testNullableDescriptionAcceptsNull());
+runTest("testNullableOptionalUrlAcceptsNull", () => shouldPass.testNullableOptionalUrlAcceptsNull());
+runTest("testNullableOptionalRatingAcceptsNull", () => shouldPass.testNullableOptionalRatingAcceptsNull());
+runTest("testNullableOptionalNicknameAcceptsNull", () => shouldPass.testNullableOptionalNicknameAcceptsNull());
+runTest("testNullableMoneyAcceptsNull", () => shouldPass.testNullableMoneyAcceptsNull());
+runTest("testNullableTypedStructAcceptsNull", () => shouldPass.testNullableTypedStructAcceptsNull());
+runTest("testUpdateTaskAllOmittable", () => shouldPass.testUpdateTaskAllOmittable());
+runTest("testUpdateTaskOmittableTitleAcceptsValue", () => shouldPass.testUpdateTaskOmittableTitleAcceptsValue());
+runTest("testUpdateTaskOmittableArchivedAcceptsValue", () => shouldPass.testUpdateTaskOmittableArchivedAcceptsValue());
 
 console.log("\n--- Tests that SHOULD FAIL (invalid constraints) ---\n");
 
@@ -116,6 +125,9 @@ runTest("testOptionalCiStringInvalid", () => shouldFail.testOptionalCiStringInva
 runTest("testMultipleCiStringViolations", () => shouldFail.testMultipleCiStringViolations());
 runTest("testMoneyMissingAmount", () => shouldFail.testMoneyMissingAmount());
 runTest("testMoneyWrongFieldTypes", () => shouldFail.testMoneyWrongFieldTypes());
+runTest("testOmittableOnlyTitleRejectsNull", () => shouldFail.testOmittableOnlyTitleRejectsNull());
+runTest("testOmittableOnlyArchivedRejectsNull", () => shouldFail.testOmittableOnlyArchivedRejectsNull());
+runTest("testRequiredTitleRejectsNullOnCreate", () => shouldFail.testRequiredTitleRejectsNullOnCreate());
 
 console.log("\n========================================");
 console.log("Test Results Summary");
