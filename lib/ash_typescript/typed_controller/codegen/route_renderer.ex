@@ -14,6 +14,9 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   import AshTypescript.Helpers, only: [format_output_field: 1]
   import AshTypescript.Codegen.TypeMapper, only: [get_ts_input_type: 1]
 
+  alias AshTypescript.Codegen.SchemaCore
+  alias AshTypescript.Codegen.ZodSchemaGenerator
+
   @mutation_methods [:post, :patch, :put, :delete]
 
   @doc """
@@ -112,7 +115,8 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
 
     fields =
       Enum.map_join(query_args, "; ", fn arg ->
-        ts_type = get_ts_input_type(%{type: arg.type, constraints: arg.constraints || []})
+        base_type = get_ts_input_type(%{type: arg.type, constraints: arg.constraints || []})
+        ts_type = if arg.allow_nil?, do: "#{base_type} | null", else: base_type
         opt = if arg.allow_nil? || arg.default != nil, do: "?", else: ""
         "#{format_output_field(arg.name)}#{opt}: #{ts_type}"
       end)
@@ -228,14 +232,20 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
             resolved_type = Ash.Type.get_type(arg.type)
 
             zod_type =
-              AshTypescript.Codegen.ZodSchemaGenerator.get_zod_type(%{
+              ZodSchemaGenerator.get_zod_type(%{
                 type: resolved_type,
                 constraints: arg.constraints || [],
                 allow_nil?: arg.allow_nil?
               })
 
-            optional = arg.allow_nil? || arg.default != nil
-            zod_type = if optional, do: "#{zod_type}.optional()", else: zod_type
+            zod_type =
+              SchemaCore.maybe_wrap_nullable_optional(
+                ZodSchemaGenerator,
+                zod_type,
+                arg.allow_nil?,
+                arg.allow_nil? || arg.default != nil
+              )
+
             "  #{format_output_field(arg.name)}: #{zod_type},"
           end)
 
@@ -263,7 +273,8 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     |> non_path_args(path_params)
     |> Enum.map(fn arg ->
       optional = arg.allow_nil? || arg.default != nil
-      ts_type = get_ts_input_type(%{type: arg.type, constraints: arg.constraints || []})
+      base_type = get_ts_input_type(%{type: arg.type, constraints: arg.constraints || []})
+      ts_type = if arg.allow_nil?, do: "#{base_type} | null", else: base_type
       {format_output_field(arg.name), ts_type, optional}
     end)
   end
