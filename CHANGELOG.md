@@ -11,6 +11,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.17.2](https://github.com/ash-project/ash_typescript/compare/v0.17.1...v0.17.2) (2026-04-29)
+
+
+
+
+### Bug Fixes:
+
+* codegen: distinguish nullable from optional in zod and valibot schemas by Mike Wilson [(#70)](https://github.com/ash-project/ash_typescript/pull/70)
+
+* codegen: sort enum values alphabetically in generated types by [@Torkan](https://github.com/Torkan)
+
+### Performance Improvements:
+
+* field_formatter: cache atom field name lookups per process by Mike Wilson [(#68)](https://github.com/ash-project/ash_typescript/pull/68)
+
 ## [v0.17.1](https://github.com/ash-project/ash_typescript/compare/v0.17.0...v0.17.1) (2026-04-15)
 
 
