@@ -244,11 +244,11 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
       zod_schema =
         ZodSchemaGenerator.generate_zod_schema_for_resource(embedded_resource)
 
-      # notes is allow_nil?: true, should be optional
-      assert zod_schema =~ "notes: z.string().optional()"
+      # notes is allow_nil?: true, so nullable + omittable
+      assert zod_schema =~ "notes: z.string().nullable().optional()"
 
-      # priority_level is allow_nil?: true, has constraints [min: 1, max: 5], should be optional
-      assert zod_schema =~ "priorityLevel: z.number().int().min(1).max(5).optional()"
+      # priority_level is allow_nil?: true, has constraints [min: 1, max: 5], so nullable + omittable
+      assert zod_schema =~ "priorityLevel: z.number().int().min(1).max(5).nullable().optional()"
 
       # isPublic (from is_public?) has default value, should be optional
       assert zod_schema =~ "isPublic: z.boolean().optional()"
@@ -392,44 +392,46 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
       assert stats_section =~ "averageDuration: z.number()"
     end
 
-    test "typed struct optional fields are marked optional" do
+    test "typed struct nullable fields wrap with .nullable().optional()" do
       action = Ash.Resource.Info.action(Task, :update)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 
       stats_section = String.split(zod_schema, "stats: ") |> Enum.at(1)
 
-      # Fields with defaults should be optional
-      assert stats_section =~ "totalCount: z.number().int().optional()"
-      assert stats_section =~ "isUrgent: z.boolean().optional()"
+      # Typed-struct fields with allow_nil? true (the default in `:fields`
+      # constraints) get nullable + optional wrappers.
+      assert stats_section =~ "totalCount: z.number().int().nullable().optional()"
+      assert stats_section =~ "isUrgent: z.boolean().nullable().optional()"
 
       # Should not have unmapped names
       refute stats_section =~ "is_urgent?"
     end
 
-    test "typed struct required fields are not marked optional" do
+    test "typed struct fields with allow_nil? true wrap with .nullable().optional()" do
       action = Ash.Resource.Info.action(Task, :update)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 
       stats_section = String.split(zod_schema, "stats: ") |> Enum.at(1)
 
-      # completed? has no default, should be optional (can be omitted)
-      assert stats_section =~ "completed: z.boolean().optional()"
+      # completed? has allow_nil? true, so nullable + optional
+      assert stats_section =~ "completed: z.boolean().nullable().optional()"
       refute stats_section =~ "completed?:"
 
-      # averageDuration has no default and allow_nil is implicit, should be optional
-      assert stats_section =~ "averageDuration: z.number().optional()"
+      # averageDuration has allow_nil? true (implicit), so nullable + optional
+      assert stats_section =~ "averageDuration: z.number().nullable().optional()"
     end
 
-    test "typed struct in action accepts is marked optional" do
+    test "typed struct in nullable action accept wraps with .nullable().optional()" do
       action = Ash.Resource.Info.action(Task, :update)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 
-      # The entire stats field should be optional in the update action
+      # The entire stats field is allow_nil? true on the resource attribute,
+      # so it gets nullable + optional in the update accept-field path.
       assert zod_schema =~ "stats: z.object({"
-      assert zod_schema =~ "}).optional()"
+      assert zod_schema =~ "}).nullable().optional()"
     end
 
     test "all typed struct fields use consistent mapped names" do

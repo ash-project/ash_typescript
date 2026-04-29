@@ -89,7 +89,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
     } do
       assert String.contains?(typescript, "export function providerPagePath(")
       assert String.contains?(typescript, "path: { provider: string }")
-      assert String.contains?(typescript, "query?: { tab?: string }")
+      assert String.contains?(typescript, "query?: { tab?: string | null }")
     end
 
     test "GET path helper with path params uses path object in URL template", %{
@@ -106,7 +106,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
       typescript: typescript
     } do
       assert String.contains?(typescript, "export function searchPath(")
-      assert String.contains?(typescript, "query: { q: string; page?: number }")
+      assert String.contains?(typescript, "query: { q: string; page?: number | null }")
     end
 
     test "generates URLSearchParams for GET routes with query params", %{typescript: typescript} do
@@ -132,7 +132,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
     test "generates typed input type for login action", %{typescript: typescript} do
       assert String.contains?(typescript, "export type LoginInput = {")
       assert String.contains?(typescript, "code: string;")
-      assert String.contains?(typescript, "rememberMe?: boolean;")
+      assert String.contains?(typescript, "rememberMe?: boolean | null;")
     end
 
     test "generates async function for login with input param", %{typescript: typescript} do
@@ -415,7 +415,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
     } do
       assert String.contains?(typescript, "export type UpdateProviderInput = {")
       assert String.contains?(typescript, "enabled: boolean;")
-      assert String.contains?(typescript, "displayName?: string;")
+      assert String.contains?(typescript, "displayName?: string | null;")
       refute String.contains?(typescript, "UpdateProviderInput = {\n  provider")
     end
 
@@ -554,8 +554,8 @@ defmodule AshTypescript.TypedController.CodegenTest do
     end
 
     test "still generates query params for GET routes", %{typescript: typescript} do
-      assert String.contains?(typescript, "query?: { tab?: string }")
-      assert String.contains?(typescript, "query: { q: string; page?: number }")
+      assert String.contains?(typescript, "query?: { tab?: string | null }")
+      assert String.contains?(typescript, "query: { q: string; page?: number | null }")
     end
 
     test "does not generate TypedControllerConfig or helper", %{typescript: typescript} do
@@ -707,13 +707,13 @@ defmodule AshTypescript.TypedController.CodegenTest do
     test "generates Zod schemas for mutation routes with input args", %{zod: zod} do
       assert String.contains?(zod, "export const loginZodSchema = z.object({")
       assert String.contains?(zod, "code: z.string().min(1),")
-      assert String.contains?(zod, "rememberMe: z.boolean().optional(),")
+      assert String.contains?(zod, "rememberMe: z.boolean().nullable().optional(),")
     end
 
     test "generates Zod schema for update_provider excluding path params", %{zod: zod} do
       assert String.contains?(zod, "export const updateProviderZodSchema = z.object({")
       assert String.contains?(zod, "enabled: z.boolean(),")
-      assert String.contains?(zod, "displayName: z.string().optional(),")
+      assert String.contains?(zod, "displayName: z.string().nullable().optional(),")
 
       [_, after_schema] =
         String.split(zod, "export const updateProviderZodSchema = z.object({", parts: 2)
@@ -738,8 +738,8 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
       [schema_body | _] = String.split(after_schema, "});", parts: 2)
       assert String.contains?(schema_body, "name: z.string().min(1),")
-      assert String.contains?(schema_body, "count: z.number().int().optional(),")
-      assert String.contains?(schema_body, "active: z.boolean().optional(),")
+      assert String.contains?(schema_body, "count: z.number().int().nullable().optional(),")
+      assert String.contains?(schema_body, "active: z.boolean().nullable().optional(),")
     end
   end
 
@@ -783,7 +783,10 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
       [schema_body | _] = String.split(after_schema, "});", parts: 2)
 
-      assert String.contains?(schema_body, "score: z.number().min(0).max(100).optional(),")
+      assert String.contains?(
+               schema_body,
+               "score: z.number().min(0).max(100).nullable().optional(),"
+             )
     end
 
     test "generates string max_length-only constraint", %{zod: zod} do
@@ -792,7 +795,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
       [schema_body | _] = String.split(after_schema, "});", parts: 2)
 
-      assert String.contains?(schema_body, "bio: z.string().max(500).optional(),")
+      assert String.contains?(schema_body, "bio: z.string().max(500).nullable().optional(),")
     end
 
     test "generates fixed-length string via min_length + max_length", %{zod: zod} do
@@ -801,7 +804,10 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
       [schema_body | _] = String.split(after_schema, "});", parts: 2)
 
-      assert String.contains?(schema_body, "inviteCode: z.string().min(8).max(8).optional(),")
+      assert String.contains?(
+               schema_body,
+               "inviteCode: z.string().min(8).max(8).nullable().optional(),"
+             )
     end
 
     test "generates corresponding TypeScript input type in routes file", %{typescript: typescript} do
@@ -809,9 +815,9 @@ defmodule AshTypescript.TypedController.CodegenTest do
       assert String.contains?(typescript, "username: string;")
       assert String.contains?(typescript, "email: string;")
       assert String.contains?(typescript, "age: number;")
-      assert String.contains?(typescript, "score?: number;")
-      assert String.contains?(typescript, "bio?: string;")
-      assert String.contains?(typescript, "inviteCode?: string;")
+      assert String.contains?(typescript, "score?: number | null;")
+      assert String.contains?(typescript, "bio?: string | null;")
+      assert String.contains?(typescript, "inviteCode?: string | null;")
     end
   end
 
@@ -828,7 +834,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
       assert String.contains?(typescript, "export type CreateTaskInput = {")
       assert String.contains?(typescript, "title: string;")
       assert String.contains?(typescript, "metadata: TaskMetadataInputSchema;")
-      assert String.contains?(typescript, "priority?: number;")
+      assert String.contains?(typescript, "priority?: number | null;")
     end
 
     test "generates Zod schema referencing embedded resource Zod schema", %{zod: zod} do
@@ -841,7 +847,11 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
       assert String.contains?(schema_body, "title: z.string().min(1).max(200),")
       assert String.contains?(schema_body, "metadata: TaskMetadataZodSchema,")
-      assert String.contains?(schema_body, "priority: z.number().int().min(1).max(5).optional(),")
+
+      assert String.contains?(
+               schema_body,
+               "priority: z.number().int().min(1).max(5).nullable().optional(),"
+             )
     end
 
     test "generates action function for create_task in routes file", %{typescript: typescript} do

@@ -342,7 +342,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
         schema_type =
           get_type(formatter, %{type: field_type, constraints: field_constraints}, context)
 
-        schema_type = if allow_nil, do: formatter.wrap_optional(schema_type), else: schema_type
+        schema_type = maybe_wrap_nullable_optional(formatter, schema_type, allow_nil, allow_nil)
 
         base_name =
           if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name),
@@ -373,21 +373,24 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # ─────────────────────────────────────────────────────────────────
 
   defp process_argument_field(formatter, resource, action, arg) do
-    optional = arg.allow_nil? || arg.default != nil
+    nullable = arg.allow_nil?
+    omittable = arg.allow_nil? || arg.default != nil
     formatted_name = format_argument_for_client(resource, action.name, arg.name)
     schema_type = get_type(formatter, arg)
-    schema_type = if optional, do: formatter.wrap_optional(schema_type), else: schema_type
+    schema_type = maybe_wrap_nullable_optional(formatter, schema_type, nullable, omittable)
     {formatted_name, schema_type}
   end
 
   defp process_accept_field(formatter, resource, field_name, action) do
     attr = Ash.Resource.Info.attribute(resource, field_name)
 
-    optional =
+    {nullable, omittable} =
       if action.type in [:update, :destroy] do
-        field_name not in action.require_attributes
+        {attr.allow_nil?, field_name not in action.require_attributes}
       else
-        field_name in action.allow_nil_input || attr.allow_nil? || attr.default != nil
+        nullable = attr.allow_nil? || field_name in action.allow_nil_input
+        omittable = nullable || attr.default != nil
+        {nullable, omittable}
       end
 
     formatted_name =
@@ -398,8 +401,17 @@ defmodule AshTypescript.Codegen.SchemaCore do
       )
 
     schema_type = get_type(formatter, attr)
-    schema_type = if optional, do: formatter.wrap_optional(schema_type), else: schema_type
+    schema_type = maybe_wrap_nullable_optional(formatter, schema_type, nullable, omittable)
     {formatted_name, schema_type}
+  end
+
+  @doc """
+  Wraps a schema string with `wrap_nullable` (innermost) and/or `wrap_optional`
+  (outermost) based on the two booleans, using the given formatter.
+  """
+  def maybe_wrap_nullable_optional(formatter, schema, nullable?, omittable?) do
+    schema = if nullable?, do: formatter.wrap_nullable(schema), else: schema
+    if omittable?, do: formatter.wrap_optional(schema), else: schema
   end
 
   defp format_argument_for_client(resource, action_name, arg_name) do
@@ -452,11 +464,9 @@ defmodule AshTypescript.Codegen.SchemaCore do
           )
 
         schema_type = get_type(formatter, attr)
-
-        schema_type =
-          if attr.allow_nil? || attr.default != nil,
-            do: formatter.wrap_optional(schema_type),
-            else: schema_type
+        nullable = attr.allow_nil?
+        omittable = attr.allow_nil? || attr.default != nil
+        schema_type = maybe_wrap_nullable_optional(formatter, schema_type, nullable, omittable)
 
         "  #{formatted_name}: #{schema_type},"
       end)

@@ -67,11 +67,11 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       assert zod_schema =~ "title: z.string().min(1)"
     end
 
-    test "optional string field without constraints generates basic z.string().optional()" do
+    test "nullable+omittable string field without constraints is .nullable().optional()" do
       action = Ash.Resource.Info.action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
-      assert zod_schema =~ "description: z.string().optional()"
+      assert zod_schema =~ "description: z.string().nullable().optional()"
       refute zod_schema =~ ~r/description.*\.min\(/
       refute zod_schema =~ ~r/description.*\.max\(/
     end
@@ -223,12 +223,12 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       assert zod_schema =~ ".lt(1.0e6)"
     end
 
-    test "optional float with constraints" do
+    test "nullable+omittable float with constraints" do
       action = Ash.Resource.Info.action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
-      # optional_rating is optional with min/max constraints
-      assert zod_schema =~ "optionalRating: z.number().min(0.0).max(5.0).optional()"
+      # optional_rating is allow_nil? true with min/max constraints
+      assert zod_schema =~ "optionalRating: z.number().min(0.0).max(5.0).nullable().optional()"
     end
 
     test "float without constraints generates basic z.number()" do
@@ -286,12 +286,12 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       assert zod_schema =~ "countryCode: z.string().min(1).regex(/^[A-Z]{2}$/i)"
     end
 
-    test "optional ci_string with constraints" do
+    test "nullable+omittable ci_string with constraints" do
       action = Ash.Resource.Info.action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
-      # optional_nickname is optional with min/max constraints
-      assert zod_schema =~ "optionalNickname: z.string().min(2).max(15).optional()"
+      # optional_nickname is allow_nil? true with min/max constraints
+      assert zod_schema =~ "optionalNickname: z.string().min(2).max(15).nullable().optional()"
     end
 
     test "ci_string constraints work same as regular string" do
@@ -368,12 +368,13 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       assert zod_schema =~ "caseInsensitiveCode: z.string().min(1).regex(/^[A-Z]{3}-\\d{4}$/i)"
     end
 
-    test "optional field with regex constraint" do
+    test "nullable+omittable field with regex constraint" do
       action = Ash.Resource.Info.action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
-      # Optional URL field should have regex and .optional()
-      assert zod_schema =~ "optionalUrl: z.string().regex(/^https?:\\/\\/.+/).optional()"
+      # optional_url is allow_nil? true with a regex constraint
+      assert zod_schema =~
+               "optionalUrl: z.string().regex(/^https?:\\/\\/.+/).nullable().optional()"
     end
 
     test "regex constraints are properly escaped for JavaScript" do

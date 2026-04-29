@@ -32,7 +32,7 @@ defmodule AshTypescript.Resource.TypescriptFieldNamesCodegenTest do
       # Check that mapped field names are used in the generated Zod schemas
       assert zod_code =~ "field1: z.string()"
       assert zod_code =~ "isActive: z.boolean()"
-      assert zod_code =~ "line2: z.string().optional()"
+      assert zod_code =~ "line2: z.string().nullable().optional()"
 
       # Make sure the original names are NOT in the generated code
       refute zod_code =~ "field_1:"
