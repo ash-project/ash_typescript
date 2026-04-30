@@ -35,25 +35,16 @@ defmodule AshTypescript.FieldFormatter do
   """
   def format_field_for_client(field, resource_or_type_module \\ nil, formatter)
 
-  # Per-process memoization: when the inputs are fully static (atom field,
-  # module-or-nil resource, built-in formatter) the result is a pure function of
-  # those three values. Caching on the process dict captures the per-request hot
-  # loop in OutputFormatter where the same (field, resource, formatter) triple
-  # is looked up once per record (~1500× for a full sync). No global state, no
-  # invalidation — the cache dies with the process.
   def format_field_for_client(field, resource, formatter)
-      when is_atom(field) and is_atom(resource) and
+      when is_atom(field) and is_atom(resource) and not is_nil(resource) and
              formatter in [:camel_case, :snake_case, :pascal_case] do
-    cache_key = {:ash_typescript_ffc, field, resource, formatter}
-
-    case Process.get(cache_key) do
-      nil ->
-        result = compute_field_for_client(field, resource, formatter)
-        Process.put(cache_key, result)
-        result
-
-      cached ->
-        cached
+    if Introspection.has_typescript_field_names?(resource) do
+      compute_field_for_client(field, resource, formatter)
+    else
+      case AshTypescript.Resource.Info.get_formatted_field(resource, field, formatter) do
+        formatted when is_binary(formatted) -> formatted
+        nil -> compute_field_for_client(field, resource, formatter)
+      end
     end
   end
 
@@ -234,27 +225,10 @@ defmodule AshTypescript.FieldFormatter do
       iex> AshTypescript.FieldFormatter.format_field_name("user_name", :pascal_case)
       "UserName"
   """
-  # Per-process memoization for atom inputs with built-in formatters. See
-  # format_field_for_client/3 above for the rationale; the same logic applies
-  # here, just keyed on (field_atom, formatter).
-  def format_field_name(field_name, formatter)
-      when is_atom(field_name) and formatter in [:camel_case, :snake_case, :pascal_case] do
-    cache_key = {:ash_typescript_ffn, field_name, formatter}
-
-    case Process.get(cache_key) do
-      nil ->
-        result = compute_field_name(field_name, formatter)
-        Process.put(cache_key, result)
-        result
-
-      cached ->
-        cached
-    end
-  end
-
   def format_field_name(field_name, formatter), do: compute_field_name(field_name, formatter)
 
-  defp compute_field_name(field_name, formatter) do
+  @doc false
+  def compute_field_name(field_name, formatter) do
     string_field = to_string(field_name)
 
     case formatter do

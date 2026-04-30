@@ -39,6 +39,9 @@ defmodule AshTypescript.Resource do
 
   use Spark.Dsl.Extension,
     sections: [@typescript],
+    transformers: [
+      AshTypescript.Resource.Transformers.PersistFormattedFields
+    ],
     verifiers: [
       AshTypescript.Resource.Verifiers.VerifyUniqueTypeNames,
       AshTypescript.Resource.Verifiers.VerifyFieldNames,
