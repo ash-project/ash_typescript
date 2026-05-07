@@ -12,6 +12,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   """
 
   alias AshTypescript.Codegen.{Helpers, TypeMapper}
+  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.TypeSystem.Introspection
 
   # ─────────────────────────────────────────────────────────────────
@@ -665,19 +666,51 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         end
       end
 
+    pagination_field =
+      case relationship_pagination_kind(rel) do
+        :none -> ""
+        kind -> " __pagination: \"#{kind}\";"
+      end
+
     metadata =
       case rel.type do
         :has_many ->
-          "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
+          "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type};#{pagination_field} }"
 
         :many_to_many ->
-          "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
+          "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type};#{pagination_field} }"
 
         _ ->
           "{ __type: \"Relationship\"; __resource: #{resource_type}; }"
       end
 
     "  #{formatted_name}: #{metadata};"
+  end
+
+  # Pagination shape supported by the relationship's read_action, used to
+  # gate the `__pagination` discriminator on has_many / many_to_many metadata.
+  defp relationship_pagination_kind(rel) do
+    if rel.type in [:has_many, :many_to_many] do
+      read_action_name = Map.get(rel, :read_action) || :read
+
+      case Ash.Resource.Info.action(rel.destination, read_action_name) do
+        nil ->
+          :none
+
+        action ->
+          offset = ActionIntrospection.action_supports_offset_pagination?(action)
+          keyset = ActionIntrospection.action_supports_keyset_pagination?(action)
+
+          cond do
+            offset and keyset -> :mixed
+            offset -> :offset
+            keyset -> :keyset
+            true -> :none
+          end
+      end
+    else
+      :none
+    end
   end
 
   defp embedded_field_definition(resource, attr) do

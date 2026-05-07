@@ -11,6 +11,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector.Validation do
   """
 
   alias AshTypescript.FieldFormatter
+  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
   @doc """
   Checks for duplicate field names in a field selection list.
@@ -87,6 +88,33 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector.Validation do
     unless Keyword.has_key?(field_specs, field_name) do
       throw({:unknown_field, field_name, error_type, path})
     end
+  end
+
+  @doc """
+  Validates a `page:` envelope on a nested relationship load. The destination's
+  `read_action` must support pagination and `page_opts` must be a map.
+  """
+  def validate_nested_page(field_name, dest_resource, relationship, page_opts, path) do
+    unless is_map(page_opts) do
+      throw({:invalid_nested_pagination, field_name, :page_must_be_a_map, path})
+    end
+
+    read_action_name = relationship.read_action || :read
+    action = Ash.Resource.Info.action(dest_resource, read_action_name)
+
+    if is_nil(action) or action.type != :read do
+      throw({:invalid_nested_pagination, field_name, :no_read_action, path})
+    end
+
+    supports_pagination =
+      ActionIntrospection.action_supports_offset_pagination?(action) or
+        ActionIntrospection.action_supports_keyset_pagination?(action)
+
+    unless supports_pagination do
+      throw({:invalid_nested_pagination, field_name, :pagination_not_supported, path})
+    end
+
+    :ok
   end
 
   # Normalizes a string field name to an atom using the formatter
