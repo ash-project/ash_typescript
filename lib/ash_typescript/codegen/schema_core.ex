@@ -14,7 +14,6 @@ defmodule AshTypescript.Codegen.SchemaCore do
   argument to each public function.
   """
 
-  alias AshApiSpec.Generator.TypeResolver
   alias AshApiSpec.Type, as: SpecType
   alias AshTypescript.Codegen.Helpers, as: CodegenHelpers
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
@@ -134,24 +133,25 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # ─────────────────────────────────────────────────────────────────
 
   @doc """
-  Maps a type-bearing input to a schema string.
+  Maps a type-bearing spec input to a schema string.
 
-  Accepted shapes:
+  Accepted shapes (all `%AshApiSpec.*{}`):
   - `%AshApiSpec.Type{}` — the canonical spec form
   - `%AshApiSpec.Argument{}` / `%AshApiSpec.Field{}` — anything with a
     `:type` field carrying a `%AshApiSpec.Type{}`
   - Aggregate kind atoms (e.g. `:count`, `:sum`) — looked up in
     `formatter.aggregate_types()`
-  - Raw Ash attribute/argument shape `%{type: SomeType, constraints: [...]}` —
-    a transitional affordance; converted to `%AshApiSpec.Type{}` at the boundary.
-    Will be removed once all callers feed spec data.
+
+  Callers must feed spec data. Raw Ash types (atom modules, `{:array, _}`
+  tuples, `%{type: SomeType, constraints: [...]}` shapes) are no longer
+  accepted; resolve via `AshApiSpec.Generator.TypeResolver.resolve/2` first.
 
   Handles `allow_nil?` for string types: non-nullable strings get
   `format_string(constraints, true)` (which adds an effective min-length 1
   when no explicit `:min_length` is set). Nested string fields inside typed
   containers do not get this treatment — they're recursed via `map_spec_type/2`.
   """
-  def get_type(formatter, type_and_constraints, context \\ nil)
+  def get_type(formatter, type_input, context \\ nil)
 
   def get_type(formatter, kind, _context) when is_atom(kind) and not is_nil(kind) do
     Map.get(formatter.aggregate_types(), kind, formatter.any_schema())
@@ -161,8 +161,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
     map_with_allow_nil(formatter, type_info, true)
   end
 
-  def get_type(formatter, %{type: _} = attr, _context) do
-    type_info = to_spec_type(attr)
+  def get_type(formatter, %{type: %SpecType{} = type_info} = attr, _context) do
     allow_nil? = Map.get(attr, :allow_nil?, true)
     map_with_allow_nil(formatter, type_info, allow_nil?)
   end
@@ -174,19 +173,6 @@ defmodule AshTypescript.Codegen.SchemaCore do
 
   defp map_with_allow_nil(formatter, type_info, _allow_nil?) do
     map_spec_type(formatter, type_info)
-  end
-
-  # Boundary conversion: raw → spec. Transitional affordance for callers that
-  # haven't migrated to passing `%AshApiSpec.*{}` shapes. Once they have,
-  # the raw clauses can be removed.
-  defp to_spec_type(%{type: %SpecType{} = t}), do: t
-
-  defp to_spec_type(%{type: type, constraints: constraints}) do
-    TypeResolver.resolve(type, constraints || [])
-  end
-
-  defp to_spec_type(%{type: type}) do
-    TypeResolver.resolve(type, [])
   end
 
   # ─────────────────────────────────────────────────────────────────
@@ -256,14 +242,20 @@ defmodule AshTypescript.Codegen.SchemaCore do
   @doc """
   Generates schemas for a list of resources (embedded resources, struct args).
   Returns an empty string when generation is disabled or the list is empty.
+
+  Builds an augmented resource lookup that includes any orphan resources not
+  already present in the cached spec — letting callers pass arbitrary embedded
+  resources (e.g., test fixtures) without pre-registering them.
   """
   def generate_schemas_for_resources(formatter, resources) do
     if formatter.generate_schemas_enabled?() and resources != [] do
+      uniq_resources = Enum.uniq(resources)
+      resource_lookup = build_augmented_lookup(uniq_resources)
+
       schemas =
-        resources
-        |> Enum.uniq()
-        |> topological_sort()
-        |> Enum.map_join("\n\n", &generate_schema_for_resource(formatter, &1))
+        uniq_resources
+        |> topological_sort(resource_lookup)
+        |> Enum.map_join("\n\n", &generate_schema_for_resource(formatter, &1, resource_lookup))
 
       """
       // ============================
@@ -278,8 +270,23 @@ defmodule AshTypescript.Codegen.SchemaCore do
   end
 
   @doc "Generates a schema for a single resource."
-  def generate_schema_for_resource(formatter, resource) do
-    generate_schema_impl(formatter, resource)
+  def generate_schema_for_resource(formatter, resource, resource_lookup \\ nil) do
+    lookup = resource_lookup || build_augmented_lookup([resource])
+    generate_schema_impl(formatter, resource, lookup)
+  end
+
+  # Returns the cached resource lookup augmented with any orphan resources
+  # in `resources` that aren't already registered.
+  defp build_augmented_lookup(resources) do
+    current = AshTypescript.resource_lookup()
+
+    Enum.reduce(resources, current, fn r, acc ->
+      if Map.has_key?(acc, r) do
+        acc
+      else
+        Map.put(acc, r, AshApiSpec.Generator.ResourceBuilder.build(r, []))
+      end
+    end)
   end
 
   # ─────────────────────────────────────────────────────────────────
@@ -424,14 +431,14 @@ defmodule AshTypescript.Codegen.SchemaCore do
   end
 
   defp process_accept_field(formatter, resource, field_name, action) do
-    attr = Ash.Resource.Info.attribute(resource, field_name)
+    attr = AshApiSpec.get_field(AshTypescript.resource_lookup(), resource, field_name)
 
     {nullable, omittable} =
       if action.type in [:update, :destroy] do
-        {attr.allow_nil?, field_name not in action.require_attributes}
+        {attr.allow_nil?, field_name not in (action.require_attributes || [])}
       else
-        nullable = attr.allow_nil? || field_name in action.allow_nil_input
-        omittable = nullable || attr.default != nil
+        nullable = attr.allow_nil? || field_name in (action.allow_nil_input || [])
+        omittable = nullable || attr.has_default?
         {nullable, omittable}
       end
 
@@ -490,14 +497,16 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # Private — resource schema generation
   # ─────────────────────────────────────────────────────────────────
 
-  defp generate_schema_impl(formatter, resource) do
+  defp generate_schema_impl(formatter, resource, resource_lookup) do
     resource_name = CodegenHelpers.build_resource_type_name(resource)
     schema_name = "#{resource_name}#{formatter.schema_suffix()}"
     kw = formatter.library_prefix()
+    api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
 
     fields =
-      resource
-      |> Ash.Resource.Info.public_attributes()
+      api_resource.fields
+      |> Map.values()
+      |> Enum.filter(&(&1.kind == :attribute))
       |> Enum.map_join("\n", fn attr ->
         formatted_name =
           AshTypescript.FieldFormatter.format_field_for_client(
@@ -508,7 +517,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
 
         schema_type = get_type(formatter, attr)
         nullable = attr.allow_nil?
-        omittable = attr.allow_nil? || attr.default != nil
+        omittable = attr.allow_nil? || attr.has_default?
         schema_type = maybe_wrap_nullable_optional(formatter, schema_type, nullable, omittable)
 
         "  #{formatted_name}: #{schema_type},"
@@ -525,12 +534,12 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # Private — topological sort (Kahn's algorithm)
   # ─────────────────────────────────────────────────────────────────
 
-  defp topological_sort(resources) do
+  defp topological_sort(resources, resource_lookup) do
     resource_set = MapSet.new(resources)
 
     deps_map =
       Map.new(resources, fn resource ->
-        {resource, find_resource_dependencies(resource, resource_set)}
+        {resource, find_resource_dependencies(resource, resource_set, resource_lookup)}
       end)
 
     {sorted, remaining} = kahns_sort(resources, deps_map)
@@ -561,14 +570,13 @@ defmodule AshTypescript.Codegen.SchemaCore do
     end
   end
 
-  defp find_resource_dependencies(resource, resource_set) do
-    resource
-    |> Ash.Resource.Info.public_attributes()
-    |> Enum.flat_map(fn attr ->
-      attr
-      |> to_spec_type()
-      |> extract_resource_deps_from_spec(resource_set)
-    end)
+  defp find_resource_dependencies(resource, resource_set, resource_lookup) do
+    api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
+
+    api_resource.fields
+    |> Map.values()
+    |> Enum.filter(&(&1.kind == :attribute))
+    |> Enum.flat_map(fn attr -> extract_resource_deps_from_spec(attr.type, resource_set) end)
     |> Enum.uniq()
   end
 
