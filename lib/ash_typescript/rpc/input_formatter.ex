@@ -174,29 +174,28 @@ defmodule AshTypescript.Rpc.InputFormatter do
        ) do
     item_type = type_info.item_type
 
-    cond do
+    if item_type &&
+         match?(%AshApiSpec.Type{kind: k} when k in [:struct, :resource], item_type) do
       # Non-embedded struct/resource items need struct casting
-      item_type && match?(%AshApiSpec.Type{kind: k} when k in [:struct, :resource], item_type) ->
-        inst = item_type.instance_of || item_type.resource_module || item_type.module
+      inst = item_type.instance_of || item_type.resource_module || item_type.module
 
-        if inst && Helpers.ash_resource?(inst) && is_list(value) do
-          Enum.map(value, fn item ->
-            if is_map(item) && not is_struct(item) do
-              formatted_item =
-                ValueFormatter.format(item, item_type, [], formatter, :input, resource_lookups)
+      if inst && Helpers.ash_resource?(inst) && is_list(value) do
+        Enum.map(value, fn item ->
+          if is_map(item) && not is_struct(item) do
+            formatted_item =
+              ValueFormatter.format(item, item_type, [], formatter, :input, resource_lookups)
 
-              cast_map_to_struct(formatted_item, inst)
-            else
-              item
-            end
-          end)
-        else
-          ValueFormatter.format(value, type_info, [], formatter, :input, resource_lookups)
-        end
-
-      # Embedded resources and everything else: just format, Ash handles casting
-      true ->
+            cast_map_to_struct(formatted_item, inst)
+          else
+            item
+          end
+        end)
+      else
         ValueFormatter.format(value, type_info, [], formatter, :input, resource_lookups)
+      end
+    else
+      # Embedded resources and everything else: just format, Ash handles casting
+      ValueFormatter.format(value, type_info, [], formatter, :input, resource_lookups)
     end
   end
 
