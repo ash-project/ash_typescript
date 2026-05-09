@@ -103,15 +103,15 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
         use AshTypescript.TypedController
 
         typed_controller do
-          module_name AshTypescript.Test.DuplicateRoutesController
+          module_name(AshTypescript.Test.DuplicateRoutesController)
 
           route :login do
-            method :post
+            method(:post)
             run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
           end
 
           route :login do
-            method :get
+            method(:get)
             run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
           end
         end

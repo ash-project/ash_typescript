@@ -34,6 +34,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   alias AshTypescript.Helpers
   alias AshTypescript.Resource.Info, as: ResourceInfo
   alias AshTypescript.Rpc.FieldProcessing.FieldSelector.Validation
+  alias AshTypescript.TypeSystem.Introspection
 
   @type select_result :: {select :: [atom()], load :: [term()], template :: [term()]}
 
@@ -59,7 +60,13 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   """
   @spec process(module(), atom(), list(), map() | nil, map()) ::
           {:ok, select_result()} | {:error, term()}
-  def process(resource, action_name, requested_fields, resource_lookups \\ nil, _type_index \\ %{}) do
+  def process(
+        resource,
+        action_name,
+        requested_fields,
+        resource_lookups \\ nil,
+        _type_index \\ %{}
+      ) do
     action = lookup_action(resource, action_name, resource_lookups)
 
     if is_nil(action) do
@@ -118,11 +125,18 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
       :action ->
         case action.returns do
-          nil -> {%AshApiSpec.Type{kind: :any, module: nil, constraints: []}, []}
-          %AshApiSpec.Type{} = type -> {type, []}
+          nil ->
+            {%AshApiSpec.Type{kind: :any, module: nil, constraints: []}, []}
+
+          %AshApiSpec.Type{} = type ->
+            {type, []}
+
           type when is_atom(type) ->
-            {AshApiSpec.Generator.TypeResolver.resolve(type, Map.get(action, :constraints) || []), []}
-          type -> {type, []}
+            {AshApiSpec.Generator.TypeResolver.resolve(type, Map.get(action, :constraints) || []),
+             []}
+
+          type ->
+            {type, []}
         end
     end
   end
@@ -525,13 +539,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         # on whether the return type is a resource (which supports load_through via
         # Ash queries) or a non-resource type (TypedStruct/map where sub-field
         # extraction is handled by the template).
-        {unwrapped_type, unwrapped_constraints} =
-          Introspection.unwrap_new_type(field_type, field_constraints)
-
-        returns_resource =
-          (unwrapped_type == Ash.Type.Struct &&
-             Introspection.is_resource_instance_of?(unwrapped_constraints)) ||
-            Introspection.is_embedded_resource?(unwrapped_type)
+        returns_resource = calculation_returns_resource?(field_type, field_constraints)
 
         load_spec =
           if returns_resource do
@@ -830,7 +838,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end)
   end
 
-
   defp resolve_typed_struct_field(field_name, reverse_map) when is_binary(field_name) do
     case Map.get(reverse_map, field_name) do
       nil ->
@@ -920,7 +927,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
-
   # ---------------------------------------------------------------------------
   # Tuple Field Selection
   # ---------------------------------------------------------------------------
@@ -1005,7 +1011,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
-
   # ---------------------------------------------------------------------------
   # Union Field Selection
   # ---------------------------------------------------------------------------
@@ -1085,8 +1090,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     {[], load_items, template_items}
   end
 
-
-
   # Spec-based union member processing (uses %{name, type: %AshApiSpec.Type{}} members)
 
   defp process_simple_union_member_spec(
@@ -1161,7 +1164,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     formatter = AshTypescript.Rpc.input_field_formatter()
     FieldFormatter.parse_input_field(name, formatter)
   end
-
 
   # ---------------------------------------------------------------------------
   # Generic Field Selection (for :any return type)
@@ -1367,6 +1369,35 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     {field_name, load_fields}
   end
 
+  # Determines whether a `:calculation_complex` field returns a resource type.
+  # Accepts either an `%AshApiSpec.Type{}` (preferred — branch's spec-driven flow)
+  # or a raw Ash type module + constraints (fallback for callers that haven't
+  # been migrated to AshApiSpec yet).
+  defp calculation_returns_resource?(%AshApiSpec.Type{kind: kind}, _constraints)
+       when kind in [:resource, :embedded_resource],
+       do: true
+
+  defp calculation_returns_resource?(
+         %AshApiSpec.Type{kind: :array, item_type: item},
+         _constraints
+       ) do
+    case item do
+      %AshApiSpec.Type{kind: kind} when kind in [:resource, :embedded_resource] -> true
+      _ -> false
+    end
+  end
+
+  defp calculation_returns_resource?(%AshApiSpec.Type{}, _constraints), do: false
+
+  defp calculation_returns_resource?(field_type, field_constraints) do
+    {unwrapped_type, unwrapped_constraints} =
+      Introspection.unwrap_new_type(field_type, field_constraints)
+
+    (unwrapped_type == Ash.Type.Struct &&
+       Introspection.is_resource_instance_of?(unwrapped_constraints)) ||
+      Introspection.is_embedded_resource?(unwrapped_type)
+  end
+
   defp build_load_through_fields(nested_select, nested_load) do
     case nested_load do
       [] -> nested_select
@@ -1400,7 +1431,12 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   # ---------------------------------------------------------------------------
 
   # Validate a field exists in the fields list (list of %{name, type, ...}), throwing on failure
-  defp validate_field_exists_in_fields!(name, fields, path, error_type \\ "field_constrained_type")
+  defp validate_field_exists_in_fields!(
+         name,
+         fields,
+         path,
+         error_type \\ "field_constrained_type"
+       )
 
   defp validate_field_exists_in_fields!(name, fields, path, error_type) when is_list(fields) do
     unless Enum.any?(fields, fn f -> f.name == name end) do

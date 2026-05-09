@@ -137,7 +137,12 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end
   end
 
-  defp format_value(value, %AshApiSpec.Type{kind: :resource} = type_info, formatter, resource_lookups) do
+  defp format_value(
+         value,
+         %AshApiSpec.Type{kind: :resource} = type_info,
+         formatter,
+         resource_lookups
+       ) do
     inst = type_info.resource_module || type_info.module
 
     if inst && is_map(value) && not is_struct(value) do
@@ -152,11 +157,21 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   # Embedded resources: only format field names, don't cast to struct.
   # Ash handles embedded resource input casting internally.
-  defp format_value(value, %AshApiSpec.Type{kind: :embedded_resource} = type_info, formatter, resource_lookups) do
+  defp format_value(
+         value,
+         %AshApiSpec.Type{kind: :embedded_resource} = type_info,
+         formatter,
+         resource_lookups
+       ) do
     ValueFormatter.format(value, type_info, [], formatter, :input, resource_lookups)
   end
 
-  defp format_value(value, %AshApiSpec.Type{kind: :array} = type_info, formatter, resource_lookups) do
+  defp format_value(
+         value,
+         %AshApiSpec.Type{kind: :array} = type_info,
+         formatter,
+         resource_lookups
+       ) do
     item_type = type_info.item_type
 
     cond do

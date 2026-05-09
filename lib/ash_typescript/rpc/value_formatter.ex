@@ -59,12 +59,28 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   def format(value, nil, _constraints, _formatter, _direction, _lookups, _ti), do: value
 
   # %AshApiSpec.Field{} — extract type and delegate
-  def format(value, %AshApiSpec.Field{type: type}, _constraints, formatter, direction, lookups, ti) do
+  def format(
+        value,
+        %AshApiSpec.Field{type: type},
+        _constraints,
+        formatter,
+        direction,
+        lookups,
+        ti
+      ) do
     format(value, type, [], formatter, direction, lookups, ti)
   end
 
   # %AshApiSpec.Relationship{} — format as resource
-  def format(value, %AshApiSpec.Relationship{destination: dest, cardinality: :many}, _constraints, formatter, direction, lookups, _ti) do
+  def format(
+        value,
+        %AshApiSpec.Relationship{destination: dest, cardinality: :many},
+        _constraints,
+        formatter,
+        direction,
+        lookups,
+        _ti
+      ) do
     if is_list(value) do
       Enum.map(value, &format_resource(&1, dest, formatter, direction, lookups))
     else
@@ -72,7 +88,15 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     end
   end
 
-  def format(value, %AshApiSpec.Relationship{destination: dest}, _constraints, formatter, direction, lookups, _ti) do
+  def format(
+        value,
+        %AshApiSpec.Relationship{destination: dest},
+        _constraints,
+        formatter,
+        direction,
+        lookups,
+        _ti
+      ) do
     format_resource(value, dest, formatter, direction, lookups)
   end
 
@@ -576,5 +600,4 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   end
 
   defp maybe_inject_tag(value, _member), do: value
-
 end

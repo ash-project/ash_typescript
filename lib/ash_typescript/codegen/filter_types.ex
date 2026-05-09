@@ -179,8 +179,24 @@ defmodule AshTypescript.Codegen.FilterTypes do
 
   defp spec_aggregate_filter(%AshApiSpec.Field{} = field, resource) do
     # All other aggregates (count/exists/sum/avg/max/min/first) — use the
-    # AshApiSpec-resolved type and the standard operation set
-    spec_attribute_filter(field, resource)
+    # AshApiSpec-resolved type and the standard operation set. Aggregates can
+    # always return nil (e.g. for empty relationships), so pass allow_nil?: true
+    # regardless of the source field's nullability.
+    base_type = TypeMapper.map_type(field.type, [], :output)
+    operations = get_applicable_operations(field.type, base_type, true)
+
+    formatted_name =
+      AshTypescript.FieldFormatter.format_field_for_client(
+        field.name,
+        resource,
+        AshTypescript.Rpc.output_field_formatter()
+      )
+
+    """
+      #{formatted_name}?: {
+    #{Enum.join(operations, "\n")}
+      };
+    """
   end
 
   # ─────────────────────────────────────────────────────────────────
@@ -207,7 +223,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
     """
   end
 
-  defp get_applicable_operations(type, base_type, allow_nil? \\ true) do
+  defp get_applicable_operations(type, base_type, allow_nil?) do
     ops =
       type
       |> classify_filter_type()

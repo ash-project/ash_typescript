@@ -78,7 +78,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTupleTest do
       # Test what template gets generated for tuple fields
       fields = [%{"coordinates" => ["latitude", "longitude"]}]
 
-      {:ok, {select, load, template}} = RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
+      {:ok, {select, load, template}} =
+        RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
 
       assert select == [:coordinates]
       assert load == []

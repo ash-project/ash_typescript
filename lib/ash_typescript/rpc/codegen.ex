@@ -8,7 +8,15 @@ defmodule AshTypescript.Rpc.Codegen do
   """
   import AshTypescript.Helpers, only: [format_output_field: 1]
 
-  alias AshTypescript.Codegen.{FilterTypes, ResourceSchemas, SchemaCore, TypeAliases, TypeDiscovery, ZodSchemaGenerator}
+  alias AshTypescript.Codegen.{
+    FilterTypes,
+    ResourceSchemas,
+    SchemaCore,
+    TypeAliases,
+    TypeDiscovery,
+    ZodSchemaGenerator
+  }
+
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries

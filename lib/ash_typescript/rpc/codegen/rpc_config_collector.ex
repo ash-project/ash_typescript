@@ -78,7 +78,6 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
     end)
   end
 
-
   @doc """
   Gets all RPC resources and their actions with domain and resource config context.
 
@@ -92,7 +91,6 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
       {e.resource, e.action, ts.rpc_action, ts.domain, ts.resource_config}
     end)
   end
-
 
   @doc """
   Resolves the namespace for an RPC action.
@@ -134,7 +132,6 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
     |> get_rpc_resources_by_namespace()
   end
 
-
   @doc """
   Gets all typed queries from entrypoints.
 
@@ -153,7 +150,6 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
     end)
     |> Enum.uniq_by(fn {resource, _action, tq} -> {resource, tq.name} end)
   end
-
 
   @doc """
   Gets RPC configuration grouped by domain, derived from entrypoints.

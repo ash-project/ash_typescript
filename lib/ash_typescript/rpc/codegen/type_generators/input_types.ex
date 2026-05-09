@@ -189,14 +189,6 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
     end
   end
 
-  defp build_argument_field(resource, action, arg) do
-    optional = arg.allow_nil? || arg.default != nil
-    base_type = get_ts_input_type(arg)
-    field_type = if arg.allow_nil?, do: "#{base_type} | null", else: base_type
-    formatted_arg_name = format_argument_name_for_client(resource, action.name, arg.name)
-    {formatted_arg_name, field_type, optional}
-  end
-
   # Helper to format argument name for client output
   # If mapped, use the string directly; otherwise apply formatter
   defp format_argument_name_for_client(resource, action_name, arg_name) do

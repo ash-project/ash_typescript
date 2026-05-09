@@ -11,6 +11,7 @@ defmodule AshTypescript.FieldFormatter do
 
   import AshTypescript.Helpers
 
+  alias AshTypescript.TypeSystem.Introspection
 
   @doc """
   Formats a field name for client output, optionally applying resource/type-level
@@ -300,5 +301,4 @@ defmodule AshTypescript.FieldFormatter do
         raise ArgumentError, "Unsupported formatter: #{inspect(formatter)}"
     end
   end
-
 end

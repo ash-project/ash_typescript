@@ -19,7 +19,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
             :completed,
             :pending
           ],
-        @resource_lookups
+          @resource_lookups
         )
 
       # Map fields are not selected/loaded in Ash sense, just included in template
@@ -39,7 +39,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
             :pending,
             :overdue
           ],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert select == []
@@ -55,7 +55,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           [
             :invalid_field
           ],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert error == {:unknown_field, :invalid_field, "map", []}
@@ -69,7 +69,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           [
             %{nested: [:field]}
           ],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert error == {:unknown_field, :nested, "map", []}
@@ -83,7 +83,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           AshTypescript.Test.Todo,
           :bulk_complete,
           [],
-        @resource_lookups
+          @resource_lookups
         )
 
       # Array of primitives (UUIDs) has no field selection
@@ -98,7 +98,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           AshTypescript.Test.Todo,
           :bulk_complete,
           [:id],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert {:invalid_field_selection, :primitive_type, %AshApiSpec.Type{kind: :uuid}, [:id], []} =
@@ -107,11 +107,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
 
     test "processes fields for array of structs" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :search, [
-          :id,
-          :title,
-          :completed
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :search,
+          [
+            :id,
+            :title,
+            :completed
+          ],
+          @resource_lookups
+        )
 
       # Array of Todo structs - processes like regular resource fields
       assert select == [:id, :title, :completed]
@@ -121,11 +126,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
 
     test "processes relationships in struct arrays" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :search, [
-          :id,
-          :title,
-          %{user: [:id, :name]}
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :search,
+          [
+            :id,
+            :title,
+            %{user: [:id, :name]}
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title]
       assert load == [{:user, [:id, :name]}]
@@ -140,7 +150,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           AshTypescript.Test.Todo,
           :non_existent_action,
           [],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert error == {:action_not_found, :non_existent_action}
@@ -152,7 +162,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           AshTypescript.Test.Todo,
           :missing_action,
           [:id, :title],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert error == {:action_not_found, :missing_action}
@@ -168,10 +178,15 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "handles nested array constraints correctly" do
       # The search action returns {:array, Ash.Type.Struct} with instance_of constraint
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :search, [
-          :id,
-          :title
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :search,
+          [
+            :id,
+            :title
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title]
       assert load == []
@@ -190,7 +205,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
             :completed?,
             :is_urgent?
           ],
-        @resource_lookups
+          @resource_lookups
         )
 
       # TypedStruct fields should be included in the extraction template
@@ -210,7 +225,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
             :is_urgent?,
             :average_duration
           ],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert select == []
@@ -232,7 +247,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           [
             :invalid_field
           ],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert error == {:unknown_field, :invalid_field, "field_constrained_type", []}
@@ -244,7 +259,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           AshTypescript.Test.Task,
           :get_task_stats,
           [],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert error == {:requires_field_selection, :field_constrained_type, nil}
@@ -262,7 +277,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
             :completed?,
             :is_urgent?
           ],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert select == []
@@ -281,7 +296,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
             :is_urgent?,
             :average_duration
           ],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert select == []
@@ -303,7 +318,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           [
             :invalid_field
           ],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert error == {:unknown_field, :invalid_field, "field_constrained_type", []}
@@ -315,7 +330,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           AshTypescript.Test.Task,
           :list_task_stats,
           [],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert error == {:requires_field_selection, :field_constrained_type, nil}

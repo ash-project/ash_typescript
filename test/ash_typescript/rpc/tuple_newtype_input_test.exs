@@ -13,6 +13,7 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
 
   alias AshTypescript.Rpc.InputFormatter
   alias AshTypescript.Rpc.ValueFormatter
+
   describe "LocationTuple NewType introspection" do
     test "unwraps correctly" do
       type = AshTypescript.Test.InputParsing.LocationTuple
@@ -76,7 +77,9 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
       }
 
       resource_lookups = AshTypescript.resource_lookup()
-      {:ok, formatted} = InputFormatter.format(raw_input, resource, action, formatter, resource_lookups)
+
+      {:ok, formatted} =
+        InputFormatter.format(raw_input, resource, action, formatter, resource_lookups)
 
       # Check that tuple field names are converted correctly
       assert formatted.user_name == "tuple_user"

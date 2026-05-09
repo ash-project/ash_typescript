@@ -17,7 +17,6 @@ defmodule AshTypescript.TypedController.Codegen do
     TypescriptStatic
   }
 
-
   @doc false
   def resolve_route_infos(router, routes_config) do
     if router do

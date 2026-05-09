@@ -120,12 +120,24 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     do: :skip
 
   # %AshApiSpec.Field{} — extract type and delegate
-  def extract_value(value, %AshApiSpec.Field{type: type}, _constraints, template, resource_lookups) do
+  def extract_value(
+        value,
+        %AshApiSpec.Field{type: type},
+        _constraints,
+        template,
+        resource_lookups
+      ) do
     extract_value(value, type, [], template, resource_lookups)
   end
 
   # %AshApiSpec.Relationship{} — delegate to resource/array handler
-  def extract_value(value, %AshApiSpec.Relationship{destination: dest, cardinality: :many}, _constraints, template, resource_lookups) do
+  def extract_value(
+        value,
+        %AshApiSpec.Relationship{destination: dest, cardinality: :many},
+        _constraints,
+        template,
+        resource_lookups
+      ) do
     extract_array_value(
       value,
       %AshApiSpec.Type{kind: :resource, module: dest, resource_module: dest},
@@ -134,7 +146,13 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     )
   end
 
-  def extract_value(value, %AshApiSpec.Relationship{destination: dest}, _constraints, template, resource_lookups) do
+  def extract_value(
+        value,
+        %AshApiSpec.Relationship{destination: dest},
+        _constraints,
+        template,
+        resource_lookups
+      ) do
     extract_resource_value(value, dest, template, resource_lookups)
   end
 
@@ -639,6 +657,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   defp extract_list_fields(results, extraction_template, resource, resource_lookups) do
     type = determine_data_type(List.first(results), resource, resource_lookups)
+
     Enum.map(results, fn item ->
       case extract_value(item, type, [], extraction_template, resource_lookups) do
         :skip -> nil
@@ -719,19 +738,25 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  defp resolve_union_type(resource, resource_lookups) when is_atom(resource) and is_map(resource_lookups) do
+  defp resolve_union_type(resource, resource_lookups)
+       when is_atom(resource) and is_map(resource_lookups) do
     case Map.get(resource_lookups, resource) do
       %AshApiSpec.Resource{fields: fields} when is_map(fields) ->
         # Find the first union field's type from the spec
-        union_field = Enum.find_value(fields, fn {_name, field} ->
-          case field.type do
-            %AshApiSpec.Type{kind: :union} = t -> t
-            %AshApiSpec.Type{kind: :type_ref} = t ->
-              resolved = AshApiSpec.Generator.TypeResolver.resolve_definition(t.module)
-              if resolved.kind == :union, do: resolved, else: nil
-            _ -> nil
-          end
-        end)
+        union_field =
+          Enum.find_value(fields, fn {_name, field} ->
+            case field.type do
+              %AshApiSpec.Type{kind: :union} = t ->
+                t
+
+              %AshApiSpec.Type{kind: :type_ref} = t ->
+                resolved = AshApiSpec.Generator.TypeResolver.resolve_definition(t.module)
+                if resolved.kind == :union, do: resolved, else: nil
+
+              _ ->
+                nil
+            end
+          end)
 
         union_field || %AshApiSpec.Type{kind: :union, module: Ash.Type.Union, constraints: []}
 

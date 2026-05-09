@@ -52,13 +52,18 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
   describe "CRUD actions" do
     test "processes valid fields for read actions correctly" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :title,
-          %{
-            user: [:id, :email]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :title,
+            %{
+              user: [:id, :email]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title]
       assert load == [{:user, [:id, :email]}]
@@ -67,11 +72,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
 
     test "processes fields for create actions correctly" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :create, [
-          :id,
-          :title,
-          :completed
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :create,
+          [
+            :id,
+            :title,
+            :completed
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title, :completed]
       assert load == []
@@ -80,9 +90,14 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
 
     test "processes invalid fields for resources as expected" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{user: [:non_existing_field]}
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{user: [:non_existing_field]}
+          ],
+          @resource_lookups
+        )
 
       assert error ==
                {:unknown_field, :non_existing_field, AshTypescript.Test.User, [:user]}
@@ -100,7 +115,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
             :completed,
             :pending
           ],
-        @resource_lookups
+          @resource_lookups
         )
 
       # Map fields are not selected/loaded in Ash sense, just included in template
@@ -117,7 +132,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
           [
             :invalid_field
           ],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert error == {:unknown_field, :invalid_field, "map", []}
@@ -131,7 +146,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
           AshTypescript.Test.Todo,
           :bulk_complete,
           [],
-        @resource_lookups
+          @resource_lookups
         )
 
       # Array of primitives has no field selection
@@ -146,7 +161,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
           AshTypescript.Test.Todo,
           :bulk_complete,
           [:id],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert {:invalid_field_selection, :primitive_type, %AshApiSpec.Type{kind: :uuid}, [:id], []} =
@@ -155,11 +170,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
 
     test "processes fields for array of structs correctly" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :search, [
-          :id,
-          :title,
-          %{user: [:id, :name]}
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :search,
+          [
+            :id,
+            :title,
+            %{user: [:id, :name]}
+          ],
+          @resource_lookups
+        )
 
       # Array of Todo structs - processes like regular resource fields
       assert select == [:id, :title]
@@ -175,7 +195,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
           AshTypescript.Test.Todo,
           :non_existent_action,
           [],
-        @resource_lookups
+          @resource_lookups
         )
 
       assert error == {:action_not_found, :non_existent_action}
@@ -185,18 +205,23 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
   describe "complex nested field processing" do
     test "handles deeply nested relationships correctly" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            user: [
-              :id,
-              :name,
-              %{
-                comments: [:id, :content]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              user: [
+                :id,
+                :name,
+                %{
+                  comments: [:id, :content]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id]
       # Now properly includes nested relationship loads
@@ -206,14 +231,19 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
 
     test "handles multiple nested relationships in same resource" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :title,
-          %{
-            user: [:id, :name],
-            comments: [:id, :content]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :title,
+            %{
+              user: [:id, :name],
+              comments: [:id, :content]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title]
       # Multiple relationships at the same level
@@ -229,21 +259,26 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
 
     test "handles mixed simple fields and nested relationships" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :title,
-          :completed,
-          %{
-            user: [
-              :id,
-              :email,
-              %{
-                comments: [:id, :content, :rating]
-              }
-            ]
-          },
-          :created_at
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :title,
+            :completed,
+            %{
+              user: [
+                :id,
+                :email,
+                %{
+                  comments: [:id, :content, :rating]
+                }
+              ]
+            },
+            :created_at
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title, :completed, :created_at]
       assert load == [{:user, [:id, :email, {:comments, [:id, :content, :rating]}]}]
@@ -263,13 +298,18 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
       # Try to access :not_exposed_items relationship which points to AshTypescript.Test.NotExposed
       # that doesn't have the AshTypescript.Resource extension
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :title,
-          %{
-            not_exposed_items: [:id, :name]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :title,
+            %{
+              not_exposed_items: [:id, :name]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert error ==
                {:unknown_field, :not_exposed_items, AshTypescript.Test.Todo, []}
@@ -278,13 +318,18 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
     test "allows relationships to resources with AshTypescript.Resource extension" do
       # Verify that normal relationships to resources with the extension still work
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :title,
-          %{
-            comments: [:id, :content]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :title,
+            %{
+              comments: [:id, :content]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title]
       assert load == [{:comments, [:id, :content]}]

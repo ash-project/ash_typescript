@@ -70,7 +70,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorKeywordTest do
       # Test what template gets generated for keyword fields
       fields = [%{"options" => ["priority", "category", "notify"]}]
 
-      {:ok, {select, load, template}} = RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
+      {:ok, {select, load, template}} =
+        RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
 
       assert select == [:options]
       assert load == []

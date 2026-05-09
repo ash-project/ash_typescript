@@ -11,11 +11,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
   describe "simple scalar custom types" do
     test "processes priority_score custom type as simple attribute" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :title,
-          :priority_score
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :title,
+            :priority_score
+          ],
+          @resource_lookups
+        )
 
       # Custom types are selected like regular attributes
       assert select == [:id, :title, :priority_score]
@@ -25,19 +30,24 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
     test "processes priority_score with regular fields and other types" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :title,
-          :priority_score,
-          # other custom type
-          :color_palette,
-          # regular attribute
-          :completed,
-          # aggregate
-          :comment_count,
-          # calculation
-          :is_overdue
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :title,
+            :priority_score,
+            # other custom type
+            :color_palette,
+            # regular attribute
+            :completed,
+            # aggregate
+            :comment_count,
+            # calculation
+            :is_overdue
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title, :priority_score, :color_palette, :completed]
       assert load == [:comment_count, :is_overdue]
@@ -55,9 +65,14 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
     test "rejects priority_score with nested field selection" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{priority_score: [:some_field]}
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{priority_score: [:some_field]}
+          ],
+          @resource_lookups
+        )
 
       assert error == {:field_does_not_support_nesting, :priority_score, []}
     end
@@ -66,11 +81,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
   describe "complex structured custom types" do
     test "processes color_palette custom type as simple attribute" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :title,
-          :color_palette
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :title,
+            :color_palette
+          ],
+          @resource_lookups
+        )
 
       # Even complex custom types are selected like regular attributes
       assert select == [:id, :title, :color_palette]
@@ -81,10 +101,15 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
     test "processes color_palette in different action types" do
       # Test in create action
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :create, [
-          :id,
-          :color_palette
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :create,
+          [
+            :id,
+            :color_palette
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :color_palette]
       assert load == []
@@ -92,11 +117,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
       # Test in update action
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :update, [
-          :id,
-          :color_palette,
-          :priority_score
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :update,
+          [
+            :id,
+            :color_palette,
+            :priority_score
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :color_palette, :priority_score]
       assert load == []
@@ -105,22 +135,32 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
     test "rejects color_palette with nested field selection" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{color_palette: [:primary, :secondary]}
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{color_palette: [:primary, :secondary]}
+          ],
+          @resource_lookups
+        )
 
       assert error == {:field_does_not_support_nesting, :color_palette, []}
     end
 
     test "rejects color_palette with complex nested structure" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{
-            color_palette: %{
-              primary: [:invalid]
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{
+              color_palette: %{
+                primary: [:invalid]
+              }
             }
-          }
-        ], @resource_lookups)
+          ],
+          @resource_lookups
+        )
 
       assert error == {:field_does_not_support_nesting, :color_palette, []}
     end
@@ -129,20 +169,25 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
   describe "custom types in complex scenarios" do
     test "processes custom types alongside relationships and calculations" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          # custom types
-          :priority_score,
-          :color_palette,
-          # relationship
-          %{user: [:id, :name]},
-          # calculation with args
-          %{
-            self: %{args: %{prefix: "test"}, fields: [:title, :description]}
-          },
-          # regular calculation
-          :is_overdue
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            # custom types
+            :priority_score,
+            :color_palette,
+            # relationship
+            %{user: [:id, :name]},
+            # calculation with args
+            %{
+              self: %{args: %{prefix: "test"}, fields: [:title, :description]}
+            },
+            # regular calculation
+            :is_overdue
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :priority_score, :color_palette]
 
@@ -164,20 +209,25 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
     test "processes custom types in calculation field selection" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            self: %{
-              args: %{prefix: "test"},
-              fields: [
-                :title,
-                # Include custom types in calculation field selection
-                :priority_score,
-                :color_palette
-              ]
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              self: %{
+                args: %{prefix: "test"},
+                fields: [
+                  :title,
+                  # Include custom types in calculation field selection
+                  :priority_score,
+                  :color_palette
+                ]
+              }
             }
-          }
-        ], @resource_lookups)
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id]
       assert load == [{:self, {%{prefix: "test"}, [:title, :priority_score, :color_palette]}}]
@@ -186,13 +236,18 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
     test "processes custom types with complex aggregates" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :priority_score,
-          # Use simple aggregate instead
-          :comment_count,
-          :color_palette
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :priority_score,
+            # Use simple aggregate instead
+            :comment_count,
+            :color_palette
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :priority_score, :color_palette]
       assert load == [:comment_count]
@@ -207,24 +262,29 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
     test "processes custom types in nested relationship field selection" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            user: [
-              :id,
-              :name,
-              %{
-                todos: [
-                  :id,
-                  :title,
-                  # Custom types in nested relationship
-                  :priority_score,
-                  :color_palette
-                ]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              user: [
+                :id,
+                :name,
+                %{
+                  todos: [
+                    :id,
+                    :title,
+                    # Custom types in nested relationship
+                    :priority_score,
+                    :color_palette
+                  ]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id]
 
@@ -242,10 +302,15 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
   describe "custom type validation and error handling" do
     test "rejects non-existent custom type" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :non_existent_custom_type
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :non_existent_custom_type
+          ],
+          @resource_lookups
+        )
 
       assert error ==
                {:unknown_field, :non_existent_custom_type, AshTypescript.Test.Todo, []}
@@ -253,61 +318,81 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
     test "rejects duplicate custom type fields" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :priority_score,
-          # Duplicate
-          :priority_score
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :priority_score,
+            # Duplicate
+            :priority_score
+          ],
+          @resource_lookups
+        )
 
       assert error == {:duplicate_field, :priority_score, []}
     end
 
     test "rejects mixed atom and map for same custom type" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          # Simple custom type
-          :color_palette,
-          # Same custom type with nested structure - should be rejected
-          %{color_palette: []}
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            # Simple custom type
+            :color_palette,
+            # Same custom type with nested structure - should be rejected
+            %{color_palette: []}
+          ],
+          @resource_lookups
+        )
 
       assert error == {:duplicate_field, :color_palette, []}
     end
 
     test "handles complex nested error scenarios with custom types" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{
-            user: [
-              :id,
-              %{
-                todos: [
-                  :id,
-                  # Try to use custom type with nested selection
-                  %{priority_score: [:invalid]}
-                ]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{
+              user: [
+                :id,
+                %{
+                  todos: [
+                    :id,
+                    # Try to use custom type with nested selection
+                    %{priority_score: [:invalid]}
+                  ]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert error == {:field_does_not_support_nesting, :priority_score, [:user, :todos]}
     end
 
     test "validates custom types in calculation field selection errors" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{
-            self: %{
-              args: %{prefix: "test"},
-              fields: [
-                :title,
-                # Try to use custom type with nested selection in calculation
-                %{color_palette: [:primary]}
-              ]
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{
+              self: %{
+                args: %{prefix: "test"},
+                fields: [
+                  :title,
+                  # Try to use custom type with nested selection in calculation
+                  %{color_palette: [:primary]}
+                ]
+              }
             }
-          }
-        ], @resource_lookups)
+          ],
+          @resource_lookups
+        )
 
       assert error == {:field_does_not_support_nesting, :color_palette, [:self]}
     end
@@ -316,10 +401,15 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
   describe "edge cases and boundary conditions" do
     test "processes only custom types without other fields" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :priority_score,
-          :color_palette
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :priority_score,
+            :color_palette
+          ],
+          @resource_lookups
+        )
 
       assert select == [:priority_score, :color_palette]
       assert load == []
@@ -337,9 +427,14 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
     test "validates custom type field names are formatted correctly in error messages" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{priority_score: %{nested: :invalid}}
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{priority_score: %{nested: :invalid}}
+          ],
+          @resource_lookups
+        )
 
       # Should format field name using camelCase for TypeScript
       assert error == {:field_does_not_support_nesting, :priority_score, []}
@@ -350,11 +445,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
       for action <- actions do
         {:ok, {select, load, extraction_template}} =
-          RequestedFieldsProcessor.process(AshTypescript.Test.Todo, action, [
-            :id,
-            :priority_score,
-            :color_palette
-          ], @resource_lookups)
+          RequestedFieldsProcessor.process(
+            AshTypescript.Test.Todo,
+            action,
+            [
+              :id,
+              :priority_score,
+              :color_palette
+            ],
+            @resource_lookups
+          )
 
         assert select == [:id, :priority_score, :color_palette]
         assert load == []
@@ -366,13 +466,18 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
   describe "custom types with other complex field types" do
     test "processes custom types with union attributes" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :priority_score,
-          # union attribute with simple type
-          %{content: [:note]},
-          :color_palette
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :priority_score,
+            # union attribute with simple type
+            %{content: [:note]},
+            :color_palette
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :priority_score, :content, :color_palette]
       assert load == []
@@ -387,13 +492,18 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
     test "processes custom types with embedded resources" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :priority_score,
-          # embedded resource
-          %{metadata: [:category, :estimated_hours]},
-          :color_palette
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :priority_score,
+            # embedded resource
+            %{metadata: [:category, :estimated_hours]},
+            :color_palette
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :priority_score, :metadata, :color_palette]
       assert load == []
@@ -408,13 +518,18 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
     test "processes custom types with typed structs" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :priority_score,
-          # typed struct
-          %{timestamp_info: [:created_by, :created_at]},
-          :color_palette
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :priority_score,
+            # typed struct
+            %{timestamp_info: [:created_by, :created_at]},
+            :color_palette
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :priority_score, :timestamp_info, :color_palette]
       assert load == []

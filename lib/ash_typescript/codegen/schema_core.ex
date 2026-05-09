@@ -113,6 +113,16 @@ defmodule AshTypescript.Codegen.SchemaCore do
     Map.get(formatter.aggregate_types(), kind, formatter.any_schema())
   end
 
+  # AshApiSpec types — unwrap to raw type module + constraints before delegating
+  def get_type(formatter, %AshApiSpec.Type{} = type_info, _context) do
+    map_type_with_allow_nil(formatter, type_info.module, type_info.constraints || [], true)
+  end
+
+  def get_type(formatter, %{type: %AshApiSpec.Type{} = type_info} = attr, _context) do
+    allow_nil? = Map.get(attr, :allow_nil?, true)
+    map_type_with_allow_nil(formatter, type_info.module, type_info.constraints || [], allow_nil?)
+  end
+
   def get_type(formatter, %{type: type, constraints: constraints} = attr, _context) do
     allow_nil? = Map.get(attr, :allow_nil?, true)
     map_type_with_allow_nil(formatter, type, constraints || [], allow_nil?)
@@ -150,7 +160,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
       field_defs =
         case action.type do
           :read ->
-            arguments = Enum.filter(action.arguments, & &1.public?)
+            arguments = filter_public_arguments(action.arguments)
 
             if arguments != [],
               do: Enum.map(arguments, &process_argument_field(formatter, resource, action, &1)),
@@ -158,7 +168,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
 
           :create ->
             accepts = Ash.Resource.Info.action(resource, action.name).accept || []
-            arguments = Enum.filter(action.arguments, & &1.public?)
+            arguments = filter_public_arguments(action.arguments)
 
             if accepts != [] || arguments != [] do
               Enum.map(accepts, &process_accept_field(formatter, resource, &1, action)) ++
@@ -168,7 +178,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
             end
 
           action_type when action_type in [:update, :destroy] ->
-            arguments = Enum.filter(action.arguments, & &1.public?)
+            arguments = filter_public_arguments(action.arguments)
 
             if action.accept != [] || arguments != [] do
               Enum.map(action.accept, &process_accept_field(formatter, resource, &1, action)) ++
@@ -178,7 +188,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
             end
 
           :action ->
-            arguments = Enum.filter(action.arguments, & &1.public?)
+            arguments = filter_public_arguments(action.arguments)
 
             if arguments != [],
               do: Enum.map(arguments, &process_argument_field(formatter, resource, action, &1)),
@@ -374,11 +384,24 @@ defmodule AshTypescript.Codegen.SchemaCore do
 
   defp process_argument_field(formatter, resource, action, arg) do
     nullable = arg.allow_nil?
-    omittable = arg.allow_nil? || arg.default != nil
+    omittable = arg.allow_nil? || has_default?(arg)
     formatted_name = format_argument_for_client(resource, action.name, arg.name)
     schema_type = get_type(formatter, arg)
     schema_type = maybe_wrap_nullable_optional(formatter, schema_type, nullable, omittable)
     {formatted_name, schema_type}
+  end
+
+  # Compatibility shim: AshApiSpec.Argument exposes `has_default?`, while raw
+  # Ash arguments only expose the `:default` value. Treat any explicit default
+  # as "has default".
+  defp has_default?(%{has_default?: has_default?}), do: has_default?
+  defp has_default?(%{default: default}), do: not is_nil(default)
+  defp has_default?(_), do: false
+
+  # AshApiSpec arguments are already filtered to public ones; raw Ash arguments
+  # carry a `:public?` field that needs filtering.
+  defp filter_public_arguments(args) do
+    Enum.filter(args, fn arg -> Map.get(arg, :public?, true) end)
   end
 
   defp process_accept_field(formatter, resource, field_name, action) do

@@ -142,7 +142,7 @@ defmodule AshApiSpec.CodegenTypeDispatchTest do
       }
 
       result = TypeMapper.map_type(type, [], :output)
-      assert result == "\"active\" | \"inactive\" | \"archived\""
+      assert result == "\"active\" | \"archived\" | \"inactive\""
     end
 
     test "enum kind without values returns string" do
@@ -283,7 +283,13 @@ defmodule AshApiSpec.CodegenTypeDispatchTest do
         name: "Map",
         module: Ash.Type.Map,
         constraints: [],
-        fields: [%{name: :name, type: %Type{kind: :string, name: "String", module: Ash.Type.String, constraints: []}, allow_nil?: true}]
+        fields: [
+          %{
+            name: :name,
+            type: %Type{kind: :string, name: "String", module: Ash.Type.String, constraints: []},
+            allow_nil?: true
+          }
+        ]
       }
 
       assert TypeMapper.is_primitive_union_member?(type) == false

@@ -758,5 +758,4 @@ defmodule AshTypescript do
 
   @doc "Returns the AshApiSpec action lookup map (cached in persistent_term)."
   defdelegate action_lookup(), to: AshTypescript.SpecCache
-
 end

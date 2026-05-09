@@ -11,11 +11,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
   describe "read actions" do
     test "processes valid fields correctly" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :title,
-          :completed
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :title,
+            :completed
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title, :completed]
       assert load == []
@@ -24,12 +29,17 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
 
     test "processes mixed attributes and loadable fields" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :title,
-          # aggregate
-          :comment_count
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :title,
+            # aggregate
+            :comment_count
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title]
       assert load == [:comment_count]
@@ -38,11 +48,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
 
     test "processes simple relationship fields" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :title,
-          %{user: [:id, :email]}
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :title,
+            %{user: [:id, :email]}
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title]
       assert load == [{:user, [:id, :email]}]
@@ -53,11 +68,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
   describe "create actions" do
     test "processes fields correctly" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :create, [
-          :id,
-          :title,
-          :completed
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :create,
+          [
+            :id,
+            :title,
+            :completed
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title, :completed]
       assert load == []
@@ -66,11 +86,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
 
     test "processes relationships in create actions" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :create, [
-          :id,
-          :title,
-          %{user: [:id, :name]}
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :create,
+          [
+            :id,
+            :title,
+            %{user: [:id, :name]}
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title]
       assert load == [{:user, [:id, :name]}]
@@ -81,12 +106,17 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
   describe "update actions" do
     test "processes fields correctly" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :update, [
-          :id,
-          :title,
-          :completed,
-          :created_at
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :update,
+          [
+            :id,
+            :title,
+            :completed,
+            :created_at
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title, :completed, :created_at]
       assert load == []
@@ -97,18 +127,28 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
   describe "field validation for CRUD actions" do
     test "returns error for invalid attribute" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :invalid_field
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :invalid_field
+          ],
+          @resource_lookups
+        )
 
       assert error == {:unknown_field, :invalid_field, AshTypescript.Test.Todo, []}
     end
 
     test "returns error for invalid nested field" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{user: [:invalid_field]}
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{user: [:invalid_field]}
+          ],
+          @resource_lookups
+        )
 
       assert error ==
                {:unknown_field, :invalid_field, AshTypescript.Test.User, [:user]}
@@ -116,9 +156,14 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCrudTest do
 
     test "returns error for invalid relationship" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{invalid_relationship: [:id]}
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{invalid_relationship: [:id]}
+          ],
+          @resource_lookups
+        )
 
       assert error ==
                {:unknown_field, :invalid_relationship, AshTypescript.Test.Todo, []}

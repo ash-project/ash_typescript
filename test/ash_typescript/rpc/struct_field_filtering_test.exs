@@ -127,7 +127,9 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
 
       # Process with struct field included
       extraction_template = [:id, :name, :email, :self_struct]
-      result = ResultProcessor.process(record_with_struct, extraction_template, User, @resource_lookups)
+
+      result =
+        ResultProcessor.process(record_with_struct, extraction_template, User, @resource_lookups)
 
       # Main record fields
       assert Map.has_key?(result, :id)
@@ -159,7 +161,9 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
 
       # Process with specific field selection on the struct field
       extraction_template = [:id, :name, {:self_struct, [:name]}]
-      result = ResultProcessor.process(record_with_struct, extraction_template, User, @resource_lookups)
+
+      result =
+        ResultProcessor.process(record_with_struct, extraction_template, User, @resource_lookups)
 
       # Main record fields
       assert Map.has_key?(result, :id)
@@ -219,7 +223,9 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
 
       # Process with field selection
       extraction_template = [:name]
-      result = ResultProcessor.process(action_result, extraction_template, User, @resource_lookups)
+
+      result =
+        ResultProcessor.process(action_result, extraction_template, User, @resource_lookups)
 
       assert length(result) == 1
       [user] = result

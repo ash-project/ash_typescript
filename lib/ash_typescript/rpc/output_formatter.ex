@@ -88,7 +88,9 @@ defmodule AshTypescript.Rpc.OutputFormatter do
     Enum.into(map, %{}, fn {internal_key, value} ->
       field_or_rel = lookup_field_or_relationship(resource, internal_key, resource_lookups)
 
-      formatted_value = ValueFormatter.format(value, field_or_rel, [], formatter, :output, resource_lookups)
+      formatted_value =
+        ValueFormatter.format(value, field_or_rel, [], formatter, :output, resource_lookups)
+
       output_key = FieldFormatter.format_field_for_client(internal_key, resource, formatter)
 
       {output_key, formatted_value}

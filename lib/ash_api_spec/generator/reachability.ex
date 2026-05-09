@@ -135,7 +135,14 @@ defmodule AshApiSpec.Generator.Reachability do
     end
   end
 
-  defp traverse_action_arguments(resource, action_names, resources, types, visited, visibility_opts) do
+  defp traverse_action_arguments(
+         resource,
+         action_names,
+         resources,
+         types,
+         visited,
+         visibility_opts
+       ) do
     actions = get_actions_to_traverse(resource, action_names)
     include_private_args? = Keyword.get(visibility_opts, :include_private_arguments?, false)
 
@@ -149,7 +156,10 @@ defmodule AshApiSpec.Generator.Reachability do
 
       Enum.reduce(args, {resources, types, visited}, fn arg, {resources, types, visited} ->
         {type, constraints} = {arg.type, arg.constraints || []}
-        {found_r, found_t, new_visited} = traverse_type(type, constraints, visited, visibility_opts)
+
+        {found_r, found_t, new_visited} =
+          traverse_type(type, constraints, visited, visibility_opts)
+
         {resources ++ found_r, types ++ found_t, new_visited}
       end)
     end)

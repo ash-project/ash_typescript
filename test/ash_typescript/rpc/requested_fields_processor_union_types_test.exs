@@ -11,17 +11,22 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
   describe "content union type - embedded resource members" do
     test "processes TextContent union member with field selection" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :title,
-          %{
-            content: [
-              %{
-                text: [:id, :text, :formatting, :word_count]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :title,
+            %{
+              content: [
+                %{
+                  text: [:id, :text, :formatting, :word_count]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title, :content]
       assert load == []
@@ -35,16 +40,21 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes ChecklistContent union member with field selection" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            content: [
-              %{
-                checklist: [:id, :title, %{items: [:text, :completed]}, :allow_reordering]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              content: [
+                %{
+                  checklist: [:id, :title, %{items: [:text, :completed]}, :allow_reordering]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :content]
       assert load == []
@@ -57,24 +67,29 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes LinkContent union member with field selection and calculations" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            content: [
-              %{
-                link: [
-                  :id,
-                  :url,
-                  :title,
-                  :description,
-                  :is_external,
-                  :display_title,
-                  :domain
-                ]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              content: [
+                %{
+                  link: [
+                    :id,
+                    :url,
+                    :title,
+                    :description,
+                    :is_external,
+                    :display_title,
+                    :domain
+                  ]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :content]
 
@@ -92,18 +107,23 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes multiple embedded resource union members in single map" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            content: [
-              %{
-                text: [:id, :text, :formatting],
-                checklist: [:id, :title, %{items: [:text, :completed]}],
-                link: [:id, :url, :title]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              content: [
+                %{
+                  text: [:id, :text, :formatting],
+                  checklist: [:id, :title, %{items: [:text, :completed]}],
+                  link: [:id, :url, :title]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :content]
 
@@ -129,16 +149,21 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes multiple embedded resource union members in separate maps" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            content: [
-              %{text: [:id, :text, :formatting]},
-              %{link: [:id, :url, :title]},
-              %{checklist: [:id, :title, %{items: [:text, :completed]}]}
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              content: [
+                %{text: [:id, :text, :formatting]},
+                %{link: [:id, :url, :title]},
+                %{checklist: [:id, :title, %{items: [:text, :completed]}]}
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :content]
 
@@ -158,15 +183,20 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
   describe "content union type - simple members" do
     test "processes note (string) union member" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :title,
-          %{
-            content: [
-              :note
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :title,
+            %{
+              content: [
+                :note
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title, :content]
       assert load == []
@@ -175,14 +205,19 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes priority_value (integer) union member" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            content: [
-              :priority_value
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              content: [
+                :priority_value
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :content]
       assert load == []
@@ -191,18 +226,23 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes mixed simple and embedded resource union members" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            content: [
-              :note,
-              :priority_value,
-              %{
-                text: [:id, :text, :formatting]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              content: [
+                :note,
+                :priority_value,
+                %{
+                  text: [:id, :text, :formatting]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :content]
       assert load == []
@@ -219,18 +259,23 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes mixed simple and complex union members in single map" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            content: [
-              :note,
-              %{
-                text: [:id, :text, :formatting, :display_text],
-                checklist: [:id, :title, :total_items]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              content: [
+                :note,
+                %{
+                  text: [:id, :text, :formatting, :display_text],
+                  checklist: [:id, :title, :total_items]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :content]
       assert load == [{:content, [{:text, [:display_text]}, {:checklist, [:total_items]}]}]
@@ -263,16 +308,21 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
   describe "attachments array union type" do
     test "processes file attachment union member with field selection" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            attachments: [
-              %{
-                file: [:filename, :size, :mime_type]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              attachments: [
+                %{
+                  file: [:filename, :size, :mime_type]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :attachments]
       assert load == []
@@ -281,16 +331,21 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes image attachment union member with field selection" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            attachments: [
-              %{
-                image: [:filename, :width, :height, :alt_text]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              attachments: [
+                %{
+                  image: [:filename, :width, :height, :alt_text]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :attachments]
       assert load == []
@@ -303,14 +358,19 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes url attachment union member (simple type)" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            attachments: [
-              :url
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              attachments: [
+                :url
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :attachments]
       assert load == []
@@ -319,20 +379,25 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes mixed attachment union members in separate maps" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            attachments: [
-              %{
-                file: [:filename, :size, :mime_type]
-              },
-              %{
-                image: [:filename, :width, :height]
-              },
-              :url
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              attachments: [
+                %{
+                  file: [:filename, :size, :mime_type]
+                },
+                %{
+                  image: [:filename, :width, :height]
+                },
+                :url
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :attachments]
 
@@ -350,18 +415,23 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes mixed attachment union members in single map" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            attachments: [
-              :url,
-              %{
-                file: [:filename, :size, :mime_type],
-                image: [:filename, :width, :height]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              attachments: [
+                :url,
+                %{
+                  file: [:filename, :size, :mime_type],
+                  image: [:filename, :width, :height]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :attachments]
 
@@ -381,14 +451,19 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
   describe "status_info union type - map_with_tag storage" do
     test "processes simple status_info union member" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            status_info: [
-              :simple
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              status_info: [
+                :simple
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :status_info]
       assert load == []
@@ -397,14 +472,19 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes detailed status_info union member" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            status_info: [
-              :detailed
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              status_info: [
+                :detailed
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :status_info]
       assert load == []
@@ -413,14 +493,19 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes automated status_info union member" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            status_info: [
-              :automated
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              status_info: [
+                :automated
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :status_info]
       assert load == []
@@ -429,16 +514,21 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes multiple status_info union members" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            status_info: [
-              :simple,
-              :detailed,
-              :automated
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              status_info: [
+                :simple,
+                :detailed,
+                :automated
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :status_info]
       assert load == []
@@ -449,28 +539,33 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
   describe "mixed union types with other field types" do
     test "processes union types with attributes and relationships" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :title,
-          :completed,
-          %{user: [:id, :name]},
-          %{
-            content: [
-              :note,
-              %{
-                text: [:id, :text, :formatting]
-              }
-            ]
-          },
-          %{
-            attachments: [
-              %{
-                file: [:filename, :size]
-              },
-              :url
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :title,
+            :completed,
+            %{user: [:id, :name]},
+            %{
+              content: [
+                :note,
+                %{
+                  text: [:id, :text, :formatting]
+                }
+              ]
+            },
+            %{
+              attachments: [
+                %{
+                  file: [:filename, :size]
+                },
+                :url
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :title, :completed, :content, :attachments]
 
@@ -496,23 +591,28 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes union types with calculations and aggregates" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          :is_overdue,
-          :comment_count,
-          %{
-            content: [
-              %{
-                text: [:id, :text, :word_count]
-              }
-            ]
-          },
-          %{
-            status_info: [
-              :detailed
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            :is_overdue,
+            :comment_count,
+            %{
+              content: [
+                %{
+                  text: [:id, :text, :word_count]
+                }
+              ]
+            },
+            %{
+              status_info: [
+                :detailed
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :content, :status_info]
 
@@ -532,33 +632,38 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes all union types together" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            content: [
-              :note,
-              %{
-                text: [:id, :text]
-              }
-            ]
-          },
-          %{
-            attachments: [
-              %{
-                file: [:filename, :size]
-              },
-              %{
-                image: [:filename, :width]
-              }
-            ]
-          },
-          %{
-            status_info: [
-              :simple,
-              :detailed
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              content: [
+                :note,
+                %{
+                  text: [:id, :text]
+                }
+              ]
+            },
+            %{
+              attachments: [
+                %{
+                  file: [:filename, :size]
+                },
+                %{
+                  image: [:filename, :width]
+                }
+              ]
+            },
+            %{
+              status_info: [
+                :simple,
+                :detailed
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :content, :attachments, :status_info]
 
@@ -582,13 +687,18 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
   describe "union type validation and error handling" do
     test "rejects invalid union member" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{
-            content: [
-              :invalid_member
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{
+              content: [
+                :invalid_member
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert error ==
                {:unknown_field, :invalid_member, "union_attribute", [:content]}
@@ -596,15 +706,20 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "rejects invalid field in embedded resource union member" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{
-            content: [
-              %{
-                text: [:id, :invalid_field]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{
+              content: [
+                %{
+                  text: [:id, :invalid_field]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert error ==
                {:unknown_field, :invalid_field, AshTypescript.Test.TodoContent.TextContent,
@@ -613,28 +728,38 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "rejects invalid field in map union member with field constraints" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{
-            attachments: [
-              %{
-                file: [:filename, :invalid_field]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{
+              attachments: [
+                %{
+                  file: [:filename, :invalid_field]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert error == {:unknown_field, :invalid_field, "map", [:attachments, :file]}
     end
 
     test "rejects invalid union member in attachments array" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{
-            attachments: [
-              :invalid_attachment_type
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{
+              attachments: [
+                :invalid_attachment_type
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert error ==
                {:unknown_field, :invalid_attachment_type, "union_attribute", [:attachments]}
@@ -642,13 +767,18 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "rejects invalid union member in status_info" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{
-            status_info: [
-              :invalid_status
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{
+              status_info: [
+                :invalid_status
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert error ==
                {:unknown_field, :invalid_status, "union_attribute", [:status_info]}
@@ -656,60 +786,85 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "rejects empty union field selection" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{
-            content: []
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{
+              content: []
+            }
+          ],
+          @resource_lookups
+        )
 
       assert error == {:requires_field_selection, :union, :content, []}
     end
 
     test "rejects union attribute requested as simple atom" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :content
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :content
+          ],
+          @resource_lookups
+        )
 
       assert error == {:requires_field_selection, :union_attribute, :content, []}
     end
 
     test "rejects file attachment requested as simple atom (requires field selection)" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{
-            attachments: [
-              :file
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{
+              attachments: [
+                :file
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert error == {:requires_field_selection, :complex_type, :file, [:attachments]}
     end
 
     test "rejects image attachment requested as simple atom (requires field selection)" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{
-            attachments: [
-              :image
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{
+              attachments: [
+                :image
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert error == {:requires_field_selection, :complex_type, :image, [:attachments]}
     end
 
     test "rejects duplicate union field requests" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{
-            content: [
-              :note,
-              :note
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{
+              content: [
+                :note,
+                :note
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert error == {:duplicate_field, :note, [:content]}
     end
@@ -718,16 +873,21 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
       # This test verifies that we can specify multiple different union members
       # in a single map, which is the feature we just added
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{
-            content: [
-              %{
-                text: [:id, :text],
-                checklist: [:id, :title]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{
+              content: [
+                %{
+                  text: [:id, :text],
+                  checklist: [:id, :title]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:content]
       assert load == []
@@ -749,30 +909,40 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "rejects duplicate union members across different formats" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{
-            content: [
-              %{text: [:id, :text]},
-              %{text: [:id, :text, :formatting]}
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{
+              content: [
+                %{text: [:id, :text]},
+                %{text: [:id, :text, :formatting]}
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert error == {:duplicate_field, :text, [:content]}
     end
 
     test "rejects mixed simple and nested selection for same union member" do
       {:error, error} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          %{
-            content: [
-              :note,
-              %{
-                note: [:invalid]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            %{
+              content: [
+                :note,
+                %{
+                  note: [:invalid]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert error == {:duplicate_field, :note, [:content]}
     end
@@ -781,22 +951,27 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
   describe "complex union field selection scenarios" do
     test "processes nested calculations within embedded resource union members" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            content: [
-              %{
-                text: [
-                  :id,
-                  :text,
-                  :formatting,
-                  :display_text,
-                  :is_formatted
-                ]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              content: [
+                %{
+                  text: [
+                    :id,
+                    :text,
+                    :formatting,
+                    :display_text,
+                    :is_formatted
+                  ]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :content]
 
@@ -812,23 +987,28 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes union field selection with deep nesting" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            content: [
-              %{
-                checklist: [
-                  :id,
-                  :title,
-                  %{items: [:text, :completed]},
-                  :total_items,
-                  :completed_count,
-                  :progress_percentage
-                ]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              content: [
+                %{
+                  checklist: [
+                    :id,
+                    :title,
+                    %{items: [:text, :completed]},
+                    :total_items,
+                    :completed_count,
+                    :progress_percentage
+                  ]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :content]
 
@@ -856,28 +1036,33 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "handles union members with no field selection needed (simple types only)" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            content: [
-              :note,
-              :priority_value
-            ]
-          },
-          %{
-            attachments: [
-              # Only URL since file/image require field selection
-              :url
-            ]
-          },
-          %{
-            status_info: [
-              :simple,
-              :detailed,
-              :automated
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              content: [
+                :note,
+                :priority_value
+              ]
+            },
+            %{
+              attachments: [
+                # Only URL since file/image require field selection
+                :url
+              ]
+            },
+            %{
+              status_info: [
+                :simple,
+                :detailed,
+                :automated
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :content, :attachments, :status_info]
       assert load == []
@@ -894,16 +1079,21 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
   describe "union type edge cases" do
     test "handles single union member selection" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            content: [
-              %{
-                text: [:id, :text]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              content: [
+                %{
+                  text: [:id, :text]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :content]
       assert load == []
@@ -912,16 +1102,21 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "handles union member with minimal field selection" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            content: [
-              %{
-                text: [:id]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              content: [
+                %{
+                  text: [:id]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :content]
       assert load == []
@@ -930,15 +1125,20 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes union attribute with only simple members" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            content: [
-              :note,
-              :priority_value
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              content: [
+                :note,
+                :priority_value
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :content]
       assert load == []
@@ -947,16 +1147,21 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
 
     test "processes map union member with field selection" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [
-          :id,
-          %{
-            attachments: [
-              %{
-                file: [:filename, :size, :mime_type]
-              }
-            ]
-          }
-        ], @resource_lookups)
+        RequestedFieldsProcessor.process(
+          AshTypescript.Test.Todo,
+          :read,
+          [
+            :id,
+            %{
+              attachments: [
+                %{
+                  file: [:filename, :size, :mime_type]
+                }
+              ]
+            }
+          ],
+          @resource_lookups
+        )
 
       assert select == [:id, :attachments]
       assert load == []

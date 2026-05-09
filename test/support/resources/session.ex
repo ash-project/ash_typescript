@@ -10,7 +10,7 @@ defmodule AshTypescript.Test.Session do
   use AshTypescript.TypedController
 
   typed_controller do
-    module_name AshTypescript.Test.SessionController
+    module_name(AshTypescript.Test.SessionController)
     namespace "auth"
 
     # Verb shortcut syntax — `get :name do ... end`
