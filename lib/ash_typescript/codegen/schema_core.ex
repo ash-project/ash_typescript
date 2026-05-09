@@ -198,7 +198,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
               else: []
 
           :create ->
-            accepts = Ash.Resource.Info.action(resource, action.name).accept || []
+            accepts = action.accept || []
             arguments = filter_public_arguments(action.arguments)
 
             if accepts != [] || arguments != [] do
