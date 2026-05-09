@@ -531,7 +531,7 @@ defmodule AshTypescript.Rpc.Pipeline do
          %AshApiSpec.Type{kind: :type_ref, module: module},
          _constraints
        ) do
-    full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(module)
+    full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), module)
     classify_tuple_or_keyword_type(full_type, [])
   end
 

@@ -49,7 +49,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   def map_error_type(%AshApiSpec.Type{} = type_info, _constraints) do
     case type_info.kind do
       :type_ref ->
-        full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_info.module)
+        full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), type_info.module)
         map_error_type(full_type, [])
 
       :array ->

@@ -691,7 +691,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     do: resolve_inner_api_type(item_type)
 
   defp resolve_inner_api_type(%AshApiSpec.Type{kind: :type_ref, module: module}),
-    do: AshApiSpec.Generator.TypeResolver.resolve_definition(module)
+    do: AshApiSpec.get_type!(AshTypescript.type_lookup(), module)
 
   defp resolve_inner_api_type(%AshApiSpec.Type{} = type), do: type
 

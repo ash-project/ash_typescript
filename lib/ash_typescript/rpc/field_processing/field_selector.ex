@@ -184,7 +184,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
     case type_info.kind do
       :type_ref ->
-        full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_info.module)
+        full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), type_info.module)
         select_fields(full_type, [], requested_fields, path, resource_lookups)
 
       :array ->
@@ -732,7 +732,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   end
 
   defp classify_attribute_category_from_type(%AshApiSpec.Type{kind: :type_ref} = type_info) do
-    full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_info.module)
+    full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), type_info.module)
     classify_attribute_category_from_type(full_type)
   end
 
@@ -742,7 +742,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
     case effective_type do
       %AshApiSpec.Type{kind: :type_ref} = ref ->
-        full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(ref.module)
+        full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), ref.module)
         classify_attribute_category_from_type(full_type)
 
       %AshApiSpec.Type{kind: kind} when kind in [:resource, :embedded_resource] ->
@@ -1333,7 +1333,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
          _type_constraints,
          _type_index
        ) do
-    full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_info.module)
+    full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), type_info.module)
     requires_nested_selection?(full_type, [])
   end
 
@@ -1342,7 +1342,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
     case effective_type do
       %AshApiSpec.Type{kind: :type_ref} = ref ->
-        full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(ref.module)
+        full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), ref.module)
         requires_nested_selection?(full_type, [])
 
       %AshApiSpec.Type{kind: kind} when kind in [:resource, :embedded_resource] ->

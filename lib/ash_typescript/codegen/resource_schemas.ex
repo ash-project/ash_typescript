@@ -71,7 +71,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   # %AshApiSpec.Type{} dispatch — direct kind matching, no unwrapping needed
   def classify_by_type(%AshApiSpec.Type{kind: :type_ref, module: module}) do
-    full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(module)
+    full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), module)
     classify_by_type(full_type)
   end
 

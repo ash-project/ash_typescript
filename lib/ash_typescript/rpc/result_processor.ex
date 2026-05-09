@@ -177,7 +177,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
     case type_info.kind do
       :type_ref ->
-        full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(type_info.module)
+        full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), type_info.module)
         extract_value(value, full_type, [], template, resource_lookups)
 
       :array ->
@@ -750,7 +750,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
                 t
 
               %AshApiSpec.Type{kind: :type_ref} = t ->
-                resolved = AshApiSpec.Generator.TypeResolver.resolve_definition(t.module)
+                resolved = AshApiSpec.get_type!(AshTypescript.type_lookup(), t.module)
                 if resolved.kind == :union, do: resolved, else: nil
 
               _ ->

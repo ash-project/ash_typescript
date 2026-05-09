@@ -70,8 +70,12 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   """
   def action_supports_countable?(action) do
     case get_pagination_config(action) do
-      nil -> false
-      pagination_config -> Map.get(pagination_config, :countable, false)
+      nil ->
+        false
+
+      pagination_config ->
+        # AshApiSpec.Pagination uses `:countable?`; raw Ash uses `:countable`
+        Map.get(pagination_config, :countable?) || Map.get(pagination_config, :countable, false)
     end
   end
 
@@ -246,7 +250,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
 
       # AshApiSpec.Type ref — resolve before continuing
       %AshApiSpec.Type{kind: :type_ref, module: module} ->
-        full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(module)
+        full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), module)
         {full_type, [], false}
 
       # AshApiSpec.Type (non-array)
@@ -272,7 +276,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
           | {:error, atom()}
   # AshApiSpec.Type classification
   defp classify_return_type(%AshApiSpec.Type{kind: :type_ref, module: module}, _constraints) do
-    full_type = AshApiSpec.Generator.TypeResolver.resolve_definition(module)
+    full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), module)
     classify_return_type(full_type, [])
   end
 
