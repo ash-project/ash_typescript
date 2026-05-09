@@ -14,84 +14,114 @@ defmodule AshTypescript.Codegen.SchemaCore do
   argument to each public function.
   """
 
+  alias AshApiSpec.Generator.TypeResolver
+  alias AshApiSpec.Type, as: SpecType
   alias AshTypescript.Codegen.Helpers, as: CodegenHelpers
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.TypeSystem.Introspection
 
   import AshTypescript.Helpers
 
-  @typed_containers [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple, Ash.Type.Struct]
+  # AshApiSpec.Type kinds → corresponding Ash type module, used to look up
+  # static primitive schemas in `formatter.simple_primitives()`. Only listed
+  # for kinds that have a 1:1 module correspondence and don't need
+  # constraint-driven formatting (string/integer/float/atom/etc. are handled
+  # directly by their kind in the dispatch).
+  @kind_to_ash_module %{
+    boolean: Ash.Type.Boolean,
+    uuid: Ash.Type.UUID,
+    date: Ash.Type.Date,
+    time: Ash.Type.Time,
+    time_usec: Ash.Type.TimeUsec,
+    datetime: Ash.Type.DateTime,
+    utc_datetime: Ash.Type.UtcDatetime,
+    utc_datetime_usec: Ash.Type.UtcDatetimeUsec,
+    naive_datetime: Ash.Type.NaiveDatetime,
+    duration: Ash.Type.Duration,
+    decimal: Ash.Type.Decimal,
+    binary: Ash.Type.Binary,
+    term: Ash.Type.Term
+  }
 
   # ─────────────────────────────────────────────────────────────────
-  # Core Type Mapping
+  # Core Type Mapping (dispatches on %AshApiSpec.Type{})
   # ─────────────────────────────────────────────────────────────────
 
-  # Maps an Ash type + constraints to a schema string using the given formatter.
-  defp map_type(formatter, nil, _constraints), do: formatter.null_schema()
+  # Recursive dispatch — assumes input is already an `%AshApiSpec.Type{}`.
+  # Strings are emitted with `require_non_empty: false`; the entry-point
+  # `get_type/3` applies non-empty enforcement based on the caller's
+  # `allow_nil?` before recursing.
+  defp map_spec_type(_formatter, nil), do: nil
 
-  defp map_type(formatter, type, constraints) do
-    if is_custom_type?(type) do
-      formatter.any_schema()
-    else
-      map_type_inner(formatter, type, constraints)
+  defp map_spec_type(formatter, %SpecType{} = type_info) do
+    case type_info.kind do
+      kind when kind in [:string, :ci_string] ->
+        formatter.format_string(type_info.constraints || [], false)
+
+      :integer ->
+        formatter.format_integer(type_info.constraints || [])
+
+      :float ->
+        formatter.format_float(type_info.constraints || [])
+
+      :atom ->
+        # Atom without `one_of` (which becomes :enum). Plain string.
+        formatter.format_string([], false)
+
+      :enum ->
+        format_enum_values(formatter, type_info.values || [])
+
+      :array ->
+        inner = map_spec_type(formatter, type_info.item_type) || formatter.any_schema()
+        formatter.wrap_array(inner)
+
+      :union ->
+        map_spec_union(formatter, type_info.members || [])
+
+      kind when kind in [:resource, :embedded_resource] ->
+        map_resource_ref(formatter, SpecType.effective_resource(type_info))
+
+      kind when kind in [:map, :keyword, :tuple, :struct] ->
+        map_typed_container(formatter, type_info)
+
+      :type_ref ->
+        full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), type_info.module)
+        map_spec_type(formatter, full_type)
+
+      :unknown ->
+        map_unknown_module(formatter, type_info)
+
+      primitive_kind ->
+        lookup_primitive_kind(formatter, primitive_kind)
     end
   end
 
-  defp map_type_inner(formatter, type, constraints) do
-    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+  # Lookup for primitive kinds with a 1:1 Ash module mapping.
+  defp lookup_primitive_kind(formatter, kind) do
+    case Map.get(@kind_to_ash_module, kind) do
+      nil ->
+        formatter.any_schema()
 
-    aggregate_types = formatter.aggregate_types()
-    simple_primitives = formatter.simple_primitives()
-    third_party_types = formatter.third_party_types()
-    atom_primitives = formatter.atom_primitives()
+      module ->
+        Map.get(formatter.simple_primitives(), module, formatter.any_schema())
+    end
+  end
 
+  # Handles `:unknown` kinds — custom Ash types (Ltree, ULID, Money, third-party).
+  defp map_unknown_module(formatter, %SpecType{module: module} = type_info) do
     cond do
-      is_atom(type) and Map.has_key?(aggregate_types, type) ->
-        Map.get(aggregate_types, type)
+      module == AshPostgres.Ltree ->
+        if Keyword.get(type_info.constraints || [], :escape?, false),
+          do: formatter.ltree_array(),
+          else: formatter.ltree_union()
 
-      is_atom(type) and Map.has_key?(atom_primitives, type) ->
-        Map.get(atom_primitives, type)
+      module && Map.has_key?(formatter.simple_primitives(), module) ->
+        Map.get(formatter.simple_primitives(), module)
 
-      match?({:array, _}, type) ->
-        {:array, inner_type} = type
-        inner_constraints = Keyword.get(constraints, :items, [])
-        inner_schema = map_type(formatter, inner_type, inner_constraints)
-        formatter.wrap_array(inner_schema)
+      module && Map.has_key?(formatter.third_party_types(), module) ->
+        Map.get(formatter.third_party_types(), module)
 
-      Map.has_key?(simple_primitives, unwrapped_type) ->
-        Map.get(simple_primitives, unwrapped_type)
-
-      Map.has_key?(third_party_types, unwrapped_type) ->
-        Map.get(third_party_types, unwrapped_type)
-
-      unwrapped_type in [Ash.Type.String, Ash.Type.CiString] ->
-        formatter.format_string(full_constraints, false)
-
-      unwrapped_type == Ash.Type.Integer ->
-        formatter.format_integer(full_constraints)
-
-      unwrapped_type == Ash.Type.Float ->
-        formatter.format_float(full_constraints)
-
-      unwrapped_type == Ash.Type.Atom ->
-        map_atom_type(formatter, full_constraints)
-
-      unwrapped_type in @typed_containers ->
-        map_typed_container(formatter, unwrapped_type, full_constraints)
-
-      unwrapped_type == Ash.Type.Union ->
-        map_union_type(formatter, full_constraints)
-
-      unwrapped_type == AshPostgres.Ltree ->
-        map_ltree_type(formatter, full_constraints)
-
-      Introspection.is_embedded_resource?(unwrapped_type) ->
-        map_resource_ref(formatter, unwrapped_type)
-
-      Spark.implements_behaviour?(unwrapped_type, Ash.Type.Enum) ->
-        map_enum_type(formatter, unwrapped_type)
-
-      is_custom_type?(unwrapped_type) ->
+      module && Introspection.is_custom_type?(module) ->
         formatter.custom_type_fallback()
 
       true ->
@@ -104,8 +134,22 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # ─────────────────────────────────────────────────────────────────
 
   @doc """
-  Maps Ash type structs (attribute/argument maps) to a schema string.
-  Handles `allow_nil?` for string types (non-nullable strings get min-length 1).
+  Maps a type-bearing input to a schema string.
+
+  Accepted shapes:
+  - `%AshApiSpec.Type{}` — the canonical spec form
+  - `%AshApiSpec.Argument{}` / `%AshApiSpec.Field{}` — anything with a
+    `:type` field carrying a `%AshApiSpec.Type{}`
+  - Aggregate kind atoms (e.g. `:count`, `:sum`) — looked up in
+    `formatter.aggregate_types()`
+  - Raw Ash attribute/argument shape `%{type: SomeType, constraints: [...]}` —
+    a transitional affordance; converted to `%AshApiSpec.Type{}` at the boundary.
+    Will be removed once all callers feed spec data.
+
+  Handles `allow_nil?` for string types: non-nullable strings get
+  `format_string(constraints, true)` (which adds an effective min-length 1
+  when no explicit `:min_length` is set). Nested string fields inside typed
+  containers do not get this treatment — they're recursed via `map_spec_type/2`.
   """
   def get_type(formatter, type_and_constraints, context \\ nil)
 
@@ -113,35 +157,36 @@ defmodule AshTypescript.Codegen.SchemaCore do
     Map.get(formatter.aggregate_types(), kind, formatter.any_schema())
   end
 
-  # AshApiSpec types — unwrap to raw type module + constraints before delegating
-  def get_type(formatter, %AshApiSpec.Type{} = type_info, _context) do
-    map_type_with_allow_nil(formatter, type_info.module, type_info.constraints || [], true)
+  def get_type(formatter, %SpecType{} = type_info, _context) do
+    map_with_allow_nil(formatter, type_info, true)
   end
 
-  def get_type(formatter, %{type: %AshApiSpec.Type{} = type_info} = attr, _context) do
+  def get_type(formatter, %{type: _} = attr, _context) do
+    type_info = to_spec_type(attr)
     allow_nil? = Map.get(attr, :allow_nil?, true)
-    map_type_with_allow_nil(formatter, type_info.module, type_info.constraints || [], allow_nil?)
+    map_with_allow_nil(formatter, type_info, allow_nil?)
   end
 
-  def get_type(formatter, %{type: type, constraints: constraints} = attr, _context) do
-    allow_nil? = Map.get(attr, :allow_nil?, true)
-    map_type_with_allow_nil(formatter, type, constraints || [], allow_nil?)
+  defp map_with_allow_nil(formatter, %SpecType{kind: kind} = type_info, allow_nil?)
+       when kind in [:string, :ci_string] do
+    formatter.format_string(type_info.constraints || [], not allow_nil?)
   end
 
-  def get_type(formatter, %{type: type} = attr, _context) do
-    allow_nil? = Map.get(attr, :allow_nil?, true)
-    map_type_with_allow_nil(formatter, type, [], allow_nil?)
+  defp map_with_allow_nil(formatter, type_info, _allow_nil?) do
+    map_spec_type(formatter, type_info)
   end
 
-  defp map_type_with_allow_nil(formatter, type, constraints, allow_nil?) do
-    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+  # Boundary conversion: raw → spec. Transitional affordance for callers that
+  # haven't migrated to passing `%AshApiSpec.*{}` shapes. Once they have,
+  # the raw clauses can be removed.
+  defp to_spec_type(%{type: %SpecType{} = t}), do: t
 
-    if unwrapped_type in [Ash.Type.String, Ash.Type.CiString] do
-      require_non_empty = not allow_nil?
-      formatter.format_string(full_constraints, require_non_empty)
-    else
-      map_type(formatter, type, constraints)
-    end
+  defp to_spec_type(%{type: type, constraints: constraints}) do
+    TypeResolver.resolve(type, constraints || [])
+  end
+
+  defp to_spec_type(%{type: type}) do
+    TypeResolver.resolve(type, [])
   end
 
   # ─────────────────────────────────────────────────────────────────
@@ -272,34 +317,23 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # Private — type-specific dispatch
   # ─────────────────────────────────────────────────────────────────
 
-  defp map_atom_type(formatter, constraints) do
-    case Keyword.get(constraints, :one_of) do
-      nil ->
-        formatter.format_string([], false)
-
-      values ->
-        enum_values =
-          values
-          |> Enum.sort_by(&to_string/1)
-          |> Enum.map_join(", ", &"\"#{to_string(&1)}\"")
-
-        formatter.format_enum(enum_values)
-    end
-  end
-
-  defp map_typed_container(formatter, type, constraints) do
-    fields = Keyword.get(constraints, :fields)
-    instance_of = Keyword.get(constraints, :instance_of)
+  defp map_typed_container(formatter, %SpecType{} = type_info) do
+    fields = SpecType.get_fields(type_info)
+    # Prefer `instance_of` (set explicitly for typed structs); fall back to
+    # `module` (NewType subtype modules end up here after `resolve_definition`
+    # stamps the original module on the resolved type).
+    field_name_source = type_info.instance_of || type_info.module
 
     cond do
-      fields != nil ->
-        field_name_mappings = get_field_name_mappings(constraints)
-        build_object_type(formatter, fields, nil, field_name_mappings)
+      fields != [] ->
+        field_name_mappings = field_name_mappings_for(field_name_source)
+        build_object_from_fields(formatter, fields, field_name_mappings)
 
-      type == Ash.Type.Struct and instance_of != nil and Spark.Dsl.is?(instance_of, Ash.Resource) ->
-        map_resource_ref(formatter, instance_of)
+      type_info.kind == :struct and type_info.instance_of != nil and
+          Spark.Dsl.is?(type_info.instance_of, Ash.Resource) ->
+        map_resource_ref(formatter, type_info.instance_of)
 
-      type == Ash.Type.Struct and instance_of != nil ->
+      type_info.kind == :struct and type_info.instance_of != nil ->
         formatter.wrap_object("")
 
       true ->
@@ -312,46 +346,27 @@ defmodule AshTypescript.Codegen.SchemaCore do
     "#{resource_name}#{formatter.schema_suffix()}"
   end
 
-  defp map_enum_type(formatter, type) do
+  defp format_enum_values(formatter, values) do
     enum_values =
-      type.values()
+      values
       |> Enum.sort_by(&to_string/1)
       |> Enum.map_join(", ", &"\"#{to_string(&1)}\"")
 
     formatter.format_enum(enum_values)
-  rescue
-    _ -> formatter.format_string([], false)
-  end
-
-  defp map_union_type(formatter, constraints) do
-    case Keyword.get(constraints, :types) do
-      nil -> formatter.any_schema()
-      types -> build_simple_union(formatter, types, nil)
-    end
-  end
-
-  defp map_ltree_type(formatter, constraints) do
-    if Keyword.get(constraints, :escape?, false) do
-      formatter.ltree_array()
-    else
-      formatter.ltree_union()
-    end
   end
 
   # ─────────────────────────────────────────────────────────────────
-  # Private — object / union builders
+  # Private — object / union builders (spec-typed)
   # ─────────────────────────────────────────────────────────────────
 
-  defp build_object_type(formatter, fields, context, field_name_mappings) do
+  defp build_object_from_fields(formatter, fields, field_name_mappings) do
     field_schemas =
-      Enum.map_join(fields, ", ", fn {field_name, field_config} ->
-        field_type = Keyword.get(field_config, :type, :string)
-        field_constraints = Keyword.get(field_config, :constraints, [])
-        allow_nil = Keyword.get(field_config, :allow_nil?, false)
-
-        schema_type =
-          get_type(formatter, %{type: field_type, constraints: field_constraints}, context)
-
+      Enum.map_join(fields, ", ", fn %{
+                                       name: field_name,
+                                       type: %SpecType{} = field_type,
+                                       allow_nil?: allow_nil
+                                     } ->
+        schema_type = map_spec_type(formatter, field_type)
         schema_type = maybe_wrap_nullable_optional(formatter, schema_type, allow_nil, allow_nil)
 
         base_name =
@@ -365,17 +380,21 @@ defmodule AshTypescript.Codegen.SchemaCore do
     formatter.wrap_object(field_schemas)
   end
 
-  defp build_simple_union(formatter, types, context) do
-    union_schemas =
-      Enum.map_join(types, ", ", fn {type_name, config} ->
-        formatted_name = format_field(type_name)
-        type = Keyword.get(config, :type, :string)
-        constraints = Keyword.get(config, :constraints, [])
-        schema_type = get_type(formatter, %{type: type, constraints: constraints}, context)
-        formatter.wrap_object("#{formatted_name}: #{schema_type}")
-      end)
+  defp map_spec_union(formatter, members) do
+    case members do
+      [] ->
+        formatter.any_schema()
 
-    formatter.wrap_union(union_schemas)
+      _ ->
+        union_schemas =
+          Enum.map_join(members, ", ", fn %{name: name, type: %SpecType{} = type} ->
+            formatted_name = format_field(name)
+            schema_type = map_spec_type(formatter, type)
+            formatter.wrap_object("#{formatted_name}: #{schema_type}")
+          end)
+
+        formatter.wrap_union(union_schemas)
+    end
   end
 
   # ─────────────────────────────────────────────────────────────────
@@ -454,17 +473,18 @@ defmodule AshTypescript.Codegen.SchemaCore do
     )
   end
 
-  defp get_field_name_mappings(constraints) do
-    instance_of = Keyword.get(constraints, :instance_of)
+  # Returns the keyword list of field-name mappings declared by a NewType /
+  # TypedStruct module via `typescript_field_names/0`, or nil if the module
+  # doesn't define one.
+  defp field_name_mappings_for(nil), do: nil
 
-    if instance_of && function_exported?(instance_of, :typescript_field_names, 0) do
-      instance_of.typescript_field_names()
+  defp field_name_mappings_for(module) when is_atom(module) do
+    if function_exported?(module, :typescript_field_names, 0) do
+      module.typescript_field_names()
     else
       nil
     end
   end
-
-  defp is_custom_type?(type), do: Introspection.is_custom_type?(type)
 
   # ─────────────────────────────────────────────────────────────────
   # Private — resource schema generation
@@ -545,37 +565,44 @@ defmodule AshTypescript.Codegen.SchemaCore do
     resource
     |> Ash.Resource.Info.public_attributes()
     |> Enum.flat_map(fn attr ->
-      extract_resource_deps(attr.type, attr.constraints, resource_set)
+      attr
+      |> to_spec_type()
+      |> extract_resource_deps_from_spec(resource_set)
     end)
     |> Enum.uniq()
   end
 
-  defp extract_resource_deps({:array, inner_type}, constraints, resource_set) do
-    inner_constraints = Keyword.get(constraints, :items, [])
-    extract_resource_deps(inner_type, inner_constraints, resource_set)
+  # Walks a resolved `%AshApiSpec.Type{}` and returns the embedded/instance_of
+  # resource modules it depends on (those present in `resource_set`).
+  defp extract_resource_deps_from_spec(%SpecType{kind: :array, item_type: item}, resource_set) do
+    extract_resource_deps_from_spec(item, resource_set)
   end
 
-  defp extract_resource_deps(type, constraints, resource_set)
-       when is_atom(type) and not is_nil(type) do
-    {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
-
-    cond do
-      Introspection.is_embedded_resource?(unwrapped_type) and
-          MapSet.member?(resource_set, unwrapped_type) ->
-        [unwrapped_type]
-
-      unwrapped_type == Ash.Type.Struct ->
-        instance_of = Keyword.get(full_constraints, :instance_of)
-
-        if instance_of != nil and Spark.Dsl.is?(instance_of, Ash.Resource) and
-             MapSet.member?(resource_set, instance_of),
-           do: [instance_of],
-           else: []
-
-      true ->
-        []
-    end
+  defp extract_resource_deps_from_spec(
+         %SpecType{kind: :embedded_resource, resource_module: mod},
+         resource_set
+       )
+       when not is_nil(mod) do
+    if MapSet.member?(resource_set, mod), do: [mod], else: []
   end
 
-  defp extract_resource_deps(_type, _constraints, _resource_set), do: []
+  defp extract_resource_deps_from_spec(
+         %SpecType{kind: :resource, resource_module: mod},
+         resource_set
+       )
+       when not is_nil(mod) do
+    if MapSet.member?(resource_set, mod), do: [mod], else: []
+  end
+
+  defp extract_resource_deps_from_spec(
+         %SpecType{kind: :struct, instance_of: inst},
+         resource_set
+       )
+       when not is_nil(inst) do
+    if Spark.Dsl.is?(inst, Ash.Resource) and MapSet.member?(resource_set, inst),
+      do: [inst],
+      else: []
+  end
+
+  defp extract_resource_deps_from_spec(_type, _resource_set), do: []
 end
