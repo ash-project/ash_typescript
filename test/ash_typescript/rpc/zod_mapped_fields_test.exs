@@ -24,7 +24,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
 
   describe "Zod schemas for create actions with mapped field names" do
     test "generate_zod_schema includes mapped field names for accepts" do
-      action = Ash.Resource.Info.action(Task, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :create)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "create_task")
 
@@ -36,7 +36,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
     end
 
     test "generated Zod schema is valid TypeScript object syntax" do
-      action = Ash.Resource.Info.action(Task, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :create)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "create_task")
 
@@ -48,7 +48,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
 
   describe "Zod schemas for update actions with mapped field names" do
     test "generate_zod_schema includes mapped field names for accepts" do
-      action = Ash.Resource.Info.action(Task, :update)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 
@@ -62,7 +62,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
     end
 
     test "optional fields are marked with .optional()" do
-      action = Ash.Resource.Info.action(Task, :update)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 
@@ -74,7 +74,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
 
   describe "Zod schemas for actions with mapped argument names" do
     test "generate_zod_schema includes mapped argument names" do
-      action = Ash.Resource.Info.action(Task, :mark_completed)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :mark_completed)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "mark_completed_task")
 
@@ -85,7 +85,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
     end
 
     test "required arguments are not marked optional" do
-      action = Ash.Resource.Info.action(Task, :mark_completed)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :mark_completed)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "mark_completed_task")
 
@@ -98,7 +98,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
 
   describe "Zod schemas for read actions" do
     test "read action with no arguments generates no schema" do
-      action = Ash.Resource.Info.action(Task, :read)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :read)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "list_tasks")
 
@@ -117,7 +117,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
       ]
 
       for {action_name, rpc_name} <- actions do
-        action = Ash.Resource.Info.action(Task, action_name)
+        action = AshTypescript.Test.SpecHelpers.spec_action(Task, action_name)
         zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, rpc_name)
 
         # None should contain the original unmapped names
@@ -131,7 +131,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
 
     test "Zod schemas match TypeScript type expectations" do
       # Verify that mapped names are consistent with what the TypeScript client expects
-      action = Ash.Resource.Info.action(Task, :update)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 
       # The TypeScript client sends 'isArchived' and expects validation on 'isArchived'
@@ -142,7 +142,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
 
   describe "field name mapping edge cases" do
     test "fields without mappings still appear correctly" do
-      action = Ash.Resource.Info.action(Task, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :create)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "create_task")
 
@@ -151,7 +151,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
     end
 
     test "Zod schemas handle mixed mapped and unmapped fields" do
-      action = Ash.Resource.Info.action(Task, :update)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 
@@ -164,7 +164,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
 
   describe "Zod schema type correctness" do
     test "boolean fields with mapped names generate z.boolean()" do
-      action = Ash.Resource.Info.action(Task, :update)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 
@@ -173,7 +173,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
     end
 
     test "required string fields generate z.string().min(1)" do
-      action = Ash.Resource.Info.action(Task, :update)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 
@@ -184,7 +184,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
 
   describe "action type coverage" do
     test "create action generates Zod schema when it has accepts" do
-      action = Ash.Resource.Info.action(Task, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :create)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "create_task")
 
@@ -193,7 +193,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
     end
 
     test "update action generates Zod schema when it has accepts or arguments" do
-      action = Ash.Resource.Info.action(Task, :update)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 
@@ -202,7 +202,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
     end
 
     test "generic action generates Zod schema when it has arguments" do
-      action = Ash.Resource.Info.action(Task, :mark_completed)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :mark_completed)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "mark_completed_task")
 
@@ -300,14 +300,14 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
   describe "comprehensive field/argument mapping coverage" do
     test "all mapped names in Task resource are handled consistently" do
       # Verify that archived? -> is_archived mapping works across all contexts
-      update_action = Ash.Resource.Info.action(Task, :update)
+      update_action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
       update_schema = ZodSchemaGenerator.generate_zod_schema(Task, update_action, "update_task")
 
       assert update_schema =~ "isArchived"
       refute update_schema =~ "archived?"
 
       # Verify that completed? -> is_completed mapping works for arguments
-      mark_action = Ash.Resource.Info.action(Task, :mark_completed)
+      mark_action = AshTypescript.Test.SpecHelpers.spec_action(Task, :mark_completed)
 
       mark_schema =
         ZodSchemaGenerator.generate_zod_schema(Task, mark_action, "mark_completed_task")
@@ -352,7 +352,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
 
   describe "Zod schemas for typed structs with mapped field names" do
     test "typed struct fields use mapped field names in action Zod schemas" do
-      action = Ash.Resource.Info.action(Task, :update)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 
@@ -373,7 +373,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
     end
 
     test "typed struct mapped fields have correct types" do
-      action = Ash.Resource.Info.action(Task, :update)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 
@@ -393,7 +393,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
     end
 
     test "typed struct nullable fields wrap with .nullable().optional()" do
-      action = Ash.Resource.Info.action(Task, :update)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 
@@ -409,7 +409,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
     end
 
     test "typed struct fields with allow_nil? true wrap with .nullable().optional()" do
-      action = Ash.Resource.Info.action(Task, :update)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 
@@ -424,7 +424,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
     end
 
     test "typed struct in nullable action accept wraps with .nullable().optional()" do
-      action = Ash.Resource.Info.action(Task, :update)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 
@@ -435,7 +435,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
     end
 
     test "all typed struct fields use consistent mapped names" do
-      action = Ash.Resource.Info.action(Task, :update)
+      action = AshTypescript.Test.SpecHelpers.spec_action(Task, :update)
 
       zod_schema = ZodSchemaGenerator.generate_zod_schema(Task, action, "update_task")
 

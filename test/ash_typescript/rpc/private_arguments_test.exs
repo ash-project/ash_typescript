@@ -111,7 +111,7 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
 
   describe "private arguments are excluded from Zod schemas" do
     test "create action private argument is excluded from Zod schema" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       refute zod_schema =~ "internalTrackingId",
@@ -125,7 +125,7 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
     end
 
     test "read action private argument is excluded from Zod schema" do
-      action = Ash.Resource.Info.action(OrgTodo, :read)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :read)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "list_org_todos")
 
       refute zod_schema =~ "internalAuditMode",
@@ -136,7 +136,7 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
     end
 
     test "update action private argument is excluded from Zod schema" do
-      action = Ash.Resource.Info.action(OrgTodo, :set_priority)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :set_priority)
 
       zod_schema =
         ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "set_priority_org_todo")
@@ -149,7 +149,7 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
     end
 
     test "generic action private argument is excluded from Zod schema" do
-      action = Ash.Resource.Info.action(OrgTodo, :search)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :search)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "search_org_todos")
 
       refute zod_schema =~ "debugMode",
@@ -162,7 +162,7 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
 
   describe "private arguments are excluded from validation error schemas" do
     test "create action private argument is excluded from validation error schema" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
 
       error_schema =
         ValidationErrorSchemas.generate_validation_error_type(OrgTodo, action, "create_org_todo")
@@ -175,7 +175,7 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
     end
 
     test "read action private argument is excluded from validation error schema" do
-      action = Ash.Resource.Info.action(OrgTodo, :read)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :read)
 
       error_schema =
         ValidationErrorSchemas.generate_validation_error_type(OrgTodo, action, "list_org_todos")
@@ -188,7 +188,7 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
     end
 
     test "generic action private argument is excluded from validation error schema" do
-      action = Ash.Resource.Info.action(OrgTodo, :search)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :search)
 
       error_schema =
         ValidationErrorSchemas.generate_validation_error_type(
@@ -206,6 +206,9 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
   end
 
   describe "private arguments exist in action definition but are properly filtered" do
+    # These tests inspect the raw Ash action definition directly — they verify
+    # that private arguments exist on the resource, not how the spec/schema treats
+    # them. Use Ash.Resource.Info.action/2 (not spec_action/2) here.
     test "OrgTodo create action has a private argument defined" do
       action = Ash.Resource.Info.action(OrgTodo, :create)
 

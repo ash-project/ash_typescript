@@ -14,6 +14,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   import AshTypescript.Helpers, only: [format_output_field: 1]
   import AshTypescript.Codegen.TypeMapper, only: [get_ts_input_type: 1]
 
+  alias AshApiSpec.Generator.TypeResolver
   alias AshTypescript.Codegen.SchemaCore
   alias AshTypescript.Codegen.ZodSchemaGenerator
 
@@ -229,14 +230,10 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
 
         field_lines =
           Enum.map_join(input_args, "\n", fn arg ->
-            resolved_type = Ash.Type.get_type(arg.type)
+            spec_type = TypeResolver.resolve(Ash.Type.get_type(arg.type), arg.constraints || [])
 
             zod_type =
-              ZodSchemaGenerator.get_zod_type(%{
-                type: resolved_type,
-                constraints: arg.constraints || [],
-                allow_nil?: arg.allow_nil?
-              })
+              ZodSchemaGenerator.get_zod_type(%{type: spec_type, allow_nil?: arg.allow_nil?})
 
             zod_type =
               SchemaCore.maybe_wrap_nullable_optional(

@@ -20,7 +20,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
 
   describe "Integer constraints in Zod schemas" do
     test "generates min constraint for integer arguments" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # number_of_employees has constraints [min: 1, max: 1000]
@@ -28,7 +28,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "generates max constraint for integer arguments" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       assert zod_schema =~ ".min(1)"
@@ -36,7 +36,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "integer without constraints generates basic z.number().int()" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # Regression test: ensure we don't accidentally add constraints to fields without them
@@ -47,28 +47,28 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
 
   describe "String constraints in Zod schemas" do
     test "generates min length constraint for string arguments" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       assert zod_schema =~ "someString: z.string().min(1).max(100)"
     end
 
     test "generates max length constraint for string arguments" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       assert zod_schema =~ "someString: z.string().min(1).max(100)"
     end
 
     test "required string field without explicit constraints gets min(1)" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       assert zod_schema =~ "title: z.string().min(1)"
     end
 
     test "nullable+omittable string field without constraints is .nullable().optional()" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       assert zod_schema =~ "description: z.string().nullable().optional()"
@@ -79,14 +79,14 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
 
   describe "Constraint priority and interactions" do
     test "min_length constraint takes precedence over default min(1) for required fields" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       assert zod_schema =~ "someString: z.string().min(1).max(100)"
     end
 
     test "constraints are chained in correct order: type().constraint1().constraint2()" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       assert zod_schema =~ "z.number().int().min(1).max(1000)"
@@ -96,7 +96,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
 
   describe "Multiple arguments with different constraints" do
     test "each argument gets its own independent constraints" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # Verify both constrained arguments are independent
@@ -112,7 +112,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
   describe "Edge cases and error handling" do
     test "nil constraints are handled gracefully" do
       # This is implicitly tested by other tests, but we verify explicitly
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # Fields without constraints should not crash
@@ -121,7 +121,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "empty constraints list is handled gracefully" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # Should generate valid schema
@@ -132,7 +132,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
 
   describe "Schema structure validation" do
     test "generated schema is valid TypeScript/Zod syntax" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # Basic structure checks
@@ -150,7 +150,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "field names are properly formatted (camelCase)" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # number_of_employees should be formatted as numberOfEmployees
@@ -165,15 +165,15 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
 
   describe "Constraint documentation and clarity" do
     test "constraints match their Ash definitions exactly" do
-      # Get the actual argument constraints from the resource
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      # Inspect the raw Ash action to verify the source-of-truth constraints
+      raw_action = Ash.Resource.Info.action(OrgTodo, :create)
 
       number_arg =
-        Enum.find(action.arguments, &(&1.public? && &1.name == :number_of_employees))
+        Enum.find(raw_action.arguments, &(&1.public? && &1.name == :number_of_employees))
 
       assert number_arg.constraints == [min: 1, max: 1000]
 
-      string_arg = Enum.find(action.arguments, &(&1.public? && &1.name == :some_string))
+      string_arg = Enum.find(raw_action.arguments, &(&1.public? && &1.name == :some_string))
 
       assert string_arg.constraints == [
                min_length: 1,
@@ -182,7 +182,8 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
                allow_empty?: false
              ]
 
-      # Now verify they're correctly reflected in Zod
+      # Now verify they're correctly reflected in Zod via the spec action
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       assert zod_schema =~ "numberOfEmployees: z.number().int().min(1).max(1000)"
@@ -192,7 +193,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
 
   describe "Float constraints in Zod schemas" do
     test "generates min constraint for float arguments" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # price has constraints [min: 0.0, max: 999999.99]
@@ -200,7 +201,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "generates max constraint for float arguments" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # percentage has constraints [min: 0.0, max: 100.0]
@@ -208,7 +209,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "generates gt (greater than) constraint for float arguments" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # temperature has constraints [greater_than: -273.15, less_than: 1000000.0]
@@ -216,7 +217,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "generates lt (less than) constraint for float arguments" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # temperature constraint includes lt
@@ -224,7 +225,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "nullable+omittable float with constraints" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # optional_rating is allow_nil? true with min/max constraints
@@ -234,7 +235,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     test "float without constraints generates basic z.number()" do
       # This is a regression test to ensure we don't add constraints where none exist
       # We'll verify by checking that a basic float field doesn't have min/max/gt/lt
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # All our test floats have constraints, so we just verify they're formatted correctly
@@ -242,7 +243,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "float constraints are independent from integer constraints" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # Integers should have .int() but floats should not
@@ -254,7 +255,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
 
   describe "CiString constraints in Zod schemas" do
     test "generates min_length constraint for ci_string arguments" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # username has constraints [min_length: 3, max_length: 20]
@@ -262,7 +263,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "generates max_length constraint for ci_string arguments" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # username constraint includes max_length
@@ -270,7 +271,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "generates regex constraint for ci_string arguments" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # company_name has regex constraint
@@ -278,7 +279,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "ci_string with only regex constraint" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # country_code has only regex constraint (2-letter country code)
@@ -287,7 +288,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "nullable+omittable ci_string with constraints" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # optional_nickname is allow_nil? true with min/max constraints
@@ -295,7 +296,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "ci_string constraints work same as regular string" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # CiString generates the same Zod schema as regular String (case-insensitivity is server-side)
@@ -305,7 +306,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "ci_string with case-insensitive regex" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # country_code has case-insensitive flag
@@ -325,7 +326,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "email regex pattern is properly converted" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       assert zod_schema =~
@@ -333,35 +334,35 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "phone number regex pattern is properly converted" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       assert zod_schema =~ "phoneNumber: z.string().min(1).regex(/^\\+?[1-9]\\d{1,14}$/)"
     end
 
     test "hex color regex pattern is properly converted" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       assert zod_schema =~ "hexColor: z.string().min(1).regex(/^#[0-9A-Fa-f]{6}$/)"
     end
 
     test "slug regex pattern is properly converted" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       assert zod_schema =~ "slug: z.string().min(1).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)"
     end
 
     test "semantic version regex pattern is properly converted" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       assert zod_schema =~ "version: z.string().min(1).regex(/^\\d+\\.\\d+\\.\\d+$/)"
     end
 
     test "case-insensitive regex includes i flag" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # The /i flag should be present for case-insensitive matching
@@ -369,7 +370,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "nullable+omittable field with regex constraint" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # optional_url is allow_nil? true with a regex constraint
@@ -378,7 +379,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "regex constraints are properly escaped for JavaScript" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       # Forward slashes in regex should be escaped
