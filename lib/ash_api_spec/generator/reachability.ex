@@ -154,14 +154,57 @@ defmodule AshApiSpec.Generator.Reachability do
           Enum.filter(action.arguments, & &1.public?)
         end
 
-      Enum.reduce(args, {resources, types, visited}, fn arg, {resources, types, visited} ->
-        {type, constraints} = {arg.type, arg.constraints || []}
+      # Walk argument types
+      {resources, types, visited} =
+        Enum.reduce(args, {resources, types, visited}, fn arg, {resources, types, visited} ->
+          {type, constraints} = {arg.type, arg.constraints || []}
+
+          {found_r, found_t, new_visited} =
+            traverse_type(type, constraints, visited, visibility_opts)
+
+          {resources ++ found_r, types ++ found_t, new_visited}
+        end)
+
+      # Walk return type (generic actions declare a custom return type via :returns;
+      # CRUD actions return the resource itself, which is already reachable)
+      {resources, types, visited} =
+        traverse_action_returns(action, resources, types, visited, visibility_opts)
+
+      # Walk metadata field types (custom types in metadata fields need to be reachable)
+      traverse_action_metadata(action, resources, types, visited, visibility_opts)
+    end)
+  end
+
+  defp traverse_action_returns(action, resources, types, visited, visibility_opts) do
+    case Map.get(action, :returns) do
+      nil ->
+        {resources, types, visited}
+
+      return_type ->
+        return_constraints = Map.get(action, :constraints) || []
 
         {found_r, found_t, new_visited} =
-          traverse_type(type, constraints, visited, visibility_opts)
+          traverse_type(return_type, return_constraints, visited, visibility_opts)
 
         {resources ++ found_r, types ++ found_t, new_visited}
-      end)
+    end
+  end
+
+  defp traverse_action_metadata(action, resources, types, visited, visibility_opts) do
+    metadata = Map.get(action, :metadata) || []
+
+    Enum.reduce(metadata, {resources, types, visited}, fn meta, {resources, types, visited} ->
+      meta_type = Map.get(meta, :type)
+      meta_constraints = Map.get(meta, :constraints) || []
+
+      if meta_type do
+        {found_r, found_t, new_visited} =
+          traverse_type(meta_type, meta_constraints, visited, visibility_opts)
+
+        {resources ++ found_r, types ++ found_t, new_visited}
+      else
+        {resources, types, visited}
+      end
     end)
   end
 
