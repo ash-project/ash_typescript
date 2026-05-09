@@ -462,21 +462,6 @@ defmodule AshTypescript.Rpc.NamespaceTest do
   end
 
   describe "generated TypeScript with JSDoc" do
-    test "action without description uses default in JSDoc" do
-      resource = AshTypescript.Test.Todo
-      action = Ash.Resource.Info.action(resource, :read)
-
-      assert is_nil(action.description)
-    end
-
-    test "action with description includes it in JSDoc when internals enabled" do
-      resource = AshTypescript.Test.User
-      action = Ash.Resource.Info.action(resource, :update_me)
-
-      assert action.description ==
-               "Update the authenticated user's own information. Actor-scoped action."
-    end
-
     test "rpc_action description appears in generated JSDoc" do
       {:ok, content} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
 

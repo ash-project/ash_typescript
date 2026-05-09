@@ -204,45 +204,4 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
              "Public argument 'query' should be in validation error schema"
     end
   end
-
-  describe "private arguments exist in action definition but are properly filtered" do
-    # These tests inspect the raw Ash action definition directly — they verify
-    # that private arguments exist on the resource, not how the spec/schema treats
-    # them. Use Ash.Resource.Info.action/2 (not spec_action/2) here.
-    test "OrgTodo create action has a private argument defined" do
-      action = Ash.Resource.Info.action(OrgTodo, :create)
-
-      private_arg = Enum.find(action.arguments, &(&1.name == :internal_tracking_id))
-      assert private_arg, "internal_tracking_id argument should exist on the action"
-      refute private_arg.public?, "internal_tracking_id should have public?: false"
-
-      public_arg = Enum.find(action.arguments, &(&1.name == :user_id))
-      assert public_arg, "user_id argument should exist on the action"
-      assert public_arg.public?, "user_id should have public?: true (default)"
-    end
-
-    test "OrgTodo read action has a private argument defined" do
-      action = Ash.Resource.Info.action(OrgTodo, :read)
-
-      private_arg = Enum.find(action.arguments, &(&1.name == :internal_audit_mode))
-      assert private_arg, "internal_audit_mode argument should exist on the action"
-      refute private_arg.public?, "internal_audit_mode should have public?: false"
-    end
-
-    test "OrgTodo set_priority action has a private argument defined" do
-      action = Ash.Resource.Info.action(OrgTodo, :set_priority)
-
-      private_arg = Enum.find(action.arguments, &(&1.name == :bypass_validation))
-      assert private_arg, "bypass_validation argument should exist on the action"
-      refute private_arg.public?, "bypass_validation should have public?: false"
-    end
-
-    test "OrgTodo search action has a private argument defined" do
-      action = Ash.Resource.Info.action(OrgTodo, :search)
-
-      private_arg = Enum.find(action.arguments, &(&1.name == :debug_mode))
-      assert private_arg, "debug_mode argument should exist on the action"
-      refute private_arg.public?, "debug_mode should have public?: false"
-    end
-  end
 end

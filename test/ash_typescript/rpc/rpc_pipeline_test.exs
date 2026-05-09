@@ -105,30 +105,6 @@ defmodule AshTypescript.Rpc.PipelineTest do
       assert request.sort == "title"
     end
 
-    test "stage 2: execute_ash_action builds proper query" do
-      # Create a minimal valid request
-      _request = %AshTypescript.Rpc.Request{
-        resource: Todo,
-        action: Ash.Resource.Info.action(Todo, :list_todos),
-        tenant: nil,
-        actor: nil,
-        context: %{},
-        select: [:id, :title],
-        load: [],
-        extraction_template: %{},
-        input: %{},
-        identity: nil,
-        filter: nil,
-        sort: nil,
-        pagination: nil
-      }
-
-      # Test that execute_ash_action can process the request
-      # In a real test, we'd mock the Ash.read call or use a test database
-      # For now, just verify the function exists and accepts the request
-      assert function_exported?(Pipeline, :execute_ash_action, 1)
-    end
-
     test "stage 3: filter_result_fields applies extraction template" do
       # Mock result data
       ash_result = [

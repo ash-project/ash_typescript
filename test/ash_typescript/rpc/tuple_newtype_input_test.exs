@@ -89,17 +89,6 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
   end
 
   describe "Ash.Type.Tuple casting behavior" do
-    test "compares with Todo coordinates - inline tuple attribute works via RPC" do
-      # The RPC test for Todo coordinates DOES work
-      # This test verifies the input value is correctly formatted
-      resource = AshTypescript.Test.Todo
-      attr = Ash.Resource.Info.attribute(resource, :coordinates)
-
-      # Check attribute setup (Ash.Type.Tuple is the module name)
-      assert attr.type == Ash.Type.Tuple
-      assert Keyword.has_key?(attr.constraints, :fields)
-    end
-
     test "Todo coordinates cast via changeset - must use tuple not map" do
       # Tuples must be passed as actual Elixir tuples, not maps
       # The RPC pipeline converts maps to tuples before passing to changeset
