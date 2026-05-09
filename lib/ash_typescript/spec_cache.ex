@@ -14,6 +14,7 @@ defmodule AshTypescript.SpecCache do
   @spec_key {__MODULE__, :api_spec}
   @resource_lookup_key {__MODULE__, :resource_lookup}
   @action_lookup_key {__MODULE__, :action_lookup}
+  @type_lookup_key {__MODULE__, :type_lookup}
 
   @doc """
   Stores the spec and derived lookups in persistent_term.
@@ -22,10 +23,12 @@ defmodule AshTypescript.SpecCache do
   def put(api_spec) do
     resource_lookup = AshApiSpec.resource_lookup(api_spec)
     action_lookup = AshApiSpec.action_lookup(api_spec)
+    type_lookup = AshApiSpec.type_lookup(api_spec)
 
     :persistent_term.put(@spec_key, api_spec)
     :persistent_term.put(@resource_lookup_key, resource_lookup)
     :persistent_term.put(@action_lookup_key, action_lookup)
+    :persistent_term.put(@type_lookup_key, type_lookup)
   end
 
   @doc "Returns the cached `%AshApiSpec{}`."
@@ -57,6 +60,18 @@ defmodule AshTypescript.SpecCache do
     end
   end
 
+  @doc "Returns the cached named-type lookup map."
+  def type_lookup do
+    case :persistent_term.get(@type_lookup_key, nil) do
+      nil ->
+        build_and_cache()
+        :persistent_term.get(@type_lookup_key)
+
+      lookup ->
+        lookup
+    end
+  end
+
   @doc "Returns the cached entrypoints."
   def entrypoints do
     api_spec().entrypoints
@@ -80,11 +95,25 @@ defmodule AshTypescript.SpecCache do
     current
   end
 
+  @doc """
+  Merges additional named types into the cached type lookup.
+
+  Mirrors `merge_resources/1` for tests that reference named types not in
+  the main spec. Returns the previous lookup for cleanup.
+  """
+  def merge_types(extra_types) when is_map(extra_types) do
+    current = type_lookup()
+    merged = Map.merge(current, extra_types)
+    :persistent_term.put(@type_lookup_key, merged)
+    current
+  end
+
   @doc "Clears the cache (useful for tests)."
   def clear do
     :persistent_term.erase(@spec_key)
     :persistent_term.erase(@resource_lookup_key)
     :persistent_term.erase(@action_lookup_key)
+    :persistent_term.erase(@type_lookup_key)
   rescue
     ArgumentError -> :ok
   end

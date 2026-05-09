@@ -22,6 +22,7 @@ defmodule AshApiSpec do
 
   @type resource_lookup :: %{atom() => Resource.t()}
   @type action_lookup :: %{{atom(), atom()} => AshApiSpec.Action.t()}
+  @type type_lookup :: %{atom() => AshApiSpec.Type.t()}
 
   defstruct version: "1.0.0",
             resources: [],
@@ -65,6 +66,18 @@ defmodule AshApiSpec do
   @spec action_lookup(t()) :: action_lookup()
   def action_lookup(%__MODULE__{entrypoints: entrypoints}) do
     Map.new(entrypoints, fn e -> {{e.resource, e.action.name}, e.action} end)
+  end
+
+  @doc """
+  Builds a type lookup map from the spec, keyed by named type module.
+
+  Each entry is the fully-resolved `%AshApiSpec.Type{}` for a named type
+  (Ash.Type.Enum implementations and Ash.Type.NewType subtypes) referenced
+  somewhere in the reachable type graph.
+  """
+  @spec type_lookup(t()) :: type_lookup()
+  def type_lookup(%__MODULE__{types: types}) do
+    Map.new(types, fn type -> {type.module, type} end)
   end
 
   @doc """
@@ -139,6 +152,37 @@ defmodule AshApiSpec do
   @spec get_action(action_lookup(), atom(), atom()) :: AshApiSpec.Action.t() | nil
   def get_action(action_lookup, resource_module, action_name) do
     Map.get(action_lookup, {resource_module, action_name})
+  end
+
+  @doc "Looks up a named type's full definition by module. Returns nil if not found."
+  @spec get_type(type_lookup(), atom()) :: AshApiSpec.Type.t() | nil
+  def get_type(type_lookup, module) when is_map(type_lookup) and is_atom(module) do
+    Map.get(type_lookup, module)
+  end
+
+  @doc """
+  Looks up a named type's full definition by module. Raises if not found.
+
+  A miss indicates a reachability bug: the type was referenced via `:type_ref`
+  somewhere in the type graph but was never registered during spec generation.
+  Reachability analysis (`AshApiSpec.Generator.Reachability`) should have
+  collected it as a standalone type.
+  """
+  @spec get_type!(type_lookup(), atom()) :: AshApiSpec.Type.t()
+  def get_type!(type_lookup, module) when is_map(type_lookup) and is_atom(module) do
+    case Map.get(type_lookup, module) do
+      %AshApiSpec.Type{} = t ->
+        t
+
+      nil ->
+        raise """
+        Named type #{inspect(module)} not found in type lookup.
+
+        This indicates a reachability bug — the type was referenced via :type_ref
+        somewhere in the spec but was not collected as a standalone type during
+        generation. Check `AshApiSpec.Generator.Reachability.find_reachable/2`.
+        """
+    end
   end
 
   @doc "Gets an identity by resource module and identity name."
