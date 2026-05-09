@@ -676,6 +676,27 @@ defmodule AshTypescript do
   end
 
   @doc """
+  Gets the output file path for shared Valibot validation schemas.
+
+  Resource Valibot schemas are generated into this dedicated file.
+  Both RPC and typed controller files import from this file.
+
+  Auto-derives from `output_file` directory with default name `ash_valibot.ts`.
+  Falls back to `"assets/js/ash_valibot.ts"` if `output_file` is also unset.
+
+  ## Configuration
+
+      config :ash_typescript,
+        valibot_output_file: "assets/js/ash_valibot.ts"
+
+  ## Returns
+  A string file path (always non-nil).
+  """
+  def valibot_output_file do
+    config_or_derive(:valibot_output_file, "ash_valibot.ts", "assets/js/ash_valibot.ts")
+  end
+
+  @doc """
   Determines if controller namespace file generation is enabled.
 
   When true, namespaced typed controller routes are generated into separate files.

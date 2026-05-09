@@ -97,6 +97,11 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
       assert :ok =
                VerifyTypedChannel.verify(AshTypescript.Test.ContentFeedChannel.spark_dsl_config())
     end
+
+    test "TrackerChannel with calc transforms passes verification" do
+      assert :ok =
+               VerifyTypedChannel.verify(AshTypescript.Test.TrackerChannel.spark_dsl_config())
+    end
   end
 
   describe "verify_events_exist" do

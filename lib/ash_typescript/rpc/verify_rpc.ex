@@ -25,6 +25,7 @@ defmodule AshTypescript.Rpc.VerifyRpc do
           with true <- AshTypescript.Resource.Info.typescript_resource?(resource),
                :ok <- verify_rpc_actions(resource, rpc_actions),
                :ok <- verify_typed_queries(resource, typed_queries),
+               :ok <- verify_relationship_read_actions(resource),
                :ok <- verify_names(resource, rpc_actions, typed_queries) do
             {:cont, acc}
           else
@@ -154,7 +155,9 @@ defmodule AshTypescript.Rpc.VerifyRpc do
             )}}
 
         action ->
-          with :ok <- verify_get_options(resource, rpc_action, action),
+          with :ok <- verify_action_public(resource, rpc_action, action),
+               :ok <- verify_read_action_public(resource, rpc_action),
+               :ok <- verify_get_options(resource, rpc_action, action),
                :ok <- verify_load_restrictions(rpc_action) do
             {:cont, acc}
           else
@@ -162,6 +165,40 @@ defmodule AshTypescript.Rpc.VerifyRpc do
           end
       end
     end)
+  end
+
+  defp verify_action_public(resource, rpc_action, action) do
+    if Map.get(action, :public?, true) do
+      :ok
+    else
+      {:error,
+       Spark.Error.DslError.exception(
+         message:
+           "RPC action #{rpc_action.name} references action #{action.name} on #{inspect(resource)}, which is not `public?`. " <>
+             "Only `public?` actions can be used with AshTypescript RPC."
+       )}
+    end
+  end
+
+  defp verify_read_action_public(resource, rpc_action) do
+    read_action_name = Map.get(rpc_action, :read_action)
+
+    if read_action_name do
+      read_action = Ash.Resource.Info.action(resource, read_action_name)
+
+      if read_action && !Map.get(read_action, :public?, true) do
+        {:error,
+         Spark.Error.DslError.exception(
+           message:
+             "RPC action #{rpc_action.name} references read_action #{read_action_name} on #{inspect(resource)}, which is not `public?`. " <>
+               "Only `public?` actions can be used with AshTypescript RPC."
+         )}
+      else
+        :ok
+      end
+    else
+      :ok
+    end
   end
 
   defp verify_get_options(resource, rpc_action, action) do
@@ -236,17 +273,60 @@ defmodule AshTypescript.Rpc.VerifyRpc do
 
   def verify_typed_queries(resource, typed_queries) do
     Enum.reduce_while(typed_queries, :ok, fn typed_query, acc ->
-      if Ash.Resource.Info.action(resource, typed_query.action) do
-        {:cont, acc}
-      else
+      case Ash.Resource.Info.action(resource, typed_query.action) do
+        nil ->
+          {:halt,
+           {:error,
+            Spark.Error.DslError.exception(
+              message:
+                "Typed query #{typed_query.name} references action #{typed_query.action}, which does not exist on resource #{resource}"
+            )}}
+
+        action ->
+          if Map.get(action, :public?, true) do
+            {:cont, acc}
+          else
+            {:halt,
+             {:error,
+              Spark.Error.DslError.exception(
+                message:
+                  "Typed query #{typed_query.name} references action #{action.name} on #{inspect(resource)}, which is not `public?`. " <>
+                    "Only `public?` actions can be used with AshTypescript RPC."
+              )}}
+          end
+      end
+    end)
+  end
+
+  def verify_relationship_read_actions(resource) do
+    resource
+    |> Ash.Resource.Info.public_relationships()
+    |> Enum.reduce_while(:ok, fn relationship, acc ->
+      destination = relationship.destination
+
+      with true <- AshTypescript.Resource.Info.typescript_resource?(destination),
+           read_action when not is_nil(read_action) <- resolve_read_action(relationship),
+           false <- Map.get(read_action, :public?, true) do
         {:halt,
          {:error,
           Spark.Error.DslError.exception(
             message:
-              "Typed query #{typed_query.name} references action #{typed_query.action}, which does not exist on resource #{resource}"
+              "Relationship #{inspect(resource)}.#{relationship.name} points to #{inspect(destination)}, " <>
+                "whose read action #{inspect(read_action.name)} is not `public?`. " <>
+                "Public relationships on RPC resources must have `public?` read actions on their destination resources."
           )}}
+      else
+        _ -> {:cont, acc}
       end
     end)
+  end
+
+  defp resolve_read_action(relationship) do
+    if relationship.read_action do
+      Ash.Resource.Info.action(relationship.destination, relationship.read_action)
+    else
+      Ash.Resource.Info.primary_action(relationship.destination, :read)
+    end
   end
 
   # Name validation functions

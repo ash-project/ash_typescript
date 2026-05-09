@@ -130,9 +130,34 @@ listTodosChannel({
 
 ### Typed Channel Event Subscriptions
 
-For typed one-way push events from Ash PubSub publications:
+For typed one-way push events from Ash PubSub publications.
+
+**Recommended**: Use `transform :some_calc` to reference a resource calculation.
+Ash auto-derives the `returns` type when the calculation uses `:auto`, so
+AshTypescript gets the type information it needs without manual `returns` declarations.
 
 ```elixir
+# Resource with calculation transforms (recommended)
+defmodule MyApp.Post do
+  use Ash.Resource, notifiers: [Ash.Notifier.PubSub]
+
+  pub_sub do
+    module MyApp.Endpoint
+    prefix "posts"
+
+    publish :create, [:id], event: "post_created", public?: true, transform: :post_summary
+    publish :update, [:id], event: "post_updated", public?: true, transform: :post_summary
+  end
+
+  calculations do
+    calculate :post_summary, :auto, expr(%{id: id, title: title}) do
+      public? true
+    end
+  end
+  # ...
+end
+
+# Channel definition (unchanged — only references events)
 defmodule MyApp.OrgChannel do
   use AshTypescript.TypedChannel
 
@@ -145,6 +170,18 @@ defmodule MyApp.OrgChannel do
     end
   end
 end
+```
+
+You can also use explicit `returns` with an anonymous function transform, but
+this requires manually keeping the type and transform in sync:
+
+```elixir
+publish :create, [:id],
+  event: "post_created",
+  public?: true,
+  returns: :map,
+  constraints: [fields: [id: [type: :uuid], title: [type: :string]]],
+  transform: fn notification -> %{id: notification.data.id, title: notification.data.title} end
 ```
 
 ```typescript
@@ -193,11 +230,15 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **TypeScript type mapping** | `lib/ash_typescript/codegen/type_mapper.ex` |
 | **Resource schema generation** | `lib/ash_typescript/codegen/resource_schemas.ex` |
 | **Filter types generation** | `lib/ash_typescript/codegen/filter_types.ex` |
+| **Sort types generation** | `lib/ash_typescript/codegen/sort_types.ex` |
 | **Zod schema generation** | `lib/ash_typescript/codegen/zod_schema_generator.ex` |
+| **Valibot schema generation** | `lib/ash_typescript/codegen/valibot_schema_generator.ex` |
 | **Utility types generation** | `lib/ash_typescript/codegen/utility_types.ex` |
 | **Import path resolution** | `lib/ash_typescript/codegen/import_resolver.ex` |
 | **Shared types generator** | `lib/ash_typescript/codegen/shared_types_generator.ex` |
-| **Shared Zod generator** | `lib/ash_typescript/codegen/shared_zod_generator.ex` |
+| **Shared schema generator** | `lib/ash_typescript/codegen/shared_schema_generator.ex` |
+| **Schema formatter behaviour** | `lib/ash_typescript/codegen/schema_formatter.ex` |
+| **Schema core (shared logic)** | `lib/ash_typescript/codegen/schema_core.ex` |
 | **Multi-file orchestrator** | `lib/ash_typescript/codegen/orchestrator.ex` |
 | **RPC client generation** | `lib/ash_typescript/rpc/codegen.ex` |
 | **JSDoc comment generation** | `lib/ash_typescript/rpc/codegen/function_generators/jsdoc_generator.ex` |
@@ -252,9 +293,17 @@ mix test test/ash_typescript/rpc/    # Test RPC functionality
 ### TypeScript Validation (from test/ts/)
 ```bash
 npm run compileGenerated             # Test generated types compile
-npm run compileShouldPass            # Test valid patterns
-npm run compileShouldFail            # Test invalid patterns fail
+npm run compileShouldPass            # Test valid patterns (type-level)
+npm run compileShouldFail            # Test invalid patterns fail (type-level)
+npm run testZod                      # Run generated Zod schemas against real data
+npm run testValibot                  # Run generated Valibot schemas against real data
 ```
+
+`testZod` / `testValibot` compile and **execute** the generated validation
+schemas against fixture inputs — they are the only path that exercises schema
+runtime behavior (e.g. catches a bug like an empty `z.object({})` for a type
+that should validate `{ amount, currency }`). Always run them after touching
+`third_party_types`, constraint generation, or any other validation codegen.
 
 ### Quality Checks
 ```bash
@@ -289,7 +338,7 @@ mix credo --strict                   # Linting
 | **Action metadata** | [features/action-metadata.md](agent-docs/features/action-metadata.md) | `test/ash_typescript/rpc/rpc_metadata_test.exs`, `test/ash_typescript/rpc/verify_metadata_field_names_test.exs` |
 | **RPC pipeline or field processing** | [features/rpc-pipeline.md](agent-docs/features/rpc-pipeline.md) | `test/ash_typescript/rpc/rpc_*_test.exs` |
 | **Load restrictions** | [features/rpc-pipeline.md](agent-docs/features/rpc-pipeline.md) (RPC Action Options) | `test/ash_typescript/rpc/load_restrictions_test.exs` |
-| **Zod validation schemas** | [features/zod-schemas.md](agent-docs/features/zod-schemas.md) | `test/ash_typescript/rpc/rpc_codegen_test.exs` |
+| **Validation schemas (Zod & Valibot)** | [features/validation-schemas.md](agent-docs/features/validation-schemas.md) | `test/ash_typescript/rpc/zod_constraints_test.exs`, `test/ash_typescript/rpc/valibot_constraints_test.exs` |
 | **Embedded resources** | [features/embedded-resources.md](agent-docs/features/embedded-resources.md) | `test/support/resources/embedded/` |
 | **Union types** | [features/union-systems-core.md](agent-docs/features/union-systems-core.md) | `test/ash_typescript/rpc/rpc_union_*_test.exs` |
 | **Namespaces, JSDoc, Manifest, JSON Manifest** | [features/developer-experience.md](agent-docs/features/developer-experience.md) | `test/ash_typescript/rpc/namespace_test.exs`, `test/ash_typescript/rpc/json_manifest_generator_test.exs` |
@@ -317,19 +366,21 @@ mix credo --strict                   # Linting
 - **ValueFormatter** - Unified type-aware value formatting
 
 ### Multi-File Codegen Architecture
-- **Orchestrator** (`codegen/orchestrator.ex`): Coordinates all file generation — types, Zod, RPC, routes, typed channels, namespace re-exports
+- **Orchestrator** (`codegen/orchestrator.ex`): Coordinates all file generation — types, Zod, Valibot, RPC, routes, typed channels, namespace re-exports
+- **SchemaCore** (`codegen/schema_core.ex`): Shared validation schema logic (topological sort, type mapping, field introspection) used by both Zod and Valibot via `SchemaFormatter` behaviour
 - **ImportResolver** (`codegen/import_resolver.ex`): Shared utility for import path resolution and namespace re-export generation (used by both RPC and controller codegen)
 - **CodegenTestHelper** (`test/support/codegen_test_helper.ex`): Test wrapper for orchestrator — use `generate_all_content/0` for string assertions, `generate_files/0` for file-level assertions
 
 ### Type System Architecture
 - **Type Introspection**: Centralized in `type_system/introspection.ex`
-- **Codegen Organization**: type_discovery (RPC config & warnings), type_aliases, type_mapper, resource_schemas, filter_types; reachability in AshApiSpec
+- **Codegen Organization**: type_discovery (RPC config & warnings), type_aliases, type_mapper, resource_schemas, filter_types, sort_types; reachability in AshApiSpec
 - **ValueFormatter**: Unified type-aware value formatting with recursive type detection
 
 ### Type Inference Architecture
 - **Unified Schema**: Single ResourceSchema with `__type` metadata
 - **Schema Keys**: Direct classification via key lookup
-- **Utility Types**: `UnionToIntersection`, `InferFieldValue`, `InferResult`
+- **Utility Types**: `UnionToIntersection`, `InferFieldValue`, `InferResult`, `SortString`
+- **Sort Types**: Per-resource `{Resource}SortField` union types and `{resource}SortFields` const arrays generated by `sort_types.ex`. RPC functions use `SortString<TodoSortField>` to provide type-safe sort parameters with `+`/`-`/`++`/`--` prefix support.
 
 ### Core Patterns
 - **Field Selection**: Unified format supporting nested relationships and calculations
@@ -368,7 +419,10 @@ mix credo --strict                   # Linting
 | "No publication with event X found" | Typed channel event doesn't match any publication | Check `event:` option on the resource's `pub_sub` block |
 | "Duplicate event names found in typed_channel" | Same event name across resources in one channel | Use unique event names per channel |
 | "Payload type name conflict" | Same event name across different channels maps to different TS types | Rename events or ensure same `returns` type |
-| Channel `unknown` payload type | Publication missing `returns` option | Add `returns: :some_type` to the publication |
+| Channel `unknown` payload type | Publication missing `returns` type (no `transform :calc` or explicit `returns`) | Use `transform :some_calc` with an `:auto`-typed calculation (recommended), or add explicit `returns:` |
+| "not `public?`" error on RPC action | Action has `public? false` | Set `public? true` on the action or remove it from `typescript_rpc` |
+| "not `public?`" error on read_action | `read_action` has `public? false` | Set `public? true` on the read action |
+| "not `public?`" error on relationship read action | Relationship destination's read action has `public? false` | Set `public? true` on the destination's read action |
 
 ## RPC Resource Warnings
 
@@ -460,8 +514,10 @@ When `config :ash_typescript, always_regenerate: true` is set, `mix ash_typescri
 ```bash
 mix test.codegen                     # Generate types
 cd test/ts && npm run compileGenerated # Validate compilation
-npm run compileShouldPass            # Test valid patterns
-npm run compileShouldFail            # Test invalid patterns (must fail)
+npm run compileShouldPass            # Test valid patterns (type-level)
+npm run compileShouldFail            # Test invalid patterns fail (type-level)
+npm run testZod                      # Run generated Zod schemas at runtime
+npm run testValibot                  # Run generated Valibot schemas at runtime
 mix test                             # Run Elixir tests (do NOT prefix with MIX_ENV=test)
 ```
 

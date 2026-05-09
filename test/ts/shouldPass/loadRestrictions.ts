@@ -138,7 +138,7 @@ if (allowOnlyUserPrimitivesOnly.success) {
   if (todos.length > 0) {
     const id: string = todos[0].id;
     const title: string = todos[0].title;
-    const priority: "low" | "medium" | "high" | "urgent" | null =
+    const priority: "high" | "low" | "medium" | "urgent" | null =
       todos[0].priority;
   }
 }

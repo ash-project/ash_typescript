@@ -648,7 +648,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
       assert String.contains?(
                generated,
-               "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\""
+               "status: \"cancelled\" | \"finished\" | \"ongoing\" | \"pending\""
              )
     end
 

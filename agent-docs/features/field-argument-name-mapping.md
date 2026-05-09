@@ -346,7 +346,7 @@ Field/argument mapping affects:
    - Applies to all schema types (attributes, relationships, calculations, aggregates)
    - Entry point: `lib/ash_typescript/codegen.ex` (delegator)
 
-2. **Zod Schema Generation** (`lib/ash_typescript/rpc/zod_schema_generator.ex`)
+2. **Zod Schema Generation** (`lib/ash_typescript/codegen/zod_schema_generator.ex`)
    - Uses mapped names in Zod validation schemas
    - Ensures input validation matches TypeScript types
 
@@ -496,7 +496,7 @@ end
 | `lib/ash_typescript/rpc/value_formatter.ex` | Unified type-aware formatting (input/output) |
 | `lib/ash_typescript/rpc/input_formatter.ex` | Input formatting (TS → Elixir, delegates to ValueFormatter) |
 | `lib/ash_typescript/rpc/output_formatter.ex` | Output formatting (Elixir → TS, delegates to ValueFormatter) |
-| `lib/ash_typescript/rpc/zod_schema_generator.ex` | Zod schema with mapped names |
+| `lib/ash_typescript/codegen/zod_schema_generator.ex` | Zod schema with mapped names |
 | `test/ash_typescript/rpc/rpc_field_argument_mapping_test.exs` | End-to-end mapping tests |
 | `test/support/resources/user.ex` | Example resource with mappings |
 | `test/support/types/custom_metadata.ex` | Example custom type with callback |

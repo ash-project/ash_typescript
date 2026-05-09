@@ -212,8 +212,13 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
           type_info.kind == :atom ->
             case Keyword.get(type_info.constraints || [], :one_of) do
-              nil -> "string"
-              values -> Enum.map_join(values, " | ", &"\"#{to_string(&1)}\"")
+              nil ->
+                "string"
+
+              values ->
+                values
+                |> Enum.sort_by(&to_string/1)
+                |> Enum.map_join(" | ", &"\"#{to_string(&1)}\"")
             end
 
           true ->
@@ -666,7 +671,9 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
   defp map_enum_from_type(%AshApiSpec.Type{values: values})
        when is_list(values) and values != [] do
-    Enum.map_join(values, " | ", &"\"#{to_string(&1)}\"")
+    values
+    |> Enum.sort_by(&to_string/1)
+    |> Enum.map_join(" | ", &"\"#{to_string(&1)}\"")
   end
 
   defp map_enum_from_type(_), do: "string"

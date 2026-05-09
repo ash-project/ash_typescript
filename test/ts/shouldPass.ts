@@ -46,11 +46,15 @@ import "./shouldPass/compositePrimaryKey";
 import "./shouldPass/loadRestrictions";
 import "./shouldPass/firstAggregates";
 import "./shouldPass/typedChannelOperations";
+import "./shouldPass/sortFields";
 import "./rpcHooks";
 
 // Import Zod schema validation tests
 import "./zod/shouldPass/basicZodUsage";
 import "./zod/shouldPass/complexSchemaValidation";
 import "./zod/shouldPass/constraintValidation";
+
+// Import Valibot schema validation tests
+import "./valibot/shouldPass/constraintValidation";
 
 console.log("All shouldPass tests should compile successfully!");

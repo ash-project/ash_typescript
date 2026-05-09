@@ -18,7 +18,7 @@ async function testKeywordTupleFieldSelection() {
     const priorityNum: number = priority;
     const categoryStr: string = category;
     const notifyBool: boolean = notify;
-    const themeType: "light" | "dark" | "auto" = theme;
+    const themeType: "auto" | "dark" | "light" = theme;
   }
 
   // Test 2: Test the new keyword action with partial fields

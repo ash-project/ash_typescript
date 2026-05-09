@@ -73,6 +73,7 @@ defmodule AshApiSpec.Generator.ResourceBuilder do
   defp build_calculations(resource, visibility_opts) do
     resource
     |> get_calculations(visibility_opts)
+    |> Enum.filter(fn calc -> Map.get(calc, :field?, true) end)
     |> Enum.map(fn calc ->
       arguments =
         Enum.map(calc.arguments, fn arg ->

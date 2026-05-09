@@ -377,6 +377,17 @@ defmodule AshTypescript.Test.Todo do
       public? true
     end
 
+    calculate :creator, :struct, AshTypescript.Test.CreatorCalculation do
+      constraints instance_of: AshTypescript.Test.User
+      public? true
+    end
+
+    # Calculation with field?: false should be excluded from generated TypeScript types
+    calculate :internal_score, :integer, expr(1) do
+      public? true
+      field? false
+    end
+
     # Calculation with arguments that use types requiring type aliases
     # This tests that calculation argument types are discovered for type alias generation
     calculate :filtered_data, :string, expr("filtered") do
@@ -671,6 +682,19 @@ defmodule AshTypescript.Test.Todo do
            %{user_id: "123e4567-e89b-12d3-a456-426614174000", status: "active"},
            %{user_id: "223e4567-e89b-12d3-a456-426614174001", status: "pending"}
          ]}
+      end
+    end
+
+    action :get_underscored_document, :map do
+      run fn _input, _context ->
+        {:ok,
+         %{
+           "_id" => "doc-123",
+           "_type" => "post",
+           "_rev" => "rev-1",
+           "_createdAt" => "2026-04-14T00:00:00Z",
+           "title" => "Hello"
+         }}
       end
     end
 

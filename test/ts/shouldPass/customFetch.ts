@@ -17,7 +17,7 @@ import {
 // Mock custom fetch function for testing
 const mockEnhancedFetch = async (
   input: RequestInfo | URL,
-  init?: RequestInit
+  init?: RequestInit,
 ): Promise<Response> => {
   // Add user preferences (safe localStorage usage)
   const userLanguage = "en-US";
@@ -27,9 +27,9 @@ const mockEnhancedFetch = async (
   // Simulate enhanced headers
   const enhancedHeaders = {
     ...init?.headers,
-    'Accept-Language': userLanguage,
-    'X-User-Timezone': userTimezone,
-    'X-Correlation-ID': correlationId,
+    "Accept-Language": userLanguage,
+    "X-User-Timezone": userTimezone,
+    "X-Correlation-ID": correlationId,
   };
 
   // Use native fetch with enhanced headers
@@ -42,19 +42,19 @@ const mockEnhancedFetch = async (
 // Mock axios-style adapter for testing
 const mockAxiosAdapter = async (
   input: RequestInfo | URL,
-  init?: RequestInit
+  init?: RequestInit,
 ): Promise<Response> => {
-  const url = typeof input === 'string' ? input : input.toString();
+  const url = typeof input === "string" ? input : input.toString();
 
   // Simulate axios-style response structure
   const mockAxiosResponse = {
     data: { success: true, data: [] },
     status: 200,
-    statusText: 'OK',
+    statusText: "OK",
     headers: {
-      'content-type': 'application/json',
-      'x-powered-by': 'axios-adapter',
-    }
+      "content-type": "application/json",
+      "x-powered-by": "axios-adapter",
+    },
   };
 
   // Convert to Response object
@@ -78,8 +78,8 @@ export const getTodoWithFetchOptions = await getTodo({
   fields: ["id", "title", "description"],
   fetchOptions: {
     signal: AbortSignal.timeout(5000),
-    cache: 'no-cache',
-    credentials: 'include',
+    cache: "no-cache",
+    credentials: "include",
   },
 });
 
@@ -90,8 +90,8 @@ export const createTodoWithBothOptions = await createTodo({
   customFetch: mockEnhancedFetch,
   fetchOptions: {
     signal: AbortSignal.timeout(10000),
-    mode: 'cors',
-    credentials: 'include',
+    mode: "cors",
+    credentials: "include",
   },
 });
 
@@ -100,7 +100,7 @@ export const validateCreateTodoWithCustomFetch = await validateCreateTodo({
   input: { title: "Validation Test", userId: "user-123" },
   customFetch: mockEnhancedFetch,
   fetchOptions: {
-    cache: 'no-store',
+    cache: "no-store",
   },
 });
 
@@ -114,15 +114,10 @@ export const listTodosWithAxiosAdapter = await listTodos({
 // Test 6: Complex scenario with pagination and custom fetch
 export const searchTodosWithCustomFetch = await listTodos({
   input: {},
-  fields: [
-    "id",
-    "title",
-    "priority",
-    { user: ["id", "name", "email"] }
-  ],
+  fields: ["id", "title", "priority", { user: ["id", "name", "email"] }],
   filter: { completed: { eq: false } },
   page: { limit: 20, offset: 0 },
-  sort: "-priority,+createdAt",
+  sort: ["-priority", "+createdAt"],
   customFetch: mockEnhancedFetch,
   fetchOptions: {
     signal: AbortSignal.timeout(15000),
@@ -137,8 +132,8 @@ export const updateTodoWithCustomFetch = await updateTodo({
   fields: ["id", "title", "createdAt"],
   customFetch: mockEnhancedFetch,
   fetchOptions: {
-    credentials: 'same-origin',
-    referrer: 'strict-origin-when-cross-origin',
+    credentials: "same-origin",
+    referrer: "strict-origin-when-cross-origin",
   },
 });
 
@@ -159,7 +154,7 @@ export const listTodosWithAbortController = await listTodos({
 // Test 9: Custom fetch with error handling simulation
 const errorHandlingFetch = async (
   input: RequestInfo | URL,
-  init?: RequestInit
+  init?: RequestInit,
 ): Promise<Response> => {
   // Add request logging
   console.log(`Making request to: ${input}`);
@@ -170,7 +165,9 @@ const errorHandlingFetch = async (
 
     // Log response details
     if (!response.ok) {
-      console.error(`Request failed: ${response.status} ${response.statusText}`);
+      console.error(
+        `Request failed: ${response.status} ${response.statusText}`,
+      );
     }
 
     return response;
@@ -189,7 +186,7 @@ export const getTodoWithErrorHandling = await getTodo({
 // Type validation tests
 if (listTodosWithCustomFetch.success) {
   const todos = listTodosWithCustomFetch.data;
-  todos.forEach(todo => {
+  todos.forEach((todo) => {
     const id: string = todo.id;
     const title: string = todo.title;
     const completed: boolean | null = todo.completed;
@@ -207,7 +204,7 @@ if (validateCreateTodoWithCustomFetch.success) {
   console.log("Validation passed with custom fetch");
 } else {
   const errors = validateCreateTodoWithCustomFetch.errors;
-  errors.forEach(error => {
+  errors.forEach((error) => {
     const type: string = error.type;
     const message: string = error.message;
   });

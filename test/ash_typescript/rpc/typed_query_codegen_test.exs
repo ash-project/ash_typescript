@@ -104,25 +104,28 @@ defmodule AshTypescript.Rpc.TypedQueryCodegenTest do
     test "all typed query constants use satisfies for type safety", %{
       ts_output: ts_output
     } do
-      typed_queries_section =
-        Regex.named_captures(
-          ~r/\/\/ Typed Queries.*?(?=\/\/ ={10,}|$)/s,
-          ts_output
-        )
+      # Extract the Typed Queries section from the generated output
+      case String.split(ts_output, "// Typed Queries") do
+        [_, typed_section | _] ->
+          const_lines =
+            typed_section
+            |> String.split("\n")
+            |> Enum.filter(&(String.contains?(&1, "export const") && String.contains?(&1, "= [")))
 
-      if typed_queries_section do
-        const_lines =
-          ts_output
-          |> String.split("\n")
-          |> Enum.filter(&(String.contains?(&1, "export const") && String.contains?(&1, "= [")))
+          assert const_lines != [],
+                 "Should find typed query constants in the Typed Queries section"
 
-        for line <- const_lines do
-          refute line =~ "as const",
-                 "Typed query constant should not use 'as const': #{line}"
+          for line <- const_lines do
+            refute line =~ "as const",
+                   "Typed query constant should not use 'as const': #{line}"
 
-          assert line =~ ~r/satisfies\s+\w+Fields;$/,
-                 "Typed query constant should use 'satisfies Fields': #{line}"
-        end
+            assert line =~ ~r/satisfies\s+\w+Fields;$/,
+                   "Typed query constant should use 'satisfies Fields': #{line}"
+          end
+
+        _ ->
+          # No Typed Queries section — nothing to check
+          :ok
       end
     end
   end

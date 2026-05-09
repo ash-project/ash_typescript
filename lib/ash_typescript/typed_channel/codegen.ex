@@ -7,7 +7,8 @@ defmodule AshTypescript.TypedChannel.Codegen do
   Generates TypeScript types and functions for typed channel event subscriptions.
 
   For each declared event in a typed channel module, introspects the matching
-  Ash PubSub publication's `returns` type and maps it to a TypeScript type.
+  Ash PubSub publication's `returns` type (auto-derived via `transform :calc`
+  or explicitly set) and maps it to a TypeScript type.
 
   ## Generated Output
 
@@ -227,15 +228,7 @@ defmodule AshTypescript.TypedChannel.Codegen do
         event_str = to_string(pub.event)
         matching_pub = find_publication(publications, event_str)
 
-        ts_type =
-          if matching_pub && matching_pub.returns do
-            TypeMapper.map_channel_payload_type(
-              matching_pub.returns,
-              matching_pub.constraints || []
-            )
-          else
-            "unknown"
-          end
+        ts_type = resolve_payload_type(matching_pub, resource_module)
 
         %{
           event: event_str,
@@ -246,6 +239,13 @@ defmodule AshTypescript.TypedChannel.Codegen do
       |> Enum.sort_by(fn %{event: event} -> event end)
     end)
   end
+
+  defp resolve_payload_type(%{returns: returns} = pub, _resource_module)
+       when not is_nil(returns) do
+    TypeMapper.map_channel_payload_type(returns, pub.constraints || [])
+  end
+
+  defp resolve_payload_type(_, _), do: "unknown"
 
   defp build_channel_brand_type(channel_name) do
     """

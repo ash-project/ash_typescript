@@ -83,6 +83,7 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMappedFieldNames do
   defp field_exists_in_calculations?(resource, field_name) do
     resource
     |> Ash.Resource.Info.public_calculations()
+    |> Enum.filter(fn calc -> Map.get(calc, :field?, true) end)
     |> Enum.any?(&(&1.name == field_name))
   end
 

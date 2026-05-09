@@ -64,12 +64,12 @@ defmodule AshTypescript.CodegenTest do
     test "converts constrained atom with one_of to union type" do
       constraints = [one_of: [:pending, :completed]]
       result = Codegen.get_ts_type(%{type: Ash.Type.Atom, constraints: constraints})
-      assert result == "\"pending\" | \"completed\""
+      assert result == "\"completed\" | \"pending\""
     end
 
     test "converts Ash.Type.Enum to union type" do
       result = Codegen.get_ts_type(%{type: AshTypescript.Test.Todo.Status, constraints: []})
-      assert result == "\"pending\" | \"ongoing\" | \"finished\" | \"cancelled\""
+      assert result == "\"cancelled\" | \"finished\" | \"ongoing\" | \"pending\""
     end
 
     test "converts unconstrained map to generic record" do
@@ -199,14 +199,14 @@ defmodule AshTypescript.CodegenTest do
   describe "get_ts_type/2 - enum types" do
     test "converts Ash.Type.Enum to union type via behaviour check" do
       result = Codegen.get_ts_type(%{type: AshTypescript.Test.Todo.Status, constraints: []})
-      assert result == "\"pending\" | \"ongoing\" | \"finished\" | \"cancelled\""
+      assert result == "\"cancelled\" | \"finished\" | \"ongoing\" | \"pending\""
     end
 
     test "converts enum in array to array of union types" do
       result =
         Codegen.get_ts_type(%{type: {:array, AshTypescript.Test.Todo.Status}, constraints: []})
 
-      assert result == "Array<\"pending\" | \"ongoing\" | \"finished\" | \"cancelled\">"
+      assert result == "Array<\"cancelled\" | \"finished\" | \"ongoing\" | \"pending\">"
     end
 
     test "handles enum in map field constraints" do
@@ -219,7 +219,7 @@ defmodule AshTypescript.CodegenTest do
       result = Codegen.get_ts_type(%{type: Ash.Type.Map, constraints: constraints})
 
       assert result ==
-               "{status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\", __type: \"TypedMap\", __primitiveFields: \"status\"}"
+               "{status: \"cancelled\" | \"finished\" | \"ongoing\" | \"pending\", __type: \"TypedMap\", __primitiveFields: \"status\"}"
     end
 
     test "handles enum in union type" do
@@ -297,8 +297,8 @@ defmodule AshTypescript.CodegenTest do
       assert result =~ "title: string;"
       assert result =~ "description: string | null;"
       assert result =~ "completed: boolean | null;"
-      assert result =~ "status: \"pending\" | \"ongoing\" | \"finished\" | \"cancelled\" | null;"
-      assert result =~ "priority: \"low\" | \"medium\" | \"high\" | \"urgent\" | null;"
+      assert result =~ "status: \"cancelled\" | \"finished\" | \"ongoing\" | \"pending\" | null;"
+      assert result =~ "priority: \"high\" | \"low\" | \"medium\" | \"urgent\" | null;"
       assert result =~ "dueDate: AshDate | null;"
       assert result =~ "tags: Array<string> | null;"
       assert result =~ "userId: UUID;"

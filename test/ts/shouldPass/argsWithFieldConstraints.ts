@@ -85,7 +85,7 @@ export const createWithRelationships = await createContent({
 if (basicCreate.success) {
   const id: string = basicCreate.data.id;
   const title: string = basicCreate.data.title;
-  const category: "fitness" | "nutrition" | "mindset" | "progress" =
+  const category: "fitness" | "mindset" | "nutrition" | "progress" =
     basicCreate.data.category;
 }
 

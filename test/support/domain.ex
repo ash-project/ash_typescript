@@ -76,6 +76,7 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :get_coordinates_info_todo, :get_coordinates_info
       rpc_action :get_custom_data_todo, :get_custom_data
       rpc_action :get_custom_data_list_todo, :get_custom_data_list
+      rpc_action :get_underscored_document_todo, :get_underscored_document
       rpc_action :destroy_todo, :destroy
       rpc_action :assign_to_user_todo, :assign_to_user
       rpc_action :assign_to_users_todo, :assign_to_users
@@ -179,6 +180,8 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :destroy_task, :destroy
       rpc_action :get_task_stats, :get_task_stats
       rpc_action :list_task_stats, :list_task_stats
+      rpc_action :get_suggestion, :get_suggestion
+      rpc_action :list_suggestions, :list_suggestions
 
       rpc_action :read_tasks_with_mapped_metadata, :read_with_invalid_metadata_names,
         show_metadata: [:meta_1, :is_valid?, :field_2],
@@ -209,6 +212,17 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :destroy_task_metadata_empty, :destroy, show_metadata: []
       rpc_action :destroy_task_metadata_one, :destroy, show_metadata: [:some_string]
       rpc_action :destroy_task_metadata_two, :destroy, show_metadata: [:some_string, :some_number]
+
+      rpc_action :read_tasks_with_typed_map_metadata, :read_with_typed_map_metadata,
+        show_metadata: nil
+
+      rpc_action :read_tasks_with_unconstrained_map_metadata,
+                 :read_with_unconstrained_map_metadata,
+                 show_metadata: nil
+
+      rpc_action :create_task_with_unconstrained_map_metadata,
+                 :create_with_unconstrained_map_metadata,
+                 show_metadata: nil
     end
 
     resource AshTypescript.Test.PostComment

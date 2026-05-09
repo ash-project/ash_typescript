@@ -68,10 +68,12 @@ defmodule AshTypescript.Resource.Verifiers.VerifyFieldNames do
       invalid_fields ++
         (Ash.Resource.Info.public_calculations(resource)
          |> Enum.filter(fn calc ->
-           mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, calc.name)
+           if Map.get(calc, :field?, true) do
+             mapped_name = AshTypescript.Resource.Info.get_mapped_field_name(resource, calc.name)
 
-           # Only validate original name if no mapping exists (mapped names are validated elsewhere)
-           is_nil(mapped_name) and invalid_name?(calc.name)
+             # Only validate original name if no mapping exists (mapped names are validated elsewhere)
+             is_nil(mapped_name) and invalid_name?(calc.name)
+           end
          end)
          |> Enum.map(fn calc -> {:calculation, calc.name, make_name_better(calc.name)} end))
 

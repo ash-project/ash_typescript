@@ -7,9 +7,14 @@ defmodule AshTypescript.TypedChannel.Dsl do
   Spark DSL extension for defining typed Phoenix channel event subscriptions.
 
   Declares which Ash PubSub publications a channel intercepts. For each declared
-  event, AshTypescript reads the publication's `returns` Ash.Type and generates
-  a typed TypeScript payload type. An event map and typed subscription helper
-  are also generated for the channel.
+  event, AshTypescript reads the publication's `returns` type and generates a
+  typed TypeScript payload type. An event map and typed subscription helper are
+  also generated for the channel.
+
+  The recommended way to get typed payloads is to use `transform :some_calc` on
+  publications, pointing to a resource calculation with `:auto` typing. Ash
+  auto-derives the `returns` type from the calculation expression. You can also
+  use explicit `returns:` with an anonymous function transform.
 
   ## Usage
 
@@ -51,8 +56,9 @@ defmodule AshTypescript.TypedChannel.Dsl do
     Declare a PubSub event to intercept on this channel.
 
     The event name must match the `event` option (or action name fallback) of
-    a publication on the resource. The publication must have `returns` set for
-    TypeScript type generation.
+    a publication on the resource. The publication must have a `returns` type
+    for TypeScript type generation — either auto-derived via `transform :calc`
+    or explicitly set via `returns:`.
     """,
     args: [:event],
     schema: [

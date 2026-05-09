@@ -572,6 +572,14 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           if is_list(result), do: result, else: [result]
         end)
 
+      # === REACTOR ERRORS ===
+
+      # Unwrap Reactor RunStepError to get at the inner error
+      %Reactor.Error.Invalid.RunStepError{error: inner_error} ->
+        inner_error
+        |> Ash.Error.to_error_class()
+        |> then(&build_error_response/1)
+
       # === ASH FRAMEWORK ERRORS ===
 
       # Any exception or Ash error - convert to Ash error class and process

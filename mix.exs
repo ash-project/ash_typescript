@@ -5,7 +5,7 @@
 defmodule AshTypescript.MixProject do
   use Mix.Project
 
-  @version "0.15.3"
+  @version "0.17.3"
 
   @description """
   Generate type-safe TypeScript clients directly from your Ash resources and actions, ensuring end-to-end type safety between your backend and frontend.
@@ -36,6 +36,7 @@ defmodule AshTypescript.MixProject do
     [
       preferred_envs: [
         "test.codegen": :test,
+        "test.test_valibot": :test,
         tidewave: :test
       ]
     ]
@@ -77,7 +78,7 @@ defmodule AshTypescript.MixProject do
       ],
       licenses: ["MIT"],
       files: ~w(lib .formatter.exs mix.exs README*
-        CHANGELOG* documentation usage-rules.md LICENSES),
+        CHANGELOG* documentation usage-rules.md LICENSES priv),
       links: %{
         "GitHub" => "https://github.com/ash-project/ash_typescript",
         "Changelog" => "https://github.com/ash-project/ash_typescript/blob/main/CHANGELOG.md",
@@ -113,11 +114,11 @@ defmodule AshTypescript.MixProject do
         "documentation/guides/error-handling.md",
         "documentation/guides/form-validation.md",
         "documentation/guides/typed-controllers.md",
+        "documentation/guides/typed-channels.md",
 
         # Features
         "documentation/features/rpc-action-options.md",
         "documentation/features/phoenix-channels.md",
-        "documentation/features/typed-channels.md",
         "documentation/features/lifecycle-hooks.md",
         "documentation/features/multitenancy.md",
         "documentation/features/action-metadata.md",
@@ -140,6 +141,10 @@ defmodule AshTypescript.MixProject do
          search_data: Spark.Docs.search_data_for(AshTypescript.Rpc)},
         {"documentation/dsls/DSL-AshTypescript.Resource.md",
          search_data: Spark.Docs.search_data_for(AshTypescript.Resource)},
+        {"documentation/dsls/DSL-AshTypescript.TypedController.md",
+         search_data: Spark.Docs.search_data_for(AshTypescript.TypedController.Dsl)},
+        {"documentation/dsls/DSL-AshTypescript.TypedChannel.md",
+         search_data: Spark.Docs.search_data_for(AshTypescript.TypedChannel.Dsl)},
 
         # About
         "CHANGELOG.md"
@@ -176,7 +181,7 @@ defmodule AshTypescript.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, "~> 3.18"},
+      {:ash, "~> 3.2 and >= 3.21.1"},
       {:ash_phoenix, "~> 2.0"},
       {:ash_postgres, "~> 2.0", only: [:dev, :test]},
       {:git_ops, "~> 2.0", only: [:dev], runtime: false},
@@ -185,7 +190,7 @@ defmodule AshTypescript.MixProject do
       {:faker, "~> 0.18", only: :test},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:dialyxir, ">= 0.0.0", only: [:dev, :test], runtime: false},
-      {:igniter, "~> 0.6", only: [:dev, :test]},
+      {:igniter, "~> 0.7", only: [:dev, :test]},
       {:ex_doc, "~> 0.37", only: [:dev, :test], runtime: false},
       {:makeup_syntect, "~> 0.1", only: [:dev, :test], runtime: false},
       {:sobelow, ">= 0.0.0", only: [:dev, :test], runtime: false},
@@ -194,7 +199,8 @@ defmodule AshTypescript.MixProject do
       {:usage_rules, "~> 0.1", only: [:dev]},
       {:tidewave, "~> 0.5", only: [:dev, :test]},
       {:ex_check, "~> 0.12", only: [:dev, :test]},
-      {:bandit, "~> 1.0", only: [:dev, :test]}
+      {:bandit, "~> 1.0", only: [:dev, :test]},
+      {:benchee, "~> 1.3", only: [:dev, :test]}
     ]
   end
 
@@ -205,8 +211,9 @@ defmodule AshTypescript.MixProject do
       "test.compile_should_pass": "cmd cd test/ts && npm run compileShouldPass",
       "test.compile_should_fail": "cmd cd test/ts && npm run compileShouldFail",
       "test.test_zod": "cmd cd test/ts && npm run testZod",
+      "test.test_valibot": "cmd cd test/ts && npm run testValibot",
       tidewave:
-        "run --no-halt -e 'Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: 4012) end)'",
+        "run --no-halt -e 'port = String.to_integer(System.get_env(\"TIDEWAVE_PORT\") || \"4012\"); Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: port) end)'",
       sobelow: "sobelow --skip",
       docs: [
         "spark.cheat_sheets",

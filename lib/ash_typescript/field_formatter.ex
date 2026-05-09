@@ -34,7 +34,30 @@ defmodule AshTypescript.FieldFormatter do
   """
   def format_field_for_client(field, resource_or_type_module \\ nil, formatter)
 
+  def format_field_for_client(field, resource, formatter)
+      when is_atom(field) and is_atom(resource) and not is_nil(resource) and
+             formatter in [:camel_case, :snake_case, :pascal_case] do
+    if Introspection.has_typescript_field_names?(resource) do
+      compute_field_for_client(field, resource, formatter)
+    else
+      case AshTypescript.Resource.Info.get_formatted_field(resource, field, formatter) do
+        formatted when is_binary(formatted) -> formatted
+        nil -> compute_field_for_client(field, resource, formatter)
+      end
+    end
+  end
+
   def format_field_for_client(field, resource_or_type_module, formatter) when is_atom(field) do
+    compute_field_for_client(field, resource_or_type_module, formatter)
+  end
+
+  def format_field_for_client(field, _resource, formatter) when is_binary(field) do
+    format_field_name(field, formatter)
+  end
+
+  def format_field_for_client(other, _resource, _formatter), do: other
+
+  defp compute_field_for_client(field, resource_or_type_module, formatter) do
     cond do
       # Check typescript_field_names/0 callback FIRST (for any type module with fields)
       # This includes TypedStructs, NewTypes wrapping maps, and custom Ash types.
@@ -61,12 +84,6 @@ defmodule AshTypescript.FieldFormatter do
         format_field_name(field, formatter)
     end
   end
-
-  def format_field_for_client(field, _resource, formatter) when is_binary(field) do
-    format_field_name(field, formatter)
-  end
-
-  def format_field_for_client(other, _resource, _formatter), do: other
 
   # Check if module is an Ash resource with AshTypescript.Resource extension
   defp is_ash_resource_with_extension?(module) do
@@ -207,7 +224,10 @@ defmodule AshTypescript.FieldFormatter do
       iex> AshTypescript.FieldFormatter.format_field_name("user_name", :pascal_case)
       "UserName"
   """
-  def format_field_name(field_name, formatter) do
+  def format_field_name(field_name, formatter), do: compute_field_name(field_name, formatter)
+
+  @doc false
+  def compute_field_name(field_name, formatter) do
     string_field = to_string(field_name)
 
     case formatter do

@@ -5,6 +5,11 @@
 defmodule AshTypescript.Codegen.FilterTypes do
   @moduledoc """
   Generates TypeScript filter types for Ash resources.
+
+  Generates:
+  - `{ResourceName}FilterInput` — full typed filter objects with per-field operators
+  - `{resourceName}FilterFields` — runtime `as const` array of filterable field names
+  - `{ResourceName}FilterField` — union type derived from the array
   """
   alias AshTypescript.Codegen.{Helpers, TypeMapper}
 
@@ -33,6 +38,37 @@ defmodule AshTypescript.Codegen.FilterTypes do
 
       nil ->
         raise "FilterTypes: resource #{inspect(resource)} not found in resource_lookup"
+    end
+  end
+
+  @doc """
+  Generates `as const` arrays and derived union types for filterable field names.
+
+  For each resource, emits:
+  - `{resourceName}FilterFields` — runtime array of field name strings
+  - `{ResourceName}FilterField` — union type derived from the array
+
+  Includes attributes, calculations (field?: true), all aggregates, and relationships.
+  """
+  def generate_filter_field_arrays(resources) when is_list(resources) do
+    Enum.map_join(resources, "\n", &generate_filter_field_array/1)
+  end
+
+  def generate_filter_field_array(resource) do
+    resource_name = Helpers.build_resource_type_name(resource)
+    fields = Helpers.client_field_names(resource, include_relationships: true)
+
+    if fields == [] do
+      ""
+    else
+      const_name = Helpers.camel_case_prefix(resource_name) <> "FilterFields"
+      type_name = "#{resource_name}FilterField"
+      array_items = Enum.map_join(fields, ", ", &"\"#{&1}\"")
+
+      """
+      export const #{const_name} = [#{array_items}] as const;
+      export type #{type_name} = (typeof #{const_name})[number];
+      """
     end
   end
 
@@ -82,7 +118,6 @@ defmodule AshTypescript.Codegen.FilterTypes do
 
     aggregate_filters =
       aggregates
-      |> Enum.filter(&(&1.aggregate_kind in [:sum, :count]))
       |> Enum.map_join("\n", &spec_aggregate_filter(&1, resource))
 
     relationship_filters =
@@ -104,7 +139,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
 
   defp spec_attribute_filter(%AshApiSpec.Field{} = field, resource) do
     base_type = TypeMapper.map_type(field.type, [], :output)
-    operations = get_applicable_operations(field.type, base_type)
+    operations = get_applicable_operations(field.type, base_type, field.allow_nil?)
 
     formatted_name =
       AshTypescript.FieldFormatter.format_field_for_client(
@@ -120,9 +155,13 @@ defmodule AshTypescript.Codegen.FilterTypes do
     """
   end
 
-  defp spec_aggregate_filter(%AshApiSpec.Field{aggregate_kind: :count} = field, resource) do
-    base_type = TypeMapper.get_ts_type(%{type: :integer}, nil)
-    operations = get_applicable_operations(:integer, base_type)
+  defp spec_aggregate_filter(%AshApiSpec.Field{aggregate_kind: :list} = field, resource) do
+    # :list aggregates produce arrays — restrict to a small set of operations
+    base_type = TypeMapper.map_type(field.type, [], :output)
+
+    operations =
+      [:eq, :not_eq, :in, :is_nil]
+      |> Enum.map(&format_operation(&1, base_type))
 
     formatted_name =
       AshTypescript.FieldFormatter.format_field_for_client(
@@ -138,8 +177,9 @@ defmodule AshTypescript.Codegen.FilterTypes do
     """
   end
 
-  defp spec_aggregate_filter(%AshApiSpec.Field{aggregate_kind: :sum} = field, resource) do
-    # AshApiSpec already has the resolved type for sum aggregates
+  defp spec_aggregate_filter(%AshApiSpec.Field{} = field, resource) do
+    # All other aggregates (count/exists/sum/avg/max/min/first) — use the
+    # AshApiSpec-resolved type and the standard operation set
     spec_attribute_filter(field, resource)
   end
 
@@ -167,11 +207,15 @@ defmodule AshTypescript.Codegen.FilterTypes do
     """
   end
 
-  defp get_applicable_operations(type, base_type) do
-    type
-    |> classify_filter_type()
-    |> get_operations_for_type()
-    |> Enum.map(&format_operation(&1, base_type))
+  defp get_applicable_operations(type, base_type, allow_nil? \\ true) do
+    ops =
+      type
+      |> classify_filter_type()
+      |> get_operations_for_type()
+
+    ops = if allow_nil?, do: ops ++ [:is_nil], else: ops
+
+    Enum.map(ops, &format_operation(&1, base_type))
   end
 
   defp classify_filter_type(%AshApiSpec.Type{kind: kind}) do
@@ -255,6 +299,10 @@ defmodule AshTypescript.Codegen.FilterTypes do
   defp get_operations_for_type(:boolean), do: [:eq, :not_eq]
   defp get_operations_for_type(:atom), do: [:eq, :not_eq, :in]
   defp get_operations_for_type(:default), do: [:eq, :not_eq, :in]
+
+  defp format_operation(:is_nil, _base_type) do
+    "    #{format_field("is_nil")}?: boolean;"
+  end
 
   defp format_operation(:in, base_type) do
     "    #{format_field("in")}?: Array<#{base_type}>;"

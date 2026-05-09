@@ -32,13 +32,14 @@ test/ts/generated_routes.ts
 test/ts/generated_typed_channels.ts
 test/ts/ash_types.ts
 test/ts/ash_zod.ts
+test/ts/ash_valibot.ts
+test/ts/ash_rpc_manifest.json
 test/ts/todos.ts
 test/ts/users.ts
 test/ts/account.ts
 test/ts/auth.ts
 test/ts/**/*.js
 test/ts/MANIFEST.md
-test/ts/ash_rpc_manifest.json
 test/ts/namespace/
 test/ts/generated_routes.ts
 test/ts/generated_typed_channels.ts
@@ -46,5 +47,11 @@ test/ts/account.ts
 test/ts/ash_types.ts
 test/ts/ash_zod.ts
 test/ts/auth.ts
+
+# Per-worktree mise local override
+mise.local.toml
+
+# Per-worktree Claude settings (sandbox config in worktrees)
+.claude/settings.local.json
 
 .DS_Store

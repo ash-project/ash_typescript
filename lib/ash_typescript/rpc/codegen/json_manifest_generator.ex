@@ -79,6 +79,13 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
       end
 
     files =
+      if AshTypescript.Rpc.generate_valibot_schemas?() do
+        Map.put(files, "valibot", file_entry(manifest_path, AshTypescript.valibot_output_file()))
+      else
+        files
+      end
+
+    files =
       case AshTypescript.routes_output_file() do
         nil ->
           files
@@ -152,6 +159,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
     show_validation = AshTypescript.Rpc.generate_validation_functions?()
     show_zod = AshTypescript.Rpc.generate_zod_schemas?()
+    show_valibot = AshTypescript.Rpc.generate_valibot_schemas?()
     show_channel = AshTypescript.Rpc.generate_phx_channel_rpc_actions?()
 
     %{
@@ -174,10 +182,17 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
       "variants" => %{
         "validation" => show_validation,
         "zod" => show_zod,
+        "valibot" => show_valibot,
         "channel" => show_channel
       },
       "variantNames" =>
-        build_variant_names(rpc_action_name, show_validation, show_zod, show_channel)
+        build_variant_names(
+          rpc_action_name,
+          show_validation,
+          show_zod,
+          show_valibot,
+          show_channel
+        )
     }
   end
 
@@ -256,7 +271,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
     end
   end
 
-  defp build_variant_names(rpc_action_name, show_validation, show_zod, show_channel) do
+  defp build_variant_names(rpc_action_name, show_validation, show_zod, show_valibot, show_channel) do
     names = %{}
 
     names =
@@ -270,6 +285,14 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
       if show_zod do
         suffix = AshTypescript.Rpc.zod_schema_suffix()
         Map.put(names, "zod", Helpers.format_output_field("#{rpc_action_name}#{suffix}"))
+      else
+        names
+      end
+
+    names =
+      if show_valibot do
+        suffix = AshTypescript.Rpc.valibot_schema_suffix()
+        Map.put(names, "valibot", Helpers.format_output_field("#{rpc_action_name}#{suffix}"))
       else
         names
       end
@@ -404,16 +427,31 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
         entry
       end
 
-    if has_input and AshTypescript.Rpc.generate_zod_schemas?() do
-      suffix = AshTypescript.Rpc.zod_schema_suffix()
+    entry =
+      if has_input and AshTypescript.Rpc.generate_zod_schemas?() do
+        suffix = AshTypescript.Rpc.zod_schema_suffix()
 
-      zod_name =
+        zod_name =
+          case info.scope_prefix do
+            nil -> Helpers.format_output_field(:"#{info.route.name}#{suffix}")
+            prefix -> Helpers.format_output_field(:"#{prefix}_#{info.route.name}#{suffix}")
+          end
+
+        put_in(entry, ["types", "zod"], zod_name)
+      else
+        entry
+      end
+
+    if has_input and AshTypescript.Rpc.generate_valibot_schemas?() do
+      suffix = AshTypescript.Rpc.valibot_schema_suffix()
+
+      valibot_name =
         case info.scope_prefix do
           nil -> Helpers.format_output_field(:"#{info.route.name}#{suffix}")
           prefix -> Helpers.format_output_field(:"#{prefix}_#{info.route.name}#{suffix}")
         end
 
-      put_in(entry, ["types", "zod"], zod_name)
+      put_in(entry, ["types", "valibot"], valibot_name)
     else
       entry
     end

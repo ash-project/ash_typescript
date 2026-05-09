@@ -39,6 +39,32 @@ defmodule AshTypescript.Resource.Info do
   end
 
   @doc """
+  Gets the pre-computed formatted client name for a field under a built-in formatter.
+
+  Backed by `Spark.Dsl.Transformer.persist/3` populated at compile time by
+  `AshTypescript.Resource.Transformers.PersistFormattedFields`. Returns the
+  formatted string, or `nil` if the resource is not an `AshTypescript.Resource`,
+  the field is not a public attribute/relationship/calculation/aggregate, or the
+  formatter is not one of the built-in atoms (`:camel_case`, `:snake_case`,
+  `:pascal_case`).
+
+  ## Examples
+
+      iex> AshTypescript.Resource.Info.get_formatted_field(MyApp.User, :first_name, :camel_case)
+      "firstName"
+
+      iex> AshTypescript.Resource.Info.get_formatted_field(MyApp.User, :is_active?, :camel_case)
+      "isActive"
+  """
+  def get_formatted_field(resource, field, formatter)
+      when is_atom(resource) and is_atom(field) do
+    Spark.Dsl.Extension.get_persisted(
+      resource,
+      {:typescript_formatted_fields, field, formatter}
+    )
+  end
+
+  @doc """
   Gets the original Elixir field name for a TypeScript client field name.
 
   The client_field_name should be a string like "isActive".

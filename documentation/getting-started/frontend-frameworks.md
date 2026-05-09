@@ -7,447 +7,290 @@ SPDX-License-Identifier: MIT
 
 # Frontend Frameworks
 
-AshTypescript works with any TypeScript-based frontend. This guide covers integration patterns for different architectures.
+AshTypescript works with any TypeScript-capable frontend. The [installer](installation.md) handles setup for React, Vue, Svelte, and SolidJS with either esbuild or Vite. This guide covers usage patterns and more advanced setups.
 
-## Full-Stack Web Apps
+## Quick Start
 
-If you're building a full-stack web application where Phoenix serves your frontend directly, we recommend using [Inertia.js](https://inertiajs.com/) with React or Svelte. Use [Typed Queries](../guides/typed-queries.md) to pass data from Phoenix controllers to Inertia pages with full type safety.
-
-## React
-
-### Quick Setup
-
-Use the React framework installer for automated setup:
+The installer scaffolds a working setup with one command:
 
 ```bash
 mix igniter.install ash_typescript --framework react
+mix igniter.install ash_typescript --framework vue --bundler vite
+mix igniter.install ash_typescript --framework svelte
+mix igniter.install ash_typescript --framework solid --bundler vite
 ```
 
-This automatically sets up:
-- React 19 with TypeScript and TanStack Query
-- esbuild configuration for `.tsx` files
-- Welcome page at `/ash-typescript` with getting-started guide
+After installation, run `mix phx.server` and visit `http://localhost:4000/ash-typescript`.
 
-### Manual React Setup
+## Basic Usage
 
-#### 1. Install Dependencies
+All frameworks use the same generated RPC functions. The only difference is how you call them from your component model.
 
-```bash
-cd assets
-npm install --save react react-dom
-npm install --save-dev @types/react @types/react-dom typescript
-```
-
-#### 2. Configure TypeScript
-
-Create `assets/tsconfig.json`:
-
-```json
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "jsx": "react-jsx",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true
-  },
-  "include": ["js/**/*"],
-  "exclude": ["node_modules"]
-}
-```
-
-#### 3. Create React Entry Point
-
-Create `assets/js/app.tsx`:
+### React
 
 ```tsx
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { App } from './components/App';
+import { useEffect, useState } from 'react';
+import { listTodos, createTodo, buildCSRFHeaders } from './ash_rpc';
 
-const root = document.getElementById('root');
-if (root) {
-  ReactDOM.createRoot(root).render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>
-  );
-}
-```
-
-#### 4. Update Phoenix Template
-
-In `lib/my_app_web/components/layouts/root.html.heex`:
-
-```heex
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="csrf-token" content={get_csrf_token()} />
-    <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
-    <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}></script>
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
-</html>
-```
-
-#### 5. Configure esbuild
-
-Update `config/config.exs`:
-
-```elixir
-config :esbuild,
-  version: "0.17.11",
-  default: [
-    args: ~w(
-      js/app.tsx
-      --bundle
-      --target=es2020
-      --outdir=../priv/static/assets
-      --external:/fonts/*
-      --external:/images/*
-    ),
-    cd: Path.expand("../assets", __DIR__),
-    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
-  ]
-```
-
-### React Component Example
-
-```tsx
-import React, { useEffect, useState } from 'react';
-import { listTodos, createTodo, buildCSRFHeaders } from '../ash_rpc';
-
-export function TodoList() {
-  const [todos, setTodos] = useState<Array<{id: string, title: string, completed: boolean}>>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadTodos();
-  }, []);
-
-  async function loadTodos() {
-    setLoading(true);
-    const result = await listTodos({
-      fields: ["id", "title", "completed"],
-      headers: buildCSRFHeaders()
-    });
-
-    if (result.success) {
-      setTodos(result.data);
-    }
-    setLoading(false);
-  }
-
-  async function handleCreate(title: string) {
-    const result = await createTodo({
-      fields: ["id", "title", "completed"],
-      input: { title },
-      headers: buildCSRFHeaders()
-    });
-
-    if (result.success) {
-      setTodos([...todos, result.data]);
-    }
-  }
-
-  if (loading) return <div>Loading...</div>;
-
-  return (
-    <div>
-      <h1>Todos</h1>
-      <ul>
-        {todos.map(todo => (
-          <li key={todo.id}>
-            {todo.title} - {todo.completed ? 'Done' : 'Pending'}
-          </li>
-        ))}
-      </ul>
-      <button onClick={() => handleCreate('New Todo')}>
-        Add Todo
-      </button>
-    </div>
-  );
-}
-```
-
-### With TanStack Query
-
-For better data fetching patterns, use TanStack Query:
-
-```bash
-npm install @tanstack/react-query
-```
-
-```tsx
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listTodos, createTodo, buildCSRFHeaders } from '../ash_rpc';
-
-export function TodoListWithQuery() {
-  const queryClient = useQueryClient();
+function TodoList() {
+  const [todos, setTodos] = useState([]);
   const headers = buildCSRFHeaders();
 
-  const { data: todos, isLoading } = useQuery({
-    queryKey: ['todos'],
-    queryFn: async () => {
-      const result = await listTodos({
-        fields: ["id", "title", "completed"],
-        headers
-      });
-      if (!result.success) {
-        throw new Error(result.errors.map(e => e.message).join(', '));
-      }
-      return result.data;
-    }
-  });
-
-  const createMutation = useMutation({
-    mutationFn: async (title: string) => {
-      const result = await createTodo({
-        fields: ["id", "title", "completed"],
-        input: { title },
-        headers
-      });
-      if (!result.success) {
-        throw new Error(result.errors.map(e => e.message).join(', '));
-      }
-      return result.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
-    }
-  });
-
-  if (isLoading) return <div>Loading...</div>;
+  useEffect(() => {
+    listTodos({ fields: ["id", "title", "completed"], headers })
+      .then(result => { if (result.success) setTodos(result.data); });
+  }, []);
 
   return (
-    <div>
-      <ul>
-        {todos?.map(todo => (
-          <li key={todo.id}>{todo.title}</li>
-        ))}
-      </ul>
-      <button onClick={() => createMutation.mutate('New Todo')}>
-        Add Todo
-      </button>
-    </div>
+    <ul>
+      {todos.map(todo => <li key={todo.id}>{todo.title}</li>)}
+    </ul>
   );
 }
 ```
 
-## Vue
-
-AshTypescript works seamlessly with Vue 3 and the Composition API.
-
-### Setup
-
-```bash
-cd assets
-npm install vue
-npm install --save-dev @vitejs/plugin-vue
-```
-
-### Vue Component Example
+### Vue
 
 ```vue
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { listTodos, createTodo, buildCSRFHeaders } from '../ash_rpc';
+import { listTodos, buildCSRFHeaders } from './ash_rpc';
 
-const todos = ref<Array<{id: string, title: string, completed: boolean}>>([]);
-const loading = ref(true);
+const todos = ref([]);
 const headers = buildCSRFHeaders();
 
 onMounted(async () => {
-  const result = await listTodos({
-    fields: ["id", "title", "completed"],
-    headers
-  });
-
-  if (result.success) {
-    todos.value = result.data;
-  }
-  loading.value = false;
+  const result = await listTodos({ fields: ["id", "title", "completed"], headers });
+  if (result.success) todos.value = result.data;
 });
-
-async function addTodo(title: string) {
-  const result = await createTodo({
-    fields: ["id", "title", "completed"],
-    input: { title },
-    headers
-  });
-
-  if (result.success) {
-    todos.value.push(result.data);
-  }
-}
 </script>
 
 <template>
-  <div v-if="loading">Loading...</div>
-  <div v-else>
-    <ul>
-      <li v-for="todo in todos" :key="todo.id">
-        {{ todo.title }} - {{ todo.completed ? 'Done' : 'Pending' }}
-      </li>
-    </ul>
-    <button @click="addTodo('New Todo')">Add Todo</button>
-  </div>
+  <ul>
+    <li v-for="todo in todos" :key="todo.id">{{ todo.title }}</li>
+  </ul>
 </template>
 ```
 
-## Svelte
-
-AshTypescript integrates naturally with Svelte and SvelteKit.
-
-### Svelte Component Example
+### Svelte
 
 ```svelte
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { listTodos, createTodo, buildCSRFHeaders } from '../ash_rpc';
+  import { listTodos, buildCSRFHeaders } from './ash_rpc';
 
-  let todos: Array<{id: string, title: string, completed: boolean}> = [];
-  let loading = true;
+  let todos = [];
   const headers = buildCSRFHeaders();
 
   onMount(async () => {
-    const result = await listTodos({
-      fields: ["id", "title", "completed"],
-      headers
-    });
-
-    if (result.success) {
-      todos = result.data;
-    }
-    loading = false;
+    const result = await listTodos({ fields: ["id", "title", "completed"], headers });
+    if (result.success) todos = result.data;
   });
-
-  async function addTodo(title: string) {
-    const result = await createTodo({
-      fields: ["id", "title", "completed"],
-      input: { title },
-      headers
-    });
-
-    if (result.success) {
-      todos = [...todos, result.data];
-    }
-  }
 </script>
 
-{#if loading}
-  <div>Loading...</div>
-{:else}
-  <ul>
-    {#each todos as todo (todo.id)}
-      <li>{todo.title} - {todo.completed ? 'Done' : 'Pending'}</li>
-    {/each}
-  </ul>
-  <button on:click={() => addTodo('New Todo')}>Add Todo</button>
-{/if}
+<ul>
+  {#each todos as todo (todo.id)}
+    <li>{todo.title}</li>
+  {/each}
+</ul>
 ```
 
-## Vanilla TypeScript
+### SolidJS
 
-For applications without a framework, use the generated functions directly:
+```tsx
+import { createResource, For } from 'solid-js';
+import { listTodos, buildCSRFHeaders } from './ash_rpc';
 
-```typescript
-import { listTodos, createTodo, buildCSRFHeaders } from './ash_rpc';
-
-const headers = buildCSRFHeaders();
-
-async function init() {
-  const result = await listTodos({
-    fields: ["id", "title", "completed"],
-    headers
+function TodoList() {
+  const [todos] = createResource(async () => {
+    const result = await listTodos({
+      fields: ["id", "title", "completed"],
+      headers: buildCSRFHeaders(),
+    });
+    return result.success ? result.data : [];
   });
 
-  if (result.success) {
-    renderTodos(result.data);
-  }
+  return (
+    <ul>
+      <For each={todos()}>{todo => <li>{todo.title}</li>}</For>
+    </ul>
+  );
 }
-
-function renderTodos(todos: Array<{id: string, title: string, completed: boolean}>) {
-  const container = document.getElementById('todos');
-  if (!container) return;
-
-  container.innerHTML = todos
-    .map(todo => `<li>${todo.title} - ${todo.completed ? 'Done' : 'Pending'}</li>`)
-    .join('');
-}
-
-document.addEventListener('DOMContentLoaded', init);
 ```
 
-## Inertia.js (Full-Stack Phoenix)
+## Inertia.js (Full-Stack SSR)
 
-For full-stack Phoenix applications, use [Inertia.js](https://inertiajs.com/) with [Typed Queries](../guides/typed-queries.md). This provides:
+For full-stack Phoenix applications with server-side rendering, the installer supports [Inertia.js](https://inertiajs.com/):
 
-- SSR with type-safe page props
-- No separate API needed
-- Seamless navigation with SPA-like feel
+```bash
+mix igniter.install ash_typescript --framework react --inertia
+mix igniter.install ash_typescript --framework vue --inertia
+mix igniter.install ash_typescript --framework svelte --inertia
+```
+
+This sets up SSR with Node.js, Inertia pipelines in your router, and typed page props via [Typed Queries](../guides/typed-queries.md).
+
+## Meta-Framework SPAs (SvelteKit, Next.js, Nuxt, SolidStart)
+
+For larger applications, you may want to use a full meta-framework like **SvelteKit**, **Next.js**, **Nuxt**, or **SolidStart** for your frontend while keeping Phoenix + Ash as your backend. This gives you file-based routing, code splitting, better dev tooling, and the full ecosystem of your chosen framework.
+
+The approach is straightforward: configure the meta-framework for **static output only** (no server-side rendering), build it into a directory that Phoenix can serve, and add a catch-all route that serves the SPA's `index.html`.
+
+### How It Works
+
+1. **The meta-framework lives inside your Phoenix project** (e.g., in a `sveltekit/` or `frontend/` directory)
+2. **AshTypescript generates types directly into the frontend's source tree**, so imports work naturally
+3. **Static adapter builds to `priv/`**, where Phoenix serves the files
+4. **A catch-all controller** serves `index.html` for all SPA routes, letting the client-side router handle navigation
+5. **RPC endpoints** (`/rpc/run`, `/rpc/validate`) provide the typed API that the SPA consumes
+
+This runs alongside your regular Phoenix assets — LiveView pages continue to work as normal on their own routes.
+
+### Configuration Pattern
+
+**AshTypescript config** — point the output files into the meta-framework's source tree:
 
 ```elixir
-# Phoenix controller with typed query
-defmodule MyAppWeb.TodoController do
+config :ash_typescript,
+  output_file: "sveltekit/src/lib/generated/ashRpc.ts",
+  types_output_file: "sveltekit/src/lib/generated/ashTypes.ts",
+  run_endpoint: "/api/rpc/run",
+  validate_endpoint: "/api/rpc/validate",
+  input_field_formatter: :camel_case,
+  output_field_formatter: :camel_case
+```
+
+**Static adapter** — configure the meta-framework to output static files with an SPA fallback:
+
+```javascript
+// SvelteKit: svelte.config.js
+import adapter from '@sveltejs/adapter-static';
+
+export default {
+  kit: {
+    adapter: adapter({
+      pages: '../priv/app',
+      assets: '../priv/app',
+      fallback: 'index.html',
+    }),
+  },
+};
+```
+
+```javascript
+// Next.js: next.config.js
+module.exports = {
+  output: 'export',
+  distDir: '../priv/app',
+};
+```
+
+```javascript
+// Nuxt: nuxt.config.ts
+export default defineNuxtConfig({
+  ssr: false,
+  nitro: {
+    output: { publicDir: '../priv/app' },
+  },
+});
+```
+
+```javascript
+// SolidStart: app.config.ts
+import { defineConfig } from '@solidjs/start/config';
+
+export default defineConfig({
+  server: { preset: 'static' },
+  // output dir configured via Vinxi/Nitro
+});
+```
+
+**Phoenix endpoint** — serve the built static files:
+
+```elixir
+# In your endpoint.ex
+plug Plug.Static,
+  at: "/app",
+  from: {:my_app, "priv/app"},
+  gzip: true,
+  only: ~w(_app assets fonts)
+```
+
+**Catch-all route** — serve `index.html` for all SPA paths:
+
+```elixir
+# A simple SPA fallback controller
+defmodule MyAppWeb.SpaFallbackController do
   use MyAppWeb, :controller
 
   def index(conn, _params) do
-    todos =
-      case AshTypescript.Rpc.run_typed_query(:my_app, :dashboard_todo, %{}, conn) do
-        %{"success" => true, "data" => data} -> data
-        _ -> []
-      end
-
     conn
-    |> assign_prop(:todos, todos)
-    |> render_inertia("TodoList")
+    |> put_resp_header("cache-control", "no-cache")
+    |> send_file(200, Application.app_dir(:my_app, "priv/app/index.html"))
   end
+end
+
+# In router.ex — after your other routes
+scope "/app", MyAppWeb do
+  get "/", SpaFallbackController, :index
+  get "/*path", SpaFallbackController, :index
 end
 ```
 
-```svelte
-<!-- Svelte page with generated types -->
+### Using the Generated Types
+
+In your meta-framework, import the generated functions like any other module:
+
+```typescript
+// SvelteKit example: src/routes/todos/+page.svelte
 <script lang="ts">
-  import type { DashboardTodo } from '$js/ash_rpc';
+  import { listTodos, createTodo } from '$lib/generated/ashRpc';
 
-  interface Props {
-    todos: DashboardTodo[];
-  }
-
-  let { todos }: Props = $props();
+  // Full type safety — fields, filters, sorting all typed
+  const result = await listTodos({
+    fields: ["id", "title", { user: ["name"] }],
+  });
 </script>
-
-{#each todos as todo (todo.id)}
-  <div>{todo.title}</div>
-{/each}
 ```
 
-See [Typed Queries](../guides/typed-queries.md) for detailed patterns and configuration.
+### Authentication
+
+For SPAs that don't use Phoenix sessions, use [Lifecycle Hooks](../features/lifecycle-hooks.md) to attach authentication headers (e.g., Bearer JWT) to every RPC request:
+
+```typescript
+// src/lib/rpcHooks.ts
+import { setBeforeRequestHook } from '$lib/generated/ashRpc';
+
+setBeforeRequestHook((options) => {
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    options.headers = {
+      ...options.headers,
+      Authorization: `Bearer ${token}`,
+    };
+  }
+  return options;
+});
+```
+
+### Development Workflow
+
+During development, run both servers:
+- **Phoenix**: `mix phx.server` (serves API + LiveView pages)
+- **Meta-framework**: `npm run dev` in the frontend directory (Vite dev server with HMR)
+
+The meta-framework's dev server proxies API requests to Phoenix. For production, just `npm run build` to output static files to `priv/`, and Phoenix serves everything.
 
 ## CSRF Protection
 
-For browser-based applications using session authentication:
+For browser-based applications using Phoenix session authentication:
 
 ```typescript
 import { buildCSRFHeaders } from './ash_rpc';
 
-// Include CSRF headers in all requests
 const result = await listTodos({
   fields: ["id", "title"],
-  headers: buildCSRFHeaders()
+  headers: buildCSRFHeaders(),
 });
 ```
 
@@ -457,19 +300,12 @@ The `buildCSRFHeaders()` function reads the CSRF token from the meta tag in your
 <meta name="csrf-token" content={get_csrf_token()} />
 ```
 
-## Example Repository
-
-Check out the **[AshTypescript Demo](https://github.com/ChristianAlexander/ash_typescript_demo)** for a complete Phoenix + React + TypeScript example featuring:
-
-- TanStack Query for data fetching
-- TanStack Table for data display
-- Complete CRUD operations
-- Best practices and patterns
+For token-based auth (JWT, API keys), use [Lifecycle Hooks](../features/lifecycle-hooks.md) instead.
 
 ## Next Steps
 
-- [CRUD Operations](../guides/crud-operations.md) - Complete CRUD patterns
-- [Field Selection](../guides/field-selection.md) - Advanced field selection
-- [Typed Queries](../guides/typed-queries.md) - SSR and predefined queries
-- [Form Validation](../guides/form-validation.md) - Client-side validation with Zod
-- [Lifecycle Hooks](../features/lifecycle-hooks.md) - Global auth, logging, telemetry
+- [CRUD Operations](../guides/crud-operations.md) — Complete CRUD patterns
+- [Field Selection](../guides/field-selection.md) — Request exactly the fields you need
+- [Form Validation](../guides/form-validation.md) — Client-side validation with Zod
+- [Lifecycle Hooks](../features/lifecycle-hooks.md) — Global auth, logging, telemetry
+- [Typed Controllers](../guides/typed-controllers.md) — Generate typed route helpers

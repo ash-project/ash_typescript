@@ -5,6 +5,8 @@
 import { z } from "zod";
 import {
   createOrgTodoZodSchema,
+  createTaskZodSchema,
+  updateTaskZodSchema,
   AshTypescriptTestTodoContentLinkContentZodSchema,
 } from "../../ash_zod";
 
@@ -931,6 +933,99 @@ export function testMultipleCiStringViolations() {
           "All three CiString constraint violations detected correctly",
         );
       }
+      return error.issues;
+    }
+    throw error;
+  }
+}
+
+// Third-party type: AshMoney.Types.Money
+// Reject inputs that don't match the { amount: string; currency: string } shape
+// at both compile time (via @ts-expect-error on the inferred input type) and
+// runtime (via .parse() throwing a ZodError).
+
+export function testMoneyMissingAmount() {
+  const bad: z.infer<typeof createTaskZodSchema> = {
+    title: "Bad",
+    // @ts-expect-error - Money input requires `amount: string`
+    price: { currency: "USD" },
+  };
+
+  try {
+    createTaskZodSchema.parse(bad);
+    throw new Error("Should have thrown for missing amount");
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return error;
+    }
+    throw error;
+  }
+}
+
+export function testMoneyWrongFieldTypes() {
+  const bad: z.infer<typeof createTaskZodSchema> = {
+    title: "Bad",
+    price: {
+      // @ts-expect-error - Money `amount` must be string, not number
+      amount: 99,
+      // @ts-expect-error - Money `currency` must be string, not number
+      currency: 42,
+    },
+  };
+
+  try {
+    createTaskZodSchema.parse(bad);
+    throw new Error("Should have thrown for non-string amount/currency");
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return error;
+    }
+    throw error;
+  }
+}
+
+// Omittable-only fields (`.optional()` without `.nullable()`) accept
+// `undefined` / absent keys but reject explicit `null`.
+
+export function testOmittableOnlyTitleRejectsNull() {
+  // updateTaskZodSchema.title is z.string().min(1).optional() — omittable
+  // (update doesn't require it) but not nullable (attr has allow_nil?: false).
+  try {
+    updateTaskZodSchema.parse({ title: null });
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      console.log("Correctly rejected null for omittable-only title:", error.issues);
+      return error.issues;
+    }
+    throw error;
+  }
+}
+
+export function testOmittableOnlyArchivedRejectsNull() {
+  // updateTaskZodSchema.isArchived is z.boolean().optional() — omittable
+  // but not nullable.
+  try {
+    updateTaskZodSchema.parse({ isArchived: null });
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      console.log("Correctly rejected null for omittable-only isArchived:", error.issues);
+      return error.issues;
+    }
+    throw error;
+  }
+}
+
+export function testRequiredTitleRejectsNullOnCreate() {
+  // createTaskZodSchema.title is z.string().min(1) — neither nullable nor
+  // omittable. Sending null must fail.
+  try {
+    createTaskZodSchema.parse({ title: null });
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      console.log("Correctly rejected null for required title:", error.issues);
       return error.issues;
     }
     throw error;

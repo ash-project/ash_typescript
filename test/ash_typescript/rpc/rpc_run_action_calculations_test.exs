@@ -1290,4 +1290,93 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       assert Map.has_key?(self_result, "completed")
     end
   end
+
+  describe "resource-returning calculation without arguments (load-through)" do
+    setup do
+      conn = TestHelpers.build_rpc_conn()
+
+      %{"success" => true, "data" => user} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_user",
+          "input" => %{
+            "name" => "Creator User",
+            "email" => "creator-loadthrough@example.com"
+          },
+          "fields" => ["id", "name"]
+        })
+
+      %{"success" => true, "data" => todo} =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "create_todo",
+          "input" => %{
+            "title" => "Load Through Todo",
+            "description" => "Testing load-through on calculations",
+            "userId" => user["id"]
+          },
+          "fields" => ["id", "title"]
+        })
+
+      %{conn: conn, user: user, todo: todo}
+    end
+
+    test "loads basic fields from resource-returning calculation", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_todos",
+          "fields" => [
+            "title",
+            %{"creator" => ["name", "email"]}
+          ]
+        })
+
+      assert result["success"] == true
+
+      test_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["title"] == "Load Through Todo"
+        end)
+
+      assert test_todo != nil
+      creator = test_todo["creator"]
+      assert creator["name"] == "Creator User"
+      assert creator["email"] == "creator-loadthrough@example.com"
+      refute Map.has_key?(creator, "id")
+    end
+
+    test "loads nested relationships through resource-returning calculation", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_todos",
+          "fields" => [
+            "id",
+            %{"creator" => ["name", %{"todos" => ["id", "title"]}]}
+          ]
+        })
+
+      assert result["success"] == true
+
+      test_todo =
+        Enum.find(result["data"], fn todo ->
+          todo["creator"] != nil && todo["creator"]["name"] == "Creator User"
+        end)
+
+      assert test_todo != nil
+      creator = test_todo["creator"]
+      assert creator["name"] == "Creator User"
+      assert is_list(creator["todos"])
+      assert Enum.any?(creator["todos"], fn t -> t["title"] == "Load Through Todo" end)
+    end
+
+    test "rejects simple atom selection for resource-returning calculation", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_todos",
+          "fields" => ["id", "creator"]
+        })
+
+      assert result["success"] == false
+      [error | _] = result["errors"]
+      assert error["type"] == "requires_field_selection"
+    end
+  end
 end

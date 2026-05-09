@@ -913,6 +913,11 @@ defmodule AshTypescript.Rpc.Pipeline do
   """
   def format_sort_string(nil, _formatter), do: nil
 
+  def format_sort_string(sort_list, formatter) when is_list(sort_list) do
+    sort_list
+    |> Enum.map_join(",", &format_single_sort_field(&1, formatter))
+  end
+
   def format_sort_string(sort_string, formatter) when is_binary(sort_string) do
     sort_string
     |> String.split(",")
@@ -1000,7 +1005,12 @@ defmodule AshTypescript.Rpc.Pipeline do
         base_response
 
       meta when is_map(meta) ->
-        formatted_metadata = format_field_names(meta, formatter)
+        # Values were already formatted via ValueFormatter in add_mutation_metadata,
+        # so only the top-level metadata keys need to be camelized here.
+        formatted_metadata =
+          Enum.into(meta, %{}, fn {key, value} ->
+            {FieldFormatter.format_field_name(key, formatter), value}
+          end)
 
         Map.put(
           base_response,
@@ -1028,7 +1038,8 @@ defmodule AshTypescript.Rpc.Pipeline do
   # Formats action output based on action return type
   # - Resource-returning actions use OutputFormatter for full resource field mapping
   # - Composite types (typed maps, typed structs) use ValueFormatter with type constraints
-  # - Unconstrained maps just get key formatting applied
+  # - Unconstrained maps are passed through unchanged — the action opted out of
+  #   typing, so its keys are the caller's responsibility and must not be renamed
   defp format_action_output(
          data,
          action,
@@ -1063,7 +1074,7 @@ defmodule AshTypescript.Rpc.Pipeline do
           format_generic_action_output(data, action, formatter, resource_lookups, type_index)
 
         {:ok, type, _} when type in [:unconstrained_map, :array_of_unconstrained_map] ->
-          format_field_names(data, formatter)
+          data
 
         _ ->
           format_generic_action_output(data, action, formatter, resource_lookups, type_index)
@@ -1400,7 +1411,8 @@ defmodule AshTypescript.Rpc.Pipeline do
             filtered_result,
             original_result,
             request.show_metadata,
-            request.rpc_action
+            request.rpc_action,
+            request.action
           )
 
         action_type when action_type in [:create, :update, :destroy] ->
@@ -1408,7 +1420,8 @@ defmodule AshTypescript.Rpc.Pipeline do
             filtered_result,
             original_result,
             request.show_metadata,
-            request.rpc_action
+            request.rpc_action,
+            request.action
           )
 
         _ ->
@@ -1417,61 +1430,98 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp add_read_metadata(filtered_result, original_result, show_metadata, rpc_action)
+  defp add_read_metadata(filtered_result, original_result, show_metadata, rpc_action, action)
        when is_list(filtered_result) do
     if is_list(original_result) do
       Enum.zip(filtered_result, original_result)
       |> Enum.map(fn {filtered_record, original_record} ->
-        do_add_read_metadata(filtered_record, original_record, show_metadata, rpc_action)
+        do_add_read_metadata(filtered_record, original_record, show_metadata, rpc_action, action)
       end)
     else
       filtered_result
     end
   end
 
-  defp add_read_metadata(filtered_result, original_result, show_metadata, rpc_action)
+  defp add_read_metadata(filtered_result, original_result, show_metadata, rpc_action, action)
        when is_map(filtered_result) do
     if Map.has_key?(filtered_result, :results) do
       updated_results =
         Enum.zip(filtered_result[:results] || [], original_result.results)
         |> Enum.map(fn {filtered_record, original_record} ->
-          do_add_read_metadata(filtered_record, original_record, show_metadata, rpc_action)
+          do_add_read_metadata(
+            filtered_record,
+            original_record,
+            show_metadata,
+            rpc_action,
+            action
+          )
         end)
 
       Map.put(filtered_result, :results, updated_results)
     else
-      do_add_read_metadata(filtered_result, original_result, show_metadata, rpc_action)
+      do_add_read_metadata(filtered_result, original_result, show_metadata, rpc_action, action)
     end
   end
 
-  defp add_read_metadata(filtered_result, _original_result, _show_metadata, _rpc_action) do
+  defp add_read_metadata(filtered_result, _original_result, _show_metadata, _rpc_action, _action) do
     filtered_result
   end
 
-  defp do_add_read_metadata(filtered_record, original_record, show_metadata, rpc_action)
+  defp do_add_read_metadata(filtered_record, original_record, show_metadata, rpc_action, action)
        when is_map(filtered_record) do
     metadata_map = Map.get(original_record, :__metadata__, %{})
-    extracted_metadata = extract_metadata_fields(metadata_map, show_metadata, rpc_action)
-    Map.merge(filtered_record, extracted_metadata)
+    formatter = Rpc.output_field_formatter()
+
+    formatted_metadata =
+      format_metadata(metadata_map, show_metadata, rpc_action, action, formatter)
+
+    Map.merge(filtered_record, formatted_metadata)
   end
 
-  defp do_add_read_metadata(filtered_record, _original_record, _show_metadata, _rpc_action) do
+  defp do_add_read_metadata(
+         filtered_record,
+         _original_record,
+         _show_metadata,
+         _rpc_action,
+         _action
+       ) do
     filtered_record
   end
 
-  defp add_mutation_metadata(filtered_result, original_result, show_metadata, rpc_action) do
+  defp add_mutation_metadata(filtered_result, original_result, show_metadata, rpc_action, action) do
     metadata_map = Map.get(original_result, :__metadata__, %{})
-    extracted_metadata = extract_metadata_fields(metadata_map, show_metadata, rpc_action)
+    formatter = Rpc.output_field_formatter()
+
+    extracted_metadata =
+      format_metadata(metadata_map, show_metadata, rpc_action, action, formatter)
+
     %{data: filtered_result, metadata: extracted_metadata}
   end
 
-  defp extract_metadata_fields(metadata_map, show_metadata, rpc_action) do
+  # Extracts the configured metadata fields and formats each value using the
+  # metadata field's declared Ash type. This routes through the same
+  # type-driven dispatch as attribute/calculation values: typed maps get their
+  # nested keys camelized, unconstrained `:map` / `{:array, :map}` metadata
+  # passes through unchanged (so caller-provided keys like `_id` survive).
+  defp format_metadata(metadata_map, show_metadata, rpc_action, action, formatter) do
+    metadata_defs = Map.get(action || %{}, :metadata, []) || []
+
     Enum.reduce(show_metadata, %{}, fn metadata_field, acc ->
       mapped_field_name =
         AshTypescript.Rpc.Info.get_mapped_metadata_field_name(rpc_action, metadata_field)
 
-      Map.put(acc, mapped_field_name, Map.get(metadata_map, metadata_field))
+      value = Map.get(metadata_map, metadata_field)
+      {type, constraints} = lookup_metadata_type(metadata_defs, metadata_field)
+      formatted_value = ValueFormatter.format(value, type, constraints, formatter, :output)
+      Map.put(acc, mapped_field_name, formatted_value)
     end)
+  end
+
+  defp lookup_metadata_type(metadata_defs, field_name) do
+    case Enum.find(metadata_defs, &(&1.name == field_name)) do
+      nil -> {nil, []}
+      %{type: type, constraints: constraints} -> {type, constraints || []}
+    end
   end
 
   # Load restriction validation

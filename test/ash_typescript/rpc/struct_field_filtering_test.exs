@@ -9,7 +9,7 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
 
   defmodule User do
     use Ash.Resource,
-      domain: AshTypescript.Test.Domain,
+      domain: nil,
       data_layer: Ash.DataLayer.Ets
 
     attributes do

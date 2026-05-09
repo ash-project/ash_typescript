@@ -30,6 +30,10 @@ defmodule AshTypescript.Codegen.UtilityTypes do
     """
     // Utility Types
 
+    // Sort string type — allows optional direction prefix on sort field names
+    // Prefixes per Ash.Query.sort/3: + (asc), - (desc), ++ (asc_nils_first), -- (desc_nils_last)
+    export type SortString<T extends string> = T | `+${T}` | `-${T}` | `++${T}` | `--${T}`;
+
     // Resource schema constraint
     export type TypedSchema = {
       __type: "Resource" | "TypedMap" | "Union";

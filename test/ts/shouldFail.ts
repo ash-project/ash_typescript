@@ -21,10 +21,15 @@ import "./shouldFail/noFieldsReadActions";
 import "./shouldFail/loadRestrictions";
 import "./shouldFail/firstAggregates";
 import "./shouldFail/invalidTypedChannelUsage";
+import "./shouldFail/nonFieldCalculations";
+import "./shouldFail/invalidSort";
 
 // Import Zod schema validation failure tests
 import "./zod/shouldFail/invalidZodUsage";
 import "./zod/shouldFail/complexInvalidSchemas";
 import "./zod/shouldFail/constraintValidation";
+
+// Import Valibot schema validation failure tests
+import "./valibot/shouldFail/constraintValidation";
 
 console.log("This file should NOT compile due to TypeScript errors!");

@@ -91,6 +91,13 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
       end
     end
 
+    test "valibot file entry when valibot enabled", %{manifest: manifest} do
+      if AshTypescript.Rpc.generate_valibot_schemas?() do
+        assert manifest["files"]["valibot"]["importPath"] == "./ash_valibot"
+        assert manifest["files"]["valibot"]["filename"] == "./ash_valibot.ts"
+      end
+    end
+
     test "routes file entry when typed controllers configured", %{manifest: manifest} do
       assert manifest["files"]["routes"]["importPath"] == "./generated_routes"
       assert manifest["files"]["routes"]["filename"] == "./generated_routes.ts"
@@ -317,15 +324,19 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
   end
 
   describe "variant names" do
-    test "includes validation, zod, and channel names when all enabled", %{manifest: manifest} do
+    test "includes validation, zod, valibot, and channel names when all enabled", %{
+      manifest: manifest
+    } do
       action = Enum.find(manifest["actions"], &(&1["functionName"] == "listTodos"))
 
       assert action["variants"]["validation"] == true
       assert action["variants"]["zod"] == true
+      assert action["variants"]["valibot"] == true
       assert action["variants"]["channel"] == true
 
       assert action["variantNames"]["validation"] == "validateListTodos"
       assert action["variantNames"]["zod"] == "listTodosZodSchema"
+      assert action["variantNames"]["valibot"] == "listTodosValibotSchema"
       assert action["variantNames"]["channel"] == "listTodosChannel"
     end
   end

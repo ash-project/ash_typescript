@@ -54,12 +54,16 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
 
             if arguments != [] do
               Enum.map(arguments, fn arg ->
-                optional = arg.allow_nil? || has_default?(arg)
+                nullable = arg.allow_nil?
+                optional = nullable || has_default?(arg)
 
                 formatted_arg_name =
                   format_argument_name_for_client(resource, action.name, arg.name)
 
-                {formatted_arg_name, get_ts_input_type(arg), optional}
+                base_type = get_ts_input_type(arg)
+                field_type = if nullable, do: "#{base_type} | null", else: base_type
+
+                {formatted_arg_name, field_type, optional}
               end)
             else
               []
@@ -73,12 +77,10 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
               accept_field_defs =
                 Enum.map(accepts, fn field_name ->
                   attr = AshApiSpec.get_field(resource_lookup, resource, field_name)
-
-                  optional =
-                    field_name in action.allow_nil_input || attr.allow_nil? || has_default?(attr)
-
+                  nullable = attr.allow_nil? || field_name in action.allow_nil_input
+                  optional = nullable || has_default?(attr)
                   base_type = AshTypescript.Codegen.get_ts_input_type(attr)
-                  field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type
+                  field_type = if nullable, do: "#{base_type} | null", else: base_type
 
                   formatted_field_name =
                     AshTypescript.FieldFormatter.format_field_for_client(
@@ -92,12 +94,16 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
 
               argument_field_defs =
                 Enum.map(arguments, fn arg ->
-                  optional = arg.allow_nil? || has_default?(arg)
+                  nullable = arg.allow_nil?
+                  optional = nullable || has_default?(arg)
 
                   formatted_arg_name =
                     format_argument_name_for_client(resource, action.name, arg.name)
 
-                  {formatted_arg_name, get_ts_input_type(arg), optional}
+                  base_type = get_ts_input_type(arg)
+                  field_type = if nullable, do: "#{base_type} | null", else: base_type
+
+                  {formatted_arg_name, field_type, optional}
                 end)
 
               accept_field_defs ++ argument_field_defs
@@ -130,12 +136,16 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
 
               argument_field_defs =
                 Enum.map(arguments, fn arg ->
-                  optional = arg.allow_nil? || has_default?(arg)
+                  nullable = arg.allow_nil?
+                  optional = nullable || has_default?(arg)
 
                   formatted_arg_name =
                     format_argument_name_for_client(resource, action.name, arg.name)
 
-                  {formatted_arg_name, get_ts_input_type(arg), optional}
+                  base_type = get_ts_input_type(arg)
+                  field_type = if nullable, do: "#{base_type} | null", else: base_type
+
+                  {formatted_arg_name, field_type, optional}
                 end)
 
               accept_field_defs ++ argument_field_defs
@@ -148,12 +158,16 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
 
             if arguments != [] do
               Enum.map(arguments, fn arg ->
-                optional = arg.allow_nil? || has_default?(arg)
+                nullable = arg.allow_nil?
+                optional = nullable || has_default?(arg)
 
                 formatted_arg_name =
                   format_argument_name_for_client(resource, action.name, arg.name)
 
-                {formatted_arg_name, get_ts_input_type(arg), optional}
+                base_type = get_ts_input_type(arg)
+                field_type = if nullable, do: "#{base_type} | null", else: base_type
+
+                {formatted_arg_name, field_type, optional}
               end)
             else
               []
@@ -173,6 +187,14 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
     else
       ""
     end
+  end
+
+  defp build_argument_field(resource, action, arg) do
+    optional = arg.allow_nil? || arg.default != nil
+    base_type = get_ts_input_type(arg)
+    field_type = if arg.allow_nil?, do: "#{base_type} | null", else: base_type
+    formatted_arg_name = format_argument_name_for_client(resource, action.name, arg.name)
+    {formatted_arg_name, field_type, optional}
   end
 
   # Helper to format argument name for client output

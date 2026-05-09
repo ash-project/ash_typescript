@@ -11,6 +11,151 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.17.3](https://github.com/ash-project/ash_typescript/compare/v0.17.2...v0.17.3) (2026-04-30)
+
+
+
+
+### Bug Fixes:
+
+* perf: use persisted resource field names by [@Torkan](https://github.com/Torkan)
+
+## [v0.17.2](https://github.com/ash-project/ash_typescript/compare/v0.17.1...v0.17.2) (2026-04-29)
+
+
+
+
+### Bug Fixes:
+
+* codegen: distinguish nullable from optional in zod and valibot schemas by Mike Wilson [(#70)](https://github.com/ash-project/ash_typescript/pull/70)
+
+* codegen: sort enum values alphabetically in generated types by [@Torkan](https://github.com/Torkan)
+
+### Performance Improvements:
+
+* field_formatter: cache atom field name lookups per process by Mike Wilson [(#68)](https://github.com/ash-project/ash_typescript/pull/68)
+
+## [v0.17.1](https://github.com/ash-project/ash_typescript/compare/v0.17.0...v0.17.1) (2026-04-15)
+
+
+
+
+### Bug Fixes:
+
+* generate correct validation schemas for AshMoney.Types.Money by [@Torkan](https://github.com/Torkan)
+
+* preserve unconstrained map keys in action metadata by [@Torkan](https://github.com/Torkan)
+
+* preserve unconstrained map keys in generic action output by [@Torkan](https://github.com/Torkan)
+
+* camelize nested keys in read action typed map metadata by Mike Wilson [(#63)](https://github.com/ash-project/ash_typescript/pull/63)
+
+## [v0.17.0](https://github.com/ash-project/ash_typescript/compare/v0.16.0...v0.17.0) (2026-03-29)
+
+
+
+
+### Features:
+
+* manifest: add valibot entries to JSON manifest by [@Torkan](https://github.com/Torkan)
+
+* codegen: add typed sort fields with SortString utility type and array support by [@Torkan](https://github.com/Torkan)
+
+* codegen: add isNil operator, expand aggregate filters, generate filter field arrays by [@Torkan](https://github.com/Torkan)
+
+* valibot by [@directormac](https://github.com/directormac)
+
+* add valibot to resolver and orchestrator by [@directormac](https://github.com/directormac)
+
+* valibot generators by [@directormac](https://github.com/directormac)
+
+### Bug Fixes:
+
+* codegen: remove dead valibot import from generated RPC file by [@Torkan](https://github.com/Torkan)
+
+* valibot: namespace export harcoded suffix by [@directormac](https://github.com/directormac)
+
+* valibot: piped constraints by [@directormac](https://github.com/directormac)
+
+* rpc: use load-through format for resource-returning calculations by [@Torkan](https://github.com/Torkan)
+
+* codegen: distinguish resource from typed struct in return type classification by [@Torkan](https://github.com/Torkan)
+
+* test: scope typed query const assertion to Typed Queries section by [@Torkan](https://github.com/Torkan)
+
+* codegen: unwrap NewTypes before classifying return types for field selection by Mike Wilson
+
+* delete vite/inertia combo as SSR didnt really work by Victor Batarse
+
+* in prod if there was no manifest.json assets.deploy would crash with vite by Victor Batarse
+
+* add csrf headers in all layouts by Victor Batarse
+
+* colocated hooks on non react version by Victor Batarse
+
+* on non-jsx framework caused crash by Victor Batarse
+
+* esbuild versions CSS issues by Victor Batarse
+
+## [v0.16.0](https://github.com/ash-project/ash_typescript/compare/v0.15.3...v0.16.0) (2026-03-23)
+
+
+### Breaking Changes:
+
+import_into_generated and typed_controller_import_into_generated file paths are now project-root-relative (e.g., "assets/js/hooks.ts") instead of JS-relative import paths (e.g., "./hooks")
+
+### Features:
+
+* codegen: exclude calculations with field?: false from generated types by [@Torkan](https://github.com/Torkan)
+
+* typed-channel: auto-derive payload types from calculation transforms by [@Torkan](https://github.com/Torkan)
+
+* rpc: verify actions and relationship read actions are public? by [@Torkan](https://github.com/Torkan)
+
+* rpc: add machine-readable JSON manifest generation by [@Torkan](https://github.com/Torkan)
+
+* typed-channel: detect payload type name conflicts across channels by [@Torkan](https://github.com/Torkan)
+
+* typed-channel: add config accessors and orchestrator integration by [@Torkan](https://github.com/Torkan)
+
+* typed-channel: add DSL, verifier, and codegen for typed channel event subscriptions by [@Torkan](https://github.com/Torkan)
+
+* add typed_controller_base_path config for route URL prefixing by [@Torkan](https://github.com/Torkan)
+
+* add HTTP verb shortcuts and positional method arg to typed controller DSL by [@Torkan](https://github.com/Torkan)
+
+* add controller namespace support and simplify codegen orchestration by [@Torkan](https://github.com/Torkan)
+
+* add multi-file codegen architecture and typed controller enhancements by [@Torkan](https://github.com/Torkan)
+
+### Bug Fixes:
+
+* test: use domain: nil for inline test resource not registered in a domain by [@Torkan](https://github.com/Torkan)
+
+* bump minimum ash dep to >= 3.21.1 for field? support by [@Torkan](https://github.com/Torkan)
+
+* rpc: unwrap Reactor.Error.Invalid.RunStepError to inner error by [@Torkan](https://github.com/Torkan)
+
+* test: replace length/1 comparisons with empty list checks by [@Torkan](https://github.com/Torkan)
+
+* test: use CodegenTestHelper instead of removed Rpc.Codegen API by [@Torkan](https://github.com/Torkan)
+
+* codegen: generate Array<Record<string, any>> for {:array, :map} return types by [@barnabasJ](https://github.com/barnabasJ) [(#56)](https://github.com/ash-project/ash_typescript/pull/56)
+
+* codegen: prefix unused actionName param with underscore when hooks disabled by [@Torkan](https://github.com/Torkan)
+
+* test: add returns type to item_deleted publication to fix compile warning by [@Torkan](https://github.com/Torkan)
+
+* codegen: resolve relative import paths correctly for parent directories by [@Torkan](https://github.com/Torkan)
+
+* rpc: apply output formatter to channel field in channel functions by [@Torkan](https://github.com/Torkan)
+
+* test: redirect typed_channels_output_file to tmp dir in codegen tests by [@Torkan](https://github.com/Torkan)
+
+* typed-controller: default route method to nil instead of :get by [@Torkan](https://github.com/Torkan)
+
+* use field formatter for channel handler fields by [@Torkan](https://github.com/Torkan)
+
 ## [v0.15.3](https://github.com/ash-project/ash_typescript/compare/v0.15.2...v0.15.3) (2026-02-21)
 
 
