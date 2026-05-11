@@ -174,7 +174,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     Enum.reduce(requested_fields, {[], [], []}, fn field, acc ->
       field = atomize_field_name(field, resource)
 
-      case parse_field_request(field) do
+      case parse_field_request(field, path) do
         {:simple, field_name} ->
           process_simple_resource_field(resource, field_name, path, acc)
 
@@ -192,7 +192,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
           # Each entry could be a regular nested field or a calculation with args
           Enum.reduce(entries, acc, fn {field_name, nested_fields}, inner_acc ->
             cond do
-              # If nested_fields is a list, it's regular nested selection
               is_list(nested_fields) ->
                 process_nested_resource_field(
                   resource,
@@ -202,10 +201,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
                   inner_acc
                 )
 
-              # If nested_fields is a map, check if it's a calculation with args
-              # or a nested page envelope (relationship-with-page).
               is_map(nested_fields) ->
-                case classify_nested_request(field_name, nested_fields) do
+                case classify_nested_request(field_name, nested_fields, path) do
                   {:nested_with_page, _name, page, fields} ->
                     process_relationship_with_page(
                       resource,
@@ -480,9 +477,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     {select, load ++ [load_spec], template ++ [template_item]}
   end
 
-  # Builds the load tuple for a `{ rel: { page: ..., fields: [...] } }` request.
-  # The pipeline forwards `{name, dest_query}` through `Ash.Query.load/2` like
-  # `load: [comments: Comment |> Ash.Query.page(opts)]`.
   defp process_relationship_with_page(
          resource,
          field_name,
@@ -502,7 +496,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
     rel = Ash.Resource.Info.relationship(resource, internal_name)
 
-    if rel.cardinality != :many do
+    if rel.type not in [:has_many, :many_to_many] do
       throw({:invalid_nested_pagination, internal_name, :not_many_cardinality, path})
     end
 
@@ -513,8 +507,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
 
     Validation.validate_nested_page(internal_name, dest_resource, rel, page_opts, path)
-
-    Validation.validate_non_empty(fields || [], internal_name, path, category)
+    Validation.validate_non_empty(fields, internal_name, path, category)
 
     new_path = path ++ [internal_name]
 
@@ -529,14 +522,10 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       |> Ash.Query.new()
       |> Ash.Query.page(parsed_page)
       |> Ash.Query.select(nested_select)
-      |> then(fn q ->
-        if nested_load == [], do: q, else: Ash.Query.load(q, nested_load)
-      end)
+      |> Ash.Query.load(nested_load)
 
     load_spec = {internal_name, dest_query}
-    template_item = {internal_name, nested_template}
-
-    {select, load ++ [load_spec], template ++ [template_item]}
+    {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
   end
 
   defp get_resource_field_info(resource, field_name, path) do
@@ -655,7 +644,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     Validation.check_for_duplicates(requested_fields, path)
 
     Enum.reduce(requested_fields, {[], [], []}, fn field, {select, load, template} ->
-      case parse_field_request(field) do
+      case parse_field_request(field, path) do
         {:simple, field_name} ->
           internal_name = resolve_typed_struct_field(field_name, reverse_map)
           Validation.validate_field_exists!(internal_name, field_specs, path)
@@ -724,7 +713,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       Validation.check_for_duplicates(requested_fields, path)
 
       Enum.reduce(requested_fields, {[], [], []}, fn field, {select, load, template} ->
-        case parse_field_request(field) do
+        case parse_field_request(field, path) do
           {:simple, field_name} ->
             internal_name = convert_to_field_atom(field_name)
 
@@ -801,7 +790,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       Validation.check_for_duplicates(requested_fields, path)
 
       Enum.reduce(requested_fields, {[], [], []}, fn field, {select, load, template} ->
-        case parse_field_request(field) do
+        case parse_field_request(field, path) do
           {:simple, field_name} ->
             field_atom = convert_to_field_atom(field_name)
 
@@ -883,7 +872,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
     {load_items, template_items} =
       Enum.reduce(normalized_fields, {[], []}, fn field, {load_acc, template_acc} ->
-        case parse_field_request(field) do
+        case parse_field_request(field, path) do
           {:simple, member_name} ->
             process_simple_union_member(
               member_name,
@@ -1050,13 +1039,13 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   # Helper Functions
   # ---------------------------------------------------------------------------
 
-  defp parse_field_request(field) do
+  defp parse_field_request(field, path) do
     case field do
       field_name when is_atom(field_name) or is_binary(field_name) ->
         {:simple, field_name}
 
       {field_name, %{} = nested} when is_map(nested) ->
-        classify_nested_request(field_name, nested)
+        classify_nested_request(field_name, nested, path)
 
       {field_name, nested_fields} when is_list(nested_fields) ->
         {:nested, field_name, nested_fields}
@@ -1066,7 +1055,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
         case nested_fields do
           %{} = nested when is_map(nested) ->
-            classify_nested_request(field_name, nested)
+            classify_nested_request(field_name, nested, path)
 
           nested_fields when is_list(nested_fields) ->
             {:nested, field_name, nested_fields}
@@ -1084,10 +1073,10 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
-  defp classify_nested_request(field_name, nested) when is_map(nested) do
+  defp classify_nested_request(field_name, nested, path) when is_map(nested) do
     case get_args_and_fields(nested) do
       {:ok, args, _fields, page} when not is_nil(args) and not is_nil(page) ->
-        throw({:invalid_nested_pagination, field_name, :args_and_page_combined, []})
+        throw({:invalid_nested_pagination, field_name, :args_and_page_combined, path})
 
       {:ok, nil, fields, page} when not is_nil(page) ->
         {:nested_with_page, field_name, page, fields}
@@ -1095,23 +1084,11 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       {:ok, args, fields, _page} when not is_nil(args) ->
         {:with_args, field_name, args, fields}
 
-      {:ok, nil, _fields, nil} ->
-        # `{ field: { fields: [...] } }` — no args, no page. Preserve the
-        # prior `:with_args nil` routing so the calculation handler still
-        # receives this shape (relationships fall through to its existing
-        # `:unknown_field` rejection).
-        {:with_args, field_name, nil, get_fields_value(nested)}
+      {:ok, nil, fields, nil} ->
+        {:with_args, field_name, nil, fields}
 
       :not_args_structure ->
         {:nested, field_name, nested}
-    end
-  end
-
-  defp get_fields_value(map) do
-    cond do
-      Map.has_key?(map, :fields) -> Map.get(map, :fields)
-      Map.has_key?(map, "fields") -> Map.get(map, "fields")
-      true -> nil
     end
   end
 

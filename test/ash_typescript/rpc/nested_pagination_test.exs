@@ -108,7 +108,7 @@ defmodule AshTypescript.Rpc.NestedPaginationTest do
       page = result["data"]["comments"]
 
       assert is_map(page)
-      assert page["type"] in ["keyset", "offset"]
+      assert page["type"] in [:keyset, :offset]
       assert is_list(page["results"])
       assert length(page["results"]) == 3
       assert page["hasMore"] == true

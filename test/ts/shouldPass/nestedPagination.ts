@@ -2,12 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
-// Nested relationship pagination - shouldPass
-// Surfaces `Ash.Query.page`-on-loads through the field-selection envelope:
-//   { comments: { page: { limit, after }, fields: [...] } }
-// Compile-time guarantees that the result is a NestedPageResult<...>, not an
-// Array<InferResult<...>>, when the relationship's destination read action
-// supports pagination (signaled by `__pagination` on the Relationship metadata).
+// Nested Pagination Tests - shouldPass
+// Tests for `page:` opts inside nested relationship loads.
 
 import { listTodos, getTodo } from "../generated";
 

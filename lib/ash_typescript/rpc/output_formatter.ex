@@ -19,12 +19,7 @@ defmodule AshTypescript.Rpc.OutputFormatter do
   - Handle pagination structures and result data
   """
 
-  alias AshTypescript.{
-    FieldFormatter,
-    Rpc.ResultProcessor,
-    Rpc.ValueFormatter,
-    TypeSystem.ResourceFields
-  }
+  alias AshTypescript.{FieldFormatter, Rpc.ValueFormatter, TypeSystem.ResourceFields}
 
   @doc """
   Formats output data from internal format to client format.
@@ -100,28 +95,29 @@ defmodule AshTypescript.Rpc.OutputFormatter do
     end)
   end
 
-  defp nested_page_value?(%{type: :keyset, results: results}) when is_list(results), do: true
-  defp nested_page_value?(%{type: :offset, results: results}) when is_list(results), do: true
+  defp nested_page_value?(%{type: page_type, results: results})
+       when page_type in [:keyset, :offset] and is_list(results),
+       do: true
+
   defp nested_page_value?(_), do: false
 
   defp format_nested_page(page_map, parent_resource, relationship_key, action_name, formatter) do
     rel = Ash.Resource.Info.relationship(parent_resource, relationship_key)
-    dest_resource = rel && rel.destination
+    dest_resource = rel.destination
 
     Enum.into(page_map, %{}, fn {internal_key, value} ->
+      {type, constraints} =
+        ResourceFields.get_public_field_type_info(parent_resource, internal_key)
+
       formatted_value =
         case internal_key do
-          :results when is_list(value) and not is_nil(dest_resource) ->
+          :results when is_list(value) ->
             Enum.map(value, fn item ->
               format_data(item, dest_resource, action_name, formatter)
             end)
 
-          :results ->
-            value
-
           _ ->
-            # Stringify atoms (`:keyset` / `:offset`) for wire output.
-            ResultProcessor.normalize_primitive(value)
+            format_value(value, type, constraints, formatter)
         end
 
       output_key = FieldFormatter.format_field_name(internal_key, formatter)

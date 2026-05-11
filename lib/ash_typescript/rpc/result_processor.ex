@@ -150,12 +150,9 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   def extract_value(%Ash.ForbiddenField{}, _type, _constraints, _template), do: nil
   def extract_value(%Ash.NotLoaded{}, _type, _constraints, _template), do: :skip
 
-  # Nested paginated relationship loads return an Ash.Page nested in the
-  # parent. Mirror the top-level shape from process/3 so the wire format
-  # matches between top-level and nested paginated reads.
+  # Nested page — mirror the top-level shape from process/3.
   def extract_value(%Ash.Page.Offset{} = page, type, constraints, template) do
-    inner_type = relationship_inner_type(type, constraints)
-    inner_constraints = relationship_inner_constraints(type, constraints)
+    {inner_type, inner_constraints} = unwrap_array_type(type, constraints)
     processed_results = extract_array_value(page.results, inner_type, inner_constraints, template)
 
     page
@@ -166,8 +163,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   end
 
   def extract_value(%Ash.Page.Keyset{} = page, type, constraints, template) do
-    inner_type = relationship_inner_type(type, constraints)
-    inner_constraints = relationship_inner_constraints(type, constraints)
+    {inner_type, inner_constraints} = unwrap_array_type(type, constraints)
     processed_results = extract_array_value(page.results, inner_type, inner_constraints, template)
 
     {previous_page_cursor, next_page_cursor} =
@@ -763,11 +759,8 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  defp relationship_inner_type({:array, inner}, _constraints), do: inner
-  defp relationship_inner_type(type, _constraints), do: type
+  defp unwrap_array_type({:array, inner}, constraints),
+    do: {inner, Keyword.get(constraints, :items, [])}
 
-  defp relationship_inner_constraints({:array, _}, constraints),
-    do: Keyword.get(constraints, :items, [])
-
-  defp relationship_inner_constraints(_type, constraints), do: constraints
+  defp unwrap_array_type(type, constraints), do: {type, constraints}
 end
