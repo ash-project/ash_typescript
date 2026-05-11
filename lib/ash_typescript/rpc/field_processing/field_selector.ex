@@ -174,12 +174,15 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     Enum.reduce(requested_fields, {[], [], []}, fn field, acc ->
       field = atomize_field_name(field, resource)
 
-      case parse_field_request(field) do
+      case parse_field_request(field, path) do
         {:simple, field_name} ->
           process_simple_resource_field(resource, field_name, path, acc)
 
         {:nested, field_name, nested_fields} ->
           process_nested_resource_field(resource, field_name, nested_fields, path, acc)
+
+        {:nested_with_page, field_name, page, fields} ->
+          process_relationship_with_page(resource, field_name, page, fields, path, acc)
 
         {:with_args, calc_name, args, fields} ->
           process_calculation_with_args(resource, calc_name, args, fields, path, acc)
@@ -189,7 +192,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
           # Each entry could be a regular nested field or a calculation with args
           Enum.reduce(entries, acc, fn {field_name, nested_fields}, inner_acc ->
             cond do
-              # If nested_fields is a list, it's regular nested selection
               is_list(nested_fields) ->
                 process_nested_resource_field(
                   resource,
@@ -199,10 +201,19 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
                   inner_acc
                 )
 
-              # If nested_fields is a map, check if it's a calculation with args
               is_map(nested_fields) ->
-                case get_args_and_fields(nested_fields) do
-                  {:ok, args, fields} ->
+                case classify_nested_request(field_name, nested_fields, path) do
+                  {:nested_with_page, _name, page, fields} ->
+                    process_relationship_with_page(
+                      resource,
+                      field_name,
+                      page,
+                      fields,
+                      path,
+                      inner_acc
+                    )
+
+                  {:with_args, _name, args, fields} ->
                     process_calculation_with_args(
                       resource,
                       field_name,
@@ -212,11 +223,11 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
                       inner_acc
                     )
 
-                  :not_args_structure ->
+                  {:nested, _name, fields} ->
                     process_nested_resource_field(
                       resource,
                       field_name,
-                      nested_fields,
+                      fields,
                       path,
                       inner_acc
                     )
@@ -466,6 +477,57 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     {select, load ++ [load_spec], template ++ [template_item]}
   end
 
+  defp process_relationship_with_page(
+         resource,
+         field_name,
+         page_opts,
+         fields,
+         path,
+         {select, load, template}
+       ) do
+    internal_name = resolve_resource_field_name(resource, field_name)
+
+    {field_type, field_constraints, category} =
+      get_resource_field_info(resource, internal_name, path)
+
+    if category != :relationship do
+      throw({:invalid_nested_pagination, internal_name, category, path})
+    end
+
+    rel = Ash.Resource.Info.relationship(resource, internal_name)
+
+    if rel.type not in [:has_many, :many_to_many] do
+      throw({:invalid_nested_pagination, internal_name, :not_many_cardinality, path})
+    end
+
+    dest_resource = rel.destination
+
+    unless dest_resource && ResourceInfo.typescript_resource?(dest_resource) do
+      throw({:unknown_field, internal_name, resource, path})
+    end
+
+    Validation.validate_nested_page(internal_name, dest_resource, rel, page_opts, path)
+    Validation.validate_non_empty(fields, internal_name, path, category)
+
+    new_path = path ++ [internal_name]
+
+    {nested_select, nested_load, nested_template} =
+      select_fields(field_type, field_constraints, fields, new_path)
+
+    formatter = AshTypescript.Rpc.input_field_formatter()
+    parsed_page = AshTypescript.FieldFormatter.parse_input_fields(page_opts, formatter)
+
+    dest_query =
+      dest_resource
+      |> Ash.Query.new()
+      |> Ash.Query.page(parsed_page)
+      |> Ash.Query.select(nested_select)
+      |> Ash.Query.load(nested_load)
+
+    load_spec = {internal_name, dest_query}
+    {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
+  end
+
   defp get_resource_field_info(resource, field_name, path) do
     cond do
       attr = Ash.Resource.Info.public_attribute(resource, field_name) ->
@@ -582,7 +644,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     Validation.check_for_duplicates(requested_fields, path)
 
     Enum.reduce(requested_fields, {[], [], []}, fn field, {select, load, template} ->
-      case parse_field_request(field) do
+      case parse_field_request(field, path) do
         {:simple, field_name} ->
           internal_name = resolve_typed_struct_field(field_name, reverse_map)
           Validation.validate_field_exists!(internal_name, field_specs, path)
@@ -651,7 +713,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       Validation.check_for_duplicates(requested_fields, path)
 
       Enum.reduce(requested_fields, {[], [], []}, fn field, {select, load, template} ->
-        case parse_field_request(field) do
+        case parse_field_request(field, path) do
           {:simple, field_name} ->
             internal_name = convert_to_field_atom(field_name)
 
@@ -728,7 +790,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       Validation.check_for_duplicates(requested_fields, path)
 
       Enum.reduce(requested_fields, {[], [], []}, fn field, {select, load, template} ->
-        case parse_field_request(field) do
+        case parse_field_request(field, path) do
           {:simple, field_name} ->
             field_atom = convert_to_field_atom(field_name)
 
@@ -810,7 +872,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
     {load_items, template_items} =
       Enum.reduce(normalized_fields, {[], []}, fn field, {load_acc, template_acc} ->
-        case parse_field_request(field) do
+        case parse_field_request(field, path) do
           {:simple, member_name} ->
             process_simple_union_member(
               member_name,
@@ -977,19 +1039,13 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   # Helper Functions
   # ---------------------------------------------------------------------------
 
-  defp parse_field_request(field) do
+  defp parse_field_request(field, path) do
     case field do
       field_name when is_atom(field_name) or is_binary(field_name) ->
         {:simple, field_name}
 
       {field_name, %{} = nested} when is_map(nested) ->
-        case get_args_and_fields(nested) do
-          {:ok, args, fields} ->
-            {:with_args, field_name, args, fields}
-
-          :not_args_structure ->
-            {:nested, field_name, nested}
-        end
+        classify_nested_request(field_name, nested, path)
 
       {field_name, nested_fields} when is_list(nested_fields) ->
         {:nested, field_name, nested_fields}
@@ -999,13 +1055,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
         case nested_fields do
           %{} = nested when is_map(nested) ->
-            case get_args_and_fields(nested) do
-              {:ok, args, fields} ->
-                {:with_args, field_name, args, fields}
-
-              :not_args_structure ->
-                {:nested, field_name, nested}
-            end
+            classify_nested_request(field_name, nested, path)
 
           nested_fields when is_list(nested_fields) ->
             {:nested, field_name, nested_fields}
@@ -1020,6 +1070,25 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
       %{} ->
         {:simple, nil}
+    end
+  end
+
+  defp classify_nested_request(field_name, nested, path) when is_map(nested) do
+    case get_args_and_fields(nested) do
+      {:ok, args, _fields, page} when not is_nil(args) and not is_nil(page) ->
+        throw({:invalid_nested_pagination, field_name, :args_and_page_combined, path})
+
+      {:ok, nil, fields, page} when not is_nil(page) ->
+        {:nested_with_page, field_name, page, fields}
+
+      {:ok, args, fields, _page} when not is_nil(args) ->
+        {:with_args, field_name, args, fields}
+
+      {:ok, nil, fields, nil} ->
+        {:with_args, field_name, nil, fields}
+
+      :not_args_structure ->
+        {:nested, field_name, nested}
     end
   end
 
@@ -1052,29 +1121,28 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   defp atomize_nested_value(%{"args" => _} = value, _resource), do: value
   defp atomize_nested_value(%{fields: _} = value, _resource), do: value
   defp atomize_nested_value(%{"fields" => _} = value, _resource), do: value
+  defp atomize_nested_value(%{page: _} = value, _resource), do: value
+  defp atomize_nested_value(%{"page" => _} = value, _resource), do: value
   defp atomize_nested_value(%{} = value, resource), do: atomize_field_name(value, resource)
   defp atomize_nested_value(value, _resource), do: value
 
-  # Extracts args and fields from a map, handling both atom and string keys.
-  # Returns {:ok, args, fields} or :not_args_structure.
+  # Extracts args, fields, and page opts from a map, handling both atom and
+  # string keys. Returns `{:ok, args, fields, page}` or `:not_args_structure`.
   defp get_args_and_fields(map) when is_map(map) do
     args = Map.get(map, :args) || Map.get(map, "args")
+    page = Map.get(map, :page) || Map.get(map, "page")
     has_fields_key = Map.has_key?(map, :fields) || Map.has_key?(map, "fields")
 
+    fields =
+      cond do
+        Map.has_key?(map, :fields) -> Map.get(map, :fields)
+        Map.has_key?(map, "fields") -> Map.get(map, "fields")
+        true -> nil
+      end
+
     cond do
-      args != nil ->
-        fields =
-          cond do
-            Map.has_key?(map, :fields) -> Map.get(map, :fields)
-            Map.has_key?(map, "fields") -> Map.get(map, "fields")
-            true -> nil
-          end
-
-        {:ok, args, fields}
-
-      has_fields_key ->
-        fields = Map.get(map, :fields) || Map.get(map, "fields")
-        {:ok, nil, fields}
+      args != nil or page != nil or has_fields_key ->
+        {:ok, args, fields, page}
 
       true ->
         :not_args_structure

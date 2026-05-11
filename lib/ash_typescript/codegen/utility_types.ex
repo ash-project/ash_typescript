@@ -115,7 +115,16 @@ defmodule AshTypescript.Codegen.UtilityTypes do
         __resource: infer Resource;
       }
         ? NonNullable<Resource> extends TypedSchema
-          ? UnifiedFieldSelection<NonNullable<Resource>>[]
+          ? T[K] extends { __pagination: infer P }
+            ? P extends string
+              ?
+                | UnifiedFieldSelection<NonNullable<Resource>>[]
+                | {
+                    #{formatted_page_field()}: NestedPageInput<P>;
+                    #{formatted_fields_field()}: UnifiedFieldSelection<NonNullable<Resource>>[];
+                  }
+              : UnifiedFieldSelection<NonNullable<Resource>>[]
+            : UnifiedFieldSelection<NonNullable<Resource>>[]
           : never
         : T[K] extends {
               __type: "ComplexCalculation";
@@ -177,11 +186,22 @@ defmodule AshTypescript.Codegen.UtilityTypes do
                   __resource: infer Resource;
                 }
                 ? NonNullable<Resource> extends TypedSchema
-                  ? T[K] extends { __array: true }
-                    ? Array<InferResult<NonNullable<Resource>, Field[K]>>
-                    : null extends Resource
-                      ? InferResult<NonNullable<Resource>, Field[K]> | null
-                      : InferResult<NonNullable<Resource>, Field[K]>
+                  ? Field[K] extends {
+                      #{formatted_page_field()}: any;
+                      #{formatted_fields_field()}: infer NestedFields;
+                    }
+                    ? NestedFields extends UnifiedFieldSelection<NonNullable<Resource>>[]
+                      ? T[K] extends { __pagination: infer P }
+                        ? P extends string
+                          ? NestedPageResult<NonNullable<Resource>, NestedFields, P>
+                          : never
+                        : never
+                      : never
+                    : T[K] extends { __array: true }
+                      ? Array<InferResult<NonNullable<Resource>, Field[K]>>
+                      : null extends Resource
+                        ? InferResult<NonNullable<Resource>, Field[K]> | null
+                        : InferResult<NonNullable<Resource>, Field[K]>
                 : never
               : T[K] extends {
                     __type: "ComplexCalculation";
@@ -376,6 +396,72 @@ defmodule AshTypescript.Codegen.UtilityTypes do
             ? KeysetType
             : OffsetType | KeysetType  // Fallback to union if can't determine
         : RecordType;
+
+    // Nested relationship pagination — gated by `__pagination` on the
+    // Relationship metadata. `ComplexFieldSelection` permits the
+    // `{ page, fields }` envelope on those relationships;
+    // `InferFieldValue` returns `NestedPageResult<...>` for them.
+
+    export type NestedPageInputKeyset = {
+      #{formatted_limit_field()}?: number;
+      #{formatted_after_field()}?: string;
+      #{formatted_before_field()}?: string;
+    };
+
+    export type NestedPageInputOffset = {
+      #{formatted_limit_field()}?: number;
+      #{formatted_offset_field()}?: number;
+      #{format_output_field(:count)}?: boolean;
+    };
+
+    export type NestedPageInput<P extends string> =
+      P extends "keyset"
+        ? NestedPageInputKeyset
+        : P extends "offset"
+          ? NestedPageInputOffset
+          : P extends "mixed"
+            ? NestedPageInputKeyset | NestedPageInputOffset
+            : never;
+
+    export type NestedPageResultKeyset<
+      R extends TypedSchema,
+      F extends UnifiedFieldSelection<R>[] | undefined
+    > = {
+      #{formatted_results_field()}: Array<InferResult<R, F>>;
+      #{formatted_has_more_field()}: boolean;
+      #{formatted_limit_field()}: number;
+      #{formatted_after_field()}: string | null;
+      #{formatted_before_field()}: string | null;
+      #{formatted_previous_page_field()}: string;
+      #{formatted_next_page_field()}: string;
+      #{format_output_field(:count)}?: number | null;
+      #{format_output_field(:type)}: "keyset";
+    };
+
+    export type NestedPageResultOffset<
+      R extends TypedSchema,
+      F extends UnifiedFieldSelection<R>[] | undefined
+    > = {
+      #{formatted_results_field()}: Array<InferResult<R, F>>;
+      #{formatted_has_more_field()}: boolean;
+      #{formatted_limit_field()}: number;
+      #{formatted_offset_field()}: number;
+      #{format_output_field(:count)}?: number | null;
+      #{format_output_field(:type)}: "offset";
+    };
+
+    export type NestedPageResult<
+      R extends TypedSchema,
+      F extends UnifiedFieldSelection<R>[] | undefined,
+      P extends string
+    > =
+      P extends "keyset"
+        ? NestedPageResultKeyset<R, F>
+        : P extends "offset"
+          ? NestedPageResultOffset<R, F>
+          : P extends "mixed"
+            ? NestedPageResultKeyset<R, F> | NestedPageResultOffset<R, F>
+            : never;
 
     export type SuccessDataFunc<T extends (...args: any[]) => Promise<any>> = Extract<
       Awaited<ReturnType<T>>,

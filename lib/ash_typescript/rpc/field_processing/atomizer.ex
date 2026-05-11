@@ -35,6 +35,9 @@ defmodule AshTypescript.Rpc.FieldProcessing.Atomizer do
 
       iex> atomize_requested_fields([%{"self" => %{"args" => %{"prefix" => "test"}}}])
       [%{self: %{args: %{prefix: "test"}}}]
+
+      iex> atomize_requested_fields([%{"comments" => %{"page" => %{"limit" => 10}, "fields" => ["id"]}}])
+      [%{comments: %{page: %{"limit" => 10}, fields: ["id"]}}]
   """
   def atomize_requested_fields(requested_fields, resource \\ nil)
 
@@ -106,7 +109,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.Atomizer do
 
   defp is_calculation_args_map?(map) when is_map(map) do
     Map.has_key?(map, "args") or Map.has_key?(map, :args) or
-      Map.has_key?(map, "fields") or Map.has_key?(map, :fields)
+      Map.has_key?(map, "fields") or Map.has_key?(map, :fields) or
+      Map.has_key?(map, "page") or Map.has_key?(map, :page)
   end
 
   @doc """

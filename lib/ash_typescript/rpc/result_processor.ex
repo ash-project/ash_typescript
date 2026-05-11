@@ -150,6 +150,39 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   def extract_value(%Ash.ForbiddenField{}, _type, _constraints, _template), do: nil
   def extract_value(%Ash.NotLoaded{}, _type, _constraints, _template), do: :skip
 
+  # Nested page — mirror the top-level shape from process/3.
+  def extract_value(%Ash.Page.Offset{} = page, type, constraints, template) do
+    {inner_type, inner_constraints} = unwrap_array_type(type, constraints)
+    processed_results = extract_array_value(page.results, inner_type, inner_constraints, template)
+
+    page
+    |> Map.take([:limit, :offset, :count])
+    |> Map.put(:results, processed_results)
+    |> Map.put(:has_more, page.more? || false)
+    |> Map.put(:type, :offset)
+  end
+
+  def extract_value(%Ash.Page.Keyset{} = page, type, constraints, template) do
+    {inner_type, inner_constraints} = unwrap_array_type(type, constraints)
+    processed_results = extract_array_value(page.results, inner_type, inner_constraints, template)
+
+    {previous_page_cursor, next_page_cursor} =
+      if Enum.empty?(page.results) do
+        {nil, nil}
+      else
+        {List.first(page.results).__metadata__.keyset,
+         List.last(page.results).__metadata__.keyset}
+      end
+
+    page
+    |> Map.take([:before, :after, :limit, :count])
+    |> Map.put(:has_more, page.more? || false)
+    |> Map.put(:results, processed_results)
+    |> Map.put(:previous_page, previous_page_cursor)
+    |> Map.put(:next_page, next_page_cursor)
+    |> Map.put(:type, :keyset)
+  end
+
   # Handle nil/unknown types
   # For maps with templates, filter to requested fields
   # For everything else, normalize as primitive
@@ -725,4 +758,9 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         other
     end
   end
+
+  defp unwrap_array_type({:array, inner}, constraints),
+    do: {inner, Keyword.get(constraints, :items, [])}
+
+  defp unwrap_array_type(type, constraints), do: {type, constraints}
 end

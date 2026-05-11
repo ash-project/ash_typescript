@@ -28,6 +28,7 @@ import "./shouldPass/channelLifecycleHooks";
 import "./shouldPass/untypedMaps";
 import "./shouldPass/conditionalPagination";
 import "./shouldPass/precisePaginationTypes";
+import "./shouldPass/nestedPagination";
 import "./shouldPass/metadata";
 import "./shouldPass/noArgCalculations";
 import "./shouldPass/genericActionTypedStruct";
