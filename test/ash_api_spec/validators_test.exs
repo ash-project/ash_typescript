@@ -40,11 +40,13 @@ defmodule AshApiSpec.ValidatorsTest do
 
   describe "validate_accept_public/2" do
     test "returns :ok when accept contains only public attributes" do
-      assert :ok = Validators.validate_accept_public(MixedAcceptResource, action(:create_public_only))
+      assert :ok =
+               Validators.validate_accept_public(MixedAcceptResource, action(:create_public_only))
     end
 
     test "returns :ok when accept is nil" do
-      assert :ok = Validators.validate_accept_public(MixedAcceptResource, action(:create_no_accept))
+      assert :ok =
+               Validators.validate_accept_public(MixedAcceptResource, action(:create_no_accept))
     end
 
     test "returns :ok for a plain map with no :accept key" do
