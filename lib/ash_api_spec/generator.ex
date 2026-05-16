@@ -15,6 +15,7 @@ defmodule AshApiSpec.Generator do
   """
 
   alias AshApiSpec.Generator.{ActionBuilder, Reachability, ResourceBuilder, TypeResolver}
+  alias AshApiSpec.Validators
 
   @doc """
   Generate an API specification.
@@ -43,6 +44,14 @@ defmodule AshApiSpec.Generator do
     * `:include_private_aggregates?` - Include private aggregates (default: `false`)
     * `:include_private_relationships?` - Include private relationships (default: `false`)
     * `:include_private_arguments?` - Include private action arguments (default: `false`)
+
+  ## Enforcement Options
+
+    * `:enforce_public_accept?` - When `true` (default), raises
+      `AshApiSpec.Error.NonPublicAccept` if any action entrypoint's accept
+      list contains non-public attributes. Set to `false` to disable this
+      check (e.g. for extensions that intentionally expose private
+      attributes to internal callers).
   """
   @visibility_keys [
     :include_private_attributes?,
@@ -58,6 +67,7 @@ defmodule AshApiSpec.Generator do
     action_filter = Keyword.get(opts, :action_entrypoints)
     overrides = Keyword.get(opts, :overrides, [])
     visibility_opts = Keyword.take(opts, @visibility_keys)
+    enforce_public_accept? = Keyword.get(opts, :enforce_public_accept?, true)
 
     always_opts = Keyword.get(overrides, :always, [])
     always_resources = Keyword.get(always_opts, :resources, [])
@@ -103,7 +113,13 @@ defmodule AshApiSpec.Generator do
       end)
 
     # Build entrypoints — one per normalized entry (not per unique action)
-    entrypoints = build_entrypoints(normalized_entries, resource_action_map, visibility_opts)
+    entrypoints =
+      build_entrypoints(
+        normalized_entries,
+        resource_action_map,
+        visibility_opts,
+        enforce_public_accept?
+      )
 
     # Build standalone type specs (full definitions, not references)
     types =
@@ -184,12 +200,14 @@ defmodule AshApiSpec.Generator do
   # ─────────────────────────────────────────────────────────────────
 
   # When no filter: one entrypoint per action on each resource
-  defp build_entrypoints(nil, resource_action_map, visibility_opts) do
+  defp build_entrypoints(nil, resource_action_map, visibility_opts, enforce_public_accept?) do
     resource_action_map
     |> Enum.flat_map(fn {resource, _action_names} ->
       resource
       |> Ash.Resource.Info.actions()
       |> Enum.map(fn action ->
+        if enforce_public_accept?, do: Validators.validate_entrypoint!(resource, action)
+
         %AshApiSpec.Entrypoint{
           resource: resource,
           action: ActionBuilder.build(resource, action, visibility_opts)
@@ -200,7 +218,12 @@ defmodule AshApiSpec.Generator do
   end
 
   # When filtered: one entrypoint per normalized entry (preserves duplicates with different configs)
-  defp build_entrypoints(normalized_entries, _resource_action_map, visibility_opts) do
+  defp build_entrypoints(
+         normalized_entries,
+         _resource_action_map,
+         visibility_opts,
+         enforce_public_accept?
+       ) do
     normalized_entries
     |> Enum.flat_map(fn {resource, action_name, config} ->
       case Ash.Resource.Info.action(resource, action_name) do
@@ -208,6 +231,8 @@ defmodule AshApiSpec.Generator do
           []
 
         action ->
+          if enforce_public_accept?, do: Validators.validate_entrypoint!(resource, action)
+
           [
             %AshApiSpec.Entrypoint{
               resource: resource,

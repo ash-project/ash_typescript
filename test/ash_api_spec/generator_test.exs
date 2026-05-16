@@ -190,4 +190,50 @@ defmodule AshApiSpec.GeneratorTest do
       assert length(spec_without.types) == length(spec_with.types)
     end
   end
+
+  describe "generate/1 enforce_public_accept?" do
+    defmodule NonPublicAcceptResource do
+      @moduledoc false
+      use Ash.Resource, domain: nil
+
+      attributes do
+        uuid_primary_key :id
+        attribute :name, :string, public?: true
+        attribute :internal_token, :string, public?: false
+      end
+
+      actions do
+        create :create_thing do
+          accept [:name, :internal_token]
+        end
+      end
+    end
+
+    test "raises NonPublicAccept by default when entrypoint accepts a non-public attribute" do
+      err =
+        assert_raise AshApiSpec.Error.NonPublicAccept, fn ->
+          AshApiSpec.Generator.generate(
+            otp_app: :ash_typescript,
+            action_entrypoints: [{NonPublicAcceptResource, :create_thing}]
+          )
+        end
+
+      assert err.resource == NonPublicAcceptResource
+      assert err.action == :create_thing
+      assert :internal_token in err.attributes
+    end
+
+    test "does not raise when enforce_public_accept?: false" do
+      assert {:ok, %AshApiSpec{} = spec} =
+               AshApiSpec.Generator.generate(
+                 otp_app: :ash_typescript,
+                 action_entrypoints: [{NonPublicAcceptResource, :create_thing}],
+                 enforce_public_accept?: false
+               )
+
+      assert Enum.any?(spec.entrypoints, fn e ->
+               e.resource == NonPublicAcceptResource and e.action.name == :create_thing
+             end)
+    end
+  end
 end
