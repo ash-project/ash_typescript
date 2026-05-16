@@ -512,34 +512,34 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  # Classifies a type as tuple, keyword, or other, handling NewTypes and AshApiSpec types
+  # Classifies a type as tuple, keyword, or other, handling NewTypes and Ash.Info.Manifest types
   defp classify_tuple_or_keyword_type(
-         %AshApiSpec.Type{kind: :tuple} = type_info,
+         %Ash.Info.Manifest.Type{kind: :tuple} = type_info,
          _constraints
        ) do
     {:tuple, type_info}
   end
 
   defp classify_tuple_or_keyword_type(
-         %AshApiSpec.Type{kind: :keyword} = type_info,
+         %Ash.Info.Manifest.Type{kind: :keyword} = type_info,
          _constraints
        ) do
     {:keyword, type_info}
   end
 
   defp classify_tuple_or_keyword_type(
-         %AshApiSpec.Type{kind: :type_ref, module: module},
+         %Ash.Info.Manifest.Type{kind: :type_ref, module: module},
          _constraints
        ) do
-    full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), module)
+    full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), module)
     classify_tuple_or_keyword_type(full_type, [])
   end
 
-  defp classify_tuple_or_keyword_type(%AshApiSpec.Type{}, _constraints), do: :other
+  defp classify_tuple_or_keyword_type(%Ash.Info.Manifest.Type{}, _constraints), do: :other
 
   defp classify_tuple_or_keyword_type(type, constraints) do
     # Unwrap NewType to get the underlying type, then resolve to spec type
-    resolved = AshApiSpec.Generator.TypeResolver.resolve(type, constraints)
+    resolved = Ash.Info.Manifest.Generator.TypeResolver.resolve(type, constraints)
     classify_tuple_or_keyword_type(resolved, [])
   end
 
@@ -593,12 +593,12 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp convert_map_to_keyword(value, _type_info_or_constraints), do: value
 
-  defp get_tuple_field_names(%AshApiSpec.Type{fields: fields})
+  defp get_tuple_field_names(%Ash.Info.Manifest.Type{fields: fields})
        when is_list(fields) and fields != [] do
     Enum.map(fields, & &1.name)
   end
 
-  defp get_tuple_field_names(%AshApiSpec.Type{element_types: ets})
+  defp get_tuple_field_names(%Ash.Info.Manifest.Type{element_types: ets})
        when is_list(ets) and ets != [] do
     Enum.map(ets, & &1.name)
   end
@@ -1326,23 +1326,23 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp lookup_primary_key(resource, resource_lookups) do
-    AshApiSpec.primary_key(resource_lookups, resource)
+    Ash.Info.Manifest.primary_key(resource_lookups, resource)
   end
 
   defp lookup_identity(resource, identity_name, resource_lookups) do
-    AshApiSpec.get_identity(resource_lookups, resource, identity_name)
+    Ash.Info.Manifest.get_identity(resource_lookups, resource, identity_name)
   end
 
   defp lookup_field_exists?(resource, field_name, resource_lookups) do
-    case AshApiSpec.get_resource(resource_lookups, resource) do
-      %AshApiSpec.Resource{} = r -> AshApiSpec.Resource.has_field?(r, field_name)
+    case Ash.Info.Manifest.get_resource(resource_lookups, resource) do
+      %Ash.Info.Manifest.Resource{} = r -> Ash.Info.Manifest.Resource.has_field?(r, field_name)
       nil -> false
     end
   end
 
   defp lookup_field_type(resource, field_name, resource_lookups) do
-    case AshApiSpec.get_field(resource_lookups, resource, field_name) do
-      %AshApiSpec.Field{type: %AshApiSpec.Type{} = type} -> {type, []}
+    case Ash.Info.Manifest.get_field(resource_lookups, resource, field_name) do
+      %Ash.Info.Manifest.Field{type: %Ash.Info.Manifest.Type{} = type} -> {type, []}
       _ -> {nil, []}
     end
   end

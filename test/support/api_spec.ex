@@ -4,7 +4,7 @@
 
 defmodule AshTypescript.Test.ApiSpec do
   @moduledoc """
-  Test AshApiSpec module for building unified app-wide spec.
+  Test Ash.Info.Manifest module for building unified app-wide spec.
 
   The require statements ensure domains (and their resources) are
   compiled before the transformer runs reachability analysis.
@@ -12,5 +12,5 @@ defmodule AshTypescript.Test.ApiSpec do
   require AshTypescript.Test.Domain
   require AshTypescript.Test.SecondDomain
 
-  use AshTypescript.AshApiSpec, otp_app: :ash_typescript
+  use AshTypescript.Manifest, otp_app: :ash_typescript
 end

@@ -43,12 +43,12 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   Handles relationships, calculations, and attribute types. Returns the field
   category which determines how to generate its TypeScript definition.
 
-  Accepts Ash field structs, `%AshApiSpec.Field{}`, or `%AshApiSpec.Type{}`.
+  Accepts Ash field structs, `%Ash.Info.Manifest.Field{}`, or `%Ash.Info.Manifest.Type{}`.
   """
   @spec classify_field(map()) :: field_category()
 
-  # %AshApiSpec.Field{} dispatch — uses pre-resolved %Type{kind}
-  def classify_field(%AshApiSpec.Field{kind: :calculation, type: type, arguments: args}) do
+  # %Ash.Info.Manifest.Field{} dispatch — uses pre-resolved %Type{kind}
+  def classify_field(%Ash.Info.Manifest.Field{kind: :calculation, type: type, arguments: args}) do
     has_args = is_list(args) and args != []
 
     if has_args do
@@ -58,39 +58,39 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     end
   end
 
-  def classify_field(%AshApiSpec.Field{type: type}) do
+  def classify_field(%Ash.Info.Manifest.Field{type: type}) do
     classify_by_type(type)
   end
 
   @doc """
   Classifies a field by its type, handling NewType unwrapping and array wrappers.
 
-  Accepts Ash field structs or `%AshApiSpec.Type{}`.
+  Accepts Ash field structs or `%Ash.Info.Manifest.Type{}`.
   """
-  @spec classify_by_type(map() | AshApiSpec.Type.t()) :: field_category()
+  @spec classify_by_type(map() | Ash.Info.Manifest.Type.t()) :: field_category()
 
-  # %AshApiSpec.Type{} dispatch — direct kind matching, no unwrapping needed
-  def classify_by_type(%AshApiSpec.Type{kind: :type_ref, module: module}) do
-    full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), module)
+  # %Ash.Info.Manifest.Type{} dispatch — direct kind matching, no unwrapping needed
+  def classify_by_type(%Ash.Info.Manifest.Type{kind: :type_ref, module: module}) do
+    full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), module)
     classify_by_type(full_type)
   end
 
-  def classify_by_type(%AshApiSpec.Type{kind: :array, item_type: item_type}) do
+  def classify_by_type(%Ash.Info.Manifest.Type{kind: :array, item_type: item_type}) do
     classify_by_type(item_type)
   end
 
-  def classify_by_type(%AshApiSpec.Type{kind: :union}), do: :union
+  def classify_by_type(%Ash.Info.Manifest.Type{kind: :union}), do: :union
 
-  def classify_by_type(%AshApiSpec.Type{kind: kind})
+  def classify_by_type(%Ash.Info.Manifest.Type{kind: kind})
       when kind in [:resource, :embedded_resource],
       do: :embedded
 
-  def classify_by_type(%AshApiSpec.Type{kind: kind} = type_info)
+  def classify_by_type(%Ash.Info.Manifest.Type{kind: kind} = type_info)
       when kind in [:map, :keyword, :tuple] do
     if has_type_fields?(type_info), do: :typed_map, else: :primitive
   end
 
-  def classify_by_type(%AshApiSpec.Type{kind: :struct} = type_info) do
+  def classify_by_type(%Ash.Info.Manifest.Type{kind: :struct} = type_info) do
     cond do
       type_info.resource_module ->
         :embedded
@@ -106,7 +106,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     end
   end
 
-  def classify_by_type(%AshApiSpec.Type{}), do: :primitive
+  def classify_by_type(%Ash.Info.Manifest.Type{}), do: :primitive
 
   @doc """
   Generates all schemas (unified + input) for a list of resources.
@@ -156,7 +156,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       )
       when is_map(resource_lookup) and map_size(resource_lookup) > 0 do
     case Map.get(resource_lookup, resource) do
-      %AshApiSpec.Resource{} = api_resource ->
+      %Ash.Info.Manifest.Resource{} = api_resource ->
         generate_all_schemas_for_resource_from_spec(
           resource,
           api_resource,
@@ -175,7 +175,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     resource_lookup = build_resource_lookup()
 
     case Map.get(resource_lookup, resource) do
-      %AshApiSpec.Resource{} = api_resource ->
+      %Ash.Info.Manifest.Resource{} = api_resource ->
         generate_all_schemas_for_resource_from_spec(
           resource,
           api_resource,
@@ -241,7 +241,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     resource_lookup = build_resource_lookup()
 
     case Map.get(resource_lookup, resource) do
-      %AshApiSpec.Resource{} = api_resource ->
+      %Ash.Info.Manifest.Resource{} = api_resource ->
         generate_unified_resource_schema_from_spec(
           resource,
           api_resource,
@@ -267,7 +267,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     resource_lookup = build_resource_lookup()
 
     case Map.get(resource_lookup, resource) do
-      %AshApiSpec.Resource{} = api_resource ->
+      %Ash.Info.Manifest.Resource{} = api_resource ->
         generate_attributes_only_schema_from_spec(
           resource,
           api_resource,
@@ -306,7 +306,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     resource_lookup = build_resource_lookup()
 
     case Map.get(resource_lookup, resource) do
-      %AshApiSpec.Resource{} = api_resource ->
+      %Ash.Info.Manifest.Resource{} = api_resource ->
         generate_input_schema_from_spec(resource, api_resource)
 
       nil ->
@@ -315,7 +315,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   end
 
   # ─────────────────────────────────────────────────────────────────
-  # AshApiSpec fast-path generators
+  # Ash.Info.Manifest fast-path generators
   # ─────────────────────────────────────────────────────────────────
 
   defp generate_unified_resource_schema_from_spec(
@@ -326,13 +326,13 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
        ) do
     resource_name = Helpers.build_resource_type_name(resource)
 
-    # AshApiSpec fields already have resolved types (no aggregate type resolution needed)
-    fields = AshApiSpec.Resource.all_fields(api_resource)
+    # Ash.Info.Manifest fields already have resolved types (no aggregate type resolution needed)
+    fields = Ash.Info.Manifest.Resource.all_fields(api_resource)
 
     {complex_fields, primitive_fields} =
       Enum.split_with(fields, &is_complex_attr?/1)
 
-    relationships = AshApiSpec.Resource.accessible_relationships(api_resource, allowed_resources)
+    relationships = Ash.Info.Manifest.Resource.accessible_relationships(api_resource, allowed_resources)
 
     complex_fields = complex_fields ++ relationships
 
@@ -380,7 +380,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
        ) do
     resource_name = Helpers.build_resource_type_name(resource)
 
-    attributes = AshApiSpec.Resource.fields_by_kind(api_resource, :attribute)
+    attributes = Ash.Info.Manifest.Resource.fields_by_kind(api_resource, :attribute)
 
     {complex_attrs, primitive_attrs} =
       Enum.split_with(attributes, &is_complex_attr?/1)
@@ -424,7 +424,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   defp generate_input_schema_from_spec(resource, api_resource) do
     resource_name = Helpers.build_resource_type_name(resource)
 
-    attributes = AshApiSpec.Resource.fields_by_kind(api_resource, :attribute)
+    attributes = Ash.Info.Manifest.Resource.fields_by_kind(api_resource, :attribute)
 
     input_fields =
       attributes
@@ -450,11 +450,11 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     """
   end
 
-  # ── AshApiSpec complex field helpers ──────────────────────────────
+  # ── Ash.Info.Manifest complex field helpers ──────────────────────────────
 
   defp spec_complex_field_definition(
          resource,
-         %AshApiSpec.Field{} = field,
+         %Ash.Info.Manifest.Field{} = field,
          allowed_resources,
          resource_lookup
        ) do
@@ -493,7 +493,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   defp spec_complex_field_definition(
          resource,
-         %AshApiSpec.Relationship{} = rel,
+         %Ash.Info.Manifest.Relationship{} = rel,
          _allowed_resources,
          _resource_lookup
        ) do
@@ -583,7 +583,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   defp spec_embedded_field(
          resource,
-         %AshApiSpec.Field{type: type} = field,
+         %Ash.Info.Manifest.Field{type: type} = field,
          allowed_resources,
          schema_suffix
        ) do
@@ -591,7 +591,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
     {inner_type, is_array} =
       case type do
-        %AshApiSpec.Type{kind: :array, item_type: item_type} -> {item_type, true}
+        %Ash.Info.Manifest.Type{kind: :array, item_type: item_type} -> {item_type, true}
         _ -> {type, false}
       end
 
@@ -624,12 +624,12 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     end
   end
 
-  defp spec_typed_field(resource, %AshApiSpec.Field{type: type} = field) do
+  defp spec_typed_field(resource, %Ash.Info.Manifest.Field{type: type} = field) do
     formatted_name = format_client_field_name(resource, field.name)
 
     {inner_type, is_array} =
       case type do
-        %AshApiSpec.Type{kind: :array, item_type: item_type} -> {item_type, true}
+        %Ash.Info.Manifest.Type{kind: :array, item_type: item_type} -> {item_type, true}
         _ -> {type, false}
       end
 
@@ -650,7 +650,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     end
   end
 
-  defp spec_calculation_definition(resource, %AshApiSpec.Field{} = field) do
+  defp spec_calculation_definition(resource, %Ash.Info.Manifest.Field{} = field) do
     formatted_name = format_client_field_name(resource, field.name)
     return_type = spec_calculation_return_type(field)
 
@@ -667,17 +667,17 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     "  #{formatted_name}: #{metadata};"
   end
 
-  defp spec_calculation_return_type(%AshApiSpec.Field{type: type, allow_nil?: allow_nil?}) do
+  defp spec_calculation_return_type(%Ash.Info.Manifest.Field{type: type, allow_nil?: allow_nil?}) do
     # For resource return types, reference the ResourceSchema directly
     base_type =
       case type do
-        %AshApiSpec.Type{kind: kind, resource_module: res_mod}
+        %Ash.Info.Manifest.Type{kind: kind, resource_module: res_mod}
         when kind in [:resource, :embedded_resource] and not is_nil(res_mod) ->
           "#{Helpers.build_resource_type_name(res_mod)}ResourceSchema"
 
-        %AshApiSpec.Type{
+        %Ash.Info.Manifest.Type{
           kind: :array,
-          item_type: %AshApiSpec.Type{kind: kind, resource_module: res_mod}
+          item_type: %Ash.Info.Manifest.Type{kind: kind, resource_module: res_mod}
         }
         when kind in [:resource, :embedded_resource] and not is_nil(res_mod) ->
           "Array<#{Helpers.build_resource_type_name(res_mod)}ResourceSchema>"
@@ -726,7 +726,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   defp spec_attributes_only_complex_field(
          resource,
-         %AshApiSpec.Field{} = field,
+         %Ash.Info.Manifest.Field{} = field,
          allowed_resources,
          _resource_lookup
        ) do
@@ -751,15 +751,15 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     end
   end
 
-  # Check if an AshApiSpec type module has a custom typescript_type_name
-  defp spec_type_name(%AshApiSpec.Type{kind: :array, item_type: inner}) do
+  # Check if an Ash.Info.Manifest type module has a custom typescript_type_name
+  defp spec_type_name(%Ash.Info.Manifest.Type{kind: :array, item_type: inner}) do
     case spec_type_name(inner) do
       nil -> nil
       name -> "#{name}[]"
     end
   end
 
-  defp spec_type_name(%AshApiSpec.Type{module: module})
+  defp spec_type_name(%Ash.Info.Manifest.Type{module: module})
        when is_atom(module) and not is_nil(module) do
     if Code.ensure_loaded?(module) and function_exported?(module, :typescript_type_name, 0) do
       module.typescript_type_name()
@@ -774,11 +774,11 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   # Helper to format a resource field name for client output
   # Uses field_names DSL mapping if available, otherwise applies formatter
-  defp has_type_fields?(%AshApiSpec.Type{fields: fields})
+  defp has_type_fields?(%Ash.Info.Manifest.Type{fields: fields})
        when is_list(fields) and fields != [],
        do: true
 
-  defp has_type_fields?(%AshApiSpec.Type{constraints: constraints}) do
+  defp has_type_fields?(%Ash.Info.Manifest.Type{constraints: constraints}) do
     Keyword.has_key?(constraints || [], :fields)
   end
 

@@ -14,7 +14,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   import AshTypescript.Helpers, only: [format_output_field: 1]
   import AshTypescript.Codegen.TypeMapper, only: [get_ts_input_type: 1]
 
-  alias AshApiSpec.Generator.TypeResolver
+  alias Ash.Info.Manifest.Generator.TypeResolver
   alias AshTypescript.Codegen.SchemaCore
   alias AshTypescript.Codegen.ZodSchemaGenerator
 

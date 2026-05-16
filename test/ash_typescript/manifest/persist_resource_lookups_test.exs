@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.AshApiSpec.UnifiedSpecTest do
+defmodule AshTypescript.Manifest.UnifiedSpecTest do
   use ExUnit.Case, async: true
 
-  describe "unified app-wide spec via AshTypescript.AshApiSpec" do
+  describe "unified app-wide spec via AshTypescript.Manifest" do
     test "ApiSpec has :resource_lookup persisted" do
       lookup =
         Spark.Dsl.Extension.get_persisted(
@@ -51,7 +51,7 @@ defmodule AshTypescript.AshApiSpec.UnifiedSpecTest do
         )
 
       todo = lookup[AshTypescript.Test.Todo]
-      assert %AshApiSpec.Resource{} = todo
+      assert %Ash.Info.Manifest.Resource{} = todo
       assert todo.module == AshTypescript.Test.Todo
       assert todo.fields[:title] != nil
       assert todo.fields[:id] != nil

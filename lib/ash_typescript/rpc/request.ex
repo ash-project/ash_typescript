@@ -28,7 +28,7 @@ defmodule AshTypescript.Rpc.Request do
           sort: list() | nil,
           pagination: map() | nil,
           show_metadata: list(atom()),
-          resource_lookups: %{module() => AshApiSpec.Resource.t()} | nil,
+          resource_lookups: %{module() => Ash.Info.Manifest.Resource.t()} | nil,
           type_index: map()
         }
 

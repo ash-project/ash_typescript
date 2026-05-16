@@ -74,7 +74,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
         false
 
       pagination_config ->
-        # AshApiSpec.Pagination uses `:countable?`; raw Ash uses `:countable`
+        # Ash.Info.Manifest.Pagination uses `:countable?`; raw Ash uses `:countable`
         Map.get(pagination_config, :countable?) || Map.get(pagination_config, :countable, false)
     end
   end
@@ -138,11 +138,11 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
     end
   end
 
-  defp input_is_required?(%AshApiSpec.Argument{} = arg, _action) do
+  defp input_is_required?(%Ash.Info.Manifest.Argument{} = arg, _action) do
     not arg.allow_nil? and not arg.has_default?
   end
 
-  defp input_is_required?(%AshApiSpec.Field{} = field, action) do
+  defp input_is_required?(%Ash.Info.Manifest.Field{} = field, action) do
     field.name not in (action.allow_nil_input || []) and
       (field.name in (action.require_attributes || []) ||
          (not field.allow_nil? and not field.has_default?))
@@ -168,7 +168,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
 
       accept_list ->
         case Map.get(resource_lookup, resource) do
-          %AshApiSpec.Resource{} = api_resource ->
+          %Ash.Info.Manifest.Resource{} = api_resource ->
             accept_list
             |> Enum.map(&Map.get(api_resource.fields, &1))
             |> Enum.reject(&is_nil/1)
@@ -244,17 +244,17 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
 
   defp unwrap_return_type(action) do
     case action.returns do
-      # AshApiSpec.Type with array kind
-      %AshApiSpec.Type{kind: :array, item_type: item_type} ->
+      # Ash.Info.Manifest.Type with array kind
+      %Ash.Info.Manifest.Type{kind: :array, item_type: item_type} ->
         {item_type, [], true}
 
-      # AshApiSpec.Type ref — resolve before continuing
-      %AshApiSpec.Type{kind: :type_ref, module: module} ->
-        full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), module)
+      # Ash.Info.Manifest.Type ref — resolve before continuing
+      %Ash.Info.Manifest.Type{kind: :type_ref, module: module} ->
+        full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), module)
         {full_type, [], false}
 
-      # AshApiSpec.Type (non-array)
-      %AshApiSpec.Type{} = type ->
+      # Ash.Info.Manifest.Type (non-array)
+      %Ash.Info.Manifest.Type{} = type ->
         {type, [], false}
 
       # Legacy: raw Ash type tuple
@@ -268,34 +268,34 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   end
 
   # Classifies a return type into a category for field selectability
-  @spec classify_return_type(atom() | tuple() | AshApiSpec.Type.t(), keyword()) ::
+  @spec classify_return_type(atom() | tuple() | Ash.Info.Manifest.Type.t(), keyword()) ::
           {:resource, module()}
           | {:typed_map, keyword()}
           | {:typed_struct, {module(), keyword()}}
           | :unconstrained_map
           | {:error, atom()}
-  # AshApiSpec.Type classification
-  defp classify_return_type(%AshApiSpec.Type{kind: :type_ref, module: module}, _constraints) do
-    full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), module)
+  # Ash.Info.Manifest.Type classification
+  defp classify_return_type(%Ash.Info.Manifest.Type{kind: :type_ref, module: module}, _constraints) do
+    full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), module)
     classify_return_type(full_type, [])
   end
 
-  defp classify_return_type(%AshApiSpec.Type{kind: kind, resource_module: mod}, _constraints)
+  defp classify_return_type(%Ash.Info.Manifest.Type{kind: kind, resource_module: mod}, _constraints)
        when kind in [:resource, :embedded_resource] and not is_nil(mod) do
     {:resource, mod}
   end
 
   defp classify_return_type(
-         %AshApiSpec.Type{kind: :struct, fields: fields, instance_of: inst},
+         %Ash.Info.Manifest.Type{kind: :struct, fields: fields, instance_of: inst},
          _constraints
        )
        when is_list(fields) and fields != [] and not is_nil(inst) do
     {:typed_struct, {inst, fields}}
   end
 
-  defp classify_return_type(%AshApiSpec.Type{kind: kind} = type_info, _constraints)
+  defp classify_return_type(%Ash.Info.Manifest.Type{kind: kind} = type_info, _constraints)
        when kind in [:map, :keyword, :tuple] do
-    fields = AshApiSpec.Type.get_fields(type_info)
+    fields = Ash.Info.Manifest.Type.get_fields(type_info)
 
     if fields != [] do
       {:typed_map, fields}
@@ -304,7 +304,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
     end
   end
 
-  defp classify_return_type(%AshApiSpec.Type{}, _constraints) do
+  defp classify_return_type(%Ash.Info.Manifest.Type{}, _constraints) do
     {:error, :not_field_selectable_type}
   end
 

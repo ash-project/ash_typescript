@@ -329,7 +329,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
             if action.returns do
               return_type =
                 case action.returns do
-                  %AshApiSpec.Type{} = type ->
+                  %Ash.Info.Manifest.Type{} = type ->
                     AshTypescript.Codegen.TypeMapper.map_type(type, [], :output)
 
                   _ ->

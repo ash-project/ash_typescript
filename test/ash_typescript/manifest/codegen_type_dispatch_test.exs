@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshApiSpec.CodegenTypeDispatchTest do
+defmodule AshTypescript.Manifest.CodegenTypeDispatchTest do
   @moduledoc """
-  Tests that TypeMapper and ResourceSchemas correctly handle %AshApiSpec.Type{}
+  Tests that TypeMapper and ResourceSchemas correctly handle %Ash.Info.Manifest.Type{}
   dispatch heads, producing identical results to the existing {type, constraints} path.
   """
   use ExUnit.Case, async: true
 
-  alias AshApiSpec.Type
+  alias Ash.Info.Manifest.Type
   alias AshTypescript.Codegen.ResourceSchemas
   alias AshTypescript.Codegen.TypeMapper
 
@@ -383,12 +383,12 @@ defmodule AshApiSpec.CodegenTypeDispatchTest do
   end
 
   # ─────────────────────────────────────────────────────────────────
-  # ResourceSchemas.classify_field(%AshApiSpec.Field{})
+  # ResourceSchemas.classify_field(%Ash.Info.Manifest.Field{})
   # ─────────────────────────────────────────────────────────────────
 
-  describe "ResourceSchemas.classify_field/1 with %AshApiSpec.Field{}" do
+  describe "ResourceSchemas.classify_field/1 with %Ash.Info.Manifest.Field{}" do
     test "attribute with string type is primitive" do
-      field = %AshApiSpec.Field{
+      field = %Ash.Info.Manifest.Field{
         name: :title,
         kind: :attribute,
         type: %Type{kind: :string, name: "String", module: Ash.Type.String, constraints: []},
@@ -406,7 +406,7 @@ defmodule AshApiSpec.CodegenTypeDispatchTest do
     end
 
     test "attribute with embedded resource type is embedded" do
-      field = %AshApiSpec.Field{
+      field = %Ash.Info.Manifest.Field{
         name: :metadata,
         kind: :attribute,
         type: %Type{
@@ -430,7 +430,7 @@ defmodule AshApiSpec.CodegenTypeDispatchTest do
     end
 
     test "calculation with arguments is :calculation" do
-      field = %AshApiSpec.Field{
+      field = %Ash.Info.Manifest.Field{
         name: :complex_calc,
         kind: :calculation,
         type: %Type{kind: :string, name: "String", module: Ash.Type.String, constraints: []},
@@ -443,7 +443,7 @@ defmodule AshApiSpec.CodegenTypeDispatchTest do
         sensitive?: false,
         select_by_default?: true,
         arguments: [
-          %AshApiSpec.Argument{
+          %Ash.Info.Manifest.Argument{
             name: :arg1,
             type: %Type{kind: :string, name: "String", module: Ash.Type.String, constraints: []},
             allow_nil?: false,
@@ -457,7 +457,7 @@ defmodule AshApiSpec.CodegenTypeDispatchTest do
     end
 
     test "calculation without arguments classified by type" do
-      field = %AshApiSpec.Field{
+      field = %Ash.Info.Manifest.Field{
         name: :simple_calc,
         kind: :calculation,
         type: %Type{kind: :string, name: "String", module: Ash.Type.String, constraints: []},

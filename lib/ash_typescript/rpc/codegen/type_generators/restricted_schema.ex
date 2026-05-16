@@ -654,13 +654,13 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   end
 
   defp resolve_field_info(resource, field_name, resource_lookup) do
-    api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
-    rel = AshApiSpec.Resource.get_relationship(api_resource, field_name)
+    api_resource = Ash.Info.Manifest.get_resource!(resource_lookup, resource)
+    rel = Ash.Info.Manifest.Resource.get_relationship(api_resource, field_name)
 
     if rel do
       {:relationship, rel}
     else
-      field = AshApiSpec.Resource.get_field(api_resource, field_name)
+      field = Ash.Info.Manifest.Resource.get_field(api_resource, field_name)
 
       if field do
         resolve_field_type_info(field)
@@ -670,7 +670,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     end
   end
 
-  defp resolve_field_type_info(%AshApiSpec.Field{} = field) do
+  defp resolve_field_type_info(%Ash.Info.Manifest.Field{} = field) do
     api_type = resolve_inner_api_type(field.type)
 
     cond do
@@ -686,18 +686,18 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     end
   end
 
-  # Unwraps :array types to get the inner AshApiSpec.Type, otherwise returns the type as-is.
-  defp resolve_inner_api_type(%AshApiSpec.Type{kind: :array, item_type: item_type}),
+  # Unwraps :array types to get the inner Ash.Info.Manifest.Type, otherwise returns the type as-is.
+  defp resolve_inner_api_type(%Ash.Info.Manifest.Type{kind: :array, item_type: item_type}),
     do: resolve_inner_api_type(item_type)
 
-  defp resolve_inner_api_type(%AshApiSpec.Type{kind: :type_ref, module: module}),
-    do: AshApiSpec.get_type!(AshTypescript.type_lookup(), module)
+  defp resolve_inner_api_type(%Ash.Info.Manifest.Type{kind: :type_ref, module: module}),
+    do: Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), module)
 
-  defp resolve_inner_api_type(%AshApiSpec.Type{} = type), do: type
+  defp resolve_inner_api_type(%Ash.Info.Manifest.Type{} = type), do: type
 
-  # Checks if an AshApiSpec.Field has an array type.
-  defp api_field_is_array?(%AshApiSpec.Field{type: %AshApiSpec.Type{kind: :array}}), do: true
-  defp api_field_is_array?(%AshApiSpec.Field{}), do: false
+  # Checks if an Ash.Info.Manifest.Field has an array type.
+  defp api_field_is_array?(%Ash.Info.Manifest.Field{type: %Ash.Info.Manifest.Type{kind: :array}}), do: true
+  defp api_field_is_array?(%Ash.Info.Manifest.Field{}), do: false
 
   # Unwraps raw Ash array types (used for union member type processing).
   defp unwrap_array_type({:array, inner}), do: inner
@@ -820,21 +820,21 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   end
 
   defp get_loadable_field_names(resource, resource_lookup) do
-    api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
+    api_resource = Ash.Info.Manifest.get_resource!(resource_lookup, resource)
 
     relationships =
       api_resource
-      |> AshApiSpec.Resource.all_relationships()
+      |> Ash.Info.Manifest.Resource.all_relationships()
       |> Enum.map(& &1.name)
 
     calculations =
       api_resource
-      |> AshApiSpec.Resource.fields_by_kind(:calculation)
+      |> Ash.Info.Manifest.Resource.fields_by_kind(:calculation)
       |> Enum.map(& &1.name)
 
     aggregates =
       api_resource
-      |> AshApiSpec.Resource.fields_by_kind(:aggregate)
+      |> Ash.Info.Manifest.Resource.fields_by_kind(:aggregate)
       |> Enum.map(& &1.name)
 
     relationships ++ calculations ++ aggregates

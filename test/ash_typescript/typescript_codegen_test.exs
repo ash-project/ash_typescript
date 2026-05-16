@@ -254,12 +254,12 @@ defmodule AshTypescript.CodegenTest do
       fields = [
         %{
           name: :name,
-          type: AshApiSpec.Generator.TypeResolver.resolve(Ash.Type.String, []),
+          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.String, []),
           allow_nil?: false
         },
         %{
           name: :age,
-          type: AshApiSpec.Generator.TypeResolver.resolve(Ash.Type.Integer, []),
+          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.Integer, []),
           allow_nil?: true
         }
       ]
@@ -274,17 +274,17 @@ defmodule AshTypescript.CodegenTest do
       fields = [
         %{
           name: :name,
-          type: AshApiSpec.Generator.TypeResolver.resolve(Ash.Type.String, []),
+          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.String, []),
           allow_nil?: false
         },
         %{
           name: :age,
-          type: AshApiSpec.Generator.TypeResolver.resolve(Ash.Type.Integer, []),
+          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.Integer, []),
           allow_nil?: true
         },
         %{
           name: :email,
-          type: AshApiSpec.Generator.TypeResolver.resolve(Ash.Type.String, []),
+          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.String, []),
           allow_nil?: false
         }
       ]

@@ -133,7 +133,7 @@ defmodule AshTypescript.Rpc.StructArgumentTest do
       rpc_resources = AshTypescript.Codegen.TypeDiscovery.get_rpc_resources(:ash_typescript)
 
       {reachable, _} =
-        AshApiSpec.Generator.Reachability.find_reachable(rpc_resources)
+        Ash.Info.Manifest.Generator.Reachability.find_reachable(rpc_resources)
 
       assert is_list(reachable)
     end

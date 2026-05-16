@@ -29,7 +29,7 @@ defmodule AshTypescript.Rpc.EmbeddedArgumentTest do
     test "reachability finds TodoMetadata through action arguments" do
       # TodoMetadata is used as a direct argument type in RPC actions
       {reachable, _} =
-        AshApiSpec.Generator.Reachability.find_reachable([
+        Ash.Info.Manifest.Generator.Reachability.find_reachable([
           {AshTypescript.Test.Todo, [:process_metadata, :process_metadata_batch]}
         ])
 

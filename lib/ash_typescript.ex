@@ -747,18 +747,18 @@ defmodule AshTypescript do
     end
   end
 
-  @doc "Returns the full `%AshApiSpec{}`."
+  @doc "Returns the full `%Ash.Info.Manifest{}`."
   defdelegate api_spec(), to: AshTypescript.SpecCache
 
-  @doc "Returns the entrypoints from the AshApiSpec."
+  @doc "Returns the entrypoints from the Ash.Info.Manifest."
   defdelegate entrypoints(), to: AshTypescript.SpecCache
 
-  @doc "Returns the AshApiSpec resource lookup map (cached in persistent_term)."
+  @doc "Returns the Ash.Info.Manifest resource lookup map (cached in persistent_term)."
   defdelegate resource_lookup(), to: AshTypescript.SpecCache
 
-  @doc "Returns the AshApiSpec action lookup map (cached in persistent_term)."
+  @doc "Returns the Ash.Info.Manifest action lookup map (cached in persistent_term)."
   defdelegate action_lookup(), to: AshTypescript.SpecCache
 
-  @doc "Returns the AshApiSpec named-type lookup map (cached in persistent_term)."
+  @doc "Returns the Ash.Info.Manifest named-type lookup map (cached in persistent_term)."
   defdelegate type_lookup(), to: AshTypescript.SpecCache
 end

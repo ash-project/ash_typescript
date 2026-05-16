@@ -14,14 +14,14 @@ defmodule AshTypescript.Codegen.SchemaCore do
   argument to each public function.
   """
 
-  alias AshApiSpec.Type, as: SpecType
+  alias Ash.Info.Manifest.Type, as: SpecType
   alias AshTypescript.Codegen.Helpers, as: CodegenHelpers
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.TypeSystem.Introspection
 
   import AshTypescript.Helpers
 
-  # AshApiSpec.Type kinds → corresponding Ash type module, used to look up
+  # Ash.Info.Manifest.Type kinds → corresponding Ash type module, used to look up
   # static primitive schemas in `formatter.simple_primitives()`. Only listed
   # for kinds that have a 1:1 module correspondence and don't need
   # constraint-driven formatting (string/integer/float/atom/etc. are handled
@@ -43,10 +43,10 @@ defmodule AshTypescript.Codegen.SchemaCore do
   }
 
   # ─────────────────────────────────────────────────────────────────
-  # Core Type Mapping (dispatches on %AshApiSpec.Type{})
+  # Core Type Mapping (dispatches on %Ash.Info.Manifest.Type{})
   # ─────────────────────────────────────────────────────────────────
 
-  # Recursive dispatch — assumes input is already an `%AshApiSpec.Type{}`.
+  # Recursive dispatch — assumes input is already an `%Ash.Info.Manifest.Type{}`.
   # Strings are emitted with `require_non_empty: false`; the entry-point
   # `get_type/3` applies non-empty enforcement based on the caller's
   # `allow_nil?` before recursing.
@@ -84,7 +84,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
         map_typed_container(formatter, type_info)
 
       :type_ref ->
-        full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), type_info.module)
+        full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), type_info.module)
         map_spec_type(formatter, full_type)
 
       :unknown ->
@@ -135,16 +135,16 @@ defmodule AshTypescript.Codegen.SchemaCore do
   @doc """
   Maps a type-bearing spec input to a schema string.
 
-  Accepted shapes (all `%AshApiSpec.*{}`):
-  - `%AshApiSpec.Type{}` — the canonical spec form
-  - `%AshApiSpec.Argument{}` / `%AshApiSpec.Field{}` — anything with a
-    `:type` field carrying a `%AshApiSpec.Type{}`
+  Accepted shapes (all `%Ash.Info.Manifest.*{}`):
+  - `%Ash.Info.Manifest.Type{}` — the canonical spec form
+  - `%Ash.Info.Manifest.Argument{}` / `%Ash.Info.Manifest.Field{}` — anything with a
+    `:type` field carrying a `%Ash.Info.Manifest.Type{}`
   - Aggregate kind atoms (e.g. `:count`, `:sum`) — looked up in
     `formatter.aggregate_types()`
 
   Callers must feed spec data. Raw Ash types (atom modules, `{:array, _}`
   tuples, `%{type: SomeType, constraints: [...]}` shapes) are no longer
-  accepted; resolve via `AshApiSpec.Generator.TypeResolver.resolve/2` first.
+  accepted; resolve via `Ash.Info.Manifest.Generator.TypeResolver.resolve/2` first.
 
   Handles `allow_nil?` for string types: non-nullable strings get
   `format_string(constraints, true)` (which adds an effective min-length 1
@@ -284,7 +284,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
       if Map.has_key?(acc, r) do
         acc
       else
-        Map.put(acc, r, AshApiSpec.Generator.ResourceBuilder.build(r, []))
+        Map.put(acc, r, Ash.Info.Manifest.Generator.ResourceBuilder.build(r, []))
       end
     end)
   end
@@ -417,21 +417,21 @@ defmodule AshTypescript.Codegen.SchemaCore do
     {formatted_name, schema_type}
   end
 
-  # Compatibility shim: AshApiSpec.Argument exposes `has_default?`, while raw
+  # Compatibility shim: Ash.Info.Manifest.Argument exposes `has_default?`, while raw
   # Ash arguments only expose the `:default` value. Treat any explicit default
   # as "has default".
   defp has_default?(%{has_default?: has_default?}), do: has_default?
   defp has_default?(%{default: default}), do: not is_nil(default)
   defp has_default?(_), do: false
 
-  # AshApiSpec arguments are already filtered to public ones; raw Ash arguments
+  # Ash.Info.Manifest arguments are already filtered to public ones; raw Ash arguments
   # carry a `:public?` field that needs filtering.
   defp filter_public_arguments(args) do
     Enum.filter(args, fn arg -> Map.get(arg, :public?, true) end)
   end
 
   defp process_accept_field(formatter, resource, field_name, action) do
-    attr = AshApiSpec.get_field(AshTypescript.resource_lookup(), resource, field_name)
+    attr = Ash.Info.Manifest.get_field(AshTypescript.resource_lookup(), resource, field_name)
 
     {nullable, omittable} =
       if action.type in [:update, :destroy] do
@@ -501,11 +501,11 @@ defmodule AshTypescript.Codegen.SchemaCore do
     resource_name = CodegenHelpers.build_resource_type_name(resource)
     schema_name = "#{resource_name}#{formatter.schema_suffix()}"
     kw = formatter.library_prefix()
-    api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
+    api_resource = Ash.Info.Manifest.get_resource!(resource_lookup, resource)
 
     fields =
       api_resource
-      |> AshApiSpec.Resource.fields_by_kind(:attribute)
+      |> Ash.Info.Manifest.Resource.fields_by_kind(:attribute)
       |> Enum.map_join("\n", fn attr ->
         formatted_name =
           AshTypescript.FieldFormatter.format_field_for_client(
@@ -570,15 +570,15 @@ defmodule AshTypescript.Codegen.SchemaCore do
   end
 
   defp find_resource_dependencies(resource, resource_set, resource_lookup) do
-    api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
+    api_resource = Ash.Info.Manifest.get_resource!(resource_lookup, resource)
 
     api_resource
-    |> AshApiSpec.Resource.fields_by_kind(:attribute)
+    |> Ash.Info.Manifest.Resource.fields_by_kind(:attribute)
     |> Enum.flat_map(fn attr -> extract_resource_deps_from_spec(attr.type, resource_set) end)
     |> Enum.uniq()
   end
 
-  # Walks a resolved `%AshApiSpec.Type{}` and returns the embedded/instance_of
+  # Walks a resolved `%Ash.Info.Manifest.Type{}` and returns the embedded/instance_of
   # resource modules it depends on (those present in `resource_set`).
   defp extract_resource_deps_from_spec(%SpecType{kind: :array, item_type: item}, resource_set) do
     extract_resource_deps_from_spec(item, resource_set)

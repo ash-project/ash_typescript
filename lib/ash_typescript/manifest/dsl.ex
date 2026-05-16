@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.AshApiSpec.Dsl do
+defmodule AshTypescript.Manifest.Dsl do
   @moduledoc false
 
   use Spark.Dsl.Extension,
-    transformers: [AshTypescript.AshApiSpec.Transformers.BuildAppSpec]
+    transformers: [AshTypescript.Manifest.Transformers.BuildAppSpec]
 end

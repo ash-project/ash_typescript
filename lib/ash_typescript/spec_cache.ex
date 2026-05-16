@@ -4,7 +4,7 @@
 
 defmodule AshTypescript.SpecCache do
   @moduledoc """
-  Caches the AshApiSpec in `:persistent_term` for zero-cost reads.
+  Caches the Ash.Info.Manifest in `:persistent_term` for zero-cost reads.
 
   The spec is built once (during codegen or on first access) and cached
   for the lifetime of the BEAM. All runtime lookups read from the cache
@@ -21,9 +21,9 @@ defmodule AshTypescript.SpecCache do
   Called by `Orchestrator.generate` and `Pipeline.parse_request` (lazy init).
   """
   def put(api_spec) do
-    resource_lookup = AshApiSpec.resource_lookup(api_spec)
-    action_lookup = AshApiSpec.action_lookup(api_spec)
-    type_lookup = AshApiSpec.type_lookup(api_spec)
+    resource_lookup = Ash.Info.Manifest.resource_lookup(api_spec)
+    action_lookup = Ash.Info.Manifest.action_lookup(api_spec)
+    type_lookup = Ash.Info.Manifest.type_lookup(api_spec)
 
     :persistent_term.put(@spec_key, api_spec)
     :persistent_term.put(@resource_lookup_key, resource_lookup)
@@ -31,7 +31,7 @@ defmodule AshTypescript.SpecCache do
     :persistent_term.put(@type_lookup_key, type_lookup)
   end
 
-  @doc "Returns the cached `%AshApiSpec{}`."
+  @doc "Returns the cached `%Ash.Info.Manifest{}`."
   def api_spec do
     :persistent_term.get(@spec_key, nil) || build_and_cache()
   end
@@ -118,18 +118,18 @@ defmodule AshTypescript.SpecCache do
     ArgumentError -> :ok
   end
 
-  # Build the spec from the configured AshApiSpec Spark module, or
+  # Build the spec from the configured Ash.Info.Manifest Spark module, or
   # from scratch using TypeDiscovery + RpcConfigCollector.
   defp build_and_cache do
     otp_app = Mix.Project.config()[:app]
 
     api_spec =
-      case Application.get_env(:ash_typescript, :ash_api_spec) do
+      case Application.get_env(:ash_typescript, :manifest) do
         nil ->
           build_spec(otp_app)
 
         module when is_atom(module) ->
-          Spark.Dsl.Extension.get_persisted(module, :ash_api_spec) || build_spec(otp_app)
+          Spark.Dsl.Extension.get_persisted(module, :manifest) || build_spec(otp_app)
       end
 
     put(api_spec)
@@ -153,7 +153,7 @@ defmodule AshTypescript.SpecCache do
     all_entrypoints = entrypoint_configs ++ extra_root_tuples
 
     {:ok, spec} =
-      AshApiSpec.Generator.generate(otp_app: otp_app, action_entrypoints: all_entrypoints)
+      Ash.Info.Manifest.Generator.generate(otp_app: otp_app, action_entrypoints: all_entrypoints)
 
     spec
   end

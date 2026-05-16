@@ -39,17 +39,17 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   ## Returns
   A TypeScript error type string (e.g., "string[]", "FooValidationErrors")
   """
-  @spec map_error_type(atom() | tuple() | AshApiSpec.Type.t(), keyword()) :: String.t()
+  @spec map_error_type(atom() | tuple() | Ash.Info.Manifest.Type.t(), keyword()) :: String.t()
   def map_error_type(type, constraints \\ [])
 
   # Handle nil type
   def map_error_type(nil, _constraints), do: "string[]"
 
-  # ── %AshApiSpec.Type{} dispatch ──────────────────────────────────
-  def map_error_type(%AshApiSpec.Type{} = type_info, _constraints) do
+  # ── %Ash.Info.Manifest.Type{} dispatch ──────────────────────────────────
+  def map_error_type(%Ash.Info.Manifest.Type{} = type_info, _constraints) do
     case type_info.kind do
       :type_ref ->
-        full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), type_info.module)
+        full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), type_info.module)
         map_error_type(full_type, [])
 
       :array ->
@@ -85,7 +85,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   # ── Raw Ash type dispatch ────────────────────────────────────────
   def map_error_type(type, constraints) do
     {unwrapped_type, full_constraints} =
-      AshApiSpec.Generator.TypeResolver.unwrap_new_type(type, constraints)
+      Ash.Info.Manifest.Generator.TypeResolver.unwrap_new_type(type, constraints)
 
     cond do
       # Arrays - recurse into inner type
@@ -315,11 +315,11 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   def generate_input_validation_errors_schema(resource, resource_lookup) do
     resource_name = build_resource_type_name(resource)
 
-    api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
+    api_resource = Ash.Info.Manifest.get_resource!(resource_lookup, resource)
 
     error_fields =
       api_resource
-      |> AshApiSpec.Resource.fields_by_kind(:attribute)
+      |> Ash.Info.Manifest.Resource.fields_by_kind(:attribute)
       |> Enum.map_join("\n", fn attr ->
         formatted_name =
           AshTypescript.FieldFormatter.format_field_for_client(
@@ -348,8 +348,8 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   Maps Ash types to their corresponding validation error types.
   Backward compatible wrapper around map_error_type/2.
   """
-  # Handle AshApiSpec structs — pass spec type directly
-  def get_ts_error_type(%{type: %AshApiSpec.Type{} = spec_type}) do
+  # Handle Ash.Info.Manifest structs — pass spec type directly
+  def get_ts_error_type(%{type: %Ash.Info.Manifest.Type{} = spec_type}) do
     map_error_type(spec_type, [])
   end
 
@@ -412,7 +412,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
         if action.accept != [] || arguments != [] do
           accept_field_defs =
             Enum.map(action.accept, fn field_name ->
-              attr = AshApiSpec.get_field(resource_lookup, resource, field_name)
+              attr = Ash.Info.Manifest.get_field(resource_lookup, resource, field_name)
 
               formatted_field_name =
                 AshTypescript.FieldFormatter.format_field_for_client(

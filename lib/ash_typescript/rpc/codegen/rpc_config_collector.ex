@@ -11,7 +11,7 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   Gets RPC action DSL entries (resource + action name pairs) for building the spec.
 
   Returns a list of `{resource_module, action_name}` tuples.
-  This is used to build the AshApiSpec before resolving full action structs.
+  This is used to build the Ash.Info.Manifest before resolving full action structs.
   """
   def get_rpc_action_tuples(otp_app) do
     otp_app
@@ -30,7 +30,7 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   @doc """
   Gets RPC action entrypoint configs for building the spec with extension-specific metadata.
 
-  Returns a list of maps suitable for `AshApiSpec.Generator.generate/1`'s
+  Returns a list of maps suitable for `Ash.Info.Manifest.Generator.generate/1`'s
   `:action_entrypoints` option, with RPC config under `config.ash_typescript`.
   """
   def get_rpc_action_entrypoint_configs(otp_app) do
@@ -182,7 +182,7 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   # Helpers
   # ─────────────────────────────────────────────────────────────────
 
-  defp has_ash_typescript_config?(%AshApiSpec.Entrypoint{config: %{ash_typescript: _}}), do: true
+  defp has_ash_typescript_config?(%Ash.Info.Manifest.Entrypoint{config: %{ash_typescript: _}}), do: true
   defp has_ash_typescript_config?(_), do: false
 
   defp get_entrypoints do

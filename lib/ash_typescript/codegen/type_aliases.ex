@@ -28,7 +28,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
     types =
       Enum.reduce(all_resources, MapSet.new(), fn resource, types ->
         case Map.get(resource_lookup, resource) do
-          %AshApiSpec.Resource{} = api_resource ->
+          %Ash.Info.Manifest.Resource{} = api_resource ->
             types = collect_types_from_api_resource(api_resource, types)
             collect_types_from_action_lookup(resource, action_lookup, types)
 
@@ -58,7 +58,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
 
           type_module =
             case arg_type do
-              %AshApiSpec.Type{module: m} when is_atom(m) -> m
+              %Ash.Info.Manifest.Type{module: m} when is_atom(m) -> m
               _ -> nil
             end
 
@@ -74,11 +74,11 @@ defmodule AshTypescript.Codegen.TypeAliases do
     end)
   end
 
-  defp collect_type_module(%AshApiSpec.Type{kind: :array, item_type: item_type}, types) do
+  defp collect_type_module(%Ash.Info.Manifest.Type{kind: :array, item_type: item_type}, types) do
     collect_type_module(item_type, types)
   end
 
-  defp collect_type_module(%AshApiSpec.Type{module: module}, types)
+  defp collect_type_module(%Ash.Info.Manifest.Type{module: module}, types)
        when is_atom(module) and not is_nil(module) do
     if Ash.Type.ash_type?(module) do
       MapSet.put(types, module)
@@ -102,7 +102,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
 
       # Collect from action returns (for generic actions)
       case action.returns do
-        %AshApiSpec.Type{} = return_type -> collect_type_module(return_type, types)
+        %Ash.Info.Manifest.Type{} = return_type -> collect_type_module(return_type, types)
         _ -> types
       end
     end)

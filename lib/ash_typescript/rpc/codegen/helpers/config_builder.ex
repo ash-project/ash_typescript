@@ -196,11 +196,11 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   end
 
   defp build_single_identity_type(resource, :_primary_key, validation_function?, resource_lookup) do
-    primary_key_attrs = AshApiSpec.primary_key(resource_lookup, resource)
+    primary_key_attrs = Ash.Info.Manifest.primary_key(resource_lookup, resource)
 
     if Enum.count(primary_key_attrs) == 1 do
       attr_name = Enum.at(primary_key_attrs, 0)
-      attr = AshApiSpec.get_field(resource_lookup, resource, attr_name)
+      attr = Ash.Info.Manifest.get_field(resource_lookup, resource, attr_name)
       base_type = get_ts_type(attr)
 
       if validation_function? do
@@ -211,7 +211,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
     else
       field_types =
         Enum.map_join(primary_key_attrs, "; ", fn attr_name ->
-          attr = AshApiSpec.get_field(resource_lookup, resource, attr_name)
+          attr = Ash.Info.Manifest.get_field(resource_lookup, resource, attr_name)
           formatted_attr_name = get_formatted_field_name(resource, attr.name)
           base_type = get_ts_type(attr)
 
@@ -230,14 +230,14 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   end
 
   defp build_single_identity_type(resource, identity_name, validation_function?, resource_lookup) do
-    identity = AshApiSpec.get_identity(resource_lookup, resource, identity_name)
+    identity = Ash.Info.Manifest.get_identity(resource_lookup, resource, identity_name)
 
     if identity do
       # Use identity field names directly (e.g., { email: string } not { uniqueEmail: string })
       field_types =
         Enum.map_join(identity.keys, "; ", fn key ->
           formatted_key = get_formatted_field_name(resource, key)
-          attr = AshApiSpec.get_field(resource_lookup, resource, key)
+          attr = Ash.Info.Manifest.get_field(resource_lookup, resource, key)
           base_type = get_ts_type(attr)
 
           type =
@@ -394,7 +394,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
 
       field_lines =
         Enum.map(get_by_fields, fn field_name ->
-          attr = AshApiSpec.get_field(resource_lookup, resource, field_name)
+          attr = Ash.Info.Manifest.get_field(resource_lookup, resource, field_name)
           formatted_field_name = format_output_field(field_name)
           "    #{formatted_field_name}: #{get_ts_type(attr)};"
         end)

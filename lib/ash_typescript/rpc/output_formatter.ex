@@ -99,9 +99,9 @@ defmodule AshTypescript.Rpc.OutputFormatter do
 
   defp lookup_field_or_relationship(resource, field_name, resource_lookups)
        when is_map(resource_lookups) do
-    case AshApiSpec.get_field(resource_lookups, resource, field_name) do
-      %AshApiSpec.Field{} = field -> field
-      nil -> AshApiSpec.get_relationship(resource_lookups, resource, field_name)
+    case Ash.Info.Manifest.get_field(resource_lookups, resource, field_name) do
+      %Ash.Info.Manifest.Field{} = field -> field
+      nil -> Ash.Info.Manifest.get_relationship(resource_lookups, resource, field_name)
     end
   end
 end

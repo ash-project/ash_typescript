@@ -10,14 +10,14 @@ defmodule AshTypescript.Codegen.TypeMapper do
   dispatcher (`map_type/3`) that handles both input and output directions.
   """
 
-  alias AshApiSpec.Type
+  alias Ash.Info.Manifest.Type
   alias AshTypescript.Codegen.Helpers
 
   # ─────────────────────────────────────────────────────────────────
   # Type Constants
   # ─────────────────────────────────────────────────────────────────
 
-  # Kind → TypeScript type mapping for %AshApiSpec.Type{} dispatch.
+  # Kind → TypeScript type mapping for %Ash.Info.Manifest.Type{} dispatch.
   # Used as a fallback when the module isn't a direct Ash primitive
   # (e.g., NewTypes wrapping primitives).
   @kind_to_ts %{
@@ -94,11 +94,11 @@ defmodule AshTypescript.Codegen.TypeMapper do
   Maps an Ash type to a TypeScript type for input schemas.
   Backward compatible wrapper around map_type/3.
   """
-  def get_ts_input_type(%AshApiSpec.Field{type: type}) do
+  def get_ts_input_type(%Ash.Info.Manifest.Field{type: type}) do
     map_type(type, [], :input)
   end
 
-  def get_ts_input_type(%AshApiSpec.Argument{type: type}) do
+  def get_ts_input_type(%Ash.Info.Manifest.Argument{type: type}) do
     map_type(type, [], :input)
   end
 
@@ -112,15 +112,15 @@ defmodule AshTypescript.Codegen.TypeMapper do
   """
   def get_ts_type(type_and_constraints, select_and_loads \\ nil)
 
-  def get_ts_type(%AshApiSpec.Field{type: type}, _select_and_loads) do
+  def get_ts_type(%Ash.Info.Manifest.Field{type: type}, _select_and_loads) do
     map_type(type, [], :output)
   end
 
-  def get_ts_type(%AshApiSpec.Argument{type: type}, _select_and_loads) do
+  def get_ts_type(%Ash.Info.Manifest.Argument{type: type}, _select_and_loads) do
     map_type(type, [], :output)
   end
 
-  def get_ts_type(%AshApiSpec.Metadata{type: type}, _select_and_loads) do
+  def get_ts_type(%Ash.Info.Manifest.Metadata{type: type}, _select_and_loads) do
     map_type(type, [], :output)
   end
 
@@ -158,20 +158,20 @@ defmodule AshTypescript.Codegen.TypeMapper do
   ## Returns
   A TypeScript type string.
   """
-  @spec map_type(atom() | tuple() | AshApiSpec.Type.t(), keyword(), direction()) :: String.t()
+  @spec map_type(atom() | tuple() | Ash.Info.Manifest.Type.t(), keyword(), direction()) :: String.t()
   def map_type(type, constraints, direction)
 
   # Nil type
   def map_type(nil, _constraints, _direction), do: "null"
 
-  # ── %AshApiSpec.Type{} dispatch ──────────────────────────────────
+  # ── %Ash.Info.Manifest.Type{} dispatch ──────────────────────────────────
   # Eliminates unwrap_new_type + cond cascade when pre-resolved types
   # are available (e.g., from ResourceBuilder or persisted Resource specs).
-  def map_type(%AshApiSpec.Type{} = type_info, _constraints, direction) do
+  def map_type(%Ash.Info.Manifest.Type{} = type_info, _constraints, direction) do
     case type_info.kind do
       :type_ref ->
         # Resolve the named type module to its full definition and re-dispatch
-        full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), type_info.module)
+        full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), type_info.module)
         map_type(full_type, [], direction)
 
       :array ->
@@ -238,8 +238,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
   def map_type(:map, _constraints, _direction), do: AshTypescript.untyped_map_type()
 
   def map_type(type, constraints, direction) do
-    # Build an %AshApiSpec.Type{} from raw Ash types for backward compatibility
-    type_info = AshApiSpec.Generator.TypeResolver.resolve(type, constraints)
+    # Build an %Ash.Info.Manifest.Type{} from raw Ash types for backward compatibility
+    type_info = Ash.Info.Manifest.Generator.TypeResolver.resolve(type, constraints)
     map_type(type_info, constraints, direction)
   end
 
@@ -396,7 +396,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
   @spec map_channel_payload_type(atom() | tuple(), keyword()) :: String.t()
   def map_channel_payload_type(type, constraints) do
     {unwrapped_type, full_constraints} =
-      AshApiSpec.Generator.TypeResolver.unwrap_new_type(type, constraints)
+      Ash.Info.Manifest.Generator.TypeResolver.unwrap_new_type(type, constraints)
 
     cond do
       unwrapped_type in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] ->
@@ -528,7 +528,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
   defp extract_field_name(%{name: field_name}), do: field_name
 
   defp is_nested_typed_map_field?(%{type: %Type{kind: :type_ref} = ref}) do
-    full = AshApiSpec.get_type!(AshTypescript.type_lookup(), ref.module)
+    full = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), ref.module)
     is_nested_typed_map_field?(%{type: full})
   end
 
@@ -605,12 +605,12 @@ defmodule AshTypescript.Codegen.TypeMapper do
   @doc """
   Determines if a union member is a "primitive" (no selectable fields).
   """
-  def is_primitive_union_member?(%AshApiSpec.Type{kind: :type_ref} = type_info) do
-    full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), type_info.module)
+  def is_primitive_union_member?(%Ash.Info.Manifest.Type{kind: :type_ref} = type_info) do
+    full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), type_info.module)
     is_primitive_union_member?(full_type)
   end
 
-  def is_primitive_union_member?(%AshApiSpec.Type{} = type_info) do
+  def is_primitive_union_member?(%Ash.Info.Manifest.Type{} = type_info) do
     case type_info.kind do
       kind when kind in [:embedded_resource, :resource, :union] -> false
       :struct -> !(type_info.instance_of || has_type_fields?(type_info))
@@ -669,7 +669,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
   defp is_custom_type?(_), do: false
 
-  defp map_enum_from_type(%AshApiSpec.Type{values: values})
+  defp map_enum_from_type(%Ash.Info.Manifest.Type{values: values})
        when is_list(values) and values != [] do
     values
     |> Enum.sort_by(&to_string/1)
@@ -678,9 +678,9 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
   defp map_enum_from_type(_), do: "string"
 
-  defp has_type_fields?(%AshApiSpec.Type{fields: fields})
+  defp has_type_fields?(%Ash.Info.Manifest.Type{fields: fields})
        when is_list(fields) and fields != [],
        do: true
 
-  defp has_type_fields?(%AshApiSpec.Type{}), do: false
+  defp has_type_fields?(%Ash.Info.Manifest.Type{}), do: false
 end

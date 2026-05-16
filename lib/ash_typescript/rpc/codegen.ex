@@ -107,7 +107,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     # Run reachability once for depth-first ordering (needed by Zod schema generation)
     {reachable_resources, _} =
-      AshApiSpec.Generator.Reachability.find_reachable(rpc_resources)
+      Ash.Info.Manifest.Generator.Reachability.find_reachable(rpc_resources)
 
     # Extract RPC actions from entrypoints (no domain re-scanning)
     resources_and_actions = RpcConfigCollector.get_rpc_resources_and_actions(entrypoints)
@@ -384,7 +384,7 @@ defmodule AshTypescript.Rpc.Codegen do
         reachable_resources,
         fn r ->
           case Map.get(resource_lookup, r) do
-            %AshApiSpec.Resource{embedded?: true} -> true
+            %Ash.Info.Manifest.Resource{embedded?: true} -> true
             _ -> false
           end
         end
@@ -803,11 +803,11 @@ defmodule AshTypescript.Rpc.Codegen do
     |> Enum.uniq()
   end
 
-  defp find_struct_resources_in_spec_type(%AshApiSpec.Type{kind: kind, resource_module: mod})
+  defp find_struct_resources_in_spec_type(%Ash.Info.Manifest.Type{kind: kind, resource_module: mod})
        when kind in [:resource, :embedded_resource] and not is_nil(mod),
        do: [mod]
 
-  defp find_struct_resources_in_spec_type(%AshApiSpec.Type{kind: :array, item_type: item_type}),
+  defp find_struct_resources_in_spec_type(%Ash.Info.Manifest.Type{kind: :array, item_type: item_type}),
     do: find_struct_resources_in_spec_type(item_type)
 
   defp find_struct_resources_in_spec_type(_), do: []

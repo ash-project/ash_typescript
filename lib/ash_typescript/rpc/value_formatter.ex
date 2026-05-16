@@ -8,17 +8,17 @@ defmodule AshTypescript.Rpc.ValueFormatter do
 
   Traverses composite values recursively, applying field name mappings
   and type-aware formatting at each level. All type dispatch uses
-  `%AshApiSpec.Type{}` exclusively — no raw Ash type atoms or
+  `%Ash.Info.Manifest.Type{}` exclusively — no raw Ash type atoms or
   `{:array, _}` tuples.
 
   ## Key Design Principle
 
   The "parent resource" is never needed because each type is self-describing.
   When we recurse into a nested value, we pass the sub-field's
-  `%AshApiSpec.Type{}` which contains all type information needed.
+  `%Ash.Info.Manifest.Type{}` which contains all type information needed.
   """
 
-  alias AshApiSpec.Type
+  alias Ash.Info.Manifest.Type
   alias AshTypescript.FieldFormatter
   alias AshTypescript.Helpers
   alias AshTypescript.Resource.Info, as: ResourceInfo
@@ -30,7 +30,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
 
   ## Parameters
   - `value` - The value to format
-  - `type` - An `%AshApiSpec.Type{}`, `%AshApiSpec.Field{}`, `%AshApiSpec.Relationship{}`, or nil
+  - `type` - An `%Ash.Info.Manifest.Type{}`, `%Ash.Info.Manifest.Field{}`, `%Ash.Info.Manifest.Relationship{}`, or nil
   - `constraints` - Unused (kept for backward compatibility at call sites)
   - `formatter` - The field formatter configuration (`:camel_case`, `:snake_case`, etc.)
   - `direction` - `:input` (client→internal) or `:output` (internal→client)
@@ -38,7 +38,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   """
   @spec format(
           term(),
-          AshApiSpec.Type.t() | AshApiSpec.Field.t() | AshApiSpec.Relationship.t() | nil,
+          Ash.Info.Manifest.Type.t() | Ash.Info.Manifest.Field.t() | Ash.Info.Manifest.Relationship.t() | nil,
           keyword(),
           atom(),
           direction(),
@@ -58,10 +58,10 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   def format(nil, _type, _constraints, _formatter, _direction, _lookups, _ti), do: nil
   def format(value, nil, _constraints, _formatter, _direction, _lookups, _ti), do: value
 
-  # %AshApiSpec.Field{} — extract type and delegate
+  # %Ash.Info.Manifest.Field{} — extract type and delegate
   def format(
         value,
-        %AshApiSpec.Field{type: type},
+        %Ash.Info.Manifest.Field{type: type},
         _constraints,
         formatter,
         direction,
@@ -71,10 +71,10 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     format(value, type, [], formatter, direction, lookups, ti)
   end
 
-  # %AshApiSpec.Relationship{} — format as resource
+  # %Ash.Info.Manifest.Relationship{} — format as resource
   def format(
         value,
-        %AshApiSpec.Relationship{destination: dest, cardinality: :many},
+        %Ash.Info.Manifest.Relationship{destination: dest, cardinality: :many},
         _constraints,
         formatter,
         direction,
@@ -90,7 +90,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
 
   def format(
         value,
-        %AshApiSpec.Relationship{destination: dest},
+        %Ash.Info.Manifest.Relationship{destination: dest},
         _constraints,
         formatter,
         direction,
@@ -100,10 +100,10 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     format_resource(value, dest, formatter, direction, lookups)
   end
 
-  # %AshApiSpec.Type{} — primary dispatch, all type info is in the struct
+  # %Ash.Info.Manifest.Type{} — primary dispatch, all type info is in the struct
   def format(
         value,
-        %AshApiSpec.Type{} = type_info,
+        %Ash.Info.Manifest.Type{} = type_info,
         _constraints,
         formatter,
         direction,
@@ -114,7 +114,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
 
     case type_info.kind do
       :type_ref ->
-        full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), type_info.module)
+        full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), type_info.module)
         format(value, full_type, [], formatter, direction, resource_lookups)
 
       :array ->
@@ -164,16 +164,16 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     end
   end
 
-  # Raw Ash type atoms — resolve to %AshApiSpec.Type{} and dispatch
+  # Raw Ash type atoms — resolve to %Ash.Info.Manifest.Type{} and dispatch
   def format(value, type, constraints, formatter, direction, resource_lookups, ti)
       when is_atom(type) and not is_nil(type) do
-    resolved = AshApiSpec.Generator.TypeResolver.resolve(type, constraints)
+    resolved = Ash.Info.Manifest.Generator.TypeResolver.resolve(type, constraints)
     format(value, resolved, [], formatter, direction, resource_lookups, ti)
   end
 
-  # {:array, inner_type} tuple form — resolve to %AshApiSpec.Type{}
+  # {:array, inner_type} tuple form — resolve to %Ash.Info.Manifest.Type{}
   def format(value, {:array, inner_type}, constraints, formatter, direction, resource_lookups, ti) do
-    resolved = AshApiSpec.Generator.TypeResolver.resolve({:array, inner_type}, constraints)
+    resolved = Ash.Info.Manifest.Generator.TypeResolver.resolve({:array, inner_type}, constraints)
     format(value, resolved, [], formatter, direction, resource_lookups, ti)
   end
 
@@ -258,7 +258,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
       # Look up field or relationship from the spec directly
       field_or_rel =
         if is_map(resource_lookups) do
-          AshApiSpec.get_field_or_relationship(resource_lookups, resource, internal_key)
+          Ash.Info.Manifest.get_field_or_relationship(resource_lookups, resource, internal_key)
         end
 
       formatted_value =

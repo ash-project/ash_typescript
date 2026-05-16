@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.AshApiSpec do
+defmodule AshTypescript.Manifest do
   @moduledoc """
-  Standalone Spark DSL module for building a unified app-wide AshApiSpec.
+  Standalone Spark DSL module for building a unified app-wide Ash.Info.Manifest.
 
   When the same resource appears in multiple domains' `typescript_rpc` blocks
   with different RPC actions, this module ensures all actions are merged into
@@ -12,11 +12,11 @@ defmodule AshTypescript.AshApiSpec do
 
   ## Usage
 
-      defmodule MyApp.AshApiSpec do
-        use AshTypescript.AshApiSpec, otp_app: :my_app
+      defmodule MyApp.Ash.Info.Manifest do
+        use AshTypescript.Manifest, otp_app: :my_app
       end
   """
 
   use Spark.Dsl,
-    default_extensions: [extensions: [AshTypescript.AshApiSpec.Dsl]]
+    default_extensions: [extensions: [AshTypescript.Manifest.Dsl]]
 end

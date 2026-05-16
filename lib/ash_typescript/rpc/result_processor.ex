@@ -6,7 +6,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   @moduledoc """
   Extracts requested fields from RPC results using type-driven dispatch.
 
-  All type dispatch uses `%AshApiSpec.Type{}` — no raw Ash type atoms or
+  All type dispatch uses `%Ash.Info.Manifest.Type{}` — no raw Ash type atoms or
   `{:array, _}` tuples in the primary dispatch path.
 
   ## Type-Driven Extraction
@@ -23,7 +23,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   ```
   """
 
-  alias AshApiSpec.Type
+  alias Ash.Info.Manifest.Type
   alias AshTypescript.Helpers
   alias AshTypescript.Rpc.FieldExtractor
 
@@ -88,12 +88,12 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   # ─────────────────────────────────────────────────────────────────────────────
 
   @spec get_field_or_relationship(module() | nil, atom(), map() | nil) ::
-          AshApiSpec.Field.t() | AshApiSpec.Relationship.t() | nil
+          Ash.Info.Manifest.Field.t() | Ash.Info.Manifest.Relationship.t() | nil
   def get_field_or_relationship(nil, _field_name, _lookups), do: nil
 
   def get_field_or_relationship(resource, field_name, resource_lookups)
       when is_atom(resource) and is_map(resource_lookups) do
-    AshApiSpec.get_field_or_relationship(resource_lookups, resource, field_name)
+    Ash.Info.Manifest.get_field_or_relationship(resource_lookups, resource, field_name)
   end
 
   def get_field_or_relationship(_resource, _field_name, _lookups), do: nil
@@ -104,7 +104,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   @spec extract_value(
           term(),
-          atom() | tuple() | AshApiSpec.Type.t() | nil,
+          atom() | tuple() | Ash.Info.Manifest.Type.t() | nil,
           keyword(),
           list(),
           map() | nil
@@ -119,10 +119,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   def extract_value(%Ash.NotLoaded{}, _type, _constraints, _template, _resource_lookups),
     do: :skip
 
-  # %AshApiSpec.Field{} — extract type and delegate
+  # %Ash.Info.Manifest.Field{} — extract type and delegate
   def extract_value(
         value,
-        %AshApiSpec.Field{type: type},
+        %Ash.Info.Manifest.Field{type: type},
         _constraints,
         template,
         resource_lookups
@@ -130,17 +130,17 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     extract_value(value, type, [], template, resource_lookups)
   end
 
-  # %AshApiSpec.Relationship{} — delegate to resource/array handler
+  # %Ash.Info.Manifest.Relationship{} — delegate to resource/array handler
   def extract_value(
         value,
-        %AshApiSpec.Relationship{destination: dest, cardinality: :many},
+        %Ash.Info.Manifest.Relationship{destination: dest, cardinality: :many},
         _constraints,
         template,
         resource_lookups
       ) do
     extract_array_value(
       value,
-      %AshApiSpec.Type{kind: :resource, module: dest, resource_module: dest},
+      %Ash.Info.Manifest.Type{kind: :resource, module: dest, resource_module: dest},
       template,
       resource_lookups
     )
@@ -148,7 +148,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   def extract_value(
         value,
-        %AshApiSpec.Relationship{destination: dest},
+        %Ash.Info.Manifest.Relationship{destination: dest},
         _constraints,
         template,
         resource_lookups
@@ -165,10 +165,10 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   def extract_value(value, nil, _constraints, _template, _resource_lookups),
     do: normalize_primitive(value)
 
-  # %AshApiSpec.Type{} — primary dispatch
+  # %Ash.Info.Manifest.Type{} — primary dispatch
   def extract_value(
         value,
-        %AshApiSpec.Type{} = type_info,
+        %Ash.Info.Manifest.Type{} = type_info,
         _constraints,
         template,
         resource_lookups
@@ -177,7 +177,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
     case type_info.kind do
       :type_ref ->
-        full_type = AshApiSpec.get_type!(AshTypescript.type_lookup(), type_info.module)
+        full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), type_info.module)
         extract_value(value, full_type, [], template, resource_lookups)
 
       :array ->
@@ -218,7 +218,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   def extract_value(value, _type, _constraints, _template, _resource_lookups),
     do: normalize_primitive(value)
 
-  # (Type checking helpers are now in AshTypescript.Helpers and AshApiSpec.Type)
+  # (Type checking helpers are now in AshTypescript.Helpers and Ash.Info.Manifest.Type)
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Type-Specific Handlers
@@ -306,7 +306,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end
   end
 
-  # Union Handler — uses type_info.members (hydrated with tag/tag_value and %AshApiSpec.Type{})
+  # Union Handler — uses type_info.members (hydrated with tag/tag_value and %Ash.Info.Manifest.Type{})
   defp extract_union_value(
          %Ash.Union{type: active_type, value: union_value},
          type_info,
@@ -571,7 +571,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   defp normalize_resource_struct(value, resource, resource_lookups)
        when is_map(resource_lookups) do
     case Map.get(resource_lookups, resource) do
-      %AshApiSpec.Resource{fields: fields} when is_map(fields) ->
+      %Ash.Info.Manifest.Resource{fields: fields} when is_map(fields) ->
         public_field_names = MapSet.new(Map.keys(fields))
 
         value
@@ -599,7 +599,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     resource_lookups = AshTypescript.resource_lookup()
 
     case Map.get(resource_lookups, resource) do
-      %AshApiSpec.Resource{fields: fields} when is_map(fields) ->
+      %Ash.Info.Manifest.Resource{fields: fields} when is_map(fields) ->
         public_field_names = MapSet.new(Map.keys(fields))
 
         value
@@ -678,7 +678,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   end
 
   @doc """
-  Determines the `%AshApiSpec.Type{}` for a given data value.
+  Determines the `%Ash.Info.Manifest.Type{}` for a given data value.
   Returns nil for unknown/primitive types.
   """
   def determine_data_type(nil, resource, resource_lookups) do
@@ -691,16 +691,16 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         resolve_resource_type(data.__struct__, resource_lookups)
 
       is_struct(data) && Helpers.has_typescript_field_names?(data.__struct__) ->
-        AshApiSpec.Generator.TypeResolver.resolve(Ash.Type.Struct, instance_of: data.__struct__)
+        Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.Struct, instance_of: data.__struct__)
 
       match?(%Ash.Union{}, data) ->
         resolve_union_type(resource, resource_lookups)
 
       is_list(data) && data != [] && Keyword.keyword?(data) ->
-        %AshApiSpec.Type{kind: :keyword, module: Ash.Type.Keyword, constraints: []}
+        %Ash.Info.Manifest.Type{kind: :keyword, module: Ash.Type.Keyword, constraints: []}
 
       is_tuple(data) ->
-        %AshApiSpec.Type{kind: :tuple, module: Ash.Type.Tuple, constraints: []}
+        %Ash.Info.Manifest.Type{kind: :tuple, module: Ash.Type.Tuple, constraints: []}
 
       is_map(data) && not is_struct(data) ->
         nil
@@ -717,7 +717,7 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   defp resolve_resource_type(resource, _resource_lookups) when is_atom(resource) do
     if Helpers.ash_resource?(resource) do
-      %AshApiSpec.Type{
+      %Ash.Info.Manifest.Type{
         kind: :resource,
         name: "Resource",
         module: resource,
@@ -732,16 +732,16 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   defp resolve_union_type(resource, resource_lookups)
        when is_atom(resource) and is_map(resource_lookups) do
     case Map.get(resource_lookups, resource) do
-      %AshApiSpec.Resource{fields: fields} when is_map(fields) ->
+      %Ash.Info.Manifest.Resource{fields: fields} when is_map(fields) ->
         # Find the first union field's type from the spec
         union_field =
           Enum.find_value(fields, fn {_name, field} ->
             case field.type do
-              %AshApiSpec.Type{kind: :union} = t ->
+              %Ash.Info.Manifest.Type{kind: :union} = t ->
                 t
 
-              %AshApiSpec.Type{kind: :type_ref} = t ->
-                resolved = AshApiSpec.get_type!(AshTypescript.type_lookup(), t.module)
+              %Ash.Info.Manifest.Type{kind: :type_ref} = t ->
+                resolved = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), t.module)
                 if resolved.kind == :union, do: resolved, else: nil
 
               _ ->
@@ -749,14 +749,14 @@ defmodule AshTypescript.Rpc.ResultProcessor do
             end
           end)
 
-        union_field || %AshApiSpec.Type{kind: :union, module: Ash.Type.Union, constraints: []}
+        union_field || %Ash.Info.Manifest.Type{kind: :union, module: Ash.Type.Union, constraints: []}
 
       _ ->
-        %AshApiSpec.Type{kind: :union, module: Ash.Type.Union, constraints: []}
+        %Ash.Info.Manifest.Type{kind: :union, module: Ash.Type.Union, constraints: []}
     end
   end
 
   defp resolve_union_type(_resource, _resource_lookups) do
-    %AshApiSpec.Type{kind: :union, module: Ash.Type.Union, constraints: []}
+    %Ash.Info.Manifest.Type{kind: :union, module: Ash.Type.Union, constraints: []}
   end
 end

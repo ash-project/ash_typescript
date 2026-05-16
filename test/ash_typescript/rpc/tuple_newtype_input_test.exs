@@ -18,7 +18,7 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
     test "unwraps correctly" do
       type = AshTypescript.Test.InputParsing.LocationTuple
 
-      {unwrapped, constraints} = AshApiSpec.Generator.TypeResolver.unwrap_new_type(type, [])
+      {unwrapped, constraints} = Ash.Info.Manifest.Generator.TypeResolver.unwrap_new_type(type, [])
 
       assert unwrapped == Ash.Type.Tuple
       assert Keyword.has_key?(constraints, :fields)

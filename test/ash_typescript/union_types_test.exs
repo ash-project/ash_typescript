@@ -8,7 +8,7 @@ defmodule AshTypescript.UnionTypesTest do
   describe "union type support" do
     test "discovers embedded resources from union types" do
       {reachable_resources, _} =
-        AshApiSpec.Generator.Reachability.find_reachable([AshTypescript.Test.Todo])
+        Ash.Info.Manifest.Generator.Reachability.find_reachable([AshTypescript.Test.Todo])
 
       # Check that our union type embedded resources are discovered
       assert AshTypescript.Test.TodoContent.TextContent in reachable_resources
@@ -18,7 +18,7 @@ defmodule AshTypescript.UnionTypesTest do
 
     test "identifies union type attributes correctly" do
       {reachable_resources, _} =
-        AshApiSpec.Generator.Reachability.find_reachable([AshTypescript.Test.Todo])
+        Ash.Info.Manifest.Generator.Reachability.find_reachable([AshTypescript.Test.Todo])
 
       # Should find at least the 3 embedded content types
       embedded_from_todo =

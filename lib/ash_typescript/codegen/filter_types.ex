@@ -33,7 +33,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
   def generate_filter_type(resource, allowed_resources, resource_lookup)
       when is_map(resource_lookup) do
     case Map.get(resource_lookup, resource) do
-      %AshApiSpec.Resource{} = api_resource ->
+      %Ash.Info.Manifest.Resource{} = api_resource ->
         generate_filter_type_from_spec(resource, api_resource, allowed_resources)
 
       nil ->
@@ -104,7 +104,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
     resource_name = Helpers.build_resource_type_name(resource)
     filter_type_name = "#{resource_name}FilterInput"
 
-    fields = AshApiSpec.Resource.all_fields(api_resource)
+    fields = Ash.Info.Manifest.Resource.all_fields(api_resource)
 
     attrs_and_calcs =
       Enum.filter(fields, &(&1.kind in [:attribute, :calculation]))
@@ -122,7 +122,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
 
     relationship_filters =
       api_resource
-      |> AshApiSpec.Resource.accessible_relationships(allowed_resources)
+      |> Ash.Info.Manifest.Resource.accessible_relationships(allowed_resources)
       |> Enum.map_join("\n", &generate_relationship_filter(&1))
 
     logical_operators = generate_logical_operators(filter_type_name)
@@ -137,7 +137,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
     """
   end
 
-  defp spec_attribute_filter(%AshApiSpec.Field{} = field, resource) do
+  defp spec_attribute_filter(%Ash.Info.Manifest.Field{} = field, resource) do
     base_type = TypeMapper.map_type(field.type, [], :output)
     operations = get_applicable_operations(field.type, base_type, field.allow_nil?)
 
@@ -155,7 +155,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
     """
   end
 
-  defp spec_aggregate_filter(%AshApiSpec.Field{aggregate_kind: :list} = field, resource) do
+  defp spec_aggregate_filter(%Ash.Info.Manifest.Field{aggregate_kind: :list} = field, resource) do
     # :list aggregates produce arrays — restrict to a small set of operations
     base_type = TypeMapper.map_type(field.type, [], :output)
 
@@ -177,9 +177,9 @@ defmodule AshTypescript.Codegen.FilterTypes do
     """
   end
 
-  defp spec_aggregate_filter(%AshApiSpec.Field{} = field, resource) do
+  defp spec_aggregate_filter(%Ash.Info.Manifest.Field{} = field, resource) do
     # All other aggregates (count/exists/sum/avg/max/min/first) — use the
-    # AshApiSpec-resolved type and the standard operation set. Aggregates can
+    # Ash.Info.Manifest-resolved type and the standard operation set. Aggregates can
     # always return nil (e.g. for empty relationships), so pass allow_nil?: true
     # regardless of the source field's nullability.
     base_type = TypeMapper.map_type(field.type, [], :output)
@@ -234,7 +234,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
     Enum.map(ops, &format_operation(&1, base_type))
   end
 
-  defp classify_filter_type(%AshApiSpec.Type{kind: kind}) do
+  defp classify_filter_type(%Ash.Info.Manifest.Type{kind: kind}) do
     case kind do
       k when k in [:string, :ci_string] ->
         :string

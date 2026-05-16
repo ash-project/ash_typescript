@@ -6,7 +6,7 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
   @moduledoc """
   Discovers RPC-configured resources and builds configuration warnings.
 
-  Type discovery and reachability analysis are handled by `AshApiSpec.Generator.Reachability`.
+  Type discovery and reachability analysis are handled by `Ash.Info.Manifest.Generator.Reachability`.
   This module provides AshTypescript-specific functionality:
 
   - `get_rpc_resources/1` - Gets RPC-configured resources from domains
@@ -65,7 +65,7 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
     Enum.reject(all_resources_with_extension, fn resource ->
       is_embedded =
         case Map.get(resource_lookup, resource) do
-          %AshApiSpec.Resource{embedded?: true} -> true
+          %Ash.Info.Manifest.Resource{embedded?: true} -> true
           _ -> false
         end
 
@@ -88,7 +88,7 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
     rpc_resources = get_rpc_resources(otp_app)
 
     {reachable_resources, _} =
-      AshApiSpec.Generator.Reachability.find_reachable(rpc_resources)
+      Ash.Info.Manifest.Generator.Reachability.find_reachable(rpc_resources)
 
     Enum.filter(reachable_resources, fn resource ->
       Ash.Resource.Info.resource?(resource) and Ash.Resource.Info.embedded?(resource)

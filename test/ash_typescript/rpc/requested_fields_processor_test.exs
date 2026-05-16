@@ -164,7 +164,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
           @resource_lookups
         )
 
-      assert {:invalid_field_selection, :primitive_type, %AshApiSpec.Type{kind: :uuid}, [:id], []} =
+      assert {:invalid_field_selection, :primitive_type, %Ash.Info.Manifest.Type{kind: :uuid}, [:id], []} =
                error
     end
 

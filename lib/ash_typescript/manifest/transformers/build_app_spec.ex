@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.AshApiSpec.Transformers.BuildAppSpec do
+defmodule AshTypescript.Manifest.Transformers.BuildAppSpec do
   @moduledoc """
-  Spark transformer that builds a unified `%AshApiSpec{}` from all domains'
+  Spark transformer that builds a unified `%Ash.Info.Manifest{}` from all domains'
   RPC configurations and persists the resource lookup as a module attribute.
 
   Collects RPC configs from ALL domains via `TypeDiscovery` and
@@ -43,19 +43,19 @@ defmodule AshTypescript.AshApiSpec.Transformers.BuildAppSpec do
 
     all_entrypoints = entrypoint_configs ++ extra_root_tuples
 
-    # Generate unified AshApiSpec with action-scoped reachability and RPC config
+    # Generate unified Ash.Info.Manifest with action-scoped reachability and RPC config
     {:ok, api_spec} =
-      AshApiSpec.Generator.generate(otp_app: otp_app, action_entrypoints: all_entrypoints)
+      Ash.Info.Manifest.Generator.generate(otp_app: otp_app, action_entrypoints: all_entrypoints)
 
-    resource_lookup = AshApiSpec.resource_lookup(api_spec)
-    action_lookup = AshApiSpec.action_lookup(api_spec)
+    resource_lookup = Ash.Info.Manifest.resource_lookup(api_spec)
+    action_lookup = Ash.Info.Manifest.action_lookup(api_spec)
 
     # Persist on DSL state (stored as module attribute, available at runtime)
     dsl_state =
       dsl_state
       |> Transformer.persist(:resource_lookup, resource_lookup)
       |> Transformer.persist(:action_lookup, action_lookup)
-      |> Transformer.persist(:ash_api_spec, api_spec)
+      |> Transformer.persist(:manifest, api_spec)
 
     {:ok, dsl_state}
   end

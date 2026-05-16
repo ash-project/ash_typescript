@@ -76,7 +76,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
             if accepts != [] || arguments != [] do
               accept_field_defs =
                 Enum.map(accepts, fn field_name ->
-                  attr = AshApiSpec.get_field(resource_lookup, resource, field_name)
+                  attr = Ash.Info.Manifest.get_field(resource_lookup, resource, field_name)
                   nullable = attr.allow_nil? || field_name in action.allow_nil_input
                   optional = nullable || has_default?(attr)
                   base_type = AshTypescript.Codegen.get_ts_input_type(attr)
@@ -119,7 +119,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
             if accepts != [] || arguments != [] do
               accept_field_defs =
                 Enum.map(accepts, fn field_name ->
-                  attr = AshApiSpec.get_field(resource_lookup, resource, field_name)
+                  attr = Ash.Info.Manifest.get_field(resource_lookup, resource, field_name)
                   optional = field_name not in (action.require_attributes || [])
                   base_type = AshTypescript.Codegen.get_ts_input_type(attr)
                   field_type = if attr.allow_nil?, do: "#{base_type} | null", else: base_type

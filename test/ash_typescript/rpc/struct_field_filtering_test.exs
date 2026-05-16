@@ -56,7 +56,7 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
   end
 
   @resource_lookups %{
-    User => AshApiSpec.Generator.ResourceBuilder.build(User)
+    User => Ash.Info.Manifest.Generator.ResourceBuilder.build(User)
   }
 
   setup do

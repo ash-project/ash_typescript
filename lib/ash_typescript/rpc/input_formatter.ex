@@ -8,7 +8,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   Converts client-provided field names and values to the internal representation
   expected by Ash actions. Delegates to ValueFormatter for recursive type-aware
-  formatting of nested values using `%AshApiSpec.Type{}` structs.
+  formatting of nested values using `%Ash.Info.Manifest.Type{}` structs.
   """
 
   alias AshTypescript.{FieldFormatter, Helpers, Rpc.ValueFormatter}
@@ -107,7 +107,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
     accept_list
     |> Enum.filter(fn attr_name ->
       case resource_spec do
-        %AshApiSpec.Resource{fields: fields} -> Map.has_key?(fields, attr_name)
+        %Ash.Info.Manifest.Resource{fields: fields} -> Map.has_key?(fields, attr_name)
         _ -> false
       end
     end)
@@ -122,8 +122,8 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end)
   end
 
-  # Resolve the field type to %AshApiSpec.Type{} and handle struct resources specially
-  defp format_value(value, %AshApiSpec.Type{kind: kind} = type_info, formatter, resource_lookups)
+  # Resolve the field type to %Ash.Info.Manifest.Type{} and handle struct resources specially
+  defp format_value(value, %Ash.Info.Manifest.Type{kind: kind} = type_info, formatter, resource_lookups)
        when kind in [:struct, :map] do
     inst = type_info.instance_of || type_info.module
 
@@ -139,7 +139,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   defp format_value(
          value,
-         %AshApiSpec.Type{kind: :resource} = type_info,
+         %Ash.Info.Manifest.Type{kind: :resource} = type_info,
          formatter,
          resource_lookups
        ) do
@@ -159,7 +159,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
   # Ash handles embedded resource input casting internally.
   defp format_value(
          value,
-         %AshApiSpec.Type{kind: :embedded_resource} = type_info,
+         %Ash.Info.Manifest.Type{kind: :embedded_resource} = type_info,
          formatter,
          resource_lookups
        ) do
@@ -168,14 +168,14 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   defp format_value(
          value,
-         %AshApiSpec.Type{kind: :array} = type_info,
+         %Ash.Info.Manifest.Type{kind: :array} = type_info,
          formatter,
          resource_lookups
        ) do
     item_type = type_info.item_type
 
     if item_type &&
-         match?(%AshApiSpec.Type{kind: k} when k in [:struct, :resource], item_type) do
+         match?(%Ash.Info.Manifest.Type{kind: k} when k in [:struct, :resource], item_type) do
       # Non-embedded struct/resource items need struct casting
       inst = item_type.instance_of || item_type.resource_module || item_type.module
 
@@ -199,7 +199,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end
   end
 
-  defp format_value(value, %AshApiSpec.Type{} = type_info, formatter, resource_lookups) do
+  defp format_value(value, %Ash.Info.Manifest.Type{} = type_info, formatter, resource_lookups) do
     ValueFormatter.format(value, type_info, [], formatter, :input, resource_lookups)
   end
 
@@ -218,7 +218,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end
   end
 
-  # Returns %AshApiSpec.Type{} for the field, using spec data when available
+  # Returns %Ash.Info.Manifest.Type{} for the field, using spec data when available
   defp get_input_field_type(action, resource, field_key, resource_lookups) do
     case get_action_argument(action, field_key) do
       nil ->
@@ -235,27 +235,27 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end)
   end
 
-  # Resolve argument type to %AshApiSpec.Type{}
-  defp resolve_arg_type(%{type: %AshApiSpec.Type{} = spec_type}), do: spec_type
+  # Resolve argument type to %Ash.Info.Manifest.Type{}
+  defp resolve_arg_type(%{type: %Ash.Info.Manifest.Type{} = spec_type}), do: spec_type
 
   defp resolve_arg_type(%{type: type, constraints: constraints}) when is_atom(type) do
-    AshApiSpec.Generator.TypeResolver.resolve(type, constraints || [])
+    Ash.Info.Manifest.Generator.TypeResolver.resolve(type, constraints || [])
   end
 
   defp resolve_arg_type(%{type: {:array, _} = type, constraints: constraints}) do
-    AshApiSpec.Generator.TypeResolver.resolve(type, constraints || [])
+    Ash.Info.Manifest.Generator.TypeResolver.resolve(type, constraints || [])
   end
 
   defp resolve_arg_type(%{type: type}) when is_atom(type) do
-    AshApiSpec.Generator.TypeResolver.resolve(type, [])
+    Ash.Info.Manifest.Generator.TypeResolver.resolve(type, [])
   end
 
   defp resolve_arg_type(_), do: nil
 
   defp get_accepted_attribute_type(resource, field_key, resource_lookups)
        when is_map(resource_lookups) do
-    case AshApiSpec.get_field(resource_lookups, resource, field_key) do
-      %AshApiSpec.Field{type: type} -> type
+    case Ash.Info.Manifest.get_field(resource_lookups, resource, field_key) do
+      %Ash.Info.Manifest.Field{type: type} -> type
       nil -> nil
     end
   end

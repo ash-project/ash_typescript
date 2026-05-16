@@ -4,7 +4,7 @@
 
 defmodule AshTypescript.Test.SpecHelpers do
   @moduledoc """
-  Test helpers for working with `%AshApiSpec.Action{}` values.
+  Test helpers for working with `%Ash.Info.Manifest.Action{}` values.
 
   Schema generation entry points (`ZodSchemaGenerator.generate_zod_schema/3`,
   `ValibotSchemaGenerator.generate_valibot_schema/3`) consume spec-shaped
@@ -13,11 +13,11 @@ defmodule AshTypescript.Test.SpecHelpers do
   """
 
   @doc """
-  Builds an `%AshApiSpec.Action{}` for `resource`'s `action_name` action.
+  Builds an `%Ash.Info.Manifest.Action{}` for `resource`'s `action_name` action.
   """
-  @spec spec_action(module(), atom()) :: AshApiSpec.Action.t()
+  @spec spec_action(module(), atom()) :: Ash.Info.Manifest.Action.t()
   def spec_action(resource, action_name) do
     raw = Ash.Resource.Info.action(resource, action_name)
-    AshApiSpec.Generator.ActionBuilder.build(resource, raw, [])
+    Ash.Info.Manifest.Generator.ActionBuilder.build(resource, raw, [])
   end
 end
