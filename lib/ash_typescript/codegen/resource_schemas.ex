@@ -327,7 +327,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     resource_name = Helpers.build_resource_type_name(resource)
 
     # AshApiSpec fields already have resolved types (no aggregate type resolution needed)
-    fields = api_resource.fields |> Map.values()
+    fields = AshApiSpec.Resource.all_fields(api_resource)
 
     {complex_fields, primitive_fields} =
       Enum.split_with(fields, &is_complex_attr?/1)
@@ -380,10 +380,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
        ) do
     resource_name = Helpers.build_resource_type_name(resource)
 
-    attributes =
-      api_resource.fields
-      |> Map.values()
-      |> Enum.filter(&(&1.kind == :attribute))
+    attributes = AshApiSpec.Resource.fields_by_kind(api_resource, :attribute)
 
     {complex_attrs, primitive_attrs} =
       Enum.split_with(attributes, &is_complex_attr?/1)
@@ -427,10 +424,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   defp generate_input_schema_from_spec(resource, api_resource) do
     resource_name = Helpers.build_resource_type_name(resource)
 
-    attributes =
-      api_resource.fields
-      |> Map.values()
-      |> Enum.filter(&(&1.kind == :attribute))
+    attributes = AshApiSpec.Resource.fields_by_kind(api_resource, :attribute)
 
     input_fields =
       attributes

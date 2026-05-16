@@ -61,29 +61,36 @@ defmodule AshApiSpec.Resource do
   # Collection Accessors
   # ─────────────────────────────────────────────────────────────────
 
-  @doc "Returns all fields as a list."
-  @spec all_fields(t()) :: [AshApiSpec.Field.t()]
-  def all_fields(%__MODULE__{fields: fields}), do: Map.values(fields)
+  @doc """
+  Returns all fields as a list, sorted by name.
 
-  @doc "Returns all fields of a given kind (:attribute, :calculation, or :aggregate)."
+  Sorting ensures codegen output is deterministic across runs (Erlang map
+  iteration order is unstable for maps with more than 32 keys).
+  """
+  @spec all_fields(t()) :: [AshApiSpec.Field.t()]
+  def all_fields(%__MODULE__{fields: fields}), do: sort_by_name(Map.values(fields))
+
+  @doc "Returns all fields of a given kind (:attribute, :calculation, or :aggregate), sorted by name."
   @spec fields_by_kind(t(), AshApiSpec.Field.kind()) :: [AshApiSpec.Field.t()]
   def fields_by_kind(%__MODULE__{fields: fields}, kind) do
-    fields |> Map.values() |> Enum.filter(&(&1.kind == kind))
+    fields |> Map.values() |> Enum.filter(&(&1.kind == kind)) |> sort_by_name()
   end
 
-  @doc "Returns all relationships as a list."
+  @doc "Returns all relationships as a list, sorted by name."
   @spec all_relationships(t()) :: [AshApiSpec.Relationship.t()]
-  def all_relationships(%__MODULE__{relationships: rels}), do: Map.values(rels)
+  def all_relationships(%__MODULE__{relationships: rels}),
+    do: sort_by_name(Map.values(rels))
 
-  @doc "Returns all field names (attributes, calculations, aggregates)."
+  @doc "Returns all field names (attributes, calculations, aggregates), sorted."
   @spec field_names(t()) :: [atom()]
-  def field_names(%__MODULE__{fields: fields}), do: Map.keys(fields)
+  def field_names(%__MODULE__{fields: fields}), do: fields |> Map.keys() |> Enum.sort()
 
-  @doc "Returns all relationship names."
+  @doc "Returns all relationship names, sorted."
   @spec relationship_names(t()) :: [atom()]
-  def relationship_names(%__MODULE__{relationships: rels}), do: Map.keys(rels)
+  def relationship_names(%__MODULE__{relationships: rels}),
+    do: rels |> Map.keys() |> Enum.sort()
 
-  @doc "Returns relationships whose destination is in the allowed list."
+  @doc "Returns relationships whose destination is in the allowed list, sorted by name."
   @spec accessible_relationships(t(), [atom()] | MapSet.t()) :: [AshApiSpec.Relationship.t()]
   def accessible_relationships(%__MODULE__{relationships: rels}, allowed_resources) do
     allowed =
@@ -92,7 +99,10 @@ defmodule AshApiSpec.Resource do
     rels
     |> Map.values()
     |> Enum.filter(&MapSet.member?(allowed, &1.destination))
+    |> sort_by_name()
   end
+
+  defp sort_by_name(items), do: Enum.sort_by(items, & &1.name)
 
   @doc "Returns fields for accepted attributes of an action."
   @spec accepted_fields(t(), map()) :: [AshApiSpec.Field.t()]

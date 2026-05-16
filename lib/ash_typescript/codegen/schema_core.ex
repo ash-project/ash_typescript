@@ -504,9 +504,8 @@ defmodule AshTypescript.Codegen.SchemaCore do
     api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
 
     fields =
-      api_resource.fields
-      |> Map.values()
-      |> Enum.filter(&(&1.kind == :attribute))
+      api_resource
+      |> AshApiSpec.Resource.fields_by_kind(:attribute)
       |> Enum.map_join("\n", fn attr ->
         formatted_name =
           AshTypescript.FieldFormatter.format_field_for_client(
@@ -573,9 +572,8 @@ defmodule AshTypescript.Codegen.SchemaCore do
   defp find_resource_dependencies(resource, resource_set, resource_lookup) do
     api_resource = AshApiSpec.get_resource!(resource_lookup, resource)
 
-    api_resource.fields
-    |> Map.values()
-    |> Enum.filter(&(&1.kind == :attribute))
+    api_resource
+    |> AshApiSpec.Resource.fields_by_kind(:attribute)
     |> Enum.flat_map(fn attr -> extract_resource_deps_from_spec(attr.type, resource_set) end)
     |> Enum.uniq()
   end

@@ -104,7 +104,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
     resource_name = Helpers.build_resource_type_name(resource)
     filter_type_name = "#{resource_name}FilterInput"
 
-    fields = api_resource.fields |> Map.values()
+    fields = AshApiSpec.Resource.all_fields(api_resource)
 
     attrs_and_calcs =
       Enum.filter(fields, &(&1.kind in [:attribute, :calculation]))
