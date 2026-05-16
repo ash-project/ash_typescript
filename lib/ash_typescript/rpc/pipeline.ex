@@ -1243,8 +1243,6 @@ defmodule AshTypescript.Rpc.Pipeline do
       }}}
   end
 
-  defp maybe_apply_identity_filter(query, _identity, _identities, _lookups), do: {:ok, query}
-
   defp build_identity_filter(resource, identity, identities, lookups) when is_map(identity) do
     formatter = Rpc.input_field_formatter()
     parsed_identity = parse_identity_input(resource, identity, formatter)
@@ -1312,8 +1310,6 @@ defmodule AshTypescript.Rpc.Pipeline do
         }}}
     end
   end
-
-  defp build_identity_filter(_resource, _identity, _identities, _lookups), do: {:ok, []}
 
   defp get_expected_identity_keys(resource, identities, lookups) do
     Enum.flat_map(identities, fn

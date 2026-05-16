@@ -433,8 +433,6 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   # Union Handler
   # ---------------------------------------------------------------------------
 
-  defp format_union(nil, _type_info, _formatter, _direction, _resource_lookups), do: nil
-
   defp format_union(value, type_info, formatter, direction, resource_lookups) do
     members = type_info.members || []
     storage_type = Keyword.get(type_info.constraints || [], :storage)

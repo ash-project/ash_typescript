@@ -771,7 +771,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     case calc.arguments do
       [] -> false
       nil -> false
-      args when is_list(args) -> args != []
+      args when is_list(args) -> true
     end
   end
 

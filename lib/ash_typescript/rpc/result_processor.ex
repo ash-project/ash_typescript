@@ -408,8 +408,12 @@ defmodule AshTypescript.Rpc.ResultProcessor do
   # Typed Map Handler
   defp extract_typed_map_value(value, type_info, template, resource_lookups)
        when is_list(value) do
-    map_value = Enum.into(value, %{})
-    extract_typed_map_value(map_value, type_info, template, resource_lookups)
+    if value != [] and Keyword.keyword?(value) do
+      map_value = Map.new(value)
+      extract_typed_map_value(map_value, type_info, template, resource_lookups)
+    else
+      normalize_primitive(value)
+    end
   end
 
   defp extract_typed_map_value(value, type_info, template, resource_lookups)
@@ -465,16 +469,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     extract_typed_map_value(normalized, type_info, template, resource_lookups)
   end
 
-  defp extract_typed_map_value(value, type_info, template, resource_lookups)
-       when is_list(value) do
-    if value != [] and Keyword.keyword?(value) do
-      normalized = Map.new(value)
-      extract_typed_map_value(normalized, type_info, template, resource_lookups)
-    else
-      normalize_primitive(value)
-    end
-  end
-
   defp extract_typed_map_value(value, _type_info, _template, _resource_lookups),
     do: normalize_primitive(value)
 
@@ -513,9 +507,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   def normalize_primitive(value) do
     cond do
-      is_nil(value) ->
-        nil
-
       match?(%DateTime{}, value) ->
         DateTime.to_iso8601(value)
 
