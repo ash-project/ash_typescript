@@ -225,7 +225,7 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Core type generation (entry point)** | `lib/ash_typescript/codegen.ex` (delegator) |
 | **Type system introspection** | `lib/ash_typescript/type_system/introspection.ex` |
 | **RPC resource discovery & warnings** | `lib/ash_typescript/codegen/type_discovery.ex` |
-| **Reachability analysis** | `lib/ash_api_spec/generator/reachability.ex` |
+| **Reachability analysis** | `Ash.Info.Manifest.Generator.Reachability` (ash core) |
 | **Type aliases generation** | `lib/ash_typescript/codegen/type_aliases.ex` |
 | **TypeScript type mapping** | `lib/ash_typescript/codegen/type_mapper.ex` |
 | **Resource schema generation** | `lib/ash_typescript/codegen/resource_schemas.ex` |
@@ -373,7 +373,7 @@ mix credo --strict                   # Linting
 
 ### Type System Architecture
 - **Type Introspection**: Centralized in `type_system/introspection.ex`
-- **Codegen Organization**: type_discovery (RPC config & warnings), type_aliases, type_mapper, resource_schemas, filter_types, sort_types; reachability in AshApiSpec
+- **Codegen Organization**: type_discovery (RPC config & warnings), type_aliases, type_mapper, resource_schemas, filter_types, sort_types; reachability lives in `Ash.Info.Manifest.Generator.Reachability` (ash core)
 - **ValueFormatter**: Unified type-aware value formatting with recursive type detection
 
 ### Type Inference Architecture
