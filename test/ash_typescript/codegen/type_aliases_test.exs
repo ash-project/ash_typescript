@@ -55,4 +55,17 @@ defmodule AshTypescript.Codegen.TypeAliasesTest do
       assert is_binary(result)
     end
   end
+
+  describe "Ash.Type.Vector" do
+    test "generates Vector type alias for resources with vector attributes" do
+      # VectorAttributeFixture has a single :embedding attribute of type Ash.Type.Vector.
+
+      resources = [AshTypescript.Test.VectorAttributeFixture]
+      actions = []
+
+      result = TypeAliases.generate_ash_type_aliases(resources, actions, :ash_typescript)
+
+      assert result =~ "export type Vector = number[];"
+    end
+  end
 end
