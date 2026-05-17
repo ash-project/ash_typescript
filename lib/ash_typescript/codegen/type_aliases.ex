@@ -136,6 +136,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
   defp generate_ash_type_alias(Ash.Type.Duration), do: "export type Duration = string;"
   defp generate_ash_type_alias(Ash.Type.DurationName), do: "export type DurationName = string;"
   defp generate_ash_type_alias(Ash.Type.Binary), do: "export type Binary = string;"
+  defp generate_ash_type_alias(Ash.Type.Vector), do: "export type Vector = number[];"
 
   defp generate_ash_type_alias(Ash.Type.UrlEncodedBinary),
     do: "export type UrlEncodedBinary = string;"
