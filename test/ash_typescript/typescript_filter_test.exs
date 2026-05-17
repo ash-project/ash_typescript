@@ -30,17 +30,14 @@ defmodule AshTypescript.FilterTest do
       assert String.contains?(result, "isNil?: boolean")
     end
 
-    test "includes boolean attribute filters" do
+    test "includes boolean attribute filters without ordered comparisons" do
       result = FilterTypes.generate_filter_type(Post)
 
       assert String.contains?(result, "published?: {")
       assert String.contains?(result, "eq?: boolean")
-      # formatted with default :camel_case
       assert String.contains?(result, "notEq?: boolean")
+      assert String.contains?(result, "in?: Array<boolean>")
       assert String.contains?(result, "isNil?: boolean")
-      # Boolean should not have comparison operators
-      # formatted with default :camel_case
-      refute String.contains?(result, "greaterThan?: boolean")
     end
 
     test "includes integer attribute filters with comparison operations" do
@@ -111,7 +108,7 @@ defmodule AshTypescript.FilterTest do
   describe "get_applicable_operations/2" do
     # Testing through generate_filter_type since get_applicable_operations is private
 
-    test "string types get basic operations, isNil only when allow_nil?" do
+    test "string types get basic operations + comparison, isNil only when allow_nil?" do
       result = FilterTypes.generate_filter_type(Post)
 
       # title has allow_nil?: false — should NOT have isNil
@@ -125,8 +122,10 @@ defmodule AshTypescript.FilterTest do
       assert String.contains?(title_section, "eq?: string")
       assert String.contains?(title_section, "notEq?: string")
       assert String.contains?(title_section, "in?: Array<string>")
+      # Strings get comparison operators — Ash supports `string < string`
+      # (alphabetical ordering); manifest exposes them.
+      assert String.contains?(title_section, "greaterThan?: string")
       refute String.contains?(title_section, "isNil")
-      refute String.contains?(title_section, "greaterThan")
 
       # content has allow_nil?: true — should have isNil
       content_section =
@@ -160,7 +159,7 @@ defmodule AshTypescript.FilterTest do
       assert String.contains?(view_count_section, "isNil?: boolean")
     end
 
-    test "boolean types get limited operations plus isNil" do
+    test "boolean types get equality/membership operators but not ordered comparisons" do
       result = FilterTypes.generate_filter_type(Post)
 
       # Find the published field in the result
@@ -172,13 +171,16 @@ defmodule AshTypescript.FilterTest do
         |> Enum.at(0)
 
       assert String.contains?(published_section, "eq?: boolean")
-      # formatted with default :camel_case
       assert String.contains?(published_section, "notEq?: boolean")
+      assert String.contains?(published_section, "in?: Array<boolean>")
       assert String.contains?(published_section, "isNil?: boolean")
-      # formatted with default :camel_case
-      refute String.contains?(published_section, "greaterThan")
-      # formatted with default :camel_case
-      refute String.contains?(published_section, "lessThan")
+      # Booleans have no meaningful ordering — the manifest's resolver drops
+      # `<`, `>`, `<=`, `>=` for `:boolean` field types (same trimming as for
+      # arrays) so they don't leak into the generated TS.
+      refute String.contains?(published_section, "greaterThan?")
+      refute String.contains?(published_section, "lessThan?")
+      refute String.contains?(published_section, "greaterThanOrEqual?")
+      refute String.contains?(published_section, "lessThanOrEqual?")
     end
   end
 
@@ -214,6 +216,52 @@ defmodule AshTypescript.FilterTest do
 
       assert String.contains?(result, "NoRelationshipsResourceFilterInput")
       assert String.contains?(result, "name?: {")
+    end
+  end
+
+  describe "predicate function filters" do
+    test "string fields expose contains? / stringStartsWith? / stringEndsWith?" do
+      result = FilterTypes.generate_filter_type(Post)
+
+      title_section =
+        result
+        |> String.split("title?: {")
+        |> Enum.at(1)
+        |> String.split("};")
+        |> Enum.at(0)
+
+      assert String.contains?(title_section, "contains?: string")
+      assert String.contains?(title_section, "stringStartsWith?: string")
+      assert String.contains?(title_section, "stringEndsWith?: string")
+    end
+
+    test "array-of-string fields expose has?" do
+      result = FilterTypes.generate_filter_type(Post)
+
+      tags_section =
+        result
+        |> String.split("tags?: {")
+        |> Enum.at(1)
+        |> String.split("};")
+        |> Enum.at(0)
+
+      # has? takes a single element of the array's item type
+      assert String.contains?(tags_section, "has?: string")
+    end
+
+    test "non-string, non-array fields do not get string/array predicates" do
+      result = FilterTypes.generate_filter_type(Post)
+
+      view_count_section =
+        result
+        |> String.split("viewCount?: {")
+        |> Enum.at(1)
+        |> String.split("};")
+        |> Enum.at(0)
+
+      refute String.contains?(view_count_section, "contains")
+      refute String.contains?(view_count_section, "stringStartsWith")
+      refute String.contains?(view_count_section, "has?")
     end
   end
 
@@ -285,11 +333,11 @@ defmodule AshTypescript.FilterTest do
              "published (allow_nil?: true) should have isNil"
     end
 
-    test "aggregates always get isNil regardless of source field allow_nil?" do
+    test "nullable aggregates (:first/:max/:min/:sum/:avg) get isNil; non-nullable (:count/:exists/:list) do not" do
       result = FilterTypes.generate_filter_type(AshTypescript.Test.Todo)
 
-      # latestCommentContent is a :first aggregate on TodoComment.content
-      # which has allow_nil?: false, but aggregate results are always nullable
+      # latestCommentContent is a :first aggregate on TodoComment.content.
+      # :first can return nil for an empty relationship → allow_nil? true → isNil
       content_section =
         result
         |> String.split("latestCommentContent?: {")
@@ -298,9 +346,9 @@ defmodule AshTypescript.FilterTest do
         |> Enum.at(0)
 
       assert String.contains?(content_section, "isNil?: boolean"),
-             "aggregate should always have isNil even when source field has allow_nil?: false"
+             ":first aggregate (allow_nil? true) should have isNil"
 
-      # commentCount is a :count aggregate (always nullable)
+      # commentCount is a :count aggregate — never nil (returns 0 on empty)
       count_section =
         result
         |> String.split("commentCount?: {")
@@ -308,8 +356,8 @@ defmodule AshTypescript.FilterTest do
         |> String.split("};")
         |> Enum.at(0)
 
-      assert String.contains?(count_section, "isNil?: boolean"),
-             "count aggregate should have isNil"
+      refute String.contains?(count_section, "isNil"),
+             ":count aggregate (allow_nil? false) should NOT have isNil"
     end
   end
 end

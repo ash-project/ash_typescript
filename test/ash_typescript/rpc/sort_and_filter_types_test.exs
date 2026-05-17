@@ -577,7 +577,7 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
   # ──────────────────────────────────────────────────
 
   describe "aggregate filter types for all kinds" do
-    test ":exists aggregate generates boolean filter" do
+    test ":exists aggregate generates boolean filter (no isNil — :exists never nil)" do
       result = FilterTypes.generate_filter_type(AshTypescript.Test.Todo)
 
       has_comments_section =
@@ -589,8 +589,12 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
 
       assert has_comments_section =~ "eq?: boolean"
       assert has_comments_section =~ "notEq?: boolean"
-      assert has_comments_section =~ "isNil?: boolean"
-      refute has_comments_section =~ "greaterThan"
+      assert has_comments_section =~ "in?: Array<boolean>"
+      # :exists aggregates return false on empty (never nil) → no isNil
+      refute has_comments_section =~ "isNil"
+      # Booleans have ordered comparisons trimmed by the manifest's resolver.
+      refute has_comments_section =~ "greaterThan?"
+      refute has_comments_section =~ "lessThan?"
     end
 
     test ":max aggregate generates numeric filter with comparisons" do
@@ -640,7 +644,7 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       assert content_section =~ "isNil?: boolean"
     end
 
-    test ":list aggregate generates array filter" do
+    test ":list aggregate generates array filter (no isNil — :list returns [] on empty)" do
       result = FilterTypes.generate_filter_type(AshTypescript.Test.Todo)
 
       list_section =
@@ -652,7 +656,7 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
 
       assert list_section =~ "eq?: Array<string>"
       assert list_section =~ "notEq?: Array<string>"
-      assert list_section =~ "isNil?: boolean"
+      refute list_section =~ "isNil"
     end
 
     test ":sum aggregate generates numeric filter" do
@@ -670,7 +674,7 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       assert sum_section =~ "isNil?: boolean"
     end
 
-    test ":count aggregate generates integer filter" do
+    test ":count aggregate generates integer filter (no isNil — :count returns 0 on empty)" do
       result = FilterTypes.generate_filter_type(AshTypescript.Test.Todo)
 
       count_section =
@@ -682,7 +686,7 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
 
       assert count_section =~ "eq?: number"
       assert count_section =~ "greaterThan?: number"
-      assert count_section =~ "isNil?: boolean"
+      refute count_section =~ "isNil"
     end
   end
 end

@@ -42,13 +42,14 @@ defmodule AshTypescript.FilterMappedFieldsTest do
         |> String.split("};")
         |> Enum.at(0)
 
-      # Boolean fields should have eq and notEq operations
+      # Boolean fields get equality/membership operators but not ordered
+      # comparisons (the manifest's resolver trims `<`/`>`/`<=`/`>=` for
+      # boolean-kind types since the ordering is rarely meaningful).
       assert is_archived_section =~ "eq?: boolean"
       assert is_archived_section =~ "notEq?: boolean"
-
-      # Boolean fields should NOT have comparison operations
-      refute is_archived_section =~ "greaterThan"
-      refute is_archived_section =~ "lessThan"
+      assert is_archived_section =~ "in?: Array<boolean>"
+      refute is_archived_section =~ "greaterThan?"
+      refute is_archived_section =~ "lessThan?"
 
       # Should not reference the internal field name
       refute result =~ "archived?:"
@@ -131,9 +132,10 @@ defmodule AshTypescript.FilterMappedFieldsTest do
       assert title_section =~ "notEq?: string"
       assert title_section =~ "in?: Array<string>"
 
-      # String fields should NOT have comparison operations
-      refute title_section =~ "greaterThan"
-      refute title_section =~ "lessThan"
+      # Strings expose comparison operators (alphabetical) — driven by the
+      # manifest's operator catalog rather than a type-based heuristic.
+      assert title_section =~ "greaterThan?: string"
+      assert title_section =~ "lessThan?: string"
     end
 
     test "filter includes boolean field operations" do
@@ -150,13 +152,13 @@ defmodule AshTypescript.FilterMappedFieldsTest do
         |> String.split("};")
         |> Enum.at(0)
 
-      # Boolean fields should have limited operations
+      # Boolean fields get equality/membership operators — the manifest
+      # trims ordered comparisons (`<`, `>`, `<=`, `>=`) for boolean kinds.
       assert completed_section =~ "eq?: boolean"
       assert completed_section =~ "notEq?: boolean"
-
-      # Boolean fields should NOT have comparison or array operations
-      refute completed_section =~ "greaterThan"
-      refute completed_section =~ "in?: Array"
+      assert completed_section =~ "in?: Array<boolean>"
+      refute completed_section =~ "greaterThan?"
+      refute completed_section =~ "lessThan?"
     end
   end
 
@@ -303,7 +305,8 @@ defmodule AshTypescript.FilterMappedFieldsTest do
       assert created_by_section =~ "eq?: string"
       assert created_by_section =~ "notEq?: string"
       assert created_by_section =~ "in?: Array<string>"
-      refute created_by_section =~ "greaterThan"
+      # Strings now expose comparison operators (driven by the manifest)
+      assert created_by_section =~ "greaterThan?: string"
 
       # Find the isPublic filter section (boolean field)
       is_public_section =
@@ -315,8 +318,10 @@ defmodule AshTypescript.FilterMappedFieldsTest do
 
       assert is_public_section =~ "eq?: boolean"
       assert is_public_section =~ "notEq?: boolean"
-      refute is_public_section =~ "in?: Array"
-      refute is_public_section =~ "greaterThan"
+      assert is_public_section =~ "in?: Array<boolean>"
+      # Booleans have ordered comparisons trimmed by the manifest's resolver.
+      refute is_public_section =~ "greaterThan?"
+      refute is_public_section =~ "lessThan?"
     end
 
     test "embedded resource integer field has comparison operations" do
