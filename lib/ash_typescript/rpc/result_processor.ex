@@ -691,7 +691,9 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         resolve_resource_type(data.__struct__, resource_lookups)
 
       is_struct(data) && Helpers.has_typescript_field_names?(data.__struct__) ->
-        Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.Struct, instance_of: data.__struct__)
+        Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.Struct,
+          instance_of: data.__struct__
+        )
 
       match?(%Ash.Union{}, data) ->
         resolve_union_type(resource, resource_lookups)
@@ -749,7 +751,8 @@ defmodule AshTypescript.Rpc.ResultProcessor do
             end
           end)
 
-        union_field || %Ash.Info.Manifest.Type{kind: :union, module: Ash.Type.Union, constraints: []}
+        union_field ||
+          %Ash.Info.Manifest.Type{kind: :union, module: Ash.Type.Union, constraints: []}
 
       _ ->
         %Ash.Info.Manifest.Type{kind: :union, module: Ash.Type.Union, constraints: []}

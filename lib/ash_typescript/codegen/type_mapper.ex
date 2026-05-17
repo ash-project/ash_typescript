@@ -158,7 +158,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
   ## Returns
   A TypeScript type string.
   """
-  @spec map_type(atom() | tuple() | Ash.Info.Manifest.Type.t(), keyword(), direction()) :: String.t()
+  @spec map_type(atom() | tuple() | Ash.Info.Manifest.Type.t(), keyword(), direction()) ::
+          String.t()
   def map_type(type, constraints, direction)
 
   # Nil type

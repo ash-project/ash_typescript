@@ -696,7 +696,9 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   defp resolve_inner_api_type(%Ash.Info.Manifest.Type{} = type), do: type
 
   # Checks if an Ash.Info.Manifest.Field has an array type.
-  defp api_field_is_array?(%Ash.Info.Manifest.Field{type: %Ash.Info.Manifest.Type{kind: :array}}), do: true
+  defp api_field_is_array?(%Ash.Info.Manifest.Field{type: %Ash.Info.Manifest.Type{kind: :array}}),
+    do: true
+
   defp api_field_is_array?(%Ash.Info.Manifest.Field{}), do: false
 
   # Unwraps raw Ash array types (used for union member type processing).

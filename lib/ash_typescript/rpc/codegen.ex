@@ -803,12 +803,18 @@ defmodule AshTypescript.Rpc.Codegen do
     |> Enum.uniq()
   end
 
-  defp find_struct_resources_in_spec_type(%Ash.Info.Manifest.Type{kind: kind, resource_module: mod})
+  defp find_struct_resources_in_spec_type(%Ash.Info.Manifest.Type{
+         kind: kind,
+         resource_module: mod
+       })
        when kind in [:resource, :embedded_resource] and not is_nil(mod),
        do: [mod]
 
-  defp find_struct_resources_in_spec_type(%Ash.Info.Manifest.Type{kind: :array, item_type: item_type}),
-    do: find_struct_resources_in_spec_type(item_type)
+  defp find_struct_resources_in_spec_type(%Ash.Info.Manifest.Type{
+         kind: :array,
+         item_type: item_type
+       }),
+       do: find_struct_resources_in_spec_type(item_type)
 
   defp find_struct_resources_in_spec_type(_), do: []
 

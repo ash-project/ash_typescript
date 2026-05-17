@@ -38,7 +38,10 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   """
   @spec format(
           term(),
-          Ash.Info.Manifest.Type.t() | Ash.Info.Manifest.Field.t() | Ash.Info.Manifest.Relationship.t() | nil,
+          Ash.Info.Manifest.Type.t()
+          | Ash.Info.Manifest.Field.t()
+          | Ash.Info.Manifest.Relationship.t()
+          | nil,
           keyword(),
           atom(),
           direction(),

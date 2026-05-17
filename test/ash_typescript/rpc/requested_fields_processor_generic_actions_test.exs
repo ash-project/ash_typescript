@@ -101,7 +101,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
           @resource_lookups
         )
 
-      assert {:invalid_field_selection, :primitive_type, %Ash.Info.Manifest.Type{kind: :uuid}, [:id], []} =
+      assert {:invalid_field_selection, :primitive_type, %Ash.Info.Manifest.Type{kind: :uuid},
+              [:id], []} =
                error
     end
 

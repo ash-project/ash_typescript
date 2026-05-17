@@ -275,12 +275,18 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
           | :unconstrained_map
           | {:error, atom()}
   # Ash.Info.Manifest.Type classification
-  defp classify_return_type(%Ash.Info.Manifest.Type{kind: :type_ref, module: module}, _constraints) do
+  defp classify_return_type(
+         %Ash.Info.Manifest.Type{kind: :type_ref, module: module},
+         _constraints
+       ) do
     full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), module)
     classify_return_type(full_type, [])
   end
 
-  defp classify_return_type(%Ash.Info.Manifest.Type{kind: kind, resource_module: mod}, _constraints)
+  defp classify_return_type(
+         %Ash.Info.Manifest.Type{kind: kind, resource_module: mod},
+         _constraints
+       )
        when kind in [:resource, :embedded_resource] and not is_nil(mod) do
     {:resource, mod}
   end

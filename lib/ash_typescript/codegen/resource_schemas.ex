@@ -332,7 +332,8 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     {complex_fields, primitive_fields} =
       Enum.split_with(fields, &is_complex_attr?/1)
 
-    relationships = Ash.Info.Manifest.Resource.accessible_relationships(api_resource, allowed_resources)
+    relationships =
+      Ash.Info.Manifest.Resource.accessible_relationships(api_resource, allowed_resources)
 
     complex_fields = complex_fields ++ relationships
 

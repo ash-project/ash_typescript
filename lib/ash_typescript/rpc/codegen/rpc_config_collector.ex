@@ -182,7 +182,9 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   # Helpers
   # ─────────────────────────────────────────────────────────────────
 
-  defp has_ash_typescript_config?(%Ash.Info.Manifest.Entrypoint{config: %{ash_typescript: _}}), do: true
+  defp has_ash_typescript_config?(%Ash.Info.Manifest.Entrypoint{config: %{ash_typescript: _}}),
+    do: true
+
   defp has_ash_typescript_config?(_), do: false
 
   defp get_entrypoints do

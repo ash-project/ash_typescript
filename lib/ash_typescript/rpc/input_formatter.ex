@@ -123,7 +123,12 @@ defmodule AshTypescript.Rpc.InputFormatter do
   end
 
   # Resolve the field type to %Ash.Info.Manifest.Type{} and handle struct resources specially
-  defp format_value(value, %Ash.Info.Manifest.Type{kind: kind} = type_info, formatter, resource_lookups)
+  defp format_value(
+         value,
+         %Ash.Info.Manifest.Type{kind: kind} = type_info,
+         formatter,
+         resource_lookups
+       )
        when kind in [:struct, :map] do
     inst = type_info.instance_of || type_info.module
 

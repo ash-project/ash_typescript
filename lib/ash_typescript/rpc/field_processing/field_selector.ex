@@ -132,8 +132,10 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
             {type, []}
 
           type when is_atom(type) ->
-            {Ash.Info.Manifest.Generator.TypeResolver.resolve(type, Map.get(action, :constraints) || []),
-             []}
+            {Ash.Info.Manifest.Generator.TypeResolver.resolve(
+               type,
+               Map.get(action, :constraints) || []
+             ), []}
 
           type ->
             {type, []}
@@ -478,7 +480,10 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
         _ ->
           {unwrapped_type, _} =
-            Ash.Info.Manifest.Generator.TypeResolver.unwrap_new_type(field_type, field_constraints)
+            Ash.Info.Manifest.Generator.TypeResolver.unwrap_new_type(
+              field_type,
+              field_constraints
+            )
 
           unwrapped_type == Ash.Type.Union
       end
@@ -1337,7 +1342,11 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     requires_nested_selection?(full_type, [])
   end
 
-  defp requires_nested_selection?(%Ash.Info.Manifest.Type{} = type_info, _type_constraints, _type_index) do
+  defp requires_nested_selection?(
+         %Ash.Info.Manifest.Type{} = type_info,
+         _type_constraints,
+         _type_index
+       ) do
     effective_type = if type_info.kind == :array, do: type_info.item_type, else: type_info
 
     case effective_type do
