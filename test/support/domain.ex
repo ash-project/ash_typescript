@@ -277,6 +277,12 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :get_metrics, :get_metrics
       rpc_action :get_nested_stats, :get_nested_stats
     end
+
+    # Test resource for verifying field policies on generic action returns
+    resource AshTypescript.Test.FieldPolicyRecord do
+      rpc_action :latest_field_policy_record, :latest
+      rpc_action :create_field_policy_record, :create
+    end
   end
 
   resources do
@@ -298,5 +304,6 @@ defmodule AshTypescript.Test.Domain do
     resource AshTypescript.Test.TenantSetting
     resource AshTypescript.Test.InputParsing.Resource
     resource AshTypescript.Test.NestedMapResource
+    resource AshTypescript.Test.FieldPolicyRecord
   end
 end

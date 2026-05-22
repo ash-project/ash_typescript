@@ -792,31 +792,32 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp execute_generic_action(%Request{} = request, opts) do
-    action_result =
+    returns_resource? =
+      case ActionIntrospection.action_returns_field_selectable_type?(request.action) do
+        {:ok, :resource, _} -> true
+        {:ok, :array_of_resource, _} -> true
+        _ -> false
+      end
+
+    # When the action returns a resource, pass every requested field as
+    # `load:` so the action's post-run load (with authorization) scrubs
+    # fields the actor isn't allowed to see via field policies.
+    opts =
+      if returns_resource? do
+        load = Enum.uniq((request.select || []) ++ (request.load || []))
+        Keyword.put(opts, :load, load)
+      else
+        opts
+      end
+
+    result =
       request.resource
       |> Ash.ActionInput.for_action(request.action.name, request.input, opts)
-      |> Ash.run_action()
+      |> Ash.run_action(opts)
 
-    case action_result do
-      {:ok, result} ->
-        returns_resource? =
-          case ActionIntrospection.action_returns_field_selectable_type?(request.action) do
-            {:ok, :resource, _} -> true
-            {:ok, :array_of_resource, _} -> true
-            _ -> false
-          end
-
-        if returns_resource? and not Enum.empty?(request.load) do
-          Ash.load(result, request.load, opts)
-        else
-          action_result
-        end
-
-      :ok ->
-        {:ok, %{}}
-
-      _ ->
-        action_result
+    case result do
+      :ok -> {:ok, %{}}
+      other -> other
     end
   end
 
