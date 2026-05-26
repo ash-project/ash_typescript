@@ -354,6 +354,8 @@ mix credo --strict                   # Linting
 3. **process_result** - Apply field selection using templates
 4. **format_output** - Format for client consumption
 
+**Action shape contract:** the runtime pipeline reads action shape exclusively from `AshTypescript.action_lookup/0` (the cached `Ash.Info.Manifest`). Downstream consumers (`pipeline.ex`, `input_formatter.ex`, `field_selector.ex`) operate on `%Ash.Info.Manifest.Action{}` — `inputs` (unified arguments + accepted attributes), resolved `returns` (`%Ash.Info.Manifest.Type{}`), and pre-folded constraints. Do not reintroduce `Ash.Resource.Info.action/2` in runtime modules; use `ActionIntrospection.get_action!/2` instead.
+
 ### Key Modules
 - **RequestedFieldsProcessor** (delegator) - Entry point for field processing
 - **Field Processing Subsystem** - 3 modules using type-driven dispatch:

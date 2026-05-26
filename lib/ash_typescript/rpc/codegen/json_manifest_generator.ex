@@ -155,7 +155,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
         not ActionIntrospection.action_requires_pagination?(action) and
         has_fields
 
-    input_requirement = ActionIntrospection.action_input_type(resource, action)
+    input_requirement = ActionIntrospection.action_input_type(action)
 
     show_validation = AshTypescript.Rpc.generate_validation_functions?()
     show_zod = AshTypescript.Rpc.generate_zod_schemas?()
@@ -213,7 +213,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
       end
 
     base =
-      if action.type != :destroy and has_input?(resource, action) do
+      if action.type != :destroy and has_input?(action) do
         Map.put(base, "input", "#{pascal_name}Input")
       else
         base
@@ -367,8 +367,8 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
     end
   end
 
-  defp has_input?(resource, action) do
-    ActionIntrospection.action_input_type(resource, action) != :none
+  defp has_input?(action) do
+    ActionIntrospection.action_input_type(action) != :none
   end
 
   # Typed controller routes

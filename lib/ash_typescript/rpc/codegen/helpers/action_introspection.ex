@@ -21,6 +21,24 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   @field_constrained_types [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple]
 
   @doc """
+  Looks up an action in `AshTypescript.action_lookup/0` and raises on miss.
+
+  Use at runtime sites that have already validated action existence upstream
+  (e.g. `Pipeline.discover_action/2` returns `{:error, {:action_not_found, …}}`
+  before reaching parse-time lookup), so a miss here indicates an internal
+  consistency error rather than user input.
+  """
+  def get_action!(resource, action_name) do
+    case Map.get(AshTypescript.action_lookup(), {resource, action_name}) do
+      %Ash.Info.Manifest.Action{} = action ->
+        action
+
+      nil ->
+        raise "action #{inspect(action_name)} not found on #{inspect(resource)} in manifest"
+    end
+  end
+
+  @doc """
   Returns true if the action supports pagination.
 
   ## Examples
@@ -104,78 +122,74 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   end
 
   @doc """
-  Returns :required | :optional | :none
+  Returns :required | :optional | :none.
 
-  Determines whether an action requires input, has optional input, or has no input.
-  This is based on the action's public arguments and accepted attributes.
+  Inspects the action's unified `inputs` list. Each `Ash.Info.Manifest.Argument`
+  carries `required?` directly — describing input presence independent of value
+  shape (`allow_nil?` / `has_default?`).
   """
-  def action_input_type(resource, action) do
-    action_input_type(resource, action, AshTypescript.resource_lookup())
+  def action_input_type(action) do
+    inputs = action.inputs || []
+
+    cond do
+      inputs == [] -> :none
+      Enum.any?(inputs, & &1.required?) -> :required
+      true -> :optional
+    end
   end
 
   @doc """
-  Returns :required | :optional | :none (with pre-computed resource_lookup).
-
-  Same as `action_input_type/2` but avoids regenerating the resource lookup.
+  Returns `true` if `input_name` refers to an accepted attribute on `resource`
+  (i.e. present in the manifest resource's `fields` map) rather than a
+  declared action argument. Used to decide whether to apply field-name mapping
+  or argument-name mapping to an `Ash.Info.Manifest.Argument`.
   """
-  def action_input_type(resource, action, resource_lookup) do
-    arguments = action.arguments
+  def accepted_attribute?(resource, input_name, resource_lookup) do
+    case Map.get(resource_lookup || %{}, resource) do
+      %Ash.Info.Manifest.Resource{fields: fields} when is_map(fields) ->
+        Map.has_key?(fields, input_name)
 
-    # Get accepted attributes from the spec's fields
-    accepted_fields = get_accepted_fields(resource, action, resource_lookup)
-
-    inputs = arguments ++ accepted_fields
-
-    cond do
-      Enum.empty?(inputs) ->
-        :none
-
-      Enum.any?(inputs, &input_is_required?(&1, action)) ->
-        :required
-
-      true ->
-        :optional
+      _ ->
+        false
     end
   end
 
-  defp input_is_required?(%Ash.Info.Manifest.Argument{} = arg, _action) do
-    not arg.allow_nil? and not arg.has_default?
-  end
+  @doc """
+  Resolves the TypeScript client name for an action input.
 
-  defp input_is_required?(%Ash.Info.Manifest.Field{} = field, action) do
-    field.name not in (action.allow_nil_input || []) and
-      (field.name in (action.require_attributes || []) ||
-         (not field.allow_nil? and not field.has_default?))
-  end
-
-  # Fallback for raw Ash structs (used in tests or legacy paths)
-  defp input_is_required?(%{allow_nil?: allow_nil?} = input, action) do
-    has_default? = Map.get(input, :has_default?, is_nil(Map.get(input, :default)))
-
-    if match?(%{name: _}, input) and Map.has_key?(action, :allow_nil_input) do
-      input.name not in (action.allow_nil_input || []) and
-        (input.name in (Map.get(action, :require_attributes) || []) ||
-           (not allow_nil? and not has_default?))
+  Accepted attributes (present in the resource's field map) use field-name
+  mapping via `format_field_for_client/3` (resource-aware, honors `field_names`
+  DSL). Declared action arguments use `argument_names` mapping via
+  `format_field_name/2` (formatter only — arguments don't carry resource field
+  metadata).
+  """
+  def format_input_name(resource, action_name, input_name, resource_lookup) do
+    if accepted_attribute?(resource, input_name, resource_lookup) do
+      AshTypescript.FieldFormatter.format_field_for_client(
+        input_name,
+        resource,
+        AshTypescript.Rpc.output_field_formatter()
+      )
     else
-      not allow_nil? and not has_default?
-    end
-  end
+      mapped =
+        AshTypescript.Resource.Info.get_mapped_argument_name(resource, action_name, input_name)
 
-  defp get_accepted_fields(resource, action, resource_lookup) do
-    case Map.get(action, :accept) || [] do
-      [] ->
-        []
+      cond do
+        is_binary(mapped) ->
+          mapped
 
-      accept_list ->
-        case Map.get(resource_lookup, resource) do
-          %Ash.Info.Manifest.Resource{} = api_resource ->
-            accept_list
-            |> Enum.map(&Map.get(api_resource.fields, &1))
-            |> Enum.reject(&is_nil/1)
+        mapped == input_name ->
+          AshTypescript.FieldFormatter.format_field_name(
+            input_name,
+            AshTypescript.Rpc.output_field_formatter()
+          )
 
-          nil ->
-            []
-        end
+        true ->
+          AshTypescript.FieldFormatter.format_field_name(
+            mapped,
+            AshTypescript.Rpc.output_field_formatter()
+          )
+      end
     end
   end
 

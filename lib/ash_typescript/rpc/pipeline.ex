@@ -9,6 +9,26 @@ defmodule AshTypescript.Rpc.Pipeline do
   2. execute_ash_action/1 - Execute Ash operations
   3. filter_result_fields/2 - Apply field selection
   4. format_output/2 - Format for client consumption
+
+  ## Action shape
+
+  Stage 1 resolves the action by reading from `AshTypescript.action_lookup/0`,
+  so every downstream stage receives `%Ash.Info.Manifest.Action{}`. Consumers
+  should rely on:
+
+    * `action.inputs` — unified arguments + accepted attributes, each carrying
+      a resolved `%Ash.Info.Manifest.Type{}` (no separate `:constraints` field;
+      constraints are folded into the resolved type).
+    * `action.returns` — `%Ash.Info.Manifest.Type{}` or `nil`.
+    * `action.pagination` — `%Ash.Info.Manifest.Pagination{}` (uses `:countable?`,
+      not `:countable`).
+    * `action.metadata` — list of `%Ash.Info.Manifest.Metadata{}` whose `:type`
+      is already resolved.
+
+  Raw-Ash fields (`arguments`, `accept`, `constraints`, `allow_nil_input`,
+  `require_attributes`) are NOT present. Use
+  `AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection.get_action!/2` for
+  manifest lookups in runtime code paths instead of `Ash.Resource.Info.action/2`.
   """
 
   alias AshTypescript.Rpc.{
@@ -342,7 +362,7 @@ defmodule AshTypescript.Rpc.Pipeline do
               {:error, {:typed_query_not_found, typed_query_name}}
 
             {domain, resource, typed_query} ->
-              action = Ash.Resource.Info.action(resource, typed_query.action)
+              action = ActionIntrospection.get_action!(resource, typed_query.action)
               {:ok, {domain, resource, action, typed_query}}
           end
         end
@@ -356,7 +376,7 @@ defmodule AshTypescript.Rpc.Pipeline do
               {:error, {:action_not_found, action_name}}
 
             {domain, resource, rpc_action} ->
-              action = Ash.Resource.Info.action(resource, rpc_action.action)
+              action = ActionIntrospection.get_action!(resource, rpc_action.action)
               augmented_action = augment_action_with_rpc_settings(action, rpc_action, resource)
               {:ok, {domain, resource, augmented_action, rpc_action}}
           end
@@ -503,9 +523,9 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp find_action_argument_type(field_atom, action) do
-    case Enum.find(action.arguments, &(&1.public? && &1.name == field_atom)) do
-      %{type: type, constraints: constraints} ->
-        classify_tuple_or_keyword_type(type, constraints)
+    case Enum.find(action.inputs || [], &(&1.name == field_atom)) do
+      %{type: %Ash.Info.Manifest.Type{} = type_info} ->
+        classify_tuple_or_keyword_type(type_info, [])
 
       _ ->
         :other
@@ -1083,13 +1103,10 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp format_generic_action_output(data, action, formatter, resource_lookups, type_index) do
-    return_type = action.returns
-    constraints = action.constraints || []
-
     ValueFormatter.format(
       data,
-      return_type,
-      constraints,
+      action.returns,
+      [],
       formatter,
       :output,
       resource_lookups,
@@ -1153,16 +1170,10 @@ defmodule AshTypescript.Rpc.Pipeline do
          action_name,
          requested_fields,
          _validation_mode?,
-         resource_lookups,
-         type_index
+         _resource_lookups,
+         _type_index
        ) do
-    RequestedFieldsProcessor.process(
-      resource,
-      action_name,
-      requested_fields,
-      resource_lookups,
-      type_index
-    )
+    RequestedFieldsProcessor.process(resource, action_name, requested_fields)
   end
 
   defp validate_fields_if_needed(_params, false), do: :ok
@@ -1516,7 +1527,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   defp lookup_metadata_type(metadata_defs, field_name) do
     case Enum.find(metadata_defs, &(&1.name == field_name)) do
       nil -> {nil, []}
-      %{type: type, constraints: constraints} -> {type, constraints || []}
+      %{type: type} -> {type, []}
     end
   end
 

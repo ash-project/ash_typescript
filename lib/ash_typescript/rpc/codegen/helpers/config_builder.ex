@@ -74,7 +74,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
           ActionIntrospection.action_supports_pagination?(action),
       supports_filtering: action.type == :read and not is_get_action and enable_filter?,
       supports_sorting: action.type == :read and not is_get_action and enable_sort?,
-      action_input_type: ActionIntrospection.action_input_type(resource, action),
+      action_input_type: ActionIntrospection.action_input_type(action),
       is_get_action: is_get_action
     }
   end

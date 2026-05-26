@@ -184,47 +184,16 @@ defmodule AshTypescript.Codegen.SchemaCore do
   Returns an empty string when the action has no input.
   """
   def generate_action_schema(formatter, resource, action, rpc_action_name) do
-    if ActionIntrospection.action_input_type(resource, action) != :none do
+    if ActionIntrospection.action_input_type(action) != :none do
       suffix = formatter.schema_suffix()
       schema_name = format_output_field("#{rpc_action_name}#{suffix}")
+      resource_lookup = AshTypescript.resource_lookup()
 
       field_defs =
-        case action.type do
-          :read ->
-            arguments = filter_public_arguments(action.arguments)
-
-            if arguments != [],
-              do: Enum.map(arguments, &process_argument_field(formatter, resource, action, &1)),
-              else: []
-
-          :create ->
-            accepts = action.accept || []
-            arguments = filter_public_arguments(action.arguments)
-
-            if accepts != [] || arguments != [] do
-              Enum.map(accepts, &process_accept_field(formatter, resource, &1, action)) ++
-                Enum.map(arguments, &process_argument_field(formatter, resource, action, &1))
-            else
-              []
-            end
-
-          action_type when action_type in [:update, :destroy] ->
-            arguments = filter_public_arguments(action.arguments)
-
-            if action.accept != [] || arguments != [] do
-              Enum.map(action.accept, &process_accept_field(formatter, resource, &1, action)) ++
-                Enum.map(arguments, &process_argument_field(formatter, resource, action, &1))
-            else
-              []
-            end
-
-          :action ->
-            arguments = filter_public_arguments(action.arguments)
-
-            if arguments != [],
-              do: Enum.map(arguments, &process_argument_field(formatter, resource, action, &1)),
-              else: []
-        end
+        Enum.map(
+          action.inputs || [],
+          &process_input_field(formatter, resource, action, &1, resource_lookup)
+        )
 
       field_lines = Enum.map(field_defs, fn {name, type} -> "  #{name}: #{type}," end)
       kw = formatter.library_prefix()
@@ -408,48 +377,14 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # Private — field processing
   # ─────────────────────────────────────────────────────────────────
 
-  defp process_argument_field(formatter, resource, action, arg) do
-    nullable = arg.allow_nil?
-    omittable = arg.allow_nil? || has_default?(arg)
-    formatted_name = format_argument_for_client(resource, action.name, arg.name)
-    schema_type = get_type(formatter, arg)
-    schema_type = maybe_wrap_nullable_optional(formatter, schema_type, nullable, omittable)
-    {formatted_name, schema_type}
-  end
-
-  # Compatibility shim: Ash.Info.Manifest.Argument exposes `has_default?`, while raw
-  # Ash arguments only expose the `:default` value. Treat any explicit default
-  # as "has default".
-  defp has_default?(%{has_default?: has_default?}), do: has_default?
-  defp has_default?(%{default: default}), do: not is_nil(default)
-  defp has_default?(_), do: false
-
-  # Ash.Info.Manifest arguments are already filtered to public ones; raw Ash arguments
-  # carry a `:public?` field that needs filtering.
-  defp filter_public_arguments(args) do
-    Enum.filter(args, fn arg -> Map.get(arg, :public?, true) end)
-  end
-
-  defp process_accept_field(formatter, resource, field_name, action) do
-    attr = Ash.Info.Manifest.get_field(AshTypescript.resource_lookup(), resource, field_name)
-
-    {nullable, omittable} =
-      if action.type in [:update, :destroy] do
-        {attr.allow_nil?, field_name not in (action.require_attributes || [])}
-      else
-        nullable = attr.allow_nil? || field_name in (action.allow_nil_input || [])
-        omittable = nullable || attr.has_default?
-        {nullable, omittable}
-      end
+  defp process_input_field(formatter, resource, action, input, resource_lookup) do
+    nullable = input.allow_nil?
+    omittable = not input.required?
 
     formatted_name =
-      AshTypescript.FieldFormatter.format_field_for_client(
-        field_name,
-        resource,
-        AshTypescript.Rpc.output_field_formatter()
-      )
+      ActionIntrospection.format_input_name(resource, action.name, input.name, resource_lookup)
 
-    schema_type = get_type(formatter, attr)
+    schema_type = get_type(formatter, input)
     schema_type = maybe_wrap_nullable_optional(formatter, schema_type, nullable, omittable)
     {formatted_name, schema_type}
   end
@@ -461,16 +396,6 @@ defmodule AshTypescript.Codegen.SchemaCore do
   def maybe_wrap_nullable_optional(formatter, schema, nullable?, omittable?) do
     schema = if nullable?, do: formatter.wrap_nullable(schema), else: schema
     if omittable?, do: formatter.wrap_optional(schema), else: schema
-  end
-
-  defp format_argument_for_client(resource, action_name, arg_name) do
-    mapped = AshTypescript.Resource.Info.get_mapped_argument_name(resource, action_name, arg_name)
-
-    cond do
-      is_binary(mapped) -> mapped
-      mapped == arg_name -> format_field(arg_name)
-      true -> format_field(mapped)
-    end
   end
 
   defp format_field(field_name) do

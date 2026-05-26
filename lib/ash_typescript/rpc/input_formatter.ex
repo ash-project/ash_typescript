@@ -11,8 +11,8 @@ defmodule AshTypescript.Rpc.InputFormatter do
   formatting of nested values using `%Ash.Info.Manifest.Type{}` structs.
   """
 
-  alias AshTypescript.{FieldFormatter, Helpers, Rpc.ValueFormatter}
-  alias AshTypescript.Resource.Info, as: ResourceInfo
+  alias AshTypescript.{Helpers, Rpc.ValueFormatter}
+  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
   @doc """
   Formats input data from client format to internal format.
@@ -32,7 +32,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
   end
 
   defp get_action(resource, action_name) when is_atom(action_name) do
-    Ash.Resource.Info.action(resource, action_name)
+    ActionIntrospection.get_action!(resource, action_name)
   end
 
   defp get_action(_resource, %{} = action), do: action
@@ -75,50 +75,20 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   @doc """
   Builds a map of expected client field names to internal Elixir field names.
+
+  Walks `action.inputs` (unified arguments + accepted attributes) once,
+  deriving each input's client-facing name via `ActionIntrospection.format_input_name/4`
+  so runtime parsing and codegen agree.
   """
   def build_expected_keys_map(resource, action, _input_formatter, resource_lookups \\ nil) do
-    output_formatter = AshTypescript.Rpc.output_field_formatter()
-    argument_keys = build_argument_keys(resource, action, output_formatter)
-    attribute_keys = build_attribute_keys(resource, action, output_formatter, resource_lookups)
-    Map.merge(attribute_keys, argument_keys)
-  end
+    resource_lookup = resource_lookups || AshTypescript.resource_lookup()
 
-  defp build_argument_keys(resource, action, output_formatter) do
-    action.arguments
-    |> Enum.filter(&Map.get(&1, :public?, true))
-    |> Enum.into(%{}, fn arg ->
-      mapped = ResourceInfo.get_mapped_argument_name(resource, action.name, arg.name)
-
+    (action.inputs || [])
+    |> Enum.into(%{}, fn input ->
       client_name =
-        cond do
-          is_binary(mapped) -> mapped
-          mapped == arg.name -> FieldFormatter.format_field_name(arg.name, output_formatter)
-          true -> FieldFormatter.format_field_name(mapped, output_formatter)
-        end
+        ActionIntrospection.format_input_name(resource, action.name, input.name, resource_lookup)
 
-      {client_name, arg.name}
-    end)
-  end
-
-  defp build_attribute_keys(resource, action, output_formatter, resource_lookups) do
-    accept_list = Map.get(action, :accept) || []
-    resource_spec = resource_lookups && Map.get(resource_lookups, resource)
-
-    accept_list
-    |> Enum.filter(fn attr_name ->
-      case resource_spec do
-        %Ash.Info.Manifest.Resource{fields: fields} -> Map.has_key?(fields, attr_name)
-        _ -> false
-      end
-    end)
-    |> Enum.into(%{}, fn attr_name ->
-      client_name =
-        case ResourceInfo.get_mapped_field_name(resource, attr_name) do
-          mapped when is_binary(mapped) -> mapped
-          nil -> FieldFormatter.format_field_name(attr_name, output_formatter)
-        end
-
-      {client_name, attr_name}
+      {client_name, input.name}
     end)
   end
 
@@ -223,47 +193,13 @@ defmodule AshTypescript.Rpc.InputFormatter do
     end
   end
 
-  # Returns %Ash.Info.Manifest.Type{} for the field, using spec data when available
-  defp get_input_field_type(action, resource, field_key, resource_lookups) do
-    case get_action_argument(action, field_key) do
-      nil ->
-        get_accepted_attribute_type(resource, field_key, resource_lookups)
-
-      arg ->
-        resolve_arg_type(arg)
+  # Returns %Ash.Info.Manifest.Type{} for the field. Every input — declared
+  # argument or accepted attribute — appears in `action.inputs` with a
+  # pre-resolved type.
+  defp get_input_field_type(action, _resource, field_key, _resource_lookups) do
+    case Enum.find(action.inputs || [], &(&1.name == field_key)) do
+      %{type: %Ash.Info.Manifest.Type{} = type} -> type
+      _ -> nil
     end
   end
-
-  defp get_action_argument(action, field_key) do
-    Enum.find(action.arguments, fn arg ->
-      Map.get(arg, :public?, true) && arg.name == field_key
-    end)
-  end
-
-  # Resolve argument type to %Ash.Info.Manifest.Type{}
-  defp resolve_arg_type(%{type: %Ash.Info.Manifest.Type{} = spec_type}), do: spec_type
-
-  defp resolve_arg_type(%{type: type, constraints: constraints}) when is_atom(type) do
-    Ash.Info.Manifest.Generator.TypeResolver.resolve(type, constraints || [])
-  end
-
-  defp resolve_arg_type(%{type: {:array, _} = type, constraints: constraints}) do
-    Ash.Info.Manifest.Generator.TypeResolver.resolve(type, constraints || [])
-  end
-
-  defp resolve_arg_type(%{type: type}) when is_atom(type) do
-    Ash.Info.Manifest.Generator.TypeResolver.resolve(type, [])
-  end
-
-  defp resolve_arg_type(_), do: nil
-
-  defp get_accepted_attribute_type(resource, field_key, resource_lookups)
-       when is_map(resource_lookups) do
-    case Ash.Info.Manifest.get_field(resource_lookups, resource, field_key) do
-      %Ash.Info.Manifest.Field{type: type} -> type
-      nil -> nil
-    end
-  end
-
-  defp get_accepted_attribute_type(_resource, _field_key, _nil_lookups), do: nil
 end

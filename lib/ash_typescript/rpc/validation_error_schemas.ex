@@ -16,12 +16,6 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
 
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
-  # Filters to public arguments only. For spec actions, arguments are already
-  # public-only. For raw Ash actions (from tests), filters on .public? field.
-  defp filter_public_arguments(arguments) do
-    Enum.filter(arguments, &Map.get(&1, :public?, true))
-  end
-
   # ─────────────────────────────────────────────────────────────────
   # Core Dispatcher
   # ─────────────────────────────────────────────────────────────────
@@ -197,7 +191,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   Generates validation error type for an RPC action with pre-computed resource_lookup.
   """
   def generate_validation_error_type(resource, action, rpc_action_name, resource_lookup) do
-    if ActionIntrospection.action_input_type(resource, action) != :none do
+    if ActionIntrospection.action_input_type(action) != :none do
       error_type_name = "#{snake_to_pascal_case(rpc_action_name)}ValidationErrors"
       error_field_defs = generate_rpc_action_error_fields(resource, action, resource_lookup)
 
@@ -394,74 +388,13 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   end
 
   defp generate_rpc_action_error_fields(resource, action, resource_lookup) do
-    cond do
-      action.type in [:read, :action] ->
-        arguments = filter_public_arguments(action.arguments)
+    Enum.map(action.inputs || [], fn input ->
+      formatted_name =
+        ActionIntrospection.format_input_name(resource, action.name, input.name, resource_lookup)
 
-        if arguments != [] do
-          Enum.map(arguments, fn arg ->
-            formatted_arg_name = format_argument_name_for_client(resource, action.name, arg.name)
-            error_type = get_ts_error_type(arg)
-            {formatted_arg_name, error_type}
-          end)
-        end
-
-      action.type in [:create, :update, :destroy] ->
-        arguments = filter_public_arguments(action.arguments)
-
-        if action.accept != [] || arguments != [] do
-          accept_field_defs =
-            Enum.map(action.accept, fn field_name ->
-              attr = Ash.Info.Manifest.get_field(resource_lookup, resource, field_name)
-
-              formatted_field_name =
-                AshTypescript.FieldFormatter.format_field_for_client(
-                  field_name,
-                  resource,
-                  AshTypescript.Rpc.output_field_formatter()
-                )
-
-              error_type = get_ts_error_type(attr)
-              {formatted_field_name, error_type}
-            end)
-
-          argument_field_defs =
-            Enum.map(arguments, fn arg ->
-              formatted_arg_name =
-                format_argument_name_for_client(resource, action.name, arg.name)
-
-              error_type = get_ts_error_type(arg)
-              {formatted_arg_name, error_type}
-            end)
-
-          accept_field_defs ++ argument_field_defs
-        else
-          []
-        end
-    end
-  end
-
-  # Helper to format argument name for client output
-  # If mapped, use the string directly; otherwise apply formatter
-  defp format_argument_name_for_client(resource, action_name, arg_name) do
-    mapped = AshTypescript.Resource.Info.get_mapped_argument_name(resource, action_name, arg_name)
-
-    cond do
-      is_binary(mapped) ->
-        mapped
-
-      mapped == arg_name ->
-        AshTypescript.FieldFormatter.format_field_name(
-          arg_name,
-          AshTypescript.Rpc.output_field_formatter()
-        )
-
-      true ->
-        AshTypescript.FieldFormatter.format_field_name(
-          mapped,
-          AshTypescript.Rpc.output_field_formatter()
-        )
-    end
+      error_type = get_ts_error_type(input)
+      {formatted_name, error_type}
+    end)
   end
 
   defp generate_validation_error_schema_for_field_type(

@@ -94,10 +94,10 @@ defmodule AshTypescript.Codegen.TypeAliases do
     action_lookup
     |> Enum.filter(fn {{res, _action_name}, _action} -> res == resource_module end)
     |> Enum.reduce(types, fn {_key, action}, types ->
-      # Collect from action arguments
+      # Collect from action inputs (unified arguments + accepted attributes)
       types =
-        Enum.reduce(action.arguments || [], types, fn arg, types ->
-          collect_type_module(arg.type, types)
+        Enum.reduce(action.inputs || [], types, fn input, types ->
+          collect_type_module(input.type, types)
         end)
 
       # Collect from action returns (for generic actions)
