@@ -101,13 +101,13 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
         |> String.split("): Promise<")
         |> Enum.at(0)
 
-      assert update_function_section =~ "input: UpdateTaskInput;"
+      assert update_function_section =~ "input?: UpdateTaskInput;"
       assert update_function_section =~ "identity: UUID;"
     end
 
     test "action function sends correct payload structure", %{generated: generated} do
       assert generated =~ "action: \"update_task\""
-      assert generated =~ ~r/function updateTask.*input: UpdateTaskInput/s
+      assert generated =~ ~r/function updateTask.*input\?: UpdateTaskInput/s
     end
 
     test "validation function uses mapped input type", %{generated: generated} do
@@ -120,7 +120,7 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
         |> String.split("): Promise<")
         |> Enum.at(0)
 
-      assert validate_function_section =~ "input: UpdateTaskInput;"
+      assert validate_function_section =~ "input?: UpdateTaskInput;"
       refute validate_function_section =~ "archived?"
     end
 
@@ -140,7 +140,7 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
         |> String.split("): void")
         |> Enum.at(0)
 
-      assert channel_function_section =~ "input: UpdateTaskInput;"
+      assert channel_function_section =~ "input?: UpdateTaskInput;"
       assert channel_function_section =~ "channel: Channel;"
     end
 
@@ -176,7 +176,7 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
     test "all validation functions use mapped input types", %{generated: generated} do
       assert generated =~ "export async function validateUpdateTask"
-      assert generated =~ ~r/validateUpdateTask.*input: UpdateTaskInput/s
+      assert generated =~ ~r/validateUpdateTask.*input\?: UpdateTaskInput/s
       refute generated =~ ~r/validateUpdateTask.*archived\?/s
 
       assert generated =~ "export async function validateMarkCompletedTask"
@@ -188,7 +188,7 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
 
   describe "function consistency with TypeScript client" do
     test "RPC functions use the same input types as type definitions", %{generated: generated} do
-      assert generated =~ ~r/function updateTask.*input: UpdateTaskInput/s
+      assert generated =~ ~r/function updateTask.*input\?: UpdateTaskInput/s
 
       update_input_type =
         Regex.run(~r/export type UpdateTaskInput = \{[^}]+\}/s, generated) |> List.first()
@@ -214,8 +214,8 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
     test "channel functions use the same input types as regular RPC functions", %{
       generated: generated
     } do
-      assert generated =~ ~r/function updateTaskChannel.*input: UpdateTaskInput/s
-      assert generated =~ ~r/function updateTask.*input: UpdateTaskInput/s
+      assert generated =~ ~r/function updateTaskChannel.*input\?: UpdateTaskInput/s
+      assert generated =~ ~r/function updateTask.*input\?: UpdateTaskInput/s
 
       input_type =
         Regex.run(~r/export type UpdateTaskInput = \{[^}]+\}/s, generated) |> List.first()

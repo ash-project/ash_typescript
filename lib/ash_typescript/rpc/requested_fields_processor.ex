@@ -13,36 +13,23 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
 
   ## Architecture
 
-  This module serves as the main entry point and delegates to `FieldSelector`,
-  which uses a unified type-driven recursive dispatch pattern (similar to `ValueFormatter`).
+  Delegates to `FieldSelector`, which uses a unified type-driven recursive
+  dispatch pattern (similar to `ValueFormatter`). Each type is self-describing
+  via `{type, constraints}`, so no separate classification step is needed.
 
-  The key insight is that each type is self-describing via `{type, constraints}`,
-  so no separate classification step is needed.
+  ## Manifest module
+
+  Field selection needs lookups (`resources`, `actions`, `types`) that live on
+  an `AshTypescript.Manifest` module's persisted Spark DSL state.
+  `process/4` accepts an optional manifest module — when omitted, defaults to
+  `AshTypescript.manifest_module/0` (the configured production manifest).
+  Verifiers running against an inline test manifest pass their own module.
   """
 
   alias AshTypescript.Rpc.FieldProcessing.{Atomizer, FieldSelector}
 
   @doc """
   Atomizes requested fields by converting standalone strings to atoms and map keys to atoms.
-
-  Uses the configured input field formatter to properly parse field names from client format
-  to internal format before converting to atoms.
-
-  When a resource is provided, field_names DSL mappings are checked first to handle
-  custom client→internal field name mappings.
-
-  ## Parameters
-
-  - `requested_fields` - List of strings/atoms or maps for relationships
-  - `resource` - Optional resource module for field_names DSL lookup
-
-  ## Examples
-
-      iex> atomize_requested_fields(["id", "title", %{"user" => ["id", "name"]}])
-      [:id, :title, %{user: [:id, :name]}]
-
-      iex> atomize_requested_fields([%{"self" => %{"args" => %{"prefix" => "test"}}}])
-      [%{self: %{args: %{prefix: "test"}}}]
   """
   defdelegate atomize_requested_fields(requested_fields, resource \\ nil), to: Atomizer
 
@@ -50,27 +37,13 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
   Processes requested fields for a given resource and action.
 
   Returns `{:ok, {select_fields, load_fields, extraction_template}}` or `{:error, error}`.
-
-  ## Parameters
-
-  - `resource` - The Ash resource module
-  - `action` - The action name (atom)
-  - `requested_fields` - List of field atoms or maps for relationships
-
-  ## Examples
-
-      iex> process(MyApp.Todo, :read, [:id, :title, %{user: [:id, :name]}])
-      {:ok, {[:id, :title], [{:user, [:id, :name]}], [:id, :title, [user: [:id, :name]]]}}
-
-      iex> process(MyApp.Todo, :read, [%{user: [:invalid_field]}])
-      {:error, %{type: :invalid_field, field: "user.invalidField"}}
   """
-  defdelegate process(resource, action_name, requested_fields), to: FieldSelector
-
-  @doc """
-  Same as `process/3` but with optional `resource_lookups` and `type_index` for O(1) lookups.
-  """
-  def process(resource, action_name, requested_fields, resource_lookups, type_index \\ %{}) do
-    FieldSelector.process(resource, action_name, requested_fields, resource_lookups, type_index)
+  def process(resource, action_name, requested_fields, manifest_module \\ nil) do
+    FieldSelector.process(
+      resource,
+      action_name,
+      requested_fields,
+      manifest_module || AshTypescript.manifest_module()
+    )
   end
 end

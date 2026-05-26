@@ -6,8 +6,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup()
-
   describe "simple scalar custom types" do
     test "processes priority_score custom type as simple attribute" do
       {:ok, {select, load, extraction_template}} =
@@ -18,8 +16,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
             :id,
             :title,
             :priority_score
-          ],
-          @resource_lookups
+          ]
         )
 
       # Custom types are selected like regular attributes
@@ -45,8 +42,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
             :comment_count,
             # calculation
             :is_overdue
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title, :priority_score, :color_palette, :completed]
@@ -70,8 +66,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           :read,
           [
             %{priority_score: [:some_field]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:field_does_not_support_nesting, :priority_score, []}
@@ -88,8 +83,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
             :id,
             :title,
             :color_palette
-          ],
-          @resource_lookups
+          ]
         )
 
       # Even complex custom types are selected like regular attributes
@@ -107,8 +101,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           [
             :id,
             :color_palette
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :color_palette]
@@ -124,8 +117,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
             :id,
             :color_palette,
             :priority_score
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :color_palette, :priority_score]
@@ -140,8 +132,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           :read,
           [
             %{color_palette: [:primary, :secondary]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:field_does_not_support_nesting, :color_palette, []}
@@ -158,8 +149,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
                 primary: [:invalid]
               }
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:field_does_not_support_nesting, :color_palette, []}
@@ -185,8 +175,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
             },
             # regular calculation
             :is_overdue
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :priority_score, :color_palette]
@@ -225,8 +214,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
                 ]
               }
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -245,8 +233,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
             # Use simple aggregate instead
             :comment_count,
             :color_palette
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :priority_score, :color_palette]
@@ -282,8 +269,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -308,8 +294,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           [
             :id,
             :non_existent_custom_type
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -325,8 +310,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
             :priority_score,
             # Duplicate
             :priority_score
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:duplicate_field, :priority_score, []}
@@ -342,8 +326,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
             :color_palette,
             # Same custom type with nested structure - should be rejected
             %{color_palette: []}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:duplicate_field, :color_palette, []}
@@ -367,8 +350,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:field_does_not_support_nesting, :priority_score, [:user, :todos]}
@@ -390,8 +372,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
                 ]
               }
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:field_does_not_support_nesting, :color_palette, [:self]}
@@ -407,8 +388,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           [
             :priority_score,
             :color_palette
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:priority_score, :color_palette]
@@ -418,7 +398,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
 
     test "handles custom types with empty request" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [], @resource_lookups)
+        RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [])
 
       assert select == []
       assert load == []
@@ -432,8 +412,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
           :read,
           [
             %{priority_score: %{nested: :invalid}}
-          ],
-          @resource_lookups
+          ]
         )
 
       # Should format field name using camelCase for TypeScript
@@ -452,8 +431,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
               :id,
               :priority_score,
               :color_palette
-            ],
-            @resource_lookups
+            ]
           )
 
         assert select == [:id, :priority_score, :color_palette]
@@ -475,8 +453,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
             # union attribute with simple type
             %{content: [:note]},
             :color_palette
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :priority_score, :content, :color_palette]
@@ -501,8 +478,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
             # embedded resource
             %{metadata: [:category, :estimated_hours]},
             :color_palette
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :priority_score, :metadata, :color_palette]
@@ -527,8 +503,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCustomTypesTest do
             # typed struct
             %{timestamp_info: [:created_by, :created_at]},
             :color_palette
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :priority_score, :timestamp_info, :color_palette]

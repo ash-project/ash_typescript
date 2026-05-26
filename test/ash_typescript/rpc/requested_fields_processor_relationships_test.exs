@@ -6,8 +6,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup()
-
   describe "single level relationships" do
     test "processes belongs_to relationships" do
       {:ok, {select, load, extraction_template}} =
@@ -18,8 +16,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
             :id,
             :title,
             %{user: [:id, :name, :email]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title]
@@ -36,8 +33,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
             :id,
             :title,
             %{comments: [:id, :content, :rating]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title]
@@ -57,8 +53,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
               user: [:id, :name],
               comments: [:id, :content]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title]
@@ -91,8 +86,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -124,8 +118,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :name]
@@ -161,8 +154,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
                 %{user: [:id, :email]}
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title]
@@ -201,8 +193,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
               ]
             },
             :created_at
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title, :completed, :created_at]
@@ -231,8 +222,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
             # calculation
             :is_overdue,
             %{comments: [:id, :content]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title]
@@ -263,8 +253,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
           :read,
           [
             %{user: [:invalid_field]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -278,8 +267,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
           :read,
           [
             %{user: [%{invalid_relationship: [:id]}]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -300,8 +288,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -316,8 +303,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
           :read,
           [
             %{nonexistent_relation: [:id, :name]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -333,8 +319,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
             :id,
             # This should be rejected - relationships must specify fields
             :user
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:requires_field_selection, :relationship, :user, []}
@@ -350,8 +335,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
           [
             :id,
             %{user: []}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:requires_field_selection, :relationship, :user, []}
@@ -369,8 +353,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
                 %{comments: [:id, :content]}
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]

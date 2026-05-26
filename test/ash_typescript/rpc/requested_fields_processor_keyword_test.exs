@@ -7,7 +7,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorKeywordTest do
 
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup()
   alias AshTypescript.Test.Todo
 
   describe "keyword type processing" do
@@ -16,7 +15,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorKeywordTest do
       # Keyword fields require field selection syntax
       fields = ["id", "title", %{"options" => ["priority", "category", "notify"]}]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
+      result = RequestedFieldsProcessor.process(Todo, :read, fields)
 
       # Verify that the options field is included and properly structured
       assert match?({:ok, _}, result)
@@ -40,7 +39,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorKeywordTest do
         %{"user" => ["id", "name"]}
       ]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
+      result = RequestedFieldsProcessor.process(Todo, :read, fields)
 
       assert match?({:ok, _}, result)
       {:ok, {select, load, template}} = result
@@ -71,7 +70,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorKeywordTest do
       fields = [%{"options" => ["priority", "category", "notify"]}]
 
       {:ok, {select, load, template}} =
-        RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
+        RequestedFieldsProcessor.process(Todo, :read, fields)
 
       assert select == [:options]
       assert load == []

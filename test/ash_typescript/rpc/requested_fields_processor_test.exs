@@ -6,8 +6,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup()
-
   describe "atomize_requested_fields/2" do
     test "preserves string fields without resource context" do
       # Without resource context, strings are preserved for FieldSelector to handle
@@ -61,8 +59,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
             %{
               user: [:id, :email]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title]
@@ -79,8 +76,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
             :id,
             :title,
             :completed
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title, :completed]
@@ -95,8 +91,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
           :read,
           [
             %{user: [:non_existing_field]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -114,8 +109,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
             :total,
             :completed,
             :pending
-          ],
-          @resource_lookups
+          ]
         )
 
       # Map fields are not selected/loaded in Ash sense, just included in template
@@ -131,8 +125,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
           :get_statistics,
           [
             :invalid_field
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:unknown_field, :invalid_field, "map", []}
@@ -145,8 +138,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
         RequestedFieldsProcessor.process(
           AshTypescript.Test.Todo,
           :bulk_complete,
-          [],
-          @resource_lookups
+          []
         )
 
       # Array of primitives has no field selection
@@ -160,8 +152,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
         RequestedFieldsProcessor.process(
           AshTypescript.Test.Todo,
           :bulk_complete,
-          [:id],
-          @resource_lookups
+          [:id]
         )
 
       assert {:invalid_field_selection, :primitive_type, %Ash.Info.Manifest.Type{kind: :uuid},
@@ -178,8 +169,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
             :id,
             :title,
             %{user: [:id, :name]}
-          ],
-          @resource_lookups
+          ]
         )
 
       # Array of Todo structs - processes like regular resource fields
@@ -195,8 +185,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
         RequestedFieldsProcessor.process(
           AshTypescript.Test.Todo,
           :non_existent_action,
-          [],
-          @resource_lookups
+          []
         )
 
       assert error == {:action_not_found, :non_existent_action}
@@ -220,8 +209,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -242,8 +230,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
               user: [:id, :name],
               comments: [:id, :content]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title]
@@ -277,8 +264,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
               ]
             },
             :created_at
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title, :completed, :created_at]
@@ -308,8 +294,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
             %{
               not_exposed_items: [:id, :name]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -328,8 +313,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTest do
             %{
               comments: [:id, :content]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title]

@@ -6,8 +6,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup()
-
   describe "simple typed struct fields" do
     test "processes typed struct attribute fields correctly" do
       {:ok, {select, load, extraction_template}} =
@@ -18,8 +16,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
             :id,
             :title,
             %{timestamp_info: [:created_by, :created_at, :updated_by]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title, :timestamp_info]
@@ -40,8 +37,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           [
             :id,
             %{timestamp_info: [:created_by, :created_at, :updated_by, :updated_at]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :timestamp_info]
@@ -61,8 +57,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           [
             :id,
             %{statistics: [:view_count, :edit_count, :completion_time_seconds]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :statistics]
@@ -82,8 +77,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           [
             :id,
             %{statistics: [:view_count, :performance_metrics]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :statistics]
@@ -101,8 +95,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
             :title,
             %{timestamp_info: [:created_by, :created_at]},
             %{statistics: [:view_count, :edit_count]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title, :timestamp_info, :statistics]
@@ -127,8 +120,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
             :id,
             %{timestamp_info: [:created_by, :created_at]},
             %{user: [:id, :name]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :timestamp_info]
@@ -150,8 +142,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
             :id,
             %{statistics: [:view_count, :edit_count]},
             :comment_count
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :statistics]
@@ -173,8 +164,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
             :id,
             %{timestamp_info: [:created_by, :updated_by]},
             :is_overdue
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :timestamp_info]
@@ -196,8 +186,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           :read,
           [
             %{timestamp_info: [:invalid_field]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -211,8 +200,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           :read,
           [
             %{statistics: [:view_count, :invalid_field]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:unknown_field, :invalid_field, "field_constrained_type", [:statistics]}
@@ -225,8 +213,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           :read,
           [
             %{timestamp_info: [:created_by, :created_at, :created_by]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:duplicate_field, :created_by, [:timestamp_info]}
@@ -239,8 +226,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           :read,
           [
             :timestamp_info
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:requires_field_selection, :field_constrained_type, :timestamp_info, []}
@@ -253,8 +239,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           :read,
           [
             %{statistics: []}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:requires_field_selection, :field_constrained_type, :statistics, []}
@@ -271,8 +256,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
             :id,
             :title,
             %{timestamp_info: [:created_by, :created_at]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title, :timestamp_info]
@@ -288,8 +272,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
           [
             :id,
             %{statistics: [:view_count, :performance_metrics]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :statistics]
@@ -309,8 +292,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
             :title,
             %{timestamp_info: [:updated_by, :updated_at]},
             %{statistics: [:edit_count]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title, :timestamp_info, :statistics]
@@ -341,8 +323,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
         RequestedFieldsProcessor.process(
           AshTypescript.Test.Todo,
           :read,
-          requested_fields,
-          @resource_lookups
+          requested_fields
         )
 
       assert {:ok, {[:statistics], [], template}} = result
@@ -369,8 +350,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
         RequestedFieldsProcessor.process(
           AshTypescript.Test.Todo,
           :read,
-          requested_fields,
-          @resource_lookups
+          requested_fields
         )
 
       assert {:error,
@@ -397,8 +377,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
         RequestedFieldsProcessor.process(
           AshTypescript.Test.Todo,
           :read,
-          requested_fields,
-          @resource_lookups
+          requested_fields
         )
 
       assert {:error, {:duplicate_field, :efficiency_score, [:statistics, :performance_metrics]}} =
@@ -425,8 +404,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
         RequestedFieldsProcessor.process(
           AshTypescript.Test.Todo,
           :read,
-          requested_fields,
-          @resource_lookups
+          requested_fields
         )
 
       assert {:ok, {[:statistics], [], template}} = result
@@ -462,8 +440,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
         RequestedFieldsProcessor.process(
           AshTypescript.Test.Todo,
           :read,
-          requested_fields,
-          @resource_lookups
+          requested_fields
         )
 
       assert {:ok, {[:id, :statistics], [], template}} = result

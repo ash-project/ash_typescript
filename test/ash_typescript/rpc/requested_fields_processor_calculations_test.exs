@@ -6,8 +6,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup()
-
   describe "simple calculations without arguments" do
     test "processes boolean calculations" do
       {:ok, {select, load, extraction_template}} =
@@ -18,8 +16,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
             :id,
             :title,
             :is_overdue
-          ],
-          @resource_lookups
+          ]
         )
 
       # Simple calculations are loaded, not selected
@@ -36,8 +33,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
           [
             :id,
             :days_until_due
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -54,8 +50,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
             :id,
             :is_overdue,
             :days_until_due
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -76,8 +71,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
             %{
               self: %{args: %{prefix: "my_prefix"}, fields: [:description, :completed]}
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       # The :self calculation returns a Todo struct, so field selection applies
@@ -103,8 +97,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
                 ]
               }
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -138,8 +131,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
                 ]
               }
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == []
@@ -167,8 +159,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
             %{
               self: %{args: %{}, fields: [:title, :completed]}
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -186,8 +177,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
             %{
               self: %{args: %{prefix: nil}, fields: [:title]}
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -212,8 +202,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
                 fields: [:id, :title]
               }
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == []
@@ -247,8 +236,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
             :is_overdue,
             # aggregate
             :comment_count
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title]
@@ -272,8 +260,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
               # calculation with args
               self: %{args: %{prefix: "test"}, fields: [:description, :completed]}
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -307,8 +294,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
               # Same calc, different args - this should be rejected
               self: %{args: %{prefix: "second"}, fields: [:description]}
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:duplicate_field, :self, []}
@@ -325,8 +311,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
             :id,
             # This calculation requires arguments but requested as simple atom
             :self
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:calculation_requires_args, :self, []}
@@ -342,8 +327,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
               # This calculation doesn't take arguments
               is_overdue: %{args: %{}}
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:invalid_calculation_args, :is_overdue, []}
@@ -359,8 +343,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
               # Aggregates don't support nested field selection
               comment_count: [:id]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:invalid_field_selection, :comment_count, :aggregate, []}
@@ -376,8 +359,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
               # Attributes don't support nested field selection
               title: [:invalid]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:field_does_not_support_nesting, :title, []}
@@ -392,8 +374,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
             %{
               self: %{args: %{prefix: "test"}, fields: [:invalid_field]}
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -412,8 +393,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
                 fields: [%{user: [:invalid_field]}]
               }
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -430,8 +410,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
               # Missing fields key
               self: %{args: %{prefix: "test"}}
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       # This should be treated as a regular relationship, which will fail since
@@ -449,8 +428,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
               # Missing args key
               self: %{fields: [:title]}
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       # This should also be treated as a regular relationship and fail
@@ -466,8 +444,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
             %{
               non_existent_calc: %{args: %{}, fields: [:id]}
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -484,8 +461,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
               # Should be a map with args and fields
               self: "invalid_structure"
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       # This gets treated as a regular relationship with invalid nested fields
@@ -502,8 +478,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
             :title,
             # Duplicate attribute
             :id
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:duplicate_field, :id, []}
@@ -518,8 +493,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
             %{user: [:id, :name]},
             # Duplicate relationship
             %{user: [:email]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:duplicate_field, :user, []}
@@ -535,8 +509,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
             :is_overdue,
             # Same calculation with args - should be rejected
             %{is_overdue: %{args: %{}}}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:duplicate_field, :is_overdue, []}
@@ -560,8 +533,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -577,8 +549,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
             %{
               self: %{args: %{prefix: "test"}}
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:requires_field_selection, :complex_type, :self, []}
@@ -593,8 +564,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
             %{
               self: %{args: %{prefix: "test"}, fields: []}
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:requires_field_selection, :complex_type, :self, []}
@@ -609,8 +579,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
             %{
               self: %{args: %{prefix: "test"}, fields: [:id, :title]}
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == []
@@ -630,8 +599,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
                 fields: [%{user: [:id, :name]}]
               }
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == []
@@ -652,8 +620,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorCalculationsTest do
                 fields: [:is_overdue, :days_until_due]
               }
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == []

@@ -6,8 +6,6 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup()
-
   describe "calculation field selection" do
     test "rejects simple atom selection for calculation without arguments that returns complex type" do
       # This should be rejected - complex types require field selection
@@ -15,8 +13,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
         RequestedFieldsProcessor.process(
           AshTypescript.Test.Todo,
           :read,
-          [:summary],
-          @resource_lookups
+          [:summary]
         )
 
       assert {:error, {:requires_field_selection, :calculation_complex, :summary, []}} = result
@@ -29,8 +26,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
         RequestedFieldsProcessor.process(
           AshTypescript.Test.Todo,
           :read,
-          requested_fields,
-          @resource_lookups
+          requested_fields
         )
 
       # Non-resource calculations (TypedStruct/map) load as bare atom,
@@ -47,8 +43,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
         RequestedFieldsProcessor.process(
           AshTypescript.Test.Todo,
           :read,
-          requested_fields,
-          @resource_lookups
+          requested_fields
         )
 
       assert {:ok,
@@ -66,8 +61,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
         RequestedFieldsProcessor.process(
           AshTypescript.Test.Todo,
           :read,
-          requested_fields,
-          @resource_lookups
+          requested_fields
         )
 
       assert {:ok, {[], [{:self, {%{prefix: "test"}, [:id, :title]}}], [{:self, [:id, :title]}]}} =
@@ -99,8 +93,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
         RequestedFieldsProcessor.process(
           AshTypescript.Test.Todo,
           :read,
-          requested_fields,
-          @resource_lookups
+          requested_fields
         )
 
       # nested_data doesn't exist on performance_metrics, so this should error
@@ -127,8 +120,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
         RequestedFieldsProcessor.process(
           AshTypescript.Test.Todo,
           :read,
-          requested_fields,
-          @resource_lookups
+          requested_fields
         )
 
       assert {:ok,

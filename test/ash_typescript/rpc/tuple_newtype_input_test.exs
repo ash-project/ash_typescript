@@ -64,7 +64,7 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
   describe "InputFormatter with LocationTuple attribute" do
     test "formats input with tuple attribute" do
       resource = AshTypescript.Test.InputParsing.Resource
-      action = Ash.Resource.Info.action(resource, :create)
+      action = :create
       formatter = :camel_case
 
       raw_input = %{

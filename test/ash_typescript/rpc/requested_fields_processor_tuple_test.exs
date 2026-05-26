@@ -7,7 +7,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTupleTest do
 
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup()
   alias AshTypescript.Test.Todo
 
   describe "tuple type processing" do
@@ -16,7 +15,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTupleTest do
       # Tuple fields require field selection syntax
       fields = ["id", "title", %{"coordinates" => ["latitude", "longitude"]}]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
+      result = RequestedFieldsProcessor.process(Todo, :read, fields)
 
       assert match?({:ok, _}, result)
       {:ok, {select, _load, template}} = result
@@ -43,7 +42,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTupleTest do
         %{"user" => ["id", "name"]}
       ]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
+      result = RequestedFieldsProcessor.process(Todo, :read, fields)
 
       assert match?({:ok, _}, result)
       {:ok, {select, load, template}} = result
@@ -79,7 +78,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTupleTest do
       fields = [%{"coordinates" => ["latitude", "longitude"]}]
 
       {:ok, {select, load, template}} =
-        RequestedFieldsProcessor.process(Todo, :read, fields, @resource_lookups)
+        RequestedFieldsProcessor.process(Todo, :read, fields)
 
       assert select == [:coordinates]
       assert load == []

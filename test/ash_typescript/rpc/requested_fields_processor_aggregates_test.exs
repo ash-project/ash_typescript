@@ -6,8 +6,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup()
-
   describe "primitive aggregates (no nested field selection)" do
     test "processes simple count aggregate" do
       {:ok, {select, load, extraction_template}} =
@@ -18,8 +16,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
             :id,
             :title,
             :comment_count
-          ],
-          @resource_lookups
+          ]
         )
 
       # Aggregates are loaded, not selected
@@ -36,8 +33,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           [
             :id,
             :helpful_comment_count
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -53,8 +49,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           [
             :id,
             :has_comments
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -71,8 +66,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
             :id,
             :average_rating,
             :highest_rating
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -88,8 +82,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           [
             :id,
             :latest_comment_content
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -105,8 +98,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           [
             :id,
             :comment_authors
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -122,8 +114,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           :read,
           [
             %{comment_count: [:id]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:invalid_field_selection, :comment_count, :aggregate, []}
@@ -136,8 +127,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           :read,
           [
             %{has_comments: [:id]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:invalid_field_selection, :has_comments, :aggregate, []}
@@ -150,8 +140,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           :read,
           [
             %{comment_authors: [:id]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:invalid_field_selection, :comment_authors, :aggregate, []}
@@ -167,8 +156,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           [
             :id,
             %{latest_comment: [:id, :content, :author_name]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, []}
@@ -182,8 +170,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           [
             :id,
             %{recent_comments: [:id, :content, :rating]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -204,8 +191,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
                 %{user: [:id, :name]}
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, []}
@@ -218,8 +204,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           :read,
           [
             %{latest_comment: []}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, []}
@@ -233,8 +218,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           [
             # Non-existent aggregate requested as simple atom
             :latest_comment
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, []}
@@ -251,8 +235,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
             :comment_count,
             # Invalid complex aggregate
             %{latest_comment: [:id, :content]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, []}
@@ -275,8 +258,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
             # other field types
             :title,
             %{user: [:id, :name]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title]
@@ -316,8 +298,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
             %{
               self: %{args: %{prefix: "test"}, fields: [:title, :description]}
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id]
@@ -348,8 +329,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           [
             :id,
             :non_existent_aggregate
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -364,8 +344,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           [
             :comment_count,
             :comment_count
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:duplicate_field, :comment_count, []}
@@ -379,8 +358,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           [
             :comment_count,
             %{comment_count: []}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:duplicate_field, :comment_count, []}
@@ -394,8 +372,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
           [
             # Non-existent aggregate requested as simple atom
             :latest_comment
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:unknown_field, :latest_comment, AshTypescript.Test.Todo, []}
@@ -413,8 +390,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
             :title,
             :comment_count,
             :latest_comment_content
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title]
@@ -432,8 +408,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorAggregatesTest do
             :title,
             :comment_count,
             :recent_comment_ids
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title]

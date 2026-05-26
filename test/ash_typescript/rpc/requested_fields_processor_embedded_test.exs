@@ -6,8 +6,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup()
-
   describe "simple embedded resource fields" do
     test "processes embedded resource attribute fields correctly" do
       {:ok, {select, load, extraction_template}} =
@@ -18,8 +16,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
             :id,
             :title,
             %{metadata: [:id, :category, :priority_score]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title, :metadata]
@@ -35,8 +32,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           [
             :id,
             %{metadata: [:category, :display_category, :is_overdue]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :metadata]
@@ -61,8 +57,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :metadata]
@@ -93,8 +88,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
                 :is_overdue
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :metadata]
@@ -119,8 +113,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           [
             :id,
             %{metadata: [:category, :priority_score, :is_urgent]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :metadata]
@@ -136,8 +129,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           [
             :id,
             %{metadata: [:category, :display_category, :is_overdue]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :metadata]
@@ -156,8 +148,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
             :id,
             :title,
             %{metadata_history: [:id, :category, :created_at]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title, :metadata_history]
@@ -173,8 +164,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           [
             :id,
             %{metadata_history: [:category, :priority_score, :display_category]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :metadata_history]
@@ -196,8 +186,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           [
             :id,
             %{content: %{text: [:id, :text, :formatting]}}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -213,8 +202,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           [
             :id,
             %{content: %{checklist: [:id, :title, %{items: [:text, :completed]}]}}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -234,8 +222,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           [
             :id,
             %{content: %{link: [:id, :url, :title]}}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -251,8 +238,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           [
             :id,
             %{content: %{text: [:text, :display_text, :is_formatted]}}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -275,8 +261,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           :read,
           [
             %{metadata: [:invalid_field]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -290,8 +275,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           :read,
           [
             %{metadata_history: [:category, :invalid_field]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -306,8 +290,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           :read,
           [
             %{content: %{text: [:invalid_field]}}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -322,8 +305,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           :read,
           [
             %{metadata: [:internal_notes]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -337,8 +319,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           :read,
           [
             %{metadata: [:adjusted_priority]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -360,8 +341,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:invalid_calculation_args, :display_category, [:metadata]}
@@ -374,8 +354,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           :read,
           [
             %{metadata: [:category, :priority_score, :category]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:duplicate_field, :category, [:metadata]}
@@ -388,8 +367,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           :read,
           [
             :metadata
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:requires_field_selection, :embedded_resource, :metadata, []}
@@ -411,8 +389,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -430,8 +407,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
             :id,
             :title,
             %{metadata: [:category, :priority_score]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title, :metadata]
@@ -447,8 +423,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
           [
             :id,
             %{content: %{text: [:text, :formatting]}}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -467,8 +442,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorEmbeddedTest do
             :id,
             :title,
             %{metadata: [:category, :priority_score, :is_urgent]}
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title, :metadata]

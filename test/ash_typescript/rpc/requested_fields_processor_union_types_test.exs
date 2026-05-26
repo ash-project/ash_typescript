@@ -6,8 +6,6 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
   use ExUnit.Case
   alias AshTypescript.Rpc.RequestedFieldsProcessor
 
-  @resource_lookups AshTypescript.resource_lookup()
-
   describe "content union type - embedded resource members" do
     test "processes TextContent union member with field selection" do
       {:ok, {select, load, extraction_template}} =
@@ -24,8 +22,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title, :content]
@@ -52,8 +49,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -87,8 +83,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -121,8 +116,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -161,8 +155,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 %{checklist: [:id, :title, %{items: [:text, :completed]}]}
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -194,8 +187,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :note
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title, :content]
@@ -215,8 +207,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :priority_value
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -240,8 +231,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -273,8 +263,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -320,8 +309,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :attachments]
@@ -343,8 +331,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :attachments]
@@ -368,8 +355,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :url
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :attachments]
@@ -395,8 +381,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :url
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :attachments]
@@ -429,8 +414,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :attachments]
@@ -461,8 +445,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :simple
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :status_info]
@@ -482,8 +465,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :detailed
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :status_info]
@@ -503,8 +485,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :automated
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :status_info]
@@ -526,8 +507,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :automated
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :status_info]
@@ -563,8 +543,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :url
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :title, :completed, :content, :attachments]
@@ -610,8 +589,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :detailed
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content, :status_info]
@@ -661,8 +639,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :detailed
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content, :attachments, :status_info]
@@ -696,8 +673,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :invalid_member
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -717,8 +693,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -739,8 +714,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:unknown_field, :invalid_field, "map", [:attachments, :file]}
@@ -757,8 +731,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :invalid_attachment_type
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -776,8 +749,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :invalid_status
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error ==
@@ -793,8 +765,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
             %{
               content: []
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:requires_field_selection, :union, :content, []}
@@ -807,8 +778,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
           :read,
           [
             :content
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:requires_field_selection, :union_attribute, :content, []}
@@ -825,8 +795,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :file
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:requires_field_selection, :complex_type, :file, [:attachments]}
@@ -843,8 +812,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :image
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:requires_field_selection, :complex_type, :image, [:attachments]}
@@ -862,8 +830,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :note
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:duplicate_field, :note, [:content]}
@@ -885,8 +852,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:content]
@@ -919,8 +885,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 %{text: [:id, :text, :formatting]}
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:duplicate_field, :text, [:content]}
@@ -940,8 +905,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert error == {:duplicate_field, :note, [:content]}
@@ -969,8 +933,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -1006,8 +969,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -1060,8 +1022,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :automated
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content, :attachments, :status_info]
@@ -1091,8 +1052,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -1114,8 +1074,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -1136,8 +1095,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 :priority_value
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :content]
@@ -1159,8 +1117,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorUnionTypesTest do
                 }
               ]
             }
-          ],
-          @resource_lookups
+          ]
         )
 
       assert select == [:id, :attachments]

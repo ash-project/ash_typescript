@@ -37,7 +37,7 @@ defmodule AshTypescript.Resource.TypescriptFieldNamesTest do
         AshTypescript.VerifierChecker.check_all_verifiers([TestResourceWithInvalidMapNames])
 
       assert {:error, error_message} = result
-      assert error_message =~ "create a custom Ash.Type.NewType"
+      assert error_message =~ "Create a custom Ash.Type.NewType"
       assert error_message =~ "typescript_field_names/0"
       assert error_message =~ "defmodule MyApp.MyCustomType"
     end
