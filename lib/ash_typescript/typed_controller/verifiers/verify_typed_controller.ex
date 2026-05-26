@@ -91,23 +91,23 @@ defmodule AshTypescript.TypedController.Verifiers.VerifyTypedController do
   defp resolve_type({type, _constraints}), do: type
   defp resolve_type(type), do: type
 
-  alias AshTypescript.Resource.Verifiers.VerifyFieldNames
+  alias AshTypescript.NameValidation
 
   defp verify_names_for_typescript(routes) do
     invalid_routes =
       routes
-      |> Enum.filter(&VerifyFieldNames.invalid_name?(&1.name))
+      |> Enum.filter(&NameValidation.invalid_name?(&1.name))
       |> Enum.map(fn route ->
-        {route.name, VerifyFieldNames.make_name_better(route.name)}
+        {route.name, NameValidation.make_name_better(route.name)}
       end)
 
     invalid_args =
       routes
       |> Enum.flat_map(fn route ->
         route.arguments
-        |> Enum.filter(&VerifyFieldNames.invalid_name?(&1.name))
+        |> Enum.filter(&NameValidation.invalid_name?(&1.name))
         |> Enum.map(fn arg ->
-          {route.name, arg.name, VerifyFieldNames.make_name_better(arg.name)}
+          {route.name, arg.name, NameValidation.make_name_better(arg.name)}
         end)
       end)
 

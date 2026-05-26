@@ -15,7 +15,7 @@ defmodule AshTypescript.Resource.MapFieldNamesUtilityTest do
       ]
 
       for name <- invalid_names do
-        assert AshTypescript.Resource.Verifiers.VerifyMapFieldNames.invalid_name?(name),
+        assert AshTypescript.NameValidation.invalid_name?(name),
                "#{name} should be invalid"
       end
     end
@@ -28,7 +28,7 @@ defmodule AshTypescript.Resource.MapFieldNamesUtilityTest do
       ]
 
       for name <- invalid_names do
-        assert AshTypescript.Resource.Verifiers.VerifyMapFieldNames.invalid_name?(name),
+        assert AshTypescript.NameValidation.invalid_name?(name),
                "#{name} should be invalid"
       end
     end
@@ -44,7 +44,7 @@ defmodule AshTypescript.Resource.MapFieldNamesUtilityTest do
       ]
 
       for name <- valid_names do
-        refute AshTypescript.Resource.Verifiers.VerifyMapFieldNames.invalid_name?(name),
+        refute AshTypescript.NameValidation.invalid_name?(name),
                "#{name} should be valid"
       end
     end
@@ -59,7 +59,7 @@ defmodule AshTypescript.Resource.MapFieldNamesUtilityTest do
       ]
 
       for {input, expected} <- test_cases do
-        assert AshTypescript.Resource.Verifiers.VerifyMapFieldNames.make_name_better(input) ==
+        assert AshTypescript.NameValidation.make_name_better(input) ==
                  expected
       end
     end
@@ -71,7 +71,7 @@ defmodule AshTypescript.Resource.MapFieldNamesUtilityTest do
       ]
 
       for {input, expected} <- test_cases do
-        assert AshTypescript.Resource.Verifiers.VerifyMapFieldNames.make_name_better(input) ==
+        assert AshTypescript.NameValidation.make_name_better(input) ==
                  expected
       end
     end

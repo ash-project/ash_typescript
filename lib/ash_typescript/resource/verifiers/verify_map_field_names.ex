@@ -11,6 +11,7 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMapFieldNames do
   numbers preceded by underscores.
   """
   use Spark.Dsl.Verifier
+  import AshTypescript.NameValidation, only: [invalid_name?: 1, make_name_better: 1]
 
   @impl true
   def verify(dsl) do
@@ -140,21 +141,6 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMapFieldNames do
           name_errors ++ nested_errors
         end)
     end
-  end
-
-  @doc false
-  def invalid_name?(name) do
-    Regex.match?(~r/_+\d|\?/, to_string(name))
-  end
-
-  @doc false
-  def make_name_better(name) do
-    name
-    |> to_string()
-    |> String.replace(~r/_+\d/, fn v ->
-      String.trim_leading(v, "_")
-    end)
-    |> String.replace("?", "")
   end
 
   defp format_validation_errors(errors) do

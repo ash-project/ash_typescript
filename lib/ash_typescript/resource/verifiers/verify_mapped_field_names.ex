@@ -13,6 +13,7 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMappedFieldNames do
   4. All values are valid TypeScript identifiers
   """
   use Spark.Dsl.Verifier
+  import AshTypescript.NameValidation, only: [invalid_name?: 1]
   alias Spark.Dsl.Verifier
 
   @impl true
@@ -112,10 +113,6 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMappedFieldNames do
       true ->
         errors
     end
-  end
-
-  defp invalid_name?(name) do
-    Regex.match?(~r/_+\d|\?/, to_string(name))
   end
 
   defp valid_typescript_identifier?(name) when is_binary(name) do

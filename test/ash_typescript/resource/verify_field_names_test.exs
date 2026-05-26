@@ -7,26 +7,26 @@ defmodule AshTypescript.Resource.VerifyFieldNamesTest do
 
   @moduletag :generates_warnings
 
-  alias AshTypescript.Resource.Verifiers.VerifyFieldNames
+  alias AshTypescript.NameValidation
 
   describe "invalid_name?/1" do
     test "detects question marks in names" do
-      assert VerifyFieldNames.invalid_name?(:has_review?)
-      assert VerifyFieldNames.invalid_name?(:is_active?)
-      assert VerifyFieldNames.invalid_name?("has_review?")
+      assert NameValidation.invalid_name?(:has_review?)
+      assert NameValidation.invalid_name?(:is_active?)
+      assert NameValidation.invalid_name?("has_review?")
     end
 
     test "detects underscores followed by numbers" do
-      assert VerifyFieldNames.invalid_name?(:field_1)
-      assert VerifyFieldNames.invalid_name?(:address_line_1)
-      assert VerifyFieldNames.invalid_name?("item_2")
+      assert NameValidation.invalid_name?(:field_1)
+      assert NameValidation.invalid_name?(:address_line_1)
+      assert NameValidation.invalid_name?("item_2")
     end
 
     test "allows valid names" do
-      refute VerifyFieldNames.invalid_name?(:has_review)
-      refute VerifyFieldNames.invalid_name?(:is_active)
-      refute VerifyFieldNames.invalid_name?(:field1)
-      refute VerifyFieldNames.invalid_name?(:addressLine1)
+      refute NameValidation.invalid_name?(:has_review)
+      refute NameValidation.invalid_name?(:is_active)
+      refute NameValidation.invalid_name?(:field1)
+      refute NameValidation.invalid_name?(:addressLine1)
     end
   end
 

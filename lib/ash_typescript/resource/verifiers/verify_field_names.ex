@@ -10,6 +10,7 @@ defmodule AshTypescript.Resource.Verifiers.VerifyFieldNames do
   they don't contain invalid patterns like question marks or numbers preceded by underscores.
   """
   use Spark.Dsl.Verifier
+  import AshTypescript.NameValidation, only: [invalid_name?: 1, make_name_better: 1]
 
   @impl true
   def verify(dsl) do
@@ -19,21 +20,6 @@ defmodule AshTypescript.Resource.Verifiers.VerifyFieldNames do
       [] -> :ok
       errors -> format_name_validation_errors(errors)
     end
-  end
-
-  @doc false
-  def invalid_name?(name) do
-    Regex.match?(~r/_+\d|\?/, to_string(name))
-  end
-
-  @doc false
-  def make_name_better(name) do
-    name
-    |> to_string()
-    |> String.replace(~r/_+\d/, fn v ->
-      String.trim_leading(v, "_")
-    end)
-    |> String.replace("?", "")
   end
 
   defp validate_resource_field_names(resource) do
