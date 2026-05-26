@@ -75,7 +75,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainPrimitiveCustomType])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainPrimitiveCustomType])
 
       # Primitive types have no field structure to validate
       assert result == :ok
@@ -153,7 +153,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainCustomTypeAsArg])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainCustomTypeAsArg])
 
       assert result == :ok
     end
@@ -237,7 +237,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainCompositeType])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainCompositeType])
 
       # Composite types are now verified - invalid field names should be detected
       assert {:error, error_message} = result
@@ -327,7 +327,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainCustomMapLikeType])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainCustomMapLikeType])
 
       # The :map type with field constraints should be verified
       assert {:error, error_message} = result
@@ -402,7 +402,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainArrayOfCustomType])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainArrayOfCustomType])
 
       assert result == :ok
     end

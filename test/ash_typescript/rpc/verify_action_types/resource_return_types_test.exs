@@ -70,7 +70,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ResourceReturnTypesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainReturnsResource])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainReturnsResource])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -149,7 +149,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ResourceReturnTypesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainReturnsResourceWithMappings])
+        AshTypescript.Manifest.verify_for_domains([TestDomainReturnsResourceWithMappings])
 
       assert result == :ok
     end
@@ -214,7 +214,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ResourceReturnTypesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainReturnsArrayOfResources])
+        AshTypescript.Manifest.verify_for_domains([TestDomainReturnsArrayOfResources])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/

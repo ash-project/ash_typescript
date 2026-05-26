@@ -53,7 +53,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainMapReturn])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainMapReturn])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -106,7 +106,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainKeywordReturn])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainKeywordReturn])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -159,7 +159,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainTupleReturn])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainTupleReturn])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -226,7 +226,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainUnionReturn])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainUnionReturn])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -281,7 +281,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainArrayMapReturn])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainArrayMapReturn])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/

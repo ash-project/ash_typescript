@@ -61,7 +61,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainMapNewType])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainMapNewType])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -121,7 +121,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainKeywordNewType])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainKeywordNewType])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -181,7 +181,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainTupleNewType])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainTupleNewType])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -250,7 +250,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainMapNewTypeWithMappings])
+        AshTypescript.Manifest.verify_for_domains([TestDomainMapNewTypeWithMappings])
 
       assert result == :ok
     end
@@ -315,7 +315,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainKeywordNewTypeWithMappings])
+        AshTypescript.Manifest.verify_for_domains([TestDomainKeywordNewTypeWithMappings])
 
       assert result == :ok
     end
@@ -381,7 +381,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainTupleNewTypeWithMappings])
+        AshTypescript.Manifest.verify_for_domains([TestDomainTupleNewTypeWithMappings])
 
       assert result == :ok
     end
@@ -439,7 +439,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainNewTypeArgument])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainNewTypeArgument])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types or argument/
@@ -498,7 +498,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainArrayNewType])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainArrayNewType])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -571,7 +571,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainUnionWithNewType])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainUnionWithNewType])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/

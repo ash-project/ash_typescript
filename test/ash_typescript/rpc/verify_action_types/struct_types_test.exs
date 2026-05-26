@@ -65,7 +65,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.StructTypesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainCustomStructType])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainCustomStructType])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -137,7 +137,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.StructTypesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([
+        AshTypescript.Manifest.verify_for_domains([
           TestDomainCustomStructTypeWithMappings
         ])
 

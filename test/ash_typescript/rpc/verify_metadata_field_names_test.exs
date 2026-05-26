@@ -51,7 +51,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithInvalidMetadataName])
+        AshTypescript.Manifest.verify_for_domains([TestDomainWithInvalidMetadataName])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid metadata field name/
@@ -102,7 +102,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([
+        AshTypescript.Manifest.verify_for_domains([
           TestDomainWithQuestionMarkMetadata
         ])
 
@@ -155,7 +155,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([
+        AshTypescript.Manifest.verify_for_domains([
           TestDomainWithCombinedInvalidMetadata
         ])
 
@@ -211,7 +211,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithAttributeConflict])
+        AshTypescript.Manifest.verify_for_domains([TestDomainWithAttributeConflict])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Metadata field conflicts with resource field/
@@ -267,7 +267,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithCalculationConflict])
+        AshTypescript.Manifest.verify_for_domains([TestDomainWithCalculationConflict])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Metadata field conflicts with resource field/
@@ -319,7 +319,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithMappedFieldConflict])
+        AshTypescript.Manifest.verify_for_domains([TestDomainWithMappedFieldConflict])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Metadata field conflicts with resource field/
@@ -372,7 +372,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithValidMetadata])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithValidMetadata])
 
       assert result == :ok
     end
@@ -418,7 +418,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithNilMetadata])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithNilMetadata])
 
       assert result == :ok
     end
@@ -464,7 +464,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithFalseMetadata])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithFalseMetadata])
 
       assert result == :ok
     end
@@ -510,7 +510,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithEmptyMetadata])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithEmptyMetadata])
 
       assert result == :ok
     end
@@ -561,7 +561,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithMappedMetadata])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithMappedMetadata])
 
       assert result == :ok
     end
@@ -610,7 +610,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithMappedConflict])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithMappedConflict])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Mapped metadata field conflicts with resource field/
@@ -662,7 +662,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithInvalidMappedName])
+        AshTypescript.Manifest.verify_for_domains([TestDomainWithInvalidMappedName])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid metadata field name/

@@ -55,7 +55,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ArgumentTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainMapArg])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainMapArg])
 
       assert {:error, error_message} = result
 
@@ -119,7 +119,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ArgumentTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainUnionArg])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainUnionArg])
 
       assert {:error, error_message} = result
 
@@ -177,7 +177,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ArgumentTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainArrayMapArg])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainArrayMapArg])
 
       assert {:error, error_message} = result
 

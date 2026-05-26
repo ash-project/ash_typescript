@@ -82,7 +82,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainCompositeReturn])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainCompositeReturn])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -172,7 +172,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainCompositeWithMappings])
+        AshTypescript.Manifest.verify_for_domains([TestDomainCompositeWithMappings])
 
       assert result == :ok
     end
@@ -252,7 +252,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainCompositeArg])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainCompositeArg])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -339,7 +339,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainNestedComposite])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainNestedComposite])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/

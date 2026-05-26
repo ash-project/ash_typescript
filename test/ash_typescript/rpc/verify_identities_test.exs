@@ -51,7 +51,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithMissingIdentity])
+        AshTypescript.Manifest.verify_for_domains([TestDomainWithMissingIdentity])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Identity not found on resource/
@@ -97,7 +97,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([
+        AshTypescript.Manifest.verify_for_domains([
           TestDomainWithMultipleMissingIdentities
         ])
 
@@ -152,7 +152,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithAvailableIdentities])
+        AshTypescript.Manifest.verify_for_domains([TestDomainWithAvailableIdentities])
 
       assert {:error, error_message} = result
 
@@ -199,7 +199,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithoutPrimaryKey])
+        AshTypescript.Manifest.verify_for_domains([TestDomainWithoutPrimaryKey])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Resource has no primary key/
@@ -245,7 +245,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithPrimaryKey])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithPrimaryKey])
 
       assert result == :ok
     end
@@ -291,7 +291,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithNamedIdentity])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithNamedIdentity])
 
       assert result == :ok
     end
@@ -339,7 +339,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithMixedIdentities])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithMixedIdentities])
 
       assert result == :ok
     end
@@ -383,7 +383,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithDefaultIdentities])
+        AshTypescript.Manifest.verify_for_domains([TestDomainWithDefaultIdentities])
 
       assert result == :ok
     end
@@ -426,7 +426,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithEmptyIdentities])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithEmptyIdentities])
 
       assert result == :ok
     end
@@ -471,7 +471,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithReadAction])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithReadAction])
 
       assert result == :ok
     end
@@ -514,7 +514,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithCreateAction])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithCreateAction])
 
       assert result == :ok
     end
@@ -557,7 +557,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainWithDestroyAction])
+        AshTypescript.Manifest.verify_for_domains([TestDomainWithDestroyAction])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Identity not found on resource/

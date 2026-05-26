@@ -65,6 +65,7 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelDestPublicRead do
 
   actions do
     read :read do
+      primary? true
       public? true
     end
   end
@@ -93,7 +94,7 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelSourcePublicDest do
   end
 end
 
-defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest.PlainDestination do
+defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest.PlainDest do
   @moduledoc false
   use Ash.Resource, domain: nil
 
@@ -102,9 +103,7 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest.PlainDestination do
   end
 
   actions do
-    read :read do
-      public? false
-    end
+    defaults [:read]
   end
 end
 
@@ -118,12 +117,11 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelSourcePlainDest do
 
   attributes do
     uuid_primary_key :id
-    attribute :plain_id, :uuid, public?: true
+    attribute :dest_id, :uuid, public?: true
   end
 
   relationships do
-    belongs_to :plain, AshTypescript.Rpc.VerifyRpcPublicActionsTest.PlainDestination,
-      public?: true
+    belongs_to :dest, AshTypescript.Rpc.VerifyRpcPublicActionsTest.PlainDest, public?: true
   end
 
   actions do
@@ -132,12 +130,19 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelSourcePlainDest do
 end
 
 defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
+  @moduledoc """
+  Integration tests for the `not public?` checks in `AshTypescript.Manifest.Verifiers.VerifyRpc`.
+
+  Each test defines an inline domain and invokes `check_all_verifiers/1`, which
+  routes through the manifest-based verifier. We assert against the public error
+  message rather than the implementation details of any specific helper.
+  """
   use ExUnit.Case, async: true
 
-  alias AshTypescript.Rpc.VerifyRpc
+  @moduletag :generates_warnings
 
-  describe "verify_rpc_actions/2 rejects non-public actions" do
-    test "returns error when action is not public?" do
+  describe "rpc actions reject non-public destination actions" do
+    test "returns error when rpc_action references a non-`public?` action" do
       defmodule NonPublicActionResource do
         @moduledoc false
         use Ash.Resource, domain: nil, extensions: [AshTypescript.Resource]
@@ -160,20 +165,29 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
         end
       end
 
-      rpc_action = %AshTypescript.Rpc.RpcAction{
-        name: :list_private,
-        action: :private_read
-      }
+      defmodule NonPublicActionDomain do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-      result = VerifyRpc.verify_rpc_actions(NonPublicActionResource, [rpc_action])
+        typescript_rpc do
+          resource NonPublicActionResource do
+            rpc_action :list_private, :private_read
+          end
+        end
 
-      assert {:error, %Spark.Error.DslError{message: message}} = result
+        resources do
+          resource NonPublicActionResource
+        end
+      end
+
+      assert {:error, message} =
+               AshTypescript.Manifest.verify_for_domains([NonPublicActionDomain])
+
       assert message =~ "not `public?`"
       assert message =~ "private_read"
       assert message =~ "list_private"
     end
 
-    test "passes when action is public?" do
+    test "passes when rpc_action references a `public?` action" do
       defmodule PublicActionResource do
         @moduledoc false
         use Ash.Resource, domain: nil, extensions: [AshTypescript.Resource]
@@ -194,16 +208,24 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
         end
       end
 
-      rpc_action = %AshTypescript.Rpc.RpcAction{
-        name: :list_public,
-        action: :public_read,
-        get?: false
-      }
+      defmodule PublicActionDomain do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-      assert :ok = VerifyRpc.verify_rpc_actions(PublicActionResource, [rpc_action])
+        typescript_rpc do
+          resource PublicActionResource do
+            rpc_action :list_public, :public_read
+          end
+        end
+
+        resources do
+          resource PublicActionResource
+        end
+      end
+
+      assert :ok = AshTypescript.Manifest.verify_for_domains([PublicActionDomain])
     end
 
-    test "returns error when read_action is not public?" do
+    test "returns error when read_action override is not `public?`" do
       defmodule ReadActionNotPublicResource do
         @moduledoc false
         use Ash.Resource, domain: nil, extensions: [AshTypescript.Resource]
@@ -230,50 +252,95 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
         end
       end
 
-      rpc_action = %AshTypescript.Rpc.RpcAction{
-        name: :update_thing,
-        action: :update_thing,
-        read_action: :private_lookup
-      }
+      defmodule ReadActionNotPublicDomain do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-      result = VerifyRpc.verify_rpc_actions(ReadActionNotPublicResource, [rpc_action])
+        typescript_rpc do
+          resource ReadActionNotPublicResource do
+            rpc_action :update_thing, :update_thing, read_action: :private_lookup
+          end
+        end
 
-      assert {:error, %Spark.Error.DslError{message: message}} = result
+        resources do
+          resource ReadActionNotPublicResource
+        end
+      end
+
+      assert {:error, message} =
+               AshTypescript.Manifest.verify_for_domains([ReadActionNotPublicDomain])
+
       assert message =~ "not `public?`"
       assert message =~ "private_lookup"
       assert message =~ "read_action"
     end
   end
 
-  describe "verify_relationship_read_actions/1" do
+  describe "relationship destination read actions must be public" do
     test "returns error when relationship destination has non-public read action" do
-      result =
-        VerifyRpc.verify_relationship_read_actions(
-          AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelSourceNonPublicDest
-        )
+      defmodule RelSourceNonPublicDestDomain do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-      assert {:error, %Spark.Error.DslError{message: message}} = result
+        typescript_rpc do
+          resource AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelSourceNonPublicDest do
+            rpc_action :list_src, :read
+          end
+        end
+
+        resources do
+          resource AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelSourceNonPublicDest
+          resource AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelDestNonPublicRead
+        end
+      end
+
+      assert {:error, message} =
+               AshTypescript.Manifest.verify_for_domains([RelSourceNonPublicDestDomain])
+
       assert message =~ "not `public?`"
       assert message =~ "dest"
       assert message =~ "RelDestNonPublicRead"
     end
 
     test "passes when relationship destination has public read action" do
+      defmodule RelSourcePublicDestDomain do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelSourcePublicDest do
+            rpc_action :list_src, :read
+          end
+        end
+
+        resources do
+          resource AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelSourcePublicDest
+          resource AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelDestPublicRead
+        end
+      end
+
       assert :ok =
-               VerifyRpc.verify_relationship_read_actions(
-                 AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelSourcePublicDest
-               )
+               AshTypescript.Manifest.verify_for_domains([RelSourcePublicDestDomain])
     end
 
-    test "skips non-typescript destination resources" do
-      assert :ok =
-               VerifyRpc.verify_relationship_read_actions(
-                 AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelSourcePlainDest
-               )
+    test "skips relationships to non-typescript destinations" do
+      defmodule RelSourcePlainDestDomain do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelSourcePlainDest do
+            rpc_action :list_src, :read
+          end
+        end
+
+        resources do
+          resource AshTypescript.Rpc.VerifyRpcPublicActionsTest.RelSourcePlainDest
+          resource AshTypescript.Rpc.VerifyRpcPublicActionsTest.PlainDest
+        end
+      end
+
+      assert :ok = AshTypescript.Manifest.verify_for_domains([RelSourcePlainDestDomain])
     end
   end
 
-  describe "verify_typed_queries/2 rejects non-public actions" do
+  describe "typed queries reject non-public actions" do
     test "returns error when typed query references a non-public action" do
       defmodule TypedQueryNonPublicResource do
         @moduledoc false
@@ -295,14 +362,27 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
         end
       end
 
-      typed_query = %AshTypescript.Rpc.TypedQuery{
-        name: :my_query,
-        action: :private_read
-      }
+      defmodule TypedQueryNonPublicDomain do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-      result = VerifyRpc.verify_typed_queries(TypedQueryNonPublicResource, [typed_query])
+        typescript_rpc do
+          resource TypedQueryNonPublicResource do
+            typed_query :my_query, :private_read do
+              ts_result_type_name "MyQueryResult"
+              ts_fields_const_name "myQuery"
+              fields([:id, :name])
+            end
+          end
+        end
 
-      assert {:error, %Spark.Error.DslError{message: message}} = result
+        resources do
+          resource TypedQueryNonPublicResource
+        end
+      end
+
+      assert {:error, message} =
+               AshTypescript.Manifest.verify_for_domains([TypedQueryNonPublicDomain])
+
       assert message =~ "not `public?`"
       assert message =~ "private_read"
       assert message =~ "my_query"
@@ -329,12 +409,25 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
         end
       end
 
-      typed_query = %AshTypescript.Rpc.TypedQuery{
-        name: :my_query,
-        action: :public_read
-      }
+      defmodule TypedQueryPublicDomain do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
 
-      assert :ok = VerifyRpc.verify_typed_queries(TypedQueryPublicResource, [typed_query])
+        typescript_rpc do
+          resource TypedQueryPublicResource do
+            typed_query :my_query, :public_read do
+              ts_result_type_name "MyQueryResult"
+              ts_fields_const_name "myQuery"
+              fields([:id, :name])
+            end
+          end
+        end
+
+        resources do
+          resource TypedQueryPublicResource
+        end
+      end
+
+      assert :ok = AshTypescript.Manifest.verify_for_domains([TypedQueryPublicDomain])
     end
   end
 end

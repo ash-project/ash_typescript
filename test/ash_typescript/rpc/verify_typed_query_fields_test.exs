@@ -50,7 +50,7 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([DomainWithUnknownField])
+      result = AshTypescript.Manifest.verify_for_domains([DomainWithUnknownField])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field selection/i
@@ -99,7 +99,7 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([DomainWithPrivateField])
+      result = AshTypescript.Manifest.verify_for_domains([DomainWithPrivateField])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field selection/i
@@ -147,7 +147,7 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([DomainWithDuplicateFields])
+      result = AshTypescript.Manifest.verify_for_domains([DomainWithDuplicateFields])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Duplicate field/i
@@ -223,7 +223,7 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([DomainWithRelationshipNoNested])
+        AshTypescript.Manifest.verify_for_domains([DomainWithRelationshipNoNested])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/requires nested field selection/i
@@ -296,7 +296,7 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([DomainWithNestedInvalid])
+      result = AshTypescript.Manifest.verify_for_domains([DomainWithNestedInvalid])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field selection/i
@@ -363,7 +363,7 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([DomainWithCalcNoArgs])
+      result = AshTypescript.Manifest.verify_for_domains([DomainWithCalcNoArgs])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/requires arguments/i
@@ -413,7 +413,7 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([ValidDomain])
+      result = AshTypescript.Manifest.verify_for_domains([ValidDomain])
 
       assert :ok = result
     end
@@ -485,7 +485,7 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([ValidDomainWithRel])
+      result = AshTypescript.Manifest.verify_for_domains([ValidDomainWithRel])
 
       assert :ok = result
     end

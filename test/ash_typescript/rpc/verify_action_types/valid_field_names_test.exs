@@ -54,7 +54,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ValidFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainValidReturn])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainValidReturn])
 
       assert result == :ok
     end
@@ -107,7 +107,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ValidFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainValidArg])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainValidArg])
 
       assert result == :ok
     end
@@ -150,75 +150,9 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ValidFieldNamesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainCrud])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainCrud])
 
       assert result == :ok
-    end
-  end
-
-  describe "invalid_name?/1" do
-    test "returns true for names with underscores followed by digits" do
-      invalid_names = [
-        "field_1",
-        "address_line_2",
-        "item__3"
-      ]
-
-      for name <- invalid_names do
-        assert AshTypescript.Rpc.Verifiers.VerifyActionTypes.invalid_name?(name),
-               "#{name} should be invalid"
-      end
-    end
-
-    test "returns true for names with question marks" do
-      invalid_names = [
-        "field?",
-        "is_valid?",
-        "enabled?"
-      ]
-
-      for name <- invalid_names do
-        assert AshTypescript.Rpc.Verifiers.VerifyActionTypes.invalid_name?(name),
-               "#{name} should be invalid"
-      end
-    end
-
-    test "returns false for valid names" do
-      valid_names = [
-        "normal_field",
-        "camelCase",
-        "field1",
-        "is_active"
-      ]
-
-      for name <- valid_names do
-        refute AshTypescript.Rpc.Verifiers.VerifyActionTypes.invalid_name?(name),
-               "#{name} should be valid"
-      end
-    end
-  end
-
-  describe "make_name_better/1" do
-    test "removes underscores before digits" do
-      test_cases = [
-        {"field_1", "field1"},
-        {"address_line_2", "address_line2"}
-      ]
-
-      for {input, expected} <- test_cases do
-        assert AshTypescript.Rpc.Verifiers.VerifyActionTypes.make_name_better(input) == expected
-      end
-    end
-
-    test "removes question marks" do
-      test_cases = [
-        {"field?", "field"},
-        {"is_valid?", "is_valid"}
-      ]
-
-      for {input, expected} <- test_cases do
-        assert AshTypescript.Rpc.Verifiers.VerifyActionTypes.make_name_better(input) == expected
-      end
     end
   end
 end

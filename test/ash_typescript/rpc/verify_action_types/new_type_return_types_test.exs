@@ -61,7 +61,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainReturnsTypedStruct])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainReturnsTypedStruct])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -112,7 +112,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainReturnsTaskStats])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainReturnsTaskStats])
 
       assert result == :ok
     end
@@ -173,7 +173,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainCustomStructType])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainCustomStructType])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -245,7 +245,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([
+        AshTypescript.Manifest.verify_for_domains([
           TestDomainCustomStructTypeWithMappings
         ])
 
@@ -308,7 +308,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainCustomTypeArgument])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainCustomTypeArgument])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types or argument/
@@ -380,7 +380,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
       end
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([TestDomainCustomTypeArgWithMappings])
+        AshTypescript.Manifest.verify_for_domains([TestDomainCustomTypeArgWithMappings])
 
       assert result == :ok
     end
@@ -447,7 +447,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainNestedCustomType])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainNestedCustomType])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -507,7 +507,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
         end
       end
 
-      result = AshTypescript.VerifierChecker.check_all_verifiers([TestDomainArrayCustomType])
+      result = AshTypescript.Manifest.verify_for_domains([TestDomainArrayCustomType])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
