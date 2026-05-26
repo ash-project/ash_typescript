@@ -64,15 +64,14 @@ defmodule AshTypescript.Codegen.Orchestrator do
     if rpc_output_file do
       domains = Ash.Info.domains(otp_app)
 
-      case AshTypescript.VerifierChecker.check_all_verifiers(rpc_resources ++ domains) do
-        :ok ->
-          case TypeDiscovery.build_rpc_warnings(otp_app) do
-            nil -> :ok
-            message -> IO.warn(message)
-          end
-
-        {:error, error_message} ->
-          throw({:error, error_message})
+      with :ok <- AshTypescript.VerifierChecker.check_all_verifiers(rpc_resources ++ domains),
+           :ok <- run_manifest_verifiers(otp_app, domains) do
+        case TypeDiscovery.build_rpc_warnings(otp_app) do
+          nil -> :ok
+          message -> IO.warn(message)
+        end
+      else
+        {:error, error_message} -> throw({:error, error_message})
       end
     end
 
@@ -397,5 +396,11 @@ defmodule AshTypescript.Codegen.Orchestrator do
       route_infos = ControllerCodegen.resolve_route_infos(router, routes_config)
       ControllerCodegen.collect_referenced_resources(route_infos)
     end
+  end
+
+  # Run manifest-level verifiers (cross-domain RPC checks, typed query validation,
+  # etc.) against the configured manifest module's persisted Spark DSL state.
+  defp run_manifest_verifiers(_otp_app, _domains) do
+    AshTypescript.Manifest.run_verifiers(AshTypescript.manifest_module())
   end
 end

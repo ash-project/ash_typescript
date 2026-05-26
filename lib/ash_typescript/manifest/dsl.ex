@@ -6,5 +6,14 @@ defmodule AshTypescript.Manifest.Dsl do
   @moduledoc false
 
   use Spark.Dsl.Extension,
-    transformers: [AshTypescript.Manifest.Transformers.BuildAppSpec]
+    transformers: [AshTypescript.Manifest.Transformers.BuildAppSpec],
+    verifiers: [
+      AshTypescript.Manifest.Verifiers.VerifyRpc,
+      AshTypescript.Manifest.Verifiers.VerifyActionTypes,
+      AshTypescript.Manifest.Verifiers.VerifyUniqueInputFieldNames,
+      AshTypescript.Manifest.Verifiers.VerifyMetadataFieldNames,
+      AshTypescript.Manifest.Verifiers.VerifyTypedQueryFields,
+      AshTypescript.Manifest.Verifiers.VerifyIdentities,
+      AshTypescript.Manifest.Verifiers.VerifyRpcWarnings
+    ]
 end

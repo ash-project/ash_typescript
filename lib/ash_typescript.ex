@@ -747,18 +747,54 @@ defmodule AshTypescript do
     end
   end
 
-  @doc "Returns the full `%Ash.Info.Manifest{}`."
-  defdelegate api_spec(), to: AshTypescript.SpecCache
+  @doc """
+  Returns the configured `AshTypescript.Manifest` module.
 
-  @doc "Returns the entrypoints from the Ash.Info.Manifest."
-  defdelegate entrypoints(), to: AshTypescript.SpecCache
+  Reads from `config :ash_typescript, manifest: MyApp.Ash.Info.Manifest`. Raises
+  if not configured — every AshTypescript-using project must declare a manifest
+  module.
+  """
+  def manifest_module do
+    case Application.get_env(:ash_typescript, :manifest) do
+      nil ->
+        raise """
+        No `:manifest` module configured for AshTypescript.
 
-  @doc "Returns the Ash.Info.Manifest resource lookup map (cached in persistent_term)."
-  defdelegate resource_lookup(), to: AshTypescript.SpecCache
+        Add this to your config:
 
-  @doc "Returns the Ash.Info.Manifest action lookup map (cached in persistent_term)."
-  defdelegate action_lookup(), to: AshTypescript.SpecCache
+            config :ash_typescript, manifest: MyApp.Ash.Info.Manifest
 
-  @doc "Returns the Ash.Info.Manifest named-type lookup map (cached in persistent_term)."
-  defdelegate type_lookup(), to: AshTypescript.SpecCache
+        And define the module:
+
+            defmodule MyApp.Ash.Info.Manifest do
+              use AshTypescript.Manifest, otp_app: :my_app
+            end
+        """
+
+      module when is_atom(module) ->
+        module
+    end
+  end
+
+  @doc """
+  Returns the full `%Ash.Info.Manifest{}` from `manifest` (defaults to the
+  configured manifest module).
+  """
+  def api_spec(manifest \\ manifest_module()),
+    do: Spark.Dsl.Extension.get_persisted(manifest, :manifest)
+
+  @doc "Returns the entrypoints from `manifest` (defaults to the configured manifest module)."
+  def entrypoints(manifest \\ manifest_module()), do: api_spec(manifest).entrypoints
+
+  @doc "Returns the resource lookup map from `manifest` (defaults to the configured manifest module)."
+  def resource_lookup(manifest \\ manifest_module()),
+    do: Spark.Dsl.Extension.get_persisted(manifest, :resource_lookup) || %{}
+
+  @doc "Returns the action lookup map from `manifest` (defaults to the configured manifest module)."
+  def action_lookup(manifest \\ manifest_module()),
+    do: Spark.Dsl.Extension.get_persisted(manifest, :action_lookup) || %{}
+
+  @doc "Returns the named-type lookup map from `manifest` (defaults to the configured manifest module)."
+  def type_lookup(manifest \\ manifest_module()),
+    do: Spark.Dsl.Extension.get_persisted(manifest, :type_lookup) || %{}
 end

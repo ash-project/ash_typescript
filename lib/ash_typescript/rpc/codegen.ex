@@ -127,39 +127,42 @@ defmodule AshTypescript.Rpc.Codegen do
       rpc_validation_channel_hook_context_type: rpc_validation_channel_hook_context_type
     }
 
-    case AshTypescript.VerifierChecker.check_all_verifiers(rpc_resources ++ domains) do
-      :ok ->
-        case TypeDiscovery.build_rpc_warnings(otp_app, resource_lookup, rpc_resources) do
-          nil -> :ok
-          message -> IO.warn(message)
-        end
+    with :ok <- AshTypescript.VerifierChecker.check_all_verifiers(rpc_resources ++ domains),
+         :ok <- run_manifest_verifiers(otp_app, domains) do
+      case TypeDiscovery.build_rpc_warnings(otp_app, resource_lookup, rpc_resources) do
+        nil -> :ok
+        message -> IO.warn(message)
+      end
 
-        if AshTypescript.Rpc.enable_namespace_files?() do
-          generate_multi_file_output(
-            resources_and_actions,
-            endpoint_process,
-            endpoint_validate,
-            hook_config,
-            otp_app,
-            resource_lookup,
-            reachable_resources
-          )
-        else
-          {:ok,
-           generate_full_typescript(
-             resources_and_actions,
-             endpoint_process,
-             endpoint_validate,
-             hook_config,
-             otp_app,
-             resource_lookup,
-             reachable_resources
-           )}
-        end
-
-      {:error, error_message} ->
-        {:error, error_message}
+      if AshTypescript.Rpc.enable_namespace_files?() do
+        generate_multi_file_output(
+          resources_and_actions,
+          endpoint_process,
+          endpoint_validate,
+          hook_config,
+          otp_app,
+          resource_lookup,
+          reachable_resources
+        )
+      else
+        {:ok,
+         generate_full_typescript(
+           resources_and_actions,
+           endpoint_process,
+           endpoint_validate,
+           hook_config,
+           otp_app,
+           resource_lookup,
+           reachable_resources
+         )}
+      end
+    else
+      {:error, error_message} -> {:error, error_message}
     end
+  end
+
+  defp run_manifest_verifiers(_otp_app, _domains) do
+    AshTypescript.Manifest.run_verifiers(AshTypescript.manifest_module())
   end
 
   defp generate_multi_file_output(
@@ -283,7 +286,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     exports = [{function_name, :value}]
 
-    has_input? = ActionIntrospection.action_input_type(resource, action) != :none
+    has_input? = ActionIntrospection.action_input_type(action) != :none
 
     exports =
       if has_input? do
@@ -304,7 +307,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     # Classified as :valibot_value so namespace files can re-export from ash_valibot.ts
     exports =
-      if AshTypescript.Rpc.generate_valibot_schemas?() and action.arguments != [] do
+      if AshTypescript.Rpc.generate_valibot_schemas?() and action.inputs != [] do
         suffix = AshTypescript.Rpc.valibot_schema_suffix()
         valibot_schema_name = format_output_field("#{rpc_action_name}#{suffix}")
         exports ++ [{valibot_schema_name, :valibot_value}]
@@ -415,7 +418,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     #{TypescriptStatic.generate_helper_functions(hook_config, endpoint_process, endpoint_validate)}
 
-    #{TypedQueries.generate_typed_queries_section(typed_queries, rpc_resources_and_actions, all_resources_for_schemas, resource_lookup)}
+    #{TypedQueries.generate_typed_queries_section(typed_queries, rpc_resources_and_actions, all_resources_for_schemas)}
 
     #{generate_rpc_functions(rpc_resources_and_actions, otp_app, all_resources_for_schemas, resource_lookup)}
     """
@@ -485,8 +488,7 @@ defmodule AshTypescript.Rpc.Codegen do
         TypedQueries.generate_typed_queries_section(
           typed_queries,
           resources_and_actions,
-          all_resources,
-          resource_lookup
+          all_resources
         ),
         generate_rpc_functions_no_zod(resources_and_actions, resource_lookup)
       ]
@@ -795,9 +797,13 @@ defmodule AshTypescript.Rpc.Codegen do
   # Finds resources used as struct/embedded arguments in the given RPC actions.
   # These resources need InputSchema generation regardless of whether they're also RPC resources.
   defp find_struct_argument_resources_from_actions(resources_and_actions) do
+    resource_lookup = AshTypescript.resource_lookup()
+
     resources_and_actions
-    |> Enum.flat_map(fn {_resource, action, _rpc_action} ->
-      action.arguments
+    |> Enum.flat_map(fn {resource, action, _rpc_action} ->
+      action.inputs
+      |> List.wrap()
+      |> Enum.reject(&ActionIntrospection.accepted_attribute?(resource, &1.name, resource_lookup))
       |> Enum.flat_map(&find_struct_resources_in_spec_type(&1.type))
     end)
     |> Enum.uniq()

@@ -25,9 +25,18 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
 
   A list of unique resource modules that are configured as RPC resources in any domain.
   """
-  def get_rpc_resources(otp_app) do
+  def get_rpc_resources(otp_app) when is_atom(otp_app) do
     otp_app
     |> Ash.Info.domains()
+    |> get_rpc_resources_from_domains()
+  end
+
+  def get_rpc_resources(domains) when is_list(domains) do
+    get_rpc_resources_from_domains(domains)
+  end
+
+  defp get_rpc_resources_from_domains(domains) do
+    domains
     |> Enum.flat_map(fn domain ->
       rpc_config = AshTypescript.Rpc.Info.typescript_rpc(domain)
       Enum.map(rpc_config, fn %{resource: resource} -> resource end)

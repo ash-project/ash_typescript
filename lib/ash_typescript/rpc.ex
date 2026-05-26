@@ -279,17 +279,7 @@ defmodule AshTypescript.Rpc do
     ]
   }
 
-  use Spark.Dsl.Extension,
-    sections: [@rpc],
-    verifiers: [
-      AshTypescript.Rpc.VerifyRpc,
-      AshTypescript.Rpc.Verifiers.VerifyMetadataFieldNames,
-      AshTypescript.Rpc.Verifiers.VerifyTypedQueryFields,
-      AshTypescript.Rpc.Verifiers.VerifyIdentities,
-      AshTypescript.Rpc.Verifiers.VerifyActionTypes,
-      AshTypescript.Rpc.Verifiers.VerifyUniqueInputFieldNames,
-      AshTypescript.Rpc.VerifyRpcWarnings
-    ]
+  use Spark.Dsl.Extension, sections: [@rpc]
 
   alias AshTypescript.Rpc.{ErrorBuilder, Errors, Pipeline}
 
@@ -558,11 +548,10 @@ defmodule AshTypescript.Rpc do
   A resource requires a tenant if it has multitenancy configured and global? is false (default).
   """
   def requires_tenant?(resource) do
-    strategy = Ash.Resource.Info.multitenancy_strategy(resource)
-
-    case strategy do
-      strategy when strategy in [:attribute, :context] ->
-        not Ash.Resource.Info.multitenancy_global?(resource)
+    case AshTypescript.resource_lookup() |> Map.get(resource) do
+      %Ash.Info.Manifest.Resource{multitenancy: %{strategy: strategy, global?: global?}}
+      when strategy in [:attribute, :context] ->
+        not global?
 
       _ ->
         false

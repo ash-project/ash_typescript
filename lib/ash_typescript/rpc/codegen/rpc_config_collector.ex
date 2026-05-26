@@ -33,28 +33,59 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   Returns a list of maps suitable for `Ash.Info.Manifest.Generator.generate/1`'s
   `:action_entrypoints` option, with RPC config under `config.ash_typescript`.
   """
-  def get_rpc_action_entrypoint_configs(otp_app) do
+  def get_rpc_action_entrypoint_configs(otp_app) when is_atom(otp_app) do
     otp_app
     |> Ash.Info.domains()
+    |> get_rpc_action_entrypoint_configs_from_domains()
+  end
+
+  def get_rpc_action_entrypoint_configs(domains) when is_list(domains) do
+    get_rpc_action_entrypoint_configs_from_domains(domains)
+  end
+
+  defp get_rpc_action_entrypoint_configs_from_domains(domains) do
+    domains
     |> Enum.flat_map(fn domain ->
       rpc_config = AshTypescript.Rpc.Info.typescript_rpc(domain)
 
       Enum.flat_map(rpc_config, fn resource_config ->
-        %{resource: resource, rpc_actions: rpc_actions} = resource_config
+        %{resource: resource, rpc_actions: rpc_actions, typed_queries: typed_queries} =
+          resource_config
 
-        Enum.map(rpc_actions, fn rpc_action ->
-          %{
-            resource: resource,
-            action: rpc_action.action,
-            config: %{
-              ash_typescript: %{
-                rpc_action: rpc_action,
-                domain: domain,
-                resource_config: resource_config
+        rpc_action_entries =
+          Enum.map(rpc_actions, fn rpc_action ->
+            %{
+              resource: resource,
+              action: rpc_action.action,
+              config: %{
+                ash_typescript: %{
+                  rpc_action: rpc_action,
+                  domain: domain,
+                  resource_config: resource_config
+                }
               }
             }
-          }
-        end)
+          end)
+
+        # Typed queries reference an action that may or may not also be exposed as
+        # an rpc_action. Include it as an entrypoint so the manifest's action_lookup
+        # carries it — `RequestedFieldsProcessor` relies on the lookup at runtime.
+        typed_query_entries =
+          Enum.map(typed_queries, fn typed_query ->
+            %{
+              resource: resource,
+              action: typed_query.action,
+              config: %{
+                ash_typescript: %{
+                  typed_query: typed_query,
+                  domain: domain,
+                  resource_config: resource_config
+                }
+              }
+            }
+          end)
+
+        rpc_action_entries ++ typed_query_entries
       end)
     end)
   end
@@ -72,7 +103,7 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
 
   def get_rpc_resources_and_actions(entrypoints) when is_list(entrypoints) do
     entrypoints
-    |> Enum.filter(&has_ash_typescript_config?/1)
+    |> Enum.filter(&has_rpc_action_config?/1)
     |> Enum.map(fn e ->
       {e.resource, e.action, e.config.ash_typescript.rpc_action}
     end)
@@ -82,15 +113,19 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   Gets all RPC resources and their actions with domain and resource config context.
 
   Returns `{resource, action, rpc_action, domain, resource_config}` tuples.
+  Skips typed-query-only entrypoints (those without an `rpc_action` config).
   """
   def get_rpc_resources_and_actions_with_context(entrypoints) when is_list(entrypoints) do
     entrypoints
-    |> Enum.filter(&has_ash_typescript_config?/1)
+    |> Enum.filter(&has_rpc_action_config?/1)
     |> Enum.map(fn e ->
       ts = e.config.ash_typescript
       {e.resource, e.action, ts.rpc_action, ts.domain, ts.resource_config}
     end)
   end
+
+  defp has_rpc_action_config?(%{config: %{ash_typescript: %{rpc_action: _}}}), do: true
+  defp has_rpc_action_config?(_), do: false
 
   @doc """
   Resolves the namespace for an RPC action.

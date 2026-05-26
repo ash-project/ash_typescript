@@ -4,22 +4,23 @@
 
 defmodule AshTypescript.VerifierChecker do
   @moduledoc """
-  Checks if any verifiers have failed for resources and domains.
+  Re-runs per-module Spark verifiers for the AshTypescript Resource and Rpc
+  extensions. Spark emits warnings (rather than raising) when a verifier fails;
+  during codegen we want to promote those warnings to hard errors. This module
+  iterates the configured verifiers for each module and aggregates failures.
 
-  This is needed because Spark verifiers now emit warnings instead of errors,
-  so we need to re-run them during codegen to detect issues.
+  Manifest-level verifiers are *not* run here — they're a property of the
+  `AshTypescript.Manifest` module and are checked at compile time by Spark, and
+  re-checked at codegen time via `AshTypescript.Manifest.run_verifiers/1` (or
+  `verify_for_domains/2` for inline test manifests).
   """
 
   @doc """
-  Checks all verifiers for a list of modules (resources/domains).
-  Returns :ok or {:error, formatted_message}
+  Checks per-module Resource/Rpc extension verifiers for a list of modules.
+  Returns `:ok` or `{:error, formatted_message}`.
   """
   def check_all_verifiers(modules) do
-    errors =
-      modules
-      |> Enum.flat_map(&check_module_verifiers/1)
-
-    case errors do
+    case Enum.flat_map(modules, &check_module_verifiers/1) do
       [] -> :ok
       errors -> {:error, format_verifier_errors(errors)}
     end
