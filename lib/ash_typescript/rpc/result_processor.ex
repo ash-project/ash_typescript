@@ -483,9 +483,6 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     end)
   end
 
-  # `Map.get(map, atom) || Map.get(map, string)` would discard legitimate
-  # `false` (and `nil`) values - the only falsy values in Elixir - so fall
-  # back to the string key only when the atom key is absent.
   defp plain_map_field(map, field_atom) do
     case Map.fetch(map, field_atom) do
       {:ok, value} -> value
