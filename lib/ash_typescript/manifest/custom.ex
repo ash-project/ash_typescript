@@ -1,0 +1,274 @@
+# SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs/contributors>
+#
+# SPDX-License-Identifier: MIT
+
+defmodule AshTypescript.Manifest.Custom do
+  @moduledoc """
+  Thin accessor module for reading ash_typescript-owned data persisted under
+  `custom.ash_typescript` on Ash.Info.Manifest structs.
+
+  Decoration is done by `AshTypescript.Manifest.Decorator` after
+  `Ash.Info.Manifest.Generator.generate/1`. Runtime callers should prefer these
+  accessors over walking Spark DSL state — the manifest carries pre-computed
+  lookups that are O(1) map reads.
+
+  All accessors return `nil` (or sensible empty defaults) when the struct has
+  no ash_typescript decoration, so callers can pattern-match on `nil`.
+  """
+
+  alias Ash.Info.Manifest
+
+  @typedoc """
+  The decoration map persisted under `custom.ash_typescript` on a
+  `%Manifest.Resource{}` (including embedded resources nested under a `%Manifest.Type{}`).
+  """
+  @type resource_custom :: %{
+          optional(:field_name_mappings) => %{atom() => String.t()},
+          optional(:reverse_field_name_mappings) => %{String.t() => atom()},
+          optional(:argument_name_mappings) => %{atom() => %{atom() => String.t()}},
+          optional(:reverse_argument_name_mappings) => %{atom() => %{String.t() => atom()}},
+          optional(:formatted_field_names) => %{{atom(), atom()} => String.t()}
+        }
+
+  @typedoc """
+  The decoration map persisted under `custom.ash_typescript` on a
+  `%Manifest.Type{}` for NewTypes/TypedStructs that export
+  `typescript_field_names/0`.
+  """
+  @type type_custom :: %{
+          optional(:field_name_mappings) => %{atom() => String.t()},
+          optional(:reverse_field_name_mappings) => %{String.t() => atom()}
+        }
+
+  @typedoc """
+  The decoration map persisted under `custom.ash_typescript` on a
+  `%Manifest.Entrypoint{}`.
+  """
+  @type entrypoint_custom :: %{
+          optional(:rpc_action) => term(),
+          optional(:typed_query) => term(),
+          optional(:domain) => atom(),
+          optional(:resource_config) => term(),
+          optional(:metadata_field_mappings) => %{atom() => String.t()},
+          optional(:reverse_metadata_field_mappings) => %{String.t() => atom()}
+        }
+
+  # ─────────────────────────────────────────────────────────────────
+  # Generic readers
+  # ─────────────────────────────────────────────────────────────────
+
+  @doc """
+  Returns the `:ash_typescript` decoration map for any struct that carries a
+  `custom` field, or `nil` if no decoration is present.
+  """
+  @spec ash_typescript(struct() | nil) :: map() | nil
+  def ash_typescript(%{custom: %{ash_typescript: data}}), do: data
+  def ash_typescript(_), do: nil
+
+  @doc """
+  Returns `true` if the resource struct was decorated by ash_typescript
+  (i.e., the underlying module has the `AshTypescript.Resource` extension).
+  """
+  @spec typescript_resource?(Manifest.Resource.t() | nil) :: boolean()
+  def typescript_resource?(%Manifest.Resource{custom: %{ash_typescript: _}}), do: true
+  def typescript_resource?(_), do: false
+
+  # ─────────────────────────────────────────────────────────────────
+  # Resource accessors
+  # ─────────────────────────────────────────────────────────────────
+
+  @doc """
+  Returns the forward `field_name_mappings` map (`atom => client_string`) for
+  a decorated resource, or an empty map.
+  """
+  @spec field_name_mappings(Manifest.Resource.t() | nil) :: %{atom() => String.t()}
+  def field_name_mappings(%Manifest.Resource{
+        custom: %{ash_typescript: %{field_name_mappings: m}}
+      }),
+      do: m
+
+  def field_name_mappings(_), do: %{}
+
+  @doc """
+  Returns the reverse mapping (`client_string => atom`) for a decorated resource.
+  """
+  @spec reverse_field_name_mappings(Manifest.Resource.t() | nil) :: %{String.t() => atom()}
+  def reverse_field_name_mappings(%Manifest.Resource{
+        custom: %{ash_typescript: %{reverse_field_name_mappings: m}}
+      }),
+      do: m
+
+  def reverse_field_name_mappings(_), do: %{}
+
+  @doc """
+  Looks up the mapped client name for an internal field atom, or returns `nil`
+  if there is no mapping.
+  """
+  @spec mapped_field_name(Manifest.Resource.t() | nil, atom()) :: String.t() | nil
+  def mapped_field_name(resource, field) when is_atom(field) do
+    resource |> field_name_mappings() |> Map.get(field)
+  end
+
+  @doc """
+  Looks up the original Elixir atom for a client-side field name. Returns `nil`
+  if no mapping is registered.
+
+  Accepts atom or string for `client_name` (atom is converted via `Atom.to_string/1`).
+  """
+  @spec original_field_name(Manifest.Resource.t() | nil, String.t() | atom()) :: atom() | nil
+  def original_field_name(resource, client_name) when is_binary(client_name) do
+    resource |> reverse_field_name_mappings() |> Map.get(client_name)
+  end
+
+  def original_field_name(resource, client_name) when is_atom(client_name) do
+    original_field_name(resource, Atom.to_string(client_name))
+  end
+
+  @doc """
+  Returns the pre-formatted client name for a field under a built-in formatter,
+  or `nil` if the resource isn't decorated, the field isn't tracked, or the
+  formatter isn't one of `:camel_case` / `:snake_case` / `:pascal_case`.
+  """
+  @spec formatted_field_name(Manifest.Resource.t() | nil, atom(), atom()) :: String.t() | nil
+  def formatted_field_name(
+        %Manifest.Resource{custom: %{ash_typescript: %{formatted_field_names: m}}},
+        field,
+        formatter
+      )
+      when is_atom(field) and is_atom(formatter) do
+    Map.get(m, {field, formatter})
+  end
+
+  def formatted_field_name(_, _, _), do: nil
+
+  @doc """
+  Returns the argument-name mapping (`%{arg_atom => client_string}`) for a
+  particular action on the resource, or an empty map.
+  """
+  @spec argument_name_mappings_for_action(Manifest.Resource.t() | nil, atom()) ::
+          %{atom() => String.t()}
+  def argument_name_mappings_for_action(
+        %Manifest.Resource{custom: %{ash_typescript: %{argument_name_mappings: m}}},
+        action_name
+      )
+      when is_atom(action_name) do
+    Map.get(m, action_name, %{})
+  end
+
+  def argument_name_mappings_for_action(_, _), do: %{}
+
+  @doc """
+  Looks up the mapped client name for an action argument atom. Returns `nil`
+  if no mapping is registered.
+  """
+  @spec mapped_argument_name(Manifest.Resource.t() | nil, atom(), atom()) :: String.t() | nil
+  def mapped_argument_name(resource, action_name, argument)
+      when is_atom(action_name) and is_atom(argument) do
+    resource |> argument_name_mappings_for_action(action_name) |> Map.get(argument)
+  end
+
+  @doc """
+  Looks up the original Elixir argument atom for a client-side argument name.
+  Returns `nil` if no mapping is registered.
+
+  Accepts atom or string for `client_name`.
+  """
+  @spec original_argument_name(Manifest.Resource.t() | nil, atom(), String.t() | atom()) ::
+          atom() | nil
+  def original_argument_name(
+        %Manifest.Resource{custom: %{ash_typescript: %{reverse_argument_name_mappings: m}}},
+        action_name,
+        client_name
+      )
+      when is_atom(action_name) and is_binary(client_name) do
+    m |> Map.get(action_name, %{}) |> Map.get(client_name)
+  end
+
+  def original_argument_name(resource, action_name, client_name) when is_atom(client_name) do
+    original_argument_name(resource, action_name, Atom.to_string(client_name))
+  end
+
+  def original_argument_name(_, _, _), do: nil
+
+  # ─────────────────────────────────────────────────────────────────
+  # Type accessors (NewTypes / TypedStructs)
+  # ─────────────────────────────────────────────────────────────────
+
+  @doc """
+  Returns the forward `field_name_mappings` map for a decorated type.
+  """
+  @spec type_field_name_mappings(Manifest.Type.t() | nil) :: %{atom() => String.t()}
+  def type_field_name_mappings(%Manifest.Type{
+        custom: %{ash_typescript: %{field_name_mappings: m}}
+      }),
+      do: m
+
+  def type_field_name_mappings(_), do: %{}
+
+  @doc """
+  Returns the reverse mapping (`client_string => atom`) for a decorated type.
+  """
+  @spec reverse_type_field_name_mappings(Manifest.Type.t() | nil) :: %{String.t() => atom()}
+  def reverse_type_field_name_mappings(%Manifest.Type{
+        custom: %{ash_typescript: %{reverse_field_name_mappings: m}}
+      }),
+      do: m
+
+  def reverse_type_field_name_mappings(_), do: %{}
+
+  # ─────────────────────────────────────────────────────────────────
+  # Entrypoint accessors
+  # ─────────────────────────────────────────────────────────────────
+
+  @doc """
+  Returns the RPC action DSL struct stashed on the entrypoint, or `nil` if the
+  entrypoint isn't an RPC-action entrypoint (e.g., a typed-query-only entry).
+  """
+  @spec rpc_action(Manifest.Entrypoint.t() | nil) :: term() | nil
+  def rpc_action(%Manifest.Entrypoint{custom: %{ash_typescript: %{rpc_action: action}}}),
+    do: action
+
+  def rpc_action(_), do: nil
+
+  @doc """
+  Returns the typed-query DSL struct stashed on the entrypoint, or `nil`.
+  """
+  @spec typed_query(Manifest.Entrypoint.t() | nil) :: term() | nil
+  def typed_query(%Manifest.Entrypoint{custom: %{ash_typescript: %{typed_query: tq}}}), do: tq
+  def typed_query(_), do: nil
+
+  @doc "Returns the domain module that owns this entrypoint, or `nil`."
+  @spec entrypoint_domain(Manifest.Entrypoint.t() | nil) :: atom() | nil
+  def entrypoint_domain(%Manifest.Entrypoint{custom: %{ash_typescript: %{domain: d}}}), do: d
+  def entrypoint_domain(_), do: nil
+
+  @doc "Returns the resource_config DSL struct for this entrypoint, or `nil`."
+  @spec resource_config(Manifest.Entrypoint.t() | nil) :: term() | nil
+  def resource_config(%Manifest.Entrypoint{custom: %{ash_typescript: %{resource_config: rc}}}),
+    do: rc
+
+  def resource_config(_), do: nil
+
+  @doc """
+  Returns the metadata field-name mapping (`atom => client_string`) for the
+  entrypoint's RPC action, or an empty map.
+  """
+  @spec metadata_field_mappings(Manifest.Entrypoint.t() | nil) :: %{atom() => String.t()}
+  def metadata_field_mappings(%Manifest.Entrypoint{
+        custom: %{ash_typescript: %{metadata_field_mappings: m}}
+      }),
+      do: m
+
+  def metadata_field_mappings(_), do: %{}
+
+  @doc """
+  Returns the reverse metadata mapping (`client_string => atom`), or empty.
+  """
+  @spec reverse_metadata_field_mappings(Manifest.Entrypoint.t() | nil) :: %{String.t() => atom()}
+  def reverse_metadata_field_mappings(%Manifest.Entrypoint{
+        custom: %{ash_typescript: %{reverse_metadata_field_mappings: m}}
+      }),
+      do: m
+
+  def reverse_metadata_field_mappings(_), do: %{}
+end
