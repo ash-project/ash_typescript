@@ -462,11 +462,11 @@ defmodule AshTypescript.Rpc.ResultProcessor do
     Enum.reduce(template, %{}, fn field_spec, acc ->
       case field_spec do
         field_atom when is_atom(field_atom) ->
-          field_value = Map.get(value, field_atom) || Map.get(value, to_string(field_atom))
+          field_value = plain_map_field(value, field_atom)
           Map.put(acc, field_atom, normalize_primitive(field_value))
 
         {field_atom, nested_template} when is_atom(field_atom) ->
-          field_value = Map.get(value, field_atom) || Map.get(value, to_string(field_atom))
+          field_value = plain_map_field(value, field_atom)
 
           nested_extracted =
             if is_map(field_value) and nested_template != [] do
@@ -481,6 +481,13 @@ defmodule AshTypescript.Rpc.ResultProcessor do
           acc
       end
     end)
+  end
+
+  defp plain_map_field(map, field_atom) do
+    case Map.fetch(map, field_atom) do
+      {:ok, value} -> value
+      :error -> Map.get(map, to_string(field_atom))
+    end
   end
 
   # ─────────────────────────────────────────────────────────────────────────────
