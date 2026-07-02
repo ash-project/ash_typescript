@@ -411,7 +411,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
   defp field_name_mappings_for(nil), do: nil
 
   defp field_name_mappings_for(module) when is_atom(module) do
-    if function_exported?(module, :typescript_field_names, 0) do
+    if Code.ensure_loaded?(module) and function_exported?(module, :typescript_field_names, 0) do
       module.typescript_field_names()
     else
       nil

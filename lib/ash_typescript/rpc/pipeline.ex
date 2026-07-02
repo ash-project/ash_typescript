@@ -320,7 +320,10 @@ defmodule AshTypescript.Rpc.Pipeline do
           resource_module
 
         {:ok, type, {module, _fields}} when type in [:typed_struct, :array_of_typed_struct] ->
-          if function_exported?(module, :typescript_field_names, 0), do: module, else: nil
+          if Code.ensure_loaded?(module) and
+               function_exported?(module, :typescript_field_names, 0),
+             do: module,
+             else: nil
 
         {:ok, type, _fields} when type in [:typed_map, :array_of_typed_map] ->
           nil

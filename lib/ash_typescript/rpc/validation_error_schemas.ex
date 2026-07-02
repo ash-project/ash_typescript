@@ -269,7 +269,8 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
               end
 
             field_name_mappings =
-              if function_exported?(module, :typescript_field_names, 0) do
+              if Code.ensure_loaded?(module) and
+                   function_exported?(module, :typescript_field_names, 0) do
                 module.typescript_field_names()
               else
                 nil

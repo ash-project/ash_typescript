@@ -226,7 +226,8 @@ defmodule AshTypescript.TypeSystem.Introspection do
       # 1. This NewType has typescript_field_names callback
       # 2. Constraints don't already have instance_of (preserves outermost)
       augmented_constraints =
-        if function_exported?(type, :typescript_field_names, 0) and
+        if Code.ensure_loaded?(type) and
+             function_exported?(type, :typescript_field_names, 0) and
              not Keyword.has_key?(constraints, :instance_of) do
           Keyword.put(constraints, :instance_of, type)
         else
