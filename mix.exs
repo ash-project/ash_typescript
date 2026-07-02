@@ -45,7 +45,7 @@ defmodule AshTypescript.MixProject do
   def ash_version(default_version) do
     case System.get_env("ASH_VERSION") do
       nil -> default_version
-      "local" -> [path: "../ash", override: true]
+      "local" -> [path: "../ash"]
       "main" -> [git: "https://github.com/ash-project/ash.git"]
       version -> "~> #{version}"
     end
@@ -181,13 +181,13 @@ defmodule AshTypescript.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ash, git: "https://github.com/ash-project/ash.git", override: true},
+      {:ash, ash_version("~> 3.27"), override: true},
       {:ash_phoenix, "~> 2.0"},
       {:ash_postgres, "~> 2.0", only: [:dev, :test]},
       {:git_ops, "~> 2.0", only: [:dev], runtime: false},
       {:spark, "~> 2.0"},
       {:sourceror, "~> 1.7", only: [:dev, :test]},
-      {:faker, "~> 0.18", only: :test},
+      {:faker, "~> 0.19", only: :test},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:dialyxir, ">= 0.0.0", only: [:dev, :test], runtime: false},
       {:igniter, "~> 0.7", only: [:dev, :test]},
