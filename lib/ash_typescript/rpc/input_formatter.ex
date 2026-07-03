@@ -12,6 +12,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
   """
 
   alias AshTypescript.{Helpers, Rpc.ValueFormatter}
+  alias AshTypescript.Manifest.Custom
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
   @doc """
@@ -74,19 +75,44 @@ defmodule AshTypescript.Rpc.InputFormatter do
   end
 
   @doc """
-  Builds a map of expected client field names to internal Elixir field names.
+  Returns the `%{client_name => internal_name}` map for an action under the
+  configured output formatter. Reads the value precomputed onto the action's
+  `custom.ash_typescript` (keyed per built-in formatter) when present, and falls
+  back to a live computation for undecorated actions or custom formatters.
 
-  Walks `action.inputs` (unified arguments + accepted attributes) once,
-  deriving each input's client-facing name via `ActionIntrospection.format_input_name/4`
-  so runtime parsing and codegen agree.
+  Client names depend on the output formatter, which is runtime-configurable, so
+  the cache is keyed by formatter (mirroring `formatted_field_names`).
   """
   def build_expected_keys_map(resource, action, _input_formatter, resource_lookups \\ nil) do
+    formatter = AshTypescript.Rpc.output_field_formatter()
+
+    case Custom.action_input_expected_keys(action, formatter) do
+      nil -> compute_expected_keys_map(resource, action, resource_lookups, formatter)
+      cached -> cached
+    end
+  end
+
+  @doc """
+  Pure computation of the expected-keys map for a given `formatter` (defaults to
+  the configured output formatter). Walks `action.inputs` (unified arguments +
+  accepted attributes) once, deriving each input's client-facing name via
+  `ActionIntrospection.format_input_name/5` so runtime parsing and codegen agree.
+  Used by the manifest decorator (to precompute per built-in formatter) and as
+  the runtime fallback.
+  """
+  def compute_expected_keys_map(resource, action, resource_lookups \\ nil, formatter \\ nil) do
     resource_lookup = resource_lookups || AshTypescript.resource_lookup()
 
     (action.inputs || [])
     |> Enum.into(%{}, fn input ->
       client_name =
-        ActionIntrospection.format_input_name(resource, action.name, input.name, resource_lookup)
+        ActionIntrospection.format_input_name(
+          resource,
+          action.name,
+          input.name,
+          resource_lookup,
+          formatter
+        )
 
       {client_name, input.name}
     end)
@@ -195,11 +221,18 @@ defmodule AshTypescript.Rpc.InputFormatter do
 
   # Returns %Ash.Info.Manifest.Type{} for the field. Every input — declared
   # argument or accepted attribute — appears in `action.inputs` with a
-  # pre-resolved type.
+  # pre-resolved type. Reads the precomputed `%{internal_name => %Type{}}` map
+  # from the action decoration when present; otherwise scans `action.inputs`.
   defp get_input_field_type(action, _resource, field_key, _resource_lookups) do
-    case Enum.find(action.inputs || [], &(&1.name == field_key)) do
-      %{type: %Ash.Info.Manifest.Type{} = type} -> type
-      _ -> nil
+    case Custom.action_input_field_types(action) do
+      nil ->
+        case Enum.find(action.inputs || [], &(&1.name == field_key)) do
+          %{type: %Ash.Info.Manifest.Type{} = type} -> type
+          _ -> nil
+        end
+
+      types ->
+        Map.get(types, field_key)
     end
   end
 end

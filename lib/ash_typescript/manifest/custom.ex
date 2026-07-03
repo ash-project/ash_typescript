@@ -28,7 +28,8 @@ defmodule AshTypescript.Manifest.Custom do
           optional(:argument_name_mappings) => %{atom() => %{atom() => String.t()}},
           optional(:reverse_argument_name_mappings) => %{atom() => %{String.t() => atom()}},
           optional(:formatted_field_names) => %{{atom(), atom()} => String.t()},
-          optional(:type_name) => String.t() | nil
+          optional(:type_name) => String.t() | nil,
+          optional(:authorize_bulk_strategy) => :error | :filter
         }
 
   @typedoc """
@@ -40,6 +41,19 @@ defmodule AshTypescript.Manifest.Custom do
           optional(:field_name_mappings) => %{atom() => String.t()},
           optional(:reverse_field_name_mappings) => %{String.t() => atom()},
           optional(:type_name) => String.t() | nil
+        }
+
+  @typedoc """
+  The decoration map persisted under `custom.ash_typescript` on the
+  `%Manifest.Action{}` carried by an RPC/typed-query entrypoint (and thus present
+  in `action_lookup`). Only actions exposed as entrypoints are decorated — those
+  are the only ones the runtime pipeline ever looks up.
+  """
+  @type action_custom :: %{
+          optional(:return_classification) =>
+            {:ok, atom(), term()} | {:error, atom()},
+          optional(:input_expected_keys) => %{atom() => %{String.t() => atom()}},
+          optional(:input_field_types) => %{atom() => Ash.Info.Manifest.Type.t()}
         }
 
   @typedoc """
@@ -181,6 +195,19 @@ defmodule AshTypescript.Manifest.Custom do
   def formatted_field_name(_, _, _), do: nil
 
   @doc """
+  Returns the precomputed bulk-authorization strategy (`:error` or `:filter`)
+  for a decorated resource, or `nil` when the resource isn't decorated (caller
+  should fall back to a live `Ash.DataLayer.data_layer_can?/2` check).
+  """
+  @spec authorize_bulk_strategy(Manifest.Resource.t() | nil) :: :error | :filter | nil
+  def authorize_bulk_strategy(%Manifest.Resource{
+        custom: %{ash_typescript: %{authorize_bulk_strategy: strategy}}
+      }),
+      do: strategy
+
+  def authorize_bulk_strategy(_), do: nil
+
+  @doc """
   Returns the argument-name mapping (`%{arg_atom => client_string}`) for a
   particular action on the resource, or an empty map.
   """
@@ -228,6 +255,55 @@ defmodule AshTypescript.Manifest.Custom do
   end
 
   def original_argument_name(_, _, _), do: nil
+
+  # ─────────────────────────────────────────────────────────────────
+  # Action accessors (entrypoint-exposed actions in action_lookup)
+  # ─────────────────────────────────────────────────────────────────
+
+  @doc """
+  Returns the precomputed return-type classification for a decorated action
+  (the result of `ActionIntrospection.action_returns_field_selectable_type?/1`),
+  or `nil` when the action isn't decorated (caller should compute live).
+  """
+  @spec action_return_classification(Manifest.Action.t() | nil) ::
+          {:ok, atom(), term()} | {:error, atom()} | nil
+  def action_return_classification(%Manifest.Action{
+        custom: %{ash_typescript: %{return_classification: classification}}
+      }),
+      do: classification
+
+  def action_return_classification(_), do: nil
+
+  @doc """
+  Returns the precomputed `%{client_name => internal_atom}` input map for a
+  decorated action under `formatter` (one of the built-in formatters), or `nil`
+  when the action isn't decorated or `formatter` isn't a precomputed built-in
+  (caller should compute live).
+  """
+  @spec action_input_expected_keys(Manifest.Action.t() | nil, atom() | tuple()) ::
+          %{String.t() => atom()} | nil
+  def action_input_expected_keys(
+        %Manifest.Action{custom: %{ash_typescript: %{input_expected_keys: by_formatter}}},
+        formatter
+      )
+      when is_map(by_formatter) do
+    Map.get(by_formatter, formatter)
+  end
+
+  def action_input_expected_keys(_, _), do: nil
+
+  @doc """
+  Returns the precomputed `%{internal_atom => %Manifest.Type{}}` input field-type
+  map for a decorated action, or `nil` when the action isn't decorated.
+  """
+  @spec action_input_field_types(Manifest.Action.t() | nil) ::
+          %{atom() => Ash.Info.Manifest.Type.t()} | nil
+  def action_input_field_types(%Manifest.Action{
+        custom: %{ash_typescript: %{input_field_types: types}}
+      }),
+      do: types
+
+  def action_input_field_types(_), do: nil
 
   # ─────────────────────────────────────────────────────────────────
   # Type accessors (NewTypes / TypedStructs)

@@ -163,13 +163,11 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   `format_field_name/2` (formatter only — arguments don't carry resource field
   metadata).
   """
-  def format_input_name(resource, action_name, input_name, resource_lookup) do
+  def format_input_name(resource, action_name, input_name, resource_lookup, formatter \\ nil) do
+    formatter = formatter || AshTypescript.Rpc.output_field_formatter()
+
     if accepted_attribute?(resource, input_name, resource_lookup) do
-      AshTypescript.FieldFormatter.format_field_for_client(
-        input_name,
-        resource,
-        AshTypescript.Rpc.output_field_formatter()
-      )
+      AshTypescript.FieldFormatter.format_field_for_client(input_name, resource, formatter)
     else
       mapped =
         AshTypescript.Resource.Info.get_mapped_argument_name(resource, action_name, input_name)
@@ -179,16 +177,10 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
           mapped
 
         mapped == input_name ->
-          AshTypescript.FieldFormatter.format_field_name(
-            input_name,
-            AshTypescript.Rpc.output_field_formatter()
-          )
+          AshTypescript.FieldFormatter.format_field_name(input_name, formatter)
 
         true ->
-          AshTypescript.FieldFormatter.format_field_name(
-            mapped,
-            AshTypescript.Rpc.output_field_formatter()
-          )
+          AshTypescript.FieldFormatter.format_field_name(mapped, formatter)
       end
     end
   end
@@ -209,20 +201,33 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   - `{:error, reason}` - Other errors
   """
   def action_returns_field_selectable_type?(action) do
-    if action.type != :action do
-      {:error, :not_generic_action}
-    else
-      check_action_returns(action)
+    case AshTypescript.Manifest.Custom.action_return_classification(action) do
+      nil -> compute_action_returns_field_selectable_type?(action, AshTypescript.type_lookup())
+      cached -> cached
     end
   end
 
-  defp check_action_returns(action) do
-    {base_type, constraints, is_array} = unwrap_return_type(action)
+  @doc """
+  Pure computation of `action_returns_field_selectable_type?/1`, taking an
+  explicit `type_lookup` so it can run during manifest decoration (before the
+  `:type_lookup` is persisted). The decorator stores the result on the action's
+  `custom.ash_typescript` so the runtime path is a plain map read.
+  """
+  def compute_action_returns_field_selectable_type?(action, type_lookup) do
+    if action.type != :action do
+      {:error, :not_generic_action}
+    else
+      check_action_returns(action, type_lookup)
+    end
+  end
+
+  defp check_action_returns(action, type_lookup) do
+    {base_type, constraints, is_array} = unwrap_return_type(action, type_lookup)
 
     {unwrapped_type, unwrapped_constraints} =
       Introspection.unwrap_new_type(base_type, constraints)
 
-    case classify_return_type(unwrapped_type, unwrapped_constraints) do
+    case classify_return_type(unwrapped_type, unwrapped_constraints, type_lookup) do
       {:resource, module} ->
         if is_array do
           {:ok, :array_of_resource, module}
@@ -256,7 +261,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
     end
   end
 
-  defp unwrap_return_type(action) do
+  defp unwrap_return_type(action, type_lookup) do
     case action.returns do
       # Ash.Info.Manifest.Type with array kind
       %Ash.Info.Manifest.Type{kind: :array, item_type: item_type} ->
@@ -264,7 +269,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
 
       # Ash.Info.Manifest.Type ref — resolve before continuing
       %Ash.Info.Manifest.Type{kind: :type_ref, module: module} ->
-        full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), module)
+        full_type = Ash.Info.Manifest.get_type!(type_lookup, module)
         {full_type, [], false}
 
       # Ash.Info.Manifest.Type (non-array)
@@ -282,7 +287,11 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   end
 
   # Classifies a return type into a category for field selectability
-  @spec classify_return_type(atom() | tuple() | Ash.Info.Manifest.Type.t(), keyword()) ::
+  @spec classify_return_type(
+          atom() | tuple() | Ash.Info.Manifest.Type.t(),
+          keyword(),
+          map()
+        ) ::
           {:resource, module()}
           | {:typed_map, keyword()}
           | {:typed_struct, {module(), keyword()}}
@@ -291,15 +300,17 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   # Ash.Info.Manifest.Type classification
   defp classify_return_type(
          %Ash.Info.Manifest.Type{kind: :type_ref, module: module},
-         _constraints
+         _constraints,
+         type_lookup
        ) do
-    full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), module)
-    classify_return_type(full_type, [])
+    full_type = Ash.Info.Manifest.get_type!(type_lookup, module)
+    classify_return_type(full_type, [], type_lookup)
   end
 
   defp classify_return_type(
          %Ash.Info.Manifest.Type{kind: kind, resource_module: mod},
-         _constraints
+         _constraints,
+         _type_lookup
        )
        when kind in [:resource, :embedded_resource] and not is_nil(mod) do
     {:resource, mod}
@@ -307,13 +318,18 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
 
   defp classify_return_type(
          %Ash.Info.Manifest.Type{kind: :struct, fields: fields, instance_of: inst},
-         _constraints
+         _constraints,
+         _type_lookup
        )
        when is_list(fields) and fields != [] and not is_nil(inst) do
     {:typed_struct, {inst, fields}}
   end
 
-  defp classify_return_type(%Ash.Info.Manifest.Type{kind: kind} = type_info, _constraints)
+  defp classify_return_type(
+         %Ash.Info.Manifest.Type{kind: kind} = type_info,
+         _constraints,
+         _type_lookup
+       )
        when kind in [:map, :keyword, :tuple] do
     fields = Ash.Info.Manifest.Type.get_fields(type_info)
 
@@ -324,12 +340,12 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
     end
   end
 
-  defp classify_return_type(%Ash.Info.Manifest.Type{}, _constraints) do
+  defp classify_return_type(%Ash.Info.Manifest.Type{}, _constraints, _type_lookup) do
     {:error, :not_field_selectable_type}
   end
 
   # Legacy raw Ash type classification
-  defp classify_return_type(type, constraints) do
+  defp classify_return_type(type, constraints, _type_lookup) do
     cond do
       type == Ash.Type.Struct and Keyword.has_key?(constraints, :instance_of) ->
         instance_of = Keyword.get(constraints, :instance_of)

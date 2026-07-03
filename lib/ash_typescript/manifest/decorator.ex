@@ -38,6 +38,8 @@ defmodule AshTypescript.Manifest.Decorator do
   alias Ash.Info.Manifest
   alias AshTypescript.FieldFormatter
   alias AshTypescript.Helpers
+  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
+  alias AshTypescript.Rpc.InputFormatter
 
   @builtin_formatters [:camel_case, :snake_case, :pascal_case]
 
@@ -46,11 +48,22 @@ defmodule AshTypescript.Manifest.Decorator do
   """
   @spec decorate(Manifest.t()) :: Manifest.t()
   def decorate(%Manifest{} = manifest) do
+    # Build lookups from the in-hand manifest: the persisted `:type_lookup` /
+    # `:resource_lookup` don't exist yet (DecorateAppSpec derives them from *this*
+    # decorated result), so action-level precomputation must resolve types against
+    # a locally-built lookup instead of `AshTypescript.type_lookup/0`.
+    type_lookup = Manifest.type_lookup(manifest)
+    resource_lookup = Manifest.resource_lookup(manifest)
+
     %Manifest{
       manifest
       | resources: Enum.map(manifest.resources, &decorate_resource/1),
         types: Enum.map(manifest.types, &decorate_type/1),
-        entrypoints: Enum.map(manifest.entrypoints, &decorate_entrypoint/1)
+        entrypoints:
+          Enum.map(
+            manifest.entrypoints,
+            &decorate_entrypoint(&1, type_lookup, resource_lookup)
+          )
     }
   end
 
@@ -80,9 +93,17 @@ defmodule AshTypescript.Manifest.Decorator do
         argument_name_mappings: argument_mappings,
         reverse_argument_name_mappings: reverse_argument_mappings(argument_mappings),
         formatted_field_names: formatted,
-        type_name: AshTypescript.Codegen.Helpers.build_resource_type_name(module)
+        type_name: AshTypescript.Codegen.Helpers.build_resource_type_name(module),
+        authorize_bulk_strategy: authorize_bulk_strategy(module)
       }
     end
+  end
+
+  # Precompute the bulk-authorization strategy for update/destroy actions. The
+  # data-layer capability is fixed at compile time, so this replaces a per-request
+  # `Ash.DataLayer.data_layer_can?/2` call in the runtime pipeline.
+  defp authorize_bulk_strategy(module) do
+    if Ash.DataLayer.data_layer_can?(module, :expr_error), do: :error, else: :filter
   end
 
   defp typescript_resource?(nil), do: false
@@ -182,7 +203,11 @@ defmodule AshTypescript.Manifest.Decorator do
   # Entrypoint decoration
   # ─────────────────────────────────────────────────────────────────
 
-  defp decorate_entrypoint(%Manifest.Entrypoint{config: %{ash_typescript: ts}} = entrypoint) do
+  defp decorate_entrypoint(
+         %Manifest.Entrypoint{config: %{ash_typescript: ts}} = entrypoint,
+         type_lookup,
+         resource_lookup
+       ) do
     custom_payload =
       ts
       |> Map.take([:rpc_action, :typed_query, :domain, :resource_config])
@@ -192,10 +217,55 @@ defmodule AshTypescript.Manifest.Decorator do
       |> Map.put(:filtering_enabled?, feature_enabled?(ts, :enable_filter?))
       |> Map.put(:sorting_enabled?, feature_enabled?(ts, :enable_sort?))
 
-    %Manifest.Entrypoint{entrypoint | custom: put_namespace(entrypoint.custom, custom_payload)}
+    %Manifest.Entrypoint{
+      entrypoint
+      | custom: put_namespace(entrypoint.custom, custom_payload),
+        action:
+          decorate_action(entrypoint.action, entrypoint.resource, type_lookup, resource_lookup)
+    }
   end
 
-  defp decorate_entrypoint(%Manifest.Entrypoint{} = entrypoint), do: entrypoint
+  defp decorate_entrypoint(%Manifest.Entrypoint{} = entrypoint, _type_lookup, _resource_lookup),
+    do: entrypoint
+
+  # Precompute action-level, request-independent data onto the entrypoint's
+  # `%Manifest.Action{}` (which is exactly what flows into `action_lookup`). The
+  # runtime pipeline reads these via `Custom` instead of recomputing per request.
+  defp decorate_action(%Manifest.Action{} = action, resource, type_lookup, resource_lookup) do
+    payload = %{
+      return_classification:
+        ActionIntrospection.compute_action_returns_field_selectable_type?(action, type_lookup),
+      input_expected_keys: build_input_expected_keys(action, resource, resource_lookup),
+      input_field_types: build_input_field_types(action)
+    }
+
+    %Manifest.Action{action | custom: put_namespace(action.custom, payload)}
+  end
+
+  defp decorate_action(action, _resource, _type_lookup, _resource_lookup), do: action
+
+  # Client input names depend on the output formatter, which is
+  # runtime-configurable, so precompute one map per built-in formatter (mirroring
+  # `formatted_field_names`). Custom formatters fall back to live computation.
+  defp build_input_expected_keys(action, resource, resource_lookup) do
+    for formatter <- @builtin_formatters, into: %{} do
+      {formatter,
+       InputFormatter.compute_expected_keys_map(resource, action, resource_lookup, formatter)}
+    end
+  end
+
+  defp build_input_field_types(action) do
+    (action.inputs || [])
+    |> Enum.into(%{}, fn input ->
+      type =
+        case input do
+          %{type: %Manifest.Type{} = t} -> t
+          _ -> nil
+        end
+
+      {input.name, type}
+    end)
+  end
 
   defp exposed_metadata_fields(%{rpc_action: rpc_action}, action) when not is_nil(rpc_action) do
     AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes.get_exposed_metadata_fields(
