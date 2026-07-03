@@ -12,6 +12,7 @@ defmodule AshTypescript.Rpc.Errors do
 
   require Logger
 
+  alias AshTypescript.Manifest.Custom
   alias AshTypescript.Rpc.DefaultErrorHandler
   alias AshTypescript.Rpc.Error, as: ErrorProtocol
 
@@ -255,7 +256,11 @@ defmodule AshTypescript.Rpc.Errors do
        when is_list(fields) do
     formatted_fields =
       Enum.map(fields, fn field ->
-        AshTypescript.FieldFormatter.format_field_for_client(field, resource, formatter)
+        AshTypescript.FieldFormatter.format_field_for_client(
+          field,
+          Custom.resolve_resource(resource),
+          formatter
+        )
       end)
 
     %{error | fields: formatted_fields}
@@ -287,7 +292,11 @@ defmodule AshTypescript.Rpc.Errors do
       Enum.into(vars, %{}, fn
         {:field, field} ->
           {:field,
-           AshTypescript.FieldFormatter.format_field_for_client(field, resource, formatter)}
+           AshTypescript.FieldFormatter.format_field_for_client(
+             field,
+             Custom.resolve_resource(resource),
+             formatter
+           )}
 
         other ->
           other

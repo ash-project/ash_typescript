@@ -40,7 +40,9 @@ defmodule AshTypescript.Rpc.Pipeline do
     ValueFormatter
   }
 
+  alias Ash.Info.Manifest
   alias AshTypescript.{FieldFormatter, Rpc}
+  alias AshTypescript.Manifest.Custom
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
   @doc """
@@ -78,7 +80,7 @@ defmodule AshTypescript.Rpc.Pipeline do
            conn_or_socket.assigns[:ash_context] || %{}}
       end
 
-    with {:ok, {domain, resource, action, rpc_action}} <-
+    with {:ok, {domain, resource, action, rpc_action, entrypoint}} <-
            discover_action(otp_app, normalized_params),
          resource_lookups = AshTypescript.resource_lookup(),
          type_index = %{},
@@ -103,18 +105,14 @@ defmodule AshTypescript.Rpc.Pipeline do
              resource_lookups,
              type_index
            ),
-         :ok <- validate_load_restrictions(load, rpc_action),
+         :ok <- validate_load_restrictions(load, entrypoint),
          {:ok, input} <-
            parse_action_input(normalized_params, action, resource, resource_lookups, type_index),
          {:ok, get_by} <- parse_get_by(normalized_params, rpc_action, resource, resource_lookups),
          {:ok, pagination} <- parse_pagination(normalized_params) do
       formatted_sort = format_sort_string(normalized_params[:sort], input_formatter)
 
-      exposed_metadata_fields =
-        AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes.get_exposed_metadata_fields(
-          rpc_action,
-          action
-        )
+      exposed_metadata_fields = Custom.exposed_metadata_fields(entrypoint)
 
       metadata_enabled? =
         AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes.metadata_enabled?(
@@ -134,9 +132,9 @@ defmodule AshTypescript.Rpc.Pipeline do
                     # First try to reverse map the original client field name
                     # This handles cases like "meta1" → :meta_1 where the mapping is exact
                     original =
-                      AshTypescript.Rpc.Info.get_original_metadata_field_name(rpc_action, field)
+                      Map.get(Custom.reverse_metadata_field_mappings(entrypoint), field)
 
-                    if is_atom(original) && original != field do
+                    if is_atom(original) and not is_nil(original) do
                       original
                     else
                       internal_name = FieldFormatter.parse_input_field(field, input_formatter)
@@ -181,8 +179,8 @@ defmodule AshTypescript.Rpc.Pipeline do
         end
 
       # enable_filter? and enable_sort? default to true - when false, drop respective params
-      enable_filter? = Map.get(rpc_action, :enable_filter?, true)
-      enable_sort? = Map.get(rpc_action, :enable_sort?, true)
+      enable_filter? = Custom.filtering_enabled?(entrypoint)
+      enable_sort? = Custom.sorting_enabled?(entrypoint)
       filter = if enable_filter?, do: normalized_params[:filter], else: nil
       sort = if enable_sort?, do: formatted_sort, else: nil
 
@@ -192,6 +190,7 @@ defmodule AshTypescript.Rpc.Pipeline do
           resource: resource,
           action: action,
           rpc_action: rpc_action,
+          entrypoint: entrypoint,
           tenant: tenant,
           actor: actor,
           context: context,
@@ -364,9 +363,10 @@ defmodule AshTypescript.Rpc.Pipeline do
             nil ->
               {:error, {:typed_query_not_found, typed_query_name}}
 
-            {domain, resource, typed_query} ->
-              action = ActionIntrospection.get_action!(resource, typed_query.action)
-              {:ok, {domain, resource, action, typed_query}}
+            %Manifest.Entrypoint{} = e ->
+              typed_query = Custom.typed_query(e)
+              action = ActionIntrospection.get_action!(e.resource, typed_query.action)
+              {:ok, {Custom.entrypoint_domain(e), e.resource, action, typed_query, e}}
           end
         end
 
@@ -378,10 +378,11 @@ defmodule AshTypescript.Rpc.Pipeline do
             nil ->
               {:error, {:action_not_found, action_name}}
 
-            {domain, resource, rpc_action} ->
-              action = ActionIntrospection.get_action!(resource, rpc_action.action)
-              augmented_action = augment_action_with_rpc_settings(action, rpc_action, resource)
-              {:ok, {domain, resource, augmented_action, rpc_action}}
+            %Manifest.Entrypoint{} = e ->
+              rpc_action = Custom.rpc_action(e)
+              action = ActionIntrospection.get_action!(e.resource, rpc_action.action)
+              augmented = augment_action_with_rpc_settings(action, rpc_action, e.resource)
+              {:ok, {Custom.entrypoint_domain(e), e.resource, augmented, rpc_action, e}}
           end
         end
 
@@ -390,41 +391,23 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp find_typed_query(otp_app, typed_query_name)
+  defp find_typed_query(_otp_app, typed_query_name)
        when is_binary(typed_query_name) or is_atom(typed_query_name) do
     query_string = to_string(typed_query_name)
 
-    otp_app
-    |> Ash.Info.domains()
-    |> Enum.find_value(fn domain ->
-      domain
-      |> AshTypescript.Rpc.Info.typescript_rpc()
-      |> Enum.find_value(fn %{resource: resource, typed_queries: typed_queries} ->
-        Enum.find_value(typed_queries, fn typed_query ->
-          if to_string(typed_query.name) == query_string do
-            {domain, resource, typed_query}
-          end
-        end)
-      end)
+    Enum.find(AshTypescript.entrypoints(), fn e ->
+      tq = Custom.typed_query(e)
+      tq != nil and to_string(tq.name) == query_string
     end)
   end
 
-  defp find_rpc_action(otp_app, action_name)
+  defp find_rpc_action(_otp_app, action_name)
        when is_binary(action_name) or is_atom(action_name) do
     action_string = to_string(action_name)
 
-    otp_app
-    |> Ash.Info.domains()
-    |> Enum.find_value(fn domain ->
-      domain
-      |> AshTypescript.Rpc.Info.typescript_rpc()
-      |> Enum.find_value(fn %{resource: resource, rpc_actions: rpc_actions} ->
-        Enum.find_value(rpc_actions, fn rpc_action ->
-          if to_string(rpc_action.name) == action_string do
-            {domain, resource, rpc_action}
-          end
-        end)
-      end)
+    Enum.find(AshTypescript.entrypoints(), fn e ->
+      rpc = Custom.rpc_action(e)
+      rpc != nil and to_string(rpc.name) == action_string
     end)
   end
 
@@ -638,6 +621,7 @@ defmodule AshTypescript.Rpc.Pipeline do
 
       formatter = Rpc.input_field_formatter()
       output_formatter = Rpc.output_field_formatter()
+      res_struct = Custom.resolve_resource(resource)
       parsed_get_by = FieldFormatter.parse_input_fields(raw_get_by, formatter)
 
       allowed_fields = MapSet.new(rpc_get_by)
@@ -654,7 +638,7 @@ defmodule AshTypescript.Rpc.Pipeline do
           formatted_allowed =
             Enum.map(
               rpc_get_by,
-              &FieldFormatter.format_field_for_client(&1, resource, output_formatter)
+              &FieldFormatter.format_field_for_client(&1, res_struct, output_formatter)
             )
 
           {:error, {:unexpected_get_by_fields, formatted_extra, formatted_allowed}}
@@ -663,7 +647,7 @@ defmodule AshTypescript.Rpc.Pipeline do
           formatted_missing =
             Enum.map(
               missing_fields,
-              &FieldFormatter.format_field_for_client(&1, resource, output_formatter)
+              &FieldFormatter.format_field_for_client(&1, res_struct, output_formatter)
             )
 
           {:error, {:missing_get_by_fields, formatted_missing}}
@@ -1243,11 +1227,12 @@ defmodule AshTypescript.Rpc.Pipeline do
   defp maybe_apply_identity_filter(query, nil, identities, lookups) when identities != [] do
     resource = query.resource
     output_formatter = Rpc.output_field_formatter()
+    res_struct = Custom.resolve_resource(resource)
 
     expected_keys =
       resource
       |> get_expected_identity_keys(identities, lookups)
-      |> Enum.map(&FieldFormatter.format_field_for_client(&1, resource, output_formatter))
+      |> Enum.map(&FieldFormatter.format_field_for_client(&1, res_struct, output_formatter))
 
     {:error,
      {:missing_identity,
@@ -1289,6 +1274,7 @@ defmodule AshTypescript.Rpc.Pipeline do
 
       nil ->
         output_formatter = Rpc.output_field_formatter()
+        res_struct = Custom.resolve_resource(resource)
 
         provided_keys =
           parsed_identity
@@ -1298,7 +1284,7 @@ defmodule AshTypescript.Rpc.Pipeline do
         expected_keys =
           resource
           |> get_expected_identity_keys(identities, lookups)
-          |> Enum.map(&FieldFormatter.format_field_for_client(&1, resource, output_formatter))
+          |> Enum.map(&FieldFormatter.format_field_for_client(&1, res_struct, output_formatter))
 
         {:error,
          {:invalid_identity,
@@ -1366,10 +1352,10 @@ defmodule AshTypescript.Rpc.Pipeline do
     Enum.into(identity, %{}, fn {key, value} ->
       # First try to reverse map the original client key directly
       # This handles cases like "isActive" → :is_active? where the mapping is exact
-      original_key = AshTypescript.Resource.Info.get_original_field_name(resource, key)
+      original_key = Custom.original_field_name(Custom.resolve_resource(resource), key)
 
       internal_key =
-        if original_key != key do
+        if is_atom(original_key) and not is_nil(original_key) do
           # Found a direct mapping (e.g., "isActive" → :is_active?)
           original_key
         else
@@ -1421,7 +1407,7 @@ defmodule AshTypescript.Rpc.Pipeline do
             filtered_result,
             original_result,
             request.show_metadata,
-            request.rpc_action,
+            request.entrypoint,
             request.action
           )
 
@@ -1430,7 +1416,7 @@ defmodule AshTypescript.Rpc.Pipeline do
             filtered_result,
             original_result,
             request.show_metadata,
-            request.rpc_action,
+            request.entrypoint,
             request.action
           )
 
@@ -1440,19 +1426,19 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp add_read_metadata(filtered_result, original_result, show_metadata, rpc_action, action)
+  defp add_read_metadata(filtered_result, original_result, show_metadata, entrypoint, action)
        when is_list(filtered_result) do
     if is_list(original_result) do
       Enum.zip(filtered_result, original_result)
       |> Enum.map(fn {filtered_record, original_record} ->
-        do_add_read_metadata(filtered_record, original_record, show_metadata, rpc_action, action)
+        do_add_read_metadata(filtered_record, original_record, show_metadata, entrypoint, action)
       end)
     else
       filtered_result
     end
   end
 
-  defp add_read_metadata(filtered_result, original_result, show_metadata, rpc_action, action)
+  defp add_read_metadata(filtered_result, original_result, show_metadata, entrypoint, action)
        when is_map(filtered_result) do
     if Map.has_key?(filtered_result, :results) do
       updated_results =
@@ -1462,28 +1448,28 @@ defmodule AshTypescript.Rpc.Pipeline do
             filtered_record,
             original_record,
             show_metadata,
-            rpc_action,
+            entrypoint,
             action
           )
         end)
 
       Map.put(filtered_result, :results, updated_results)
     else
-      do_add_read_metadata(filtered_result, original_result, show_metadata, rpc_action, action)
+      do_add_read_metadata(filtered_result, original_result, show_metadata, entrypoint, action)
     end
   end
 
-  defp add_read_metadata(filtered_result, _original_result, _show_metadata, _rpc_action, _action) do
+  defp add_read_metadata(filtered_result, _original_result, _show_metadata, _entrypoint, _action) do
     filtered_result
   end
 
-  defp do_add_read_metadata(filtered_record, original_record, show_metadata, rpc_action, action)
+  defp do_add_read_metadata(filtered_record, original_record, show_metadata, entrypoint, action)
        when is_map(filtered_record) do
     metadata_map = Map.get(original_record, :__metadata__, %{})
     formatter = Rpc.output_field_formatter()
 
     formatted_metadata =
-      format_metadata(metadata_map, show_metadata, rpc_action, action, formatter)
+      format_metadata(metadata_map, show_metadata, entrypoint, action, formatter)
 
     Map.merge(filtered_record, formatted_metadata)
   end
@@ -1492,18 +1478,18 @@ defmodule AshTypescript.Rpc.Pipeline do
          filtered_record,
          _original_record,
          _show_metadata,
-         _rpc_action,
+         _entrypoint,
          _action
        ) do
     filtered_record
   end
 
-  defp add_mutation_metadata(filtered_result, original_result, show_metadata, rpc_action, action) do
+  defp add_mutation_metadata(filtered_result, original_result, show_metadata, entrypoint, action) do
     metadata_map = Map.get(original_result, :__metadata__, %{})
     formatter = Rpc.output_field_formatter()
 
     extracted_metadata =
-      format_metadata(metadata_map, show_metadata, rpc_action, action, formatter)
+      format_metadata(metadata_map, show_metadata, entrypoint, action, formatter)
 
     %{data: filtered_result, metadata: extracted_metadata}
   end
@@ -1513,12 +1499,15 @@ defmodule AshTypescript.Rpc.Pipeline do
   # type-driven dispatch as attribute/calculation values: typed maps get their
   # nested keys camelized, unconstrained `:map` / `{:array, :map}` metadata
   # passes through unchanged (so caller-provided keys like `_id` survive).
-  defp format_metadata(metadata_map, show_metadata, rpc_action, action, formatter) do
+  defp format_metadata(metadata_map, show_metadata, entrypoint, action, formatter) do
     metadata_defs = Map.get(action || %{}, :metadata, []) || []
 
     Enum.reduce(show_metadata, %{}, fn metadata_field, acc ->
       mapped_field_name =
-        AshTypescript.Rpc.Info.get_mapped_metadata_field_name(rpc_action, metadata_field)
+        case Map.get(Custom.metadata_field_mappings(entrypoint), metadata_field) do
+          mapped when is_binary(mapped) -> mapped
+          _ -> metadata_field
+        end
 
       value = Map.get(metadata_map, metadata_field)
       {type, constraints} = lookup_metadata_type(metadata_defs, metadata_field)
@@ -1537,19 +1526,11 @@ defmodule AshTypescript.Rpc.Pipeline do
   # Load restriction validation
   # Checks that requested loads comply with allowed_loads or denied_loads restrictions
 
-  defp validate_load_restrictions(load, rpc_action) do
-    allowed_loads = Map.get(rpc_action, :allowed_loads)
-    denied_loads = Map.get(rpc_action, :denied_loads)
-
-    cond do
-      not is_nil(allowed_loads) ->
-        validate_allowed_loads(load, allowed_loads)
-
-      not is_nil(denied_loads) ->
-        validate_denied_loads(load, denied_loads)
-
-      true ->
-        :ok
+  defp validate_load_restrictions(load, entrypoint) do
+    case Custom.load_restrictions(entrypoint) do
+      {:allow, allowed_loads} -> validate_allowed_loads(load, allowed_loads)
+      {:deny, denied_loads} -> validate_denied_loads(load, denied_loads)
+      :none -> :ok
     end
   end
 

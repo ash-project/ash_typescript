@@ -11,6 +11,8 @@ defmodule AshTypescript.FieldFormatter do
 
   import AshTypescript.Helpers
 
+  alias Ash.Info.Manifest
+  alias AshTypescript.Manifest.Custom
   alias AshTypescript.TypeSystem.Introspection
 
   @doc """
@@ -45,6 +47,27 @@ defmodule AshTypescript.FieldFormatter do
         formatted when is_binary(formatted) -> formatted
         nil -> compute_field_for_client(field, resource, formatter)
       end
+    end
+  end
+
+  def format_field_for_client(field, %Manifest.Resource{} = resource, formatter)
+      when is_atom(field) and formatter in [:camel_case, :snake_case, :pascal_case] do
+    Custom.formatted_field_name(resource, field, formatter) ||
+      compute_field_name(field, formatter)
+  end
+
+  def format_field_for_client(field, %Manifest.Resource{} = resource, formatter)
+      when is_atom(field) do
+    case Custom.mapped_field_name(resource, field) do
+      mapped when is_binary(mapped) -> mapped
+      _ -> compute_field_name(field, formatter)
+    end
+  end
+
+  def format_field_for_client(field, %Manifest.Type{} = type, formatter) when is_atom(field) do
+    case Map.get(Custom.type_field_name_mappings(type), field) do
+      mapped when is_binary(mapped) -> mapped
+      _ -> compute_field_name(field, formatter)
     end
   end
 

@@ -91,7 +91,12 @@ defmodule AshTypescript.Rpc.OutputFormatter do
       formatted_value =
         ValueFormatter.format(value, field_or_rel, [], formatter, :output, resource_lookups)
 
-      output_key = FieldFormatter.format_field_for_client(internal_key, resource, formatter)
+      output_key =
+        FieldFormatter.format_field_for_client(
+          internal_key,
+          Ash.Info.Manifest.get_resource(resource_lookups, resource),
+          formatter
+        )
 
       {output_key, formatted_value}
     end)

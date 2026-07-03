@@ -32,7 +32,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   alias Ash.Info.Manifest.Type
   alias AshTypescript.FieldFormatter
   alias AshTypescript.Helpers
-  alias AshTypescript.Resource.Info, as: ResourceInfo
+  alias AshTypescript.Manifest.Custom
   alias AshTypescript.Rpc.FieldProcessing.FieldSelector.Validation
   alias AshTypescript.TypeSystem.Introspection
 
@@ -157,7 +157,9 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
     case type_info.kind do
       :type_ref ->
-        full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(manifest), type_info.module)
+        full_type =
+          Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(manifest), type_info.module)
+
         select_fields(full_type, [], requested_fields, path, manifest)
 
       :array ->
@@ -492,7 +494,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       :relationship ->
         dest_resource = extract_relationship_destination(field_type, resource, internal_name)
 
-        unless dest_resource && ResourceInfo.typescript_resource?(dest_resource) do
+        unless Custom.typescript_resource?(Custom.resolve_resource(dest_resource)) do
           throw({:unknown_field, internal_name, resource, path})
         end
 
@@ -632,7 +634,9 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
   defp get_resource_field_info(resource, field_name, path, manifest)
        when is_atom(resource) do
-    api_resource = Ash.Info.Manifest.get_resource!(AshTypescript.resource_lookup(manifest), resource)
+    api_resource =
+      Ash.Info.Manifest.get_resource!(AshTypescript.resource_lookup(manifest), resource)
+
     get_resource_field_info_from_spec(api_resource, resource, field_name, path, manifest)
   end
 
@@ -1187,9 +1191,11 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   end
 
   defp atomize_field_name(field, resource) when is_binary(field) do
-    if ResourceInfo.typescript_resource?(resource) do
-      case ResourceInfo.get_original_field_name(resource, field) do
-        original when is_atom(original) -> original
+    res_struct = Custom.resolve_resource(resource)
+
+    if Custom.typescript_resource?(res_struct) do
+      case Custom.original_field_name(res_struct, field) do
+        original when is_atom(original) and not is_nil(original) -> original
         _ -> field
       end
     else
@@ -1245,9 +1251,11 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   end
 
   defp resolve_resource_field_name(resource, field_name) when is_binary(field_name) do
-    if ResourceInfo.typescript_resource?(resource) do
-      case ResourceInfo.get_original_field_name(resource, field_name) do
-        original when is_atom(original) -> original
+    res_struct = Custom.resolve_resource(resource)
+
+    if Custom.typescript_resource?(res_struct) do
+      case Custom.original_field_name(res_struct, field_name) do
+        original when is_atom(original) and not is_nil(original) -> original
         _ -> convert_to_field_atom(field_name)
       end
     else
@@ -1256,7 +1264,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   end
 
   defp resolve_resource_field_name(resource, field_name) when is_atom(field_name) do
-    ResourceInfo.get_original_field_name(resource, field_name)
+    Custom.original_field_name(Custom.resolve_resource(resource), field_name) || field_name
   end
 
   defp convert_to_field_atom(field_name) do

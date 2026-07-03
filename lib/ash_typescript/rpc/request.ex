@@ -29,7 +29,8 @@ defmodule AshTypescript.Rpc.Request do
           pagination: map() | nil,
           show_metadata: list(atom()),
           resource_lookups: %{module() => Ash.Info.Manifest.Resource.t()} | nil,
-          type_index: map()
+          type_index: map(),
+          entrypoint: Ash.Info.Manifest.Entrypoint.t() | nil
         }
 
   defstruct [
@@ -37,6 +38,7 @@ defmodule AshTypescript.Rpc.Request do
     :resource,
     :action,
     :rpc_action,
+    :entrypoint,
     :tenant,
     :actor,
     :context,

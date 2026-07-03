@@ -21,7 +21,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   alias Ash.Info.Manifest.Type
   alias AshTypescript.FieldFormatter
   alias AshTypescript.Helpers
-  alias AshTypescript.Resource.Info, as: ResourceInfo
+  alias AshTypescript.Manifest.Custom
 
   @type direction :: :input | :output
 
@@ -255,8 +255,10 @@ defmodule AshTypescript.Rpc.ValueFormatter do
 
   defp format_resource(value, resource, formatter, direction, resource_lookups)
        when is_map(value) and not is_struct(value) do
+    res_struct = Custom.resolve_resource(resource)
+
     Enum.into(value, %{}, fn {key, field_value} ->
-      internal_key = convert_resource_key(key, resource, formatter, direction)
+      internal_key = convert_resource_key(key, res_struct, formatter, direction)
 
       # Look up field or relationship from the spec directly
       field_or_rel =
@@ -270,7 +272,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
       output_key =
         case direction do
           :input -> internal_key
-          :output -> FieldFormatter.format_field_for_client(internal_key, resource, formatter)
+          :output -> FieldFormatter.format_field_for_client(internal_key, res_struct, formatter)
         end
 
       {output_key, formatted_value}
@@ -279,15 +281,15 @@ defmodule AshTypescript.Rpc.ValueFormatter do
 
   defp format_resource(value, _resource, _formatter, _direction, _resource_lookups), do: value
 
-  defp convert_resource_key(key, resource, formatter, :input) when is_binary(key) do
-    case ResourceInfo.get_original_field_name(resource, key) do
-      original when is_atom(original) -> original
+  defp convert_resource_key(key, res_struct, formatter, :input) when is_binary(key) do
+    case Custom.original_field_name(res_struct, key) do
+      original when is_atom(original) and not is_nil(original) -> original
       _ -> FieldFormatter.parse_input_field(key, formatter)
     end
   end
 
-  defp convert_resource_key(key, _resource, _formatter, :input), do: key
-  defp convert_resource_key(key, _resource, _formatter, :output), do: key
+  defp convert_resource_key(key, _res_struct, _formatter, :input), do: key
+  defp convert_resource_key(key, _res_struct, _formatter, :output), do: key
 
   # ---------------------------------------------------------------------------
   # TypedStruct Handler — types with typescript_field_names callback

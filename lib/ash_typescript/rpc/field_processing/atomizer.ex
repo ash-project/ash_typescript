@@ -13,7 +13,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.Atomizer do
   the correct internal field name has been resolved.
   """
 
-  alias AshTypescript.Resource.Info, as: ResourceInfo
+  alias AshTypescript.Manifest.Custom
 
   @doc """
   Processes requested fields, converting map keys to atoms for navigation
@@ -58,13 +58,12 @@ defmodule AshTypescript.Rpc.FieldProcessing.Atomizer do
 
   def process_field(field_name, _formatter, resource) when is_binary(field_name) do
     # For resources, check field_names DSL mapping first
-    if resource && ResourceInfo.typescript_resource?(resource) do
-      case ResourceInfo.get_original_field_name(resource, field_name) do
-        original when is_atom(original) ->
-          original
+    res_struct = Custom.resolve_resource(resource)
 
-        _ ->
-          field_name
+    if Custom.typescript_resource?(res_struct) do
+      case Custom.original_field_name(res_struct, field_name) do
+        original when is_atom(original) and not is_nil(original) -> original
+        _ -> field_name
       end
     else
       field_name
@@ -90,9 +89,11 @@ defmodule AshTypescript.Rpc.FieldProcessing.Atomizer do
   end
 
   defp convert_map_key_to_atom(key, _formatter, resource) when is_binary(key) do
-    if resource && ResourceInfo.typescript_resource?(resource) do
-      case ResourceInfo.get_original_field_name(resource, key) do
-        original when is_atom(original) -> original
+    res_struct = Custom.resolve_resource(resource)
+
+    if Custom.typescript_resource?(res_struct) do
+      case Custom.original_field_name(res_struct, key) do
+        original when is_atom(original) and not is_nil(original) -> original
         _ -> key
       end
     else
