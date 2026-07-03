@@ -777,8 +777,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       throw({:requires_field_selection, :field_constrained_type, nil})
     end
 
-    inst = Type.effective_module(type_info)
-    reverse_map = Helpers.typescript_field_names_reverse(inst)
+    {_forward, reverse_map} = typed_struct_field_maps(type_info, manifest)
     fields = Type.get_fields(type_info)
 
     Validation.check_for_duplicates(requested_fields, path)
@@ -806,6 +805,20 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
           throw({:invalid_field_format, field, path})
       end
     end)
+  end
+
+  # Returns `{forward, reverse}` typescript field-name maps for a typed struct,
+  # preferring the precomputed decoration (carried on the type or resolved from
+  # the manifest's type lookup by module) and falling back to live reflection.
+  defp typed_struct_field_maps(type_info, manifest) do
+    with nil <- Custom.type_field_name_mappings_pair(type_info),
+         module = Type.effective_module(type_info),
+         nil <-
+           Custom.type_field_name_mappings_pair(
+             Ash.Info.Manifest.get_type(AshTypescript.type_lookup(manifest), module)
+           ) do
+      {Helpers.typescript_field_names(module), Helpers.typescript_field_names_reverse(module)}
+    end
   end
 
   defp resolve_typed_struct_field(field_name, reverse_map) when is_binary(field_name) do

@@ -331,6 +331,24 @@ defmodule AshTypescript.Manifest.Custom do
 
   def reverse_type_field_name_mappings(_), do: %{}
 
+  @doc """
+  Returns `{forward, reverse}` field-name maps for a decorated type, or `nil`
+  when the type carries no ash_typescript decoration.
+
+  Unlike `type_field_name_mappings/1` (which returns `%{}` for both the
+  decorated-but-empty and undecorated cases), this distinguishes "not decorated"
+  as `nil` so callers can fall back to resolving the decorated type from the type
+  lookup or to live reflection.
+  """
+  @spec type_field_name_mappings_pair(Manifest.Type.t() | nil) ::
+          {%{atom() => String.t()}, %{String.t() => atom()}} | nil
+  def type_field_name_mappings_pair(%Manifest.Type{
+        custom: %{ash_typescript: %{field_name_mappings: fwd, reverse_field_name_mappings: rev}}
+      }),
+      do: {fwd, rev}
+
+  def type_field_name_mappings_pair(_), do: nil
+
   # ─────────────────────────────────────────────────────────────────
   # Entrypoint accessors
   # ─────────────────────────────────────────────────────────────────

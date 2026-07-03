@@ -297,9 +297,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
 
   defp format_typed_struct(value, type_info, formatter, direction, resource_lookups)
        when is_map(value) do
-    inst = Type.effective_module(type_info)
-    ts_field_names = Helpers.typescript_field_names(inst)
-    reverse_map = Helpers.typescript_field_names_reverse(inst)
+    {ts_field_names, reverse_map} = typed_struct_field_maps(type_info)
 
     Enum.into(value, %{}, fn {key, field_value} ->
       internal_key = convert_typed_struct_key(key, reverse_map, formatter, direction)
@@ -335,6 +333,24 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     case Map.get(ts_field_names, internal_key) do
       nil -> FieldFormatter.format_field_name(internal_key, formatter)
       client_name -> client_name
+    end
+  end
+
+  # Returns `{forward, reverse}` typescript field-name maps for a typed struct,
+  # preferring the precomputed decoration. Field/relationship types reach this
+  # already resolved to their decorated `%Type{}` (via the `:type_ref` dispatch),
+  # so the fast path hits without a lookup. Undecorated types (e.g. some
+  # `action.returns` structs) resolve the decorated type from the type lookup by
+  # module, and fall back to live reflection only when the module isn't a named
+  # type in the manifest.
+  defp typed_struct_field_maps(type_info) do
+    with nil <- Custom.type_field_name_mappings_pair(type_info),
+         module = Type.effective_module(type_info),
+         nil <-
+           Custom.type_field_name_mappings_pair(
+             Ash.Info.Manifest.get_type(AshTypescript.type_lookup(), module)
+           ) do
+      {Helpers.typescript_field_names(module), Helpers.typescript_field_names_reverse(module)}
     end
   end
 
