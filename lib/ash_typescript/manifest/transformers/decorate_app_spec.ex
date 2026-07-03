@@ -17,6 +17,7 @@ defmodule AshTypescript.Manifest.Transformers.DecorateAppSpec do
 
   use Spark.Dsl.Transformer
 
+  alias AshTypescript.Manifest.Custom
   alias AshTypescript.Manifest.Decorator
   alias Spark.Dsl.Transformer
 
@@ -39,9 +40,32 @@ defmodule AshTypescript.Manifest.Transformers.DecorateAppSpec do
           |> Transformer.persist(:resource_lookup, build_resource_lookup(decorated))
           |> Transformer.persist(:action_lookup, Ash.Info.Manifest.action_lookup(decorated))
           |> Transformer.persist(:type_lookup, Ash.Info.Manifest.type_lookup(decorated))
+          |> Transformer.persist(:rpc_action_lookup, build_rpc_action_lookup(decorated))
+          |> Transformer.persist(:typed_query_lookup, build_typed_query_lookup(decorated))
 
         {:ok, dsl_state}
     end
+  end
+
+  # O(1) entrypoint lookups keyed by the client-facing action / typed-query name
+  # (as a string). Replaces per-request linear scans over `manifest.entrypoints`
+  # in the runtime pipeline's `discover_action`.
+  defp build_rpc_action_lookup(%Ash.Info.Manifest{entrypoints: entrypoints}) do
+    Enum.reduce(entrypoints, %{}, fn entrypoint, acc ->
+      case Custom.rpc_action(entrypoint) do
+        nil -> acc
+        rpc_action -> Map.put(acc, to_string(rpc_action.name), entrypoint)
+      end
+    end)
+  end
+
+  defp build_typed_query_lookup(%Ash.Info.Manifest{entrypoints: entrypoints}) do
+    Enum.reduce(entrypoints, %{}, fn entrypoint, acc ->
+      case Custom.typed_query(entrypoint) do
+        nil -> acc
+        typed_query -> Map.put(acc, to_string(typed_query.name), entrypoint)
+      end
+    end)
   end
 
   # Ash 3.25.2+ moved embedded resources from `manifest.resources` into

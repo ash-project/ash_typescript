@@ -797,4 +797,18 @@ defmodule AshTypescript do
   @doc "Returns the named-type lookup map from `manifest` (defaults to the configured manifest module)."
   def type_lookup(manifest \\ manifest_module()),
     do: Spark.Dsl.Extension.get_persisted(manifest, :type_lookup) || %{}
+
+  @doc """
+  Returns the `%{action_name_string => %Ash.Info.Manifest.Entrypoint{}}` lookup
+  for RPC-action entrypoints (defaults to the configured manifest module).
+  """
+  def rpc_action_lookup(manifest \\ manifest_module()),
+    do: Spark.Dsl.Extension.get_persisted(manifest, :rpc_action_lookup) || %{}
+
+  @doc """
+  Returns the `%{typed_query_name_string => %Ash.Info.Manifest.Entrypoint{}}`
+  lookup for typed-query entrypoints (defaults to the configured manifest module).
+  """
+  def typed_query_lookup(manifest \\ manifest_module()),
+    do: Spark.Dsl.Extension.get_persisted(manifest, :typed_query_lookup) || %{}
 end
