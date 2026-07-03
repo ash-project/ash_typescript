@@ -393,22 +393,12 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp find_typed_query(_otp_app, typed_query_name)
        when is_binary(typed_query_name) or is_atom(typed_query_name) do
-    query_string = to_string(typed_query_name)
-
-    Enum.find(AshTypescript.entrypoints(), fn e ->
-      tq = Custom.typed_query(e)
-      tq != nil and to_string(tq.name) == query_string
-    end)
+    Map.get(AshTypescript.typed_query_lookup(), to_string(typed_query_name))
   end
 
   defp find_rpc_action(_otp_app, action_name)
        when is_binary(action_name) or is_atom(action_name) do
-    action_string = to_string(action_name)
-
-    Enum.find(AshTypescript.entrypoints(), fn e ->
-      rpc = Custom.rpc_action(e)
-      rpc != nil and to_string(rpc.name) == action_string
-    end)
+    Map.get(AshTypescript.rpc_action_lookup(), to_string(action_name))
   end
 
   defp augment_action_with_rpc_settings(action, rpc_action, _resource) do
@@ -1375,10 +1365,12 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp authorize_bulk_with(resource) do
-    if Ash.DataLayer.data_layer_can?(resource, :expr_error) do
-      :error
-    else
-      :filter
+    case Custom.authorize_bulk_strategy(Custom.resolve_resource(resource)) do
+      nil ->
+        if Ash.DataLayer.data_layer_can?(resource, :expr_error), do: :error, else: :filter
+
+      strategy ->
+        strategy
     end
   end
 
