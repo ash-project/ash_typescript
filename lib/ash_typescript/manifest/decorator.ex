@@ -79,7 +79,8 @@ defmodule AshTypescript.Manifest.Decorator do
         reverse_field_name_mappings: reverse_map(field_mappings),
         argument_name_mappings: argument_mappings,
         reverse_argument_name_mappings: reverse_argument_mappings(argument_mappings),
-        formatted_field_names: formatted
+        formatted_field_names: formatted,
+        type_name: AshTypescript.Codegen.Helpers.build_resource_type_name(module)
       }
     end
   end
@@ -153,14 +154,28 @@ defmodule AshTypescript.Manifest.Decorator do
   defp build_type_custom(%Manifest.Type{} = type) do
     module = Manifest.Type.effective_module(type)
 
-    if Helpers.has_typescript_field_names?(module) do
-      field_mappings = Helpers.typescript_field_names(module)
+    if Helpers.has_typescript_field_names?(module) or type_name_exported?(module) do
+      field_mappings =
+        if Helpers.has_typescript_field_names?(module),
+          do: Helpers.typescript_field_names(module),
+          else: %{}
 
       %{
         field_name_mappings: field_mappings,
-        reverse_field_name_mappings: reverse_map(field_mappings)
+        reverse_field_name_mappings: reverse_map(field_mappings),
+        type_name: resolve_type_module_name(module)
       }
     end
+  end
+
+  defp type_name_exported?(module) when is_atom(module) and not is_nil(module) do
+    Code.ensure_loaded?(module) and function_exported?(module, :typescript_type_name, 0)
+  end
+
+  defp type_name_exported?(_), do: false
+
+  defp resolve_type_module_name(module) do
+    if type_name_exported?(module), do: module.typescript_type_name(), else: nil
   end
 
   # ─────────────────────────────────────────────────────────────────
@@ -172,11 +187,43 @@ defmodule AshTypescript.Manifest.Decorator do
       ts
       |> Map.take([:rpc_action, :typed_query, :domain, :resource_config])
       |> Map.merge(metadata_decorations(ts))
+      |> Map.put(:exposed_metadata_fields, exposed_metadata_fields(ts, entrypoint.action))
+      |> Map.put(:load_restrictions, load_restrictions(ts))
+      |> Map.put(:filtering_enabled?, feature_enabled?(ts, :enable_filter?))
+      |> Map.put(:sorting_enabled?, feature_enabled?(ts, :enable_sort?))
 
     %Manifest.Entrypoint{entrypoint | custom: put_namespace(entrypoint.custom, custom_payload)}
   end
 
   defp decorate_entrypoint(%Manifest.Entrypoint{} = entrypoint), do: entrypoint
+
+  defp exposed_metadata_fields(%{rpc_action: rpc_action}, action) when not is_nil(rpc_action) do
+    AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes.get_exposed_metadata_fields(
+      rpc_action,
+      action
+    )
+  end
+
+  defp exposed_metadata_fields(_ts, _action), do: []
+
+  defp load_restrictions(%{rpc_action: rpc_action}) when not is_nil(rpc_action) do
+    allowed = Map.get(rpc_action, :allowed_loads)
+    denied = Map.get(rpc_action, :denied_loads)
+
+    cond do
+      not is_nil(allowed) -> {:allow, allowed}
+      not is_nil(denied) -> {:deny, denied}
+      true -> :none
+    end
+  end
+
+  defp load_restrictions(_), do: :none
+
+  defp feature_enabled?(%{rpc_action: rpc_action}, key) when not is_nil(rpc_action) do
+    Map.get(rpc_action, key, true)
+  end
+
+  defp feature_enabled?(_ts, _key), do: true
 
   defp metadata_decorations(%{rpc_action: %{metadata_field_names: pairs}})
        when is_list(pairs) do

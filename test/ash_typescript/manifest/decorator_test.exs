@@ -172,4 +172,94 @@ defmodule AshTypescript.Manifest.DecoratorTest do
       assert Custom.metadata_field_mappings(nil) == %{}
     end
   end
+
+  describe "type_name decoration" do
+    test "resource type_name derives from module name when no custom name", %{
+      resource_lookup: lookup
+    } do
+      user = lookup[AshTypescript.Test.User]
+      assert Custom.type_name(user) == "User"
+    end
+
+    test "resource type_name honors a custom typescript type_name", %{resource_lookup: lookup} do
+      # Todo declares `type_name "Todo"` in its typescript DSL block.
+      todo = lookup[AshTypescript.Test.Todo]
+      assert Custom.type_name(todo) == "Todo"
+    end
+
+    test "type module type_name is present only when typescript_type_name/0 is exported", %{
+      api_spec: spec
+    } do
+      type_lookup = Ash.Info.Manifest.type_lookup(spec)
+      color_palette = type_lookup[AshTypescript.Test.Todo.ColorPalette]
+
+      if color_palette do
+        assert Custom.type_name(color_palette) ==
+                 AshTypescript.Test.Todo.ColorPalette.typescript_type_name()
+      end
+    end
+  end
+
+  describe "exposed_metadata_fields decoration" do
+    test "show_metadata: nil exposes all action metadata names", %{api_spec: spec} do
+      e = entrypoint_for_rpc(spec, AshTypescript.Test.Task, :read_tasks_with_metadata_all)
+      assert Custom.exposed_metadata_fields(e) == Enum.map(e.action.metadata, & &1.name)
+    end
+
+    test "show_metadata: false exposes none", %{api_spec: spec} do
+      e = entrypoint_for_rpc(spec, AshTypescript.Test.Task, :read_tasks_with_metadata_false)
+      assert Custom.exposed_metadata_fields(e) == []
+    end
+
+    test "show_metadata: [] exposes none", %{api_spec: spec} do
+      e = entrypoint_for_rpc(spec, AshTypescript.Test.Task, :read_tasks_with_metadata_empty)
+      assert Custom.exposed_metadata_fields(e) == []
+    end
+
+    test "explicit list is preserved", %{api_spec: spec} do
+      e = entrypoint_for_rpc(spec, AshTypescript.Test.Task, :read_tasks_with_metadata_two)
+      assert Custom.exposed_metadata_fields(e) == [:some_string, :some_number]
+    end
+  end
+
+  describe "load restrictions & filter/sort decoration" do
+    test "allowed_loads → {:allow, verbatim list}", %{api_spec: spec} do
+      e = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_allow_only_user)
+      assert Custom.load_restrictions(e) == {:allow, [:user]}
+    end
+
+    test "nested allowed_loads preserve the exact nested shape", %{api_spec: spec} do
+      e = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_allow_nested)
+      assert Custom.load_restrictions(e) == {:allow, [:user, comments: [:todo]]}
+    end
+
+    test "denied_loads → {:deny, list}", %{api_spec: spec} do
+      e = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_deny_user)
+      assert Custom.load_restrictions(e) == {:deny, [:user]}
+    end
+
+    test "neither → :none", %{api_spec: spec} do
+      e = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_no_filter)
+      assert Custom.load_restrictions(e) == :none
+    end
+
+    test "enable_filter?/enable_sort? default true, false when disabled", %{api_spec: spec} do
+      default = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_allow_only_user)
+      assert Custom.filtering_enabled?(default)
+      assert Custom.sorting_enabled?(default)
+
+      no_filter = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_no_filter)
+      refute Custom.filtering_enabled?(no_filter)
+
+      no_sort = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_no_sort)
+      refute Custom.sorting_enabled?(no_sort)
+    end
+  end
+
+  defp entrypoint_for_rpc(spec, resource, rpc_name) do
+    Enum.find(spec.entrypoints, fn e ->
+      rpc = Custom.rpc_action(e)
+      e.resource == resource and rpc != nil and rpc.name == rpc_name
+    end)
+  end
 end

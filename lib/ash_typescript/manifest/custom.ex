@@ -27,7 +27,8 @@ defmodule AshTypescript.Manifest.Custom do
           optional(:reverse_field_name_mappings) => %{String.t() => atom()},
           optional(:argument_name_mappings) => %{atom() => %{atom() => String.t()}},
           optional(:reverse_argument_name_mappings) => %{atom() => %{String.t() => atom()}},
-          optional(:formatted_field_names) => %{{atom(), atom()} => String.t()}
+          optional(:formatted_field_names) => %{{atom(), atom()} => String.t()},
+          optional(:type_name) => String.t() | nil
         }
 
   @typedoc """
@@ -37,7 +38,8 @@ defmodule AshTypescript.Manifest.Custom do
   """
   @type type_custom :: %{
           optional(:field_name_mappings) => %{atom() => String.t()},
-          optional(:reverse_field_name_mappings) => %{String.t() => atom()}
+          optional(:reverse_field_name_mappings) => %{String.t() => atom()},
+          optional(:type_name) => String.t() | nil
         }
 
   @typedoc """
@@ -50,12 +52,40 @@ defmodule AshTypescript.Manifest.Custom do
           optional(:domain) => atom(),
           optional(:resource_config) => term(),
           optional(:metadata_field_mappings) => %{atom() => String.t()},
-          optional(:reverse_metadata_field_mappings) => %{String.t() => atom()}
+          optional(:reverse_metadata_field_mappings) => %{String.t() => atom()},
+          optional(:exposed_metadata_fields) => [atom()],
+          optional(:load_restrictions) => {:allow, list()} | {:deny, list()} | :none,
+          optional(:filtering_enabled?) => boolean(),
+          optional(:sorting_enabled?) => boolean()
         }
 
   # ─────────────────────────────────────────────────────────────────
   # Generic readers
   # ─────────────────────────────────────────────────────────────────
+
+  @doc """
+  Resolves a resource *module atom* to its decorated `%Manifest.Resource{}`.
+
+  Checks the domain resource lookup first, then falls back to the embedded
+  resource carried on a `kind: :embedded_resource` entry in the type lookup
+  (embedded resources are not present in `resource_lookup`). Returns `nil`
+  when the module is not in the manifest.
+  """
+  @spec resolve_resource(atom() | term()) :: Manifest.Resource.t() | nil
+  def resolve_resource(module) when is_atom(module) and not is_nil(module) do
+    case Ash.Info.Manifest.get_resource(AshTypescript.resource_lookup(), module) do
+      %Manifest.Resource{} = resource ->
+        resource
+
+      _ ->
+        case Ash.Info.Manifest.get_type(AshTypescript.type_lookup(), module) do
+          %Manifest.Type{resource: %Manifest.Resource{} = resource} -> resource
+          _ -> nil
+        end
+    end
+  end
+
+  def resolve_resource(_), do: nil
 
   @doc """
   Returns the `:ash_typescript` decoration map for any struct that carries a
@@ -72,6 +102,15 @@ defmodule AshTypescript.Manifest.Custom do
   @spec typescript_resource?(Manifest.Resource.t() | nil) :: boolean()
   def typescript_resource?(%Manifest.Resource{custom: %{ash_typescript: _}}), do: true
   def typescript_resource?(_), do: false
+
+  @doc """
+  Returns the precomputed TypeScript type name for a decorated resource or
+  type struct, or `nil` when undecorated / not applicable.
+  """
+  @spec type_name(Manifest.Resource.t() | Manifest.Type.t() | nil) :: String.t() | nil
+  def type_name(%Manifest.Resource{custom: %{ash_typescript: %{type_name: name}}}), do: name
+  def type_name(%Manifest.Type{custom: %{ash_typescript: %{type_name: name}}}), do: name
+  def type_name(_), do: nil
 
   # ─────────────────────────────────────────────────────────────────
   # Resource accessors
@@ -271,4 +310,41 @@ defmodule AshTypescript.Manifest.Custom do
       do: m
 
   def reverse_metadata_field_mappings(_), do: %{}
+
+  @doc "Returns the precomputed exposed metadata field atoms for an entrypoint, or `[]`."
+  @spec exposed_metadata_fields(Manifest.Entrypoint.t() | nil) :: [atom()]
+  def exposed_metadata_fields(%Manifest.Entrypoint{
+        custom: %{ash_typescript: %{exposed_metadata_fields: fields}}
+      }),
+      do: fields
+
+  def exposed_metadata_fields(_), do: []
+
+  @doc "Returns the load restriction tag for an entrypoint. Defaults to `:none`."
+  @spec load_restrictions(Manifest.Entrypoint.t() | nil) ::
+          {:allow, list()} | {:deny, list()} | :none
+  def load_restrictions(%Manifest.Entrypoint{
+        custom: %{ash_typescript: %{load_restrictions: lr}}
+      }),
+      do: lr
+
+  def load_restrictions(_), do: :none
+
+  @doc "Whether client filtering is enabled for this entrypoint. Defaults to `true`."
+  @spec filtering_enabled?(Manifest.Entrypoint.t() | nil) :: boolean()
+  def filtering_enabled?(%Manifest.Entrypoint{
+        custom: %{ash_typescript: %{filtering_enabled?: v}}
+      }),
+      do: v
+
+  def filtering_enabled?(_), do: true
+
+  @doc "Whether client sorting is enabled for this entrypoint. Defaults to `true`."
+  @spec sorting_enabled?(Manifest.Entrypoint.t() | nil) :: boolean()
+  def sorting_enabled?(%Manifest.Entrypoint{
+        custom: %{ash_typescript: %{sorting_enabled?: v}}
+      }),
+      do: v
+
+  def sorting_enabled?(_), do: true
 end
