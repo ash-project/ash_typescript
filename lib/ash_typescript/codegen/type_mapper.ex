@@ -203,7 +203,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
           is_atom(type_info.module) and not is_nil(type_info.module) and
               is_custom_type?(type_info.module) ->
-            type_info.module.typescript_type_name()
+            AshTypescript.Manifest.Custom.type_name(type_info) ||
+              type_info.module.typescript_type_name()
 
           (override = get_type_mapping_override(type_info.module)) != nil ->
             override

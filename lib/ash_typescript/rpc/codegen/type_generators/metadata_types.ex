@@ -65,12 +65,23 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes do
   end
 
   @doc """
+  Reads the precomputed exposed metadata fields off the decorated entrypoint for
+  a `{resource, rpc_action}` pair, falling back to `[]` when no entrypoint matches.
+  """
+  def exposed_metadata_fields(resource, rpc_action) do
+    AshTypescript.Manifest.Custom.exposed_metadata_fields(
+      AshTypescript.Rpc.Codegen.RpcConfigCollector.entrypoint_for(resource, rpc_action)
+    )
+  end
+
+  @doc """
   Generates the TypeScript metadata type for an RPC action.
 
   Returns an empty string if no metadata fields are exposed.
 
   ## Parameters
 
+    * `resource` - The Ash resource module
     * `action` - The Ash action
     * `rpc_action` - The RPC action configuration
     * `rpc_action_name_pascal` - The PascalCase name of the RPC action
@@ -79,8 +90,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes do
 
   A string containing the TypeScript metadata type definition, or an empty string if no metadata is exposed.
   """
-  def generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal) do
-    exposed_fields = get_exposed_metadata_fields(rpc_action, action)
+  def generate_action_metadata_type(resource, action, rpc_action, rpc_action_name_pascal) do
+    exposed_fields = exposed_metadata_fields(resource, rpc_action)
 
     if metadata_enabled?(exposed_fields) do
       all_metadata_fields = Map.get(action, :metadata, [])

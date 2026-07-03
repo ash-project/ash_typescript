@@ -319,7 +319,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
         formatted_name =
           AshTypescript.FieldFormatter.format_field_for_client(
             attr.name,
-            resource,
+            api_resource,
             AshTypescript.Rpc.output_field_formatter()
           )
 

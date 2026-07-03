@@ -82,11 +82,16 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
     case {action.type, is_get_action} do
       {:read, true} ->
         metadata_type =
-          MetadataTypes.generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal)
+          MetadataTypes.generate_action_metadata_type(
+            resource,
+            action,
+            rpc_action,
+            rpc_action_name_pascal
+          )
 
         has_metadata =
           MetadataTypes.metadata_enabled?(
-            MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
+            MetadataTypes.exposed_metadata_fields(resource, rpc_action)
           )
 
         result =
@@ -115,6 +120,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
           if ActionIntrospection.action_supports_pagination?(action) do
             metadata_type =
               MetadataTypes.generate_action_metadata_type(
+                resource,
                 action,
                 rpc_action,
                 rpc_action_name_pascal
@@ -122,7 +128,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
 
             has_metadata =
               MetadataTypes.metadata_enabled?(
-                MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
+                MetadataTypes.exposed_metadata_fields(resource, rpc_action)
               )
 
             fields_type = """
@@ -153,6 +159,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
           else
             metadata_type =
               MetadataTypes.generate_action_metadata_type(
+                resource,
                 action,
                 rpc_action,
                 rpc_action_name_pascal
@@ -160,7 +167,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
 
             has_metadata =
               MetadataTypes.metadata_enabled?(
-                MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
+                MetadataTypes.exposed_metadata_fields(resource, rpc_action)
               )
 
             if has_metadata do
@@ -186,11 +193,16 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
 
       {action_type, _} when action_type in [:create, :update] ->
         metadata_type =
-          MetadataTypes.generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal)
+          MetadataTypes.generate_action_metadata_type(
+            resource,
+            action,
+            rpc_action,
+            rpc_action_name_pascal
+          )
 
         has_metadata =
           MetadataTypes.metadata_enabled?(
-            MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
+            MetadataTypes.exposed_metadata_fields(resource, rpc_action)
           )
 
         result =
@@ -217,11 +229,16 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
 
       {:destroy, _} ->
         metadata_type =
-          MetadataTypes.generate_action_metadata_type(action, rpc_action, rpc_action_name_pascal)
+          MetadataTypes.generate_action_metadata_type(
+            resource,
+            action,
+            rpc_action,
+            rpc_action_name_pascal
+          )
 
         has_metadata =
           MetadataTypes.metadata_enabled?(
-            MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
+            MetadataTypes.exposed_metadata_fields(resource, rpc_action)
           )
 
         if has_metadata do

@@ -12,6 +12,18 @@ defmodule AshTypescript.Codegen.Helpers do
   Uses the custom typescript_type_name if defined, otherwise derives from module name.
   """
   def build_resource_type_name(resource_module) do
+    case AshTypescript.Manifest.Custom.type_name(
+           AshTypescript.Manifest.Custom.resolve_resource(resource_module)
+         ) do
+      name when is_binary(name) ->
+        name
+
+      _ ->
+        derive_resource_type_name(resource_module)
+    end
+  end
+
+  defp derive_resource_type_name(resource_module) do
     case AshTypescript.Resource.Info.typescript_type_name(resource_module) do
       {:ok, name} ->
         name

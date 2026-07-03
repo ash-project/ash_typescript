@@ -40,9 +40,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.FunctionCore do
 
     # Check metadata configuration
     has_metadata =
-      MetadataTypes.metadata_enabled?(
-        MetadataTypes.get_exposed_metadata_fields(rpc_action, action)
-      )
+      MetadataTypes.metadata_enabled?(MetadataTypes.exposed_metadata_fields(resource, rpc_action))
 
     # Get common config fields (without transport-specific fields)
     # Pass is_channel: true for channel transport to include hookCtx field

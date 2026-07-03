@@ -213,6 +213,19 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
     |> get_rpc_config_by_domain()
   end
 
+  @doc """
+  Finds the decorated entrypoint for a `{resource, rpc_action}` pair, so codegen
+  can read precomputed values (e.g. exposed metadata fields) off `Custom`.
+  """
+  def entrypoint_for(resource, rpc_action) when is_atom(resource) do
+    rpc_name = rpc_action.name
+
+    Enum.find(AshTypescript.entrypoints(), fn e ->
+      rpc = AshTypescript.Manifest.Custom.rpc_action(e)
+      e.resource == resource and rpc != nil and rpc.name == rpc_name
+    end)
+  end
+
   # ─────────────────────────────────────────────────────────────────
   # Helpers
   # ─────────────────────────────────────────────────────────────────
