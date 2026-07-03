@@ -17,8 +17,8 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
   """
   use Spark.Dsl.Verifier
   import AshTypescript.NameValidation, only: [invalid_name?: 1, make_name_better: 1]
-  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias Ash.Info.Manifest.Type
+  alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias Spark.Dsl.Verifier
 
   @impl true
@@ -201,18 +201,16 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
   # walk the full definition stored in `manifest.types`.
   defp validate_type(resource, %Type{kind: :type_ref, module: mod}, context, visited, type_lookup)
        when not is_nil(mod) do
-    cond do
-      MapSet.member?(visited, mod) ->
-        []
+    if MapSet.member?(visited, mod) do
+      []
+    else
+      case Map.get(type_lookup, mod) do
+        %Type{} = resolved ->
+          validate_type(resource, resolved, context, MapSet.put(visited, mod), type_lookup)
 
-      true ->
-        case Map.get(type_lookup, mod) do
-          %Type{} = resolved ->
-            validate_type(resource, resolved, context, MapSet.put(visited, mod), type_lookup)
-
-          _ ->
-            []
-        end
+        _ ->
+          []
+      end
     end
   end
 

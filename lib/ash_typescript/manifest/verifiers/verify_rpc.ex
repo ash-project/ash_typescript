@@ -42,9 +42,8 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
          :ok <- verify_typescript_resources(rpc_configs),
          :ok <- verify_rpc_actions(rpc_configs),
          :ok <- verify_typed_queries(rpc_configs),
-         :ok <- verify_relationship_read_actions(rpc_configs),
-         :ok <- verify_names(rpc_configs) do
-      :ok
+         :ok <- verify_relationship_read_actions(rpc_configs) do
+      verify_names(rpc_configs)
     end
   end
 
@@ -166,9 +165,8 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
       action ->
         with :ok <- verify_action_public(resource, rpc_action, action),
              :ok <- verify_read_action_public(resource, rpc_action),
-             :ok <- verify_get_options(resource, rpc_action, action),
-             :ok <- verify_load_restrictions(rpc_action) do
-          :ok
+             :ok <- verify_get_options(resource, rpc_action, action) do
+          verify_load_restrictions(rpc_action)
         end
     end
   end
@@ -415,16 +413,15 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
         action ->
           argument_errors =
             action.arguments
-            |> Enum.filter(& &1.public?)
             |> Enum.filter(fn arg ->
-              mapped =
-                AshTypescript.Resource.Info.get_mapped_argument_name(
-                  resource,
-                  rpc_action.action,
-                  arg.name
+              arg.public? and
+                invalid_name?(
+                  AshTypescript.Resource.Info.get_mapped_argument_name(
+                    resource,
+                    rpc_action.action,
+                    arg.name
+                  )
                 )
-
-              invalid_name?(mapped)
             end)
             |> Enum.map(fn arg ->
               {rpc_action.name, rpc_action.action, :argument, arg.name,
@@ -461,20 +458,19 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
 
         action ->
           action.arguments
-          |> Enum.filter(& &1.public?)
           |> Enum.filter(fn arg ->
-            if AshTypescript.Resource.Info.typescript_resource?(resource) do
-              mapped =
-                AshTypescript.Resource.Info.get_mapped_argument_name(
-                  resource,
-                  typed_query.action,
-                  arg.name
+            arg.public? and
+              if AshTypescript.Resource.Info.typescript_resource?(resource) do
+                invalid_name?(
+                  AshTypescript.Resource.Info.get_mapped_argument_name(
+                    resource,
+                    typed_query.action,
+                    arg.name
+                  )
                 )
-
-              invalid_name?(mapped)
-            else
-              invalid_name?(arg.name)
-            end
+              else
+                invalid_name?(arg.name)
+              end
           end)
           |> Enum.map(fn arg ->
             {typed_query.name, typed_query.action, :argument, arg.name,
