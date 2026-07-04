@@ -75,7 +75,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.JsdocGenerator do
       if include_internals? do
         lines ++
           [" * @ashResource #{inspect(resource)}", " * @ashAction :#{rpc_action.action}"] ++
-          build_ash_action_def_tag(action) ++
+          build_ash_action_def_tag(resource, action) ++
           build_rpc_action_def_tag(rpc_action)
       else
         lines
@@ -120,7 +120,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.JsdocGenerator do
       if include_internals? do
         lines ++
           [" * @ashResource #{inspect(resource)}", " * @ashAction :#{rpc_action.action}"] ++
-          build_ash_action_def_tag(action) ++
+          build_ash_action_def_tag(resource, action) ++
           build_rpc_action_def_tag(rpc_action)
       else
         lines
@@ -232,8 +232,12 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.JsdocGenerator do
   defp default_description(:action, resource_name),
     do: "Execute generic action on #{resource_name}"
 
-  defp build_ash_action_def_tag(action) do
-    case get_source_location(action) do
+  # The manifest `%Ash.Info.Manifest.Action{}` carries no source location, so
+  # resolve the concrete Ash action to recover its `__spark_metadata__` annotation.
+  defp build_ash_action_def_tag(resource, action) do
+    concrete_action = Ash.Resource.Info.action(resource, action.name)
+
+    case get_source_location(concrete_action) do
       nil -> []
       location -> [" * @ashActionDef #{location}"]
     end
