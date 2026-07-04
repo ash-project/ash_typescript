@@ -398,19 +398,24 @@ config :ash_typescript,
 
 ### Identification of Unconstrained Maps
 
+Detection reads from the manifest action (`%Ash.Info.Manifest.Action{}`), never
+`Ash.Resource.Info` — see the "Action shape contract" in AGENTS.md.
+
 ```elixir
-# Input: Check if action argument is unconstrained map
+# Input: an input entry is an unconstrained map when its resolved type is :map
+# with empty/nil constraints. Inputs come from action.inputs (unified args +
+# accepted attributes), each carrying a resolved %Ash.Info.Manifest.Type{}.
 def unconstrained_map_input?(action, arg_name) do
-  case Ash.Resource.Info.action_input(action, arg_name) do
-    %{type: :map, constraints: constraints} when constraints == [] or constraints == nil -> true
+  case Enum.find(action.inputs, &(&1.name == arg_name)) do
+    %{type: %Ash.Info.Manifest.Type{kind: :map, constraints: c}} when c == [] or c == nil -> true
     _ -> false
   end
 end
 
-# Output: Check if action returns unconstrained map
+# Output: classify the action's resolved returns type via ActionIntrospection.
 def unconstrained_map_output?(action) do
-  case action.returns do
-    :map -> true
+  case ActionIntrospection.action_returns_field_selectable_type?(action) do
+    {:ok, type, _} when type in [:unconstrained_map, :array_of_unconstrained_map] -> true
     _ -> false
   end
 end

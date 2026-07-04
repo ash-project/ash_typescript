@@ -9,7 +9,7 @@ SPDX-License-Identifier: MIT
 
 ## Quick Reference
 
-**Critical**: Add `AshTypescript.Rpc` extension to domain, run `mix ash_typescript.codegen`
+**Critical**: Declare a manifest module + `config :ash_typescript, manifest: ...`, add `AshTypescript.Rpc` extension to domain, run `mix ash_typescript.codegen`
 **Authentication**: Use `buildCSRFHeaders()` for Phoenix CSRF protection
 **Controller Routes**: Use `AshTypescript.TypedController` for controller-style actions with `conn` access
 **Typed Channels**: Use `AshTypescript.TypedChannel` for typed PubSub event subscriptions
@@ -100,7 +100,18 @@ SPDX-License-Identifier: MIT
 
 ### Basic Setup
 
+Three required pieces: a manifest module, the `manifest:` config, and a domain with the RPC extension.
+
 ```elixir
+# 1. Manifest module (required — codegen and runtime read all shape from it)
+defmodule MyApp.AshTypescriptManifest do
+  use AshTypescript.Manifest, otp_app: :my_app
+end
+
+# 2. config/config.exs
+config :ash_typescript, manifest: MyApp.AshTypescriptManifest
+
+# 3. Domain with RPC actions
 defmodule MyApp.Domain do
   use Ash.Domain, extensions: [AshTypescript.Rpc]
 
@@ -327,6 +338,7 @@ for (const action of manifest.actions) {
 
 | Error Pattern | Fix |
 |---------------|-----|
+| "No `:manifest` module configured" | Add `config :ash_typescript, manifest: MyApp.AshTypescriptManifest` + define the module (`use AshTypescript.Manifest, otp_app: :my_app`) |
 | Missing `extensions: [AshTypescript.Rpc]` | Add to domain |
 | Missing `typescript` block on resource | Add `AshTypescript.Resource` extension + `typescript do type_name "X" end` |
 | No `rpc_action` declarations | Explicitly declare each action |
@@ -352,6 +364,7 @@ for (const action of manifest.actions) {
 
 | Error Contains | Fix |
 |----------------|-----|
+| "No `:manifest` module configured" | Define manifest module + set `manifest:` config |
 | "Property does not exist" | Run `mix ash_typescript.codegen` |
 | "fields is required" | Add `fields: [...]` |
 | "No domains found" | Use `MIX_ENV=test` for test resources |
@@ -368,6 +381,7 @@ for (const action of manifest.actions) {
 
 ```elixir
 config :ash_typescript,
+  manifest: MyApp.AshTypescriptManifest,   # Required: app-wide manifest module
   output_file: "assets/js/ash_rpc.ts",
   run_endpoint: "/rpc/run",
   validate_endpoint: "/rpc/validate",

@@ -8,6 +8,21 @@ SPDX-License-Identifier: MIT
 
 Key architectural decisions and their reasoning for AI assistant context.
 
+## 2026-07: Ash.Info.Manifest as Single Source of Truth
+
+**Change**: Migrated the codegen and runtime pipelines off ad-hoc `Ash.Resource.Info` introspection and onto a unified, precomputed `Ash.Info.Manifest` (Ash core), read through a required per-app manifest module.
+**Why**: Runtime spec building walked Spark DSL state on every request and scattered `Ash.Resource.Info` calls across dozens of modules. A single manifest, built once at compile time and decorated with ash_typescript-specific data, gives O(1) map reads, one place for name-mapping/type resolution, and correct multi-domain merging (a resource in several `typescript_rpc` blocks unifies its actions instead of clobbering).
+**Impact** (⚠️ **breaking** — requires consumer migration):
+- **New required config + module**: every project must declare `config :ash_typescript, manifest: MyApp.AshTypescriptManifest` and define `defmodule MyApp.AshTypescriptManifest do use AshTypescript.Manifest, otp_app: :my_app end`. `AshTypescript.manifest_module/0` raises with setup instructions if unset.
+- **Ash floor raised** to `~> 3.27` (resolves to 3.29+); `Ash.Info.Manifest` is the backbone.
+- **Custom decoration**: ash_typescript-owned data (name mappings, `type_name`, exposed metadata, bulk auth strategy) is persisted under `custom.ash_typescript` on the manifest and read via `AshTypescript.Manifest.Custom` accessors — runtime never re-walks DSL state.
+- **O(1) entrypoint lookups**: `AshTypescript.action_lookup/0`, `resource_lookup/0`, `type_lookup/0`, `rpc_action_lookup/0`, `typed_query_lookup/0` back both codegen and the runtime pipeline.
+- **Verifiers split**: RPC-extension verifiers moved to `lib/ash_typescript/manifest/verifiers/`; resource-scoped name/type verifiers remain in `lib/ash_typescript/resource/verifiers/`.
+- **Reachability** moved to `Ash.Info.Manifest.Generator.Reachability` (ash core).
+**Behavioral notes**: generated TypeScript output is 1:1 with the previous release except two fixes — plain-map fields now preserve `false` values (previously dropped via `||` fallback), and reachability now traverses action `returns`/metadata types (additive: surfaces types previously missed).
+**Key Files**: `lib/ash_typescript/manifest.ex` (Spark DSL module), `lib/ash_typescript/manifest/custom.ex` (accessors), `lib/ash_typescript/manifest/decorator.ex` + `transformers/` (decoration), `lib/ash_typescript/manifest/verifiers/`, `lib/ash_typescript/rpc/codegen/helpers/action_introspection.ex`
+**Note**: The installer (`mix ash_typescript.install`) scaffolds the manifest module (`MyApp.AshTypescriptManifest` at `lib/my_app/ash_typescript_manifest.ex`) and sets the `manifest:` config automatically — see `create_manifest_module/2` and `add_ash_typescript_config/1` in `lib/mix/tasks/ash_typescript.install.ex`.
+
 ## 2026-02: Multi-File Orchestrator and DSL Enhancements
 
 **Change**: Unified multi-file codegen orchestration, HTTP verb shortcuts for TypedController DSL, controller namespace support, and shared ImportResolver

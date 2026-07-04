@@ -12,7 +12,7 @@ defmodule AshTypescript.Manifest do
 
   ## Usage
 
-      defmodule MyApp.Ash.Info.Manifest do
+      defmodule MyApp.AshTypescriptManifest do
         use AshTypescript.Manifest, otp_app: :my_app
       end
 

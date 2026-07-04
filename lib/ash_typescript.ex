@@ -750,7 +750,7 @@ defmodule AshTypescript do
   @doc """
   Returns the configured `AshTypescript.Manifest` module.
 
-  Reads from `config :ash_typescript, manifest: MyApp.Ash.Info.Manifest`. Raises
+  Reads from `config :ash_typescript, manifest: MyApp.AshTypescriptManifest`. Raises
   if not configured — every AshTypescript-using project must declare a manifest
   module.
   """
@@ -762,11 +762,11 @@ defmodule AshTypescript do
 
         Add this to your config:
 
-            config :ash_typescript, manifest: MyApp.Ash.Info.Manifest
+            config :ash_typescript, manifest: MyApp.AshTypescriptManifest
 
         And define the module:
 
-            defmodule MyApp.Ash.Info.Manifest do
+            defmodule MyApp.AshTypescriptManifest do
               use AshTypescript.Manifest, otp_app: :my_app
             end
         """

@@ -59,6 +59,22 @@ defmodule MyApp.Domain do
 end
 ```
 
+### Manifest Module (Required)
+
+Every AshTypescript project **must** declare a manifest module and register it in config. `mix test.codegen`/`mix ash_typescript.codegen` and the runtime RPC pipeline both read all action/resource/type shape from this manifest (a decorated `Ash.Info.Manifest`). Codegen raises if `:manifest` is unset.
+
+```elixir
+# config/config.exs (config/test.exs for this repo's test suite)
+config :ash_typescript, manifest: MyApp.AshTypescriptManifest
+
+# lib/my_app/ash_typescript_manifest.ex
+defmodule MyApp.AshTypescriptManifest do
+  use AshTypescript.Manifest, otp_app: :my_app
+end
+```
+
+The module walks `Ash.Info.domains(otp_app)` by default. For scoped/inline manifests (e.g. building from a freshly-defined domain in a test) pass `domains: [MyTest.InlineDomain]`. Access precomputed lookups via `AshTypescript.action_lookup/0`, `resource_lookup/0`, `type_lookup/0`, `rpc_action_lookup/0`, `typed_query_lookup/0`; ash_typescript-owned decoration lives under `custom.ash_typescript` and is read through `AshTypescript.Manifest.Custom`.
+
 ### Typed Controller Configuration
 
 Three syntaxes are supported for defining routes:
@@ -226,6 +242,11 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Type system introspection** | `lib/ash_typescript/type_system/introspection.ex` |
 | **RPC resource discovery & warnings** | `lib/ash_typescript/codegen/type_discovery.ex` |
 | **Reachability analysis** | `Ash.Info.Manifest.Generator.Reachability` (ash core) |
+| **Manifest module (Spark DSL, required per-app)** | `lib/ash_typescript/manifest.ex` |
+| **Manifest Custom decoration accessors** | `lib/ash_typescript/manifest/custom.ex` |
+| **Manifest decorator & transformers** | `lib/ash_typescript/manifest/decorator.ex`, `lib/ash_typescript/manifest/transformers/` |
+| **Manifest verifiers (RPC-extension scope)** | `lib/ash_typescript/manifest/verifiers/` |
+| **Action introspection helper** | `lib/ash_typescript/rpc/codegen/helpers/action_introspection.ex` |
 | **Type aliases generation** | `lib/ash_typescript/codegen/type_aliases.ex` |
 | **TypeScript type mapping** | `lib/ash_typescript/codegen/type_mapper.ex` |
 | **Resource schema generation** | `lib/ash_typescript/codegen/resource_schemas.ex` |
@@ -254,7 +275,7 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Unified value formatting** | `lib/ash_typescript/rpc/value_formatter.ex` |
 | **Input formatting** | `lib/ash_typescript/rpc/input_formatter.ex` (delegates to ValueFormatter) |
 | **Output formatting** | `lib/ash_typescript/rpc/output_formatter.ex` (delegates to ValueFormatter) |
-| **Resource verifiers** | `lib/ash_typescript/resource/verifiers/` |
+| **Resource verifiers (name/type scope)** | `lib/ash_typescript/resource/verifiers/` |
 | **Typed controller DSL** | `lib/ash_typescript/typed_controller/dsl.ex` |
 | **Typed controller main** | `lib/ash_typescript/typed_controller.ex` |
 | **Controller request handler** | `lib/ash_typescript/typed_controller/request_handler.ex` |
@@ -396,6 +417,7 @@ mix credo --strict                   # Linting
 
 | Error | Cause | Solution |
 |-------|-------|----------|
+| "No `:manifest` module configured" | `manifest:` config missing | Add `config :ash_typescript, manifest: MyApp.AshTypescriptManifest` and define the module with `use AshTypescript.Manifest, otp_app: :my_app` |
 | "No domains found" | Using dev environment | Use `mix test.codegen` |
 | "Module not loaded" | Test resources not compiled | Ensure MIX_ENV=test |
 | "Invalid field names found" | Field/arg with `_1` or `?` | Use `field_names` or `argument_names` DSL options |
