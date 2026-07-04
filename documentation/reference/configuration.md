@@ -16,6 +16,9 @@ Configure AshTypescript in your `config/config.exs` file:
 ```elixir
 # config/config.exs
 config :ash_typescript,
+  # Manifest module (required — see "Manifest Module" below)
+  manifest: MyApp.AshTypescriptManifest,
+
   # File generation (multi-file architecture)
   output_file: "assets/js/ash_rpc.ts",
   types_output_file: nil,             # Auto-derives as ash_types.ts in output_file dir
@@ -125,6 +128,7 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `manifest` | `module` | — (**required**) | App-wide manifest module (`use AshTypescript.Manifest`); codegen and runtime raise if unset |
 | `output_file` | `string` | `"assets/js/ash_rpc.ts"` | Path where generated TypeScript code will be written |
 | `types_output_file` | `string \| nil` | `nil` | Path for shared types file (auto-derives from `output_file` dir as `ash_types.ts`) |
 | `zod_output_file` | `string \| nil` | `nil` | Path for shared Zod schemas file (auto-derives from `output_file` dir as `ash_zod.ts`) |
@@ -194,6 +198,24 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `typed_controller_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for typed controller hook context |
 
 See [Lifecycle Hooks](../features/lifecycle-hooks.md) and [Typed Controllers](../guides/typed-controllers.md#lifecycle-hooks) for complete documentation.
+
+## Manifest Module (Required)
+
+AshTypescript builds a single, app-wide `Ash.Info.Manifest` at compile time — the source of truth that both codegen and the runtime RPC pipeline read from. This manifest lives in a small module you declare in your app, registered via the `manifest` config key. Codegen and the pipeline **raise** if `manifest` is not configured.
+
+```elixir
+# lib/my_app/ash_typescript_manifest.ex
+defmodule MyApp.AshTypescriptManifest do
+  use AshTypescript.Manifest, otp_app: :my_app
+end
+
+# config/config.exs
+config :ash_typescript, manifest: MyApp.AshTypescriptManifest
+```
+
+By default the module walks `Ash.Info.domains(otp_app)` to find every domain with a `typescript_rpc` block, merges them into one spec, and verifies the RPC configuration at compile time.
+
+> The `mix igniter.install ash_typescript` installer creates this module and sets the config automatically. You only need to do this by hand for manual installs or when upgrading a project that predates the manifest module.
 
 ## Domain Configuration
 

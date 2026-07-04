@@ -12,7 +12,7 @@ This guide walks you through installing AshTypescript in your Phoenix applicatio
 ## Prerequisites
 
 - Elixir 1.15 or later
-- Phoenix application with Ash 3.0+
+- Phoenix application with Ash 3.27+
 - Node.js 18+ (for TypeScript)
 
 ## Interactive Installation (Recommended)
@@ -69,7 +69,8 @@ mix igniter.install ash_typescript --yes
 ### What the Installer Creates
 
 **Always created:**
-- AshTypescript configuration in `config/config.exs`
+- AshTypescript configuration in `config/config.exs` (including the required `manifest` key)
+- Manifest module at `lib/my_app/ash_typescript_manifest.ex`
 - RPC controller at `lib/my_app_web/controllers/ash_typescript_rpc_controller.ex`
 - RPC routes (`/rpc/run` and `/rpc/validate`) in your router
 
@@ -93,7 +94,7 @@ If you prefer manual setup, add to your `mix.exs`:
 ```elixir
 defp deps do
   [
-    {:ash_typescript, "~> 0.16"}
+    {:ash_typescript, "~> 0.18"}
   ]
 end
 ```
@@ -189,10 +190,22 @@ scope "/", MyAppWeb do
 end
 ```
 
-### 5. Configure AshTypescript
+### 5. Create the Manifest Module
+
+AshTypescript needs an app-wide manifest module — the compile-time source of truth that both codegen and the runtime read from. Codegen raises without it.
+
+```elixir
+# lib/my_app/ash_typescript_manifest.ex
+defmodule MyApp.AshTypescriptManifest do
+  use AshTypescript.Manifest, otp_app: :my_app
+end
+```
+
+### 6. Configure AshTypescript
 
 ```elixir
 config :ash_typescript,
+  manifest: MyApp.AshTypescriptManifest,
   output_file: "assets/js/ash_rpc.ts",
   run_endpoint: "/rpc/run",
   validate_endpoint: "/rpc/validate",

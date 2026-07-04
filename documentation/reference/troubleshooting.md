@@ -153,6 +153,23 @@ end
 
 ### Environment and Configuration Errors
 
+#### Error: "No `:manifest` module configured"
+
+**Cause:** AshTypescript requires an app-wide manifest module, and the `manifest` config key isn't set. This is required as of the manifest-module release — projects created with an older version must add it when upgrading.
+
+**Solution:** Declare a manifest module and register it:
+```elixir
+# lib/my_app/ash_typescript_manifest.ex
+defmodule MyApp.AshTypescriptManifest do
+  use AshTypescript.Manifest, otp_app: :my_app
+end
+
+# config/config.exs
+config :ash_typescript, manifest: MyApp.AshTypescriptManifest
+```
+
+New projects get this automatically from `mix igniter.install ash_typescript`. See [Configuration Reference](configuration.md#manifest-module-required).
+
 #### Error: "No domains found"
 
 **Cause:** Running codegen in wrong environment (dev instead of test).
