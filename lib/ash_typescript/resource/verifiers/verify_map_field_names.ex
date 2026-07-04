@@ -57,42 +57,71 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMapFieldNames do
     invalid_fields
   end
 
-  defp validate_type_constraints(resource, type, constraints, parent_context) do
+  defp validate_type_constraints(resource, type, constraints, parent_context, overrides \\ [])
+
+  # Arrays - unwrap to the item type and validate it with the item constraints.
+  # Covers array-typed fields as well as NewTypes whose subtype is {:array, ...}.
+  defp validate_type_constraints(
+         resource,
+         {:array, inner_type},
+         constraints,
+         parent_context,
+         overrides
+       ) do
+    item_constraints = Keyword.get(constraints, :items, [])
+    validate_type_constraints(resource, inner_type, item_constraints, parent_context, overrides)
+  end
+
+  defp validate_type_constraints(resource, type, constraints, parent_context, overrides) do
     cond do
+      # NewType - unwrap to its underlying subtype (a primitive, array, map,
+      # keyword, tuple, union, or a further NewType). A typescript_field_names/0
+      # callback supplies client-facing overrides for the NewType's own immediate
+      # field names, so those names are exempt; any field it does not remap is
+      # still validated normally.
+      Ash.Type.NewType.new_type?(type) ->
+        validate_type_constraints(
+          resource,
+          Ash.Type.NewType.subtype_of(type),
+          type.subtype_constraints(),
+          parent_context,
+          newtype_field_name_overrides(type)
+        )
+
       # Map, Keyword, or Tuple types with field constraints
       type in [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple] ->
-        validate_fields_constraint(resource, constraints, parent_context)
+        validate_fields_constraint(resource, constraints, parent_context, overrides)
 
       # Union types - check each union member
       type in [Ash.Type.Union] ->
         validate_union_types(resource, constraints, parent_context)
 
-      # NewType - check the underlying type
-      type == Ash.Type.NewType ->
-        subtype_constraints = type.subtype_constraints()
-
-        validate_type_constraints(
-          resource,
-          Ash.Type.NewType.subtype_of(type),
-          subtype_constraints,
-          parent_context
-        )
-
+      # Primitive types (integer, string, boolean, ...) and anything else have no
+      # nested field names to validate.
       true ->
         []
     end
   end
 
-  defp validate_fields_constraint(resource, constraints, parent_context) do
+  defp newtype_field_name_overrides(type) do
+    if Code.ensure_loaded?(type) and function_exported?(type, :typescript_field_names, 0) do
+      type.typescript_field_names()
+    else
+      []
+    end
+  end
+
+  defp validate_fields_constraint(resource, constraints, parent_context, overrides) do
     case Keyword.get(constraints, :fields) do
       nil ->
         []
 
       fields ->
         Enum.flat_map(fields, fn {field_name, field_config} ->
-          # Check if the field name itself is invalid
+          # Check if the field name itself is invalid, unless a NewType
+          # typescript_field_names/0 callback remaps it to a valid client name.
           name_errors =
-            if invalid_name?(field_name) do
+            if invalid_name?(field_name) and not Keyword.has_key?(overrides, field_name) do
               [{resource, parent_context, field_name, make_name_better(field_name)}]
             else
               []
@@ -101,6 +130,9 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMapFieldNames do
           field_type = Keyword.get(field_config, :type)
           field_constraints = Keyword.get(field_config, :constraints, [])
 
+          # Nested types are validated on their own terms; the parent's overrides
+          # do not apply (a nested type must remap its own names via its own
+          # NewType callback).
           nested_errors =
             if field_type do
               validate_type_constraints(resource, field_type, field_constraints, parent_context)

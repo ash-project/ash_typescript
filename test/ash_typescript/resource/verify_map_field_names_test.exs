@@ -185,5 +185,155 @@ defmodule AshTypescript.Resource.VerifyMapFieldNamesTest do
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in map\/keyword\/tuple/
     end
+
+    test "detects invalid field names inside array-of-map field constraints" do
+      defmodule TestResourceWithInvalidArrayMapFields do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "TestResourceWithInvalidArrayMapFields"
+        end
+
+        attributes do
+          uuid_primary_key :id
+
+          attribute :entries, {:array, :map} do
+            public? true
+
+            constraints items: [
+                          fields: [
+                            entry_1: [type: :string],
+                            is_pinned?: [type: :boolean]
+                          ]
+                        ]
+          end
+        end
+      end
+
+      result =
+        AshTypescript.VerifierChecker.check_all_verifiers([TestResourceWithInvalidArrayMapFields])
+
+      assert {:error, error_message} = result
+      assert error_message =~ ~r/Invalid field names found in map\/keyword\/tuple/
+    end
+  end
+
+  describe "verify/1 integration - NewType typescript_field_names/0 overrides" do
+    test "detects invalid field names a NewType callback does not remap" do
+      defmodule PartialMappingNewType do
+        use Ash.Type.NewType,
+          subtype_of: :map,
+          constraints: [
+            fields: [
+              mapped_1: [type: :string, allow_nil?: false],
+              unmapped_2: [type: :string, allow_nil?: false]
+            ]
+          ]
+
+        # Only remaps mapped_1; unmapped_2 is left with an invalid name.
+        def typescript_field_names, do: [mapped_1: "mapped1"]
+      end
+
+      defmodule TestResourceWithPartialNewTypeMapping do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "TestResourceWithPartialNewTypeMapping"
+        end
+
+        attributes do
+          uuid_primary_key :id
+
+          attribute :metadata, PartialMappingNewType do
+            public? true
+          end
+        end
+      end
+
+      result =
+        AshTypescript.VerifierChecker.check_all_verifiers([
+          TestResourceWithPartialNewTypeMapping
+        ])
+
+      assert {:error, error_message} = result
+      assert error_message =~ ~r/Invalid field names found in map\/keyword\/tuple/
+      assert error_message =~ "unmapped_2"
+      refute error_message =~ "mapped_1"
+    end
+
+    test "passes when a NewType callback remaps every invalid field name" do
+      defmodule FullMappingNewType do
+        use Ash.Type.NewType,
+          subtype_of: :map,
+          constraints: [
+            fields: [
+              field_1: [type: :string, allow_nil?: false],
+              is_active?: [type: :boolean, allow_nil?: false]
+            ]
+          ]
+
+        def typescript_field_names, do: [field_1: "field1", is_active?: "isActive"]
+      end
+
+      defmodule TestResourceWithFullNewTypeMapping do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "TestResourceWithFullNewTypeMapping"
+        end
+
+        attributes do
+          uuid_primary_key :id
+
+          attribute :metadata, FullMappingNewType do
+            public? true
+          end
+        end
+      end
+
+      assert :ok =
+               AshTypescript.VerifierChecker.check_all_verifiers([
+                 TestResourceWithFullNewTypeMapping
+               ])
+    end
+
+    test "passes for a NewType whose subtype is a primitive" do
+      defmodule PrimitiveNewType do
+        use Ash.Type.NewType, subtype_of: :integer
+      end
+
+      defmodule TestResourceWithPrimitiveNewType do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "TestResourceWithPrimitiveNewType"
+        end
+
+        attributes do
+          uuid_primary_key :id
+
+          attribute :count, PrimitiveNewType do
+            public? true
+          end
+        end
+      end
+
+      assert :ok =
+               AshTypescript.VerifierChecker.check_all_verifiers([
+                 TestResourceWithPrimitiveNewType
+               ])
+    end
   end
 end
