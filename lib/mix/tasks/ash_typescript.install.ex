@@ -79,6 +79,7 @@ if Code.ensure_loaded?(Igniter) do
         |> Igniter.Project.IgniterConfig.add_extension(Igniter.Extensions.Phoenix)
         |> Igniter.Project.Formatter.import_dep(:ash_typescript)
         |> add_ash_typescript_config()
+        |> create_manifest_module(app_name)
         |> create_rpc_controller(app_name, web_module)
         |> add_rpc_routes(web_module)
         |> Vite.maybe_fix_runtime_manifest_cache(bundler, app_name)
@@ -249,7 +250,15 @@ if Code.ensure_loaded?(Igniter) do
     # -- Core setup --
 
     defp add_ash_typescript_config(igniter) do
+      manifest_module = Igniter.Project.Module.module_name(igniter, "AshTypescriptManifest")
+
       igniter
+      |> Igniter.Project.Config.configure_new(
+        "config.exs",
+        :ash_typescript,
+        [:manifest],
+        manifest_module
+      )
       |> Igniter.Project.Config.configure_new(
         "config.exs",
         :ash_typescript,
@@ -321,6 +330,16 @@ if Code.ensure_loaded?(Igniter) do
         :ash_typescript,
         [:phoenix_import_path],
         "phoenix"
+      )
+    end
+
+    defp create_manifest_module(igniter, app_name) do
+      manifest_module = Igniter.Project.Module.module_name(igniter, "AshTypescriptManifest")
+
+      Igniter.Project.Module.create_module(
+        igniter,
+        manifest_module,
+        "use AshTypescript.Manifest, otp_app: :#{app_name}"
       )
     end
 
