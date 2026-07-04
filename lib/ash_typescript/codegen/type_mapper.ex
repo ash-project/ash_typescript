@@ -210,6 +210,18 @@ defmodule AshTypescript.Codegen.TypeMapper do
           (override = get_type_mapping_override(type_info.module)) != nil ->
             override
 
+          # Third-party Ash types with bespoke TypeScript aliases. These modules
+          # don't implement `typescript_type_name/0`, so they aren't caught by the
+          # custom-type branch above and would otherwise fall through to "any".
+          type_info.module == AshMoney.Types.Money ->
+            "Money"
+
+          type_info.module == AshPostgres.Ltree ->
+            map_ltree(type_info.constraints || [])
+
+          type_info.module == AshDoubleEntry.ULID ->
+            "ULID"
+
           (ts = Map.get(@kind_to_ts, type_info.kind)) != nil ->
             ts
 
@@ -251,6 +263,16 @@ defmodule AshTypescript.Codegen.TypeMapper do
   # ─────────────────────────────────────────────────────────────────
 
   defp wrap_array(inner_type), do: "Array<#{inner_type}>"
+
+  # AshPostgres.Ltree maps to a string[] when `escape?` is set, otherwise to the
+  # flexible `string | string[]` alias.
+  defp map_ltree(constraints) do
+    if Keyword.get(constraints, :escape?, false) do
+      "AshPostgresLtreeArray"
+    else
+      "AshPostgresLtreeFlexible"
+    end
+  end
 
   defp map_resource(resource, direction) do
     resource_name = Helpers.build_resource_type_name(resource)
