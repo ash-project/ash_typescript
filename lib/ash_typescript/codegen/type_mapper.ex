@@ -11,6 +11,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
   """
 
   alias Ash.Info.Manifest.Type
+  alias AshTypescript.TypeSystem.Introspection
   alias AshTypescript.Codegen.Helpers
 
   # ─────────────────────────────────────────────────────────────────
@@ -202,7 +203,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
             ts
 
           is_atom(type_info.module) and not is_nil(type_info.module) and
-              is_custom_type?(type_info.module) ->
+              Introspection.is_custom_type?(type_info.module) ->
             AshTypescript.Manifest.Custom.type_name(type_info) ||
               type_info.module.typescript_type_name()
 
@@ -662,14 +663,6 @@ defmodule AshTypescript.Codegen.TypeMapper do
   end
 
   defp get_type_mapping_override(_type), do: nil
-
-  defp is_custom_type?(type) when is_atom(type) and not is_nil(type) do
-    Code.ensure_loaded?(type) and
-      function_exported?(type, :typescript_type_name, 0) and
-      Spark.implements_behaviour?(type, Ash.Type)
-  end
-
-  defp is_custom_type?(_), do: false
 
   defp map_enum_from_type(%Ash.Info.Manifest.Type{values: values})
        when is_list(values) and values != [] do
