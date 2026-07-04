@@ -2,15 +2,14 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Test.ApiSpec do
+defmodule AshTypescript.Test.Manifest do
   @moduledoc """
   Test Ash.Info.Manifest module for building unified app-wide spec.
 
-  The require statements ensure domains (and their resources) are
-  compiled before the transformer runs reachability analysis.
+  Domain (and resource) compilation ordering is handled by the manifest
+  transformer itself, which calls `Code.ensure_compiled!/1` on every RPC
+  resource before running reachability analysis (see
+  `AshTypescript.Manifest.Transformers.BuildAppSpec`).
   """
-  require AshTypescript.Test.Domain
-  require AshTypescript.Test.SecondDomain
-
   use AshTypescript.Manifest, otp_app: :ash_typescript
 end

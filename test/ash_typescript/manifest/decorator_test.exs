@@ -10,7 +10,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
 
   setup_all do
     {:ok,
-     api_spec: Spark.Dsl.Extension.get_persisted(AshTypescript.Test.ApiSpec, :manifest),
+     api_spec: Spark.Dsl.Extension.get_persisted(AshTypescript.Test.Manifest, :manifest),
      resource_lookup: AshTypescript.resource_lookup()}
   end
 

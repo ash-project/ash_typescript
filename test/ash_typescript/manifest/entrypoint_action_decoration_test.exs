@@ -3,7 +3,7 @@ defmodule AshTypescript.Manifest.EntrypointActionDecorationTest do
 
   alias AshTypescript.Manifest.Custom
 
-  @manifest AshTypescript.Test.ApiSpec
+  @manifest AshTypescript.Test.Manifest
 
   test "entrypoint actions in action_lookup carry precomputed decoration" do
     action_lookup = AshTypescript.action_lookup(@manifest)

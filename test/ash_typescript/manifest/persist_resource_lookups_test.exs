@@ -6,10 +6,10 @@ defmodule AshTypescript.Manifest.UnifiedSpecTest do
   use ExUnit.Case, async: true
 
   describe "unified app-wide spec via AshTypescript.Manifest" do
-    test "ApiSpec has :resource_lookup persisted" do
+    test "Manifest has :resource_lookup persisted" do
       lookup =
         Spark.Dsl.Extension.get_persisted(
-          AshTypescript.Test.ApiSpec,
+          AshTypescript.Test.Manifest,
           :resource_lookup
         )
 
@@ -20,7 +20,7 @@ defmodule AshTypescript.Manifest.UnifiedSpecTest do
     test "includes RPC root resources" do
       lookup =
         Spark.Dsl.Extension.get_persisted(
-          AshTypescript.Test.ApiSpec,
+          AshTypescript.Test.Manifest,
           :resource_lookup
         )
 
@@ -32,7 +32,7 @@ defmodule AshTypescript.Manifest.UnifiedSpecTest do
     test "User actions from BOTH Domain and SecondDomain appear in action_lookup" do
       action_lookup =
         Spark.Dsl.Extension.get_persisted(
-          AshTypescript.Test.ApiSpec,
+          AshTypescript.Test.Manifest,
           :action_lookup
         )
 
@@ -46,7 +46,7 @@ defmodule AshTypescript.Manifest.UnifiedSpecTest do
     test "lookup entries are Resource structs with correct fields" do
       lookup =
         Spark.Dsl.Extension.get_persisted(
-          AshTypescript.Test.ApiSpec,
+          AshTypescript.Test.Manifest,
           :resource_lookup
         )
 
@@ -71,7 +71,7 @@ defmodule AshTypescript.Manifest.UnifiedSpecTest do
     test "includes resource relationships" do
       lookup =
         Spark.Dsl.Extension.get_persisted(
-          AshTypescript.Test.ApiSpec,
+          AshTypescript.Test.Manifest,
           :resource_lookup
         )
 
