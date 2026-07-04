@@ -254,32 +254,6 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     end
   end
 
-  @doc """
-  Generates an attributes-only schema for a resource.
-
-  This schema only includes attributes (no calculations, relationships, or aggregates).
-  It's used for first aggregates where nested field selection is possible but limited
-  to fields that don't require loading.
-
-  For embedded resource attributes, recursively references their AttributesOnlySchema.
-  """
-  def generate_attributes_only_schema(resource, allowed_resources) do
-    resource_lookup = build_resource_lookup()
-
-    case Map.get(resource_lookup, resource) do
-      %Ash.Info.Manifest.Resource{} = api_resource ->
-        generate_attributes_only_schema_from_spec(
-          resource,
-          api_resource,
-          allowed_resources,
-          resource_lookup
-        )
-
-      nil ->
-        raise "ResourceSchemas: resource #{inspect(resource)} not found in resource_lookup"
-    end
-  end
-
   defp is_complex_attr?(attr) do
     classify_field(attr) != :primitive
   end

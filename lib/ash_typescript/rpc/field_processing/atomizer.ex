@@ -142,10 +142,4 @@ defmodule AshTypescript.Rpc.FieldProcessing.Atomizer do
   def process_field_value(primitive, _formatter, _resource, _atomize_strings) do
     primitive
   end
-
-  # Legacy function names for backwards compatibility
-  def atomize_field(field, formatter, resource), do: process_field(field, formatter, resource)
-
-  def atomize_field_value(value, formatter, resource, atomize_strings),
-    do: process_field_value(value, formatter, resource, atomize_strings)
 end

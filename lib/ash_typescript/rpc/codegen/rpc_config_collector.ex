@@ -8,26 +8,6 @@ defmodule AshTypescript.Rpc.Codegen.RpcConfigCollector do
   """
 
   @doc """
-  Gets RPC action DSL entries (resource + action name pairs) for building the spec.
-
-  Returns a list of `{resource_module, action_name}` tuples.
-  This is used to build the Ash.Info.Manifest before resolving full action structs.
-  """
-  def get_rpc_action_tuples(otp_app) do
-    otp_app
-    |> Ash.Info.domains()
-    |> Enum.flat_map(fn domain ->
-      rpc_config = AshTypescript.Rpc.Info.typescript_rpc(domain)
-
-      Enum.flat_map(rpc_config, fn %{resource: resource, rpc_actions: rpc_actions} ->
-        Enum.map(rpc_actions, fn rpc_action ->
-          {resource, rpc_action.action}
-        end)
-      end)
-    end)
-  end
-
-  @doc """
   Gets RPC action entrypoint configs for building the spec with extension-specific metadata.
 
   Returns a list of maps suitable for `Ash.Info.Manifest.Generator.generate/1`'s

@@ -79,21 +79,6 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     end
   end
 
-  @doc """
-  Returns the TypeScript schema reference for an RPC action (without generating definition).
-
-  Useful when the schema definition is generated separately.
-  """
-  def get_schema_reference(resource, rpc_action, rpc_action_name_pascal) do
-    resource_name = Helpers.build_resource_type_name(resource)
-
-    if has_load_restrictions?(rpc_action) do
-      "#{rpc_action_name_pascal}Schema"
-    else
-      "#{resource_name}ResourceSchema"
-    end
-  end
-
   defp generate_deny_schema(resource, denied_loads, schema_name, base_schema, resource_lookup) do
     {flat_denies, nested_denies} = partition_restrictions(denied_loads)
 

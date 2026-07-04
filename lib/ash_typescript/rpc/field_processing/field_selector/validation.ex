@@ -73,22 +73,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector.Validation do
     end
   end
 
-  @doc """
-  Validates that a field exists in the given field specs.
-
-  Throws `{:unknown_field, field_name, error_type, path}` if not found.
-  """
-  def validate_field_exists!(
-        field_name,
-        field_specs,
-        path,
-        error_type \\ "field_constrained_type"
-      ) do
-    unless Keyword.has_key?(field_specs, field_name) do
-      throw({:unknown_field, field_name, error_type, path})
-    end
-  end
-
   # Normalizes a string field name to an atom using the formatter
   defp normalize_field_name(field_name, formatter) when is_binary(field_name) do
     FieldFormatter.convert_to_field_atom(field_name, formatter)

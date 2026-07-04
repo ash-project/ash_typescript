@@ -15,6 +15,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   import AshTypescript.Codegen, only: [build_resource_type_name: 1]
 
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
+  alias AshTypescript.TypeSystem.Introspection
 
   # ─────────────────────────────────────────────────────────────────
   # Core Dispatcher
@@ -68,7 +69,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
         "string[]"
 
       _ ->
-        if is_custom_type?(type_info.module) do
+        if Introspection.is_custom_type?(type_info.module) do
           "#{type_info.module.typescript_type_name()}ValidationErrors"
         else
           "string[]"
@@ -91,7 +92,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
 
       # Custom types with typescript_type_name - check original type BEFORE using
       # unwrapped type, so NewTypes with custom type names are respected (issue #52)
-      is_custom_type?(type) ->
+      Introspection.is_custom_type?(type) ->
         "#{type.typescript_type_name()}ValidationErrors"
 
       # Embedded resources
@@ -145,7 +146,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
         map_resource_error(instance_of)
 
       # instance_of pointing to module with typescript_type_name
-      instance_of && is_custom_type?(instance_of) ->
+      instance_of && Introspection.is_custom_type?(instance_of) ->
         "#{instance_of.typescript_type_name()}ValidationErrors"
 
       # Has fields constraint - inline object type
@@ -234,58 +235,6 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
       """
       // ============================
       // Validation Error Schemas for Embedded Resources
-      // ============================
-
-      #{schemas}
-      """
-    else
-      ""
-    end
-  end
-
-  @doc """
-  Generates validation error schemas for types with field constraints.
-
-  Accepts either:
-  - A list of type info maps (new format): `%{instance_of:, constraints:, field_name_mappings:}`
-  - A list of modules (legacy format): for backward compatibility
-
-  Returns TypeScript validation error schema definitions.
-  """
-  def generate_validation_error_schemas_for_typed_structs(type_infos) when is_list(type_infos) do
-    if type_infos != [] do
-      schemas =
-        type_infos
-        |> Enum.map_join("\n\n", fn
-          %{instance_of: instance_of, constraints: constraints, field_name_mappings: mappings} ->
-            generate_validation_error_schema_for_field_type(instance_of, constraints, mappings)
-
-          module when is_atom(module) ->
-            constraints =
-              if Ash.Type.NewType.new_type?(module) do
-                Ash.Type.NewType.constraints(module, [])
-              else
-                []
-              end
-
-            field_name_mappings =
-              if Code.ensure_loaded?(module) and
-                   function_exported?(module, :typescript_field_names, 0) do
-                module.typescript_field_names()
-              else
-                nil
-              end
-
-            generate_validation_error_schema_for_field_type(
-              module,
-              constraints,
-              field_name_mappings
-            )
-        end)
-
-      """
-      // ============================
-      // Validation Error Schemas for Field-Constrained Types
       // ============================
 
       #{schemas}
@@ -397,53 +346,6 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
       {formatted_name, error_type}
     end)
   end
-
-  defp generate_validation_error_schema_for_field_type(
-         instance_of_module,
-         constraints,
-         field_name_mappings
-       ) do
-    resource_name = build_resource_type_name(instance_of_module)
-
-    fields = Keyword.get(constraints, :fields, [])
-
-    error_fields =
-      fields
-      |> Enum.map_join("\n", fn {field_name, field_config} ->
-        # Apply field name mapping if defined
-        mapped_name =
-          if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
-            Keyword.get(field_name_mappings, field_name)
-          else
-            field_name
-          end
-
-        formatted_name =
-          AshTypescript.FieldFormatter.format_field_name(
-            mapped_name,
-            AshTypescript.Rpc.output_field_formatter()
-          )
-
-        field_type = Keyword.get(field_config, :type)
-        field_constraints = Keyword.get(field_config, :constraints, [])
-        error_type = get_ts_error_type(%{type: field_type, constraints: field_constraints})
-        "  #{formatted_name}?: #{error_type};"
-      end)
-
-    """
-    export type #{resource_name}ValidationErrors = {
-    #{error_fields}
-    };
-    """
-  end
-
-  defp is_custom_type?(type) when is_atom(type) and not is_nil(type) do
-    Code.ensure_loaded?(type) and
-      function_exported?(type, :typescript_type_name, 0) and
-      Spark.implements_behaviour?(type, Ash.Type)
-  end
-
-  defp is_custom_type?(_), do: false
 
   defp is_embedded_resource?(module) when is_atom(module) and not is_nil(module) do
     AshTypescript.Helpers.ash_resource?(module) and Ash.Resource.Info.embedded?(module)

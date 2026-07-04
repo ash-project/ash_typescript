@@ -42,17 +42,6 @@ defmodule AshTypescript.Codegen.Helpers do
   end
 
   @doc """
-  Determines if a calculation is simple (no arguments, no complex return type).
-  Simple calculations are treated like regular fields in the schema.
-  """
-  def is_simple_calculation(%Ash.Resource.Calculation{} = calc) do
-    has_arguments = !Enum.empty?(calc.arguments)
-    has_complex_return_type = is_complex_return_type(calc.type, calc.constraints)
-
-    not has_arguments and not has_complex_return_type
-  end
-
-  @doc """
   Determines if a return type is complex (requires special metadata handling).
   """
   def is_complex_return_type(Ash.Type.Struct, constraints) do

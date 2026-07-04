@@ -50,8 +50,7 @@ defmodule AshTypescript.Manifest.Custom do
   are the only ones the runtime pipeline ever looks up.
   """
   @type action_custom :: %{
-          optional(:return_classification) =>
-            {:ok, atom(), term()} | {:error, atom()},
+          optional(:return_classification) => {:ok, atom(), term()} | {:error, atom()},
           optional(:input_expected_keys) => %{atom() => %{String.t() => atom()}},
           optional(:input_field_types) => %{atom() => Ash.Info.Manifest.Type.t()}
         }
