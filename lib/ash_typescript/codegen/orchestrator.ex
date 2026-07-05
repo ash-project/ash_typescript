@@ -64,12 +64,12 @@ defmodule AshTypescript.Codegen.Orchestrator do
     if rpc_output_file do
       domains = Ash.Info.domains(otp_app)
 
+      # `run_manifest_verifiers/2` runs `VerifyRpcWarnings`, which already emits
+      # the RPC-configuration warnings (gated by the same config flags). Don't
+      # emit them again here.
       with :ok <- AshTypescript.VerifierChecker.check_all_verifiers(rpc_resources ++ domains),
            :ok <- run_manifest_verifiers(otp_app, domains) do
-        case TypeDiscovery.build_rpc_warnings(otp_app) do
-          nil -> :ok
-          message -> IO.warn(message)
-        end
+        :ok
       else
         {:error, error_message} -> throw({:error, error_message})
       end
