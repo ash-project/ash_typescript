@@ -16,7 +16,7 @@ defmodule AshTypescript.Test.CodegenTestHelper do
   Files are sorted by path to ensure deterministic ordering.
   """
   def generate_all_content(otp_app \\ :ash_typescript, opts \\ []) do
-    case Orchestrator.generate(otp_app, opts) do
+    case with_rpc_warnings_disabled(fn -> Orchestrator.generate(otp_app, opts) end) do
       {:ok, files} ->
         content =
           files
@@ -36,7 +36,7 @@ defmodule AshTypescript.Test.CodegenTestHelper do
   Use when tests need to inspect specific files.
   """
   def generate_files(otp_app \\ :ash_typescript, opts \\ []) do
-    Orchestrator.generate(otp_app, opts)
+    with_rpc_warnings_disabled(fn -> Orchestrator.generate(otp_app, opts) end)
   end
 
   @doc """
@@ -79,5 +79,21 @@ defmodule AshTypescript.Test.CodegenTestHelper do
   """
   def generate_controller_content(opts \\ []) do
     AshTypescript.TypedController.Codegen.generate_controller_content(opts)
+  end
+
+  # The default test manifest intentionally includes resources (e.g. NotExposed)
+  # that are referenced by RPC resources without being exposed via RPC. Running
+  # the orchestrator emits the resulting configuration warnings (via the manifest
+  # verifier's `IO.warn`) on nearly every codegen test, drowning out real output.
+  #
+  # Capture stderr around the generate call rather than toggling the
+  # `warn_on_*` config flags: the flags are process-global and these codegen
+  # tests run `async: true`, so a flag toggle races across concurrent tests.
+  # Capturing keeps the flags' `true` default intact everywhere (including the
+  # real `mix ash_typescript.codegen` task, which doesn't go through this helper),
+  # so genuine misconfigurations still surface there.
+  defp with_rpc_warnings_disabled(fun) do
+    {result, _stderr} = ExUnit.CaptureIO.with_io(:stderr, fun)
+    result
   end
 end

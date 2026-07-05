@@ -453,7 +453,7 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
 
   describe "orchestrator integration" do
     setup do
-      {:ok, files} = AshTypescript.Codegen.Orchestrator.generate(:ash_typescript)
+      {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
       types_file = AshTypescript.types_output_file()
       channels_file = AshTypescript.typed_channels_output_file()
 

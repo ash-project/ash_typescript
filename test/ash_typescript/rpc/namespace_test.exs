@@ -739,9 +739,14 @@ defmodule AshTypescript.Rpc.NamespaceTest do
     setup %{tmp_dir: tmp_dir} do
       original_config =
         Map.new(
-          ~w[enable_namespace_files namespace_output_dir output_file routes_output_file types_output_file zod_output_file typed_channels_output_file]a,
+          ~w[enable_namespace_files namespace_output_dir output_file routes_output_file types_output_file zod_output_file typed_channels_output_file warn_on_missing_rpc_config warn_on_non_rpc_references]a,
           &{&1, Application.get_env(:ash_typescript, &1)}
         )
+
+      # These tests run the real Mix task, whose codegen would otherwise emit the
+      # NotExposed RPC-reference warnings on every run (restored via on_exit).
+      Application.put_env(:ash_typescript, :warn_on_missing_rpc_config, false)
+      Application.put_env(:ash_typescript, :warn_on_non_rpc_references, false)
 
       Application.put_env(:ash_typescript, :enable_namespace_files, true)
       Application.put_env(:ash_typescript, :namespace_output_dir, tmp_dir)

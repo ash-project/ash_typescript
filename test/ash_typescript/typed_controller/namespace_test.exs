@@ -278,7 +278,7 @@ defmodule AshTypescript.TypedController.NamespaceTest do
       Application.put_env(:ash_typescript, :enable_namespace_files, false)
 
       try do
-        {:ok, files} = AshTypescript.Codegen.Orchestrator.generate(:ash_typescript)
+        {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
 
         auth_path = Path.join(tmp_dir, "auth.ts")
         account_path = Path.join(tmp_dir, "account.ts")
@@ -333,7 +333,7 @@ defmodule AshTypescript.TypedController.NamespaceTest do
       Application.put_env(:ash_typescript, :enable_namespace_files, false)
 
       try do
-        {:ok, files} = AshTypescript.Codegen.Orchestrator.generate(:ash_typescript)
+        {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
 
         auth_path = Path.join(tmp_dir, "auth.ts")
         account_path = Path.join(tmp_dir, "account.ts")
