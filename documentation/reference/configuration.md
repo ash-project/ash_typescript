@@ -64,6 +64,10 @@ config :ash_typescript,
   warn_on_missing_rpc_config: true,
   warn_on_non_rpc_references: true,
 
+  # Typed channel warnings
+  warn_on_non_public_publications: true,
+  warn_on_missing_channel_returns: true,
+
   # RPC namespace files
   enable_namespace_files: false,      # Generate separate files for namespaced RPC actions
   namespace_output_dir: nil,          # Directory for RPC namespace files (defaults to output_file dir)
@@ -152,6 +156,8 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `untyped_map_type` | `string` | `"Record<string, any>"` | TypeScript type for untyped maps |
 | `warn_on_missing_rpc_config` | `boolean` | `true` | Warn about resources with extension not in RPC config |
 | `warn_on_non_rpc_references` | `boolean` | `true` | Warn about non-RPC resources referenced by RPC resources |
+| `warn_on_non_public_publications` | `boolean` | `true` | Warn about typed channel publications not marked `public?: true` |
+| `warn_on_missing_channel_returns` | `boolean` | `true` | Warn about typed channel publications with no `returns` type |
 | `enable_namespace_files` | `boolean` | `false` | Generate separate files for namespaced RPC actions |
 | `namespace_output_dir` | `string \| nil` | `nil` | Directory for RPC namespace files (defaults to `output_file` dir) |
 | `typed_channels` | `list(module)` | `[]` | TypedChannel modules to generate event subscription helpers for |
@@ -301,6 +307,26 @@ Appears when RPC resources reference other resources that are not configured as 
 config :ash_typescript,
   warn_on_missing_rpc_config: false,
   warn_on_non_rpc_references: false
+```
+
+## Typed Channel Warnings
+
+During typed channel verification, AshTypescript warns about publications that produce lower-quality TypeScript types. Each warning is independently toggleable (default `true`), mirroring the RPC resource warnings.
+
+### Non-Public Publication Warning
+
+Appears when a publication referenced by a `typed_channel` is not marked `public?: true`.
+
+### Missing Channel Returns Warning
+
+Appears when a publication referenced by a `typed_channel` has no `returns` type, so its TypeScript payload type falls back to `unknown`.
+
+**To disable warnings:**
+
+```elixir
+config :ash_typescript,
+  warn_on_non_public_publications: false,
+  warn_on_missing_channel_returns: false
 ```
 
 ## Always Regenerate Mode

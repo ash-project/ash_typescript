@@ -348,6 +348,51 @@ defmodule AshTypescript do
   end
 
   @doc """
+  Gets whether to warn about typed channel publications that are not marked `public?: true`.
+
+  When enabled, during typed channel verification, a warning is displayed for any
+  publication referenced by a `typed_channel` whose `pub_sub` entry is not marked
+  `public?: true`. Disable it if you intentionally publish non-public events.
+
+  ## Configuration
+
+      # Disable warnings (silent)
+      config :ash_typescript, warn_on_non_public_publications: false
+
+      # Enable warnings (default)
+      config :ash_typescript, warn_on_non_public_publications: true
+
+  ## Returns
+  A boolean indicating whether to display warnings, defaulting to `true`.
+  """
+  def warn_on_non_public_publications? do
+    Application.get_env(:ash_typescript, :warn_on_non_public_publications, true)
+  end
+
+  @doc """
+  Gets whether to warn about typed channel publications that have no `returns` type.
+
+  When enabled, during typed channel verification, a warning is displayed for any
+  publication referenced by a `typed_channel` that has no `returns` set (whose
+  TypeScript payload type therefore falls back to `unknown`). Disable it if the
+  `unknown` payload is intentional.
+
+  ## Configuration
+
+      # Disable warnings (silent)
+      config :ash_typescript, warn_on_missing_channel_returns: false
+
+      # Enable warnings (default)
+      config :ash_typescript, warn_on_missing_channel_returns: true
+
+  ## Returns
+  A boolean indicating whether to display warnings, defaulting to `true`.
+  """
+  def warn_on_missing_channel_returns? do
+    Application.get_env(:ash_typescript, :warn_on_missing_channel_returns, true)
+  end
+
+  @doc """
   Gets whether to always regenerate TypeScript files instead of raising on pending codegen.
 
   When enabled, `--check` will write changed files instead of raising

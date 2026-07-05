@@ -12,6 +12,12 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
   3. Publications are marked `public?: true` (warning if not).
   4. Publications have `returns` set — either auto-derived via `transform :calc`
      or explicitly declared (warning if not — TypeScript type falls back to `unknown`).
+
+  Checks 1 and 2 are hard errors. Checks 3 and 4 emit `IO.warn` and are each
+  gated by an application-level toggle (mirroring `VerifyRpcWarnings`):
+
+    * `config :ash_typescript, warn_on_non_public_publications: true` (default)
+    * `config :ash_typescript, warn_on_missing_channel_returns: true` (default)
   """
 
   use Spark.Dsl.Verifier
@@ -95,14 +101,14 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
         matching_pub = find_publication(publications, event_str)
 
         if matching_pub do
-          unless matching_pub.public? do
+          if not matching_pub.public? and AshTypescript.warn_on_non_public_publications?() do
             IO.warn(
               "Publication #{inspect(pub.event)} on #{inspect(resource_module)} is not marked " <>
                 "`public?: true`. Consider adding `public?: true` to the publication."
             )
           end
 
-          unless matching_pub.returns do
+          if is_nil(matching_pub.returns) and AshTypescript.warn_on_missing_channel_returns?() do
             IO.warn(
               "Publication #{inspect(pub.event)} on #{inspect(resource_module)} does not have " <>
                 "`returns` set. The TypeScript payload type will be `unknown`. " <>

@@ -2,45 +2,10 @@
 #
 # SPDX-License-Identifier: MIT
 
-# Inline resource/channel defined here (not in test/support/) so that the
-# intentional missing `returns` triggers IO.warn only during `mix test`, not
-# during `mix compile --warnings-as-errors` which would block CI.
-defmodule AshTypescript.Test.TypedChannel.NoReturnsItem do
-  @moduledoc false
-  use Ash.Resource, domain: nil, notifiers: [Ash.Notifier.PubSub]
-
-  pub_sub do
-    module AshTypescript.Test.TestEndpoint
-    prefix "no_returns_items"
-
-    publish :destroy, [:id],
-      event: "thing_removed",
-      public?: true
-
-    # intentionally no `returns` — TypeScript payload type should be `unknown`
-  end
-
-  attributes do
-    uuid_primary_key :id
-  end
-
-  actions do
-    defaults [:destroy]
-  end
-end
-
-defmodule AshTypescript.Test.TypedChannel.NoReturnsChannel do
-  @moduledoc false
-  use AshTypescript.TypedChannel
-
-  typed_channel do
-    topic "things:*"
-
-    resource AshTypescript.Test.TypedChannel.NoReturnsItem do
-      publish(:thing_removed)
-    end
-  end
-end
+# The `NoReturnsItem`/`NoReturnsChannel` fixtures (intentionally missing `returns`
+# to exercise the `unknown` payload path) are defined inside the relevant describe
+# block's setup, with the `warn_on_missing_channel_returns` flag disabled there, so
+# the verifier's expected warning doesn't leak into `mix test` output.
 
 # Channel with a static topic (no wildcard) — exercises the no-suffix factory path.
 defmodule AshTypescript.Test.TypedChannel.StaticTopicChannel do
@@ -124,13 +89,59 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
 
   describe "generate_channel_types/2 — unknown payload type" do
     setup do
-      content =
-        Codegen.generate_channel_types(
-          AshTypescript.Test.TypedChannel.NoReturnsChannel,
-          "things:*"
-        )
+      # This test cares about the generated `unknown` payload, not the verifier's
+      # "missing returns" warning. Disable that warning (restored via on_exit) so
+      # it doesn't leak into test output when the fixture channel compiles at
+      # runtime below. Safe without a race because this file isn't async.
+      original = Application.get_env(:ash_typescript, :warn_on_missing_channel_returns)
+      Application.put_env(:ash_typescript, :warn_on_missing_channel_returns, false)
 
-      %{content: content}
+      on_exit(fn ->
+        if is_nil(original) do
+          Application.delete_env(:ash_typescript, :warn_on_missing_channel_returns)
+        else
+          Application.put_env(:ash_typescript, :warn_on_missing_channel_returns, original)
+        end
+      end)
+
+      defmodule NoReturnsItem do
+        @moduledoc false
+        use Ash.Resource, domain: nil, notifiers: [Ash.Notifier.PubSub]
+
+        pub_sub do
+          module AshTypescript.Test.TestEndpoint
+          prefix "no_returns_items"
+
+          publish :destroy, [:id],
+            event: "thing_removed",
+            public?: true
+
+          # intentionally no `returns` — payload type should be `unknown`
+        end
+
+        attributes do
+          uuid_primary_key :id
+        end
+
+        actions do
+          defaults [:destroy]
+        end
+      end
+
+      defmodule NoReturnsChannel do
+        @moduledoc false
+        use AshTypescript.TypedChannel
+
+        typed_channel do
+          topic "things:*"
+
+          resource NoReturnsItem do
+            publish(:thing_removed)
+          end
+        end
+      end
+
+      %{content: Codegen.generate_channel_types(NoReturnsChannel, "things:*")}
     end
 
     test "generates unknown payload type for event without returns", %{content: content} do
@@ -290,7 +301,7 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
 
   describe "orchestrator integration — TrackerChannel" do
     setup do
-      {:ok, files} = AshTypescript.Codegen.Orchestrator.generate(:ash_typescript)
+      {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
       types_file = AshTypescript.types_output_file()
       types_content = Map.get(files, types_file, "")
       channels_file = AshTypescript.typed_channels_output_file()
@@ -376,7 +387,7 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
 
   describe "orchestrator integration" do
     setup do
-      {:ok, files} = AshTypescript.Codegen.Orchestrator.generate(:ash_typescript)
+      {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
       %{files: files}
     end
 
