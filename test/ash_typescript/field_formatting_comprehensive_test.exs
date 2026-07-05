@@ -107,8 +107,12 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
     end
 
     test "raises error for unsupported formatter" do
+      # Built via String.to_atom/1 so the type checker sees `atom()` rather than
+      # the invalid literal — the point of the test is the runtime raise.
+      invalid_formatter = String.to_atom("invalid_formatter")
+
       assert_raise ArgumentError, "Unsupported formatter: :invalid_formatter", fn ->
-        FieldFormatter.format_field_name(:user_name, :invalid_formatter)
+        FieldFormatter.format_field_name(:user_name, invalid_formatter)
       end
     end
 
@@ -165,8 +169,12 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
     end
 
     test "raises error for unsupported input formatter" do
+      # Built via String.to_atom/1 so the type checker sees `atom()` rather than
+      # the invalid literal — the point of the test is the runtime raise.
+      invalid_formatter = String.to_atom("invalid_formatter")
+
       assert_raise ArgumentError, "Unsupported formatter: :invalid_formatter", fn ->
-        FieldFormatter.parse_input_field("userName", :invalid_formatter)
+        FieldFormatter.parse_input_field("userName", invalid_formatter)
       end
     end
   end

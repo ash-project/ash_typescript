@@ -11,8 +11,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
   """
 
   alias Ash.Info.Manifest.Type
-  alias AshTypescript.TypeSystem.Introspection
   alias AshTypescript.Codegen.Helpers
+  alias AshTypescript.TypeSystem.Introspection
 
   # ─────────────────────────────────────────────────────────────────
   # Type Constants
