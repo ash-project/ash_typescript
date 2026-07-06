@@ -41,8 +41,8 @@ defmodule AshTypescript.Resource.Info do
   @doc """
   Gets the pre-computed formatted client name for a field under a built-in formatter.
 
-  Backed by `Spark.Dsl.Transformer.persist/3` populated at compile time by
-  `AshTypescript.Resource.Transformers.PersistFormattedFields`. Returns the
+  Backed by `Spark.Dsl.Transformer.persist/3`, populated at compile time by an
+  `AshTypescript.Resource` transformer. Returns the
   formatted string, or `nil` if the resource is not an `AshTypescript.Resource`,
   the field is not a public attribute/relationship/calculation/aggregate, or the
   formatter is not one of the built-in atoms (`:camel_case`, `:snake_case`,

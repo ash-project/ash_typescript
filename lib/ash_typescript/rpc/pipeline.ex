@@ -12,9 +12,9 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   ## Action shape
 
-  Stage 1 resolves the action by reading from `AshTypescript.action_lookup/0`,
-  so every downstream stage receives `%Ash.Info.Manifest.Action{}`. Consumers
-  should rely on:
+  Stage 1 resolves the action by reading from the configured manifest's action
+  lookup, so every downstream stage receives `%Ash.Info.Manifest.Action{}`.
+  Consumers should rely on:
 
     * `action.inputs` — unified arguments + accepted attributes, each carrying
       a resolved `%Ash.Info.Manifest.Type{}` (no separate `:constraints` field;

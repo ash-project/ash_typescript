@@ -21,7 +21,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   @field_constrained_types [Ash.Type.Map, Ash.Type.Keyword, Ash.Type.Tuple]
 
   @doc """
-  Looks up an action in `AshTypescript.action_lookup/0` and raises on miss.
+  Looks up an action in the configured manifest's action lookup and raises on miss.
 
   Use at runtime sites that have already validated action existence upstream
   (e.g. `Pipeline.discover_action/2` returns `{:error, {:action_not_found, …}}`

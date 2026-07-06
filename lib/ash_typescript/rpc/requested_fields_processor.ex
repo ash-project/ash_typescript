@@ -22,8 +22,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
   Field selection needs lookups (`resources`, `actions`, `types`) that live on
   an `AshTypescript.Manifest` module's persisted Spark DSL state.
   `process/4` accepts an optional manifest module — when omitted, defaults to
-  `AshTypescript.manifest_module/0` (the configured production manifest).
-  Verifiers running against an inline test manifest pass their own module.
+  the configured production manifest module. Verifiers running against an
+  inline test manifest pass their own module.
   """
 
   alias AshTypescript.Rpc.FieldProcessing.{Atomizer, FieldSelector}
