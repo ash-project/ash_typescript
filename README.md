@@ -21,6 +21,31 @@ Generate type-safe TypeScript clients directly from your Elixir Ash resources, e
 
 ## Breaking Changes
 
+### 0.18.0
+
+#### Required Manifest Module
+
+AshTypescript now builds a single, app-wide `Ash.Info.Manifest` at compile time — the source of truth that both codegen and the runtime RPC pipeline read from. This manifest lives in a small module you declare in your app and register via the `manifest` config key. **Codegen and the pipeline raise if `manifest` is not configured.** This release also requires Ash 3.27+.
+
+**Migration:**
+1. Create the manifest module:
+```elixir
+# lib/my_app/ash_typescript_manifest.ex
+defmodule MyApp.AshTypescriptManifest do
+  use AshTypescript.Manifest, otp_app: :my_app
+end
+```
+2. Register it in config:
+```elixir
+# config/config.exs
+config :ash_typescript, manifest: MyApp.AshTypescriptManifest
+```
+3. Bump the dependency to `{:ash_typescript, "~> 0.18"}` (and ensure Ash `~> 3.27`).
+
+By default the module walks `Ash.Info.domains(otp_app)` to find every domain with a `typescript_rpc` block. See [Configuration → Manifest Module](documentation/reference/configuration.md#manifest-module-required) for details.
+
+> `mix igniter.install ash_typescript` creates this module and sets the config automatically — you only need to do this by hand for manual installs or when upgrading a project that predates the manifest module.
+
 ### 0.16.0
 
 #### Multi-File Output & Project-Root-Relative Import Paths
