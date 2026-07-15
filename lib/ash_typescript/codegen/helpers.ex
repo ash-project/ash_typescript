@@ -84,13 +84,22 @@ defmodule AshTypescript.Codegen.Helpers do
 
   An aggregate falls back to a default when the relationship yields no rows, so
   nullability is exactly "is there a default to fall back to?". `count` defaults
-  to `0` and `list` to `[]`, so they are never `nil`; `avg`, `first`, `sum`,
-  `min` and `max` default to `nil`. An explicit `default` on the aggregate
-  overrides the kind's default and makes it non-nullable.
+  to `0`, `list` to `[]` and `exists` to `false`, so they are never `nil`; `avg`,
+  `first`, `sum`, `min`, `max` and `custom` default to `nil`. An explicit
+  `default` on the aggregate overrides the kind's default and makes it
+  non-nullable.
   """
   def aggregate_allow_nil?(%Ash.Resource.Aggregate{} = aggregate) do
-    is_nil(aggregate.default) and is_nil(Ash.Query.Aggregate.default_value(aggregate.kind))
+    is_nil(aggregate.default) and is_nil(kind_default(aggregate.kind))
   end
+
+  # `Ash.Query.Aggregate.default_value/1` reports `nil` for `:exists`, but that
+  # default is never reached: an exists aggregate is a boolean predicate, and the
+  # data layer yields `false` — not `nil` — when nothing matches. Deriving
+  # nullability from `default_value/1` alone would type every `exists` as
+  # `boolean | null` and break every existing consumer of one.
+  defp kind_default(:exists), do: false
+  defp kind_default(kind), do: Ash.Query.Aggregate.default_value(kind)
 
   @doc """
   Converts a PascalCase name to camelCase by lowercasing the first character.

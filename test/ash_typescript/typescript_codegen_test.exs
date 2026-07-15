@@ -426,7 +426,7 @@ defmodule AshTypescript.CodegenTest do
                })
       end
 
-      for kind <- [:count, :list] do
+      for kind <- [:count, :list, :exists] do
         refute Helpers.aggregate_allow_nil?(%Ash.Resource.Aggregate{
                  kind: kind,
                  include_nil?: false
@@ -437,6 +437,18 @@ defmodule AshTypescript.CodegenTest do
                  include_nil?: true
                })
       end
+    end
+
+    test "exists is never nullable, despite default_value/1 reporting nil for it" do
+      # Regression guard for the fix's own first cut, which derived nullability
+      # from `Ash.Query.Aggregate.default_value/1` alone and so typed every
+      # `exists` as `boolean | null`. That default is unreachable: an exists
+      # aggregate is a boolean predicate and the data layer yields `false` when
+      # nothing matches. Verified against a real load — a Todo with no comments
+      # comes back `has_comments: false`, not nil.
+      assert Ash.Query.Aggregate.default_value(:exists) == nil
+
+      refute Helpers.aggregate_allow_nil?(%Ash.Resource.Aggregate{kind: :exists})
     end
 
     test "an explicit default makes an otherwise-nullable aggregate non-nullable" do
