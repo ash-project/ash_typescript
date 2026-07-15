@@ -818,7 +818,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
             AshTypescript.Rpc.output_field_formatter()
           )
 
-        if agg.include_nil? do
+        if Helpers.aggregate_allow_nil?(agg) do
           "  #{formatted_field}: #{type} | null;"
         else
           "  #{formatted_field}: #{type};"

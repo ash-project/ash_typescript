@@ -74,6 +74,25 @@ defmodule AshTypescript.Codegen.Helpers do
   end
 
   @doc """
+  Determines whether an aggregate's value can be `nil` in a response.
+
+  This is deliberately *not* `include_nil?`. That option controls whether `nil`
+  values in the **source** rows take part in the computation (e.g. whether a
+  `count` counts related rows whose field is `nil`); it says nothing about
+  whether the aggregate itself can return `nil`, and it defaults to `false`,
+  which would type every aggregate as non-nullable.
+
+  An aggregate falls back to a default when the relationship yields no rows, so
+  nullability is exactly "is there a default to fall back to?". `count` defaults
+  to `0` and `list` to `[]`, so they are never `nil`; `avg`, `first`, `sum`,
+  `min` and `max` default to `nil`. An explicit `default` on the aggregate
+  overrides the kind's default and makes it non-nullable.
+  """
+  def aggregate_allow_nil?(%Ash.Resource.Aggregate{} = aggregate) do
+    is_nil(aggregate.default) and is_nil(Ash.Query.Aggregate.default_value(aggregate.kind))
+  end
+
+  @doc """
   Converts a PascalCase name to camelCase by lowercasing the first character.
 
   ## Examples

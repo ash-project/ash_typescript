@@ -381,9 +381,67 @@ defmodule AshTypescript.CodegenTest do
   end
 
   describe "get_resource_field_spec/2 - aggregates" do
+    # An aggregate falls back to its kind's default when the relationship yields
+    # no rows, so nullability is exactly "is there a default to fall back to?".
+    # `count` and `list` have one; `avg`, `first`, `sum`, `min` and `max` do not.
+
     test "generates field spec for count aggregate" do
       result = Codegen.get_resource_field_spec(:comment_count, Todo)
       assert result == "  commentCount: number;"
+    end
+
+    test "list aggregate is not nullable - it defaults to an empty list" do
+      result = Codegen.get_resource_field_spec(:comment_authors, Todo)
+      assert result == "  commentAuthors: any[];"
+    end
+
+    test "avg aggregate is nullable - it is nil with no related rows" do
+      result = Codegen.get_resource_field_spec(:average_rating, Todo)
+      assert result == "  averageRating: number | null;"
+    end
+
+    test "first aggregate is nullable - it is nil with no related rows" do
+      result = Codegen.get_resource_field_spec(:latest_comment_content, Todo)
+      assert result == "  latestCommentContent: string | null;"
+    end
+  end
+
+  describe "Helpers.aggregate_allow_nil?/1" do
+    alias AshTypescript.Codegen.Helpers
+
+    test "is driven by the kind's default, not by include_nil?" do
+      # Regression guard. `include_nil?` controls whether nil values in the
+      # SOURCE rows take part in the computation; it says nothing about whether
+      # the aggregate itself can return nil. Because it defaults to false, using
+      # it here typed every aggregate as non-nullable.
+      for kind <- [:avg, :first, :sum, :min, :max] do
+        assert Helpers.aggregate_allow_nil?(%Ash.Resource.Aggregate{
+                 kind: kind,
+                 include_nil?: false
+               })
+
+        assert Helpers.aggregate_allow_nil?(%Ash.Resource.Aggregate{
+                 kind: kind,
+                 include_nil?: true
+               })
+      end
+
+      for kind <- [:count, :list] do
+        refute Helpers.aggregate_allow_nil?(%Ash.Resource.Aggregate{
+                 kind: kind,
+                 include_nil?: false
+               })
+
+        refute Helpers.aggregate_allow_nil?(%Ash.Resource.Aggregate{
+                 kind: kind,
+                 include_nil?: true
+               })
+      end
+    end
+
+    test "an explicit default makes an otherwise-nullable aggregate non-nullable" do
+      assert Helpers.aggregate_allow_nil?(%Ash.Resource.Aggregate{kind: :avg, default: nil})
+      refute Helpers.aggregate_allow_nil?(%Ash.Resource.Aggregate{kind: :avg, default: 0})
     end
   end
 

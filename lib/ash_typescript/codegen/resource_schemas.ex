@@ -465,8 +465,8 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     end
   end
 
-  defp allow_nil?(%{include_nil?: include_nil?}) do
-    include_nil?
+  defp allow_nil?(%Ash.Resource.Aggregate{} = aggregate) do
+    Helpers.aggregate_allow_nil?(aggregate)
   end
 
   defp allow_nil?(%{allow_nil?: allow_nil?}) do
