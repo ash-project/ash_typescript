@@ -320,12 +320,6 @@ mix credo --strict                   # Linting
 | [testing-and-validation.md](agent-docs/testing-and-validation.md) | Test organization and validation procedures |
 | [architecture-decisions.md](agent-docs/architecture-decisions.md) | Architecture decisions and context |
 
-### Implementation Plans
-
-| File | Purpose |
-|------|----------|
-| [run-ts.md](agent-plans/run-ts.md) | Plan for TypeScript runtime validation - executing extracted TS calls via RPC |
-
 ### Implementation Documentation Guide
 
 **Consult these when modifying core systems:**
