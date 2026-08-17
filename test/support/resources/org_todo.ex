@@ -303,6 +303,41 @@ defmodule AshTypescript.Test.OrgTodo do
       end
     end
 
+    action :validate_array_constraints, :boolean do
+      argument :minimum_reference_ids, {:array, :uuid} do
+        allow_nil? false
+        constraints min_length: 1
+      end
+
+      argument :maximum_reference_ids, {:array, :uuid} do
+        allow_nil? false
+        constraints max_length: 16
+      end
+
+      argument :bounded_reference_ids, {:array, :uuid} do
+        allow_nil? false
+        constraints min_length: 1, max_length: 16
+      end
+
+      argument :bounded_codes, {:array, :string} do
+        allow_nil? false
+        constraints min_length: 1, max_length: 4, items: [min_length: 2, max_length: 8]
+      end
+
+      argument :optional_reference_ids, {:array, :uuid} do
+        allow_nil? false
+        default []
+        constraints max_length: 16
+      end
+
+      argument :nullable_reference_ids, {:array, :uuid} do
+        allow_nil? true
+        constraints min_length: 1
+      end
+
+      run fn _input, _context -> {:ok, true} end
+    end
+
     action :get_statistics, :map do
       constraints fields: [
                     total: [type: :integer, allow_nil?: false],

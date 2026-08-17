@@ -7,6 +7,7 @@ import {
   createOrgTodoValibotSchema,
   createTaskValibotSchema,
   updateTaskValibotSchema,
+  validateArrayConstraintsOrgTodoValibotSchema,
   AshTypescriptTestTodoContentLinkContentValibotSchema,
 } from "../../ash_valibot";
 
@@ -1043,6 +1044,57 @@ export function testRequiredTitleRejectsNullOnCreate() {
     }
     throw error;
   }
+}
+
+function createValidArrayConstraintData() {
+  const uuid = "123e4567-e89b-12d3-a456-426614174000";
+
+  return {
+    minimumReferenceIds: [uuid],
+    maximumReferenceIds: [uuid],
+    boundedReferenceIds: [uuid],
+    boundedCodes: ["valid"],
+  };
+}
+
+function expectArrayConstraintFailure(input: unknown) {
+  const result = v.safeParse(validateArrayConstraintsOrgTodoValibotSchema, input);
+
+  if (result.success) {
+    throw new Error("Should have failed array constraint validation");
+  }
+
+  return result.issues;
+}
+
+export function testArrayBelowMinimum() {
+  return expectArrayConstraintFailure({
+    ...createValidArrayConstraintData(),
+    minimumReferenceIds: [],
+  });
+}
+
+export function testArrayAboveMaximum() {
+  const uuid = "123e4567-e89b-12d3-a456-426614174000";
+
+  return expectArrayConstraintFailure({
+    ...createValidArrayConstraintData(),
+    maximumReferenceIds: Array(17).fill(uuid),
+  });
+}
+
+export function testArrayItemConstraintViolation() {
+  return expectArrayConstraintFailure({
+    ...createValidArrayConstraintData(),
+    boundedCodes: ["x"],
+  });
+}
+
+export function testOptionalArrayRejectsNull() {
+  return expectArrayConstraintFailure({
+    ...createValidArrayConstraintData(),
+    optionalReferenceIds: null,
+  });
 }
 
 console.log("Constraint validation failure tests should compile successfully!");

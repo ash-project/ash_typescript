@@ -56,7 +56,8 @@ defmodule AshTypescript.Codegen.SchemaCore do
         {:array, inner_type} = type
         inner_constraints = Keyword.get(constraints, :items, [])
         inner_schema = map_type(formatter, inner_type, inner_constraints)
-        formatter.wrap_array(inner_schema)
+
+        formatter.format_array(inner_schema, constraints)
 
       Map.has_key?(simple_primitives, unwrapped_type) ->
         Map.get(simple_primitives, unwrapped_type)

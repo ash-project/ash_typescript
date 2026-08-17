@@ -16,6 +16,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
   use ExUnit.Case, async: true
 
   alias AshTypescript.Codegen.ZodSchemaGenerator
+  alias AshTypescript.Test.NestedArrayConstraints
   alias AshTypescript.Test.OrgTodo
 
   describe "Integer constraints in Zod schemas" do
@@ -74,6 +75,68 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       assert zod_schema =~ "description: z.string().nullable().optional()"
       refute zod_schema =~ ~r/description.*\.min\(/
       refute zod_schema =~ ~r/description.*\.max\(/
+    end
+  end
+
+  describe "Array constraints in Zod schemas" do
+    test "generates min_length constraint for array arguments" do
+      action = Ash.Resource.Info.action(OrgTodo, :validate_array_constraints)
+
+      zod_schema =
+        ZodSchemaGenerator.generate_zod_schema(
+          OrgTodo,
+          action,
+          "array_constraints"
+        )
+
+      assert zod_schema =~ "minimumReferenceIds: z.array(z.uuid()).min(1)"
+    end
+
+    test "generates max_length constraint for array arguments" do
+      action = Ash.Resource.Info.action(OrgTodo, :validate_array_constraints)
+      zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "array_constraints")
+
+      assert zod_schema =~ "maximumReferenceIds: z.array(z.uuid()).max(16)"
+    end
+
+    test "generates both array cardinality constraints" do
+      action = Ash.Resource.Info.action(OrgTodo, :validate_array_constraints)
+      zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "array_constraints")
+
+      assert zod_schema =~ "boundedReferenceIds: z.array(z.uuid()).min(1).max(16)"
+    end
+
+    test "preserves item constraints alongside array cardinality constraints" do
+      action = Ash.Resource.Info.action(OrgTodo, :validate_array_constraints)
+      zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "array_constraints")
+
+      assert zod_schema =~
+               "boundedCodes: z.array(z.string().min(2).max(8)).min(1).max(4)"
+    end
+
+    test "applies nested array cardinality constraints at the correct level" do
+      action = Ash.Resource.Info.action(NestedArrayConstraints, :validate)
+
+      zod_schema =
+        ZodSchemaGenerator.generate_zod_schema(
+          NestedArrayConstraints,
+          action,
+          "array_constraints"
+        )
+
+      assert zod_schema =~
+               "boundedMatrix: z.array(z.array(z.number().int()).min(2).max(3)).min(1).max(2)"
+    end
+
+    test "applies array constraints before optional and nullable wrappers" do
+      action = Ash.Resource.Info.action(OrgTodo, :validate_array_constraints)
+      zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "array_constraints")
+
+      assert zod_schema =~
+               "optionalReferenceIds: z.array(z.uuid()).max(16).optional()"
+
+      assert zod_schema =~
+               "nullableReferenceIds: z.array(z.uuid()).min(1).nullable().optional()"
     end
   end
 

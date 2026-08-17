@@ -166,6 +166,7 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :complete_org_todo, :complete
       rpc_action :set_priority_org_todo, :set_priority
       rpc_action :bulk_complete_org_todo, :bulk_complete
+      rpc_action :validate_array_constraints_org_todo, :validate_array_constraints
       rpc_action :get_statistics_org_todo, :get_statistics
       rpc_action :search_org_todos, :search
       rpc_action :destroy_org_todo, :destroy

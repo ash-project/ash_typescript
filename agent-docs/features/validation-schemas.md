@@ -18,7 +18,7 @@ AshTypescript generates runtime validation schemas alongside TypeScript types. T
 
 The schema generation uses a **formatter behaviour pattern** to avoid duplication:
 
-- **`SchemaFormatter`** (`codegen/schema_formatter.ex`) — Behaviour defining ~24 output-syntax callbacks (e.g. `wrap_optional`, `format_enum`, `format_string`, `library_prefix`)
+- **`SchemaFormatter`** (`codegen/schema_formatter.ex`) — Behaviour defining output-syntax callbacks (e.g. `wrap_optional`, `format_enum`, `format_string`, `format_array`, `library_prefix`)
 - **`SchemaCore`** (`codegen/schema_core.ex`) — All shared logic: topological sort, field/action introspection, type mapping dispatch, regex safety. Delegates output syntax to the formatter.
 - **`SharedSchemaGenerator`** (`codegen/shared_schema_generator.ex`) — Assembles the final schema file (imports, resource schemas, per-action schemas) for any formatter.
 
@@ -37,7 +37,7 @@ Each validation library is a thin adapter (~150 lines) implementing `SchemaForma
 | `:integer` | `z.number().int()` | `v.pipe(v.number(), v.integer())` |
 | `:boolean` | `z.boolean()` | `v.boolean()` |
 | `Ash.Type.UUID` | `z.uuid()` | `v.pipe(v.string(), v.uuid())` |
-| `{:array, inner}` | `z.array(inner)` | `v.array(inner)` |
+| `{:array, inner}` | `z.array(inner).min(...).max(...)` | `v.pipe(v.array(inner), v.minLength(...), v.maxLength(...))` |
 | Atom enum | `z.enum([...])` | `v.picklist([...])` |
 | Optional | `schema.optional()` | `v.optional(schema)` |
 
@@ -48,7 +48,9 @@ Constraints (min/max, string length, regex) are applied differently:
 - **Zod**: Method chaining — `z.string().min(1).max(100).regex(/pattern/)`
 - **Valibot**: Pipe composition — `v.pipe(v.string(), v.minLength(1), v.maxLength(100), v.regex(/pattern/))`
 
-The `format_string`, `format_integer`, and `format_float` callbacks handle these differences.
+The `format_string`, `format_integer`, `format_float`, and `format_array`
+callbacks handle these differences. Array `:items` constraints are applied recursively
+to the inner schema before outer `:min_length` and `:max_length` constraints.
 
 ## Configuration
 

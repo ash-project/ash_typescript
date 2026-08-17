@@ -17,6 +17,7 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
   use ExUnit.Case, async: true
 
   alias AshTypescript.Codegen.ValibotSchemaGenerator
+  alias AshTypescript.Test.NestedArrayConstraints
   alias AshTypescript.Test.OrgTodo
 
   describe "Integer constraints in Valibot schemas" do
@@ -69,6 +70,75 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
 
       # Regression: the old buggy output was v.string().min(1) — must never appear
       refute schema =~ "v.string().min("
+    end
+  end
+
+  describe "Array constraints in Valibot schemas" do
+    test "generates min_length constraint for array arguments" do
+      action = Ash.Resource.Info.action(OrgTodo, :validate_array_constraints)
+
+      schema =
+        ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "array_constraints")
+
+      assert schema =~
+               "minimumReferenceIds: v.pipe(v.array(v.pipe(v.string(), v.uuid())), v.minLength(1))"
+    end
+
+    test "generates max_length constraint for array arguments" do
+      action = Ash.Resource.Info.action(OrgTodo, :validate_array_constraints)
+
+      schema =
+        ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "array_constraints")
+
+      assert schema =~
+               "maximumReferenceIds: v.pipe(v.array(v.pipe(v.string(), v.uuid())), v.maxLength(16))"
+    end
+
+    test "generates both array cardinality constraints" do
+      action = Ash.Resource.Info.action(OrgTodo, :validate_array_constraints)
+
+      schema =
+        ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "array_constraints")
+
+      assert schema =~
+               "boundedReferenceIds: v.pipe(v.array(v.pipe(v.string(), v.uuid())), v.minLength(1), v.maxLength(16))"
+    end
+
+    test "preserves item constraints alongside array cardinality constraints" do
+      action = Ash.Resource.Info.action(OrgTodo, :validate_array_constraints)
+
+      schema =
+        ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "array_constraints")
+
+      assert schema =~
+               "boundedCodes: v.pipe(v.array(v.pipe(v.string(), v.minLength(2), v.maxLength(8))), v.minLength(1), v.maxLength(4))"
+    end
+
+    test "applies nested array cardinality constraints at the correct level" do
+      action = Ash.Resource.Info.action(NestedArrayConstraints, :validate)
+
+      schema =
+        ValibotSchemaGenerator.generate_valibot_schema(
+          NestedArrayConstraints,
+          action,
+          "array_constraints"
+        )
+
+      assert schema =~
+               "boundedMatrix: v.pipe(v.array(v.pipe(v.array(v.pipe(v.number(), v.integer())), v.minLength(2), v.maxLength(3))), v.minLength(1), v.maxLength(2))"
+    end
+
+    test "applies array constraints before optional and nullable wrappers" do
+      action = Ash.Resource.Info.action(OrgTodo, :validate_array_constraints)
+
+      schema =
+        ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "array_constraints")
+
+      assert schema =~
+               "optionalReferenceIds: v.optional(v.pipe(v.array(v.pipe(v.string(), v.uuid())), v.maxLength(16)))"
+
+      assert schema =~
+               "nullableReferenceIds: v.optional(v.nullable(v.pipe(v.array(v.pipe(v.string(), v.uuid())), v.minLength(1))))"
     end
   end
 

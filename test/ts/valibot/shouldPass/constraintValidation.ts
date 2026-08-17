@@ -7,6 +7,7 @@ import {
   createOrgTodoValibotSchema,
   createTaskValibotSchema,
   updateTaskValibotSchema,
+  validateArrayConstraintsOrgTodoValibotSchema,
   AshTypescriptTestTodoContentLinkContentValibotSchema,
 } from "../../ash_valibot";
 
@@ -591,6 +592,44 @@ export function testUpdateTaskOmittableArchivedAcceptsValue() {
   }
   console.log("Omittable-only isArchived accepts a value");
   return validated;
+}
+
+function createValidArrayConstraintData() {
+  const uuid = "123e4567-e89b-12d3-a456-426614174000";
+
+  return {
+    minimumReferenceIds: [uuid],
+    maximumReferenceIds: Array(16).fill(uuid),
+    boundedReferenceIds: Array(16).fill(uuid),
+    boundedCodes: ["ab", "12345678", "valid", "code"],
+  };
+}
+
+export function testArrayCardinalityBoundaries() {
+  return v.parse(
+    validateArrayConstraintsOrgTodoValibotSchema,
+    createValidArrayConstraintData(),
+  );
+}
+
+export function testOptionalArrayOmitted() {
+  const validated = v.parse(
+    validateArrayConstraintsOrgTodoValibotSchema,
+    createValidArrayConstraintData(),
+  );
+
+  if (validated.optionalReferenceIds !== undefined) {
+    throw new Error("Expected optionalReferenceIds to be omitted");
+  }
+
+  return validated;
+}
+
+export function testNullableArrayAcceptsNull() {
+  return v.parse(validateArrayConstraintsOrgTodoValibotSchema, {
+    ...createValidArrayConstraintData(),
+    nullableReferenceIds: null,
+  });
 }
 
 console.log("Valibot Constraint validation tests should compile and pass successfully!");
