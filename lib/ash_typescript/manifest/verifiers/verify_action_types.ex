@@ -79,7 +79,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
       resource,
       returns,
       {:return_type, rpc_name, action.name},
-      MapSet.new(),
+      %{},
       type_lookup
     )
   end
@@ -87,18 +87,23 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
   defp validate_return_type(_resource, _rpc_name, _action, _type_lookup), do: []
 
   defp validate_input_types(resource, rpc_name, action, resource_lookup, type_lookup) do
-    Enum.flat_map(action.inputs || [], fn input ->
+    Enum.flat_map(action.inputs, fn input ->
       if ActionIntrospection.accepted_attribute?(resource, input.name, resource_lookup) do
         []
       else
         context = {:argument, rpc_name, action.name, input.name}
-        validate_type(resource, input.type, context, MapSet.new(), type_lookup)
+        validate_type(resource, input.type, context, %{}, type_lookup)
       end
     end)
   end
 
   # ─────────────────────────────────────────────────────────────────
   # Type walking
+  #
+  # `visited` is a module => true map used as a cycle guard. It is a plain map
+  # rather than a MapSet because it crosses many mutually-recursive private
+  # function boundaries, where dialyzer loses MapSet's opacity and reports
+  # spurious `call_without_opaque` warnings.
   # ─────────────────────────────────────────────────────────────────
 
   defp validate_type(_resource, nil, _context, _visited, _type_lookup), do: []
@@ -201,12 +206,12 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
   # walk the full definition stored in `manifest.types`.
   defp validate_type(resource, %Type{kind: :type_ref, module: mod}, context, visited, type_lookup)
        when not is_nil(mod) do
-    if MapSet.member?(visited, mod) do
+    if Map.has_key?(visited, mod) do
       []
     else
       case Map.get(type_lookup, mod) do
         %Type{} = resolved ->
-          validate_type(resource, resolved, context, MapSet.put(visited, mod), type_lookup)
+          validate_type(resource, resolved, context, Map.put(visited, mod, true), type_lookup)
 
         _ ->
           []
@@ -245,10 +250,10 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
   defp field_error_kind(_), do: :field
 
   defp validate_new_type_callback(resource, new_type_module, context, visited, type_lookup) do
-    if MapSet.member?(visited, new_type_module) do
+    if Map.has_key?(visited, new_type_module) do
       []
     else
-      visited = MapSet.put(visited, new_type_module)
+      visited = Map.put(visited, new_type_module, true)
       mappings = mappings_from_module(new_type_module)
 
       constraints =
@@ -301,10 +306,10 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
          visited,
          type_lookup
        ) do
-    if MapSet.member?(visited, type_module) do
+    if Map.has_key?(visited, type_module) do
       []
     else
-      visited = MapSet.put(visited, type_module)
+      visited = Map.put(visited, type_module, true)
       mappings = mappings_from_module(type_module)
 
       composite_fields =
@@ -349,10 +354,10 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
   end
 
   defp validate_typed_struct_callback(resource, struct_module, context, visited, type_lookup) do
-    if MapSet.member?(visited, struct_module) do
+    if Map.has_key?(visited, struct_module) do
       []
     else
-      visited = MapSet.put(visited, struct_module)
+      visited = Map.put(visited, struct_module, true)
       mappings = mappings_from_module(struct_module)
 
       struct_module.typed_struct_fields()
@@ -411,10 +416,10 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
   # ─────────────────────────────────────────────────────────────────
 
   defp visit_embedded(resource, embedded_module, context, visited, type_lookup) do
-    if MapSet.member?(visited, embedded_module) do
+    if Map.has_key?(visited, embedded_module) do
       []
     else
-      visited = MapSet.put(visited, embedded_module)
+      visited = Map.put(visited, embedded_module, true)
       mappings = embedded_resource_mappings(embedded_module)
 
       validate_resource_module_fields(
@@ -430,10 +435,10 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
   end
 
   defp visit_resource_ref(resource, target_resource, context, visited, type_lookup) do
-    if MapSet.member?(visited, target_resource) do
+    if Map.has_key?(visited, target_resource) do
       []
     else
-      visited = MapSet.put(visited, target_resource)
+      visited = Map.put(visited, target_resource, true)
       mappings = embedded_resource_mappings(target_resource)
 
       validate_resource_module_fields(
