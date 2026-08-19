@@ -134,9 +134,7 @@ defmodule AshTypescript.Rpc.Pipeline do
                     original =
                       Map.get(Custom.reverse_metadata_field_mappings(entrypoint), field)
 
-                    if is_atom(original) and not is_nil(original) do
-                      original
-                    else
+                    if is_nil(original) do
                       internal_name = FieldFormatter.parse_input_field(field, input_formatter)
 
                       case internal_name do
@@ -153,6 +151,8 @@ defmodule AshTypescript.Rpc.Pipeline do
                         _ ->
                           nil
                       end
+                    else
+                      original
                     end
 
                   field when is_atom(field) ->
@@ -484,14 +484,9 @@ defmodule AshTypescript.Rpc.Pipeline do
       end
 
     if field_atom do
-      {type, constraints} = lookup_field_type(resource, field_atom, resource_lookups)
-
-      case {type, constraints} do
-        {nil, _} ->
-          find_action_argument_type(field_atom, action)
-
-        {type, constraints} ->
-          classify_tuple_or_keyword_type(type, constraints)
+      case lookup_field_type(resource, field_atom, resource_lookups) do
+        nil -> find_action_argument_type(field_atom, action)
+        type -> classify_tuple_or_keyword_type(type)
       end
     else
       :other
@@ -499,45 +494,32 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp find_action_argument_type(field_atom, action) do
-    case Enum.find(action.inputs || [], &(&1.name == field_atom)) do
+    case Enum.find(action.inputs, &(&1.name == field_atom)) do
       %{type: %Ash.Info.Manifest.Type{} = type_info} ->
-        classify_tuple_or_keyword_type(type_info, [])
+        classify_tuple_or_keyword_type(type_info)
 
       _ ->
         :other
     end
   end
 
-  # Classifies a type as tuple, keyword, or other, handling NewTypes and Ash.Info.Manifest types
-  defp classify_tuple_or_keyword_type(
-         %Ash.Info.Manifest.Type{kind: :tuple} = type_info,
-         _constraints
-       ) do
+  # Classifies a manifest type as tuple, keyword, or other, following `:type_ref`
+  # references to the named definition in the type lookup.
+  defp classify_tuple_or_keyword_type(%Ash.Info.Manifest.Type{kind: :tuple} = type_info) do
     {:tuple, type_info}
   end
 
-  defp classify_tuple_or_keyword_type(
-         %Ash.Info.Manifest.Type{kind: :keyword} = type_info,
-         _constraints
-       ) do
+  defp classify_tuple_or_keyword_type(%Ash.Info.Manifest.Type{kind: :keyword} = type_info) do
     {:keyword, type_info}
   end
 
-  defp classify_tuple_or_keyword_type(
-         %Ash.Info.Manifest.Type{kind: :type_ref, module: module},
-         _constraints
-       ) do
-    full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), module)
-    classify_tuple_or_keyword_type(full_type, [])
+  defp classify_tuple_or_keyword_type(%Ash.Info.Manifest.Type{kind: :type_ref, module: module}) do
+    AshTypescript.type_lookup()
+    |> Ash.Info.Manifest.get_type!(module)
+    |> classify_tuple_or_keyword_type()
   end
 
-  defp classify_tuple_or_keyword_type(%Ash.Info.Manifest.Type{}, _constraints), do: :other
-
-  defp classify_tuple_or_keyword_type(type, constraints) do
-    # Unwrap NewType to get the underlying type, then resolve to spec type
-    resolved = Ash.Info.Manifest.Generator.TypeResolver.resolve(type, constraints)
-    classify_tuple_or_keyword_type(resolved, [])
-  end
+  defp classify_tuple_or_keyword_type(%Ash.Info.Manifest.Type{}), do: :other
 
   defp convert_map_to_tuple(value, type_info_or_constraints) when is_map(value) do
     field_order = get_tuple_field_names(type_info_or_constraints)
@@ -1332,8 +1314,8 @@ defmodule AshTypescript.Rpc.Pipeline do
 
   defp lookup_field_type(resource, field_name, resource_lookups) do
     case Ash.Info.Manifest.get_field(resource_lookups, resource, field_name) do
-      %Ash.Info.Manifest.Field{type: %Ash.Info.Manifest.Type{} = type} -> {type, []}
-      _ -> {nil, []}
+      %Ash.Info.Manifest.Field{type: %Ash.Info.Manifest.Type{} = type} -> type
+      _ -> nil
     end
   end
 
@@ -1345,12 +1327,12 @@ defmodule AshTypescript.Rpc.Pipeline do
       original_key = Custom.original_field_name(Custom.resolve_resource(resource), key)
 
       internal_key =
-        if is_atom(original_key) and not is_nil(original_key) do
-          # Found a direct mapping (e.g., "isActive" → :is_active?)
-          original_key
-        else
+        if is_nil(original_key) do
           # No direct mapping - fall back to formatter-based parsing
           FieldFormatter.parse_input_field(key, formatter)
+        else
+          # Found a direct mapping (e.g., "isActive" → :is_active?)
+          original_key
         end
 
       {internal_key, value}
