@@ -255,7 +255,7 @@ defmodule AshTypescript.Manifest.Decorator do
   end
 
   defp build_input_field_types(action) do
-    (action.inputs || [])
+    action.inputs
     |> Enum.into(%{}, fn input ->
       type =
         case input do

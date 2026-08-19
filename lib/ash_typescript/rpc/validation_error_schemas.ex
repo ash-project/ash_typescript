@@ -338,7 +338,7 @@ defmodule AshTypescript.Rpc.ValidationErrorSchemas do
   end
 
   defp generate_rpc_action_error_fields(resource, action, resource_lookup) do
-    Enum.map(action.inputs || [], fn input ->
+    Enum.map(action.inputs, fn input ->
       formatted_name =
         ActionIntrospection.format_input_name(resource, action.name, input.name, resource_lookup)
 

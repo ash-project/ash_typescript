@@ -191,7 +191,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
 
       field_defs =
         Enum.map(
-          action.inputs || [],
+          action.inputs,
           &process_input_field(formatter, resource, action, &1, resource_lookup)
         )
 

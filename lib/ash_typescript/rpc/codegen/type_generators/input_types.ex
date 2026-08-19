@@ -34,7 +34,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
       input_type_name = "#{snake_to_pascal_case(rpc_action_name)}Input"
 
       input_field_defs =
-        Enum.map(action.inputs || [], fn input ->
+        Enum.map(action.inputs, fn input ->
           nullable = input.allow_nil?
           optional = not input.required?
 

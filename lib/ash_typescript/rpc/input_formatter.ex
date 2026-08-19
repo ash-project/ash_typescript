@@ -103,7 +103,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
   def compute_expected_keys_map(resource, action, resource_lookups \\ nil, formatter \\ nil) do
     resource_lookup = resource_lookups || AshTypescript.resource_lookup()
 
-    (action.inputs || [])
+    action.inputs
     |> Enum.into(%{}, fn input ->
       client_name =
         ActionIntrospection.format_input_name(
@@ -226,7 +226,7 @@ defmodule AshTypescript.Rpc.InputFormatter do
   defp get_input_field_type(action, _resource, field_key, _resource_lookups) do
     case Custom.action_input_field_types(action) do
       nil ->
-        case Enum.find(action.inputs || [], &(&1.name == field_key)) do
+        case Enum.find(action.inputs, &(&1.name == field_key)) do
           %{type: %Ash.Info.Manifest.Type{} = type} -> type
           _ -> nil
         end

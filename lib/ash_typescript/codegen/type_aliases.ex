@@ -98,7 +98,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
     |> Enum.reduce(types, fn {_key, action}, types ->
       # Collect from action inputs (unified arguments + accepted attributes)
       types =
-        Enum.reduce(action.inputs || [], types, fn input, types ->
+        Enum.reduce(action.inputs, types, fn input, types ->
           collect_type_module(input.type, types)
         end)
 

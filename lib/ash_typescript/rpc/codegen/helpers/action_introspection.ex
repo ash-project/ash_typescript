@@ -129,7 +129,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   shape (`allow_nil?` / `has_default?`).
   """
   def action_input_type(action) do
-    inputs = action.inputs || []
+    inputs = action.inputs
 
     cond do
       inputs == [] -> :none

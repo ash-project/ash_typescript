@@ -45,7 +45,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyUniqueInputFieldNames do
     rpc_name = rpc_name(entrypoint, action)
 
     entries =
-      Enum.map(action.inputs || [], fn input ->
+      Enum.map(action.inputs, fn input ->
         client_name =
           ActionIntrospection.format_input_name(
             resource,
