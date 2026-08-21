@@ -157,13 +157,17 @@ typescript_rpc do
     rpc_action :read_data, :read_with_metadata,
       show_metadata: [:field_1, :is_cached?, :metric_2],
       metadata_field_names: [
-        field_1: :field1,
-        is_cached?: :isCached,
-        metric_2: :metric2
+        field_1: "field1",
+        is_cached?: "isCached",
+        metric_2: "metric2"
       ]
   end
 end
 ```
+
+**Values must be strings.** The DSL schema is
+`type: {:list, {:tuple, [:atom, :string]}}` (`lib/ash_typescript/rpc.ex:162-166`) —
+atom values are a schema violation and fail at compile time.
 
 ### Generated TypeScript
 
@@ -222,60 +226,77 @@ result = %{
 
 ## Verification System
 
-### Two Verifiers
+### One Verifier
 
-**1. VerifyMetadataFieldNames** - Checks metadata field names
+`AshTypescript.Manifest.Verifiers.VerifyMetadataFieldNames`
+(`lib/ash_typescript/manifest/verifiers/verify_metadata_field_names.ex`) performs
+**both** checks:
 
-```elixir
-# Verifies exposed metadata fields don't have invalid patterns
-# after applying metadata_field_names mapping
-```
+1. **Invalid names** — each exposed metadata field, *after* applying
+   `metadata_field_names`, must be a valid TypeScript identifier (no `?`, no
+   underscore-before-digit).
+2. **Conflicts** — the resulting client name must not collide with a public
+   resource field (attribute, relationship, calculation, or aggregate), checked
+   against the **manifest's** resource field set.
 
-**2. VerifyMetadataFieldConflicts** - Checks for conflicts with resource fields
-
-```elixir
-# Ensures metadata field names (after mapping) don't conflict
-# with resource attribute, calculation, aggregate, or relationship names
-```
+**Where it runs (0.18):** at *manifest-module* compile time, registered in
+`lib/ash_typescript/manifest/dsl.ex`, not at domain compile time. The pre-0.18
+`lib/ash_typescript/rpc/verifiers/` directory no longer exists, and there is no
+separate `VerifyMetadataFieldConflicts` module.
 
 ### Error Messages
 
-**Invalid metadata field name:**
+All parts are wrapped in one `Spark.Error.DslError`
+(`verify_metadata_field_names.ex:102-158`):
 
 ```
-Invalid metadata field name found in action :read_with_metadata on resource MyApp.Task
+Invalid metadata field names found in show_metadata configuration.
 
-Metadata field 'field_1' contains invalid pattern (underscore before digit).
-Suggested mapping: field_1 → field1
+<one or more parts, joined by blank lines>
 
-Metadata field 'is_cached?' contains invalid pattern (question mark).
-Suggested mapping: is_cached? → isCached
-
-Use the metadata_field_names option in rpc_action to provide valid TypeScript identifiers.
+Metadata field names must be valid TypeScript identifiers and cannot conflict with resource fields.
 ```
 
-**Metadata field conflicts with resource field:**
+There are four part variants:
+
+**Invalid metadata field name** (no mapping applied):
 
 ```
-Metadata field conflicts with resource field in action :read_with_metadata on resource MyApp.Task
-
-Metadata field 'title' conflicts with attribute 'title'.
-Metadata field 'status' conflicts with calculation 'status'.
-
-Metadata field names (after mapping) must not conflict with resource field names.
-Either:
-- Rename the metadata field in your action
-- Use metadata_field_names to map to a different name
+Invalid metadata field name in RPC action:
+  - RPC action: read_data (action: read_with_metadata)
+  - Field: field_1
+  - Suggested: field1
+  - Reason: Contains question marks or numbers preceded by underscores
 ```
 
-**Mapped metadata field conflicts:**
+**Invalid metadata field name mapping** (mapping applied but still invalid):
 
 ```
-Mapped metadata field conflicts with resource field in action :read_with_metadata on resource MyApp.Task
+Invalid metadata field name mapping in RPC action:
+  - RPC action: read_data (action: read_with_metadata)
+  - Original field: field_1
+  - Mapped to: field_1_new
+  - Suggested: field_1new
+  - Reason: The mapped name still contains question marks or numbers preceded by underscores
+```
 
-Metadata field 'meta_title' is mapped to 'title' which conflicts with attribute 'title'.
+**Metadata field conflicts with resource field** (no mapping applied):
 
-The mapped name must not conflict with any resource field name.
+```
+Metadata field conflicts with resource field:
+  - RPC action: read_data (action: read_with_metadata)
+  - Field: title
+  - Reason: This metadata field name is already used by a public resource field (attribute, relationship, calculation, or aggregate)
+```
+
+**Mapped metadata field conflicts with resource field:**
+
+```
+Mapped metadata field conflicts with resource field:
+  - RPC action: read_data (action: read_with_metadata)
+  - Original field: meta_title
+  - Mapped to: title
+  - Reason: The mapped name conflicts with a public resource field (attribute, relationship, calculation, or aggregate)
 ```
 
 ## Integration Points
@@ -297,22 +318,33 @@ Metadata mapping affects:
 
 ### RPC Pipeline
 
-Metadata handling in the RPC pipeline:
+All metadata handling lives in `lib/ash_typescript/rpc/pipeline.ex`. Note that
+`request.ex` is a bare struct (no metadata logic) and `result_processor.ex` touches
+metadata only for keyset pagination (`__metadata__.keyset`).
 
-1. **Request Parsing** (`lib/ash_typescript/rpc/request.ex`)
-   - Extracts `metadataFields` from request
-   - Maps TypeScript names → Elixir names
-   - Validates against `show_metadata` configuration
+1. **Request Parsing** (`pipeline.ex:115-175`)
+   - Reads the `metadataFields` param (normalized to `:metadata_fields`)
+   - Maps TypeScript names → Elixir names via
+     `AshTypescript.Manifest.Custom.reverse_metadata_field_mappings/1`
+   - Filters against `Custom.exposed_metadata_fields/1` (the decorated
+     `show_metadata` resolution); result is stored on `request.show_metadata`
+   - Read actions default to `[]` when the param is absent; mutations default to all
+     exposed fields
 
-2. **Result Processing** (`lib/ash_typescript/rpc/result_processor.ex`)
-   - For read actions: merges metadata into each record
-   - For mutations: creates separate metadata field
-   - Maps Elixir names → TypeScript names
+2. **Metadata Attachment** (`pipeline.ex` `add_metadata/3`, ~L1374)
+   - `:read` → `add_read_metadata/5` merges fields into each record (handles bare
+     lists, single maps, and paginated `%{results: [...]}`)
+   - `:create` / `:update` / `:destroy` → `add_mutation_metadata/5` builds the
+     separate `metadata` map
 
-3. **Field Formatting** (`lib/ash_typescript/rpc/info.ex`)
-   - Applies output formatter to metadata field names
-   - Respects custom metadata_field_names mappings
-   - Ensures consistency with resource field formatting
+3. **Name Lookup** (`lib/ash_typescript/rpc/info.ex`)
+   - `get_mapped_metadata_field_name/2` (Elixir → client) and
+     `get_original_metadata_field_name/2` (client → Elixir)
+   - Also used by the verifier
+
+4. **Output Formatting** (`pipeline.ex:982-997`)
+   - Applies the output formatter to the top-level metadata envelope keys; values were
+     already formatted by `ValueFormatter` during attachment
 
 ## Testing Strategy
 
@@ -407,9 +439,9 @@ typescript_rpc do
     rpc_action :read_data, :read_with_metadata,
       show_metadata: [:meta_1, :is_valid?, :field_2],
       metadata_field_names: [
-        meta_1: :meta1,
-        is_valid?: :isValid,
-        field_2: :field2
+        meta_1: "meta1",
+        is_valid?: "isValid",
+        field_2: "field2"
       ]
   end
 end
@@ -441,12 +473,12 @@ end
 | File | Purpose |
 |------|---------|
 | `lib/ash_typescript/rpc.ex` | DSL definition for show_metadata and metadata_field_names |
-| `lib/ash_typescript/rpc/verifiers/verify_metadata_field_names.ex` | Metadata field name verification |
-| `lib/ash_typescript/rpc/verifiers/verify_metadata_field_conflicts.ex` | Metadata field conflict detection |
-| `lib/ash_typescript/rpc/info.ex` | Metadata field information and formatting |
+| `lib/ash_typescript/manifest/verifiers/verify_metadata_field_names.ex` | Metadata name **and** conflict verification (runs at manifest-module compile) |
+| `lib/ash_typescript/manifest/custom.ex` | `exposed_metadata_fields/1`, `metadata_field_mappings/1`, `reverse_metadata_field_mappings/1` |
+| `lib/ash_typescript/rpc/codegen/type_generators/metadata_types.ex` | `get_exposed_metadata_fields/2`, `metadata_enabled?/1`, metadata TS types |
+| `lib/ash_typescript/rpc/info.ex` | `get_mapped_metadata_field_name/2` / `get_original_metadata_field_name/2` |
 | `lib/ash_typescript/rpc/codegen.ex` | RPC client generation with metadata support |
-| `lib/ash_typescript/rpc/request.ex` | Request parsing with metadataFields parameter |
-| `lib/ash_typescript/rpc/result_processor.ex` | Metadata merging and formatting |
+| `lib/ash_typescript/rpc/pipeline.ex` | metadataFields parsing, merging (`add_metadata/3`), envelope formatting |
 | `test/ash_typescript/rpc/verify_metadata_field_names_test.exs` | Verifier tests |
 | `test/ash_typescript/rpc/rpc_metadata_test.exs` | End-to-end metadata tests |
 | `test/ts/shouldPass/metadata.ts` | TypeScript compilation tests |
@@ -582,7 +614,7 @@ if (tasks.success) {
 # Wrong - in resource typescript block
 defmodule MyApp.Task do
   typescript do
-    metadata_field_names [field_1: :field1]  # Wrong location!
+    metadata_field_names [field_1: "field1"]  # Wrong location!
   end
 end
 
@@ -591,11 +623,13 @@ defmodule MyApp.Domain do
   typescript_rpc do
     resource MyApp.Task do
       rpc_action :read_data, :read_with_metadata,
-        metadata_field_names: [field_1: :field1]  # Correct!
+        metadata_field_names: [field_1: "field1"]  # Correct!
     end
   end
 end
 ```
+
+Also check the value type: mapped names must be **strings**, not atoms.
 
 ### Metadata Not Appearing in Response
 
@@ -618,7 +652,7 @@ end
 # Conflict: metadata :status conflicts with attribute :status
 rpc_action :read_data, :read_with_metadata,
   show_metadata: [:status],
-  metadata_field_names: [status: :metaStatus]  # Avoid conflict
+  metadata_field_names: [status: "metaStatus"]  # Avoid conflict
 ```
 
 ### TypeScript Types Don't Include Metadata

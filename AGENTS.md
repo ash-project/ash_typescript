@@ -21,7 +21,7 @@ SPDX-License-Identifier: MIT
 | `mix ash_typescript.codegen` | `mix test.codegen` | Generate types |
 | One-off shell debugging | Write proper tests | Debug issues |
 
-**Why**: Test resources (`AshTypescript.Test.*`) only compile in `:test` environment. Using dev environment causes "No domains found" errors.
+**Why**: Test resources (`AshTypescript.Test.*`) and the test manifest module only compile/configure in `:test`. Running codegen in dev raises ``No `:manifest` module configured``.
 
 ### Rule 2: Documentation-First Workflow
 For any complex task (3+ steps):
@@ -73,7 +73,7 @@ defmodule MyApp.AshTypescriptManifest do
 end
 ```
 
-The module walks `Ash.Info.domains(otp_app)` by default. For scoped/inline manifests (e.g. building from a freshly-defined domain in a test) pass `domains: [MyTest.InlineDomain]`. Access precomputed lookups via `AshTypescript.action_lookup/0`, `resource_lookup/0`, `type_lookup/0`, `rpc_action_lookup/0`, `typed_query_lookup/0`; ash_typescript-owned decoration lives under `custom.ash_typescript` and is read through `AshTypescript.Manifest.Custom`.
+The module walks `Ash.Info.domains(otp_app)` by default. For scoped/inline manifests (e.g. building from a freshly-defined domain in a test) pass `domains: [MyTest.InlineDomain]`. `handle_opts/1` injects static compile-time dependencies on the configured domains, so editing a resource recompiles the manifest — incremental `mix test.codegen` is never stale. Access precomputed lookups via `AshTypescript.action_lookup/0`, `resource_lookup/0`, `type_lookup/0`, `rpc_action_lookup/0`, `typed_query_lookup/0`; ash_typescript-owned decoration lives under `custom.ash_typescript` and is read through `AshTypescript.Manifest.Custom`.
 
 ### Typed Controller Configuration
 
@@ -110,7 +110,7 @@ end
 import { listTodos, buildCSRFHeaders } from './ash_rpc';
 
 const todos = await listTodos({
-  fields: ["id", "title", {"user" => ["name"]}],
+  fields: ["id", "title", { user: ["name"] }],
   headers: buildCSRFHeaders()
 });
 ```
@@ -225,7 +225,7 @@ const refs = onOrgChannelMessages(channel, {
 ```elixir
 # Debug field processing
 mcp__tidewave__project_eval("""
-fields = ["id", {"user" => ["name"]}]
+fields = [:id, :title, %{user: [:name]}]
 AshTypescript.Rpc.RequestedFieldsProcessor.process(
   AshTypescript.Test.Todo, :read, fields
 )
@@ -262,6 +262,7 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Schema core (shared logic)** | `lib/ash_typescript/codegen/schema_core.ex` |
 | **Multi-file orchestrator** | `lib/ash_typescript/codegen/orchestrator.ex` |
 | **RPC client generation** | `lib/ash_typescript/rpc/codegen.ex` |
+| **TypeScript static code (RPC)** | `lib/ash_typescript/rpc/codegen/typescript_static.ex` |
 | **JSDoc comment generation** | `lib/ash_typescript/rpc/codegen/function_generators/jsdoc_generator.ex` |
 | **Manifest generation (Markdown)** | `lib/ash_typescript/rpc/codegen/manifest_generator.ex` |
 | **Manifest generation (JSON)** | `lib/ash_typescript/rpc/codegen/json_manifest_generator.ex` |
@@ -272,18 +273,20 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Field selection (type-driven)** | `lib/ash_typescript/rpc/field_processing/field_selector.ex` |
 | **Field validation helpers** | `lib/ash_typescript/rpc/field_processing/field_selector/validation.ex` |
 | **Result extraction** | `lib/ash_typescript/rpc/result_processor.ex` |
+| **Unified field extraction** | `lib/ash_typescript/rpc/field_extractor.ex` |
 | **Unified value formatting** | `lib/ash_typescript/rpc/value_formatter.ex` |
 | **Input formatting** | `lib/ash_typescript/rpc/input_formatter.ex` (delegates to ValueFormatter) |
 | **Output formatting** | `lib/ash_typescript/rpc/output_formatter.ex` (delegates to ValueFormatter) |
 | **Resource verifiers (name/type scope)** | `lib/ash_typescript/resource/verifiers/` |
 | **Typed controller DSL** | `lib/ash_typescript/typed_controller/dsl.ex` |
+| **Typed controller transformers** | `lib/ash_typescript/typed_controller/transformers/` |
 | **Typed controller main** | `lib/ash_typescript/typed_controller.ex` |
 | **Controller request handler** | `lib/ash_typescript/typed_controller/request_handler.ex` |
 | **Controller codegen** | `lib/ash_typescript/typed_controller/codegen.ex` |
 | **Controller config discovery** | `lib/ash_typescript/typed_controller/codegen/route_config_collector.ex` |
 | **Router introspection** | `lib/ash_typescript/typed_controller/codegen/router_introspector.ex` |
 | **Route renderer** | `lib/ash_typescript/typed_controller/codegen/route_renderer.ex` |
-| **TypeScript static code** | `lib/ash_typescript/typed_controller/codegen/typescript_static.ex` |
+| **TypeScript static code (controller)** | `lib/ash_typescript/typed_controller/codegen/typescript_static.ex` |
 | **Controller verifier** | `lib/ash_typescript/typed_controller/verifiers/verify_typed_controller.ex` |
 | **Typed channel DSL** | `lib/ash_typescript/typed_channel/dsl.ex` |
 | **Typed channel main** | `lib/ash_typescript/typed_channel.ex` |
@@ -314,6 +317,8 @@ mix test test/ash_typescript/rpc/    # Test RPC functionality
 ### TypeScript Validation (from test/ts/)
 ```bash
 npm run compileGenerated             # Test generated types compile
+npm run compileGeneratedRoutes       # Test generated route helpers compile
+npm run compileGeneratedTypedChannels # Test generated typed channels compile
 npm run compileShouldPass            # Test valid patterns (type-level)
 npm run compileShouldFail            # Test invalid patterns fail (type-level)
 npm run testZod                      # Run generated Zod schemas against real data
@@ -344,6 +349,8 @@ mix credo --strict                   # Linting
 
 ### Implementation Plans
 
+**Note:** `agent-plans/` is a local, untracked directory (a symlink outside the repo) — these links only resolve on a maintainer's machine, not in a fresh clone.
+
 | File | Purpose |
 |------|----------|
 | [run-ts.md](agent-plans/run-ts.md) | Plan for TypeScript runtime validation - executing extracted TS calls via RPC |
@@ -361,7 +368,7 @@ mix credo --strict                   # Linting
 | **Load restrictions** | [features/rpc-pipeline.md](agent-docs/features/rpc-pipeline.md) (RPC Action Options) | `test/ash_typescript/rpc/load_restrictions_test.exs` |
 | **Validation schemas (Zod & Valibot)** | [features/validation-schemas.md](agent-docs/features/validation-schemas.md) | `test/ash_typescript/rpc/zod_constraints_test.exs`, `test/ash_typescript/rpc/valibot_constraints_test.exs` |
 | **Embedded resources** | [features/embedded-resources.md](agent-docs/features/embedded-resources.md) | `test/support/resources/embedded/` |
-| **Union types** | [features/union-systems-core.md](agent-docs/features/union-systems-core.md) | `test/ash_typescript/rpc/rpc_union_*_test.exs` |
+| **Union types** | [features/union-systems-core.md](agent-docs/features/union-systems-core.md) | `test/ash_typescript/rpc/rpc_run_action_union_*_test.exs`, `test/ash_typescript/union_types_test.exs` |
 | **Namespaces, JSDoc, Manifest, JSON Manifest** | [features/developer-experience.md](agent-docs/features/developer-experience.md) | `test/ash_typescript/rpc/namespace_test.exs`, `test/ash_typescript/rpc/json_manifest_generator_test.exs` |
 | **Typed controllers & route helpers** | [features/typed-controller.md](agent-docs/features/typed-controller.md) | `test/ash_typescript/typed_controller/` |
 | **Typed channel event subscriptions** | [features/typed-channel.md](agent-docs/features/typed-channel.md) | `test/ash_typescript/typed_channel/` |
@@ -375,7 +382,7 @@ mix credo --strict                   # Linting
 3. **process_result** - Apply field selection using templates
 4. **format_output** - Format for client consumption
 
-**Action shape contract:** the runtime pipeline reads action shape exclusively from `AshTypescript.action_lookup/0` (the cached `Ash.Info.Manifest`). Downstream consumers (`pipeline.ex`, `input_formatter.ex`, `field_selector.ex`) operate on `%Ash.Info.Manifest.Action{}` — `inputs` (unified arguments + accepted attributes), resolved `returns` (`%Ash.Info.Manifest.Type{}`), and pre-folded constraints. Do not reintroduce `Ash.Resource.Info.action/2` in runtime modules; use `ActionIntrospection.get_action!/2` instead.
+**Action shape contract:** the runtime pipeline reads action shape exclusively from `AshTypescript.action_lookup/0` (the cached `Ash.Info.Manifest`) — or `action_lookup/1` when a scoped manifest is threaded through (verifiers, `Manifest.verify_for_domains/1`, `RequestedFieldsProcessor.process/4`). Downstream consumers (`pipeline.ex`, `input_formatter.ex`, `field_selector.ex`) operate on `%Ash.Info.Manifest.Action{}` — `inputs` (unified arguments + accepted attributes), resolved `returns` (`%Ash.Info.Manifest.Type{}`), and pre-folded constraints. Do not reintroduce `Ash.Resource.Info.action/2` in runtime modules; use `ActionIntrospection.get_action!/2` instead.
 
 ### Key Modules
 - **RequestedFieldsProcessor** (delegator) - Entry point for field processing
@@ -408,7 +415,7 @@ mix credo --strict                   # Linting
 ### Core Patterns
 - **Field Selection**: Unified format supporting nested relationships and calculations
 - **Embedded Resources**: Full relationship-like architecture with calculation support
-- **Union Field Selection**: Selective member fetching with `{content: ["field1", {"nested": ["field2"]}]}`
+- **Union Field Selection**: Selective member fetching with `{ content: ["field1", { nested: ["field2"] }] }`
 - **Union Input Format**: REQUIRED wrapped format `{member_name: value}` for all union inputs
 - **Headers Support**: All RPC functions accept optional headers for custom authentication
 - **Type-Driven Dispatch**: Both `FieldSelector` and `ValueFormatter` use `{type, constraints}` pattern for recursive processing
@@ -418,10 +425,10 @@ mix credo --strict                   # Linting
 | Error | Cause | Solution |
 |-------|-------|----------|
 | "No `:manifest` module configured" | `manifest:` config missing | Add `config :ash_typescript, manifest: MyApp.AshTypescriptManifest` and define the module with `use AshTypescript.Manifest, otp_app: :my_app` |
-| "No domains found" | Using dev environment | Use `mix test.codegen` |
-| "Module not loaded" | Test resources not compiled | Ensure MIX_ENV=test |
+| `UndefinedFunctionError` on `AshTypescript.Test.*` | Test resources not compiled (dev env) | Run via `mix test` / `mix test.codegen`, which set `MIX_ENV=test` via `preferred_envs` |
 | "Invalid field names found" | Field/arg with `_1` or `?` | Use `field_names` or `argument_names` DSL options |
-| "Invalid field names in map/keyword/tuple" | Map constraint fields invalid | Create `Ash.Type.NewType` with `typescript_field_names/0` callback |
+| "Invalid field names found in map/keyword/tuple type constraints" | Map constraint fields invalid | Create `Ash.Type.NewType` with `typescript_field_names/0` callback |
+| "Unsupported types found — AshTypescript cannot map them" | Reachable type module has no TS mapping | Implement `typescript_type_name/0` on the type, or add `config :ash_typescript, type_mapping_overrides: [{Mod, "<ts type>"}]` |
 | "Invalid metadata field name" | Metadata field with `_1` or `?` | Use `metadata_field_names` DSL option in `rpc_action` |
 | "Metadata field conflicts with resource field" | Metadata field shadows resource field | Rename metadata field or use different mapped name |
 | TypeScript `unknown` types | Schema key mismatch | Check `__type` metadata generation |
@@ -430,7 +437,8 @@ mix credo --strict                   # Linting
 | "Union input map contains multiple member keys" | Multiple union members in input | Provide exactly one member key |
 | "Union input map does not contain any valid member key" | Invalid or missing member key | Use valid member name from union definition |
 | Test reads stale generated.ts | Test uses `File.read!("test/ts/generated.ts")` | Use `AshTypescript.Test.CodegenTestHelper.generate_all_content/0` in `setup_all` |
-| Controller 422 error | Missing required argument or invalid type cast | Check `allow_nil?` and argument types |
+| Controller 422 error | Missing required argument, failed type cast, or a violated argument constraint (min_length/match/min/max — enforced since 0.18) | Check `allow_nil?`, argument types, and declared `constraints`. Note `""` on a nilable string is normalized to `nil`, and strings are trimmed by default |
+| "Invalid constraints for argument `x`" | Typed-controller route argument declares constraints the Ash type rejects | Fix the constraint keys/values to match `Ash.Type.constraints/1` for that type |
 | Controller 500 error | Handler doesn't return `%Plug.Conn{}` | Return `%Plug.Conn{}` from handler |
 | Routes not generated | Missing config | Set `typed_controllers:`, `router:`, and `routes_output_file:` in config |
 | Multi-mount ambiguity | Duplicate mounts without `as:` | Add unique `as:` to each scope |
@@ -465,14 +473,21 @@ AshTypescript provides compile-time warnings for potential RPC configuration iss
 ### Warning: Non-RPC Resources Referenced by RPC Resources
 **Message:** `⚠️  Found non-RPC resources referenced by RPC resources`
 
-**Cause:** RPC resource references another resource (in attribute/calculation/aggregate) that isn't itself configured as RPC
+**Cause:** RPC resource references another resource (in an attribute, calculation, aggregate, or relationship — directly or transitively) that isn't itself configured as RPC. The warning lists each referencer as `Referenced by: - <Resource> (relationship :name)` where attribution is available.
 
 **Solutions:**
 - Add referenced resource to `typescript_rpc` block if it should be accessible, OR
 - Leave as-is if resource is intentionally internal-only, OR
 - Disable warning: `config :ash_typescript, warn_on_non_rpc_references: false`
 
-**Note:** Both warnings can be independently configured. See [Configuration Reference](documentation/reference/configuration.md#rpc-resource-warnings) for details.
+### Typed Channel Warnings
+
+Two additional compile-time warnings cover typed channels (both default to enabled):
+
+- `config :ash_typescript, warn_on_non_public_publications: false` — silences warnings about publications that are not `public?`
+- `config :ash_typescript, warn_on_missing_channel_returns: false` — silences warnings about publications with no resolvable `returns` type
+
+**Note:** All of these warnings can be independently configured. See [Configuration Reference](documentation/reference/configuration.md#rpc-resource-warnings) for details.
 
 ## Typed Controller Configuration
 
@@ -528,7 +543,7 @@ config :ash_typescript,
 
 ## Always Regenerate Mode
 
-When `config :ash_typescript, always_regenerate: true` is set, `mix ash_typescript.codegen --check` writes files directly instead of comparing and raising `Ash.Error.Framework.PendingCodegen`. This is useful in development with `AshPhoenix.Plug.CheckCodegenStatus` to avoid the stale codegen error page and always regenerate files on every request.
+When `config :ash_typescript, always_regenerate: true` is set, `mix ash_typescript.codegen --dev --check` writes files directly instead of raising `Ash.Error.Framework.PendingCodegen`. `AshPhoenix.Plug.CheckCodegenStatus` passes `--dev --check` automatically, so this avoids the stale codegen error page and regenerates files on every development request; plain `--check` (CI) still raises.
 
 **Configuration:** `config :ash_typescript, always_regenerate: true` (default: `false`)
 **Implementation:** `lib/ash_typescript.ex` (`always_regenerate?/0`) + `lib/mix/tasks/ash_typescript.codegen.ex`
@@ -538,6 +553,8 @@ When `config :ash_typescript, always_regenerate: true` is set, `mix ash_typescri
 ```bash
 mix test.codegen                     # Generate types
 cd test/ts && npm run compileGenerated # Validate compilation
+npm run compileGeneratedRoutes       # Validate generated route helpers
+npm run compileGeneratedTypedChannels # Validate generated typed channels
 npm run compileShouldPass            # Test valid patterns (type-level)
 npm run compileShouldFail            # Test invalid patterns fail (type-level)
 npm run testZod                      # Run generated Zod schemas at runtime

@@ -24,10 +24,11 @@ SPDX-License-Identifier: MIT
 | **Basic Call** | `functionName({ fields: [...] })` | `listTodos({ fields: ["id", "title"] })` |
 | **Field Selection** | `["field1", {"nested": ["field2"]}]` | Relationships in objects |
 | **Union Fields** | `{ unionField: ["member1", {"member2": [...]}] }` | Selective union member access |
+| **Union Input** | `input: { field: { memberName: value } }` | Wrapped format required (exactly one member key) |
 | **Calculation (no args)** | `{ calc: ["field1", ...] }` | Simple nested syntax |
 | **Calculation (with args)** | `{ calc: { args: {...}, fields: [...] } }` | Args + fields object |
 | **Filter Syntax** | `{ field: { eq: value } }` | Always use operator objects |
-| **Sort String** | `"-field1,field2"` | Dash prefix = descending |
+| **Sort** | `"-field"` or `["-field1", "field2"]` | `-`/`+`/`--`/`++` prefixes; array for multi-field |
 | **CSRF Headers** | `headers: buildCSRFHeaders()` | Phoenix CSRF protection |
 | **Input Args** | `input: { argName: value }` | Action arguments |
 | **Identity (PK)** | `identity: "id-123"` | Primary key lookup |
@@ -49,9 +50,10 @@ SPDX-License-Identifier: MIT
 | **Metadata Mapping** | `metadata_field_names: [field_1: "field1"]` | Map metadata names |
 | **Metadata (Read)** | `metadataFields: ["field1"]` | Merged into records |
 | **Metadata (Mutation)** | `result.metadata.field1` | Separate metadata field |
-| **Domain Namespace** | `typescript_rpc do namespace :api` | Default for all resources |
-| **Resource Namespace** | `resource X do namespace :todos` | Override domain default |
-| **Action Namespace** | `namespace: :custom` | Override resource default |
+| **Domain Namespace** | `typescript_rpc do namespace "api"` | Default for all resources (strings only) |
+| **Resource Namespace** | `resource X do namespace "todos"` | Override domain default |
+| **Action Namespace** | `namespace: "custom"` | Override resource default |
+| **Enable Namespaces** | `config :ash_typescript, enable_namespace_files: true` | Required — namespaces emit no files without it |
 | **Deprecation** | `deprecated: true` or `"message"` | Mark action deprecated |
 | **Related Actions** | `see: [:create_todo]` | Link in JSDoc |
 | **Description** | `description: "Custom desc"` | Override JSDoc description |
@@ -91,16 +93,18 @@ SPDX-License-Identifier: MIT
 | **read** | ✓ | ✓* | ✓ | ✓* | ✓ | - |
 | **read (get?/get_by)** | ✓ | - | - | - | ✓ | - |
 | **create** | ✓ | - | - | - | ✓ | - |
-| **update** | ✓ | - | - | - | ✓ | ✓ |
+| **update** | ✓ | - | - | - | ✓† | ✓ |
 | **destroy** | - | - | - | - | ✓ | ✓ |
 
 *Can be disabled with `enable_filter?: false` / `enable_sort?: false`
+
+†Update `input` is optional (`input?:`) — accepted attributes are never required on an update.
 
 ## Core Patterns
 
 ### Basic Setup
 
-Three required pieces: a manifest module, the `manifest:` config, and a domain with the RPC extension.
+Requires ash `~> 3.27`. Three required pieces: a manifest module, the `manifest:` config, and a domain with the RPC extension. `mix igniter.install ash_typescript` scaffolds the first two.
 
 ```elixir
 # 1. Manifest module (required — codegen and runtime read all shape from it)
@@ -127,6 +131,8 @@ end
 
 ### TypeScript Usage
 
+Every RPC result is a discriminated union — `{ success: true; data } | { success: false; errors }`. Narrow on `success` before accessing `data`.
+
 ```typescript
 // Read with all features
 const todos = await listTodos({
@@ -136,6 +142,7 @@ const todos = await listTodos({
   sort: "-createdAt",
   headers: buildCSRFHeaders()
 });
+if (todos.success) console.log(todos.data);
 
 // Update requires identity
 await updateTodo({
@@ -149,7 +156,10 @@ createTodoChannel({
   channel: myChannel,
   input: { title: "New" },
   fields: ["id"],
-  resultHandler: (r) => console.log(r.data)
+  resultHandler: (r) => {
+    if (r.success) console.log(r.data);
+    else console.error(r.errors);
+  }
 });
 ```
 
@@ -166,7 +176,7 @@ end
 def typescript_field_names, do: [field_1: "field1"]
 
 # Metadata fields
-rpc_action :read, :read_with_meta,
+rpc_action :read_todo_with_meta, :read_with_meta,
   metadata_field_names: [meta_1: "meta1"]
 ```
 
@@ -240,6 +250,8 @@ updateProvider({ provider: "github" }, { enabled: true })
 - Multi-mount requires unique `as:` options on scopes for disambiguation
 - Not an Ash resource — standalone Spark DSL with colocated arguments
 - Path param `allow_nil?` must match presence: always present → `false`, sometimes present (multi-mount) → `true`
+- Arguments follow Ash action-argument semantics: `constraints:` are validated at compile time and enforced at runtime — a failure returns 422 without invoking the handler
+- Empty string on a required string argument → 422 `is required`; on a nilable string argument the handler receives `nil`. Strings are trimmed by default (`trim?`)
 
 ## Typed Channel (Event Subscriptions)
 
@@ -272,14 +284,13 @@ defmodule MyAppWeb.OrgChannel do
 end
 ```
 
-Resources must have `pub_sub` publications with matching `event:` names. Add `returns:` to publications for typed payloads (otherwise `unknown`).
+Resources must have `pub_sub` publications with matching `event:` names. For typed payloads, use `transform :some_calc` referencing an `:auto`-typed calculation (recommended — Ash derives `returns` automatically), or set `returns:` explicitly. Without either, the payload type is `unknown`.
 
 ### Generated TypeScript
 
 ```typescript
 // Create branded channel + subscribe
 const channel = createOrgChannel(socket, orgId);
-channel.join();
 
 const refs = onOrgChannelMessages(channel, {
   post_created: (payload) => console.log(payload),  // typed payload
@@ -302,8 +313,9 @@ unsubscribeOrgChannel(channel, refs);
 ### Typed Channel Constraints
 
 - Event names must be unique across all resources in a channel
-- Publications need `public?: true` (warning if missing)
-- Publications need `returns:` option for typed payloads (warning if missing, falls back to `unknown`)
+- Publications need `public?: true` (warning if missing — toggle with `warn_on_non_public_publications`)
+- Publications need `transform :some_calc` or an explicit `returns:` for typed payloads (warning if missing, falls back to `unknown` — toggle with `warn_on_missing_channel_returns`)
+- The branded channel type exposes only `on`/`off` — cast to Phoenix's `Channel` for `join()`/`leave()`
 - Channel types go in `ash_types.ts`; channel functions go in `typed_channels_output_file`
 
 ## JSON Manifest (Third-Party Integrations)
@@ -318,9 +330,9 @@ config :ash_typescript,
 
 The manifest contains:
 - **`files`** — generated file locations with `importPath` (for TS imports, always relative, no `.ts`) and `filename` (format controlled by config)
-- **`actions`** — every RPC action with: `functionName`, `actionType` (read/create/update/destroy/action), `get`, `namespace`, `types` (result, fields, input, config, filterInput — only present when applicable), `pagination`, `enableFilter`, `enableSort`, `variants`/`variantNames`, `deprecated`, `see`, `input` (none/optional/required)
-- **`typedControllerRoutes`** — each route with: `functionName`, `method`, `path`, `pathParams`, `mutation`, `types`
-- **`version`** — semver string (currently `"1.0"`) for consumer compatibility
+- **`actions`** — every RPC action with: `functionName`, `actionType` (read/create/update/destroy/action), `get`, `namespace`, `resource`, `description`, `types` (result, fields, inferResult, input, config, filterInput — only present when applicable), `pagination`, `enableFilter`, `enableSort`, `variants`/`variantNames`, `deprecated`, `see`, `input` (none/optional/required)
+- **`typedControllerRoutes`** — each route with: `functionName`, `method`, `path`, `pathParams`, `mutation`, plus `types` when the route has input arguments
+- **`version`** — semver string (currently `"1.0"`) for consumer compatibility, and `generatedAt` (date string)
 
 ### Consumer Example
 
@@ -342,7 +354,9 @@ for (const action of manifest.actions) {
 | Missing `extensions: [AshTypescript.Rpc]` | Add to domain |
 | Missing `typescript` block on resource | Add `AshTypescript.Resource` extension + `typescript do type_name "X" end` |
 | No `rpc_action` declarations | Explicitly declare each action |
+| Compile error points at your manifest module | Expected — all RPC verifiers run when the manifest module compiles, not the domain |
 | Filter syntax `{ field: false }` | Use operators: `{ field: { eq: false } }` |
+| "Union input must be a map" / "contains multiple member keys" | Wrap union inputs in exactly one member key: `{ memberName: value }` |
 | Missing `fields` parameter | Always include `fields: [...]` |
 | Get action error on not found | Add `not_found_error?: false` |
 | Invalid field name `field_1` or `is_active?` | Add field mapping |
@@ -366,8 +380,7 @@ for (const action of manifest.actions) {
 |----------------|-----|
 | "No `:manifest` module configured" | Define manifest module + set `manifest:` config |
 | "Property does not exist" | Run `mix ash_typescript.codegen` |
-| "fields is required" | Add `fields: [...]` |
-| "No domains found" | Use `MIX_ENV=test` for test resources |
+| "Property 'fields' is missing" | Add `fields: [...]` |
 | "Action not found" | Add `rpc_action` declaration |
 | "403 Forbidden" | Use `buildCSRFHeaders()` |
 | "Invalid field names" | Add mapping (see Field Name Mapping) |
@@ -388,6 +401,7 @@ config :ash_typescript,
   generate_validation_functions: false,
   generate_phx_channel_rpc_actions: false,
   generate_zod_schemas: false,
+  generate_valibot_schemas: false,
   require_tenant_parameters: false,
   not_found_error?: true,
   # JSDoc/Manifest
@@ -397,9 +411,16 @@ config :ash_typescript,
   json_manifest_file: nil,              # Machine-readable JSON manifest for third-party tools
   json_manifest_filename_format: :relative,  # :relative | :absolute | :basename
   source_path_prefix: nil,  # For monorepos: "backend"
+  # Namespace files (namespaces emit nothing unless enabled)
+  enable_namespace_files: false,
+  namespace_output_dir: nil,             # Defaults to the RPC output file's directory
+  enable_controller_namespace_files: false,
+  controller_namespace_output_dir: nil,
   # Warnings
   warn_on_missing_rpc_config: true,
   warn_on_non_rpc_references: true,
+  warn_on_non_public_publications: true,
+  warn_on_missing_channel_returns: true,
   # Dev codegen behavior
   always_regenerate: false,
   # Imports/Types
@@ -423,9 +444,14 @@ config :ash_typescript,
   typed_channels_output_file: "assets/js/ash_typed_channels.ts"
 ```
 
+Not exhaustive — see `documentation/reference/configuration.md` for the full key list.
+
+**Validation schemas**: generated Zod/Valibot string schemas carry `min(1)` whenever the attribute's constraints have `allow_empty?: false` (the Ash default), including nullable and optional fields. Send `null`, not `""`.
+
 ## Commands
 
 ```bash
+mix igniter.install ash_typescript      # Scaffold config + manifest module
 mix ash_typescript.codegen              # Generate
 mix ash_typescript.codegen --check      # Verify up-to-date (CI)
 mix ash_typescript.codegen --dry-run    # Preview

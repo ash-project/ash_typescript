@@ -8,16 +8,20 @@ SPDX-License-Identifier: MIT
 
 ## Overview
 
-The RPC system uses a clean four-stage pipeline architecture focused on performance, strict validation, and clear separation of concerns. This represents a complete rewrite that achieves 50%+ performance improvement over previous implementations.
+The RPC system uses a clean four-stage pipeline architecture focused on performance, strict validation, and clear separation of concerns.
 
 ## Four-Stage Pipeline
 
-### Stage 1: Parse Request (`Pipeline.parse_request/3`)
+### Stage 1: Parse Request (`Pipeline.parse_request/4`)
 
 **Purpose**: Parse and validate input with fail-fast approach
 
+The 4th argument is `opts \\ []`, currently only `validation_mode?: true` (used by
+`Rpc.validate_action/3`). `parse_request/3` remains valid.
+
 **Key Operations**:
-- Discover RPC action from OTP app configuration
+- Discover the entrypoint from the manifest's `rpc_action_lookup`/`typed_query_lookup`
+  (`discover_action/2` ignores `otp_app` — everything comes from the manifest)
 - Validate required parameters based on action type
 - Process requested fields through `RequestedFieldsProcessor`
 - Parse action input, pagination, and other parameters
@@ -77,9 +81,10 @@ The RPC system uses a clean four-stage pipeline architecture focused on performa
 **Returns**: Formatted response ready for JSON serialization
 
 **Formatting Flow**:
-1. `OutputFormatter.format/4` handles top-level data
-2. For each field, delegates to `ValueFormatter.format/5` for type-aware recursive formatting
-3. Field names are converted according to formatter configuration and DSL mappings
+1. `OutputFormatter.format/6` handles top-level data (4 required args + `resource_lookups`, `type_index`)
+2. For each field, delegates to `ValueFormatter.format/7` for type-aware recursive formatting
+3. Field names are converted according to formatter configuration and manifest decoration
+   (`Custom.formatted_field_name/3` for `field_names` DSL mappings)
 
 ## Request Data Structure
 
@@ -87,21 +92,34 @@ The `Request` struct flows through the pipeline containing:
 
 ```elixir
 defstruct [
-  :resource,           # The Ash resource module
-  :action,            # The action being executed
-  :tenant,            # Tenant from connection
-  :actor,             # Actor from connection
-  :context,           # Context map
-  :select,            # Fields to select (attributes)
-  :load,              # Fields to load (calculations, relationships)
+  :domain,              # The Ash domain module
+  :resource,            # The Ash resource module
+  :action,              # %Ash.Info.Manifest.Action{} being executed
+  :rpc_action,          # The rpc_action / typed_query config
+  :entrypoint,          # %Ash.Info.Manifest.Entrypoint{} (carries decoration)
+  :tenant,              # Tenant from connection
+  :actor,               # Actor from connection
+  :context,             # Context map
+  :select,              # Fields to select (attributes)
+  :load,                # Fields to load (calculations, relationships)
   :extraction_template, # Template for result extraction
-  :input,             # Action input parameters
-  :primary_key,       # For update/destroy actions
-  :filter,            # For read actions
-  :sort,              # For read actions
-  :pagination         # For read actions
+  :input,               # Action input parameters
+  :identity,            # For update/destroy lookups
+  :get_by,              # For get_by-style reads
+  :filter,              # For read actions
+  :sort,                # For read actions
+  :pagination,          # For read actions
+  show_metadata: [],    # Resolved exposed metadata fields
+  resource_lookups: nil,# Manifest resource lookup map
+  type_index: %{}       # Manifest type lookup
 ]
 ```
+
+`:entrypoint` is the `%Ash.Info.Manifest.Entrypoint{}` whose `custom.ash_typescript`
+decoration supplies load restrictions, metadata config and filter/sort toggles.
+`:resource_lookups` / `:type_index` carry the manifest lookups threaded through
+field processing and value formatting. There is no `:primary_key` field — update
+and destroy lookups use `:identity`, and get-style reads use `:get_by`.
 
 ## Field Processing Integration
 
@@ -117,50 +135,66 @@ Field processing is handled by the `RequestedFieldsProcessor` module (entry poin
 ```
 
 **Processing Flow**:
-1. **Atomizer** - Converts client field names to atoms using formatter and `field_names` DSL
-2. **FieldSelector** - Type-driven dispatch based on `{type, constraints}`:
-   - Ash Resources → `select_resource_fields/3`
-   - TypedStruct/NewType → `select_typed_struct_fields/3`
-   - Typed Map/Struct → `select_typed_map_fields/4`
-   - Tuple → `select_tuple_fields/3`
-   - Union → `select_union_fields/4`
-   - Array → Recurse with inner type
+1. **Atomizer** - Converts map keys to atoms and applies the resource's `field_names`
+   DSL mapping; unmapped strings are *preserved* for downstream reverse-mapping lookup
+2. **FieldSelector** - Type-driven dispatch on the `%Ash.Info.Manifest.Type{}` `kind`
+   (every handler takes a trailing `manifest` argument):
+   - Ash Resources → `select_resource_fields/4`
+   - TypedStruct/NewType → `select_typed_struct_fields/4`
+   - Typed Map/Struct → `select_typed_map_fields/4` (optional 5th `error_type` arg)
+   - Tuple → `select_tuple_fields/4`
+   - Union → `select_union_fields/5`
+   - Array → Recurse with `item_type`
    - Primitive → Validate no fields requested
 
 ### Type-Driven Field Selection
 
-The `FieldSelector` uses a unified type-driven approach where each type is self-describing via `{type, constraints}`. No separate classification step is needed.
+The `FieldSelector` uses a unified type-driven approach where each type is
+self-describing. The primary clause matches `%Ash.Info.Manifest.Type{}` and
+dispatches on its `kind` — no separate classification step is needed.
 
 ```elixir
-def select_fields(type, constraints, requested_fields, path) do
-  {unwrapped_type, full_constraints} = Introspection.unwrap_new_type(type, constraints)
+def select_fields(%Ash.Info.Manifest.Type{} = type_info, _constraints, requested_fields, path, manifest) do
+  case type_info.kind do
+    :type_ref ->
+      full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(manifest), type_info.module)
+      select_fields(full_type, [], requested_fields, path, manifest)
 
-  cond do
-    match?({:array, _}, type) ->
-      # Arrays - recurse into inner type
-      select_fields(inner_type, inner_constraints, requested_fields, path)
+    :array ->
+      select_fields(type_info.item_type, [], requested_fields, path, manifest)
 
-    Ash.Resource.Info.resource?(unwrapped_type) ->
-      # Ash Resources (regular or embedded)
-      select_resource_fields(unwrapped_type, requested_fields, path)
+    kind when kind in [:resource, :embedded_resource] ->
+      select_resource_fields(Type.effective_resource(type_info), requested_fields, path, manifest)
 
-    unwrapped_type == Ash.Type.Union ->
-      select_union_fields(full_constraints, requested_fields, path, error_type)
+    :union ->
+      select_union_fields(type_info, requested_fields, path, "union_attribute", manifest)
 
-    # ... other type handlers
+    # ... :tuple, :keyword, :struct/:map, :any, and a primitive fallback
   end
 end
 ```
 
-For resource fields, the selector checks attributes → relationships → calculations → aggregates in order.
+Raw Ash type atoms and `{:array, inner}` tuples are handled by *fallback* clauses
+that call `Ash.Info.Manifest.Generator.TypeResolver.resolve/2` and re-dispatch into
+the clause above. `Ash.Resource.Info.resource?/1` is not used anywhere in this path.
+
+For resource fields, the selector does a single lookup in the manifest resource's
+`fields` map — attributes, calculations and aggregates share one name-keyed map —
+then falls back to `relationships`. An unmatched name throws `{:unknown_field, ...}`.
 
 ### Unified Field Format
 
 **Breaking change (2025-07-15)**: Complete removal of separate `calculations` parameter. All field selection uses unified format:
 
 ```elixir
-# All calculations, relationships, and fields specified in single array
-fields: ["id", "title", {"relationship": ["field"]}, {"calculation": {"args": {...}}}]
+# All calculations, relationships, and fields specified in a single array.
+# Nested selections are MAPS (%{}), not tuples.
+fields = [
+  "id",
+  "title",
+  %{"relationship" => ["field"]},
+  %{"calculationWithArgs" => %{"args" => %{"prefix" => "x"}, "fields" => ["id"]}}
+]
 ```
 
 ### Calculation Syntax Rules
@@ -179,35 +213,30 @@ Calculations are classified into three categories based on whether they accept a
    - Just use as a string: `"calcName"`
 
 ```elixir
-# Classification logic in get_resource_field_info:
+# Classification logic in get_resource_field_info_from_spec/5 (field_selector.ex),
+# for a %Ash.Info.Manifest.Field{kind: :calculation}:
 category =
   cond do
-    has_any_arguments?(calc) -> :calculation_with_args
-    requires_nested_selection?(calc.type, constraints) -> :calculation_complex
+    has_any_arguments?(field) -> :calculation_with_args
+    requires_nested_selection?(type_info, [], manifest) -> :calculation_complex
     true -> :calculation
   end
 ```
 
-### Dual-Nature Processing
+### Embedded Resources
 
-Embedded resources need both select and load operations:
-
-```elixir
-case embedded_load_items do
-  [] -> {:select, field_atom}  # Only attributes
-  load_items -> {:both, field_atom, {field_atom, load_items}}  # Both attributes and calculations
-end
-```
+Embedded resources are dispatched through the same `:resource`/`:embedded_resource`
+kind branch as regular resources. The returned `{select, load, template}` triple
+carries attribute selection and calculation loads together — there is no special
+dual-nature encoding (the old `{:select, _}` / `{:both, _, _}` tuples are gone).
 
 ### Key Processing Steps
 
-1. **Atomization**: Convert string field names to atoms
-2. **Classification**: Determine field type (attribute, relationship, calculation, etc.)
+1. **Atomization**: Convert map keys to atoms, apply `field_names` mappings
+2. **Classification**: Determine field kind from the manifest type (`kind` dispatch)
 3. **Validation**: Verify fields exist and are accessible
-4. **Template Building**: Create extraction template for result processing
-5. **Load/Select Separation**: Generate proper Ash query parameters
-3. **Build select/load statements** - Separate attributes from loadable fields
-4. **Create extraction template** - For efficient result filtering
+4. **Load/Select Separation**: Generate proper Ash query parameters
+5. **Template Building**: Create extraction template for efficient result filtering
 
 ## Error Handling
 
@@ -226,6 +255,11 @@ Each error includes:
 - Field path (when applicable)
 - Helpful suggestions
 
+**Note (0.18)**: the client-facing error JSON is unchanged, but the *internal* error
+tuples thrown by field processing now carry `%Ash.Info.Manifest.Type{}` values where
+they previously carried raw Ash types. Elixir code pattern-matching on those tuples
+(e.g. `{:invalid_field_selection, :primitive_type, type, fields, path}`) sees new shapes.
+
 ## Performance Optimizations
 
 1. **Single-pass validation** - Fail fast on first error
@@ -239,13 +273,15 @@ Each error includes:
 
 ```elixir
 # In your Phoenix controller or LiveView
+# NOTE: run_action/3 returns a formatted map (@spec ... :: map()), never an
+# {:ok, _} / {:error, _} tuple. Match on the "success" key.
 def handle_event("fetch_todos", params, socket) do
   case AshTypescript.Rpc.run_action(:my_app, socket, params) do
-    {:ok, result} ->
-      {:noreply, assign(socket, todos: result.data)}
+    %{"success" => true, "data" => data} ->
+      {:noreply, assign(socket, todos: data)}
 
-    {:error, error} ->
-      {:noreply, put_flash(socket, :error, error.message)}
+    %{"success" => false, "errors" => errors} ->
+      {:noreply, put_flash(socket, :error, inspect(errors))}
   end
 end
 ```
@@ -257,8 +293,10 @@ end
 with {:ok, request} <- Pipeline.parse_request(:my_app, conn, params),
      {:ok, result} <- Pipeline.execute_ash_action(request),
      {:ok, filtered} <- Pipeline.process_result(result, request) do
-  # Custom handling of filtered result
-  formatted = Pipeline.format_output(filtered)
+  # Pass the request to format_output/2 for type-aware formatting.
+  # format_output/1 exists but is the non-type-aware variant (used only for
+  # error envelopes, which carry no resource types).
+  formatted = Pipeline.format_output(%{success: true, data: filtered}, request)
   json(conn, formatted)
 end
 ```
@@ -301,8 +339,10 @@ rpc_action :list_todos_minimal, :read, enable_filter?: false, enable_sort?: fals
 **Implementation locations for both options**:
 - DSL schema: `lib/ash_typescript/rpc.ex` (RpcAction struct + schema)
 - Action context: `lib/ash_typescript/rpc/codegen/helpers/config_builder.ex:60-81`
-- Config generation: `lib/ash_typescript/rpc/codegen/function_generators/function_core.ex:175-188`
-- Pipeline drop: `lib/ash_typescript/rpc/pipeline.ex:157-161`
+- Config generation: `lib/ash_typescript/rpc/codegen/function_generators/function_core.ex:175-181`
+- Pipeline drop: `lib/ash_typescript/rpc/pipeline.ex:181-185` — the flags are read at
+  runtime from the entrypoint decoration via `Custom.filtering_enabled?/1` and
+  `Custom.sorting_enabled?/1`, not from the `RpcAction` struct
 
 #### `allowed_loads` Option
 
@@ -318,7 +358,9 @@ rpc_action :list_todos_nested, :read, allowed_loads: [:user, comments: [:author]
 - **Validation**: Only specified fields can be loaded
 - **Nested syntax**: `[parent: [:child]]` allows parent but restricts child loading
 - **Pipeline**: Validation in Stage 1 (parse_request) - rejected loads return `{:error, {:load_not_allowed, fields}}`
-- **TypeScript**: No impact on generated types (runtime enforcement only)
+- **TypeScript**: A restricted `<Action>Schema` (an `Omit<...>` over the base resource
+  schema) is generated by `codegen/type_generators/restricted_schema.ex`, so
+  disallowed loads are rejected at compile time as well as at runtime
 
 #### `denied_loads` Option
 
@@ -334,7 +376,9 @@ rpc_action :list_todos_no_nested, :read, denied_loads: [comments: [:todo]]  # De
 - **Validation**: Specified fields cannot be loaded
 - **Nested syntax**: `[parent: [:child]]` denies child on parent (parent itself allowed)
 - **Pipeline**: Validation in Stage 1 (parse_request) - denied loads return `{:error, {:load_denied, fields}}`
-- **TypeScript**: No impact on generated types (runtime enforcement only)
+- **TypeScript**: A restricted `<Action>Schema` (an `Omit<...>` over the base resource
+  schema) is generated by `codegen/type_generators/restricted_schema.ex`, so
+  denied loads are rejected at compile time as well as at runtime
 
 **Mutual Exclusivity**: `allowed_loads` and `denied_loads` cannot be used together on the same rpc_action. The verifier will raise a compile-time error.
 
@@ -347,9 +391,13 @@ rpc_action :list_todos_no_nested, :read, denied_loads: [comments: [:todo]]  # De
 
 **Implementation locations**:
 - DSL schema: `lib/ash_typescript/rpc.ex` (RpcAction struct + schema)
-- Load validation: `lib/ash_typescript/rpc/field_processing/field_selector.ex`
-- Pipeline integration: `lib/ash_typescript/rpc/pipeline.ex`
-- Verifier: `lib/ash_typescript/rpc/verify_rpc.ex`
+- Decoration: `lib/ash_typescript/manifest/decorator.ex` (`load_restrictions/1`), read at
+  runtime via `AshTypescript.Manifest.Custom.load_restrictions/1`
+- Load validation: `lib/ash_typescript/rpc/pipeline.ex` (`validate_load_restrictions/2`,
+  ~L1501, called from Stage 1 at ~L108). `field_selector.ex` contains no load-restriction logic.
+- Codegen: `lib/ash_typescript/rpc/codegen/type_generators/restricted_schema.ex`
+- Verifier: `lib/ash_typescript/manifest/verifiers/verify_rpc.ex` (runs at manifest-module
+  compile time — the old `lib/ash_typescript/rpc/verify_rpc.ex` no longer exists)
 - Tests: `test/ash_typescript/rpc/load_restrictions_test.exs`
 
 ### Field Formatters
@@ -471,12 +519,17 @@ Use Tidewave for step-by-step field processing debugging:
 
 ```elixir
 mcp__tidewave__project_eval("""
-fields = ["id", {"user" => ["name"]}]
+fields = ["id", %{"user" => ["name"]}]
 AshTypescript.Rpc.RequestedFieldsProcessor.process(
   AshTypescript.Test.Todo, :read, fields
 )
+# => {:ok, {[:id], [user: [:name]], [:id, {:user, [:name]}]}}
 """)
 ```
+
+`process/4` takes an optional 4th argument, the **manifest module** — it defaults to
+`AshTypescript.manifest_module()`. Pass an inline manifest module when debugging a
+scoped/test manifest.
 
 
 ## ValueFormatter: Unified Value Formatting
@@ -485,22 +538,34 @@ The `ValueFormatter` module (`lib/ash_typescript/rpc/value_formatter.ex`) provid
 
 ### Design Principles
 
-**Key Insight**: Every composite value can be modeled as `{value, type, constraints}`. The type itself provides all context needed for formatting - no external "resource" parameter is required because each type is self-describing.
+**Key Insight**: Every composite value is modeled as a value plus its resolved
+`%Ash.Info.Manifest.Type{}`. The type itself provides all context needed for
+formatting - no external "resource" parameter is required because each type is
+self-describing. All type dispatch goes through manifest structs; raw Ash type
+atoms and `{:array, _}` tuples are resolved via `TypeResolver.resolve/2` in
+fallback clauses.
 
 | When `type` is... | Field types come from... | Field mappings come from... |
 |-------------------|--------------------------|----------------------------|
-| Ash Resource | `Ash.Resource.Info.attribute(type, field)` | `field_names` DSL on the resource |
-| NewType/TypedStruct | `constraints[:fields]` | `constraints[:instance_of].typescript_field_names()` |
-| `Ash.Type.Map` | `constraints[:fields]` | Formatter only (no explicit mappings) |
-| `Ash.Type.Union` | `constraints[:types][member][:type]` | Member-specific |
+| Ash Resource | `Ash.Info.Manifest.get_field_or_relationship/3` | `Custom.original_field_name/2` (input) / `FieldFormatter.format_field_for_client/3` → `Custom.formatted_field_name/3` (output) |
+| NewType/TypedStruct | `Type.find_field_type/2` | `Custom.type_field_name_mappings_pair/1`, falling back to `Helpers.typescript_field_names/1` |
+| `kind: :map` / `:struct` with fields | `Type.get_fields/1` + `Type.find_field_type/2` | Formatter only (no explicit mappings) |
+| `kind: :union` | `type_info.members` | Member-specific |
 
 ### API
 
 ```elixir
-@spec format(value, type, constraints, formatter, direction) :: formatted_value
-  when direction: :input | :output
+@spec format(value, type, constraints, formatter, direction, resource_lookups, type_index) ::
+        formatted_value
+      when direction: :input | :output
 
-# Example usage
+# `type`        - %Ash.Info.Manifest.Type{} | %...Field{} | %...Relationship{} | nil
+# `constraints` - UNUSED (kept for backward compatibility at call sites; pass [])
+# `resource_lookups` - the manifest resource lookup map (defaults to nil)
+# `type_index`  - reserved (defaults to %{})
+
+# Example usage — arity 5 still works via the defaults, and a bare resource
+# module resolves through the raw-atom fallback clause:
 ValueFormatter.format(
   %{user_id: "123", color_palette: %{primary: "#fff"}},
   MyApp.Todo,
@@ -515,14 +580,16 @@ ValueFormatter.format(
 
 | Category | Detection | Processing |
 |----------|-----------|------------|
-| **Ash Resource** | `Ash.Resource.Info.resource?(type)` | Formats each field using resource schema, respects `field_names` DSL |
-| **Ash.Type.Struct with resource** | `instance_of` is an Ash resource | Same as Ash Resource |
-| **TypedStruct/NewType** | `instance_of` has `typescript_field_names/0` | Uses callback for field mappings |
-| **Ash.Type.Map/Struct with fields** | Has `fields` constraints | Formats using field specs |
-| **Ash.Type.Tuple/Keyword** | Type match | Formats using field specs |
-| **Ash.Type.Union** | Type match | Identifies member, formats recursively |
+| **Named type reference** | `kind: :type_ref` | Resolves via `AshTypescript.type_lookup/0`, re-dispatches |
+| **Ash Resource / embedded** | `kind in [:resource, :embedded_resource]` | Formats each field using the manifest resource, respects `field_names` DSL |
+| **Struct/Map wrapping a resource** | `kind in [:struct, :map]` and `Type.effective_module/1` is an Ash resource | Same as Ash Resource |
+| **TypedStruct/NewType** | `Helpers.has_typescript_field_names?/1` | Uses decoration (or the `typescript_field_names/0` callback) for field mappings |
+| **Map/Struct with fields** | `kind in [:struct, :map]` and `Type.has_fields?/1` | Formats using `Type.get_fields/1` |
+| **Tuple / Keyword** | `kind in [:tuple, :keyword]` | Formats using field specs |
+| **Union** | `kind: :union` | Identifies member from `type_info.members`, formats recursively |
 | **Custom type with map storage** | `Ash.Type.storage_type(module) == :map` | Stringifies all keys |
-| **Arrays** | `{:array, inner_type}` | Formats each element with inner type |
+| **Arrays** | `kind: :array` | Formats each element with `item_type` |
+| **Relationships** | `%Ash.Info.Manifest.Relationship{}` | `cardinality: :many` maps the list; `:one` formats a single record |
 
 ### How It Integrates
 
@@ -531,31 +598,35 @@ ValueFormatter.format(
 │                        RPC Pipeline                             │
 ├─────────────────────────────────────────────────────────────────┤
 │  Stage 1: Parse Request                                         │
-│     └─> InputFormatter.format/4                                 │
-│            └─> ValueFormatter.format(value, type, constraints,  │
-│                                      formatter, :input)         │
+│     └─> InputFormatter.format/6                                 │
+│            └─> ValueFormatter.format(value, type, [], formatter,│
+│                                      :input, resource_lookups)  │
 ├─────────────────────────────────────────────────────────────────┤
 │  Stage 4: Format Output                                         │
-│     └─> OutputFormatter.format/4                                │
-│            └─> ValueFormatter.format(value, type, constraints,  │
-│                                      formatter, :output)        │
+│     └─> OutputFormatter.format/6                                │
+│            └─> ValueFormatter.format(value, type, [], formatter,│
+│                                      :output, resource_lookups) │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+`InputFormatter.format/6` and `OutputFormatter.format/6` each take 4 required args
+plus 2 defaults (`resource_lookups`, `type_index`), so `/4` remains callable.
+
 ### Recursive Type Resolution
 
-When processing nested values, `ValueFormatter` automatically determines the correct type context:
+When processing nested values, `ValueFormatter` automatically determines the correct
+type context. For a resource it looks each key up in the manifest:
 
 ```elixir
-# For Ash Resources:
-defp get_resource_field_type(resource, field_name) do
-  # Checks: attribute -> calculation -> relationship -> aggregate
-  # Returns {type, constraints} for recursive formatting
-end
+# In format_resource/5:
+field_or_rel =
+  Ash.Info.Manifest.get_field_or_relationship(resource_lookups, resource, internal_key)
 
-# For relationships, handles cardinality:
-# - :many (has_many, many_to_many) -> {:array, destination}
-# - :one (belongs_to, has_one) -> destination
+# The result is passed straight back into format/7, which has dedicated clauses for
+# %Ash.Info.Manifest.Field{} (unwraps :type) and %Ash.Info.Manifest.Relationship{}.
+# Relationship cardinality is handled by clause matching, not by synthesizing a type:
+# - cardinality: :many -> Enum.map over the list, formatting each as `destination`
+# - otherwise         -> format a single record as `destination`
 ```
 
 ### Example: Deep Nesting

@@ -8,9 +8,26 @@ SPDX-License-Identifier: MIT
 
 Essential development workflows and patterns for AshTypescript development.
 
+## Prerequisite: the manifest module
+
+Every AshTypescript project must declare a manifest module — codegen and the
+runtime RPC pipeline both read all action/resource/type shape from it.
+
+- This repo: `AshTypescript.Test.Manifest`, wired via `config :ash_typescript, manifest: ...`
+  in the `Mix.env() == :test` block of `config/config.exs`. This is why dev-env
+  codegen fails (see `troubleshooting.md`).
+- Tests that define an inline domain need their own scoped manifest:
+  `use AshTypescript.Manifest, domains: [MyTest.InlineDomain]`.
+- Lookups: `AshTypescript.action_lookup/0`, `resource_lookup/0`, `type_lookup/0`,
+  `rpc_action_lookup/0`, `typed_query_lookup/0`. ash_typescript-owned decoration
+  lives under `custom.ash_typescript`, read via `AshTypescript.Manifest.Custom`.
+
 ## Runtime Introspection with Tidewave MCP
 
 **Use `mcp__tidewave__project_eval` for interactive debugging:**
+
+**Recompile first.** `project_eval` runs against loaded beams — after editing
+`lib/`, recompile or you will evaluate stale code.
 
 ```elixir
 # Explore module exports
@@ -18,7 +35,7 @@ mcp__tidewave__project_eval("AshTypescript.Rpc.Pipeline.__info__(:functions)")
 
 # Test functions in context
 mcp__tidewave__project_eval("""
-fields = ["id", {"user" => ["name"]}]
+fields = ["id", %{"user" => ["name"]}]
 AshTypescript.Rpc.RequestedFieldsProcessor.process(
   AshTypescript.Test.Todo, :read, fields
 )
@@ -27,6 +44,10 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 # Check configuration
 mcp__tidewave__project_eval("Application.get_all_env(:ash_typescript)")
 ```
+
+Note the `%{...}` map literal — `{"user" => ["name"]}` (no `%`) is a syntax error.
+`process/3` still works: its optional 4th argument defaults to the configured
+manifest module.
 
 ## Development Patterns
 
@@ -82,6 +103,16 @@ Test complete pipeline with real data. Use `CodegenTestHelper` to generate throu
 Both positive (shouldPass) and negative (shouldFail) patterns.
 Ensure we test both http/fetch and channel functions.
 
+These are **type-level only**. After any change to validation-schema codegen,
+constraint handling, or `third_party_types`, also run the runtime suites —
+they compile *and execute* the generated schemas against fixture inputs and are
+the only path that catches runtime schema bugs:
+
+```bash
+cd test/ts && npm run testZod && npm run testValibot
+# or from the repo root: mix test.test_zod && mix test.test_valibot
+```
+
 ### Multi-File Codegen Tests
 The Orchestrator generates multiple files (types, Zod, RPC, routes, namespace re-exports). When testing:
 - Use `generate_files/0` + extractors (`rpc_content/1`, `types_content/1`, etc.) to verify content lands in the correct file
@@ -136,8 +167,12 @@ HexDocs documentation for end users. Can include full tutorials, explanations, a
 
 ## Key Success Factors
 
-1. Always use test environment (`MIX_ENV=test`)
-2. Validate TypeScript compilation after changes
-3. Use Tidewave for interactive debugging
+1. Always use the test-env aliases (`mix test.codegen`, `mix test`) — do **not**
+   prefix with `MIX_ENV=test`; `mix.exs` `preferred_envs` already handles it
+2. Validate TypeScript compilation after changes, plus `testZod`/`testValibot`
+   when validation schemas are involved
+3. Use Tidewave for interactive debugging (recompile first)
 4. Write comprehensive tests before implementation
-5. Maintain backwards compatibility
+5. Classify every behavior change against
+   `agent-plans/release-0.18-intentional-changes.md` — deltas not listed there
+   are regressions

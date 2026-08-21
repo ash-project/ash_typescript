@@ -296,44 +296,65 @@ end
 
 ### Error Messages
 
-**Resource field verification failure:**
+**Resource field verification failure** (abridged — `verify_field_names.ex:88-129` also
+emits a generated `Example for <Module>: typescript do field_names ... end` block):
 
 ```
 Invalid field names found that contain question marks, or numbers preceded by underscores.
+These patterns are not allowed in TypeScript generation.
 
 Invalid field names in resource MyApp.User:
   - attribute address_line_1 → address_line1
   - calculation total_items_2 → total_items2
 
+Names should use standard camelCase or snake_case patterns without numbered suffixes.
 You can use field_names in the typescript section to provide valid alternatives.
+
+Example for User:
+
+    typescript do
+      field_names address_line_1: "addressLine1", total_items_2: "totalItems2"
+    end
 ```
 
-**Composite type verification failure:**
+**Composite type verification failure.** The header is dynamic
+(`verify_map_field_names.ex:192-202`) — `<error_types>` is one of
+`map/keyword/tuple type constraints`, `union member names`, or
+`map/keyword/tuple type constraints and union member names`, and the closing fix
+instructions vary to match:
 
 ```
 Invalid field names found in map/keyword/tuple type constraints.
+These patterns are not allowed in TypeScript generation.
 
 Invalid constraint field names in attribute :metadata on resource MyApp.Resource:
     - field_1 → field1
     - is_active? → is_active
 
-To fix this, create a custom Ash.Type.NewType using map/keyword/tuple as a subtype,
+Create a custom Ash.Type.NewType using map/keyword/tuple as a subtype,
 and define the `typescript_field_names/0` callback to map invalid field names to valid ones.
 ```
 
-**Mapped field validation failure:**
+**Mapped field validation failure** (verbatim from
+`lib/ash_typescript/resource/verifiers/verify_mapped_field_names.ex:128-152`):
 
 ```
-Invalid mapped_field_names configuration found:
+Invalid field_names configuration found:
 
-- Field :valid_field is already a valid name and doesn't need mapping
-- Replacement name :another_field_1 is invalid (contains _+digits or ?)
+- Field valid_field is already a valid name and doesn't need mapping
+- Replacement name :another_field_1 must be a string, not an atom. Use "another_field_1" instead of :another_field_1
 
 Requirements:
 - Keys must reference existing fields on the resource
 - Keys must be invalid names (containing _+digits or ?)
-- Values must be valid replacement names (no _+digits or ?)
+- Values must be strings representing the exact TypeScript client name
+- Values must be valid TypeScript identifiers (e.g., "isActive", "addressLine1")
 ```
+
+The three error-part variants are:
+- `- Field <name> does not exist on resource <resource>`
+- `- Field <name> is already a valid name and doesn't need mapping`
+- `- Replacement name <inspect(name)> must be a string, not an atom. Use "<name>" instead of :<name>`
 
 ## Integration Points
 
@@ -354,23 +375,38 @@ Field/argument mapping affects:
    - Function signatures use mapped argument names
    - Field selection syntax uses mapped field names
 
+4. **Validation Error Schemas** (`lib/ash_typescript/rpc/validation_error_schemas.ex`)
+   - Generates the TypeScript validation-error types using mapped field names
+   - This is a *codegen* module, not a runtime pipeline stage
+
 ### RPC Pipeline
 
 Mapping is handled in the RPC pipeline via the unified `ValueFormatter`:
 
 1. **Input Formatting** (`lib/ash_typescript/rpc/input_formatter.ex`)
-   - Delegates to `ValueFormatter.format/5` with direction `:input`
+   - `InputFormatter.format/6` delegates to `ValueFormatter.format/7` with direction `:input`
    - Maps TypeScript field/argument names → Elixir names
    - Applies before Ash action execution
 
 2. **Output Formatting** (`lib/ash_typescript/rpc/output_formatter.ex`)
-   - Delegates to `ValueFormatter.format/5` with direction `:output`
+   - `OutputFormatter.format/6` delegates to `ValueFormatter.format/7` with direction `:output`
    - Maps Elixir field names → TypeScript names
    - Applies after result processing
 
-3. **Validation Errors** (`lib/ash_typescript/rpc/validation_error_schemas.ex`)
-   - Error messages use mapped field names
-   - Consistent with TypeScript schema
+**Where the mappings come from (0.18)**: all lookups read *precomputed decoration*
+off the manifest via `AshTypescript.Manifest.Custom` — never live resource
+introspection:
+
+| Direction | Call |
+|-----------|------|
+| Client name → internal atom (resource field) | `Custom.original_field_name/2` |
+| Internal atom → client name (resource field) | `FieldFormatter.format_field_for_client/3` → `Custom.formatted_field_name/3` |
+| Action argument names | `Custom.original_argument_name/3` / `Custom.mapped_argument_name/3` |
+| `typescript_field_names/0` types | `Custom.type_field_name_mappings_pair/1`, falling back to `Helpers.typescript_field_names/1` |
+
+The pre-0.18 helpers `AshTypescript.Resource.Info.get_original_field_name/2` and
+`get_original_argument_name/3` were **deleted** — do not reintroduce them.
+`get_mapped_argument_name/3` still exists and is used by codegen and verifiers.
 
 ## Testing Strategy
 
@@ -378,9 +414,12 @@ Mapping is handled in the RPC pipeline via the unified `ValueFormatter`:
 
 **1. Verifier Tests**
 ```elixir
+# test/ash_typescript/resource/verify_field_names_test.exs
 # test/ash_typescript/resource/verify_map_field_names_test.exs
-# test/ash_typescript/resource/verify_mapped_field_names_test.exs
 # test/ash_typescript/resource/verify_nested_map_field_names_test.exs
+# VerifyMappedFieldNames has no dedicated file — it is exercised through
+# verify_field_names_test.exs / typescript_field_names_test.exs via
+# AshTypescript.VerifierChecker.check_all_verifiers/1
 ```
 
 **2. Type Generation Tests**
@@ -411,13 +450,10 @@ end
 ```
 
 **4. TypeScript Compilation Tests**
-```typescript
-// test/ts/shouldPass/mapped_fields.ts
-const user = await createUser({
-  input: { addressLine1: "123 Main St" }
-});
-// Should compile without errors
-```
+
+Mapped names are covered by the generated-output compile check
+(`cd test/ts && npm run compileGenerated`) and by the `test/ts/shouldPass/` suite;
+there is no dedicated `mapped_fields.ts` fixture.
 
 ### Test Workflow
 
@@ -493,6 +529,8 @@ end
 | `lib/ash_typescript/resource/verifiers/verify_map_field_names.ex` | Composite type constraint verification |
 | `lib/ash_typescript/codegen/resource_schemas.ex` | Resource schema generation with mapped names |
 | `lib/ash_typescript/codegen/type_mapper.ex` | TypeScript type mapping |
+| `lib/ash_typescript/manifest/custom.ex` | **Manifest decoration accessors** — `field_name_mappings/1`, `reverse_field_name_mappings/1`, `mapped_field_name/2`, `original_field_name/2`, `formatted_field_name/3`, `argument_name_mappings_for_action/2`, `mapped_argument_name/3`, `original_argument_name/3`, `type_field_name_mappings_pair/1` |
+| `lib/ash_typescript/field_formatter.ex` | `format_field_for_client/3` — output-side name resolution |
 | `lib/ash_typescript/rpc/value_formatter.ex` | Unified type-aware formatting (input/output) |
 | `lib/ash_typescript/rpc/input_formatter.ex` | Input formatting (TS → Elixir, delegates to ValueFormatter) |
 | `lib/ash_typescript/rpc/output_formatter.ex` | Output formatting (Elixir → TS, delegates to ValueFormatter) |
@@ -621,5 +659,13 @@ field_names address_line_1: "addressLine1"
 
 **Solution**:
 1. Verify resource has `AshTypescript.Resource` extension
-2. Check field exists in resource (use `Ash.Resource.Info.public_attributes/1`)
-3. Ensure RPC pipeline is used (not direct Ash.Query)
+2. Inspect the *manifest* decoration, not live resource info — the runtime reads only
+   the manifest:
+   ```elixir
+   AshTypescript.Manifest.Custom.resolve_resource(MyApp.User)
+   |> AshTypescript.Manifest.Custom.field_name_mappings()
+   ```
+   (`Ash.Resource.Info` will happily show a field the pipeline cannot see.)
+3. Confirm the manifest module actually recompiled — a stale manifest serves stale
+   mappings. Force it with `mix compile --force` if in doubt.
+4. Ensure RPC pipeline is used (not direct Ash.Query)

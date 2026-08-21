@@ -8,18 +8,32 @@ SPDX-License-Identifier: MIT
 
 Key architectural decisions and their reasoning for AI assistant context.
 
+## 2026-08: 0.18 Release Hardening
+
+**Change**: Post-migration correctness work landed while preparing 0.18 — compile-dependency wiring for the manifest module, a compile-time unmappable-type verifier, and unification of typed-controller argument semantics with Ash.
+**Why**: The manifest migration left three gaps: the manifest module had no compile dependency on domains (stale codegen on incremental compiles), unmappable types degraded to `any` instead of failing loudly, and the TypedController DSL mimicked Ash's `argument` syntax without reusing its semantics.
+**Impact**:
+- **Manifest compile dependencies**: `AshTypescript.Manifest.handle_opts/1` injects static stubs into the using module — `Application.compile_env(otp_app, :ash_domains, [])` (skipped for scoped `domains:` manifests) plus one `Domain.module_info(:md5)` remote call per domain. Resource edit → domain recompiles → manifest recompiles, so `mix test.codegen` and the dev-time RPC pipeline are never stale. (`__mix_recompile__?/0` was rejected: Mix evaluates it against pre-compile beams, so a module-vsn hash lags one compile behind.)
+- **Unmappable types are a compile-time error again**: new `VerifyMappableTypes` manifest verifier walks every reachable type and aggregates all offenders into one `DslError`. The accept-list lives in `TypeMapper.unknown_module_mapping/1` (single source of truth shared with `map_type/3` and `TypeAliases`); `TypeMapper`'s silent `"any"` fallbacks are replaced with a backstop `raise "unsupported type ..."`.
+- **Typed-controller arguments follow Ash action-argument semantics end-to-end**: `FoldArgumentConstraints` transformer validates+folds argument constraints against `Ash.Type.constraints/1` at compile time (invalid constraints are now compile errors); the request handler runs `cast_input` → `apply_constraints` → `allow_nil?` recheck; route Zod fields compose through the same shared `SchemaCore.compose_input_field/5` as RPC action inputs.
+- **Non-empty string enforcement is constraint-driven**: a string gets an effective `min(1)`/`minLength(1)` iff its folded constraints carry `allow_empty?: false`, via shared `SchemaCore.effective_min_length/2` — applied uniformly, including nested typed-container fields.
+- **Scoped-manifest resolution threaded through field processing**: `Custom.resolve_resource/2` plus `manifest` params on `Atomizer`/`FieldSelector`, so verifiers running against an inline test manifest resolve resources correctly.
+- **Non-RPC-references warning regained attribution**: each warned module lists its one-hop referencers (`Referenced by: - MyApp.Todo (relationship :thing)`).
+**Key Files**: `lib/ash_typescript/manifest.ex` (`handle_opts/1`), `lib/ash_typescript/manifest/verifiers/verify_mappable_types.ex`, `lib/ash_typescript/codegen/type_mapper.ex` (`unknown_module_mapping/1`), `lib/ash_typescript/typed_controller/transformers/fold_argument_constraints.ex`, `lib/ash_typescript/typed_controller/request_handler.ex`, `lib/ash_typescript/codegen/schema_core.ex` (`compose_input_field/5`, `effective_min_length/2`), `lib/ash_typescript/manifest/custom.ex` (`resolve_resource/2`)
+**Note**: The full 0.18 delta (breaking changes, fixes, accepted regressions) is catalogued in `agent-plans/release-0.18-intentional-changes.md`. Consult it before treating any codegen or runtime diff as a regression.
+
 ## 2026-07: Ash.Info.Manifest as Single Source of Truth
 
 **Change**: Migrated the codegen and runtime pipelines off ad-hoc `Ash.Resource.Info` introspection and onto a unified, precomputed `Ash.Info.Manifest` (Ash core), read through a required per-app manifest module.
 **Why**: Runtime spec building walked Spark DSL state on every request and scattered `Ash.Resource.Info` calls across dozens of modules. A single manifest, built once at compile time and decorated with ash_typescript-specific data, gives O(1) map reads, one place for name-mapping/type resolution, and correct multi-domain merging (a resource in several `typescript_rpc` blocks unifies its actions instead of clobbering).
 **Impact** (⚠️ **breaking** — requires consumer migration):
 - **New required config + module**: every project must declare `config :ash_typescript, manifest: MyApp.AshTypescriptManifest` and define `defmodule MyApp.AshTypescriptManifest do use AshTypescript.Manifest, otp_app: :my_app end`. `AshTypescript.manifest_module/0` raises with setup instructions if unset.
-- **Ash floor raised** to `~> 3.27` (resolves to 3.29+); `Ash.Info.Manifest` is the backbone.
+- **Ash floor raised** to `~> 3.27` (lock at 3.32.0); `Ash.Info.Manifest` is the backbone. Note the new systemic coupling: filter operators, `required?`, aggregate nullability, sortable flags, and embedded-resource placement all come from ash's manifest generator — an ash bump alone can change generated TypeScript.
 - **Custom decoration**: ash_typescript-owned data (name mappings, `type_name`, exposed metadata, bulk auth strategy) is persisted under `custom.ash_typescript` on the manifest and read via `AshTypescript.Manifest.Custom` accessors — runtime never re-walks DSL state.
 - **O(1) entrypoint lookups**: `AshTypescript.action_lookup/0`, `resource_lookup/0`, `type_lookup/0`, `rpc_action_lookup/0`, `typed_query_lookup/0` back both codegen and the runtime pipeline.
-- **Verifiers split**: RPC-extension verifiers moved to `lib/ash_typescript/manifest/verifiers/`; resource-scoped name/type verifiers remain in `lib/ash_typescript/resource/verifiers/`.
+- **Verifiers split**: RPC-extension verifiers moved to `lib/ash_typescript/manifest/verifiers/`; resource-scoped name/type verifiers remain in `lib/ash_typescript/resource/verifiers/`. They now run **when the manifest module compiles, not when the domain compiles** — error/warning site and timing changed, and the 7 old `AshTypescript.Rpc.Verifier*` modules no longer exist. RPC-config warnings likewise emit once at manifest-module compile and are no longer re-printed by `mix ash_typescript.codegen`.
 - **Reachability** moved to `Ash.Info.Manifest.Generator.Reachability` (ash core).
-**Behavioral notes**: generated TypeScript output is 1:1 with the previous release except two fixes — plain-map fields now preserve `false` values (previously dropped via `||` fallback), and reachability now traverses action `returns`/metadata types (additive: surfaces types previously missed).
+**Behavioral notes**: generated TypeScript is **not** 1:1 with 0.17.3. The manifest now drives filter/sort operators, `required?`, aggregate nullability, and struct-calc classification, so the output changed in several places (filter operator sets, optional update `input?:`, `T | null` aggregates, `__type: "Relationship"` for struct-returning calcs, TypedMap `__primitiveFields` tightening, Zod/Valibot structural schemas). Field ordering also became alphabetical throughout. See `agent-plans/release-0.18-intentional-changes.md` (B3–B6, B10, F1, F8–F10, F12, and §4 ordering churn) for the full classified delta before treating any diff as a regression.
 **Key Files**: `lib/ash_typescript/manifest.ex` (Spark DSL module), `lib/ash_typescript/manifest/custom.ex` (accessors), `lib/ash_typescript/manifest/decorator.ex` + `transformers/` (decoration), `lib/ash_typescript/manifest/verifiers/`, `lib/ash_typescript/rpc/codegen/helpers/action_introspection.ex`
 **Note**: The installer (`mix ash_typescript.install`) scaffolds the manifest module (`MyApp.AshTypescriptManifest` at `lib/my_app/ash_typescript_manifest.ex`) and sets the `manifest:` config automatically — see `create_manifest_module/2` and `add_ash_typescript_config/1` in `lib/mix/tasks/ash_typescript.install.ex`.
 
@@ -28,7 +42,7 @@ Key architectural decisions and their reasoning for AI assistant context.
 **Change**: Unified multi-file codegen orchestration, HTTP verb shortcuts for TypedController DSL, controller namespace support, and shared ImportResolver
 **Why**: Simplify codegen coordination, improve DSL ergonomics, and enable route namespacing
 **Impact**:
-- **Orchestrator** (`codegen/orchestrator.ex`) now coordinates all file generation (types, Zod, RPC, routes, namespaces) in a single pass, replacing the previous sequential approach in the mix task
+- **Orchestrator** (`codegen/orchestrator.ex`) now coordinates all file generation in a single pass, replacing the previous sequential approach in the mix task. It emits types, Zod, Valibot, RPC, routes, typed channels, the Markdown + JSON manifests, and namespace re-exports
 - **HTTP verb shortcuts**: `get :auth do`, `post :login do` etc. — cleaner syntax using Spark `auto_set_fields`. Positional method arg also supported: `route :auth, :post do`. Default method is `:get` when omitted.
 - **Controller namespaces**: `namespace "auth"` at controller and route level, with route-level overriding controller-level. Generates `namespace/*.ts` re-export files.
 - **ImportResolver** extracted as shared utility for import path resolution and namespace re-export generation (used by both RPC and controller codegen)
@@ -50,7 +64,7 @@ Key architectural decisions and their reasoning for AI assistant context.
 **Impact**:
 - GET routes with arguments now generate query parameter path helpers using `URLSearchParams`
 - `typed_controller_mode: :paths_only` config option generates only path helpers (no fetch functions)
-- Route and argument names validated for TypeScript compatibility at compile time (reuses `VerifyFieldNames`)
+- Route and argument names validated for TypeScript compatibility at compile time (reuses `AshTypescript.NameValidation.invalid_name?/1`)
 - Path parameters validated at codegen time — every `:param` in router paths must have a matching DSL argument
 **Key Commits**:
 - `6669e22` feat: generate query params and typed path helpers
@@ -79,7 +93,7 @@ Key architectural decisions and their reasoning for AI assistant context.
 **Key Changes**:
 - Deleted: `formatter_core.ex`, `field_classifier.ex`, `field_processor.ex`, `validator.ex`, `utilities.ex`, 6 type processors
 - Created: `value_formatter.ex` (unified formatting), `field_selector.ex` (unified field selection)
-- `InputFormatter` and `OutputFormatter` now delegate to `ValueFormatter.format/5` with `:input`/`:output` direction
+- `InputFormatter` and `OutputFormatter` now delegate to `ValueFormatter.format/6` (`value, type, constraints, formatter, direction, resource_lookups`) with `:input`/`:output` direction; the arity-7 head adds an optional `type_index`
 **Benefits**: Single dispatch pattern across codebase, easier to reason about, fewer files to maintain
 
 ## 2025-11-07: Comprehensive Codebase Refactoring

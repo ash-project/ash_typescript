@@ -18,7 +18,7 @@ The `AshTypescript.TypedChannel` DSL generates typed TypeScript event subscripti
 
 ## Requirements
 
-Typed channels require **Ash >= 3.21.1**, which introduced `returns`, `public?`, and calculation `transform` support on PubSub publications, as well as `:auto`-typed calculations as transforms.
+Typed channels rely on `returns`, `public?`, and calculation `transform` support on PubSub publications, as well as `:auto`-typed calculations as transforms — all introduced in **Ash 3.21.1**. AshTypescript 0.18 requires `~> 3.27` regardless (see `mix.exs`).
 
 ## Architecture
 
@@ -58,7 +58,7 @@ The Orchestrator appends channel types to the end of `ash_types.ts` after all re
 
 ### Type Mapping
 
-Channel payload types use `TypeMapper.map_channel_payload_type/2` instead of `map_type/3`. The codegen reads the publication's `returns` type — which Ash auto-populates when `transform :some_calc` references a calculation, or which can be set explicitly via `returns:`. The difference from RPC types: typed containers (maps/structs with `:fields`) generate plain object types without the `__type`/`__primitiveFields` metadata that the RPC field-selection system needs. Non-container types (primitives, lists, etc.) delegate to `map_type/3` with `:output` direction.
+Channel payload types use `TypeMapper.map_channel_payload_type/2` instead of `map_type/3`. The codegen reads the publication's `returns` type — which Ash auto-populates when `transform :some_calc` references a calculation, or which can be set explicitly via `returns:`. The difference from RPC types: typed containers (`Ash.Type.Map`/`Keyword`/`Tuple`/`Struct` carrying a `:fields` constraint) generate plain object types without the `__type`/`__primitiveFields` metadata that the RPC field-selection system needs. Containers with no `:fields` fall back to the configured `untyped_map_type`. Non-container types (primitives, lists, etc.) delegate to `map_type/3` with `:output` direction.
 
 ## DSL Reference
 
@@ -160,12 +160,14 @@ end
 
 The `VerifyTypedChannel` verifier runs at compile time:
 
-| Check | Severity | Description |
-|-------|----------|-------------|
-| Event exists | Error | Each declared event must match a publication on the resource |
-| Unique events | Error | Event names must be unique across all resources in a channel |
-| `public?: true` | Warning | Publications should be marked `public?: true` |
-| `returns` set | Warning | Publications without `returns` (no `transform :calc` or explicit `returns:`) produce `unknown` TypeScript type |
+| Check | Severity | Config toggle | Description |
+|-------|----------|---------------|-------------|
+| Event exists | Error | — | Each declared event must match a publication on the resource |
+| Unique events | Error | — | Event names must be unique across all resources in a channel |
+| `public?: true` | Warning | `warn_on_non_public_publications` (default `true`) | Publications should be marked `public?: true` |
+| `returns` set | Warning | `warn_on_missing_channel_returns` (default `true`) | Publications without `returns` (no `transform :calc` or explicit `returns:`) produce `unknown` TypeScript type |
+
+Both warnings can be silenced independently via config; the two hard errors cannot.
 
 ## Generated TypeScript
 
@@ -255,6 +257,8 @@ config :ash_typescript,
 |--------|------|---------|-------------|
 | `typed_channels` | `list(module)` | `[]` | Modules using `AshTypescript.TypedChannel` |
 | `typed_channels_output_file` | `string \| nil` | `nil` | Output file for channel functions (when `nil`, no file is generated) |
+| `warn_on_non_public_publications` | `boolean` | `true` | Warn when a referenced publication is not `public?: true` |
+| `warn_on_missing_channel_returns` | `boolean` | `true` | Warn when a publication has no `returns` (payload types as `unknown`) |
 
 ## Orchestrator Integration
 
@@ -292,14 +296,18 @@ Channel entries are collected once and reused for both steps.
 
 | File | Purpose |
 |------|---------|
-| `test/support/resources/channel_item.ex` | Resource with map, integer, string publications |
-| `test/support/resources/channel_article.ex` | Resource with map, string, boolean publications |
-| `test/support/resources/channel_review.ex` | Resource with integer, boolean publications |
-| `test/support/resources/channel_alert.ex` | Resource with map, utc_datetime publications |
+| `test/support/resources/channel_item.ex` | Resource with map, integer, string publications (explicit `returns:` + fn transforms) |
+| `test/support/resources/channel_article.ex` | Resource with map, string, boolean publications (explicit `returns:`) |
+| `test/support/resources/channel_review.ex` | Resource with integer, boolean publications (explicit `returns:`) |
+| `test/support/resources/channel_alert.ex` | Resource with map, utc_datetime publications (explicit `returns:`) |
+| `test/support/resources/channel_tracker.ex` | **Calculation-transform fixtures** (`transform :calc` + `:auto` calcs) — the recommended path. 10 publications covering string, aggregate, boolean, nested-map and relationship-loading calculations |
+| `test/support/resources/channel_tracker_author.ex` | Related resource loaded through tracker calculations |
+| `test/support/resources/channel_tracker_entry.ex` | Related resource behind tracker aggregate calculations |
 | `test/support/resources/org_channel.ex` | Single-resource channel (ChannelItem) |
 | `test/support/resources/content_feed_channel.ex` | Two-resource channel (Article + Review) |
 | `test/support/resources/moderation_channel.ex` | Three-resource channel (Article + Review + Alert) |
 | `test/support/resources/full_activity_channel.ex` | All events from all resources |
+| `test/support/resources/tracker_channel.ex` | Channel over ChannelTracker — exercises the calculation-transform path end to end |
 
 Inline test resources (defined in test files to avoid compile-time warnings in CI):
 

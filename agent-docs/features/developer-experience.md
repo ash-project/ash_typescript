@@ -32,7 +32,7 @@ defmodule MyApp.Domain do
   use Ash.Domain, extensions: [AshTypescript.Rpc]
 
   typescript_rpc do
-    namespace :api  # All resources default to "api" namespace
+    namespace "api"  # All resources default to "api" namespace
 
     resource MyApp.Todo do
       rpc_action :list_todos, :read
@@ -45,10 +45,10 @@ end
 
 ```elixir
 typescript_rpc do
-  namespace :api
+  namespace "api"
 
   resource MyApp.Todo do
-    namespace :todos  # Overrides domain namespace for this resource
+    namespace "todos"  # Overrides domain namespace for this resource
 
     rpc_action :list_todos, :read
     rpc_action :create_todo, :create
@@ -65,13 +65,13 @@ end
 
 ```elixir
 typescript_rpc do
-  namespace :api
+  namespace "api"
 
   resource MyApp.Todo do
-    namespace :todos
+    namespace "todos"
 
     rpc_action :list_todos, :read  # Uses "todos"
-    rpc_action :admin_list, :read, namespace: :admin  # Uses "admin"
+    rpc_action :admin_list, :read, namespace: "admin"  # Uses "admin"
   end
 end
 ```
@@ -79,6 +79,8 @@ end
 ### Precedence Order
 
 Action namespace > Resource namespace > Domain namespace > nil
+
+Namespaces are **strings** at all three levels (`namespace "todos"`, `namespace: "admin"`) — the DSL option is `type: :string`, so atoms are rejected at compile time. The namespace value becomes the namespace filename.
 
 ### Generated Output
 
@@ -104,10 +106,17 @@ config :ash_typescript,
   namespace_output_dir: "./assets/js/rpc"
 ```
 
-This generates:
-- `rpc/index.ts` - Main file with shared types
-- `rpc/todos.ts` - Actions in "todos" namespace
-- `rpc/admin.ts` - Actions in "admin" namespace
+This generates one file per namespace in `namespace_output_dir` (default: the directory of
+the main `output_file`):
+
+- `rpc/todos.ts` — re-exports the "todos" namespace's functions, input types and Zod/Valibot
+  schemas **from** the main output file
+- `rpc/admin.ts` — same for "admin"
+
+The main output file is unchanged and does **not** import the namespace files — the
+dependency runs namespace-file → main file (`export { listTodos, ... } from "../generated";`).
+Each namespace file preserves hand-written code below its
+`Custom code below this line is preserved on regeneration` marker.
 
 ## JSDoc Generation
 
@@ -282,6 +291,7 @@ The manifest includes a `version` field (currently `"1.0"`) using semver so cons
     "rpc": { "importPath": "./generated", "filename": "./generated.ts" },
     "types": { "importPath": "./ash_types", "filename": "./ash_types.ts" },
     "zod": { "importPath": "./ash_zod", "filename": "./ash_zod.ts" },
+    "valibot": { "importPath": "./ash_valibot", "filename": "./ash_valibot.ts" },
     "routes": { "importPath": "./routes", "filename": "./routes.ts" },
     "typedChannels": { "importPath": "./ash_typed_channels", "filename": "./ash_typed_channels.ts" }
   },
@@ -313,15 +323,23 @@ The manifest includes a `version` field (currently `"1.0"`) using semver so cons
       },
       "enableFilter": true,
       "enableSort": true,
-      "variants": { "validation": true, "zod": true, "channel": true },
+      "variants": { "validation": true, "zod": true, "valibot": true, "channel": true },
       "variantNames": {
         "validation": "validateListTodos",
         "zod": "listTodosZodSchema",
+        "valibot": "listTodosValibotSchema",
         "channel": "listTodosChannel"
       }
     }
   ],
   "typedControllerRoutes": [
+    {
+      "functionName": "authPath",
+      "method": "GET",
+      "path": "/auth",
+      "pathParams": [],
+      "mutation": false
+    },
     {
       "functionName": "login",
       "method": "POST",
@@ -333,6 +351,15 @@ The manifest includes a `version` field (currently `"1.0"`) using semver so cons
   ]
 }
 ```
+
+Every typed controller route appears in `typedControllerRoutes`, including GET path
+helpers (`"mutation": false`, no `types` key). Only mutation routes with non-path
+arguments carry a `types` object.
+
+> ⚠️ **Known issue**: when Valibot schemas are enabled, `typedControllerRoutes[].types`
+> also gains a `"valibot"` key — but controller Valibot schemas are **not currently
+> generated** (only Zod). Do not consume that name; it will not resolve to an export.
+> The route-level `"zod"` name also ignores a route's `zod_schema_name` override.
 
 ### Action Entry Fields
 
@@ -349,9 +376,9 @@ The manifest includes a `version` field (currently `"1.0"`) using semver so cons
 | `input` | string | `"none"`, `"optional"`, or `"required"` |
 | `types` | object | TypeScript type names (only keys that apply are present) |
 | `types.result` | string | Always present. Success/error wrapper type |
-| `types.fields` | string | Field selection type. Absent for destroy actions |
-| `types.inferResult` | string | Inferred result type. Absent for destroy actions |
-| `types.input` | string | Input argument type. Absent when no arguments |
+| `types.fields` | string | Field selection type. Absent for destroy actions and for generic actions whose return isn't field-selectable (e.g. an unconstrained map) |
+| `types.inferResult` | string | Inferred result type. Absent in the same cases as `types.fields` |
+| `types.input` | string | Input argument type. Absent for destroy actions and when the action has no inputs (the manifest's unified arguments + accepted attributes) |
 | `types.config` | string | Pagination config type. Only for optional-pagination reads |
 | `types.filterInput` | string | Filter type (per-resource). Only for reads with filtering enabled |
 | `pagination` | object | Pagination capabilities |
@@ -407,6 +434,8 @@ The manifest includes:
 - Validation functions, Zod schemas, and channel functions (when enabled)
 - Descriptions, deprecation notices, and related actions
 - Typed queries
+- A `## Typed Controller Routes` section (Method / Path / Function / Input Type / Zod Schema)
+  when typed controllers are configured — includes GET path helpers
 
 ### Sample Output
 
@@ -421,15 +450,24 @@ Generated: 2025-01-15
 
 | Function | Action Type | Ash Action | Resource | Validation | Zod Schema | Channel |
 |----------|-------------|------------|----------|------------|------------|---------|
-| `listTodos` | read | `list` | `MyApp.Todo` | `validateListTodos` | `ListTodosInputSchema` | `listTodosChannel` |
-| `createTodo` | create | `create` | `MyApp.Todo` | `validateCreateTodo` | `CreateTodoInputSchema` | `createTodoChannel` |
+| `listTodos` | read | `list` | `MyApp.Todo` | `validateListTodos` | `listTodosZodSchema` | `listTodosChannel` |
+| `createTodo` | create | `create` | `MyApp.Todo` | `validateCreateTodo` | `createTodoZodSchema` | `createTodoChannel` |
 
 - **`listTodos`**: Fetch all todos for the current user
 - **`createTodo`**: Create a new Todo | **See also:** `listTodos`
 
 **Typed Queries:**
 - `todoFields` → `TodoFieldsResult`: Pre-defined field selection for common use case
+
+## Typed Controller Routes
+
+| Method | Path | Function | Input Type | Zod Schema |
+|--------|------|----------|------------|------------|
+| GET | /auth | `authPath` | - | - |
+| POST | /auth/login | `login` | LoginInput | `loginZodSchema` |
 ```
+
+Un-namespaced actions appear under `## Default (No Namespace)`, sorted first.
 
 ### Grouping Behavior
 
@@ -532,19 +570,19 @@ cat test/ts/MANIFEST.md | head -50
 ```elixir
 typescript_rpc do
   resource MyApp.Todo do
-    namespace :todos
+    namespace "todos"
     rpc_action :list_todos, :read
     rpc_action :create_todo, :create
   end
 
   resource MyApp.User do
-    namespace :users
+    namespace "users"
     rpc_action :list_users, :read
-    rpc_action :get_current_user, :get_current, namespace: :auth
+    rpc_action :get_current_user, :get_current, namespace: "auth"
   end
 
   resource MyApp.Session do
-    namespace :auth
+    namespace "auth"
     rpc_action :login, :create
     rpc_action :logout, :destroy
   end
@@ -605,12 +643,12 @@ config :ash_typescript, manifest_file: "./docs/RPC_MANIFEST.md"
 **Solution**: Ensure namespace is configured at domain, resource, or action level:
 ```elixir
 typescript_rpc do
-  namespace :api  # Domain level
+  namespace "api"  # Domain level
 
   resource MyApp.Todo do
-    namespace :todos  # Resource level (overrides domain)
+    namespace "todos"  # Resource level (overrides domain)
 
-    rpc_action :list, :read, namespace: :custom  # Action level (overrides resource)
+    rpc_action :list, :read, namespace: "custom"  # Action level (overrides resource)
   end
 end
 ```

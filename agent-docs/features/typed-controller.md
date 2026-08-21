@@ -69,12 +69,21 @@ end
 
 1. **Look up** route definition from the source module's DSL
 2. **Strip** Phoenix-internal params (`_format`, `action`, `controller`, `_*` prefixed)
-3. **Normalize** param keys (camelCase → snake_case)
+3. **Normalize** param keys (camelCase → snake_case), recursively through nested maps and lists
 4. **Extract** only declared arguments — undeclared params are dropped
-5. **Validate** required arguments (`allow_nil?: false`) — missing → 422 error
+5. **Fill** missing params from the argument's `default` (or `nil`) — a missing required
+   argument (`allow_nil?: false`) is a 422 error
 6. **Cast** values via `Ash.Type.cast_input/3` — invalid → 422 error
-7. **Dispatch** to handler with atom-keyed params map: `fn.(conn, params)` or `module.run(conn, params)`
-8. **Return** the `%Plug.Conn{}` directly — no `{:ok, conn}` wrapping needed
+7. **Apply constraints** via `Ash.Type.apply_constraints/3` — trims strings per `trim?`,
+   converts `""` → `nil` under `allow_empty?: false`, and enforces declared constraints
+   (`min_length`, `match`, `min`/`max`, …)
+8. **Re-check `allow_nil?`** on the constrained value — an argument constrained to `nil`
+   (e.g. `""` on a required string) fails with `"is required"`
+9. **Dispatch** to handler with atom-keyed params map: `fn.(conn, params)` or `module.run(conn, params)`
+10. **Return** the `%Plug.Conn{}` directly — no `{:ok, conn}` wrapping needed
+
+Steps 6–8 mirror Ash's action-argument semantics exactly — the same cast → constrain →
+nil-check sequence Ash runs for resource action arguments.
 
 All validation errors are collected in a single pass so the client receives every issue at once.
 
@@ -92,13 +101,19 @@ When argument validation or casting fails, the handler returns a **422** respons
 {
   "errors": [
     {"field": "code", "message": "is required"},
-    {"field": "count", "message": "is invalid"}
+    {"field": "count", "message": "is invalid"},
+    {"field": "username", "message": "length must be greater than or equal to 3"}
   ]
 }
 ```
 
 - Missing required argument → `{"field": "name", "message": "is required"}`
-- Failed type cast → `{"field": "name", "message": "is invalid"}`
+- Empty string on a required string argument → `{"field": "code", "message": "is required"}`
+  (constraints null it out before the `allow_nil?` re-check)
+- Constraint violation → the Ash constraint message with `%{var}` placeholders
+  interpolated (e.g. `"length must be greater than or equal to 3"`)
+- Failed type cast → typically `{"field": "name", "message": "is invalid"}` — `"is invalid"`
+  is the fallback for errors that aren't a `[message: ..., var: ...]` keyword list
 - Multiple errors are returned together in a single response
 
 ## DSL Reference
@@ -133,7 +148,7 @@ route :profile do
 end
 ```
 
-All three produce the same `Route` struct. Verb shortcuts (`get`, `post`, `patch`, `put`, `delete`) use `auto_set_fields: [method: method]` on the Spark entity, while `route` uses `args: [:name, {:optional, :method, :get}]`.
+All three produce the same `Route` struct. Verb shortcuts (`get`, `post`, `patch`, `put`, `delete`) use `auto_set_fields: [method: method]` on the Spark entity, while `route` uses `args: [:name, {:optional, :method}]` with `default: :get` on the `method` schema option.
 
 ### Full DSL Example
 
@@ -180,8 +195,8 @@ end
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
 | `name` | atom | Yes | - | Argument name (positional arg) |
-| `type` | atom | Yes | - | Ash type (e.g. `:string`, `:boolean`) |
-| `constraints` | keyword | No | `[]` | Type constraints |
+| `type` | `atom \| {atom, keyword}` | Yes | - | Ash type — `:string`, a custom type module, or a parameterized/array tuple (e.g. `{:array, :string}`) |
+| `constraints` | keyword | No | `[]` | Type constraints. Validated and folded against the type's constraint schema at compile time (invalid constraints are compile errors); folded defaults drive both runtime enforcement and generated Zod. |
 | `allow_nil?` | boolean | No | `true` | Whether argument can be nil. Set to `false` to make required. |
 | `default` | any | No | - | Default value |
 
@@ -209,7 +224,8 @@ Typed controllers are validated at compile time with these constraints:
 - **Unique route names** — no duplicate names within a module
 - **Handlers required** — every route must have a `run` handler
 - **Valid argument types** — all argument types must be valid Ash types
-- **Valid names for TypeScript** — route and argument names must not contain `_1`-style patterns or `?` characters (uses `VerifyFieldNames` from the resource verifiers)
+- **Valid names for TypeScript** — route and argument names must not contain `_1`-style patterns or `?` characters (uses `AshTypescript.NameValidation`, the same helper the resource verifiers use)
+- **Valid argument constraints** — constraints are validated and folded against the type's constraint schema by the `FoldArgumentConstraints` transformer, so invalid constraints are compile errors exactly as in Ash. Folding also makes type defaults explicit (`allow_empty?: false`, `trim?: true` for strings), which is what drives the derived `min(1)` in route Zod schemas and the runtime trimming/nulling behavior.
 
 Path parameters are also validated at codegen time:
 
@@ -283,7 +299,7 @@ export function providerPagePath(provider: string): string {
 When GET routes have arguments (excluding path parameters), arguments become typed query parameters using `URLSearchParams`:
 
 ```typescript
-export function searchPath(query: { q: string; page?: number }): string {
+export function searchPath(query: { q: string; page?: number | null }): string {
   const base = "/search";
   const searchParams = new URLSearchParams();
   searchParams.set("q", String(query.q));
@@ -305,7 +321,7 @@ POST/PATCH/PUT/DELETE routes generate async functions with typed inputs. In `:fu
 ```typescript
 export type LoginInput = {
   code: string;
-  rememberMe?: boolean;
+  rememberMe?: boolean | null;
 };
 
 export async function login(
@@ -325,7 +341,7 @@ When a mutation route has both path parameters and action arguments:
 ```typescript
 export type UpdateProviderInput = {
   enabled: boolean;
-  displayName?: string;
+  displayName?: string | null;
 };
 
 export async function updateProvider(
@@ -352,6 +368,7 @@ export async function updateProvider(
 - Field names are mapped through the output field formatter (e.g. `display_name` → `displayName`)
 - Optional fields: arguments with `allow_nil?: true` (default) or with a default value
 - Required fields: arguments with `allow_nil?: false` and no default
+- Nilable arguments render as `field?: T | null` (both optional and nullable)
 
 ### Function Naming
 
@@ -377,9 +394,14 @@ Route-level namespace overrides controller-level namespace. If no namespace is s
 
 ### Generated Output
 
-With `namespace "auth"` on the controller:
-- Main `routes.ts` — imports and re-exports from namespace files
-- `namespace/auth.ts` — contains the namespaced route exports
+Namespace file generation requires `enable_controller_namespace_files: true`. With
+`namespace "auth"` on the controller:
+
+- `generated_routes.ts` (the `routes_output_file`) — the main routes file; contains all
+  route implementations. It does **not** import the namespace files.
+- `auth.ts`, written to `controller_namespace_output_dir` (default: the routes file's own
+  directory) — a namespace file that **re-exports** the namespaced routes *from* the main
+  routes file (`export { login, loginPath, ... } from "./generated_routes";`).
 
 Route exports are categorized as:
 - `:value` — path helper functions
@@ -429,13 +451,13 @@ config :ash_typescript,
 
 This is useful when mutations are handled via a different client library or directly with `fetch`. In `:full` mode (the default), mutation routes generate both a path helper and a typed async fetch function.
 
-**Implementation**: `RouteRenderer.render/1` checks `AshTypescript.typed_controller_mode()` — when `:paths_only` or when the route is a GET, only the path helper is rendered.
+**Implementation**: `RouteRenderer.render_no_zod/2` checks `AshTypescript.typed_controller_mode()` — when `:paths_only` or when the route is a GET, only the path helper is rendered.
 
 ## TypescriptStatic Code Generation
 
 The `TypescriptStatic` module generates boilerplate TypeScript code included once at the top of the routes file (only in `:full` mode):
 
-1. **Import statements** — Zod import (if `generate_zod_schemas: true`) and custom imports from `typed_controller_import_into_generated`
+1. **Import statements** — Zod import (only when `generate_zod_schemas: true` **and** `:skip_zod` is not set; in the default split-file mode route schemas live in `ash_zod.ts`, so the routes file gets no Zod import) and custom imports from `typed_controller_import_into_generated`
 2. **Hook context type** — `TypedControllerHookContext` type alias (if hooks are enabled)
 3. **`TypedControllerConfig` interface** — Configuration object for requests (headers, fetchOptions, customFetch, hookCtx)
 4. **`executeTypedControllerRequest` helper** — Centralizes request execution with hook integration (before/after hooks, custom fetch, header merging)
@@ -469,18 +491,21 @@ When hooks are enabled, `TypedControllerConfig` gains a `hookCtx?: TypedControll
 
 ## Zod Schema Generation
 
-When `generate_zod_schemas: true`, mutation routes generate Zod schemas alongside input types:
+When `generate_zod_schemas: true`, mutation routes with non-path arguments generate Zod
+schemas. These are emitted into the **shared Zod file** (`zod_output_file`, e.g.
+`ash_zod.ts`) — not into the routes file — via `Codegen.collect_route_zod_schemas/1`,
+which passes them to the shared schema generator as `additional_schemas`:
 
 ```typescript
 export const loginZodSchema = z.object({
   code: z.string().min(1),
-  rememberMe: z.boolean().optional(),
+  rememberMe: z.boolean().nullable().optional(),
 });
 ```
 
-Schema naming follows the `zod_schema_suffix` config. Multi-mount routes include the scope prefix in the schema name.
+Schema naming follows the `zod_schema_suffix` config, or the route's `zod_schema_name` override. Multi-mount routes include the scope prefix in the schema name.
 
-**Implementation**: `RouteRenderer.render_zod_schema/1` delegates to `AshTypescript.Codegen.ZodSchemaGenerator.get_zod_type/1`.
+**Implementation**: `RouteRenderer.render_zod_schema/1` composes each field through the shared `SchemaCore.compose_input_field/5` — the same pipeline RPC action inputs use — so route and action schemas cannot drift. The `min(1)` on `code` is *derived* from the folded `allow_empty?: false` string default, not hardcoded.
 
 ## Path Param `allow_nil?` Validation
 
@@ -522,6 +547,10 @@ config :ash_typescript,
   typed_controller_path_params_style: :object, # :object (default) or :args
   typed_controller_base_path: "",            # Base URL prefix (string or {:runtime_expr, "..."})
 
+  # Namespace files
+  enable_controller_namespace_files: false,  # Split namespaced routes into re-export files
+  controller_namespace_output_dir: nil,      # Defaults to the routes file's directory
+
   # Lifecycle hooks
   typed_controller_before_request_hook: "RouteHooks.beforeRequest",
   typed_controller_after_request_hook: "RouteHooks.afterRequest",
@@ -545,6 +574,8 @@ config :ash_typescript,
 | `typed_controller_mode` | `:full \| :paths_only` | `:full` | `:full` generates path helpers + fetch functions; `:paths_only` generates only path helpers |
 | `typed_controller_path_params_style` | `:object \| :args` | `:object` | Path parameter style in generated TypeScript |
 | `typed_controller_base_path` | `string \| {:runtime_expr, string}` | `""` | Base URL prefix for all generated route URLs |
+| `enable_controller_namespace_files` | `boolean` | `false` | Split namespaced routes into separate re-export files |
+| `controller_namespace_output_dir` | `string \| nil` | `nil` | Directory for controller namespace files (defaults to the routes file's directory) |
 | `typed_controller_before_request_hook` | `string \| nil` | `nil` | Function called before typed controller requests |
 | `typed_controller_after_request_hook` | `string \| nil` | `nil` | Function called after typed controller requests |
 | `typed_controller_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for hook context |
@@ -573,6 +604,7 @@ The `Orchestrator` coordinates all file generation (types, Zod, RPC, routes, nam
 | `lib/ash_typescript/typed_controller/info.ex` | Spark introspection helpers |
 | `lib/ash_typescript/typed_controller/route.ex` | Route handler behaviour |
 | `lib/ash_typescript/typed_controller/request_handler.ex` | Phoenix→handler request bridge |
+| `lib/ash_typescript/typed_controller/transformers/fold_argument_constraints.ex` | Compile-time validation + folding of route-argument constraints |
 | `lib/ash_typescript/typed_controller/transformers/generate_controller.ex` | Compile-time controller module generation |
 | `lib/ash_typescript/typed_controller/verifiers/verify_typed_controller.ex` | Compile-time validation |
 | `lib/ash_typescript/typed_controller/codegen.ex` | Codegen orchestration entry point (namespace grouping, export collection) |
