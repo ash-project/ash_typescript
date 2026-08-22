@@ -67,13 +67,20 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       assert zod_schema =~ "title: z.string().min(1)"
     end
 
-    test "nullable+omittable string field without constraints is .nullable().optional()" do
+    test "nullable+omittable string enforces non-empty (allow_empty? false default)" do
       action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
-      assert zod_schema =~ "description: z.string().nullable().optional()"
-      refute zod_schema =~ ~r/description.*\.min\(/
+      assert zod_schema =~ "description: z.string().min(1).nullable().optional()"
       refute zod_schema =~ ~r/description.*\.max\(/
+    end
+
+    test "nullable string with allow_empty?: true stays unconstrained" do
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
+      zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
+
+      assert zod_schema =~ "emptyOkString: z.string().nullable().optional()"
+      refute zod_schema =~ ~r/emptyOkString.*\.min\(/
     end
   end
 
@@ -83,6 +90,17 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
       assert zod_schema =~ "someString: z.string().min(1).max(100)"
+
+      # min_length >= 2 REPLACES the implicit min(1) — it must not stack
+      assert zod_schema =~ "username: z.string().min(3).max(20)"
+      refute zod_schema =~ ~r/username.*min\(1\)/
+
+      # ...including on nilable fields with an explicit min_length
+      assert zod_schema =~ "optionalNickname: z.string().min(2).max(15).nullable().optional()"
+
+      # min_length: 0 with allow_empty?: false floors at min(1) — the server
+      # nulls "" regardless, so min(0) would misrepresent it
+      assert zod_schema =~ "legacyCode: z.string().min(1).max(10).nullable().optional()"
     end
 
     test "constraints are chained in correct order: type().constraint1().constraint2()" do
@@ -373,9 +391,10 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       zod_schema = ZodSchemaGenerator.generate_zod_schema(OrgTodo, action, "create_org_todo")
 
-      # optional_url is allow_nil? true with a regex constraint
+      # optional_url is allow_nil? true with a regex constraint; min(1) comes
+      # from the allow_empty?: false string default
       assert zod_schema =~
-               "optionalUrl: z.string().regex(/^https?:\\/\\/.+/).nullable().optional()"
+               "optionalUrl: z.string().min(1).regex(/^https?:\\/\\/.+/).nullable().optional()"
     end
 
     test "regex constraints are properly escaped for JavaScript" do

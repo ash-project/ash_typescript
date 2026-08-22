@@ -167,6 +167,12 @@ defmodule AshTypescript.Test.OrgTodo do
         constraints min_length: 1, max_length: 100
       end
 
+      # Explicitly allows empty strings - validation schemas must NOT add min(1)
+      argument :empty_ok_string, :string do
+        allow_nil? true
+        constraints allow_empty?: true
+      end
+
       # Regex constraint tests - various patterns
       argument :email, :string do
         allow_nil? false
@@ -243,6 +249,13 @@ defmodule AshTypescript.Test.OrgTodo do
       argument :optional_nickname, :ci_string do
         allow_nil? true
         constraints min_length: 2, max_length: 15
+      end
+
+      # min_length: 0 with the allow_empty?: false default — the server nulls
+      # "" regardless, so the schema minimum must floor at 1
+      argument :legacy_code, :string do
+        allow_nil? true
+        constraints min_length: 0, max_length: 10
       end
 
       argument :address, :map do

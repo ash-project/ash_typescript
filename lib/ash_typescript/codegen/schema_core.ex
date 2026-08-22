@@ -47,15 +47,16 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # ─────────────────────────────────────────────────────────────────
 
   # Recursive dispatch — assumes input is already an `%Ash.Info.Manifest.Type{}`.
-  # Strings are emitted with `require_non_empty: false`; the entry-point
-  # `get_type/3` applies non-empty enforcement based on the caller's
-  # `allow_nil?` before recursing.
+  # Strings enforce non-emptiness whenever their folded constraints carry
+  # `allow_empty?: false` (the Ash string default), mirroring what the server
+  # accepts — independent of the field's nilability.
   defp map_spec_type(_formatter, nil), do: nil
 
   defp map_spec_type(formatter, %SpecType{} = type_info) do
     case type_info.kind do
       kind when kind in [:string, :ci_string] ->
-        formatter.format_string(type_info.constraints || [], false)
+        constraints = type_info.constraints || []
+        formatter.format_string(constraints, require_non_empty?(constraints))
 
       :integer ->
         formatter.format_integer(type_info.constraints || [])
@@ -146,10 +147,12 @@ defmodule AshTypescript.Codegen.SchemaCore do
   tuples, `%{type: SomeType, constraints: [...]}` shapes) are no longer
   accepted; resolve via `Ash.Info.Manifest.Generator.TypeResolver.resolve/2` first.
 
-  Handles `allow_nil?` for string types: non-nullable strings get
-  `format_string(constraints, true)` (which adds an effective min-length 1
-  when no explicit `:min_length` is set). Nested string fields inside typed
-  containers do not get this treatment — they're recursed via `map_spec_type/2`.
+  Non-empty enforcement for string types is constraint-driven: whenever the
+  string's folded constraints carry `allow_empty?: false` (the Ash default),
+  the schema gets an effective min-length 1 (unless an explicit `:min_length`
+  is set) — matching server-side validation regardless of the field's
+  nilability. Strings with `allow_empty?: true` stay unconstrained. This
+  applies uniformly, including nested string fields inside typed containers.
   """
   def get_type(formatter, type_input, context \\ nil)
 
@@ -158,21 +161,38 @@ defmodule AshTypescript.Codegen.SchemaCore do
   end
 
   def get_type(formatter, %SpecType{} = type_info, _context) do
-    map_with_allow_nil(formatter, type_info, true)
-  end
-
-  def get_type(formatter, %{type: %SpecType{} = type_info} = attr, _context) do
-    allow_nil? = Map.get(attr, :allow_nil?, true)
-    map_with_allow_nil(formatter, type_info, allow_nil?)
-  end
-
-  defp map_with_allow_nil(formatter, %SpecType{kind: kind} = type_info, allow_nil?)
-       when kind in [:string, :ci_string] do
-    formatter.format_string(type_info.constraints || [], not allow_nil?)
-  end
-
-  defp map_with_allow_nil(formatter, type_info, _allow_nil?) do
     map_spec_type(formatter, type_info)
+  end
+
+  def get_type(formatter, %{type: %SpecType{} = type_info}, _context) do
+    map_spec_type(formatter, type_info)
+  end
+
+  # Ash strings default to `allow_empty?: false`, and the manifest folds that
+  # default into every resolved string type's constraints. Only an explicit
+  # `allow_empty?: false` triggers enforcement so that non-Ash-string contexts
+  # (atoms rendered as strings, constraint-less inputs) stay unconstrained.
+  defp require_non_empty?(constraints) do
+    Keyword.get(constraints, :allow_empty?) == false
+  end
+
+  @doc """
+  Computes the effective minimum length for a string schema.
+
+  Shared by the Zod and Valibot formatters so the rule cannot drift: an
+  explicit `:min_length` replaces the implicit non-empty minimum — but when
+  the string is non-empty (`allow_empty?: false`), the minimum is floored at
+  1, since the server nulls `""` regardless of a declared `min_length: 0`.
+  Returns `nil` when no minimum applies.
+  """
+  def effective_min_length(constraints, require_non_empty) do
+    min_length = Keyword.get(constraints, :min_length)
+
+    if require_non_empty do
+      max(min_length || 1, 1)
+    else
+      min_length
+    end
   end
 
   # ─────────────────────────────────────────────────────────────────
@@ -378,14 +398,23 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # ─────────────────────────────────────────────────────────────────
 
   defp process_input_field(formatter, resource, action, input, resource_lookup) do
-    nullable = input.allow_nil?
-    omittable = not input.required?
-
     formatted_name =
       ActionIntrospection.format_input_name(resource, action.name, input.name, resource_lookup)
 
+    compose_input_field(formatter, formatted_name, input, input.allow_nil?, not input.required?)
+  end
+
+  @doc """
+  Composes a single input-field schema entry: resolves the field's type
+  through the formatter, then wraps nullable/optional.
+
+  This is the one place that knows how "input argument -> schema field"
+  works — shared by RPC action input schemas (above) and typed-controller
+  route argument schemas (`RouteRenderer`), so the two surfaces cannot drift.
+  """
+  def compose_input_field(formatter, formatted_name, input, nullable?, omittable?) do
     schema_type = get_type(formatter, input)
-    schema_type = maybe_wrap_nullable_optional(formatter, schema_type, nullable, omittable)
+    schema_type = maybe_wrap_nullable_optional(formatter, schema_type, nullable?, omittable?)
     {formatted_name, schema_type}
   end
 

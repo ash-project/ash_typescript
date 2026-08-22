@@ -1045,5 +1045,29 @@ export function testRequiredTitleRejectsNullOnCreate() {
   }
 }
 
+export function testNullableStringRejectsEmpty() {
+  // description is nullable+omittable, but Ash strings default to
+  // allow_empty?: false — the schema carries minLength(1), so "" must fail
+  // even though null is accepted.
+  const invalidData = {
+    ...createValidBaseData(),
+    description: "",
+  };
+
+  try {
+    v.parse(createOrgTodoValibotSchema, invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (v.isValiError(error)) {
+      console.log(
+        "Correctly rejected empty string for description:",
+        (error as v.ValiError<any>).issues,
+      );
+      return (error as v.ValiError<any>).issues;
+    }
+    throw error;
+  }
+}
+
 console.log("Constraint validation failure tests should compile successfully!");
 console.log("These tests verify that constraints are enforced at runtime.");

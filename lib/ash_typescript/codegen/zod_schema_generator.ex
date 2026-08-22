@@ -176,9 +176,8 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   # ─────────────────────────────────────────────────────────────────
 
   defp build_string_zod(constraints, require_non_empty) do
-    min_length = Keyword.get(constraints, :min_length)
     max_length = Keyword.get(constraints, :max_length)
-    effective_min = if require_non_empty && is_nil(min_length), do: 1, else: min_length
+    effective_min = SchemaCore.effective_min_length(constraints, require_non_empty)
 
     "z.string()"
     |> add_string_min(effective_min)

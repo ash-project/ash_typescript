@@ -79,6 +79,7 @@ runTest("testNullableTypedStructAcceptsNull", () => shouldPass.testNullableTyped
 runTest("testUpdateTaskAllOmittable", () => shouldPass.testUpdateTaskAllOmittable());
 runTest("testUpdateTaskOmittableTitleAcceptsValue", () => shouldPass.testUpdateTaskOmittableTitleAcceptsValue());
 runTest("testUpdateTaskOmittableArchivedAcceptsValue", () => shouldPass.testUpdateTaskOmittableArchivedAcceptsValue());
+runTest("testEmptyOkStringAcceptsEmpty", () => shouldPass.testEmptyOkStringAcceptsEmpty());
 
 console.log("\n--- Tests that SHOULD FAIL (invalid constraints) ---\n");
 
@@ -128,6 +129,7 @@ runTest("testMoneyWrongFieldTypes", () => shouldFail.testMoneyWrongFieldTypes())
 runTest("testOmittableOnlyTitleRejectsNull", () => shouldFail.testOmittableOnlyTitleRejectsNull());
 runTest("testOmittableOnlyArchivedRejectsNull", () => shouldFail.testOmittableOnlyArchivedRejectsNull());
 runTest("testRequiredTitleRejectsNullOnCreate", () => shouldFail.testRequiredTitleRejectsNullOnCreate());
+runTest("testNullableStringRejectsEmpty", () => shouldFail.testNullableStringRejectsEmpty());
 
 console.log("\n========================================");
 console.log("Test Results Summary");

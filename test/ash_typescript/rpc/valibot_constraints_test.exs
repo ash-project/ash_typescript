@@ -54,13 +54,20 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
       assert schema =~ "title: v.pipe(v.string(), v.minLength(1))"
     end
 
-    test "nullable+omittable string without constraints generates v.optional(v.nullable(v.string()))" do
+    test "nullable+omittable string enforces non-empty (allow_empty? false default)" do
       action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
       schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
 
-      assert schema =~ "description: v.optional(v.nullable(v.string()))"
-      refute schema =~ ~r/description.*v\.minLength/
+      assert schema =~ "description: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1))))"
       refute schema =~ ~r/description.*v\.maxLength/
+    end
+
+    test "nullable string with allow_empty?: true stays unconstrained" do
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
+
+      assert schema =~ "emptyOkString: v.optional(v.nullable(v.string()))"
+      refute schema =~ ~r/emptyOkString.*v\.minLength/
     end
 
     test "does NOT use method chaining for non-empty required string" do
@@ -255,6 +262,10 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
 
       # username has constraints [min_length: 3, max_length: 20]
       assert schema =~ "username: v.pipe(v.string(), v.minLength(3), v.maxLength(20))"
+
+      # min_length: 0 with allow_empty?: false floors at minLength(1)
+      assert schema =~
+               "legacyCode: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1), v.maxLength(10))))"
     end
 
     test "generates regex constraint for ci_string arguments via v.pipe" do
@@ -360,7 +371,7 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
       schema = ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "create_org_todo")
 
       assert schema =~
-               "optionalUrl: v.optional(v.nullable(v.pipe(v.string(), v.regex(/^https?:\\/\\/.+/))))"
+               "optionalUrl: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1), v.regex(/^https?:\\/\\/.+/))))"
     end
 
     test "regex constraints are properly escaped for JavaScript" do

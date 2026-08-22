@@ -607,4 +607,20 @@ export function testUpdateTaskOmittableArchivedAcceptsValue() {
   return validated;
 }
 
+export function testEmptyOkStringAcceptsEmpty() {
+  // empty_ok_string declares allow_empty?: true, so unlike other strings it
+  // must NOT carry min(1) — the empty string is valid input.
+  const validData = {
+    ...createValidBaseData(),
+    emptyOkString: "",
+  };
+
+  const validated = createOrgTodoZodSchema.parse(validData);
+  if (validated.emptyOkString !== "") {
+    throw new Error(`Expected emptyOkString to be "", got ${validated.emptyOkString}`);
+  }
+  console.log("allow_empty?: true string accepts the empty string");
+  return validated;
+}
+
 console.log("Constraint validation tests should compile and pass successfully!");

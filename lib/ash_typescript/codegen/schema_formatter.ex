@@ -79,8 +79,9 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
 
   @doc """
   Build a string schema, applying `constraints` if present.
-  `require_non_empty` is true when the field is non-nullable — callers should
-  enforce a minimum length of 1 when no explicit `:min_length` constraint exists.
+  `require_non_empty` is true when the string's constraints carry
+  `allow_empty?: false` (the Ash default) — implementations should enforce a
+  minimum length of 1 when no explicit `:min_length` constraint exists.
   """
   @callback format_string(constraints :: keyword(), require_non_empty :: boolean()) :: String.t()
 

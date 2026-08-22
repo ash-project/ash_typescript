@@ -245,7 +245,7 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
         ZodSchemaGenerator.generate_zod_schema_for_resource(embedded_resource)
 
       # notes is allow_nil?: true, so nullable + omittable
-      assert zod_schema =~ "notes: z.string().nullable().optional()"
+      assert zod_schema =~ "notes: z.string().min(1).nullable().optional()"
 
       # priority_level is allow_nil?: true, has constraints [min: 1, max: 5], so nullable + omittable
       assert zod_schema =~ "priorityLevel: z.number().int().min(1).max(5).nullable().optional()"
