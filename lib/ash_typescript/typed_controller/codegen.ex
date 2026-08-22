@@ -342,39 +342,44 @@ defmodule AshTypescript.TypedController.Codegen do
       is_mutation = method in [:post, :patch, :put, :delete]
       is_full_mode = AshTypescript.typed_controller_mode() == :full
 
+      path_param_set = MapSet.new(path_params)
+
+      input_args =
+        route.arguments
+        |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
+
       path_name = build_export_function_name(route.name, scope_prefix, :path)
       exports = [{path_name, :value}]
 
-      if is_mutation and is_full_mode do
-        action_name = build_export_function_name(route.name, scope_prefix, :action)
-        exports = exports ++ [{action_name, :value}]
+      # The named input type belongs to the mutation fetch function, so it only
+      # exists for mutation routes in :full mode. Validation schemas are
+      # rendered for *any* route with non-path arguments (a GET route's query
+      # params are exactly what its path helper takes), so they are exported on
+      # the same terms — see `RouteRenderer.render_validation_schema/3`.
+      exports =
+        if is_mutation and is_full_mode do
+          action_name = build_export_function_name(route.name, scope_prefix, :action)
+          exports = exports ++ [{action_name, :value}]
 
-        path_param_set = MapSet.new(path_params)
-
-        input_args =
-          route.arguments
-          |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
-
-        exports =
           if input_args != [] do
             input_type_name = build_export_input_type_name(route.name, scope_prefix)
             exports ++ [{input_type_name, :type}]
           else
             exports
           end
-
-        exports =
-          if AshTypescript.Rpc.generate_zod_schemas?() and input_args != [] do
-            exports ++ [{route_zod_schema_name(route, scope_prefix), :zod_value}]
-          else
-            exports
-          end
-
-        if AshTypescript.Rpc.generate_valibot_schemas?() and input_args != [] do
-          exports ++ [{route_valibot_schema_name(route, scope_prefix), :valibot_value}]
         else
           exports
         end
+
+      exports =
+        if AshTypescript.Rpc.generate_zod_schemas?() and input_args != [] do
+          exports ++ [{route_zod_schema_name(route, scope_prefix), :zod_value}]
+        else
+          exports
+        end
+
+      if AshTypescript.Rpc.generate_valibot_schemas?() and input_args != [] do
+        exports ++ [{route_valibot_schema_name(route, scope_prefix), :valibot_value}]
       else
         exports
       end

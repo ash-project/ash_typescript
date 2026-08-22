@@ -109,6 +109,38 @@ defmodule AshTypescript.TypedController.NamespaceTest do
       assert "echoParams" in value_names
     end
 
+    test "collects validation schema exports for GET routes with query args", %{
+      route_infos: grouped
+    } do
+      auth_routes = Map.get(grouped, "auth", [])
+      exports = Codegen.collect_route_exports(auth_routes)
+
+      zod_names =
+        for {name, :zod_value} <- exports, do: name
+
+      valibot_names =
+        for {name, :valibot_value} <- exports, do: name
+
+      # `search` and `provider_page` are GET routes with non-path arguments, so
+      # RouteRenderer emits schemas for them — the namespace file must re-export
+      # them or consumers cannot reach a schema that exists
+      assert "searchZodSchema" in zod_names
+      assert "providerPageZodSchema" in zod_names
+      assert "searchValibotSchema" in valibot_names
+      assert "providerPageValibotSchema" in valibot_names
+    end
+
+    test "does not collect input types for GET routes", %{route_infos: grouped} do
+      auth_routes = Map.get(grouped, "auth", [])
+      exports = Codegen.collect_route_exports(auth_routes)
+      type_names = for {name, :type} <- exports, do: name
+
+      # GET path helpers take an inline `query: {...}` object; there is no
+      # named input type to export
+      refute "SearchInput" in type_names
+      refute "ProviderPageInput" in type_names
+    end
+
     test "collects input type exports for mutation routes with args", %{route_infos: grouped} do
       auth_routes = Map.get(grouped, "auth", [])
       exports = Codegen.collect_route_exports(auth_routes)

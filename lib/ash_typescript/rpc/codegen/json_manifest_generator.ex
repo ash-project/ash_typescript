@@ -402,7 +402,11 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
       info.route.arguments
       |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
 
-    has_input = is_mutation and input_args != []
+    # A named input type exists only for the mutation fetch functions, whereas
+    # validation schemas are rendered for any route with non-path arguments
+    # (including GET query params) — mirror both predicates exactly.
+    has_input_type = is_mutation and input_args != []
+    has_schemas = input_args != []
 
     entry = %{
       "functionName" => function_name,
@@ -412,42 +416,40 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
       "mutation" => is_mutation
     }
 
-    entry =
-      if has_input do
-        input_type_name =
-          case info.scope_prefix do
-            nil -> Macro.camelize("#{info.route.name}_input")
-            prefix -> Macro.camelize("#{prefix}_#{info.route.name}_input")
-          end
-
-        Map.put(entry, "types", %{"input" => input_type_name})
-      else
-        entry
-      end
-
-    entry =
-      if has_input and AshTypescript.Rpc.generate_zod_schemas?() do
-        zod_name =
+    types =
+      %{}
+      |> maybe_put_route_type(has_input_type, "input", fn -> route_input_type_name(info) end)
+      |> maybe_put_route_type(
+        has_schemas and AshTypescript.Rpc.generate_zod_schemas?(),
+        "zod",
+        fn ->
           AshTypescript.TypedController.Codegen.route_zod_schema_name(
             info.route,
             info.scope_prefix
           )
+        end
+      )
+      |> maybe_put_route_type(
+        has_schemas and AshTypescript.Rpc.generate_valibot_schemas?(),
+        "valibot",
+        fn ->
+          AshTypescript.TypedController.Codegen.route_valibot_schema_name(
+            info.route,
+            info.scope_prefix
+          )
+        end
+      )
 
-        put_in(entry, ["types", "zod"], zod_name)
-      else
-        entry
-      end
+    if types == %{}, do: entry, else: Map.put(entry, "types", types)
+  end
 
-    if has_input and AshTypescript.Rpc.generate_valibot_schemas?() do
-      valibot_name =
-        AshTypescript.TypedController.Codegen.route_valibot_schema_name(
-          info.route,
-          info.scope_prefix
-        )
+  defp maybe_put_route_type(types, false, _key, _build), do: types
+  defp maybe_put_route_type(types, true, key, build), do: Map.put(types, key, build.())
 
-      put_in(entry, ["types", "valibot"], valibot_name)
-    else
-      entry
+  defp route_input_type_name(info) do
+    case info.scope_prefix do
+      nil -> Macro.camelize("#{info.route.name}_input")
+      prefix -> Macro.camelize("#{prefix}_#{info.route.name}_input")
     end
   end
 

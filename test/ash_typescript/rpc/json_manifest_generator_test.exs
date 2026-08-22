@@ -450,6 +450,24 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
       refute Map.has_key?(logout, "types")
     end
 
+    test "GET routes with query args advertise their validation schemas", %{manifest: manifest} do
+      search = Enum.find(manifest["typedControllerRoutes"], &(&1["functionName"] == "searchPath"))
+
+      # Schemas are rendered for any route with non-path arguments, so the
+      # manifest must advertise them for GET routes too
+      assert search["types"]["zod"] == "searchZodSchema"
+      assert search["types"]["valibot"] == "searchValibotSchema"
+
+      # ...but a GET route has no named input type
+      refute Map.has_key?(search["types"], "input")
+    end
+
+    test "routes without arguments carry no types at all", %{manifest: manifest} do
+      auth = Enum.find(manifest["typedControllerRoutes"], &(&1["functionName"] == "authPath"))
+
+      refute Map.has_key?(auth, "types")
+    end
+
     test "routes with path params list them", %{manifest: manifest} do
       provider =
         Enum.find(manifest["typedControllerRoutes"], fn r ->
