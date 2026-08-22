@@ -83,22 +83,32 @@ defmodule AshTypescript.Manifest.Custom do
   resource carried on a `kind: :embedded_resource` entry in the type lookup
   (embedded resources are not present in `resource_lookup`). Returns `nil`
   when the module is not in the manifest.
+
+  Accepts an optional manifest module so callers operating on a scoped
+  manifest (e.g. verifiers running against inline domains via
+  `AshTypescript.Manifest.verify_for_domains/1`) resolve against that
+  manifest instead of the globally configured one. `nil` uses the
+  configured manifest.
   """
-  @spec resolve_resource(atom() | term()) :: Manifest.Resource.t() | nil
-  def resolve_resource(module) when is_atom(module) and not is_nil(module) do
-    case Ash.Info.Manifest.get_resource(AshTypescript.resource_lookup(), module) do
+  @spec resolve_resource(atom() | term(), module() | nil) :: Manifest.Resource.t() | nil
+  def resolve_resource(module, manifest \\ nil)
+
+  def resolve_resource(module, manifest) when is_atom(module) and not is_nil(module) do
+    manifest = manifest || AshTypescript.manifest_module()
+
+    case Ash.Info.Manifest.get_resource(AshTypescript.resource_lookup(manifest), module) do
       %Manifest.Resource{} = resource ->
         resource
 
       _ ->
-        case Ash.Info.Manifest.get_type(AshTypescript.type_lookup(), module) do
+        case Ash.Info.Manifest.get_type(AshTypescript.type_lookup(manifest), module) do
           %Manifest.Type{resource: %Manifest.Resource{} = resource} -> resource
           _ -> nil
         end
     end
   end
 
-  def resolve_resource(_), do: nil
+  def resolve_resource(_, _), do: nil
 
   @doc """
   Returns the `:ash_typescript` decoration map for any struct that carries a

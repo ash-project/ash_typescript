@@ -27,6 +27,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.Atomizer do
 
   - `requested_fields` - List of strings/atoms or maps for relationships
   - `resource` - Optional resource module for field_names DSL lookup
+  - `manifest` - Optional manifest module for scoped resolution (defaults to
+    the configured manifest)
 
   ## Examples
 
@@ -36,11 +38,12 @@ defmodule AshTypescript.Rpc.FieldProcessing.Atomizer do
       iex> atomize_requested_fields([%{"self" => %{"args" => %{"prefix" => "test"}}}])
       [%{self: %{args: %{prefix: "test"}}}]
   """
-  def atomize_requested_fields(requested_fields, resource \\ nil)
+  def atomize_requested_fields(requested_fields, resource \\ nil, manifest \\ nil)
 
-  def atomize_requested_fields(requested_fields, resource) when is_list(requested_fields) do
+  def atomize_requested_fields(requested_fields, resource, manifest)
+      when is_list(requested_fields) do
     formatter = AshTypescript.Rpc.input_field_formatter()
-    Enum.map(requested_fields, &process_field(&1, formatter, resource))
+    Enum.map(requested_fields, &process_field(&1, formatter, resource, manifest))
   end
 
   @doc """
@@ -54,11 +57,11 @@ defmodule AshTypescript.Rpc.FieldProcessing.Atomizer do
   - Converts map keys to atoms (for relationship/calculation navigation)
   - Preserves nested field name strings
   """
-  def process_field(field, formatter, resource \\ nil)
+  def process_field(field, formatter, resource \\ nil, manifest \\ nil)
 
-  def process_field(field_name, _formatter, resource) when is_binary(field_name) do
+  def process_field(field_name, _formatter, resource, manifest) when is_binary(field_name) do
     # For resources, check field_names DSL mapping first
-    res_struct = Custom.resolve_resource(resource)
+    res_struct = Custom.resolve_resource(resource, manifest)
 
     if Custom.typescript_resource?(res_struct) do
       case Custom.original_field_name(res_struct, field_name) do
@@ -70,26 +73,26 @@ defmodule AshTypescript.Rpc.FieldProcessing.Atomizer do
     end
   end
 
-  def process_field(field_name, _formatter, _resource) when is_atom(field_name) do
+  def process_field(field_name, _formatter, _resource, _manifest) when is_atom(field_name) do
     field_name
   end
 
-  def process_field(%{} = field_map, formatter, resource) do
+  def process_field(%{} = field_map, formatter, resource, manifest) do
     is_calc_args = is_calculation_args_map?(field_map)
 
     Enum.into(field_map, %{}, fn {key, value} ->
-      atom_key = convert_map_key_to_atom(key, formatter, resource)
-      processed_value = process_field_value(value, formatter, resource, is_calc_args)
+      atom_key = convert_map_key_to_atom(key, formatter, resource, manifest)
+      processed_value = process_field_value(value, formatter, resource, is_calc_args, manifest)
       {atom_key, processed_value}
     end)
   end
 
-  def process_field(other, _formatter, _resource) do
+  def process_field(other, _formatter, _resource, _manifest) do
     other
   end
 
-  defp convert_map_key_to_atom(key, _formatter, resource) when is_binary(key) do
-    res_struct = Custom.resolve_resource(resource)
+  defp convert_map_key_to_atom(key, _formatter, resource, manifest) when is_binary(key) do
+    res_struct = Custom.resolve_resource(resource, manifest)
 
     if Custom.typescript_resource?(res_struct) do
       case Custom.original_field_name(res_struct, key) do
@@ -101,7 +104,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.Atomizer do
     end
   end
 
-  defp convert_map_key_to_atom(key, _formatter, _resource) when is_atom(key) do
+  defp convert_map_key_to_atom(key, _formatter, _resource, _manifest) when is_atom(key) do
     key
   end
 
@@ -116,30 +119,37 @@ defmodule AshTypescript.Rpc.FieldProcessing.Atomizer do
   For calculation args (maps with args/fields keys), converts all strings.
   For field selection lists, preserves strings for type-aware reverse mapping.
   """
-  def process_field_value(value, formatter, resource \\ nil, atomize_strings \\ true)
+  def process_field_value(
+        value,
+        formatter,
+        resource \\ nil,
+        atomize_strings \\ true,
+        manifest \\ nil
+      )
 
-  def process_field_value(list, formatter, resource, atomize_strings) when is_list(list) do
+  def process_field_value(list, formatter, resource, atomize_strings, manifest)
+      when is_list(list) do
     Enum.map(list, fn
       field_name when is_binary(field_name) ->
         if atomize_strings do
-          process_field(field_name, formatter, resource)
+          process_field(field_name, formatter, resource, manifest)
         else
           field_name
         end
 
       %{} = map ->
-        process_field(map, formatter, resource)
+        process_field(map, formatter, resource, manifest)
 
       other ->
         other
     end)
   end
 
-  def process_field_value(%{} = map, formatter, resource, _atomize_strings) do
-    process_field(map, formatter, resource)
+  def process_field_value(%{} = map, formatter, resource, _atomize_strings, manifest) do
+    process_field(map, formatter, resource, manifest)
   end
 
-  def process_field_value(primitive, _formatter, _resource, _atomize_strings) do
+  def process_field_value(primitive, _formatter, _resource, _atomize_strings, _manifest) do
     primitive
   end
 end

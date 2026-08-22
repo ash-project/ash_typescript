@@ -18,14 +18,21 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
   ## Type Categories
 
-  | Category | Detection | Handler |
-  |----------|-----------|---------|
-  | Ash Resource | `is_ash_resource?(type)` | `select_resource_fields/3` |
-  | TypedStruct/NewType/CustomType | `typescript_field_names/0` callback | `select_typed_struct_fields/3` |
-  | Typed Map/Struct | Has `fields` constraints | `select_typed_map_fields/3` |
-  | Tuple | `Ash.Type.Tuple` | `select_tuple_fields/3` |
-  | Union | `Ash.Type.Union` | `select_union_fields/3` |
-  | Array | `{:array, inner_type}` | Recurse with inner type |
+  Dispatch is driven by the manifest: `select_fields/5` pattern-matches
+  `%Ash.Info.Manifest.Type{}` and branches on its `kind`. Every handler takes a
+  trailing `manifest` argument. Raw Ash types (atoms, `{:array, _}`) hit
+  fallback clauses that resolve via `Ash.Info.Manifest.Generator.TypeResolver`
+  and re-dispatch.
+
+  | Category | Detection (`type_info.kind`) | Handler |
+  |----------|------------------------------|---------|
+  | Ash / embedded resource | `:resource`, `:embedded_resource` | `select_resource_fields/4` |
+  | Typed struct | `:struct` with `instance_of` + fields | `select_typed_struct_fields/4` |
+  | Typed Map/Keyword | `:map`/`:keyword` with fields | `select_typed_map_fields/4` |
+  | Tuple | `:tuple` | `select_tuple_fields/4` |
+  | Union | `:union` | `select_union_fields/5` |
+  | Array | `:array` | Recurse with `item_type` |
+  | Named type reference | `:type_ref` | Resolve via `AshTypescript.type_lookup`, re-dispatch |
   | Primitive | Default | Validate no fields requested |
   """
 
@@ -284,7 +291,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     Validation.check_for_duplicates(requested_fields, path)
 
     Enum.reduce(requested_fields, {[], [], []}, fn field, acc ->
-      field = atomize_field_name(field, resource)
+      field = atomize_field_name(field, resource, manifest)
 
       case parse_field_request(field) do
         {:simple, field_name} ->
@@ -376,7 +383,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
          {select, load, template},
          manifest
        ) do
-    internal_name = resolve_resource_field_name(resource, field_name)
+    internal_name = resolve_resource_field_name(resource, field_name, manifest)
 
     {field_type, constraints, category} =
       get_resource_field_info(resource, internal_name, path, manifest)
@@ -409,7 +416,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
          {select, load, template},
          manifest
        ) do
-    internal_name = resolve_resource_field_name(resource, field_name)
+    internal_name = resolve_resource_field_name(resource, field_name, manifest)
 
     {field_type, field_constraints, category} =
       get_resource_field_info(resource, internal_name, path, manifest)
@@ -494,7 +501,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       :relationship ->
         dest_resource = extract_relationship_destination(field_type, resource, internal_name)
 
-        unless Custom.typescript_resource?(Custom.resolve_resource(dest_resource)) do
+        unless Custom.typescript_resource?(Custom.resolve_resource(dest_resource, manifest)) do
           throw({:unknown_field, internal_name, resource, path})
         end
 
@@ -545,7 +552,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
          {select, load, template},
          manifest
        ) do
-    internal_name = resolve_resource_field_name(resource, calc_name)
+    internal_name = resolve_resource_field_name(resource, calc_name, manifest)
 
     calc_field =
       case Ash.Info.Manifest.get_field(
@@ -1203,8 +1210,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
-  defp atomize_field_name(field, resource) when is_binary(field) do
-    res_struct = Custom.resolve_resource(resource)
+  defp atomize_field_name(field, resource, manifest) when is_binary(field) do
+    res_struct = Custom.resolve_resource(resource, manifest)
 
     if Custom.typescript_resource?(res_struct) do
       case Custom.original_field_name(res_struct, field) do
@@ -1216,26 +1223,29 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
-  defp atomize_field_name(%{} = map, resource) do
+  defp atomize_field_name(%{} = map, resource, manifest) do
     Enum.into(map, %{}, fn {key, value} ->
-      atomized_key = atomize_field_name(key, resource)
-      atomized_value = atomize_nested_value(value, resource)
+      atomized_key = atomize_field_name(key, resource, manifest)
+      atomized_value = atomize_nested_value(value, resource, manifest)
       {atomized_key, atomized_value}
     end)
   end
 
-  defp atomize_field_name(field, _resource), do: field
+  defp atomize_field_name(field, _resource, _manifest), do: field
 
-  defp atomize_nested_value(value, resource) when is_list(value) do
-    Enum.map(value, fn item -> atomize_field_name(item, resource) end)
+  defp atomize_nested_value(value, resource, manifest) when is_list(value) do
+    Enum.map(value, fn item -> atomize_field_name(item, resource, manifest) end)
   end
 
-  defp atomize_nested_value(%{args: _} = value, _resource), do: value
-  defp atomize_nested_value(%{"args" => _} = value, _resource), do: value
-  defp atomize_nested_value(%{fields: _} = value, _resource), do: value
-  defp atomize_nested_value(%{"fields" => _} = value, _resource), do: value
-  defp atomize_nested_value(%{} = value, resource), do: atomize_field_name(value, resource)
-  defp atomize_nested_value(value, _resource), do: value
+  defp atomize_nested_value(%{args: _} = value, _resource, _manifest), do: value
+  defp atomize_nested_value(%{"args" => _} = value, _resource, _manifest), do: value
+  defp atomize_nested_value(%{fields: _} = value, _resource, _manifest), do: value
+  defp atomize_nested_value(%{"fields" => _} = value, _resource, _manifest), do: value
+
+  defp atomize_nested_value(%{} = value, resource, manifest),
+    do: atomize_field_name(value, resource, manifest)
+
+  defp atomize_nested_value(value, _resource, _manifest), do: value
 
   # Extracts args and fields from a map, handling both atom and string keys.
   # Returns {:ok, args, fields} or :not_args_structure.
@@ -1263,8 +1273,9 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
-  defp resolve_resource_field_name(resource, field_name) when is_binary(field_name) do
-    res_struct = Custom.resolve_resource(resource)
+  defp resolve_resource_field_name(resource, field_name, manifest)
+       when is_binary(field_name) do
+    res_struct = Custom.resolve_resource(resource, manifest)
 
     if Custom.typescript_resource?(res_struct) do
       case Custom.original_field_name(res_struct, field_name) do
@@ -1276,8 +1287,10 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
-  defp resolve_resource_field_name(resource, field_name) when is_atom(field_name) do
-    Custom.original_field_name(Custom.resolve_resource(resource), field_name) || field_name
+  defp resolve_resource_field_name(resource, field_name, manifest)
+       when is_atom(field_name) do
+    Custom.original_field_name(Custom.resolve_resource(resource, manifest), field_name) ||
+      field_name
   end
 
   defp convert_to_field_atom(field_name) do

@@ -69,7 +69,11 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyTypedQueryFields do
       true ->
         try do
           atomized_fields =
-            RequestedFieldsProcessor.atomize_requested_fields(typed_query.fields, resource)
+            RequestedFieldsProcessor.atomize_requested_fields(
+              typed_query.fields,
+              resource,
+              manifest_module
+            )
 
           case RequestedFieldsProcessor.process(
                  resource,

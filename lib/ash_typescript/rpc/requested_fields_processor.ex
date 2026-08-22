@@ -31,7 +31,8 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
   @doc """
   Atomizes requested fields by converting standalone strings to atoms and map keys to atoms.
   """
-  defdelegate atomize_requested_fields(requested_fields, resource \\ nil), to: Atomizer
+  defdelegate atomize_requested_fields(requested_fields, resource \\ nil, manifest \\ nil),
+    to: Atomizer
 
   @doc """
   Processes requested fields for a given resource and action.
