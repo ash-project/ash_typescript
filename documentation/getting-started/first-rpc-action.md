@@ -56,10 +56,9 @@ import { createTodo } from './ash_rpc';
 
 async function addTodo(title: string) {
   const result = await createTodo({
-    fields: ["id", "title", "createdAt"],
+    fields: ["id", "title", "completed"],
     input: {
-      title: title,
-      priority: "medium"
+      title: title
     }
   });
 
@@ -75,13 +74,15 @@ async function addTodo(title: string) {
 
 ### Get a Single Record
 
+The `get_todo` action was declared with `get_by: [:id]`, so the generated function takes a `getBy` parameter:
+
 ```typescript
 import { getTodo } from './ash_rpc';
 
 async function fetchTodo(id: string) {
   const result = await getTodo({
-    fields: ["id", "title", "completed", "priority"],
-    input: { id }
+    fields: ["id", "title", "completed"],
+    getBy: { id }
   });
 
   if (result.success) {
@@ -92,7 +93,7 @@ async function fetchTodo(id: string) {
 
 ## Including Relationships
 
-One of AshTypescript's powerful features is nested field selection for relationships:
+One of AshTypescript's powerful features is nested field selection for relationships. Assuming your resource also defines `user` and `tags` relationships (to resources that are themselves exposed via RPC):
 
 ```typescript
 const result = await getTodo({
@@ -104,7 +105,7 @@ const result = await getTodo({
       tags: ["name", "color"]
     }
   ],
-  input: { id: "123" }
+  getBy: { id: "123" }
 });
 
 if (result.success) {
@@ -193,7 +194,7 @@ const headers = buildCSRFHeaders();
 // CREATE
 const createResult = await createTodo({
   fields: ["id", "title"],
-  input: { title: "Learn AshTypescript", priority: "high" },
+  input: { title: "Learn AshTypescript" },
   headers
 });
 
@@ -206,8 +207,8 @@ const todoId = createResult.data.id;
 
 // READ (single)
 const getResult = await getTodo({
-  fields: ["id", "title", "priority", { user: ["name"] }],
-  input: { id: todoId },
+  fields: ["id", "title", "completed"],
+  getBy: { id: todoId },
   headers
 });
 
@@ -219,7 +220,7 @@ const listResult = await listTodos({
 
 // UPDATE
 const updateResult = await updateTodo({
-  fields: ["id", "title", "updatedAt"],
+  fields: ["id", "title", "completed"],
   identity: todoId,
   input: { title: "Mastered AshTypescript" },
   headers

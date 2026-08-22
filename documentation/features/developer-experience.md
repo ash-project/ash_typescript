@@ -24,7 +24,7 @@ defmodule MyApp.Domain do
   use Ash.Domain, extensions: [AshTypescript.Rpc]
 
   typescript_rpc do
-    namespace :api  # All resources default to "api" namespace
+    namespace "api"  # All resources default to "api" namespace
 
     resource MyApp.Todo do
       rpc_action :list_todos, :read
@@ -37,10 +37,10 @@ end
 
 ```elixir
 typescript_rpc do
-  namespace :api
+  namespace "api"
 
   resource MyApp.Todo do
-    namespace :todos  # Overrides domain namespace
+    namespace "todos"  # Overrides domain namespace
 
     rpc_action :list_todos, :read
     rpc_action :create_todo, :create
@@ -57,13 +57,13 @@ end
 
 ```elixir
 typescript_rpc do
-  namespace :api
+  namespace "api"
 
   resource MyApp.Todo do
-    namespace :todos
+    namespace "todos"
 
     rpc_action :list_todos, :read  # Uses "todos"
-    rpc_action :admin_list, :read, namespace: :admin  # Uses "admin"
+    rpc_action :admin_list, :read, namespace: "admin"  # Uses "admin"
   end
 end
 ```
@@ -308,19 +308,19 @@ config :ash_typescript,
 ```elixir
 typescript_rpc do
   resource MyApp.Todo do
-    namespace :todos
+    namespace "todos"
     rpc_action :list_todos, :read
     rpc_action :create_todo, :create
   end
 
   resource MyApp.User do
-    namespace :users
+    namespace "users"
     rpc_action :list_users, :read
-    rpc_action :get_current_user, :get_current, namespace: :auth
+    rpc_action :get_current_user, :get_current, namespace: "auth"
   end
 
   resource MyApp.Session do
-    namespace :auth
+    namespace "auth"
     rpc_action :login, :create
     rpc_action :logout, :destroy
   end

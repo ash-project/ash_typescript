@@ -187,6 +187,23 @@ if (todo.success) {
 }
 ```
 
+### Typed Maps Containing Resources
+
+Typed map fields (maps with declared `fields` constraints) whose members hold embedded resources or resource structs require nested selection for those members — a plain string selects only the map's primitive members:
+
+```typescript
+const todo = await getTodo({
+  fields: [
+    "id",
+    // metadataReport is a typed map: { total: :integer, rows: array of embedded resources }
+    { metadataReport: ["total", { rows: ["category", "priorityScore"] }] }
+  ],
+  input: { id: "todo-123" }
+});
+```
+
+Selecting a composite member as a plain string (`{ metadataReport: ["total", "rows"] }`) is a TypeScript compile error — members holding resources need explicit field selection, exactly like embedded resources elsewhere.
+
 ## Union Types
 
 For union type fields, select fields from specific union members:
@@ -257,14 +274,18 @@ async function fetchTodoDetail(id: string) {
 
 ### Reusable Field Definitions
 
+Use `satisfies` with the generated fields type — it keeps the array mutable (as the RPC functions require) while preserving narrow result inference:
+
 ```typescript
+import { listTodos, type ListTodosFields } from './ash_rpc';
+
 const TodoFields = {
-  basic: ["id", "title", "completed"] as const,
+  basic: ["id", "title", "completed"] satisfies ListTodosFields,
 
   withUser: [
     "id", "title", "completed",
     { user: ["name", "email"] }
-  ] as const,
+  ] satisfies ListTodosFields,
 
   full: [
     "id", "title", "description", "completed", "priority",
@@ -272,7 +293,7 @@ const TodoFields = {
       user: ["name", "email", "avatarUrl"],
       tags: ["name", "color"]
     }
-  ] as const
+  ] satisfies ListTodosFields
 };
 
 // Usage

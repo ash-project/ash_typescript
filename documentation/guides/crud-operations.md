@@ -27,7 +27,7 @@ import { listTodos } from './ash_rpc';
 const todos = await listTodos({
   fields: ["id", "title", "completed", "priority"],
   filter: { completed: { eq: false } },
-  sort: "-priority,+createdAt"
+  sort: ["-priority", "+createdAt"]
 });
 
 if (todos.success) {

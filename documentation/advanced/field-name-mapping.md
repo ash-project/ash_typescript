@@ -36,6 +36,7 @@ defmodule MyApp.User do
   end
 
   attributes do
+    uuid_primary_key :id
     attribute :name, :string, public?: true
     attribute :address_line_1, :string, public?: true
     attribute :address_line_2, :string, public?: true
@@ -141,6 +142,7 @@ defmodule MyApp.Resource do
   end
 
   attributes do
+    uuid_primary_key :id
     attribute :metadata, MyApp.CustomMetadata, public?: true
   end
 end

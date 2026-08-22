@@ -18,11 +18,15 @@ This document provides a comprehensive reference for all AshTypescript Mix tasks
 #### Usage
 
 ```bash
-# Basic installation (RPC setup only)
+# Basic installation (prompts for frontend framework)
 mix igniter.install ash_typescript
 
 # Full-stack React + TypeScript setup
 mix igniter.install ash_typescript --framework react
+
+# Vite bundler, or Inertia.js SSR setup
+mix igniter.install ash_typescript --framework react --bundler vite
+mix igniter.install ash_typescript --framework svelte --inertia
 ```
 
 #### What It Does
@@ -37,17 +41,21 @@ The installer performs the following tasks:
    - Configures AshTypescript settings in `config/config.exs`
    - Sets default output paths and RPC endpoints
 
-3. **RPC Controller**
+3. **Manifest Module** (required since 0.18)
+   - Creates the app-wide manifest module (`lib/my_app/ash_typescript_manifest.ex` with `use AshTypescript.Manifest, otp_app: :my_app`)
+   - Registers it via `config :ash_typescript, manifest: MyApp.AshTypescriptManifest`
+
+4. **RPC Controller**
    - Creates RPC controller at `lib/*_web/controllers/ash_typescript_rpc_controller.ex`
    - Implements handlers for run and validate endpoints
 
-4. **Phoenix Router**
+5. **Phoenix Router**
    - Adds RPC routes to your Phoenix router
    - Configures `/rpc/run` and `/rpc/validate` endpoints
 
-5. **React Setup** (with `--framework react`)
-   - Sets up complete React + TypeScript environment
-   - Configures esbuild or vite for frontend builds
+6. **Frontend Setup** (with `--framework`)
+   - Sets up a complete TypeScript environment for the chosen framework
+   - Configures esbuild or Vite for frontend builds
    - Creates welcome page with getting started guide
    - Installs necessary npm packages
 
@@ -55,7 +63,10 @@ The installer performs the following tasks:
 
 | Option | Description |
 |--------|-------------|
-| `--framework react` | Set up React + TypeScript environment |
+| `--framework` | Frontend framework to set up: `react`, `vue`, `svelte`, or `solid` (prompts interactively when omitted) |
+| `--bundler` | Bundler to use: `esbuild` (default) or `vite` |
+| `--bun` | Use Bun instead of npm for package management |
+| `--inertia` | Install with Inertia.js support for SSR (requires a framework and `--bundler esbuild`) |
 
 #### When to Use
 
@@ -89,9 +100,6 @@ Generate TypeScript types, RPC clients, Zod schemas, and validation functions **
 # Basic generation (AshTypescript only)
 mix ash_typescript.codegen
 
-# Custom output location
-mix ash_typescript.codegen --output "frontend/src/api/ash.ts"
-
 # Custom RPC endpoints
 mix ash_typescript.codegen \
   --run-endpoint "/api/rpc/run" \
@@ -108,11 +116,13 @@ mix ash_typescript.codegen --dry-run
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--output FILE` | `string` | `assets/js/ash_rpc.ts` | Output file path for generated TypeScript |
-| `--run-endpoint PATH` | `string` | `/rpc/run` | RPC run endpoint path |
-| `--validate-endpoint PATH` | `string` | `/rpc/validate` | RPC validate endpoint path |
-| `--check` | `boolean` | `false` | Check if generated code is up to date (exit 1 if not). Skipped when `always_regenerate: true` is configured. |
-| `--dry-run` | `boolean` | `false` | Print generated code to stdout without writing file |
+| `--run-endpoint PATH` | `string` | `/rpc/run` | RPC run endpoint path (alias: `-r`) |
+| `--validate-endpoint PATH` | `string` | `/rpc/validate` | RPC validate endpoint path (alias: `-v`) |
+| `--check` | `boolean` | `false` | Raise `Ash.Error.Framework.PendingCodegen` if generated code is out of date. Only bypassed when `--dev` is also passed and `always_regenerate: true` is configured. |
+| `--dev` | `boolean` | `false` | Marks a development-plug invocation (`AshPhoenix.Plug.CheckCodegenStatus` passes `--dev --check`); combined with `always_regenerate: true`, files are written instead of raising |
+| `--dry-run` | `boolean` | `false` | Print files that would change to stdout (with `# <path>` headers) without writing them |
+
+Output file locations are controlled by configuration (`output_file` and friends) — see the [Configuration Reference](configuration.md#multi-file-output).
 
 #### Generated Content
 
@@ -133,8 +143,8 @@ When run, this task generates:
    - Type-safe query building
    - Nested relationship filtering
 
-4. **Zod Validation Schemas** (if enabled)
-   - Runtime type validation
+4. **Zod / Valibot Validation Schemas** (if enabled)
+   - Runtime type validation (into `ash_zod.ts` / `ash_valibot.ts`)
    - Schema for each resource
    - Nested validation support
 
@@ -164,11 +174,6 @@ When run, this task generates:
 **Basic Generation:**
 ```bash
 mix ash_typescript.codegen
-```
-
-**Custom Output Location:**
-```bash
-mix ash_typescript.codegen --output "frontend/src/api/ash.ts"
 ```
 
 **Custom RPC Endpoints:**
@@ -261,8 +266,8 @@ mix test
 # Check generated code is up to date
 mix ash_typescript.codegen --check
 
-# If out of date, CI fails with:
-# "Generated TypeScript code is out of date. Run: mix ash_typescript.codegen"
+# If out of date, the task raises Ash.Error.Framework.PendingCodegen,
+# listing the files whose generated content differs from disk
 ```
 
 **Example GitHub Actions:**
@@ -287,7 +292,7 @@ Add to `.git/hooks/pre-commit`:
 mix ash_typescript.codegen --check || {
   echo "TypeScript code out of date. Regenerating..."
   mix ash_typescript.codegen
-  git add assets/js/ash_rpc.ts
+  git add assets/js/ash_*.ts
 }
 ```
 
@@ -295,11 +300,11 @@ mix ash_typescript.codegen --check || {
 
 ### Common Issues
 
-#### "No domains found"
+#### "No `:manifest` module configured for AshTypescript"
 
-**Problem:** Command runs but generates empty output or reports no domains.
+**Problem:** The task raises because no manifest module is registered — either the config is missing, or the module (and the config that points at it) only exists in another Mix environment.
 
-**Solution:** Ensure you're in the correct MIX_ENV:
+**Solution:** Ensure `config :ash_typescript, manifest: MyApp.AshTypescriptManifest` is set and the module exists (see [Configuration Reference](configuration.md#manifest-module-required)). For projects with test-only resources, run in the correct MIX_ENV:
 
 ```bash
 # Wrong - uses dev environment

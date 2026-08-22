@@ -113,6 +113,9 @@ All resources accessible through TypeScript must use the `AshTypescript.Resource
 defmodule MyApp.Todo do
   use Ash.Resource,
     domain: MyApp.Domain,
+    # Any data layer works — Ets keeps this example self-contained.
+    # In a real app you'd typically use AshPostgres.DataLayer.
+    data_layer: Ash.DataLayer.Ets,
     extensions: [AshTypescript.Resource]
 
   typescript do
@@ -134,7 +137,8 @@ defmodule MyApp.Todo do
   end
 
   actions do
-    defaults [:read, :create, :update, :destroy]
+    # create/update must accept the attributes clients are allowed to set
+    defaults [:read, :destroy, create: [:title, :completed], update: [:title, :completed]]
   end
 end
 ```
@@ -150,8 +154,10 @@ defmodule MyApp.Domain do
   typescript_rpc do
     resource MyApp.Todo do
       rpc_action :list_todos, :read
+      rpc_action :get_todo, :read, get_by: [:id]
       rpc_action :create_todo, :create
       rpc_action :update_todo, :update
+      rpc_action :destroy_todo, :destroy
     end
   end
 
@@ -223,7 +229,7 @@ mix ash.codegen
 mix ash_typescript.codegen
 ```
 
-Types are also automatically regenerated in development when you change your resources (via `AshPhoenix.Plug.CheckCodegenStatus`).
+Types can also be regenerated automatically in development: add `AshPhoenix.Plug.CheckCodegenStatus` to your endpoint (it shows an error page when generated files are stale), and optionally set `config :ash_typescript, always_regenerate: true` in `config/dev.exs` to have it silently rewrite the files instead.
 
 ## Verify Installation
 

@@ -153,7 +153,8 @@ end
 Channel functions support all the same features as HTTP functions:
 
 ```typescript
-// Pagination with channels
+// Pagination with channels — the result narrows to the paginated shape,
+// just like the HTTP functions
 listTodosChannel({
   channel: ashTypeScriptRpcChannel,
   fields: ["id", "title", { user: ["name"] }],

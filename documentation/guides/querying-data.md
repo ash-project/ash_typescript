@@ -209,9 +209,13 @@ const overdueTodos = await listTodos({
 **Available operators:**
 - `eq`, `notEq`: Equals, not equals
 - `in`: Value in array
-- `greaterThan`, `greaterThanOrEqual`: Greater than (numbers, dates)
-- `lessThan`, `lessThanOrEqual`: Less than (numbers, dates)
+- `greaterThan`, `greaterThanOrEqual`: Greater than (numbers, dates, strings)
+- `lessThan`, `lessThanOrEqual`: Less than (numbers, dates, strings)
 - `isNil`: Check for null/nil values (boolean)
+- `contains`, `stringStartsWith`, `stringEndsWith`: Substring matching (strings)
+- `has`: Array contains a value (array fields)
+
+The exact operator set per field is derived from the field's type and generated into each resource's `FilterInput` type — your editor's autocomplete shows what's available. Note that `isNil` is not offered on fields that can never be nil, such as `count`/`exists`/`list` aggregates.
 
 ### Logical Operators
 
@@ -343,7 +347,7 @@ const result = await listTodos({
       { priority: { in: ["high", "urgent"] } }
     ]
   },
-  sort: "-priority,+dueDate",
+  sort: ["-priority", "+dueDate"],
   page: { offset: 0, limit: 20 }
 });
 
@@ -357,7 +361,8 @@ if (result.success) {
 For advanced filtering (text search, pattern matching), use action arguments:
 
 ```elixir
-# In your Ash resource
+# In your Ash resource (Ash.Query.filter/2 is a macro — require it first,
+# e.g. `require Ash.Query` at the top of the module)
 read :read do
   argument :search, :string, allow_nil?: true
 

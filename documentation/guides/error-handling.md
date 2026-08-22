@@ -232,7 +232,17 @@ async function withRetry<T>(
     await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
   }
 
-  return { success: false, errors: [{ type: "max_retries", message: "Max retries exceeded" }] };
+  return {
+    success: false,
+    errors: [{
+      type: "max_retries",
+      message: "Max retries exceeded",
+      shortMessage: "Max retries exceeded",
+      vars: {},
+      fields: [],
+      path: []
+    }]
+  };
 }
 
 // Usage
@@ -268,7 +278,7 @@ config :ash_typescript,
 
 ```typescript
 // rpcHooks.ts
-import type { ActionConfig } from './generated';
+import type { ActionConfig } from './ash_rpc';
 
 export async function afterRequest(
   actionName: string,

@@ -20,7 +20,7 @@ config :ash_typescript,
   manifest: MyApp.AshTypescriptManifest,
 
   # File generation (multi-file architecture)
-  output_file: "assets/js/ash_rpc.ts",
+  output_file: "assets/js/ash_rpc.ts",  # Required for RPC generation (skipped when unset)
   types_output_file: nil,             # Auto-derives as ash_types.ts in output_file dir
   zod_output_file: nil,               # Auto-derives as ash_zod.ts in output_file dir
   valibot_output_file: nil,           # Auto-derives as ash_valibot.ts in output_file dir
@@ -108,7 +108,14 @@ config :ash_typescript,
 
   # Developer experience - Manifest
   manifest_file: nil,
-  add_ash_internals_to_manifest: false
+  add_ash_internals_to_manifest: false,
+
+  # Machine-readable JSON manifest (for third-party integrations)
+  json_manifest_file: nil,
+  json_manifest_filename_format: :relative,
+
+  # Error output
+  policies: [show_policy_breakdowns?: false]
 ```
 
 ## Multi-File Output
@@ -117,11 +124,11 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 
 | File | Config Key | Default | Contents |
 |------|-----------|---------|----------|
-| RPC functions | `output_file` | `assets/js/ash_rpc.ts` | RPC functions, hook types, helpers |
+| RPC functions | `output_file` | — (required for RPC generation; the installer sets `assets/js/ash_rpc.ts`) | RPC functions, hook types, helpers |
 | Shared types | `types_output_file` | Auto-derived as `ash_types.ts` | Type aliases, resource schemas, filter types, utility types |
 | Shared Zod schemas | `zod_output_file` | Auto-derived as `ash_zod.ts` | Zod schemas for all resources (when `generate_zod_schemas: true`) |
 | Shared Valibot schemas | `valibot_output_file` | Auto-derived as `ash_valibot.ts` | Valibot schemas for all resources (when `generate_valibot_schemas: true`) |
-| Route helpers | `routes_output_file` | `nil` (disabled) | Path helpers, typed fetch functions, controller input types |
+| Route helpers | `routes_output_file` | Auto-derived as `ash_routes.ts` | Path helpers, typed fetch functions, controller input types (generated when `typed_controllers` is non-empty) |
 | Typed channel functions | `typed_channels_output_file` | `nil` (disabled) | Channel factory, subscription helpers, cleanup functions |
 | RPC namespace re-exports | `namespace_output_dir` | Same dir as `output_file` | Per-namespace re-export files (when `enable_namespace_files: true`) |
 | Controller namespace re-exports | `controller_namespace_output_dir` | Same dir as `routes_output_file` | Per-namespace re-export files (when `enable_controller_namespace_files: true`) |
@@ -133,14 +140,14 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `manifest` | `module` | — (**required**) | App-wide manifest module (`use AshTypescript.Manifest`); codegen and runtime raise if unset |
-| `output_file` | `string` | `"assets/js/ash_rpc.ts"` | Path where generated TypeScript code will be written |
+| `output_file` | `string \| nil` | `nil` | Path for the RPC functions file; when unset, RPC file generation is skipped (the installer sets `"assets/js/ash_rpc.ts"`) |
 | `types_output_file` | `string \| nil` | `nil` | Path for shared types file (auto-derives from `output_file` dir as `ash_types.ts`) |
 | `zod_output_file` | `string \| nil` | `nil` | Path for shared Zod schemas file (auto-derives from `output_file` dir as `ash_zod.ts`) |
 | `valibot_output_file` | `string \| nil` | `nil` | Path for shared Valibot schemas file (auto-derives from `output_file` dir as `ash_valibot.ts`) |
 | `run_endpoint` | `string \| {:runtime_expr, string}` | `"/rpc/run"` | Endpoint for executing RPC actions |
 | `validate_endpoint` | `string \| {:runtime_expr, string}` | `"/rpc/validate"` | Endpoint for validating RPC requests |
-| `input_field_formatter` | `:camel_case \| :snake_case` | `:camel_case` | How to format field names in request inputs |
-| `output_field_formatter` | `:camel_case \| :snake_case` | `:camel_case` | How to format field names in response outputs |
+| `input_field_formatter` | `:camel_case \| :pascal_case \| :snake_case \| {module, function} \| {module, function, args}` | `:camel_case` | How to format field names in request inputs |
+| `output_field_formatter` | `:camel_case \| :pascal_case \| :snake_case \| {module, function} \| {module, function, args}` | `:camel_case` | How to format field names in response outputs |
 | `require_tenant_parameters` | `boolean` | `false` | Whether to require tenant parameters in RPC calls |
 | `generate_zod_schemas` | `boolean` | `false` | Whether to generate Zod validation schemas |
 | `zod_import_path` | `string` | `"zod"` | Import path for Zod library |
@@ -164,7 +171,7 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `typed_channels_output_file` | `string \| nil` | `nil` | Output file for typed channel functions (when `nil`, generation is skipped) |
 | `typed_controllers` | `list(module)` | `[]` | TypedController modules to generate route helpers for |
 | `router` | `module \| nil` | `nil` | Phoenix router module for path introspection |
-| `routes_output_file` | `string \| nil` | `nil` | Output file path for generated route helpers |
+| `routes_output_file` | `string` | Auto-derived as `ash_routes.ts` in `output_file` dir | Output file path for generated route helpers |
 | `typed_controller_mode` | `:full \| :paths_only` | `:full` | Generation mode: `:full` generates path helpers + fetch functions, `:paths_only` generates only path helpers |
 | `typed_controller_path_params_style` | `:object \| :args` | `:object` | Path parameter style in generated functions |
 | `typed_controller_base_path` | `string \| {:runtime_expr, string}` | `""` | Base URL prefix for all generated route URLs |
@@ -176,12 +183,15 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `typed_controller_import_into_generated` | `list(map)` | `[]` | Custom imports for generated routes file |
 | `typed_controller_error_handler` | `mfa \| module \| nil` | `nil` | Custom error transformation handler |
 | `typed_controller_show_raised_errors` | `boolean` | `false` | Show exception messages in 500 responses |
-| `always_regenerate` | `boolean` | `false` | Skip diff check and always write generated files |
+| `always_regenerate` | `boolean` | `false` | With `--dev --check` (dev plug), write files directly instead of raising `PendingCodegen` |
 | `not_found_error?` | `boolean` | `true` | Global default: `true` returns error on not found, `false` returns null |
 | `add_ash_internals_to_jsdoc` | `boolean` | `false` | Show Ash resource/action details in JSDoc |
 | `source_path_prefix` | `string \| nil` | `nil` | Prefix for source file paths (monorepos) |
 | `manifest_file` | `string \| nil` | `nil` | Path to generate Markdown manifest |
 | `add_ash_internals_to_manifest` | `boolean` | `false` | Show Ash details in manifest |
+| `json_manifest_file` | `string \| nil` | `nil` | Path to generate a machine-readable JSON manifest for third-party integrations |
+| `json_manifest_filename_format` | `:relative \| :absolute \| :basename` | `:relative` | Format of the `filename` field in JSON manifest `files` entries |
+| `policies` | `keyword` | `[]` | `show_policy_breakdowns?: true` includes the Ash policy breakdown in forbidden-error messages (default: plain `"forbidden"`) |
 
 ## Lifecycle Hook Configuration
 
@@ -219,7 +229,17 @@ end
 config :ash_typescript, manifest: MyApp.AshTypescriptManifest
 ```
 
-By default the module walks `Ash.Info.domains(otp_app)` to find every domain with a `typescript_rpc` block, merges them into one spec, and verifies the RPC configuration at compile time.
+By default the module walks `Ash.Info.domains(otp_app)` to find every domain with a `typescript_rpc` block, merges them into one spec, and verifies the RPC configuration at compile time. Editing a resource or domain recompiles the manifest automatically, so incremental codegen never goes stale.
+
+For scoped manifests — e.g. building from a freshly-defined domain in a test — pass an explicit `domains:` list instead of `otp_app:`:
+
+```elixir
+defmodule MyTest.ScopedManifest do
+  use AshTypescript.Manifest,
+    otp_app: :my_app,
+    domains: [MyTest.InlineDomain]
+end
+```
 
 > The `mix igniter.install ash_typescript` installer creates this module and sets the config automatically. You only need to do this by hand for manual installs or when upgrading a project that predates the manifest module.
 
@@ -338,7 +358,7 @@ By default, `mix ash_typescript.codegen --check` compares the generated output a
 config :ash_typescript, always_regenerate: true
 ```
 
-When enabled, `--check` mode will write files directly instead of comparing, so the `PendingCodegen` error page is never shown during development.
+When enabled, `--dev --check` (which `AshPhoenix.Plug.CheckCodegenStatus` passes automatically in development) writes files directly instead of comparing, so the `PendingCodegen` error page is never shown during development. Plain `--check` without `--dev` (the CI invocation) still raises regardless of this setting.
 
 ## Typed Channel Configuration
 
@@ -361,7 +381,7 @@ See [Typed Channels](../guides/typed-channels.md) for complete documentation.
 
 ## Typed Controller Configuration
 
-Configure typed controllers to generate TypeScript path helpers and typed fetch functions for Phoenix controller routes. All three settings (`typed_controllers`, `router`, `routes_output_file`) must be configured for route generation to run.
+Configure typed controllers to generate TypeScript path helpers and typed fetch functions for Phoenix controller routes. Route generation runs when `typed_controllers` is non-empty; `router` is required for path introspection, and `routes_output_file` auto-derives as `ash_routes.ts` in the `output_file` directory when not set explicitly.
 
 ```elixir
 config :ash_typescript,
@@ -400,7 +420,7 @@ config :ash_typescript,
 |--------|------|---------|-------------|
 | `typed_controllers` | `list(module)` | `[]` | Modules using `AshTypescript.TypedController` |
 | `router` | `module` | `nil` | Phoenix router for path introspection |
-| `routes_output_file` | `string` | `nil` | Output file path (when `nil`, generation is skipped) |
+| `routes_output_file` | `string` | Auto-derived as `ash_routes.ts` | Output file path for route helpers |
 | `typed_controller_mode` | `:full \| :paths_only` | `:full` | `:full` generates path helpers + fetch functions; `:paths_only` generates only path helpers |
 | `typed_controller_path_params_style` | `:object \| :args` | `:object` | Path parameter style in generated TypeScript |
 | `typed_controller_base_path` | `string \| {:runtime_expr, string}` | `""` | Base URL prefix for all generated route URLs |

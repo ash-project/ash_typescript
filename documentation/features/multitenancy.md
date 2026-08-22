@@ -29,7 +29,7 @@ config :ash_typescript, require_tenant_parameters: true
 
 **When `false` (default - implicit tenants)**:
 - Tenant is extracted from the Phoenix connection (e.g., from session, JWT claims, or custom plug)
-- No tenant parameter in TypeScript function signatures
+- The `tenant` parameter is **optional** in TypeScript function signatures — you can still pass one explicitly to override
 
 ## Explicit Tenant Parameters
 

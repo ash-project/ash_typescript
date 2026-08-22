@@ -113,7 +113,7 @@ defmodule MyAppWeb.OrgChannel do
     end
   end
 
-  # Authorization — you own this logic
+  # Authorization — you own this logic (define authorized?/2 yourself)
   @impl true
   def join("org:" <> org_id, _payload, socket) do
     if authorized?(socket, org_id) do
@@ -236,6 +236,8 @@ export type OrgChannel = {
   readonly __channelType: "OrgChannel";
   on(event: string, callback: (payload: unknown) => void): number;
   off(event: string, ref: number): void;
+  join(timeout?: number): unknown;
+  leave(timeout?: number): unknown;
 };
 
 // Payload type aliases (one per event)

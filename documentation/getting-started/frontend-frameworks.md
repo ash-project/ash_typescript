@@ -33,7 +33,9 @@ import { useEffect, useState } from 'react';
 import { listTodos, createTodo, buildCSRFHeaders } from './ash_rpc';
 
 function TodoList() {
-  const [todos, setTodos] = useState([]);
+  const [todos, setTodos] = useState<
+    Array<{ id: string; title: string; completed: boolean }>
+  >([]);
   const headers = buildCSRFHeaders();
 
   useEffect(() => {
@@ -56,7 +58,7 @@ function TodoList() {
 import { ref, onMounted } from 'vue';
 import { listTodos, buildCSRFHeaders } from './ash_rpc';
 
-const todos = ref([]);
+const todos = ref<Array<{ id: string; title: string; completed: boolean }>>([]);
 const headers = buildCSRFHeaders();
 
 onMounted(async () => {
@@ -79,7 +81,7 @@ onMounted(async () => {
   import { onMount } from 'svelte';
   import { listTodos, buildCSRFHeaders } from './ash_rpc';
 
-  let todos = [];
+  let todos: Array<{ id: string; title: string; completed: boolean }> = [];
   const headers = buildCSRFHeaders();
 
   onMount(async () => {
@@ -255,22 +257,27 @@ In your meta-framework, import the generated functions like any other module:
 
 ### Authentication
 
-For SPAs that don't use Phoenix sessions, use [Lifecycle Hooks](../features/lifecycle-hooks.md) to attach authentication headers (e.g., Bearer JWT) to every RPC request:
+For SPAs that don't use Phoenix sessions, use [Lifecycle Hooks](../features/lifecycle-hooks.md) to attach authentication headers (e.g., Bearer JWT) to every RPC request. Hooks are wired in at codegen time via config — point the config at a function you export, and every generated RPC function calls it before the request:
+
+```elixir
+# config/config.exs
+config :ash_typescript,
+  rpc_action_before_request_hook: "RpcHooks.beforeRequest",
+  import_into_generated: [%{import_name: "RpcHooks", file: "./rpcHooks"}]
+```
 
 ```typescript
 // src/lib/rpcHooks.ts
-import { setBeforeRequestHook } from '$lib/generated/ashRpc';
+import type { ActionConfig } from '$lib/generated/ashRpc';
 
-setBeforeRequestHook((options) => {
+export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   const token = localStorage.getItem('auth_token');
-  if (token) {
-    options.headers = {
-      ...options.headers,
-      Authorization: `Bearer ${token}`,
-    };
-  }
-  return options;
-});
+  if (!token) return config;
+  return {
+    ...config,
+    headers: { Authorization: `Bearer ${token}`, ...config.headers },
+  };
+}
 ```
 
 ### Development Workflow

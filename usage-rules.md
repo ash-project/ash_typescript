@@ -315,7 +315,7 @@ unsubscribeOrgChannel(channel, refs);
 - Event names must be unique across all resources in a channel
 - Publications need `public?: true` (warning if missing — toggle with `warn_on_non_public_publications`)
 - Publications need `transform :some_calc` or an explicit `returns:` for typed payloads (warning if missing, falls back to `unknown` — toggle with `warn_on_missing_channel_returns`)
-- The branded channel type exposes only `on`/`off` — cast to Phoenix's `Channel` for `join()`/`leave()`
+- The branded channel type exposes `on`/`off`/`join`/`leave` — cast to Phoenix's `Channel` if you need anything else (e.g. `push`)
 - Channel types go in `ash_types.ts`; channel functions go in `typed_channels_output_file`
 
 ## JSON Manifest (Third-Party Integrations)
@@ -364,14 +364,15 @@ for (const action of manifest.actions) {
 | Load not allowed/denied | Check `allowed_loads`/`denied_loads` config |
 | Channel/validation fn undefined | Enable in config |
 | Typed controller 500 error | Handler must return `%Plug.Conn{}` |
-| Routes not generated | Set `typed_controllers:`, `router:`, and `routes_output_file:` in config |
+| Routes not generated | Set `typed_controllers:` (gates generation) and `router:` in config; `routes_output_file:` auto-derives |
 | Multi-mount ambiguity error | Add unique `as:` option to each scope |
 | Path param without matching argument | Add `argument :param, :string` to route |
 | Path param `allow_nil?` mismatch | Always-present → `false`; sometimes-present → `true` |
 | Route hooks not firing | Check `typed_controller_import_into_generated` + hook names |
 | Typed channel event not found | Event name must match `event:` option on resource's `pub_sub` publication |
 | Duplicate channel event names | Use unique event names across all resources in one channel |
-| Channel payload is `unknown` | Add `returns:` option to the resource's `pub_sub` publication |
+| Channel payload is `unknown` | Use `transform :some_calc` (an `:auto`-typed calculation) on the publication, or add explicit `returns:` |
+| TypedMap field with embedded-resource member rejects string selection | Use nested selection: `{ field: [{ rows: [...] }] }` (composite members require explicit field selection since 0.18) |
 | Typed channels not generated | Set `typed_channels:` and `typed_channels_output_file:` in config |
 
 ## Error Quick Reference
@@ -385,6 +386,8 @@ for (const action of manifest.actions) {
 | "403 Forbidden" | Use `buildCSRFHeaders()` |
 | "Invalid field names" | Add mapping (see Field Name Mapping) |
 | "load_not_allowed" / "load_denied" | Check load restrictions config |
+| "show_metadata contains unknown metadata fields" | Only list fields the action's `metadata` declarations define |
+| "allowed_loads contains invalid load paths" | Entries must be public relationships/calculations/aggregates/embedded attributes; nested keys checked against the destination resource |
 | "allow_nil?: true" + path param | Set `allow_nil?: false` for always-present path params |
 | "allow_nil?: false" + sometimes-present | Use `allow_nil?: true` for multi-mount path params |
 | "No publication with event X found" | Check `event:` option on resource's `pub_sub` block |
@@ -432,6 +435,7 @@ config :ash_typescript,
   routes_output_file: "assets/js/routes.ts",
   typed_controller_mode: :full,                # :full or :paths_only
   typed_controller_path_params_style: :object,  # :object or :args
+  # typed_controller_base_path: "https://api.example.com",  # or {:runtime_expr, "..."}
   # Optional: lifecycle hooks, custom imports, error handling
   # typed_controller_before_request_hook: "RouteHooks.beforeRequest",
   # typed_controller_after_request_hook: "RouteHooks.afterRequest",

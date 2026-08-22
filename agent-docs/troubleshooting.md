@@ -112,9 +112,7 @@ mcp__tidewave__project_eval("""
 # Manifest-era: resources come from the manifest lookup
 resources = Map.keys(AshTypescript.resource_lookup())
 
-# Third argument is REQUIRED here — omitting it currently raises
-# (Protocol.UndefinedError ... for Atom / nil) because the delegate in
-# codegen.ex defaults it to nil while the target expects a list.
+# Third argument: resources that also need Input schemas ([] for none)
 AshTypescript.Codegen.generate_all_schemas_for_resources(resources, resources, [])
 """)
 ```

@@ -142,6 +142,30 @@ defmodule MyApp.Domain do
 end
 ```
 
+#### Error: "show_metadata contains unknown metadata fields"
+
+**Cause:** A `show_metadata` list names a field the action does not declare via `metadata`.
+
+**Solution:** Only list fields the action actually defines:
+
+```elixir
+# Action defines: metadata :total_count, :integer
+rpc_action :list_tasks, :read_with_meta, show_metadata: [:total_count]  # ✅
+rpc_action :list_tasks, :read_with_meta, show_metadata: [:has_more]     # ❌ compile error
+```
+
+#### Error: "allowed_loads contains invalid load paths" (or denied_loads)
+
+**Cause:** An `allowed_loads`/`denied_loads` entry names something that isn't a loadable public field (relationship, calculation, aggregate, or embedded-resource attribute) at that position — usually a typo, or a plain attribute (attributes are selected, never loaded, so they never match a load restriction).
+
+**Solution:** Fix the path; nested keywords are validated against the relationship's destination resource:
+
+```elixir
+rpc_action :list_todos, :read, allowed_loads: [:user, comments: [:author]]  # ✅
+rpc_action :list_todos, :read, allowed_loads: [:usr]                        # ❌ compile error
+rpc_action :list_todos, :read, denied_loads: [comments: [:athor]]           # ❌ compile error
+```
+
 #### Error: "Metadata field conflicts with resource field"
 
 **Cause:** A metadata field has the same name as a resource attribute or calculation.
@@ -170,30 +194,29 @@ config :ash_typescript, manifest: MyApp.AshTypescriptManifest
 
 New projects get this automatically from `mix igniter.install ash_typescript`. See [Configuration Reference](configuration.md#manifest-module-required).
 
-#### Error: "No domains found"
+#### Compile errors point at your manifest module
 
-**Cause:** Running codegen in wrong environment (dev instead of test).
+**Cause:** This is expected — all RPC configuration verifiers run when the manifest module compiles, not when each domain compiles. Errors about `typescript_rpc` blocks, duplicate names, `public?` requirements, or load restrictions are raised from the manifest module even though the fix belongs in a domain or resource.
 
-**Solution:** Always use test environment for development:
-```bash
-# ✅ Correct
-mix test.codegen
+**Solution:** Read the error body — it names the offending domain/resource/action. Fix it there; the manifest module itself rarely needs changes.
 
-# ❌ Wrong
-mix ash_typescript.codegen  # Runs in dev environment
+#### Error: "Unsupported types found — AshTypescript cannot map them to TypeScript"
+
+**Cause:** A type module reachable from your RPC configuration (resource attribute, action input/return, metadata, embedded resource field) has no TypeScript mapping. The error lists every offending type with its location.
+
+**Solution:** Either implement `typescript_type_name/0` on the type module, or add a mapping override:
+
+```elixir
+config :ash_typescript, type_mapping_overrides: [{MyApp.CustomType, "string"}]
 ```
 
-**Why:** Test resources (`AshTypescript.Test.*`) only compile in `:test` environment.
+See [Custom Types](../advanced/custom-types.md).
 
-#### Error: "Module not loaded"
+#### Errors about resources/modules that only exist in another environment
 
-**Cause:** Test resources not compiled in current environment.
+**Cause:** Codegen ran in an environment where those modules (and possibly the manifest config pointing at them) don't compile — common for projects that define test-only resources.
 
-**Solution:** Ensure you're using test environment:
-```bash
-mix test.codegen
-mix test
-```
+**Solution:** Run codegen in the environment where the resources compile, e.g. `MIX_ENV=test mix ash_typescript.codegen`, or set up a `test.codegen` alias with `preferred_envs` (see [Mix Tasks Reference](mix-tasks.md#test-environment-code-generation)).
 
 ### Field Selection Issues
 
@@ -311,13 +334,16 @@ if (ctx?.trackPerformance) {
 
 #### Error: "Controller 422 error"
 
-**Cause:** Missing required argument or invalid type in request.
+**Cause:** Missing required argument, failed type cast, or a violated argument constraint (`min_length`, `match`, `min`/`max`, …). Arguments follow Ash semantics: strings are trimmed by default, and `""` on a nilable string is normalized to `nil` — on a required string it produces a 422 "is required".
 
-**Solution:** Check your request includes all required arguments (`allow_nil?: false`) and that values match expected types:
+**Solution:** Check your request includes all required arguments (`allow_nil?: false`), that values match expected types, and that declared `constraints` are satisfied:
 
 ```elixir
 # This argument is required — omitting it from the request body returns 422
 argument :code, :string, allow_nil?: false
+
+# Constraints are enforced at runtime — "abc" returns 422 here
+argument :token, :string, constraints: [min_length: 8]
 ```
 
 The error response includes all validation failures at once:
@@ -348,17 +374,23 @@ run fn conn, params ->
 end
 ```
 
+#### Error: "Invalid constraints for argument"
+
+**Cause:** A route argument declares constraints that its Ash type rejects (wrong keys or values for `Ash.Type.constraints/1`). Argument constraints are validated at compile time.
+
+**Solution:** Fix the constraint keys/values to match what the type supports (e.g. `min_length`/`max_length`/`match` for `:string`, `min`/`max` for `:integer`).
+
 #### Routes Not Generated
 
 **Cause:** Missing configuration.
 
-**Solution:** All three settings must be configured:
+**Solution:** Configure the typed controllers and router (`routes_output_file` auto-derives as `ash_routes.ts` in the `output_file` directory when not set):
 
 ```elixir
 config :ash_typescript,
-  typed_controllers: [MyApp.Session],       # Required
-  router: MyAppWeb.Router,                  # Required
-  routes_output_file: "assets/js/routes.ts" # Required
+  typed_controllers: [MyApp.Session],       # Required (generation runs when non-empty)
+  router: MyAppWeb.Router,                  # Required for path introspection
+  routes_output_file: "assets/js/routes.ts" # Optional — auto-derived when unset
 ```
 
 #### Multi-Mount Ambiguity Error
@@ -542,7 +574,7 @@ If you're experiencing persistent issues:
 mix clean
 mix deps.compile
 mix compile
-mix test.codegen
+mix ash_typescript.codegen
 ```
 
 ### Validate Generated Types (Development)

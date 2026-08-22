@@ -75,9 +75,10 @@ export type DashboardTodo = {
   user: { name: string };
 };
 
+// (satisfies the fields type of the RPC action the typed query runs, e.g. ListTodosFields)
 export const dashboardTodoFields = [
   "id", "title", "priority", { user: ["name"] }
-] as const;
+] satisfies ListTodosFields;
 ```
 
 ## Complete Inertia Example
@@ -132,7 +133,7 @@ defmodule MyAppWeb.TodoController do
     # Use typed query - returns plain maps safe for JSON
     todos =
       case AshTypescript.Rpc.run_typed_query(
-             :my_app,              # Domain name (atom)
+             :my_app,              # OTP app name (atom)
              :dashboard_todo,      # Typed query name
              %{},                  # Arguments (if any)
              conn                  # Connection (for actor/authorization)

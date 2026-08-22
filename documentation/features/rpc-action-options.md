@@ -27,6 +27,8 @@ rpc_action :function_name, :ash_action_name, options
 
 Control which relationships and calculations clients can request using `allowed_loads` and `denied_loads`.
 
+Both lists are validated at compile time: every entry must resolve to a loadable public field (relationship, calculation, aggregate, or embedded-resource attribute), with nested keywords checked against the relationship's destination resource. Typos fail compilation instead of silently never matching.
+
 ### allowed_loads (Whitelist)
 
 Only allow loading specific fields:

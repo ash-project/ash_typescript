@@ -42,6 +42,8 @@ end
 - `show_metadata: false` or `[]` - Metadata is completely disabled
 - `show_metadata: [:field1, :field2]` - Only specified fields are exposed
 
+Listed fields are validated at compile time — naming a field the action's `metadata` declarations don't define is a compile error.
+
 ## TypeScript Usage
 
 ### Read Actions (Metadata Merged into Records)
@@ -89,7 +91,9 @@ import { createTask } from './ash_rpc';
 
 const result = await createTask({
   fields: ["id", "title"],
-  input: { title: "New Task" }
+  input: { title: "New Task" },
+  // Select which metadata fields to receive — without this, `metadata` is typed empty
+  metadataFields: ["operationId", "createdAtServer"]
 });
 
 if (result.success) {
@@ -234,7 +238,8 @@ if (tasks.success) {
 // Create/Update/Destroy actions - metadata as separate field
 const result = await createTask({
   fields: ["id", "title"],
-  input: { title: "New Task" }
+  input: { title: "New Task" },
+  metadataFields: ["field1"]  // Mapped names
 });
 
 if (result.success) {

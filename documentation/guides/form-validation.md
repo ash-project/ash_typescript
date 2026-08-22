@@ -17,7 +17,8 @@ For optimal user experience, combine both validation layers:
 2. **Validation Functions** (server-side) - Business logic, database constraints, complex rules
 
 ```typescript
-import { createTodoZodSchema, validateCreateTodo, createTodo } from './ash_rpc';
+import { createTodoZodSchema } from './ash_zod';
+import { validateCreateTodo, createTodo } from './ash_rpc';
 
 async function handleSubmit(formData: unknown) {
   // Layer 1: Instant client-side validation
@@ -68,12 +69,14 @@ export const createTodoZodSchema = z.object({
 });
 ```
 
+**Non-empty strings:** string fields get `min(1)` (Valibot: `minLength(1)`) whenever the Ash type has `allow_empty?: false` — the default for `:string` — including nullable/optional fields. This is deliberate: the server would silently convert `""` to `nil` on nullable fields, so rejecting `""` client-side surfaces the problem instead of storing an unintended `nil`. If a field should genuinely accept empty strings, declare `constraints: [allow_empty?: true]` on the attribute/argument and the `min(1)` disappears.
+
 ### Using Zod Schemas
 
 #### Direct Validation
 
 ```typescript
-import { createTodoZodSchema } from './ash_rpc';
+import { createTodoZodSchema } from './ash_zod';
 
 const input = {
   title: "New Todo",
@@ -94,7 +97,8 @@ if (result.success) {
 #### With React Hook Form
 
 ```typescript
-import { createTodoZodSchema, createTodo } from './ash_rpc';
+import { createTodoZodSchema } from './ash_zod';
+import { createTodo } from './ash_rpc';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -140,7 +144,7 @@ function TodoForm() {
 
 ```typescript
 import { z } from 'zod';
-import { createTodoZodSchema } from './ash_rpc';
+import { createTodoZodSchema } from './ash_zod';
 
 // Infer TypeScript type from Zod schema
 type CreateTodoInput = z.infer<typeof createTodoZodSchema>;
@@ -248,8 +252,8 @@ Here's a complete React form with both validation layers:
 ```typescript
 import { useState } from 'react';
 import { z } from 'zod';
+import { createTodoZodSchema } from './ash_zod';
 import {
-  createTodoZodSchema,
   validateCreateTodo,
   createTodo,
   buildCSRFHeaders

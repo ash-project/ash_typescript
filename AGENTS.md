@@ -440,10 +440,12 @@ mix credo --strict                   # Linting
 | Controller 422 error | Missing required argument, failed type cast, or a violated argument constraint (min_length/match/min/max — enforced since 0.18) | Check `allow_nil?`, argument types, and declared `constraints`. Note `""` on a nilable string is normalized to `nil`, and strings are trimmed by default |
 | "Invalid constraints for argument `x`" | Typed-controller route argument declares constraints the Ash type rejects | Fix the constraint keys/values to match `Ash.Type.constraints/1` for that type |
 | Controller 500 error | Handler doesn't return `%Plug.Conn{}` | Return `%Plug.Conn{}` from handler |
-| Routes not generated | Missing config | Set `typed_controllers:`, `router:`, and `routes_output_file:` in config |
+| Routes not generated | Missing config | Set `typed_controllers:` (gates generation) and `router:`; `routes_output_file:` auto-derives as `ash_routes.ts` |
 | Multi-mount ambiguity | Duplicate mounts without `as:` | Add unique `as:` to each scope |
 | "load_not_allowed" error | Requested field not in `allowed_loads` | Add field to `allowed_loads` or remove the option |
 | "load_denied" error | Requested field in `denied_loads` | Remove field from `denied_loads` list |
+| "allowed_loads contains invalid load paths" | `allowed_loads`/`denied_loads` entry isn't a loadable public field | Fix the path; nested keys validated against the relationship destination |
+| "show_metadata contains unknown metadata fields" | `show_metadata` names a field the action's `metadata` doesn't define | Only list declared metadata fields |
 | Path param without matching argument | Router path has `:param` but no DSL argument | Add `argument :param, :string` to the route definition |
 | Invalid names for TypeScript (controller) | Route/argument names with `_1` or `?` | Rename to avoid patterns that produce awkward camelCase |
 | `allow_nil?: true` on always-present path param | Path param always provided by router | Set `allow_nil?: false` on the argument |

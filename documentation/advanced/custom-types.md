@@ -82,6 +82,18 @@ interface TodoFieldsSchema {
 }
 ```
 
+## Built-In Third-Party Type Support
+
+Some common third-party Ash types are mapped out of the box — no callback or override needed:
+
+| Type module | Generated TypeScript |
+|-------------|---------------------|
+| `AshMoney.Types.Money` | `Money` alias (`{ amount, currency }`, with matching Zod/Valibot object schemas) |
+| `AshPostgres.Ltree` | `AshPostgresLtreeArray` / `AshPostgresLtreeFlexible` alias (depending on the `escape?` constraint) |
+| `AshDoubleEntry.ULID` | `ULID` (string) alias |
+
+Any other type module without a TypeScript mapping fails compilation with "Unsupported types found — AshTypescript cannot map them to TypeScript", listing each offender and its location. Fix it with one of the approaches below.
+
 ## Type Mapping Overrides
 
 When using custom Ash types from dependencies (where you can't add the `typescript_type_name/0` callback), use the `type_mapping_overrides` configuration to map them to TypeScript types.

@@ -152,7 +152,7 @@ export interface ValidationHookContext {
 }
 
 // Import the generated config types
-import type { ActionConfig, ValidationConfig } from './generated';
+import type { ActionConfig, ValidationConfig } from './ash_rpc';
 
 // Implement your hook functions - the hookCtx is already properly typed!
 export async function beforeActionRequest(
@@ -221,7 +221,7 @@ export interface ActionConfig {
   identity?: any;
   fields?: Array<string | Record<string, any>>; // Field selection
   filter?: Record<string, any>; // Filter options (for reads)
-  sort?: string; // Sort options
+  sort?: string | string[]; // Sort options
   page?:
     | {
         // Offset-based pagination
@@ -237,7 +237,7 @@ export interface ActionConfig {
       };
 
   // Metadata
-  metadataFields?: Record<string, any>; // Metadata field selection
+  metadataFields?: ReadonlyArray<string>; // Metadata field selection
 
   // HTTP customization
   headers?: Record<string, string>; // Custom headers
@@ -287,7 +287,7 @@ The `beforeRequest` hook runs **before the HTTP request** and can modify the req
 
 ```typescript
 // rpcHooks.ts
-import type { ActionConfig } from './generated';
+import type { ActionConfig } from './ash_rpc';
 
 export function beforeRequest(actionName: string, config: ActionConfig): ActionConfig {
   // Fetch auth token from localStorage (if it exists)
@@ -322,7 +322,7 @@ const todos = await listTodos({
 
 ```typescript
 // rpcHooks.ts
-import type { ActionConfig } from './generated';
+import type { ActionConfig } from './ash_rpc';
 
 export interface ActionHookContext {
   correlationId?: string;
@@ -387,7 +387,6 @@ export function beforeRequest(actionName: string, config: ActionConfig): ActionC
 
   console.log('Outgoing RPC request:', {
     action: actionName,
-    domain: config.domain,
     hasInput: !!config.input,
     timestamp: new Date().toISOString(),
     correlationId: ctx?.correlationId
@@ -446,7 +445,6 @@ export function afterRequest(
 
   console.log('RPC response received:', {
     action: actionName,
-    domain: config.domain,
     status: response.status,
     ok: response.ok,
     hasResult: result !== null,
@@ -504,7 +502,6 @@ export function afterRequest(
   sendTelemetry({
     event: 'rpc.request.completed',
     action: actionName,
-    domain: config.domain,
     status: response.status,
     success: response.ok && result?.success,
     timestamp: Date.now()
@@ -611,7 +608,7 @@ Here's a complete example showing all hook features with the simplified pattern:
 
 ```typescript
 // rpcHooks.ts
-import type { ActionConfig, ValidationConfig } from './generated';
+import type { ActionConfig, ValidationConfig } from './ash_rpc';
 
 // Define your custom hook context interfaces
 export interface ActionHookContext {
@@ -851,7 +848,7 @@ export interface ValidationChannelHookContext {
 }
 
 // Import the generated config types
-import type { ActionChannelConfig, ValidationChannelConfig } from './generated';
+import type { ActionChannelConfig, ValidationChannelConfig } from './ash_rpc';
 
 // Implement your channel hook functions - the hookCtx is already properly typed!
 export async function beforeChannelPush(
@@ -918,13 +915,15 @@ export interface ActionChannelConfig {
   // Request parameters (varies by action)
   input?: Record<string, any>;
   identity?: any;
-  fields?: Array<string | Record<string, any>>;
+  fields?: ReadonlyArray<string | Record<string, any>>;
   filter?: Record<string, any>;
-  sort?: string;
-  page?: { limit?: number; offset?: number; count?: boolean };
+  sort?: string | string[];
+  page?:
+    | { limit?: number; offset?: number; count?: boolean }
+    | { limit?: number; after?: string; before?: string };
 
   // Metadata
-  metadataFields?: Record<string, any>;
+  metadataFields?: ReadonlyArray<string>;
 
   // Channel options
   timeout?: number;
@@ -1112,7 +1111,6 @@ export async function afterChannelResponse(
   sendTelemetry({
     event: 'channel.rpc.completed',
     action: actionName,
-    domain: config.domain,
     responseType,
     success: responseType === "ok" && data?.success,
     timestamp: Date.now()
@@ -1145,8 +1143,7 @@ export async function afterChannelResponse(
       extra: {
         action: actionName,
         responseType,
-        data: responseType === "error" ? data : null,
-        domain: config.domain
+        data: responseType === "error" ? data : null
       }
     });
   } else if (data && !data.success) {
@@ -1191,7 +1188,7 @@ Here's a complete example showing all channel hook features with the simplified 
 
 ```typescript
 // channelHooks.ts
-import type { ActionChannelConfig, ValidationChannelConfig } from './generated';
+import type { ActionChannelConfig, ValidationChannelConfig } from './ash_rpc';
 
 // Define custom hook context interfaces
 export interface ActionChannelHookContext {

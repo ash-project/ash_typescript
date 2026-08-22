@@ -46,6 +46,21 @@ By default the module walks `Ash.Info.domains(otp_app)` to find every domain wit
 
 > `mix igniter.install ash_typescript` creates this module and sets the config automatically — you only need to do this by hand for manual installs or when upgrading a project that predates the manifest module.
 
+#### Other Notable Changes in 0.18.0
+
+Generated TypeScript changes (mostly type-level; re-run codegen and recompile your frontend to see any impact):
+
+- **Filter types are operator-catalog-driven.** Strings gain `greaterThan`/`lessThan`(`OrEqual`) and new `contains`/`stringStartsWith`/`stringEndsWith` operators; booleans gain `in`; arrays gain `has`. **`count`/`exists`/`list` aggregates lose `isNil`** (they are never nil) — client code filtering `isNil` on those aggregates must be updated. Sortable fields are now driven by Ash's `sortable?` flag.
+- **`avg`/`max`/`min`/`first`/`sum` aggregates are now typed `T | null`** (they are nil with no related rows; the old non-null typing was wrong).
+- **Update actions' `input` parameter is now optional** (`input?:`), matching Ash semantics; the JSON manifest reports `"input": "optional"` for update actions.
+- **Typed-map members holding embedded resources/structs now require nested field selection** (`{ field: [{ rows: [...] }] }` instead of `{ field: ["rows"] }`) and are properly typed in results. The runtime still accepts the old string form, so deployed clients keep working.
+- **Typed-controller route arguments now follow Ash argument semantics end-to-end:** declared constraints (`min_length`, `match`, `min`/`max`, …) are validated at compile time and enforced at runtime (new 422s), strings are trimmed by default, and `""` on a nilable string arg reaches your handler as `nil`.
+- **Zod/Valibot string schemas get `min(1)` from `allow_empty?: false`** (the Ash default), now including nullable/optional strings. Declare `constraints: [allow_empty?: true]` where empty strings are valid.
+- **RPC configuration errors and warnings are raised when the manifest module compiles** (not the domain). The error body still names the offending domain/resource/action. Verification is also stricter: `show_metadata` fields must exist on the action, and `allowed_loads`/`denied_loads` paths must resolve to real loadable fields — previously-silent typos in those options are now compile errors.
+- **Calculations returning a resource instance are classified `__type: "Relationship"`** in resource schemas (previously `"ComplexCalculation"`). Field selection is unchanged; only code inspecting the `__type` metadata sees a difference.
+- **Generated field/type ordering is now alphabetical and deterministic** — expect a large but purely cosmetic diff the first time you regenerate.
+- Generated output now derives filter operators, input requiredness, aggregate nullability, and sortability from Ash's manifest generator, so an Ash version bump alone can change generated TypeScript.
+
 ### 0.16.0
 
 #### Multi-File Output & Project-Root-Relative Import Paths
@@ -128,8 +143,13 @@ defmodule MyApp.Todo do
 
   attributes do
     uuid_primary_key :id
-    attribute :title, :string, allow_nil?: false
-    attribute :completed, :boolean, default: false
+    attribute :title, :string, allow_nil?: false, public?: true
+    attribute :completed, :boolean, default: false, public?: true
+  end
+
+  actions do
+    default_accept [:title, :completed]
+    defaults [:read, :create, :update, :destroy]
   end
 end
 ```
@@ -140,11 +160,15 @@ end
 defmodule MyApp.Domain do
   use Ash.Domain, extensions: [AshTypescript.Rpc]
 
+  resources do
+    resource MyApp.Todo
+  end
+
   typescript_rpc do
     resource MyApp.Todo do
       rpc_action :list_todos, :read
       rpc_action :create_todo, :create
-      rpc_action :get_todo, :get
+      rpc_action :get_todo, :read, get?: true
     end
   end
 end
@@ -162,12 +186,12 @@ import { listTodos, createTodo } from './ash_rpc';
 // Fully type-safe API calls
 const todos = await listTodos({
   fields: ["id", "title", "completed"],
-  filter: { completed: false }
+  filter: { completed: { eq: false } }
 });
 
 const newTodo = await createTodo({
-  fields: ["id", "title", { user: ["name", "email"] }],
-  input: { title: "Learn AshTypescript", priority: "high" }
+  fields: ["id", "title", "completed"],
+  input: { title: "Learn AshTypescript" }
 });
 ```
 
