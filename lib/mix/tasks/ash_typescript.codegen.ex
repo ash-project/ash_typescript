@@ -77,57 +77,40 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
             {path, maybe_preserve_custom_content(path, content, marker)}
           end)
 
-        handle_files(files, opts, otp_app)
+        files
+        |> Map.merge(manifest_files(otp_app))
+        |> handle_files(opts)
 
       {:error, error_message} ->
         Mix.raise(error_message)
     end
   end
 
-  defp handle_files(files, opts, otp_app) do
+  defp handle_files(files, opts) do
+    changed = changed_files(files)
+
     cond do
       opts[:check] && !(opts[:dev] && AshTypescript.always_regenerate?()) ->
-        changes =
-          files
-          |> Enum.filter(fn {path, content} ->
-            current = if File.exists?(path), do: File.read!(path), else: ""
-            content != current
-          end)
-          |> Map.new()
-
-        if map_size(changes) > 0 do
-          raise Ash.Error.Framework.PendingCodegen, diff: changes
+        if changed != %{} do
+          raise Ash.Error.Framework.PendingCodegen, diff: changed
         end
 
       opts[:dry_run] ->
-        Enum.each(files, fn {path, content} ->
-          current = if File.exists?(path), do: File.read!(path), else: ""
-
-          if content != current do
-            IO.puts("##{path}:\n\n#{content}")
-          end
-        end)
+        Enum.each(changed, fn {path, content} -> IO.puts("##{path}:\n\n#{content}") end)
 
       true ->
-        changed_files =
-          Enum.filter(files, fn {path, content} ->
-            current = if File.exists?(path), do: File.read!(path), else: ""
-            content != current
-          end)
-
-        if changed_files != [] do
-          # Create directories for all changed files
-          Enum.each(changed_files, fn {path, _content} ->
-            File.mkdir_p!(Path.dirname(path))
-          end)
-
-          Enum.each(changed_files, fn {path, content} ->
-            File.write!(path, content)
-          end)
-        end
-
-        maybe_write_manifests(otp_app)
+        Enum.each(changed, fn {path, content} ->
+          File.mkdir_p!(Path.dirname(path))
+          File.write!(path, content)
+        end)
     end
+  end
+
+  defp changed_files(files) do
+    Map.filter(files, fn {path, content} ->
+      current = if File.exists?(path), do: File.read!(path), else: ""
+      content != current
+    end)
   end
 
   # Preserves custom content below the marker comment when regenerating namespace files
@@ -155,22 +138,37 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
     end
   end
 
-  defp maybe_write_manifests(otp_app) do
-    if path = AshTypescript.Rpc.manifest_file() do
-      write_if_changed(path, ManifestGenerator.generate_manifest())
-    end
-
-    if path = AshTypescript.Rpc.json_manifest_file() do
-      write_if_changed(path, JsonManifestGenerator.generate_json_manifest(otp_app))
-    end
+  # The Markdown and JSON manifests are generated artifacts like any other, so
+  # they join the same changed-file map — otherwise `--check` would pass with a
+  # stale manifest and `--dry-run` would not preview it.
+  defp manifest_files(otp_app) do
+    %{}
+    |> put_manifest(AshTypescript.Rpc.manifest_file(), fn _path ->
+      ManifestGenerator.generate_manifest()
+    end)
+    |> put_manifest(AshTypescript.Rpc.json_manifest_file(), fn path ->
+      stabilize_generated_at(path, JsonManifestGenerator.generate_json_manifest(otp_app))
+    end)
   end
 
-  defp write_if_changed(path, content) do
-    current = if File.exists?(path), do: File.read!(path), else: ""
+  defp put_manifest(files, nil, _build), do: files
+  defp put_manifest(files, path, build), do: Map.put(files, path, build.(path))
 
-    if content != current do
-      File.mkdir_p!(Path.dirname(path))
-      File.write!(path, content)
+  # The JSON manifest stamps `generatedAt` with today's date, so a byte
+  # comparison would report a change on every new day even when nothing else
+  # moved — failing `--check` and churning the committed file. When the only
+  # difference is that field, reuse the existing content so the manifest counts
+  # as unchanged everywhere.
+  defp stabilize_generated_at(path, content) do
+    with true <- File.exists?(path),
+         existing = File.read!(path),
+         {:ok, new_decoded} <- Jason.decode(content),
+         {:ok, old_decoded} <- Jason.decode(existing),
+         true <-
+           Map.delete(new_decoded, "generatedAt") == Map.delete(old_decoded, "generatedAt") do
+      existing
+    else
+      _ -> content
     end
   end
 end

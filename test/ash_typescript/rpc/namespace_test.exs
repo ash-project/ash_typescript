@@ -739,7 +739,7 @@ defmodule AshTypescript.Rpc.NamespaceTest do
     setup %{tmp_dir: tmp_dir} do
       original_config =
         Map.new(
-          ~w[enable_namespace_files namespace_output_dir output_file routes_output_file types_output_file zod_output_file typed_channels_output_file warn_on_missing_rpc_config warn_on_non_rpc_references]a,
+          ~w[enable_namespace_files namespace_output_dir output_file routes_output_file types_output_file zod_output_file valibot_output_file typed_channels_output_file manifest_file json_manifest_file warn_on_missing_rpc_config warn_on_non_rpc_references]a,
           &{&1, Application.get_env(:ash_typescript, &1)}
         )
 
@@ -763,8 +763,24 @@ defmodule AshTypescript.Rpc.NamespaceTest do
 
       Application.put_env(
         :ash_typescript,
+        :valibot_output_file,
+        Path.join(tmp_dir, "ash_valibot.ts")
+      )
+
+      Application.put_env(
+        :ash_typescript,
         :typed_channels_output_file,
         Path.join(tmp_dir, "generated_typed_channels.ts")
+      )
+
+      # Manifests are generated artifacts too — leaving them pointed at the real
+      # test/ts paths would overwrite them with these tmp paths
+      Application.put_env(:ash_typescript, :manifest_file, Path.join(tmp_dir, "MANIFEST.md"))
+
+      Application.put_env(
+        :ash_typescript,
+        :json_manifest_file,
+        Path.join(tmp_dir, "ash_rpc_manifest.json")
       )
 
       on_exit(fn ->
