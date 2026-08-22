@@ -225,10 +225,13 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
        ) do
     show_validation = AshTypescript.Rpc.generate_validation_functions?()
     show_zod = AshTypescript.Rpc.generate_zod_schemas?()
+    show_valibot = AshTypescript.Rpc.generate_valibot_schemas?()
     show_channel = AshTypescript.Rpc.generate_phx_channel_rpc_actions?()
 
-    headers = build_headers(show_validation, show_zod, show_channel, include_internals?)
-    separator = build_separator(show_validation, show_zod, show_channel, include_internals?)
+    schema_flags = %{zod: show_zod, valibot: show_valibot}
+
+    headers = build_headers(show_validation, schema_flags, show_channel, include_internals?)
+    separator = build_separator(show_validation, schema_flags, show_channel, include_internals?)
 
     rows =
       rpc_actions
@@ -242,7 +245,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
           rpc_action,
           namespace,
           show_validation,
-          show_zod,
+          schema_flags,
           show_channel,
           include_internals?
         )
@@ -274,10 +277,13 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
   defp generate_actions_table_from_tuples(actions, include_internals?) do
     show_validation = AshTypescript.Rpc.generate_validation_functions?()
     show_zod = AshTypescript.Rpc.generate_zod_schemas?()
+    show_valibot = AshTypescript.Rpc.generate_valibot_schemas?()
     show_channel = AshTypescript.Rpc.generate_phx_channel_rpc_actions?()
 
-    headers = build_headers(show_validation, show_zod, show_channel, include_internals?)
-    separator = build_separator(show_validation, show_zod, show_channel, include_internals?)
+    schema_flags = %{zod: show_zod, valibot: show_valibot}
+
+    headers = build_headers(show_validation, schema_flags, show_channel, include_internals?)
+    separator = build_separator(show_validation, schema_flags, show_channel, include_internals?)
 
     rows =
       actions
@@ -290,7 +296,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
           rpc_action,
           namespace,
           show_validation,
-          show_zod,
+          schema_flags,
           show_channel,
           include_internals?
         )
@@ -318,25 +324,23 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     end
   end
 
-  defp build_headers(show_validation, show_zod, show_channel, include_internals?) do
-    base = "| Function | Action Type |"
-
-    base
+  defp build_headers(show_validation, schema_flags, show_channel, include_internals?) do
+    "| Function | Action Type |"
     |> maybe_append(" Ash Action |", include_internals?)
     |> maybe_append(" Resource |", include_internals?)
     |> maybe_append(" Validation |", show_validation)
-    |> maybe_append(" Zod Schema |", show_zod)
+    |> maybe_append(" Zod Schema |", schema_flags.zod)
+    |> maybe_append(" Valibot Schema |", schema_flags.valibot)
     |> maybe_append(" Channel |", show_channel)
   end
 
-  defp build_separator(show_validation, show_zod, show_channel, include_internals?) do
-    base = "|----------|-------------|"
-
-    base
+  defp build_separator(show_validation, schema_flags, show_channel, include_internals?) do
+    "|----------|-------------|"
     |> maybe_append("------------|", include_internals?)
     |> maybe_append("----------|", include_internals?)
     |> maybe_append("------------|", show_validation)
-    |> maybe_append("------------|", show_zod)
+    |> maybe_append("------------|", schema_flags.zod)
+    |> maybe_append("----------------|", schema_flags.valibot)
     |> maybe_append("---------|", show_channel)
   end
 
@@ -346,7 +350,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
          rpc_action,
          _namespace,
          show_validation,
-         show_zod,
+         schema_flags,
          show_channel,
          include_internals?
        ) do
@@ -357,16 +361,24 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     resource_module = inspect(resource)
 
     validate_name = Helpers.format_output_field("validate_#{rpc_action_name}")
-    zod_schema_name = Helpers.format_output_field("#{rpc_action_name}_zod_schema")
     channel_name = Helpers.format_output_field("#{rpc_action_name}_channel")
 
-    base = "| `#{function_name}` | #{action_type} |"
+    # Suffixes are configurable, so derive the names the same way the schema
+    # generators do rather than hardcoding "_zod_schema".
+    zod_schema_name =
+      Helpers.format_output_field("#{rpc_action_name}#{AshTypescript.Rpc.zod_schema_suffix()}")
 
-    base
+    valibot_schema_name =
+      Helpers.format_output_field(
+        "#{rpc_action_name}#{AshTypescript.Rpc.valibot_schema_suffix()}"
+      )
+
+    "| `#{function_name}` | #{action_type} |"
     |> maybe_append(" `#{action_name}` |", include_internals?)
     |> maybe_append(" `#{resource_module}` |", include_internals?)
     |> maybe_append(" `#{validate_name}` |", show_validation)
-    |> maybe_append(" `#{zod_schema_name}` |", show_zod)
+    |> maybe_append(" `#{zod_schema_name}` |", schema_flags.zod)
+    |> maybe_append(" `#{valibot_schema_name}` |", schema_flags.valibot)
     |> maybe_append(" `#{channel_name}` |", show_channel)
   end
 
@@ -491,9 +503,10 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
         AshTypescript.TypedController.Codegen.resolve_route_infos(router, routes_config)
 
       show_zod = AshTypescript.Rpc.generate_zod_schemas?()
+      show_valibot = AshTypescript.Rpc.generate_valibot_schemas?()
 
-      headers = build_tc_headers(show_zod)
-      separator = build_tc_separator(show_zod)
+      headers = build_tc_headers(show_zod, show_valibot)
+      separator = build_tc_separator(show_zod, show_valibot)
 
       sorted_infos =
         Enum.sort_by(route_infos, fn info ->
@@ -502,7 +515,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
 
       rows =
         sorted_infos
-        |> Enum.map_join("\n", fn info -> build_tc_row(info, show_zod) end)
+        |> Enum.map_join("\n", fn info -> build_tc_row(info, show_zod, show_valibot) end)
 
       """
 
@@ -516,17 +529,19 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     end
   end
 
-  defp build_tc_headers(show_zod) do
-    base = "| Method | Path | Function | Input Type |"
-    if show_zod, do: base <> " Zod Schema |", else: base
+  defp build_tc_headers(show_zod, show_valibot) do
+    "| Method | Path | Function | Input Type |"
+    |> maybe_append(" Zod Schema |", show_zod)
+    |> maybe_append(" Valibot Schema |", show_valibot)
   end
 
-  defp build_tc_separator(show_zod) do
-    base = "|--------|------|----------|------------|"
-    if show_zod, do: base <> "------------|", else: base
+  defp build_tc_separator(show_zod, show_valibot) do
+    "|--------|------|----------|------------|"
+    |> maybe_append("------------|", show_zod)
+    |> maybe_append("----------------|", show_valibot)
   end
 
-  defp build_tc_row(info, show_zod) do
+  defp build_tc_row(info, show_zod, show_valibot) do
     method = info.method |> to_string() |> String.upcase()
     path = info.path || ""
 
@@ -550,6 +565,8 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
       info.route.arguments
       |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
 
+    # The named input type only exists for mutation fetch functions; validation
+    # schemas are rendered for any route with non-path arguments, GET included.
     input_type =
       if info.method in @tc_mutation_methods and input_args != [] do
         case info.scope_prefix do
@@ -560,19 +577,18 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
         "-"
       end
 
-    base = "| #{method} | #{path} | `#{function_name}` | #{input_type} |"
-
-    if show_zod do
-      zod_name =
-        if info.method in @tc_mutation_methods and input_args != [] do
-          "`#{AshTypescript.TypedController.Codegen.route_zod_schema_name(info.route, info.scope_prefix)}`"
-        else
-          "-"
-        end
-
-      base <> " #{zod_name} |"
-    else
-      base
+    schema_cell = fn name_fun ->
+      if input_args == [], do: "-", else: "`#{name_fun.(info.route, info.scope_prefix)}`"
     end
+
+    "| #{method} | #{path} | `#{function_name}` | #{input_type} |"
+    |> maybe_append(
+      " #{schema_cell.(&AshTypescript.TypedController.Codegen.route_zod_schema_name/2)} |",
+      show_zod
+    )
+    |> maybe_append(
+      " #{schema_cell.(&AshTypescript.TypedController.Codegen.route_valibot_schema_name/2)} |",
+      show_valibot
+    )
   end
 end

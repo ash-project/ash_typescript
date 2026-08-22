@@ -234,6 +234,25 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
       end
     end
 
+    test "includes Valibot Schema column when valibot schemas enabled", %{manifest: manifest} do
+      if AshTypescript.Rpc.generate_valibot_schemas?() do
+        assert manifest =~ "| Valibot Schema |"
+        assert manifest =~ ~r/`\w+ValibotSchema`/
+      end
+    end
+
+    test "schema names honor the configured suffixes", %{manifest: manifest} do
+      # The row builder must derive names from zod_schema_suffix/
+      # valibot_schema_suffix rather than hardcoding "_zod_schema"
+      if AshTypescript.Rpc.generate_zod_schemas?() do
+        assert manifest =~ "`getImportantDates#{AshTypescript.Rpc.zod_schema_suffix()}`"
+      end
+
+      if AshTypescript.Rpc.generate_valibot_schemas?() do
+        assert manifest =~ "`getImportantDates#{AshTypescript.Rpc.valibot_schema_suffix()}`"
+      end
+    end
+
     test "includes Channel column when channel functions enabled", %{manifest: manifest} do
       if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
         assert manifest =~ "| Channel |"
@@ -516,6 +535,25 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
       if AshTypescript.Rpc.generate_zod_schemas?() do
         assert manifest =~ "| Zod Schema |"
         assert manifest =~ "`loginZodSchema`"
+      end
+    end
+
+    test "includes Valibot Schema column when valibot schemas enabled", %{manifest: manifest} do
+      if AshTypescript.Rpc.generate_valibot_schemas?() do
+        assert manifest =~ "| Valibot Schema |"
+        assert manifest =~ "`loginValibotSchema`"
+      end
+    end
+
+    test "lists schemas for GET routes with query args", %{manifest: manifest} do
+      # `search` has non-path arguments, so schemas exist for it even though it
+      # has no named input type
+      if AshTypescript.Rpc.generate_zod_schemas?() do
+        assert manifest =~ "`searchZodSchema`"
+      end
+
+      if AshTypescript.Rpc.generate_valibot_schemas?() do
+        assert manifest =~ "`searchValibotSchema`"
       end
     end
 
