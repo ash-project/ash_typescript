@@ -131,15 +131,30 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
           field = format_output_field(arg.name)
           required = !arg.allow_nil? && arg.default == nil
 
+          # Array arguments append one `name[]=` pair per element — Plug's query
+          # parser needs that to rebuild a list. `String(array)` would collapse
+          # the whole thing into one comma-joined value.
+          set =
+            if array_type?(arg.type) do
+              "query.#{field}.forEach((v) => searchParams.append(\"#{field}[]\", String(v)));"
+            else
+              "searchParams.set(\"#{field}\", String(query.#{field}));"
+            end
+
           if required do
-            "  searchParams.set(\"#{field}\", String(query.#{field}));"
+            "  #{set}"
           else
-            "  if (query?.#{field} !== undefined) searchParams.set(\"#{field}\", String(query.#{field}));"
+            "  if (query?.#{field} !== undefined && query?.#{field} !== null) #{set}"
           end
         end)
 
     {param, body_lines}
   end
+
+  # Matches both the DSL form (`{:array, :string}`) and the resolved form
+  # (`{:array, Ash.Type.String}`) that `Ash.Type.get_type/1` produces.
+  defp array_type?({:array, _inner}), do: true
+  defp array_type?(_type), do: false
 
   defp render_action_function(route_info, opts) do
     %{

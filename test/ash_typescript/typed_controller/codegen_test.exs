@@ -106,7 +106,28 @@ defmodule AshTypescript.TypedController.CodegenTest do
       typescript: typescript
     } do
       assert String.contains?(typescript, "export function searchPath(")
-      assert String.contains?(typescript, "query: { q: string; page?: number | null }")
+
+      assert String.contains?(
+               typescript,
+               "query: { q: string; page?: number | null; tags?: Array<string> | null }"
+             )
+    end
+
+    test "array query params append one name[] pair per element", %{typescript: typescript} do
+      # String(array) would comma-join the whole list into a single value, which
+      # Plug's query parser cannot rebuild into a list
+      assert String.contains?(
+               typescript,
+               ~s|query.tags.forEach((v) => searchParams.append("tags[]", String(v)))|
+             )
+    end
+
+    test "optional query params are skipped when explicitly null", %{typescript: typescript} do
+      # Without the null guard, `String(null)` would send the literal "null"
+      assert String.contains?(
+               typescript,
+               ~s|if (query?.page !== undefined && query?.page !== null)|
+             )
     end
 
     test "generates URLSearchParams for GET routes with query params", %{typescript: typescript} do
@@ -555,7 +576,11 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
     test "still generates query params for GET routes", %{typescript: typescript} do
       assert String.contains?(typescript, "query?: { tab?: string | null }")
-      assert String.contains?(typescript, "query: { q: string; page?: number | null }")
+
+      assert String.contains?(
+               typescript,
+               "query: { q: string; page?: number | null; tags?: Array<string> | null }"
+             )
     end
 
     test "does not generate TypedControllerConfig or helper", %{typescript: typescript} do

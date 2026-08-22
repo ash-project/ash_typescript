@@ -62,4 +62,34 @@ defmodule AshTypescript.TypedController.FoldArgumentConstraintsTest do
     assert argument.constraints[:allow_empty?] == false
     assert argument.constraints[:trim?] == true
   end
+
+  test "array arguments fold item constraints and survive runtime casting" do
+    route =
+      AshTypescript.Test.Session
+      |> Spark.Dsl.Extension.get_entities([:typed_controller])
+      |> Enum.find(&(&1.name == :search))
+
+    tags = Enum.find(route.arguments, &(&1.name == :tags))
+
+    assert tags.type == {:array, :string}
+
+    # The outer array constraints gain their defaults, and the declared item
+    # constraints are folded with the string defaults made explicit
+    assert Keyword.get(tags.constraints, :nil_items?) == false
+    items = Keyword.fetch!(tags.constraints, :items)
+    assert Keyword.get(items, :min_length) == 2
+    assert Keyword.get(items, :allow_empty?) == false
+    assert Keyword.get(items, :trim?) == true
+
+    type = Ash.Type.get_type(tags.type)
+
+    assert {:ok, cast} = Ash.Type.cast_input(type, ["elixir", " ash "], tags.constraints)
+
+    # Trimming is an item constraint, so it lands in apply_constraints
+    assert {:ok, ["elixir", "ash"]} = Ash.Type.apply_constraints(type, cast, tags.constraints)
+
+    # Item constraints are enforced, not decorative
+    assert {:error, _} =
+             Ash.Type.apply_constraints(type, ["a"], tags.constraints)
+  end
 end

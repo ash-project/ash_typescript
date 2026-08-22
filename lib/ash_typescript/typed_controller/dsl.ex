@@ -89,9 +89,11 @@ defmodule AshTypescript.TypedController.Dsl do
         doc: "The argument name"
       ],
       type: [
-        type: {:or, [:atom, {:tuple, [:atom, :keyword_list]}]},
+        # Same spec Ash uses for action arguments, so every form Ash accepts
+        # works here too — including `{:array, inner_type}`.
+        type: Ash.OptionsHelpers.ash_type(),
         required: true,
-        doc: "The Ash type (e.g. :string, :boolean, :integer)"
+        doc: "The Ash type (e.g. `:string`, `:boolean`, `{:array, :string}`)"
       ],
       constraints: [
         type: :keyword_list,

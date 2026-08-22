@@ -30,6 +30,9 @@ defmodule AshTypescript.Test.Session do
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Search") end
       argument :q, :string, allow_nil?: false
       argument :page, :integer
+      # Array argument — pins `{:array, inner}` support end-to-end: query-string
+      # serialization, constraint folding, validation schemas and runtime cast
+      argument :tags, {:array, :string}, constraints: [items: [min_length: 2]]
     end
 
     # Verb shortcut for POST

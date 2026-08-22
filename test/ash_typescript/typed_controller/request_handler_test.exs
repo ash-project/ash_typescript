@@ -443,6 +443,21 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       assert json_body(conn)["params"]["name"] == "alice"
     end
 
+    test "array arguments cast and enforce item constraints" do
+      conn = call(:search, %{"q" => "elixir", "tags" => ["ash", "spark"]})
+      assert conn.status == 200
+
+      # `tags` declares `items: [min_length: 2]`
+      conn = call(:search, %{"q" => "elixir", "tags" => ["ash", "x"]})
+      assert conn.status == 422
+      assert [%{"field" => "tags"}] = json_body(conn)["errors"]
+    end
+
+    test "array arguments accept an omitted value" do
+      conn = call(:search, %{"q" => "elixir"})
+      assert conn.status == 200
+    end
+
     test "declared constraints are enforced" do
       conn = call(:register, %{"username" => "x", "email" => "a@b.co", "age" => 20})
 
