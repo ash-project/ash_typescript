@@ -126,8 +126,8 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 |------|-----------|---------|----------|
 | RPC functions | `output_file` | — (required for RPC generation; the installer sets `assets/js/ash_rpc.ts`) | RPC functions, hook types, helpers |
 | Shared types | `types_output_file` | Auto-derived as `ash_types.ts` | Type aliases, resource schemas, filter types, utility types |
-| Shared Zod schemas | `zod_output_file` | Auto-derived as `ash_zod.ts` | Zod schemas for all resources (when `generate_zod_schemas: true`) |
-| Shared Valibot schemas | `valibot_output_file` | Auto-derived as `ash_valibot.ts` | Valibot schemas for all resources (when `generate_valibot_schemas: true`) |
+| Shared Zod schemas | `zod_output_file` | Auto-derived as `ash_zod.ts` | Zod schemas for all resources, RPC actions, and typed controller routes (when `generate_zod_schemas: true`) |
+| Shared Valibot schemas | `valibot_output_file` | Auto-derived as `ash_valibot.ts` | Valibot schemas for all resources, RPC actions, and typed controller routes (when `generate_valibot_schemas: true`) |
 | Route helpers | `routes_output_file` | Auto-derived as `ash_routes.ts` | Path helpers, typed fetch functions, controller input types (generated when `typed_controllers` is non-empty) |
 | Typed channel functions | `typed_channels_output_file` | `nil` (disabled) | Channel factory, subscription helpers, cleanup functions |
 | RPC namespace re-exports | `namespace_output_dir` | Same dir as `output_file` | Per-namespace re-export files (when `enable_namespace_files: true`) |

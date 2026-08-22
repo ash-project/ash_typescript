@@ -196,7 +196,7 @@ end
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
 | `name` | atom | Yes | - | Argument name (positional arg) |
-| `type` | `atom \| {atom, keyword}` | Yes | - | Ash type — `:string` or a custom type module. The Spark schema also admits an `{atom, keyword}` tuple, but note `{:array, :string}` is NOT valid (position 1 must be a keyword list) — array arguments have no supported DSL form today |
+| `type` | Ash type | Yes | - | Any form `Ash.OptionsHelpers.ash_type/0` accepts — `:string`, a custom type module, or `{:array, inner}`. Array item constraints go under `constraints: [items: [...]]` |
 | `constraints` | keyword | No | `[]` | Type constraints. Validated and folded against the type's constraint schema at compile time (invalid constraints are compile errors); folded defaults drive both runtime enforcement and the generated Zod/Valibot schemas. |
 | `allow_nil?` | boolean | No | `true` | Whether argument can be nil. Set to `false` to make required. |
 | `default` | any | No | - | Default value |
@@ -410,6 +410,11 @@ Route exports are categorized as:
 - `:zod_value` — Zod schema constants
 - `:valibot_value` — Valibot schema constants
 
+Path helpers are exported for every route; the action function and named input
+type only for mutation routes in `:full` mode; the `:zod_value`/`:valibot_value`
+schemas for every route with non-path arguments (matching what
+`RouteRenderer` actually renders). The same predicate drives both manifests.
+
 ### Implementation
 
 - `RouteConfigCollector.resolve_route_namespace/2` — resolves namespace precedence
@@ -494,7 +499,8 @@ When hooks are enabled, `TypedControllerConfig` gains a `hookCtx?: TypedControll
 ## Validation Schema Generation (Zod & Valibot)
 
 When `generate_zod_schemas: true`, routes with non-path arguments generate Zod
-schemas. These are emitted into the **shared Zod file** (`zod_output_file`, e.g.
+schemas — **any** route, not just mutations: a GET route's query arguments are
+exactly what its path helper takes, so they get a schema too. These are emitted into the **shared Zod file** (`zod_output_file`, e.g.
 `ash_zod.ts`) — not into the routes file — via `Codegen.collect_route_zod_schemas/1`,
 which passes them to the shared schema generator as `additional_schemas`:
 

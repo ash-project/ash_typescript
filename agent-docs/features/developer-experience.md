@@ -353,8 +353,11 @@ The manifest includes a `version` field (currently `"1.0"`) using semver so cons
 ```
 
 Every typed controller route appears in `typedControllerRoutes`, including GET path
-helpers (`"mutation": false`, no `types` key). Only mutation routes with non-path
-arguments carry a `types` object.
+helpers (`"mutation": false`). A route carries a `types` object when it has
+anything to advertise: `"input"` only for mutation routes (the named input type
+belongs to the fetch function), but `"zod"`/`"valibot"` for **any** route with
+non-path arguments — GET query params get schemas too. Routes with no non-path
+arguments have no `types` key at all.
 
 The route-level `"zod"` and `"valibot"` names honor a route's `zod_schema_name` /
 `valibot_schema_name` overrides; the single sources of truth are

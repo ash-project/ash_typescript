@@ -118,9 +118,9 @@ mix ash_typescript.codegen --dry-run
 |--------|------|---------|-------------|
 | `--run-endpoint PATH` | `string` | `/rpc/run` | RPC run endpoint path (alias: `-r`) |
 | `--validate-endpoint PATH` | `string` | `/rpc/validate` | RPC validate endpoint path (alias: `-v`) |
-| `--check` | `boolean` | `false` | Raise `Ash.Error.Framework.PendingCodegen` if generated code is out of date. Only bypassed when `--dev` is also passed and `always_regenerate: true` is configured. |
+| `--check` | `boolean` | `false` | Raise `Ash.Error.Framework.PendingCodegen` if generated code is out of date. Covers every generated artifact, including the Markdown and JSON manifests (the JSON manifest's `generatedAt` stamp is ignored, so a date-only difference is not a diff). Only bypassed when `--dev` is also passed and `always_regenerate: true` is configured. |
 | `--dev` | `boolean` | `false` | Marks a development-plug invocation (`AshPhoenix.Plug.CheckCodegenStatus` passes `--dev --check`); combined with `always_regenerate: true`, files are written instead of raising |
-| `--dry-run` | `boolean` | `false` | Print files that would change to stdout (with `# <path>` headers) without writing them |
+| `--dry-run` | `boolean` | `false` | Print files that would change to stdout (with `# <path>` headers) without writing them — manifests included |
 
 Output file locations are controlled by configuration (`output_file` and friends) — see the [Configuration Reference](configuration.md#multi-file-output).
 

@@ -95,11 +95,16 @@ defmodule MyApp.Session do
     route :login, :post do
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
       argument :code, :string, allow_nil?: false
+      # Optional: rename the generated schemas to dodge RPC action collisions
+      zod_schema_name "loginRouteZodSchema"
+      valibot_schema_name "loginRouteValibotSchema"
     end
 
-    # Method defaults to :get when omitted
+    # Method defaults to :get when omitted. Arguments accept any Ash type form,
+    # arrays included; GET args become query params (`?tags[]=a&tags[]=b`)
     route :home do
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Home") end
+      argument :tags, {:array, :string}, constraints: [items: [min_length: 2]]
     end
   end
 end

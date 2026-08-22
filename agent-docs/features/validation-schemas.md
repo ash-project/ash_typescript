@@ -163,6 +163,11 @@ gated on its own flag (`AshTypescript.Rpc.generate_zod_schemas?/0` /
 `generate_valibot_schemas?/0`), and routes support `zod_schema_name` /
 `valibot_schema_name` overrides for collisions with RPC action schema names.
 
+Schemas are rendered for **every** route with non-path arguments, mutations and
+GET routes alike — a GET route's query arguments are what its path helper takes.
+Namespace re-exports and both manifests use that same predicate, so a schema
+that exists is always reachable.
+
 ### Unified Action Inputs
 
 There is **no per-action-type branching**. `SchemaCore.generate_action_schema/4` walks the

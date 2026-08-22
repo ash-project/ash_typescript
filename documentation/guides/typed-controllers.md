@@ -248,7 +248,7 @@ end
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
 | name | atom | Yes | — | Argument name (positional arg) |
-| type | atom or `{atom, keyword}` | Yes | — | Ash type (`:string`, `:boolean`, `:integer`, etc.) or `{type, constraints}` tuple |
+| type | Ash type | Yes | — | Any Ash type: `:string`, `:boolean`, `:integer`, a custom type module, or `{:array, inner}` |
 | `constraints` | keyword | No | `[]` | Type constraints (e.g. `min_length`, `match`, `min`, `max`). Validated against `Ash.Type.constraints/1` at compile time — invalid constraints are compile errors — and enforced at runtime like Ash action arguments |
 | `allow_nil?` | boolean | No | `true` | If `false`, argument is required |
 | `default` | any | No | — | Default value |
@@ -366,20 +366,26 @@ Arguments on GET routes become query parameters:
 get :search do
   argument :q, :string, allow_nil?: false
   argument :page, :integer
+  argument :tags, {:array, :string}
   run fn conn, params -> render(conn, "search.html", params) end
 end
 ```
 
 ```typescript
-export function searchPath(query: { q: string; page?: number }): string {
+export function searchPath(query: { q: string; page?: number | null; tags?: Array<string> | null }): string {
   const base = "/search";
   const searchParams = new URLSearchParams();
   searchParams.set("q", String(query.q));
-  if (query?.page !== undefined) searchParams.set("page", String(query.page));
+  if (query?.page !== undefined && query?.page !== null) searchParams.set("page", String(query.page));
+  if (query?.tags !== undefined && query?.tags !== null) query.tags.forEach((v) => searchParams.append("tags[]", String(v)));
   const qs = searchParams.toString();
   return qs ? `${base}?${qs}` : base;
 }
 ```
+
+Array arguments are serialized as repeated `name[]=` pairs so `Plug.Conn.Query`
+rebuilds them as a list. Optional arguments are omitted when `undefined` *or*
+`null`, so an explicit `null` never reaches the server as the string `"null"`.
 
 ### Mutation Routes — Typed Fetch Functions
 
@@ -464,8 +470,8 @@ export function membersPath(
 ): string {
   const base = `/organizations/${path.orgSlug}/members`;
   const searchParams = new URLSearchParams();
-  if (query?.role !== undefined) searchParams.set("role", String(query.role));
-  if (query?.page !== undefined) searchParams.set("page", String(query.page));
+  if (query?.role !== undefined && query?.role !== null) searchParams.set("role", String(query.role));
+  if (query?.page !== undefined && query?.page !== null) searchParams.set("page", String(query.page));
   const qs = searchParams.toString();
   return qs ? `${base}?${qs}` : base;
 }
@@ -762,7 +768,7 @@ import * as Analytics from "./analytics";
 
 ## Validation Schema Generation (Zod & Valibot)
 
-When `generate_zod_schemas: true` is configured, routes with input arguments also generate Zod validation schemas alongside their input types:
+When `generate_zod_schemas: true` is configured, every route with non-path arguments — mutations and GET routes alike — also generates a Zod validation schema:
 
 ```typescript
 export type LoginInput = {
@@ -788,6 +794,16 @@ export const loginValibotSchema = v.object({
 The schemas use the same `zod_import_path`/`valibot_import_path` and `zod_schema_suffix`/`valibot_schema_suffix` settings as RPC schemas, and are emitted into the shared schema files (`ash_zod.ts` / `ash_valibot.ts`) rather than the routes file.
 
 If a route name collides with an RPC action name (both would generate the same schema constant), set `zod_schema_name` / `valibot_schema_name` on the route to rename its schemas.
+
+For GET routes the schema validates the same query object the path helper takes, which makes it useful for validating a form before building the URL:
+
+```typescript
+import { searchPath } from "./ash_routes";
+import { searchZodSchema } from "./ash_zod";
+
+const query = searchZodSchema.parse(formValues);
+const url = searchPath(query);
+```
 
 ## Error Handling
 
