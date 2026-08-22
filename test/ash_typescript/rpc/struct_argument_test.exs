@@ -137,6 +137,13 @@ defmodule AshTypescript.Rpc.StructArgumentTest do
 
       assert is_list(reachable)
     end
+
+    test "find_struct_argument_resources finds resources used as struct arguments" do
+      resources =
+        AshTypescript.Codegen.TypeDiscovery.find_struct_argument_resources(:ash_typescript)
+
+      assert AshTypescript.Test.TodoMetadata in resources
+    end
   end
 
   describe "ResourceSchemas generates InputSchema for struct argument resources" do

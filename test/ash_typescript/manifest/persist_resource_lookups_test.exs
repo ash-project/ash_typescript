@@ -64,8 +64,17 @@ defmodule AshTypescript.Manifest.UnifiedSpecTest do
         lookup
         |> Map.values()
         |> Enum.filter(& &1.embedded?)
+        |> Enum.map(& &1.module)
 
       assert embedded_modules != []
+
+      # Embedded resources reached through attributes and union members
+      assert AshTypescript.Test.TodoMetadata in embedded_modules
+      assert AshTypescript.Test.TodoContent.TextContent in embedded_modules
+
+      # Non-embedded RPC resources must not be flagged as embedded
+      refute AshTypescript.Test.Todo in embedded_modules
+      refute AshTypescript.Test.User in embedded_modules
     end
 
     test "includes resource relationships" do

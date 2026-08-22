@@ -33,6 +33,19 @@ defmodule AshTypescript.Resource.MapFieldNamesUtilityTest do
       end
     end
 
+    test "returns true for names with both patterns" do
+      invalid_names = [
+        "field_1?",
+        "item_2?data",
+        "test__5?"
+      ]
+
+      for name <- invalid_names do
+        assert AshTypescript.NameValidation.invalid_name?(name),
+               "#{name} should be invalid"
+      end
+    end
+
     test "returns false for valid names" do
       valid_names = [
         "normal_field",
@@ -55,7 +68,8 @@ defmodule AshTypescript.Resource.MapFieldNamesUtilityTest do
       test_cases = [
         {"field_1", "field1"},
         {"address_line_2", "address_line2"},
-        {"item__3", "item3"}
+        {"item__3", "item3"},
+        {"data___4", "data4"}
       ]
 
       for {input, expected} <- test_cases do
@@ -73,6 +87,34 @@ defmodule AshTypescript.Resource.MapFieldNamesUtilityTest do
       for {input, expected} <- test_cases do
         assert AshTypescript.NameValidation.make_name_better(input) ==
                  expected
+      end
+    end
+
+    test "handles combined patterns" do
+      test_cases = [
+        {"field_1?", "field1"},
+        {"item_2?data", "item2data"},
+        {"test__5?", "test5"}
+      ]
+
+      for {input, expected} <- test_cases do
+        assert AshTypescript.NameValidation.make_name_better(input) ==
+                 expected
+      end
+    end
+
+    test "leaves valid names unchanged" do
+      valid_names = [
+        "normalField",
+        "field_name",
+        "camelCase",
+        "snake_case",
+        "field1",
+        "item2"
+      ]
+
+      for name <- valid_names do
+        assert AshTypescript.NameValidation.make_name_better(name) == name
       end
     end
   end
