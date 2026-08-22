@@ -44,7 +44,39 @@ defmodule AshTypescript.Manifest do
   def handle_opts(opts) do
     quote do
       @persist {:domains, unquote(opts[:domains])}
+      unquote_splicing(compile_dependency_asts(opts[:otp_app], opts[:domains]))
     end
+  end
+
+  # The manifest is built by a transformer that discovers domains via
+  # `Ash.Info.domains/1` at compile time, which is invisible to the compiler's
+  # dependency tracker — without explicit edges, editing a resource recompiles
+  # the resource and its domain but not the manifest module, leaving the
+  # persisted manifest stale on incremental compiles. Injecting a static
+  # remote call per domain into the manifest module's body creates real
+  # compile-time dependencies: resource edit -> domain recompile -> manifest
+  # recompile. `Application.compile_env` additionally recompiles the manifest
+  # when the `:ash_domains` config itself changes.
+  defp compile_dependency_asts(otp_app, explicit_domains) do
+    config_tracking =
+      if is_nil(explicit_domains) and not is_nil(otp_app) do
+        [quote(do: _ = Application.compile_env(unquote(otp_app), :ash_domains, []))]
+      else
+        []
+      end
+
+    domains =
+      explicit_domains ||
+        (otp_app && Application.get_env(otp_app, :ash_domains, [])) || []
+
+    domain_deps =
+      for domain <- domains do
+        quote do
+          _ = unquote(domain).module_info(:md5)
+        end
+      end
+
+    config_tracking ++ domain_deps
   end
 
   @doc """
