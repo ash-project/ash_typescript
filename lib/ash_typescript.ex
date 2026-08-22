@@ -327,10 +327,12 @@ defmodule AshTypescript do
   @doc """
   Gets whether to warn about non-RPC resources that are referenced by RPC resources.
 
-  When enabled, during code generation, a warning will be displayed for any non-RPC
-  resource that is referenced in attributes, calculations, or aggregates of RPC resources.
-  The warning includes the paths showing where each resource is referenced, helping
-  you decide whether the resource should be added to the RPC configuration.
+  When enabled, a warning will be displayed for any non-RPC resource that is
+  referenced in attributes, calculations, aggregates, or relationships of RPC
+  resources (directly, or through other resources they reach). The warning
+  lists the referencing resource and field/relationship for each reference,
+  helping you decide whether the resource should be added to the RPC
+  configuration.
 
   ## Configuration
 
@@ -662,7 +664,7 @@ defmodule AshTypescript do
   - Custom: {Module, :function} or {Module, :function, [extra_args]}
   """
   def output_field_formatter do
-    Application.get_env(:ash_typescript, :output_field_formatter)
+    Application.get_env(:ash_typescript, :output_field_formatter, :camel_case)
   end
 
   @doc """
@@ -674,7 +676,7 @@ defmodule AshTypescript do
   - Custom: {Module, :function} or {Module, :function, [extra_args]}
   """
   def input_field_formatter do
-    Application.get_env(:ash_typescript, :input_field_formatter)
+    Application.get_env(:ash_typescript, :input_field_formatter, :camel_case)
   end
 
   @doc """
@@ -822,14 +824,14 @@ defmodule AshTypescript do
   end
 
   @doc """
-  Returns the full `%Ash.Info.Manifest{}` from `manifest` (defaults to the
-  configured manifest module).
+  Returns the full `%Ash.Info.Manifest{}` from `manifest_module` (defaults to
+  the configured manifest module).
   """
-  def api_spec(manifest \\ manifest_module()),
-    do: Spark.Dsl.Extension.get_persisted(manifest, :manifest)
+  def manifest(manifest_module \\ manifest_module()),
+    do: Spark.Dsl.Extension.get_persisted(manifest_module, :manifest)
 
-  @doc "Returns the entrypoints from `manifest` (defaults to the configured manifest module)."
-  def entrypoints(manifest \\ manifest_module()), do: api_spec(manifest).entrypoints
+  @doc "Returns the entrypoints from `manifest_module` (defaults to the configured manifest module)."
+  def entrypoints(manifest_module \\ manifest_module()), do: manifest(manifest_module).entrypoints
 
   @doc "Returns the resource lookup map from `manifest` (defaults to the configured manifest module)."
   def resource_lookup(manifest \\ manifest_module()),

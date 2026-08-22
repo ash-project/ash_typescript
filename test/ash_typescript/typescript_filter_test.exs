@@ -97,6 +97,17 @@ defmodule AshTypescript.FilterTest do
       assert String.contains?(result, "eq?: Record<string, any>")
     end
 
+    test "has? on an array of maps keeps the element type's own closing bracket" do
+      result = FilterTypes.generate_filter_type(Post)
+
+      assert String.contains?(result, "revisions?: {")
+      assert String.contains?(result, "eq?: Array<Record<string, any>>")
+      # `has?` collapses Array<X> to X — must strip only the wrapper's `>`,
+      # not trailing `>` belonging to the element type itself
+      assert String.contains?(result, "has?: Record<string, any>;")
+      refute String.contains?(result, "has?: Record<string, any;")
+    end
+
     test "includes relationship filters" do
       result = FilterTypes.generate_filter_type(Post)
 

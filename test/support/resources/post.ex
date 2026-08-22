@@ -35,6 +35,10 @@ defmodule AshTypescript.Test.Post do
     end
 
     attribute :metadata, :map, public?: true
+
+    # Array of untyped maps — regression coverage for the `has?` filter, whose
+    # element type (`Record<string, any>`) itself ends in `>`.
+    attribute :revisions, {:array, :map}, public?: true
   end
 
   relationships do

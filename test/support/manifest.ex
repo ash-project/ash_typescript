@@ -9,7 +9,7 @@ defmodule AshTypescript.Test.Manifest do
   Domain (and resource) compilation ordering is handled by the manifest
   transformer itself, which calls `Code.ensure_compiled!/1` on every RPC
   resource before running reachability analysis (see
-  `AshTypescript.Manifest.Transformers.BuildAppSpec`).
+  `AshTypescript.Manifest.Transformers.BuildManifest`).
   """
   use AshTypescript.Manifest, otp_app: :ash_typescript
 end

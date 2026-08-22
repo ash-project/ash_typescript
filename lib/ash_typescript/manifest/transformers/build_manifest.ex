@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Manifest.Transformers.BuildAppSpec do
+defmodule AshTypescript.Manifest.Transformers.BuildManifest do
   @moduledoc """
   Spark transformer that builds a unified `%Ash.Info.Manifest{}` from all domains'
   RPC configurations and persists it on the DSL state.
@@ -11,7 +11,7 @@ defmodule AshTypescript.Manifest.Transformers.BuildAppSpec do
   `RpcConfigCollector`, generates a single spec via
   `Ash.Info.Manifest.Generator.generate/1`, and persists the result. Lookups
   (`:resource_lookup`, `:action_lookup`, `:type_lookup`) are derived afterward
-  by `AshTypescript.Manifest.Transformers.DecorateAppSpec`, which runs next and
+  by `AshTypescript.Manifest.Transformers.DecorateManifest`, which runs next and
   also annotates the manifest with ash_typescript-specific data under
   `custom.ash_typescript`.
   """
@@ -23,7 +23,7 @@ defmodule AshTypescript.Manifest.Transformers.BuildAppSpec do
   alias Spark.Dsl.Transformer
 
   @impl true
-  def after?(AshTypescript.Manifest.Transformers.DecorateAppSpec), do: false
+  def after?(AshTypescript.Manifest.Transformers.DecorateManifest), do: false
   def after?(_), do: true
 
   @impl true
@@ -60,14 +60,14 @@ defmodule AshTypescript.Manifest.Transformers.BuildAppSpec do
     Enum.each(rpc_resources, &Code.ensure_compiled!/1)
 
     # Generate unified Ash.Info.Manifest with action-scoped reachability and RPC config
-    {:ok, api_spec} =
+    {:ok, manifest} =
       Ash.Info.Manifest.Generator.generate(otp_app: otp_app, action_entrypoints: all_entrypoints)
 
     # Ensure every module the decorator will later interrogate is compiled.
     # Reachability can drag in additional resources (relationship destinations
     # without their own RPC entries) and embedded resource modules whose
     # `AshTypescript.Resource` DSL state we need to read.
-    ensure_all_modules_compiled(api_spec)
+    ensure_all_modules_compiled(manifest)
 
     # Persist the raw per-resource RPC configs alongside the manifest so
     # verifiers can read RPC-specific data (typed_queries, etc.) that isn't
@@ -77,7 +77,7 @@ defmodule AshTypescript.Manifest.Transformers.BuildAppSpec do
 
     dsl_state =
       dsl_state
-      |> Transformer.persist(:manifest, api_spec)
+      |> Transformer.persist(:manifest, manifest)
       |> Transformer.persist(:rpc_configs, rpc_configs)
 
     {:ok, dsl_state}

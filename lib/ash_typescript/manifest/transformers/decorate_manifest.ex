@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: MIT
 
-defmodule AshTypescript.Manifest.Transformers.DecorateAppSpec do
+defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
   @moduledoc """
-  Runs after `BuildAppSpec` and decorates the persisted `%Ash.Info.Manifest{}`
+  Runs after `BuildManifest` and decorates the persisted `%Ash.Info.Manifest{}`
   with ash_typescript-specific metadata.
 
   After this transformer, every persisted lookup — `:manifest`,
@@ -22,7 +22,7 @@ defmodule AshTypescript.Manifest.Transformers.DecorateAppSpec do
   alias Spark.Dsl.Transformer
 
   @impl true
-  def after?(AshTypescript.Manifest.Transformers.BuildAppSpec), do: true
+  def after?(AshTypescript.Manifest.Transformers.BuildManifest), do: true
   def after?(_), do: false
 
   @impl true
@@ -72,11 +72,11 @@ defmodule AshTypescript.Manifest.Transformers.DecorateAppSpec do
   # `manifest.types` (as `kind: :embedded_resource` entries with the definition
   # in `type.resource`). ash_typescript treats them uniformly with domain
   # resources for schema generation, so this merges them back into the lookup.
-  defp build_resource_lookup(api_spec) do
-    base = Ash.Info.Manifest.resource_lookup(api_spec)
+  defp build_resource_lookup(manifest) do
+    base = Ash.Info.Manifest.resource_lookup(manifest)
 
     embedded =
-      api_spec.types
+      manifest.types
       |> Enum.filter(fn type ->
         match?(%Ash.Info.Manifest.Type{kind: :embedded_resource, resource: %_{}}, type)
       end)

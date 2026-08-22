@@ -31,7 +31,7 @@ defmodule AshTypescript.Manifest.Decorator do
   This module is pure: given a manifest in, returns a manifest out. All
   module-level information it needs (Spark DSL state on resource modules,
   `typescript_field_names/0` callbacks) is queried via the module atoms that
-  the manifest already references — the caller (`BuildAppSpec`) is responsible
+  the manifest already references — the caller (`BuildManifest`) is responsible
   for ensuring every referenced module is compiled before decoration runs.
   """
 
@@ -49,7 +49,7 @@ defmodule AshTypescript.Manifest.Decorator do
   @spec decorate(Manifest.t()) :: Manifest.t()
   def decorate(%Manifest{} = manifest) do
     # Build lookups from the in-hand manifest: the persisted `:type_lookup` /
-    # `:resource_lookup` don't exist yet (DecorateAppSpec derives them from *this*
+    # `:resource_lookup` don't exist yet (DecorateManifest derives them from *this*
     # decorated result), so action-level precomputation must resolve types against
     # a locally-built lookup instead of `AshTypescript.type_lookup/0`.
     type_lookup = Manifest.type_lookup(manifest)

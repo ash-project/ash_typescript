@@ -253,7 +253,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
   # Their names happen to be lowercase atoms that match TS keys 1:1 (`and`, `or`,
   # `not`) — no translation table needed.
   defp generate_logical_operators(filter_type_name) do
-    AshTypescript.api_spec().filter_capabilities.boolean_connectives
+    AshTypescript.manifest().filter_capabilities.boolean_connectives
     |> Enum.map_join("\n", fn connective ->
       "  #{connective}?: Array<#{filter_type_name}>;"
     end)
@@ -284,9 +284,11 @@ defmodule AshTypescript.Codegen.FilterTypes do
 
   # `:has` operates on an array field but the RHS is a single element. When
   # the field type is `Array<X>`, the rhs `:same` (the array type) needs to
-  # collapse to `X` so the TS user provides an element, not an array.
+  # collapse to `X` so the TS user provides an element, not an array. Only the
+  # single closing `>` of the `Array<...>` wrapper is dropped — the element
+  # type itself may end in `>` (e.g. `Array<Record<string, any>>`).
   defp function_base_type(:has, "Array<" <> rest) do
-    String.trim_trailing(rest, ">")
+    binary_part(rest, 0, byte_size(rest) - 1)
   end
 
   defp function_base_type(_name, base_type), do: base_type

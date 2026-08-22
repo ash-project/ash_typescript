@@ -31,7 +31,7 @@ Called from `Orchestrator.generate/2`. Reachability itself lives in ash core
 
 Ash 3.25.2+ carries embedded resources in `manifest.types` as `kind: :embedded_resource`
 entries (the `%Manifest.Resource{}` definition nested under `.resource`), **not** in
-`manifest.resources` — see `Manifest.Transformers.DecorateAppSpec` and
+`manifest.resources` — see `Manifest.Transformers.DecorateManifest` and
 `Manifest.Custom.resolve_resource/2`, which falls back to the type lookup for this reason.
 
 ### Field Classification

@@ -7,12 +7,13 @@ defmodule AshTypescript.Manifest.Dsl do
 
   use Spark.Dsl.Extension,
     transformers: [
-      AshTypescript.Manifest.Transformers.BuildAppSpec,
-      AshTypescript.Manifest.Transformers.DecorateAppSpec
+      AshTypescript.Manifest.Transformers.BuildManifest,
+      AshTypescript.Manifest.Transformers.DecorateManifest
     ],
     verifiers: [
       AshTypescript.Manifest.Verifiers.VerifyRpc,
       AshTypescript.Manifest.Verifiers.VerifyActionTypes,
+      AshTypescript.Manifest.Verifiers.VerifyMappableTypes,
       AshTypescript.Manifest.Verifiers.VerifyUniqueInputFieldNames,
       AshTypescript.Manifest.Verifiers.VerifyMetadataFieldNames,
       AshTypescript.Manifest.Verifiers.VerifyTypedQueryFields,

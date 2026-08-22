@@ -10,7 +10,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
 
   setup_all do
     {:ok,
-     api_spec: Spark.Dsl.Extension.get_persisted(AshTypescript.Test.Manifest, :manifest),
+     manifest: Spark.Dsl.Extension.get_persisted(AshTypescript.Test.Manifest, :manifest),
      resource_lookup: AshTypescript.resource_lookup()}
   end
 
@@ -82,7 +82,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
 
   describe "embedded resource decoration" do
     test "embedded resources nested in manifest.types carry .custom.ash_typescript",
-         %{api_spec: spec} do
+         %{manifest: spec} do
       type_lookup = Ash.Info.Manifest.type_lookup(spec)
       task_metadata = type_lookup[AshTypescript.Test.TaskMetadata]
 
@@ -100,7 +100,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
 
   describe "type decoration (NewTypes with typescript_field_names)" do
     test "Options NewType carries field_name_mappings on type.custom",
-         %{api_spec: spec} do
+         %{manifest: spec} do
       type_lookup = Ash.Info.Manifest.type_lookup(spec)
       options = type_lookup[AshTypescript.Test.InputParsing.Options]
 
@@ -115,7 +115,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
 
   describe "entrypoint decoration" do
     test "rpc_action / domain / resource_config are mirrored to .custom.ash_typescript",
-         %{api_spec: spec} do
+         %{manifest: spec} do
       entrypoint =
         Enum.find(spec.entrypoints, fn e ->
           e.resource == AshTypescript.Test.Task and
@@ -129,7 +129,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
     end
 
     test "metadata_field_mappings is derived from rpc_action.metadata_field_names",
-         %{api_spec: spec} do
+         %{manifest: spec} do
       entrypoint =
         Enum.find(spec.entrypoints, fn e ->
           e.resource == AshTypescript.Test.Task and
@@ -150,7 +150,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
     end
 
     test "entrypoints without metadata_field_names get empty mappings",
-         %{api_spec: spec} do
+         %{manifest: spec} do
       entrypoint =
         Enum.find(spec.entrypoints, fn e -> e.resource == AshTypescript.Test.User end)
 
@@ -188,7 +188,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
     end
 
     test "type module type_name is present only when typescript_type_name/0 is exported", %{
-      api_spec: spec
+      manifest: spec
     } do
       type_lookup = Ash.Info.Manifest.type_lookup(spec)
       color_palette = type_lookup[AshTypescript.Test.Todo.ColorPalette]
@@ -201,49 +201,49 @@ defmodule AshTypescript.Manifest.DecoratorTest do
   end
 
   describe "exposed_metadata_fields decoration" do
-    test "show_metadata: nil exposes all action metadata names", %{api_spec: spec} do
+    test "show_metadata: nil exposes all action metadata names", %{manifest: spec} do
       e = entrypoint_for_rpc(spec, AshTypescript.Test.Task, :read_tasks_with_metadata_all)
       assert Custom.exposed_metadata_fields(e) == Enum.map(e.action.metadata, & &1.name)
     end
 
-    test "show_metadata: false exposes none", %{api_spec: spec} do
+    test "show_metadata: false exposes none", %{manifest: spec} do
       e = entrypoint_for_rpc(spec, AshTypescript.Test.Task, :read_tasks_with_metadata_false)
       assert Custom.exposed_metadata_fields(e) == []
     end
 
-    test "show_metadata: [] exposes none", %{api_spec: spec} do
+    test "show_metadata: [] exposes none", %{manifest: spec} do
       e = entrypoint_for_rpc(spec, AshTypescript.Test.Task, :read_tasks_with_metadata_empty)
       assert Custom.exposed_metadata_fields(e) == []
     end
 
-    test "explicit list is preserved", %{api_spec: spec} do
+    test "explicit list is preserved", %{manifest: spec} do
       e = entrypoint_for_rpc(spec, AshTypescript.Test.Task, :read_tasks_with_metadata_two)
       assert Custom.exposed_metadata_fields(e) == [:some_string, :some_number]
     end
   end
 
   describe "load restrictions & filter/sort decoration" do
-    test "allowed_loads → {:allow, verbatim list}", %{api_spec: spec} do
+    test "allowed_loads → {:allow, verbatim list}", %{manifest: spec} do
       e = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_allow_only_user)
       assert Custom.load_restrictions(e) == {:allow, [:user]}
     end
 
-    test "nested allowed_loads preserve the exact nested shape", %{api_spec: spec} do
+    test "nested allowed_loads preserve the exact nested shape", %{manifest: spec} do
       e = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_allow_nested)
       assert Custom.load_restrictions(e) == {:allow, [:user, comments: [:todo]]}
     end
 
-    test "denied_loads → {:deny, list}", %{api_spec: spec} do
+    test "denied_loads → {:deny, list}", %{manifest: spec} do
       e = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_deny_user)
       assert Custom.load_restrictions(e) == {:deny, [:user]}
     end
 
-    test "neither → :none", %{api_spec: spec} do
+    test "neither → :none", %{manifest: spec} do
       e = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_no_filter)
       assert Custom.load_restrictions(e) == :none
     end
 
-    test "enable_filter?/enable_sort? default true, false when disabled", %{api_spec: spec} do
+    test "enable_filter?/enable_sort? default true, false when disabled", %{manifest: spec} do
       default = entrypoint_for_rpc(spec, AshTypescript.Test.Todo, :list_todos_allow_only_user)
       assert Custom.filtering_enabled?(default)
       assert Custom.sorting_enabled?(default)
