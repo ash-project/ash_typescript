@@ -7,6 +7,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
   Generates TypeScript type aliases for Ash types (e.g., UUID, Decimal, DateTime, etc.).
   """
 
+  alias AshTypescript.Codegen.TypeMapper
   alias AshTypescript.TypeSystem.Introspection
 
   @doc """
@@ -187,7 +188,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
         ""
 
       true ->
-        raise "Unknown type: #{type}"
+        TypeMapper.raise_unsupported_type!(type)
     end
   end
 

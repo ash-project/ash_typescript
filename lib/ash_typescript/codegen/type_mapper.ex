@@ -40,7 +40,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
     :binary => "Binary",
     :term => "any",
     :atom => "string",
-    :unknown => "any"
+    :any => "any"
   }
 
   @primitives %{
@@ -197,47 +197,11 @@ defmodule AshTypescript.Codegen.TypeMapper do
         map_typed_container(type_info, direction)
 
       _ ->
-        # For primitive kinds: check module lookup, custom types, then kind fallback
-        cond do
-          (ts = Map.get(@primitives, type_info.module)) != nil ->
-            ts
-
-          is_atom(type_info.module) and not is_nil(type_info.module) and
-              Introspection.is_custom_type?(type_info.module) ->
-            AshTypescript.Manifest.Custom.type_name(type_info) ||
-              type_info.module.typescript_type_name()
-
-          (override = get_type_mapping_override(type_info.module)) != nil ->
-            override
-
-          # Third-party Ash types with bespoke TypeScript aliases. These modules
-          # don't implement `typescript_type_name/0`, so they aren't caught by the
-          # custom-type branch above and would otherwise fall through to "any".
-          type_info.module == AshMoney.Types.Money ->
-            "Money"
-
-          type_info.module == AshPostgres.Ltree ->
-            map_ltree(type_info.constraints || [])
-
-          type_info.module == AshDoubleEntry.ULID ->
-            "ULID"
-
-          (ts = Map.get(@kind_to_ts, type_info.kind)) != nil ->
-            ts
-
-          type_info.kind == :atom ->
-            case Keyword.get(type_info.constraints || [], :one_of) do
-              nil ->
-                "string"
-
-              values ->
-                values
-                |> Enum.sort_by(&to_string/1)
-                |> Enum.map_join(" | ", &"\"#{to_string(&1)}\"")
-            end
-
-          true ->
-            "any"
+        # For primitive kinds: check module lookup, then the shared
+        # unknown-module accept-list, then the kind table.
+        case Map.get(@primitives, type_info.module) do
+          nil -> map_unclassified(type_info)
+          ts -> ts
         end
     end
   end
@@ -256,6 +220,101 @@ defmodule AshTypescript.Codegen.TypeMapper do
     # Build an %Ash.Info.Manifest.Type{} from raw Ash types for backward compatibility
     type_info = Ash.Info.Manifest.Generator.TypeResolver.resolve(type, constraints)
     map_type(type_info, constraints, direction)
+  end
+
+  @doc """
+  Maps a type module the manifest generator could not classify to a TypeScript
+  type, when possible.
+
+  This is the single accept-list for unclassified (`kind: :unknown`) type
+  modules, shared by `map_type/3`, `AshTypescript.Codegen.TypeAliases`, and
+  the compile-time `AshTypescript.Manifest.Verifiers.VerifyMappableTypes`
+  verifier: custom types implementing `typescript_type_name/0` (or decorated
+  with a `type_name` in the manifest), `type_mapping_overrides` config
+  entries, and known third-party types with bespoke aliases.
+  """
+  @spec unknown_module_mapping(Type.t()) :: {:ok, String.t()} | :unsupported
+  def unknown_module_mapping(%Type{module: module} = type_info) do
+    cond do
+      is_atom(module) and not is_nil(module) and Introspection.is_custom_type?(module) ->
+        {:ok, AshTypescript.Manifest.Custom.type_name(type_info) || module.typescript_type_name()}
+
+      (override = get_type_mapping_override(module)) != nil ->
+        {:ok, override}
+
+      # Third-party Ash types with bespoke TypeScript aliases. These modules
+      # don't implement `typescript_type_name/0`, so they aren't caught by the
+      # custom-type branch above.
+      module == AshMoney.Types.Money ->
+        {:ok, "Money"}
+
+      module == AshPostgres.Ltree ->
+        {:ok, map_ltree(type_info.constraints || [])}
+
+      module == AshDoubleEntry.ULID ->
+        {:ok, "ULID"}
+
+      true ->
+        :unsupported
+    end
+  end
+
+  @doc """
+  Raises the canonical "unsupported type" error for a type AshTypescript
+  cannot map to TypeScript. Accepts a `%Ash.Info.Manifest.Type{}` or a bare
+  type module.
+  """
+  @spec raise_unsupported_type!(Type.t() | atom()) :: no_return()
+  def raise_unsupported_type!(%Type{module: module, name: name, kind: kind}) do
+    raise_unsupported_type!(module || "#{name} (kind: #{inspect(kind)})")
+  end
+
+  def raise_unsupported_type!(type) do
+    raise """
+    unsupported type #{inspect(type)} — AshTypescript cannot map it to a TypeScript type.
+
+    To fix this, either:
+      - implement the `typescript_type_name/0` callback on the type module, or
+      - add an entry to `config :ash_typescript, type_mapping_overrides: [{#{inspect(type)}, "<ts type>"}]`
+    """
+  end
+
+  # Types whose module isn't a direct Ash primitive: the shared accept-list
+  # (custom types, overrides, third-party types), then the kind table.
+  # Genuinely unmappable module types raise. The `VerifyMappableTypes`
+  # manifest verifier reports these at compile time with full context, so the
+  # raise here is a backstop for paths that bypass the manifest.
+  defp map_unclassified(%Type{} = type_info) do
+    case unknown_module_mapping(type_info) do
+      {:ok, ts} ->
+        ts
+
+      :unsupported ->
+        cond do
+          (ts = Map.get(@kind_to_ts, type_info.kind)) != nil ->
+            ts
+
+          type_info.kind == :atom ->
+            case Keyword.get(type_info.constraints || [], :one_of) do
+              nil ->
+                "string"
+
+              values ->
+                values
+                |> Enum.sort_by(&to_string/1)
+                |> Enum.map_join(" | ", &"\"#{to_string(&1)}\"")
+            end
+
+          # `TypeResolver.resolve(nil)` and non-atom types yield
+          # `kind: :unknown` with no module — there is no module to point the
+          # user at, and no-return generic actions legitimately produce this.
+          is_nil(type_info.module) ->
+            "any"
+
+          true ->
+            raise_unsupported_type!(type_info)
+        end
+    end
   end
 
   # ─────────────────────────────────────────────────────────────────
@@ -544,11 +603,51 @@ defmodule AshTypescript.Codegen.TypeMapper do
     "{#{field_types}, __type: \"TypedMap\", __primitiveFields: #{primitive_fields_union}}"
   end
 
-  # Extracts field info from spec field maps
+  # Extracts field info from spec field maps.
+  #
+  # Members that are (arrays of) resources/embedded resources emit the same
+  # `{ __type: "Relationship"; ... }` wrapper resource schemas use, so the
+  # ComplexFieldSelection/InferFieldValue machinery selects through them with
+  # nested field syntax — a bare `Array<XResourceSchema>` matches none of its
+  # branches and the field would be unselectable at the type level. Nullability
+  # lives inside `__resource` (matching resource schemas); an outer `| null`
+  # would break the `extends { __type: "Relationship" }` match.
   defp extract_field_info(%{name: field_name, type: %Type{} = type, allow_nil?: allow_nil}) do
-    field_type_str = map_type(type, [], :output)
-    {field_name, field_type_str, allow_nil || false}
+    case resource_member(type) do
+      {resource, array?} ->
+        resource_type = map_resource(resource, :output)
+        null_suffix = if allow_nil, do: " | null", else: ""
+        array_marker = if array?, do: "__array: true; ", else: ""
+
+        wrapper =
+          "{ __type: \"Relationship\"; #{array_marker}__resource: #{resource_type}#{null_suffix}; }"
+
+        {field_name, wrapper, false}
+
+      nil ->
+        {field_name, map_type(type, [], :output), allow_nil || false}
+    end
   end
+
+  # Returns {resource_module, array?} when the (possibly array-wrapped,
+  # type_ref-resolved) type is a resource or embedded resource; nil otherwise.
+  defp resource_member(%Type{kind: :type_ref, module: mod}) do
+    resource_member(Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), mod))
+  end
+
+  defp resource_member(%Type{kind: kind} = type)
+       when kind in [:resource, :embedded_resource] do
+    {type.resource_module || type.module, false}
+  end
+
+  defp resource_member(%Type{kind: :array, item_type: %Type{} = item}) do
+    case resource_member(item) do
+      {resource, _array?} -> {resource, true}
+      nil -> nil
+    end
+  end
+
+  defp resource_member(_type), do: nil
 
   defp extract_field_name(%{name: field_name}), do: field_name
 

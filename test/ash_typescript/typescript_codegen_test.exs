@@ -6,7 +6,7 @@ defmodule AshTypescript.CodegenTest do
   use ExUnit.Case, async: false
   alias AshTypescript.Codegen
 
-  alias AshTypescript.Test.{Todo, TodoComment}
+  alias AshTypescript.Test.{Todo, TodoComment, TodoMetadata}
 
   describe "get_ts_type/2 - basic types" do
     test "converts nil type" do
@@ -302,10 +302,12 @@ defmodule AshTypescript.CodegenTest do
   end
 
   describe "error handling" do
-    test "unsupported type falls back to any" do
+    test "raises error for unsupported type" do
       unsupported_type = MyApp.CustomUnsupportedType
 
-      assert Codegen.get_ts_type(%{type: unsupported_type, constraints: []}) == "any"
+      assert_raise RuntimeError, ~r/unsupported type/, fn ->
+        Codegen.get_ts_type(%{type: unsupported_type, constraints: []})
+      end
     end
   end
 
@@ -322,6 +324,26 @@ defmodule AshTypescript.CodegenTest do
       assert result =~ "dueDate: AshDate | null;"
       assert result =~ "tags: Array<string> | null;"
       assert result =~ "userId: UUID;"
+
+      # Count aggregates are never nullable
+      assert result =~ "commentCount: number;"
+      refute result =~ "commentCount: number | null"
+
+      # Calculations keep their declared type, nullable
+      assert result =~ "isOverdue: boolean | null;"
+      assert result =~ "daysUntilDue: number | null;"
+    end
+
+    test "generates embedded resource references in Todo resource schema" do
+      # TodoMetadata must be in the allowed resource list for the embedded
+      # attribute/array-of-embedded fields to be emitted at all.
+      result = Codegen.generate_unified_resource_schema(Todo, [Todo, TodoComment, TodoMetadata])
+
+      assert result =~
+               "metadata: { __type: \"Relationship\"; __resource: TodoMetadataResourceSchema | null; };"
+
+      assert result =~
+               "metadataHistory: { __type: \"Relationship\"; __array: true; __resource: TodoMetadataResourceSchema; };"
     end
 
     test "generates complete TodoComment resource schema" do

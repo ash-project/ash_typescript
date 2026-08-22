@@ -71,12 +71,14 @@ defmodule AshTypescript.TypeMappingOverridesTest do
     end
   end
 
-  describe "type without override falls back to any" do
-    test "custom type without override or typescript_type_name falls back to any" do
+  describe "type without override raises error" do
+    test "custom type without override or typescript_type_name raises error" do
       # Remove the override temporarily
       Application.delete_env(:ash_typescript, :type_mapping_overrides)
 
-      assert Codegen.get_ts_type(%{type: CustomIdentifier, constraints: []}) == "any"
+      assert_raise RuntimeError, ~r/unsupported type/, fn ->
+        Codegen.get_ts_type(%{type: CustomIdentifier, constraints: []})
+      end
     end
   end
 

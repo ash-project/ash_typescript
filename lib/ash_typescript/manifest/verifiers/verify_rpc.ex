@@ -165,9 +165,32 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
       action ->
         with :ok <- verify_action_public(resource, rpc_action, action),
              :ok <- verify_read_action_public(resource, rpc_action),
-             :ok <- verify_get_options(resource, rpc_action, action) do
-          verify_load_restrictions(rpc_action)
+             :ok <- verify_get_options(resource, rpc_action, action),
+             :ok <- verify_show_metadata(resource, rpc_action, action) do
+          verify_load_restrictions(resource, rpc_action)
         end
+    end
+  end
+
+  defp verify_show_metadata(resource, rpc_action, action) do
+    case Map.get(rpc_action, :show_metadata) do
+      fields when is_list(fields) and fields != [] ->
+        metadata_names = action |> Map.get(:metadata, []) |> Enum.map(& &1.name)
+        invalid = Enum.reject(fields, &(&1 in metadata_names))
+
+        if invalid == [] do
+          :ok
+        else
+          {:error,
+           Spark.Error.DslError.exception(
+             message:
+               "RPC action #{rpc_action.name}: show_metadata contains unknown metadata fields: #{inspect(invalid)}. " <>
+                 "The action #{rpc_action.action} on #{inspect(resource)} defines metadata fields: #{inspect(metadata_names)}."
+           )}
+        end
+
+      _ ->
+        :ok
     end
   end
 
@@ -256,18 +279,132 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpc do
     end
   end
 
-  defp verify_load_restrictions(rpc_action) do
+  defp verify_load_restrictions(resource, rpc_action) do
     allowed_loads = Map.get(rpc_action, :allowed_loads)
     denied_loads = Map.get(rpc_action, :denied_loads)
 
-    if not is_nil(allowed_loads) and not is_nil(denied_loads) do
-      {:error,
-       Spark.Error.DslError.exception(
-         message:
-           "RPC action #{rpc_action.name}: allowed_loads and denied_loads options are mutually exclusive. Use allowed_loads to restrict loading to specific fields, or denied_loads to block specific fields."
-       )}
-    else
-      :ok
+    cond do
+      not is_nil(allowed_loads) and not is_nil(denied_loads) ->
+        {:error,
+         Spark.Error.DslError.exception(
+           message:
+             "RPC action #{rpc_action.name}: allowed_loads and denied_loads options are mutually exclusive. Use allowed_loads to restrict loading to specific fields, or denied_loads to block specific fields."
+         )}
+
+      not is_nil(allowed_loads) ->
+        verify_load_paths(resource, rpc_action, :allowed_loads, allowed_loads)
+
+      not is_nil(denied_loads) ->
+        verify_load_paths(resource, rpc_action, :denied_loads, denied_loads)
+
+      true ->
+        :ok
+    end
+  end
+
+  defp verify_load_paths(resource, rpc_action, option, loads) do
+    case collect_invalid_load_paths(resource, List.wrap(loads), []) do
+      [] ->
+        :ok
+
+      invalid ->
+        paths =
+          Enum.map_join(invalid, "\n", fn {path, res} ->
+            "  - #{Enum.join(path, ".")} (no loadable public field #{inspect(List.last(path))} on #{inspect(res)})"
+          end)
+
+        {:error,
+         Spark.Error.DslError.exception(
+           message: """
+           RPC action #{rpc_action.name}: #{option} contains invalid load paths:
+
+           #{paths}
+
+           Each entry must be a public relationship, calculation, aggregate, or
+           embedded-resource attribute reachable from #{inspect(resource)}.
+           """
+         )}
+    end
+  end
+
+  # Walks an allowed_loads/denied_loads list (atoms and `{field, nested}`
+  # keywords), validating each name against the loadable public fields of the
+  # resource at that level. Descends into relationship destinations, embedded
+  # attributes, and instance-of-resource calculations; when the next resource
+  # cannot be determined (e.g. a plain-map calculation), deeper entries are
+  # skipped rather than flagged — this verifier only rejects names that are
+  # definitely not loadable.
+  defp collect_invalid_load_paths(resource, loads, path) do
+    Enum.flat_map(loads, fn
+      field when is_atom(field) ->
+        check_load_field(resource, field, path, [])
+
+      {field, nested} when is_atom(field) and is_list(nested) ->
+        check_load_field(resource, field, path, nested)
+
+      _other ->
+        []
+    end)
+  end
+
+  defp check_load_field(resource, field, path, nested) do
+    full_path = path ++ [field]
+
+    case load_destination(resource, field) do
+      :invalid -> [{full_path, resource}]
+      {:ok, nil} -> []
+      {:ok, destination} -> collect_invalid_load_paths(destination, nested, full_path)
+    end
+  end
+
+  # Returns {:ok, destination_resource} when the field is loadable and nesting
+  # can be validated against a known resource, {:ok, nil} when the field is
+  # loadable but the nested resource can't be determined, or :invalid.
+  defp load_destination(resource, field) do
+    cond do
+      relationship = Ash.Resource.Info.public_relationship(resource, field) ->
+        {:ok, relationship.destination}
+
+      calculation = Ash.Resource.Info.public_calculation(resource, field) ->
+        {:ok, instance_of_resource(calculation.type, calculation.constraints)}
+
+      Ash.Resource.Info.public_aggregate(resource, field) ->
+        {:ok, nil}
+
+      attribute = Ash.Resource.Info.public_attribute(resource, field) ->
+        case instance_of_resource(attribute.type, attribute.constraints) do
+          nil -> :invalid
+          destination -> {:ok, destination}
+        end
+
+      true ->
+        :invalid
+    end
+  end
+
+  defp instance_of_resource({:array, type}, constraints) do
+    instance_of_resource(type, Keyword.get(constraints, :items, []))
+  end
+
+  defp instance_of_resource(type, constraints) do
+    cond do
+      not is_atom(type) ->
+        nil
+
+      Code.ensure_loaded?(type) and Ash.Type.embedded_type?(type) ->
+        if Ash.Resource.Info.resource?(type), do: type, else: nil
+
+      type == Ash.Type.Struct ->
+        with instance when is_atom(instance) and not is_nil(instance) <-
+               Keyword.get(constraints, :instance_of),
+             true <- Code.ensure_loaded?(instance) and Ash.Resource.Info.resource?(instance) do
+          instance
+        else
+          _ -> nil
+        end
+
+      true ->
+        nil
     end
   end
 
