@@ -28,7 +28,9 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
     end
 
     test "has required top-level keys", %{manifest: manifest} do
-      assert Map.has_key?(manifest, "$schema")
+      # No "$schema" key: it used to point at a json-manifest-schema.json that
+      # never existed in the repo.
+      refute Map.has_key?(manifest, "$schema")
       assert Map.has_key?(manifest, "version")
       assert Map.has_key?(manifest, "generatedAt")
       assert Map.has_key?(manifest, "actions")
@@ -415,6 +417,37 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
 
       assert login["mutation"] == true
       assert login["types"]["input"] == "LoginInput"
+    end
+
+    test "route zod name honors the zod_schema_name override", %{manifest: manifest} do
+      create_task =
+        Enum.find(manifest["typedControllerRoutes"], &(&1["functionName"] == "createTask"))
+
+      assert create_task["types"]["zod"] == "createTaskRouteZodSchema"
+    end
+
+    test "mutation routes with input advertise valibot schemas when enabled", %{
+      manifest: manifest
+    } do
+      login =
+        Enum.find(manifest["typedControllerRoutes"], &(&1["functionName"] == "login"))
+
+      assert login["types"]["valibot"] == "loginValibotSchema"
+    end
+
+    test "route valibot name honors the valibot_schema_name override", %{manifest: manifest} do
+      create_task =
+        Enum.find(manifest["typedControllerRoutes"], &(&1["functionName"] == "createTask"))
+
+      assert create_task["types"]["valibot"] == "createTaskRouteValibotSchema"
+    end
+
+    test "mutation routes without input advertise no schemas at all", %{manifest: manifest} do
+      logout =
+        Enum.find(manifest["typedControllerRoutes"], &(&1["functionName"] == "logout"))
+
+      assert logout
+      refute Map.has_key?(logout, "types")
     end
 
     test "routes with path params list them", %{manifest: manifest} do

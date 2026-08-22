@@ -24,6 +24,11 @@ Create a module that uses `AshTypescript.TypedController` and define your routes
 defmodule MyApp.Session do
   use AshTypescript.TypedController
 
+  # `use AshTypescript.TypedController` imports nothing from Plug/Phoenix —
+  # import what your handlers need (or fully qualify the calls)
+  import Plug.Conn
+  import Phoenix.Controller
+
   typed_controller do
     module_name MyAppWeb.SessionController
 
@@ -236,6 +241,7 @@ end
 | `see` | list of atoms | No | `[]` | Related route names for JSDoc `@see` tags |
 | `namespace` | string | No | — | Namespace for this route (overrides controller-level namespace) |
 | `zod_schema_name` | string | No | — | Override generated Zod schema name (avoids collisions with RPC) |
+| `valibot_schema_name` | string | No | — | Override generated Valibot schema name (avoids collisions with RPC) |
 
 ### `argument` Options
 
@@ -243,7 +249,7 @@ end
 |--------|------|----------|---------|-------------|
 | name | atom | Yes | — | Argument name (positional arg) |
 | type | atom or `{atom, keyword}` | Yes | — | Ash type (`:string`, `:boolean`, `:integer`, etc.) or `{type, constraints}` tuple |
-| `constraints` | keyword | No | `[]` | Type constraints |
+| `constraints` | keyword | No | `[]` | Type constraints (e.g. `min_length`, `match`, `min`, `max`). Validated against `Ash.Type.constraints/1` at compile time — invalid constraints are compile errors — and enforced at runtime like Ash action arguments |
 | `allow_nil?` | boolean | No | `true` | If `false`, argument is required |
 | `default` | any | No | — | Default value |
 
@@ -306,7 +312,8 @@ When a request hits a typed controller route, AshTypescript automatically:
 3. **Extracts** only declared arguments (undeclared params are dropped)
 4. **Validates** required arguments (`allow_nil?: false`) — missing args produce 422 errors
 5. **Casts** values using `Ash.Type.cast_input/3` — invalid values produce 422 errors
-6. **Dispatches** to the handler with atom-keyed params
+6. **Applies constraints** using `Ash.Type.apply_constraints/3` — violations (e.g. `min_length`, `match`, `min`/`max`) produce 422 errors. This follows Ash string semantics: strings are trimmed by default (`trim?: true`), and `""` on a nilable string is normalized to `nil` (on a required string it produces a 422 "is required")
+7. **Dispatches** to the handler with atom-keyed params
 
 ### Error Responses
 
@@ -613,6 +620,8 @@ Set a default namespace at the controller level, and optionally override per-rou
 defmodule MyApp.Session do
   use AshTypescript.TypedController
 
+  import Phoenix.Controller
+
   typed_controller do
     module_name MyAppWeb.SessionController
     namespace "auth"  # Default namespace for all routes
@@ -751,23 +760,34 @@ import * as RouteHooks from "./routeHooks";
 import * as Analytics from "./analytics";
 ```
 
-## Zod Schema Generation
+## Validation Schema Generation (Zod & Valibot)
 
-When `generate_zod_schemas: true` is configured, mutation routes also generate Zod validation schemas alongside their input types:
+When `generate_zod_schemas: true` is configured, routes with input arguments also generate Zod validation schemas alongside their input types:
 
 ```typescript
 export type LoginInput = {
   code: string;
-  rememberMe?: boolean;
+  rememberMe?: boolean | null;
 };
 
 export const loginZodSchema = z.object({
   code: z.string().min(1),
-  rememberMe: z.boolean().optional(),
+  rememberMe: z.boolean().nullable().optional(),
 });
 ```
 
-The schemas use the same `zod_import_path` and `zod_schema_suffix` settings as RPC Zod schemas. The `z` import is automatically added to the generated routes file.
+When `generate_valibot_schemas: true` is configured, equivalent Valibot schemas are generated as well:
+
+```typescript
+export const loginValibotSchema = v.object({
+  code: v.pipe(v.string(), v.minLength(1)),
+  rememberMe: v.optional(v.nullable(v.boolean())),
+});
+```
+
+The schemas use the same `zod_import_path`/`valibot_import_path` and `zod_schema_suffix`/`valibot_schema_suffix` settings as RPC schemas, and are emitted into the shared schema files (`ash_zod.ts` / `ash_valibot.ts`) rather than the routes file.
+
+If a route name collides with an RPC action name (both would generate the same schema constant), set `zod_schema_name` / `valibot_schema_name` on the route to rename its schemas.
 
 ## Error Handling
 
@@ -784,10 +804,12 @@ The handler is called for each error (both 422 validation errors and 500 server 
 
 ```elixir
 defmodule MyApp.ErrorHandler do
-  def handle(error, %{route: route_name, source_module: module}) do
+  def handle(error, %{route: route_name, source_module: _module}) do
     # Transform, log, or filter errors
     # Return nil to suppress the error, or a modified error map
-    Map.put(error, :code, "VALIDATION_ERROR")
+    error
+    |> Map.put(:code, "VALIDATION_ERROR")
+    |> Map.put(:route, route_name)
   end
 end
 ```
@@ -832,7 +854,7 @@ When enabled, 500 responses include the real exception message instead of the ge
 
 All three of `typed_controllers`, `router`, and `routes_output_file` must be configured for route generation to run.
 
-Route helpers are part of AshTypescript's multi-file output architecture — shared types and Zod schemas are generated into separate files that both RPC and controller code import from. See [Configuration Reference — Multi-File Output](../reference/configuration.md#multi-file-output) for the full file layout.
+Route helpers are part of AshTypescript's multi-file output architecture — shared types and Zod/Valibot schemas are generated into separate files that both RPC and controller code import from. See [Configuration Reference — Multi-File Output](../reference/configuration.md#multi-file-output) for the full file layout.
 
 ### Path Params Style
 

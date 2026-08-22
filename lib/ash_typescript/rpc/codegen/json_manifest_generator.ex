@@ -13,8 +13,8 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
   ## Schema version
 
-  The manifest includes a `version` field (currently `1`) so consumers can detect
-  breaking changes to the manifest format.
+  The manifest includes a `version` field (currently `"1.0"`, semver) so
+  consumers can detect breaking changes to the manifest format.
   """
 
   @manifest_version "1.0"
@@ -37,8 +37,6 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
     typed_controller_routes = build_typed_controller_routes()
 
     manifest = %{
-      "$schema" =>
-        "https://github.com/ash-project/ash_typescript/blob/main/json-manifest-schema.json",
       "version" => @manifest_version,
       "generatedAt" => Date.utc_today() |> Date.to_string(),
       "files" => build_files(manifest_path),
@@ -429,13 +427,11 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
     entry =
       if has_input and AshTypescript.Rpc.generate_zod_schemas?() do
-        suffix = AshTypescript.Rpc.zod_schema_suffix()
-
         zod_name =
-          case info.scope_prefix do
-            nil -> Helpers.format_output_field(:"#{info.route.name}#{suffix}")
-            prefix -> Helpers.format_output_field(:"#{prefix}_#{info.route.name}#{suffix}")
-          end
+          AshTypescript.TypedController.Codegen.route_zod_schema_name(
+            info.route,
+            info.scope_prefix
+          )
 
         put_in(entry, ["types", "zod"], zod_name)
       else
@@ -443,13 +439,11 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
       end
 
     if has_input and AshTypescript.Rpc.generate_valibot_schemas?() do
-      suffix = AshTypescript.Rpc.valibot_schema_suffix()
-
       valibot_name =
-        case info.scope_prefix do
-          nil -> Helpers.format_output_field(:"#{info.route.name}#{suffix}")
-          prefix -> Helpers.format_output_field(:"#{prefix}_#{info.route.name}#{suffix}")
-        end
+        AshTypescript.TypedController.Codegen.route_valibot_schema_name(
+          info.route,
+          info.scope_prefix
+        )
 
       put_in(entry, ["types", "valibot"], valibot_name)
     else

@@ -78,16 +78,22 @@ defmodule AshTypescript.TypedController.RequestHandler do
             type = Ash.Type.get_type(arg.type)
             constraints = arg.constraints || []
 
-            case Ash.Type.cast_input(type, raw_value, constraints) do
-              {:ok, cast_value} ->
-                {Map.put(params_acc, arg.name, cast_value), errors_acc}
-
-              {:error, message} when is_binary(message) ->
-                error = %{field: key, message: message}
+            # Mirror Ash's action-argument semantics: cast, then apply type
+            # constraints (e.g. strings: trim, empty -> nil, length checks),
+            # then re-check allow_nil? — a constrained-to-nil value (like ""
+            # under allow_empty?: false) fails a required argument.
+            with {:ok, cast_value} <- Ash.Type.cast_input(type, raw_value, constraints),
+                 {:ok, constrained_value} <-
+                   Ash.Type.apply_constraints(type, cast_value, constraints) do
+              if is_nil(constrained_value) && !arg.allow_nil? do
+                error = %{field: key, message: "is required"}
                 {params_acc, [error | errors_acc]}
-
-              {:error, _} ->
-                error = %{field: key, message: "is invalid"}
+              else
+                {Map.put(params_acc, arg.name, constrained_value), errors_acc}
+              end
+            else
+              {:error, error} ->
+                error = %{field: key, message: constraint_error_message(error)}
                 {params_acc, [error | errors_acc]}
             end
         end
@@ -99,6 +105,25 @@ defmodule AshTypescript.TypedController.RequestHandler do
       {:error, Enum.reverse(errors)}
     end
   end
+
+  # Humanizes cast/constraint errors: binaries pass through; keyword-list
+  # constraint errors (`[message: "...", max: 10]`) get their `%{var}`
+  # placeholders interpolated; lists of errors are joined.
+  defp constraint_error_message(error) when is_binary(error), do: error
+
+  defp constraint_error_message(error) when is_list(error) do
+    if Keyword.keyword?(error) and Keyword.has_key?(error, :message) do
+      vars = Keyword.drop(error, [:message])
+
+      Enum.reduce(vars, Keyword.fetch!(error, :message), fn {key, value}, acc ->
+        String.replace(acc, "%{#{key}}", to_string(value))
+      end)
+    else
+      Enum.map_join(error, "; ", &constraint_error_message/1)
+    end
+  end
+
+  defp constraint_error_message(_error), do: "is invalid"
 
   defp dispatch(conn, handler, input) when is_function(handler, 2) do
     case handler.(conn, input) do

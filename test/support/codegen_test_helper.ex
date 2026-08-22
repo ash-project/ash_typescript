@@ -64,6 +64,14 @@ defmodule AshTypescript.Test.CodegenTestHelper do
   end
 
   @doc """
+  Extracts the shared Valibot file content from a files map.
+  """
+  def valibot_content(files) do
+    path = AshTypescript.valibot_output_file()
+    Map.get(files, path, "")
+  end
+
+  @doc """
   Extracts the routes file content from a files map.
   """
   def routes_content(files) do

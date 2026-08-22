@@ -10,6 +10,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
   - `ash_types.ts` — type aliases, resource schemas, filter types, utility types, custom imports,
                       channel payload type aliases and events maps
   - `ash_zod.ts` — ALL Zod schemas: resource-level + per-action RPC + per-route controller
+  - `ash_valibot.ts` — ALL Valibot schemas: resource-level + per-action RPC + per-route controller
   - `ash_rpc.ts` — imports types from ash_types.ts (no Zod), hook types, helper functions,
                     per-action input types, per-action result types, per-action RPC functions
   - `routes.ts` — imports types from ash_types.ts (no Zod), static code, per-route path
@@ -143,7 +144,13 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
     files =
       if valibot_enabled? do
-        # Controller Valibot schemas not yet implemented
+        controller_valibot_schemas =
+          if routes_output_file do
+            ControllerCodegen.collect_route_valibot_schemas(router: AshTypescript.router())
+          else
+            []
+          end
+
         generate_schema_file(
           files,
           ValibotSchemaGenerator,
@@ -152,7 +159,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
           schema_resources,
           resources_and_actions,
           rpc_output_file,
-          []
+          controller_valibot_schemas
         )
       else
         files
@@ -267,7 +274,8 @@ defmodule AshTypescript.Codegen.Orchestrator do
             namespace,
             items,
             routes_output_file,
-            zod_output_file
+            zod_output_file,
+            valibot_output_file
           )
         end)
       else

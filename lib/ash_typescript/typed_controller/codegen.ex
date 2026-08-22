@@ -201,6 +201,20 @@ defmodule AshTypescript.TypedController.Codegen do
   These are meant to be passed to SharedSchemaGenerator as `:additional_schemas`.
   """
   def collect_route_zod_schemas(opts \\ []) do
+    collect_route_schemas(opts, &RouteRenderer.render_zod_schema/1)
+  end
+
+  @doc """
+  Collects all per-route Valibot schemas from typed controller routes.
+
+  Returns a list of Valibot schema strings (one per mutation route that has non-path arguments).
+  These are meant to be passed to SharedSchemaGenerator as `:additional_schemas`.
+  """
+  def collect_route_valibot_schemas(opts \\ []) do
+    collect_route_schemas(opts, &RouteRenderer.render_valibot_schema/1)
+  end
+
+  defp collect_route_schemas(opts, render_fun) do
     router = Keyword.get(opts, :router) || AshTypescript.router()
     routes_config = RouteConfigCollector.get_typed_controllers()
 
@@ -215,7 +229,7 @@ defmodule AshTypescript.TypedController.Codegen do
         end)
 
       sorted_infos
-      |> Enum.map(&RouteRenderer.render_zod_schema/1)
+      |> Enum.map(render_fun)
       |> Enum.reject(&(&1 == ""))
     end
   end
@@ -314,7 +328,8 @@ defmodule AshTypescript.TypedController.Codegen do
   @doc """
   Collects all exports for a list of route infos (for namespace re-export files).
 
-  Returns a list of `{name, kind}` tuples where kind is :value, :type, or :zod_value.
+  Returns a list of `{name, kind}` tuples where kind is :value, :type, :zod_value,
+  or :valibot_value.
   """
   def collect_route_exports(route_infos) do
     route_infos
@@ -348,17 +363,15 @@ defmodule AshTypescript.TypedController.Codegen do
             exports
           end
 
-        if AshTypescript.Rpc.generate_zod_schemas?() and input_args != [] do
-          suffix = AshTypescript.Rpc.zod_schema_suffix()
+        exports =
+          if AshTypescript.Rpc.generate_zod_schemas?() and input_args != [] do
+            exports ++ [{route_zod_schema_name(route, scope_prefix), :zod_value}]
+          else
+            exports
+          end
 
-          zod_name =
-            if route.zod_schema_name do
-              route.zod_schema_name
-            else
-              build_export_zod_schema_name(route.name, scope_prefix, suffix)
-            end
-
-          exports ++ [{zod_name, :zod_value}]
+        if AshTypescript.Rpc.generate_valibot_schemas?() and input_args != [] do
+          exports ++ [{route_valibot_schema_name(route, scope_prefix), :valibot_value}]
         else
           exports
         end
@@ -370,6 +383,42 @@ defmodule AshTypescript.TypedController.Codegen do
   end
 
   @doc """
+  Returns the exported Zod schema name for a route, honoring the route's
+  `zod_schema_name` override.
+
+  Single source of truth for the name — used by `RouteRenderer.render_zod_schema/1`
+  (the export itself), `collect_route_exports/1` (namespace re-exports), and
+  `JsonManifestGenerator` (the advertised name), so they cannot drift.
+  """
+  def route_zod_schema_name(route, scope_prefix) do
+    route.zod_schema_name ||
+      build_route_schema_name(route, scope_prefix, AshTypescript.Rpc.zod_schema_suffix())
+  end
+
+  @doc """
+  Returns the exported Valibot schema name for a route, honoring the route's
+  `valibot_schema_name` override.
+
+  Single source of truth for the name — used by `RouteRenderer.render_valibot_schema/1`
+  (the export itself), `collect_route_exports/1` (namespace re-exports), and
+  `JsonManifestGenerator` (the advertised name), so they cannot drift.
+  """
+  def route_valibot_schema_name(route, scope_prefix) do
+    route.valibot_schema_name ||
+      build_route_schema_name(route, scope_prefix, AshTypescript.Rpc.valibot_schema_suffix())
+  end
+
+  defp build_route_schema_name(route, scope_prefix, suffix) do
+    case scope_prefix do
+      nil ->
+        AshTypescript.Helpers.format_output_field(:"#{route.name}#{suffix}")
+
+      prefix ->
+        AshTypescript.Helpers.format_output_field(:"#{prefix}_#{route.name}#{suffix}")
+    end
+  end
+
+  @doc """
   Generates a namespace re-export file for the given namespace and route infos.
 
   Used by the Orchestrator to generate namespace files with proper import paths.
@@ -378,7 +427,8 @@ defmodule AshTypescript.TypedController.Codegen do
         namespace,
         route_infos,
         routes_file_path,
-        zod_file_path
+        zod_file_path,
+        valibot_file_path \\ nil
       ) do
     output_dir =
       AshTypescript.controller_namespace_output_dir() || Path.dirname(routes_file_path)
@@ -391,7 +441,8 @@ defmodule AshTypescript.TypedController.Codegen do
       exports,
       namespace_file,
       routes_file_path,
-      zod_file_path
+      zod_file_path,
+      valibot_file_path
     )
   end
 
@@ -417,14 +468,6 @@ defmodule AshTypescript.TypedController.Codegen do
 
   defp build_export_input_type_name(action_name, scope_prefix) do
     Macro.camelize("#{scope_prefix}_#{action_name}_input")
-  end
-
-  defp build_export_zod_schema_name(action_name, nil, suffix) do
-    AshTypescript.Helpers.format_output_field(:"#{action_name}#{suffix}")
-  end
-
-  defp build_export_zod_schema_name(action_name, scope_prefix, suffix) do
-    AshTypescript.Helpers.format_output_field(:"#{scope_prefix}_#{action_name}#{suffix}")
   end
 
   defp is_embedded_resource?(module) when is_atom(module) and not is_nil(module) do

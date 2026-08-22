@@ -70,6 +70,7 @@ defmodule AshTypescript.TypedController.Dsl do
       :description,
       :deprecated,
       :zod_schema_name,
+      :valibot_schema_name,
       :namespace,
       see: [],
       arguments: [],
@@ -149,6 +150,12 @@ defmodule AshTypescript.TypedController.Dsl do
       doc:
         "Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema."
     ],
+    valibot_schema_name: [
+      type: :string,
+      required: false,
+      doc:
+        "Override the generated Valibot schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Valibot schema."
+    ],
     namespace: [
       type: :string,
       required: false,
@@ -221,6 +228,9 @@ defmodule AshTypescript.TypedController.Dsl do
 
   use Spark.Dsl.Extension,
     sections: [@typed_controller],
-    transformers: [AshTypescript.TypedController.Transformers.GenerateController],
+    transformers: [
+      AshTypescript.TypedController.Transformers.FoldArgumentConstraints,
+      AshTypescript.TypedController.Transformers.GenerateController
+    ],
     verifiers: [AshTypescript.TypedController.Verifiers.VerifyTypedController]
 end

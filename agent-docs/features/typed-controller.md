@@ -41,7 +41,7 @@ The `AshTypescript.TypedController` DSL generates TypeScript path helpers and ty
 │  Rendering Layer: RouteRenderer                           │
 │  - GET routes → path helper functions                    │
 │  - Mutation routes → typed async action functions         │
-│  - Zod schema generation for mutation inputs             │
+│  - Zod/Valibot schema generation for route inputs        │
 │  - Input types from colocated route arguments            │
 │  - JSDoc with @see tags, @deprecated                     │
 │  - Field name mapping (camelCase)                        │
@@ -189,14 +189,15 @@ end
 | `see` | list(atom) | No | `[]` | Related route names for JSDoc `@see` tags |
 | `namespace` | string | No | - | Namespace for this route (overrides controller-level namespace) |
 | `zod_schema_name` | string | No | - | Override generated Zod schema name (avoids collisions with RPC) |
+| `valibot_schema_name` | string | No | - | Override generated Valibot schema name (avoids collisions with RPC) |
 
 ### Argument Options
 
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
 | `name` | atom | Yes | - | Argument name (positional arg) |
-| `type` | `atom \| {atom, keyword}` | Yes | - | Ash type — `:string`, a custom type module, or a parameterized/array tuple (e.g. `{:array, :string}`) |
-| `constraints` | keyword | No | `[]` | Type constraints. Validated and folded against the type's constraint schema at compile time (invalid constraints are compile errors); folded defaults drive both runtime enforcement and generated Zod. |
+| `type` | `atom \| {atom, keyword}` | Yes | - | Ash type — `:string` or a custom type module. The Spark schema also admits an `{atom, keyword}` tuple, but note `{:array, :string}` is NOT valid (position 1 must be a keyword list) — array arguments have no supported DSL form today |
+| `constraints` | keyword | No | `[]` | Type constraints. Validated and folded against the type's constraint schema at compile time (invalid constraints are compile errors); folded defaults drive both runtime enforcement and the generated Zod/Valibot schemas. |
 | `allow_nil?` | boolean | No | `true` | Whether argument can be nil. Set to `false` to make required. |
 | `default` | any | No | - | Default value |
 
@@ -225,7 +226,7 @@ Typed controllers are validated at compile time with these constraints:
 - **Handlers required** — every route must have a `run` handler
 - **Valid argument types** — all argument types must be valid Ash types
 - **Valid names for TypeScript** — route and argument names must not contain `_1`-style patterns or `?` characters (uses `AshTypescript.NameValidation`, the same helper the resource verifiers use)
-- **Valid argument constraints** — constraints are validated and folded against the type's constraint schema by the `FoldArgumentConstraints` transformer, so invalid constraints are compile errors exactly as in Ash. Folding also makes type defaults explicit (`allow_empty?: false`, `trim?: true` for strings), which is what drives the derived `min(1)` in route Zod schemas and the runtime trimming/nulling behavior.
+- **Valid argument constraints** — constraints are validated and folded against the type's constraint schema by the `FoldArgumentConstraints` transformer, so invalid constraints are compile errors exactly as in Ash. Folding also makes type defaults explicit (`allow_empty?: false`, `trim?: true` for strings), which is what drives the derived `min(1)` in route Zod/Valibot schemas and the runtime trimming/nulling behavior.
 
 Path parameters are also validated at codegen time:
 
@@ -407,6 +408,7 @@ Route exports are categorized as:
 - `:value` — path helper functions
 - `:type` — input type definitions
 - `:zod_value` — Zod schema constants
+- `:valibot_value` — Valibot schema constants
 
 ### Implementation
 
@@ -489,9 +491,9 @@ When hooks are enabled, `TypedControllerConfig` gains a `hookCtx?: TypedControll
 
 **Implementation**: `TypescriptStatic.generate_helper_function/0` injects hook calls into `executeTypedControllerRequest`.
 
-## Zod Schema Generation
+## Validation Schema Generation (Zod & Valibot)
 
-When `generate_zod_schemas: true`, mutation routes with non-path arguments generate Zod
+When `generate_zod_schemas: true`, routes with non-path arguments generate Zod
 schemas. These are emitted into the **shared Zod file** (`zod_output_file`, e.g.
 `ash_zod.ts`) — not into the routes file — via `Codegen.collect_route_zod_schemas/1`,
 which passes them to the shared schema generator as `additional_schemas`:
@@ -503,9 +505,20 @@ export const loginZodSchema = z.object({
 });
 ```
 
-Schema naming follows the `zod_schema_suffix` config, or the route's `zod_schema_name` override. Multi-mount routes include the scope prefix in the schema name.
+When `generate_valibot_schemas: true`, the same routes also generate Valibot
+schemas into the shared Valibot file (`valibot_output_file`, e.g. `ash_valibot.ts`)
+via `Codegen.collect_route_valibot_schemas/1`:
 
-**Implementation**: `RouteRenderer.render_zod_schema/1` composes each field through the shared `SchemaCore.compose_input_field/5` — the same pipeline RPC action inputs use — so route and action schemas cannot drift. The `min(1)` on `code` is *derived* from the folded `allow_empty?: false` string default, not hardcoded.
+```typescript
+export const loginValibotSchema = v.object({
+  code: v.pipe(v.string(), v.minLength(1)),
+  rememberMe: v.optional(v.nullable(v.boolean())),
+});
+```
+
+Schema naming follows the `zod_schema_suffix` / `valibot_schema_suffix` configs, or the route's `zod_schema_name` / `valibot_schema_name` overrides. Multi-mount routes include the scope prefix in the schema name.
+
+**Implementation**: `RouteRenderer.render_zod_schema/1` and `render_valibot_schema/1` share `render_validation_schema/3`, which composes each field through the shared `SchemaCore.compose_input_field/5` — the same pipeline RPC action inputs use — so route and action schemas cannot drift. The `min(1)` on `code` is *derived* from the folded `allow_empty?: false` string default, not hardcoded.
 
 ## Path Param `allow_nil?` Validation
 
@@ -593,7 +606,7 @@ mix ash_typescript.codegen --check      # Verify both are up-to-date (CI)
 mix ash_typescript.codegen --dry-run    # Preview changes
 ```
 
-The `Orchestrator` coordinates all file generation (types, Zod, RPC, routes, namespace re-exports) in a single pass. Both `--check` and `--dry-run` flags apply to all generated files.
+The `Orchestrator` coordinates all file generation (types, Zod, Valibot, RPC, routes, namespace re-exports) in a single pass. Both `--check` and `--dry-run` flags apply to all generated files.
 
 ## Key Files
 
@@ -610,7 +623,7 @@ The `Orchestrator` coordinates all file generation (types, Zod, RPC, routes, nam
 | `lib/ash_typescript/typed_controller/codegen.ex` | Codegen orchestration entry point (namespace grouping, export collection) |
 | `lib/ash_typescript/typed_controller/codegen/route_config_collector.ex` | Discovers typed controllers from app config, resolves namespace precedence |
 | `lib/ash_typescript/typed_controller/codegen/router_introspector.ex` | Phoenix router path matching and multi-mount handling |
-| `lib/ash_typescript/typed_controller/codegen/route_renderer.ex` | TypeScript function/type/Zod schema generation |
+| `lib/ash_typescript/typed_controller/codegen/route_renderer.ex` | TypeScript function/type/Zod/Valibot schema generation |
 | `lib/ash_typescript/typed_controller/codegen/typescript_static.ex` | Static TS code: TypedControllerConfig, executeTypedControllerRequest, imports, hooks |
 | `lib/mix/tasks/ash_typescript.codegen.ex` | Mix task integration |
 | `lib/ash_typescript.ex` | Config accessors for all typed controller options |

@@ -79,6 +79,7 @@ defmodule AshTypescript.Test.Session do
       argument :name, :string, allow_nil?: false
       argument :count, :integer
       argument :active, :boolean
+      argument :bio, :string
     end
 
     post :register do
@@ -106,6 +107,7 @@ defmodule AshTypescript.Test.Session do
     route :create_task, :post do
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "TaskCreated") end
       zod_schema_name "createTaskRouteZodSchema"
+      valibot_schema_name "createTaskRouteValibotSchema"
 
       argument :title, :string, allow_nil?: false, constraints: [min_length: 1, max_length: 200]
       argument :metadata, AshTypescript.Test.TaskMetadata, allow_nil?: false

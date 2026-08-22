@@ -16,6 +16,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
 
   alias Ash.Info.Manifest.Generator.TypeResolver
   alias AshTypescript.Codegen.SchemaCore
+  alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Codegen.ZodSchemaGenerator
 
   @mutation_methods [:post, :patch, :put, :delete]
@@ -206,63 +207,78 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   end
 
   @doc """
-  Renders the Zod schema for a route's mutation input.
+  Renders the Zod schema for a route's input.
 
-  Returns an empty string for GET routes, routes without non-path arguments,
+  Returns an empty string for routes without non-path arguments,
   or when Zod schema generation is disabled.
   """
   def render_zod_schema(route_info) do
     if AshTypescript.Rpc.generate_zod_schemas?() do
-      %{route: route, path_params: path_params, scope_prefix: scope_prefix} = route_info
-      suffix = AshTypescript.Rpc.zod_schema_suffix()
+      schema_name =
+        AshTypescript.TypedController.Codegen.route_zod_schema_name(
+          route_info.route,
+          route_info.scope_prefix
+        )
 
-      input_args = non_path_args(route, path_params)
-
-      if input_args == [] do
-        ""
-      else
-        schema_name =
-          if route.zod_schema_name do
-            route.zod_schema_name
-          else
-            build_zod_schema_name(route.name, scope_prefix, suffix)
-          end
-
-        field_lines =
-          Enum.map_join(input_args, "\n", fn arg ->
-            spec_type = TypeResolver.resolve(Ash.Type.get_type(arg.type), arg.constraints || [])
-
-            zod_type =
-              ZodSchemaGenerator.get_zod_type(%{type: spec_type, allow_nil?: arg.allow_nil?})
-
-            zod_type =
-              SchemaCore.maybe_wrap_nullable_optional(
-                ZodSchemaGenerator,
-                zod_type,
-                arg.allow_nil?,
-                arg.allow_nil? || arg.default != nil
-              )
-
-            "  #{format_output_field(arg.name)}: #{zod_type},"
-          end)
-
-        """
-        export const #{schema_name} = z.object({
-        #{field_lines}
-        });
-        """
-      end
+      render_validation_schema(route_info, ZodSchemaGenerator, schema_name)
     else
       ""
     end
   end
 
-  defp build_zod_schema_name(action_name, nil, suffix) do
-    format_output_field(:"#{action_name}#{suffix}")
+  @doc """
+  Renders the Valibot schema for a route's input.
+
+  Returns an empty string for routes without non-path arguments,
+  or when Valibot schema generation is disabled.
+  """
+  def render_valibot_schema(route_info) do
+    if AshTypescript.Rpc.generate_valibot_schemas?() do
+      schema_name =
+        AshTypescript.TypedController.Codegen.route_valibot_schema_name(
+          route_info.route,
+          route_info.scope_prefix
+        )
+
+      render_validation_schema(route_info, ValibotSchemaGenerator, schema_name)
+    else
+      ""
+    end
   end
 
-  defp build_zod_schema_name(action_name, scope_prefix, suffix) do
-    format_output_field(:"#{scope_prefix}_#{action_name}#{suffix}")
+  defp render_validation_schema(route_info, formatter, schema_name) do
+    %{route: route, path_params: path_params} = route_info
+
+    input_args = non_path_args(route, path_params)
+
+    if input_args == [] do
+      ""
+    else
+      field_lines =
+        Enum.map_join(input_args, "\n", fn arg ->
+          # Constraints arrive pre-folded by the FoldArgumentConstraints
+          # transformer, so this resolves to the same shape manifest inputs
+          # have — and composes through the same shared path.
+          spec_type = TypeResolver.resolve(Ash.Type.get_type(arg.type), arg.constraints || [])
+
+          {name, schema_type} =
+            SchemaCore.compose_input_field(
+              formatter,
+              format_output_field(arg.name),
+              %{type: spec_type},
+              arg.allow_nil?,
+              arg.allow_nil? || arg.default != nil
+            )
+
+          "  #{name}: #{schema_type},"
+        end)
+
+      """
+      export const #{schema_name} = #{formatter.library_prefix()}.object({
+      #{field_lines}
+      });
+      """
+    end
   end
 
   defp build_input_fields(route, path_params) do

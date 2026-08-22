@@ -706,6 +706,9 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
     test "generates Zod schemas for mutation routes with input args", %{zod: zod} do
       assert String.contains?(zod, "export const loginZodSchema = z.object({")
+      # Implicit min(1) from the folded allow_empty?: false string default —
+      # the request handler applies string constraints, so "" is rejected
+      # server-side for this required argument and the schema mirrors that
       assert String.contains?(zod, "code: z.string().min(1),")
       assert String.contains?(zod, "rememberMe: z.boolean().nullable().optional(),")
     end
@@ -713,7 +716,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
     test "generates Zod schema for update_provider excluding path params", %{zod: zod} do
       assert String.contains?(zod, "export const updateProviderZodSchema = z.object({")
       assert String.contains?(zod, "enabled: z.boolean(),")
-      assert String.contains?(zod, "displayName: z.string().nullable().optional(),")
+      assert String.contains?(zod, "displayName: z.string().min(1).nullable().optional(),")
 
       [_, after_schema] =
         String.split(zod, "export const updateProviderZodSchema = z.object({", parts: 2)
@@ -785,7 +788,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
       assert String.contains?(
                schema_body,
-               "score: z.number().min(0).max(100).nullable().optional(),"
+               "score: z.number().min(0.0).max(100.0).nullable().optional(),"
              )
     end
 
@@ -795,7 +798,10 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
       [schema_body | _] = String.split(after_schema, "});", parts: 2)
 
-      assert String.contains?(schema_body, "bio: z.string().max(500).nullable().optional(),")
+      assert String.contains?(
+               schema_body,
+               "bio: z.string().min(1).max(500).nullable().optional(),"
+             )
     end
 
     test "generates fixed-length string via min_length + max_length", %{zod: zod} do
@@ -898,6 +904,128 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
     test "no Zod import", %{typescript: typescript} do
       refute String.contains?(typescript, "import { z }")
+    end
+  end
+
+  describe "Valibot schema generation" do
+    setup %{files: files} do
+      valibot = CodegenTestHelper.valibot_content(files)
+      %{valibot: valibot}
+    end
+
+    test "generates Valibot schemas for mutation routes with input args", %{valibot: valibot} do
+      assert String.contains?(valibot, "export const loginValibotSchema = v.object({")
+      # Implicit minLength(1) from the folded allow_empty?: false string default —
+      # the request handler applies string constraints, so "" is rejected
+      # server-side for this required argument and the schema mirrors that
+      assert String.contains?(valibot, "code: v.pipe(v.string(), v.minLength(1)),")
+      assert String.contains?(valibot, "rememberMe: v.optional(v.nullable(v.boolean())),")
+    end
+
+    test "generates Valibot schema for update_provider excluding path params", %{
+      valibot: valibot
+    } do
+      assert String.contains?(valibot, "export const updateProviderValibotSchema = v.object({")
+      assert String.contains?(valibot, "enabled: v.boolean(),")
+
+      assert String.contains?(
+               valibot,
+               "displayName: v.optional(v.nullable(v.pipe(v.string(), v.minLength(1)))),"
+             )
+
+      [_, after_schema] =
+        String.split(valibot, "export const updateProviderValibotSchema = v.object({", parts: 2)
+
+      [schema_body | _] = String.split(after_schema, "});", parts: 2)
+      refute String.contains?(schema_body, "provider")
+    end
+
+    test "generates Valibot import in valibot file", %{valibot: valibot} do
+      assert String.contains?(valibot, "import * as v from \"valibot\";")
+    end
+
+    test "no Valibot schema for mutation routes without input args", %{valibot: valibot} do
+      refute String.contains?(valibot, "logoutValibotSchema")
+    end
+
+    test "maps types correctly - string, boolean, integer", %{valibot: valibot} do
+      assert String.contains?(valibot, "export const echoParamsValibotSchema = v.object({")
+
+      [_, after_schema] =
+        String.split(valibot, "export const echoParamsValibotSchema = v.object({", parts: 2)
+
+      [schema_body | _] = String.split(after_schema, "});", parts: 2)
+      assert String.contains?(schema_body, "name: v.pipe(v.string(), v.minLength(1)),")
+
+      assert String.contains?(
+               schema_body,
+               "count: v.optional(v.nullable(v.pipe(v.number(), v.integer()))),"
+             )
+
+      assert String.contains?(schema_body, "active: v.optional(v.nullable(v.boolean())),")
+    end
+
+    test "generates string, integer, and float constraints", %{valibot: valibot} do
+      assert String.contains?(valibot, "export const registerValibotSchema = v.object({")
+
+      [_, after_schema] =
+        String.split(valibot, "export const registerValibotSchema = v.object({", parts: 2)
+
+      [schema_body | _] = String.split(after_schema, "});", parts: 2)
+
+      assert String.contains?(
+               schema_body,
+               "username: v.pipe(v.string(), v.minLength(3), v.maxLength(20), v.regex(/^[a-zA-Z0-9_]+$/)),"
+             )
+
+      assert String.contains?(
+               schema_body,
+               "email: v.pipe(v.string(), v.minLength(1), v.regex(/^[^@]+@[^@]+\\.[^@]+$/)),"
+             )
+
+      assert String.contains?(
+               schema_body,
+               "age: v.pipe(v.number(), v.integer(), v.minValue(13), v.maxValue(120)),"
+             )
+
+      assert String.contains?(
+               schema_body,
+               "score: v.optional(v.nullable(v.pipe(v.number(), v.minValue(0.0), v.maxValue(100.0)))),"
+             )
+    end
+
+    test "generates Valibot schema referencing embedded resource Valibot schema", %{
+      valibot: valibot
+    } do
+      assert String.contains?(valibot, "export const createTaskRouteValibotSchema = v.object({")
+
+      [_, after_schema] =
+        String.split(valibot, "export const createTaskRouteValibotSchema = v.object({", parts: 2)
+
+      [schema_body | _] = String.split(after_schema, "});", parts: 2)
+
+      assert String.contains?(
+               schema_body,
+               "title: v.pipe(v.string(), v.minLength(1), v.maxLength(200)),"
+             )
+
+      assert String.contains?(schema_body, "metadata: TaskMetadataValibotSchema,")
+    end
+  end
+
+  describe "Valibot schema generation disabled" do
+    setup do
+      prev = Application.get_env(:ash_typescript, :generate_valibot_schemas)
+      Application.put_env(:ash_typescript, :generate_valibot_schemas, false)
+
+      on_exit(fn -> reset_env(:generate_valibot_schemas, prev) end)
+      :ok
+    end
+
+    test "collects no route Valibot schemas" do
+      assert AshTypescript.TypedController.Codegen.collect_route_valibot_schemas(
+               router: AshTypescript.Test.ControllerResourceTestRouter
+             ) == []
     end
   end
 

@@ -346,7 +346,7 @@ The manifest includes a `version` field (currently `"1.0"`) using semver so cons
       "path": "/auth/login",
       "pathParams": [],
       "mutation": true,
-      "types": { "input": "LoginInput", "zod": "loginZodSchema" }
+      "types": { "input": "LoginInput", "zod": "loginZodSchema", "valibot": "loginValibotSchema" }
     }
   ]
 }
@@ -356,10 +356,13 @@ Every typed controller route appears in `typedControllerRoutes`, including GET p
 helpers (`"mutation": false`, no `types` key). Only mutation routes with non-path
 arguments carry a `types` object.
 
-> ⚠️ **Known issue**: when Valibot schemas are enabled, `typedControllerRoutes[].types`
-> also gains a `"valibot"` key — but controller Valibot schemas are **not currently
-> generated** (only Zod). Do not consume that name; it will not resolve to an export.
-> The route-level `"zod"` name also ignores a route's `zod_schema_name` override.
+The route-level `"zod"` and `"valibot"` names honor a route's `zod_schema_name` /
+`valibot_schema_name` overrides; the single sources of truth are
+`TypedController.Codegen.route_zod_schema_name/2` and `route_valibot_schema_name/2`,
+shared by the renderer, namespace re-exports, and the manifests, so they cannot
+drift. Each key appears only when the corresponding `generate_*_schemas` config
+is enabled. (The Markdown manifest lists no Valibot names anywhere — for routes
+or RPC actions — so route Valibot names surface only in the JSON manifest.)
 
 ### Action Entry Fields
 

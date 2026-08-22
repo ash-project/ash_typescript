@@ -563,14 +563,9 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     base = "| #{method} | #{path} | `#{function_name}` | #{input_type} |"
 
     if show_zod do
-      suffix = AshTypescript.Rpc.zod_schema_suffix()
-
       zod_name =
         if info.method in @tc_mutation_methods and input_args != [] do
-          case info.scope_prefix do
-            nil -> "`#{Helpers.format_output_field(:"#{info.route.name}#{suffix}")}`"
-            prefix -> "`#{Helpers.format_output_field(:"#{prefix}_#{info.route.name}#{suffix}")}`"
-          end
+          "`#{AshTypescript.TypedController.Codegen.route_zod_schema_name(info.route, info.scope_prefix)}`"
         else
           "-"
         end

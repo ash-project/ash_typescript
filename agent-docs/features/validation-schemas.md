@@ -140,6 +140,7 @@ When `json_manifest_file` is configured, both Zod and Valibot appear in:
 - `files` — separate file entries for `"zod"` and `"valibot"`
 - `variants` — `"zod": true/false`, `"valibot": true/false`
 - `variantNames` — schema constant names per action
+- `typedControllerRoutes[].types` — `"zod"` / `"valibot"` schema constant names for routes with input
 
 ## Integration Points
 
@@ -154,10 +155,13 @@ The `Orchestrator` calls `generate_schema_file/8` for each enabled library, pass
 ### Typed Controllers
 
 Route argument schemas compose through the **same** shared function as RPC action inputs —
-`RouteRenderer.render_zod_schema/1` (`typed_controller/codegen/route_renderer.ex`) calls
-`SchemaCore.compose_input_field/5` per argument. One pipeline, so route/RPC drift is
-structurally impossible (0.18). Routes are Zod-only; gated on
-`AshTypescript.Rpc.generate_zod_schemas?/0`.
+`RouteRenderer.render_zod_schema/1` and `render_valibot_schema/1`
+(`typed_controller/codegen/route_renderer.ex`) both delegate to a shared
+`render_validation_schema/3` that calls `SchemaCore.compose_input_field/5` per argument.
+One pipeline, so route/RPC drift is structurally impossible (0.18). Each library is
+gated on its own flag (`AshTypescript.Rpc.generate_zod_schemas?/0` /
+`generate_valibot_schemas?/0`), and routes support `zod_schema_name` /
+`valibot_schema_name` overrides for collisions with RPC action schema names.
 
 ### Unified Action Inputs
 

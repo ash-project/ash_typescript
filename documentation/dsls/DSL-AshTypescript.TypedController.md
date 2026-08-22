@@ -111,6 +111,7 @@ the `AshTypescript.TypedController.Route` behaviour. Handlers receive
 | [`deprecated`](#typed_controller-route-deprecated){: #typed_controller-route-deprecated } | `boolean \| String.t` |  | Mark this route as deprecated. Set to true for a default message, or provide a custom deprecation notice. |
 | [`see`](#typed_controller-route-see){: #typed_controller-route-see } | `list(atom)` | `[]` | List of related route names to reference in JSDoc @see tags. |
 | [`zod_schema_name`](#typed_controller-route-zod_schema_name){: #typed_controller-route-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
+| [`valibot_schema_name`](#typed_controller-route-valibot_schema_name){: #typed_controller-route-valibot_schema_name } | `String.t` |  | Override the generated Valibot schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Valibot schema. |
 | [`namespace`](#typed_controller-route-namespace){: #typed_controller-route-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
 
 
@@ -183,6 +184,7 @@ Define a GET route. Shorthand for `route :name, :get`.
 | [`deprecated`](#typed_controller-get-deprecated){: #typed_controller-get-deprecated } | `boolean \| String.t` |  | Mark this route as deprecated. Set to true for a default message, or provide a custom deprecation notice. |
 | [`see`](#typed_controller-get-see){: #typed_controller-get-see } | `list(atom)` | `[]` | List of related route names to reference in JSDoc @see tags. |
 | [`zod_schema_name`](#typed_controller-get-zod_schema_name){: #typed_controller-get-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
+| [`valibot_schema_name`](#typed_controller-get-valibot_schema_name){: #typed_controller-get-valibot_schema_name } | `String.t` |  | Override the generated Valibot schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Valibot schema. |
 | [`namespace`](#typed_controller-get-namespace){: #typed_controller-get-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
 
 
@@ -255,6 +257,7 @@ Define a POST route. Shorthand for `route :name, :post`.
 | [`deprecated`](#typed_controller-post-deprecated){: #typed_controller-post-deprecated } | `boolean \| String.t` |  | Mark this route as deprecated. Set to true for a default message, or provide a custom deprecation notice. |
 | [`see`](#typed_controller-post-see){: #typed_controller-post-see } | `list(atom)` | `[]` | List of related route names to reference in JSDoc @see tags. |
 | [`zod_schema_name`](#typed_controller-post-zod_schema_name){: #typed_controller-post-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
+| [`valibot_schema_name`](#typed_controller-post-valibot_schema_name){: #typed_controller-post-valibot_schema_name } | `String.t` |  | Override the generated Valibot schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Valibot schema. |
 | [`namespace`](#typed_controller-post-namespace){: #typed_controller-post-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
 
 
@@ -327,6 +330,7 @@ Define a PATCH route. Shorthand for `route :name, :patch`.
 | [`deprecated`](#typed_controller-patch-deprecated){: #typed_controller-patch-deprecated } | `boolean \| String.t` |  | Mark this route as deprecated. Set to true for a default message, or provide a custom deprecation notice. |
 | [`see`](#typed_controller-patch-see){: #typed_controller-patch-see } | `list(atom)` | `[]` | List of related route names to reference in JSDoc @see tags. |
 | [`zod_schema_name`](#typed_controller-patch-zod_schema_name){: #typed_controller-patch-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
+| [`valibot_schema_name`](#typed_controller-patch-valibot_schema_name){: #typed_controller-patch-valibot_schema_name } | `String.t` |  | Override the generated Valibot schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Valibot schema. |
 | [`namespace`](#typed_controller-patch-namespace){: #typed_controller-patch-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
 
 
@@ -399,6 +403,7 @@ Define a PUT route. Shorthand for `route :name, :put`.
 | [`deprecated`](#typed_controller-put-deprecated){: #typed_controller-put-deprecated } | `boolean \| String.t` |  | Mark this route as deprecated. Set to true for a default message, or provide a custom deprecation notice. |
 | [`see`](#typed_controller-put-see){: #typed_controller-put-see } | `list(atom)` | `[]` | List of related route names to reference in JSDoc @see tags. |
 | [`zod_schema_name`](#typed_controller-put-zod_schema_name){: #typed_controller-put-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
+| [`valibot_schema_name`](#typed_controller-put-valibot_schema_name){: #typed_controller-put-valibot_schema_name } | `String.t` |  | Override the generated Valibot schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Valibot schema. |
 | [`namespace`](#typed_controller-put-namespace){: #typed_controller-put-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
 
 
@@ -471,6 +476,7 @@ Define a DELETE route. Shorthand for `route :name, :delete`.
 | [`deprecated`](#typed_controller-delete-deprecated){: #typed_controller-delete-deprecated } | `boolean \| String.t` |  | Mark this route as deprecated. Set to true for a default message, or provide a custom deprecation notice. |
 | [`see`](#typed_controller-delete-see){: #typed_controller-delete-see } | `list(atom)` | `[]` | List of related route names to reference in JSDoc @see tags. |
 | [`zod_schema_name`](#typed_controller-delete-zod_schema_name){: #typed_controller-delete-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
+| [`valibot_schema_name`](#typed_controller-delete-valibot_schema_name){: #typed_controller-delete-valibot_schema_name } | `String.t` |  | Override the generated Valibot schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Valibot schema. |
 | [`namespace`](#typed_controller-delete-namespace){: #typed_controller-delete-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
 
 

@@ -134,6 +134,18 @@ defmodule AshTypescript.TypedController.NamespaceTest do
       refute "logoutZodSchema" in zod_names
     end
 
+    test "collects valibot schema exports when enabled", %{route_infos: grouped} do
+      auth_routes = Map.get(grouped, "auth", [])
+      exports = Codegen.collect_route_exports(auth_routes)
+      valibot_exports = Enum.filter(exports, fn {_name, kind} -> kind == :valibot_value end)
+      valibot_names = Enum.map(valibot_exports, fn {name, _} -> name end)
+
+      assert "loginValibotSchema" in valibot_names
+      assert "updateProviderValibotSchema" in valibot_names
+
+      refute "logoutValibotSchema" in valibot_names
+    end
+
     test "account namespace exports contain only profile route", %{route_infos: grouped} do
       account_routes = Map.get(grouped, "account", [])
       exports = Codegen.collect_route_exports(account_routes)
@@ -225,6 +237,25 @@ defmodule AshTypescript.TypedController.NamespaceTest do
 
       assert content =~ "loginZodSchema"
       assert content =~ "ash_zod"
+    end
+
+    test "re-exports Valibot schemas from valibot file" do
+      route_infos =
+        Codegen.get_routes_by_namespace(router: AshTypescript.Test.ControllerResourceTestRouter)
+
+      auth_routes = Map.get(route_infos, "auth", [])
+
+      content =
+        Codegen.generate_controller_namespace_reexport_content(
+          "auth",
+          auth_routes,
+          "./test/ts/generated_routes.ts",
+          "./test/ts/ash_zod.ts",
+          "./test/ts/ash_valibot.ts"
+        )
+
+      assert content =~ "loginValibotSchema"
+      assert content =~ "ash_valibot"
     end
 
     test "account namespace file only contains profile exports" do

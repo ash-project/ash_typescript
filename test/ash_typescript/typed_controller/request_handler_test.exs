@@ -416,6 +416,42 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     end
   end
 
+  describe "constraint application (Ash action-argument semantics)" do
+    # The handler mirrors Ash's action-argument pipeline: cast_input, then
+    # apply_constraints, then re-check allow_nil?. Strings therefore get the
+    # allow_empty?: false default — "" becomes nil — and declared constraints
+    # are enforced. The generated route schemas mirror this (e.g. `.min(1)`
+    # on required strings).
+    test "empty string is rejected for an allow_nil?: false string argument" do
+      conn = call(:login, %{"code" => ""})
+
+      assert conn.status == 422
+      assert %{"errors" => [%{"field" => "code", "message" => "is required"}]} = json_body(conn)
+    end
+
+    test "empty string becomes nil for a nilable string argument" do
+      conn = call(:echo_params, %{"name" => "alice", "bio" => ""})
+
+      assert conn.status == 200
+      assert json_body(conn)["params"]["bio"] == nil
+    end
+
+    test "strings are trimmed per the trim? default" do
+      conn = call(:echo_params, %{"name" => "  alice  "})
+
+      assert conn.status == 200
+      assert json_body(conn)["params"]["name"] == "alice"
+    end
+
+    test "declared constraints are enforced" do
+      conn = call(:register, %{"username" => "x", "email" => "a@b.co", "age" => 20})
+
+      assert conn.status == 422
+      body = json_body(conn)
+      assert Enum.any?(body["errors"], &(&1["field"] == "username"))
+    end
+  end
+
   defmodule FilteringErrorHandler do
     def handle(_error, _context), do: nil
   end

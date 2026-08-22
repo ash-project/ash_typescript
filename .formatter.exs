@@ -57,6 +57,7 @@ spark_locals_without_parens = [
   type_name: 1,
   typed_query: 2,
   typed_query: 3,
+  valibot_schema_name: 1,
   zod_schema_name: 1
 ]
 
