@@ -6,8 +6,12 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
   @moduledoc """
   Generates TypeScript types for Ash Rpc-calls.
 
+  Output file locations are controlled by configuration (`output_file` and
+  friends) — see the Configuration Reference.
+
   Usage:
-    mix ash_typescript.codegen --output "assets/js/ash_generated.ts"
+    mix ash_typescript.codegen [--check | --dry-run] [--dev]
+      [--run-endpoint PATH] [--validate-endpoint PATH]
   """
 
   @shortdoc "Generates TypeScript types for Ash Rpc-calls"
@@ -24,14 +28,13 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
     {opts, _remaining, _invalid} =
       OptionParser.parse(args,
         switches: [
-          output: :string,
           check: :boolean,
           dev: :boolean,
           dry_run: :boolean,
           run_endpoint: :string,
           validate_endpoint: :string
         ],
-        aliases: [o: :string, r: :run_endpoint, v: :validate_endpoint]
+        aliases: [r: :run_endpoint, v: :validate_endpoint]
       )
 
     otp_app = Mix.Project.config()[:app]

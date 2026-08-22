@@ -59,22 +59,6 @@ defmodule AshTypescript.Codegen.Helpers do
   def is_complex_return_type(_, _), do: false
 
   @doc """
-  Looks up the type of an aggregate field by traversing relationship paths.
-  """
-  def lookup_aggregate_type(current_resource, [], field) do
-    Ash.Resource.Info.attribute(current_resource, field)
-  end
-
-  def lookup_aggregate_type(current_resource, relationship_path, field) do
-    [next_resource | rest] = relationship_path
-
-    relationship =
-      Enum.find(Ash.Resource.Info.relationships(current_resource), &(&1.name == next_resource))
-
-    lookup_aggregate_type(relationship.destination, rest, field)
-  end
-
-  @doc """
   Converts a PascalCase name to camelCase by lowercasing the first character.
 
   ## Examples

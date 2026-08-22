@@ -86,7 +86,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     # Classified as :valibot_value so namespace files can re-export from ash_valibot.ts
     exports =
-      if AshTypescript.Rpc.generate_valibot_schemas?() and action.inputs != [] do
+      if AshTypescript.Rpc.generate_valibot_schemas?() and has_input? do
         suffix = AshTypescript.Rpc.valibot_schema_suffix()
         valibot_schema_name = format_output_field("#{rpc_action_name}#{suffix}")
         exports ++ [{valibot_schema_name, :valibot_value}]

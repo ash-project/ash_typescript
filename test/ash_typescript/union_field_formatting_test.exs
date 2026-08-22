@@ -7,8 +7,8 @@ defmodule AshTypescript.UnionFieldFormattingTest do
   Regression tests to ensure union field formatting uses configured field formatters
   instead of hardcoded snake_to_camel_case conversion.
 
-  This prevents regressions where union type generation functions (build_union_type
-  and build_union_input_type) accidentally revert to hardcoded formatting.
+  This prevents regressions where union type generation functions (build_union_type_from_members
+  and build_union_input_type_from_members) accidentally revert to hardcoded formatting.
 
   The tests verify that union member names like :priority_value, :mime_type, :alt_text
   are formatted according to the configured :output_field_formatter setting.
@@ -142,7 +142,7 @@ defmodule AshTypescript.UnionFieldFormattingTest do
       refute String.contains?(typescript_output, "StatusInfo: { __type: \"Union\"")
     end
 
-    test "union member formatting works for both build_union_type and build_union_input_type" do
+    test "union member formatting works for both build_union_type_from_members and build_union_input_type_from_members" do
       Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
 
       {:ok, typescript_output} =

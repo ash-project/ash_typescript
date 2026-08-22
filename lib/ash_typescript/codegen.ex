@@ -28,7 +28,7 @@ defmodule AshTypescript.Codegen do
   defdelegate generate_all_schemas_for_resources(
                 resources,
                 allowed_resources,
-                resources_needing_input_schema \\ nil
+                resources_needing_input_schema \\ []
               ),
               to: ResourceSchemas
 
@@ -46,5 +46,4 @@ defmodule AshTypescript.Codegen do
   defdelegate get_ts_input_type(attr), to: TypeMapper
   defdelegate build_map_type(fields, select \\ nil, field_name_mappings \\ nil), to: TypeMapper
   defdelegate build_resource_type_name(resource_module), to: Helpers
-  defdelegate lookup_aggregate_type(resource, relationship_path, field), to: Helpers
 end

@@ -292,11 +292,13 @@ defmodule AshTypescript.Rpc do
   Determines if tenant parameters are required in RPC requests.
 
   This checks the application configuration for :require_tenant_parameters.
-  If true (default), tenant parameters are required for multitenant resources.
-  If false, tenant will be extracted from the connection using Ash.PlugHelpers.get_tenant/1.
+  If true, tenant parameters are required for multitenant resources.
+  If false (default), tenant will be extracted from the connection using
+  Ash.PlugHelpers.get_tenant/1 (an explicitly provided tenant parameter still
+  takes precedence).
   """
   def require_tenant_parameters? do
-    Application.get_env(:ash_typescript, :require_tenant_parameters)
+    Application.get_env(:ash_typescript, :require_tenant_parameters, false)
   end
 
   @doc """
@@ -331,17 +333,17 @@ defmodule AshTypescript.Rpc do
   Can be customized for different package managers or custom Zod builds.
   """
   def zod_import_path do
-    Application.get_env(:ash_typescript, :zod_import_path)
+    Application.get_env(:ash_typescript, :zod_import_path, "zod")
   end
 
   @doc """
   Gets the suffix used for generated Zod schema constants.
 
   This determines the naming pattern for Zod schemas.
-  Defaults to "Schema" (e.g., createTodoSchema).
+  Defaults to "ZodSchema" (e.g., createTodoZodSchema).
   """
   def zod_schema_suffix do
-    Application.get_env(:ash_typescript, :zod_schema_suffix)
+    Application.get_env(:ash_typescript, :zod_schema_suffix, "ZodSchema")
   end
 
   @doc """
@@ -362,7 +364,7 @@ defmodule AshTypescript.Rpc do
   Can be customized for different package managers or custom Valibot builds.
   """
   def valibot_import_path do
-    Application.get_env(:ash_typescript, :valibot_import_path)
+    Application.get_env(:ash_typescript, :valibot_import_path, "valibot")
   end
 
   @doc """
@@ -372,7 +374,7 @@ defmodule AshTypescript.Rpc do
   Defaults to "ValibotSchema" (e.g., createTodoValibotSchema).
   """
   def valibot_schema_suffix do
-    Application.get_env(:ash_typescript, :valibot_schema_suffix)
+    Application.get_env(:ash_typescript, :valibot_schema_suffix, "ValibotSchema")
   end
 
   @doc """
@@ -497,7 +499,7 @@ defmodule AshTypescript.Rpc do
   Can be customized for different package managers or custom Phoenix builds.
   """
   def phoenix_import_path do
-    Application.get_env(:ash_typescript, :phoenix_import_path)
+    Application.get_env(:ash_typescript, :phoenix_import_path, "phoenix")
   end
 
   @doc """
@@ -576,8 +578,11 @@ defmodule AshTypescript.Rpc do
   - `params` - Request parameters map
 
   ## Returns
-  - `{:ok, result}` - Successfully processed result
-  - `{:error, reason}` - Processing error with detailed message
+  A client-formatted response map (never an ok/error tuple):
+  - `%{"success" => true, "data" => data}` on success
+  - `%{"success" => false, "errors" => [error, ...]}` on failure
+
+  Key casing follows the configured `output_field_formatter`.
 
   ## Error Handling
   This implementation uses strict validation and fails fast on any invalid input.
@@ -602,9 +607,10 @@ defmodule AshTypescript.Rpc do
   @doc """
   Validates action parameters without execution.
   Used for form validation in the client.
+
+  Returns the same client-formatted response map shape as `run_action/3`.
   """
-  @spec validate_action(atom(), Plug.Conn.t(), map()) ::
-          {:ok, map()} | {:error, map()}
+  @spec validate_action(atom(), Plug.Conn.t(), map()) :: map()
   def validate_action(otp_app, conn, params) do
     case Pipeline.parse_request(otp_app, conn, params, validation_mode?: true) do
       {:ok, parsed_request} ->

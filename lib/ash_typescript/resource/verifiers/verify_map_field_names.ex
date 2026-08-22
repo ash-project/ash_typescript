@@ -238,8 +238,8 @@ defmodule AshTypescript.Resource.Verifiers.VerifyMapFieldNames do
                 @impl true
                 def typescript_field_names do
                   [
-                    field_1: :field1,
-                    is_active?: :is_active
+                    field_1: "field1",
+                    is_active?: "isActive"
                   ]
                 end
               end

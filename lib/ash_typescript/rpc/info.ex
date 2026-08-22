@@ -22,7 +22,8 @@ defmodule AshTypescript.Rpc.Info do
   - `field_name` - The metadata field name (atom)
 
   ## Returns
-  The mapped field name (atom) or the original field name if no mapping exists.
+  The mapped field name (string, as configured in `metadata_field_names`) or the
+  original field name (atom) if no mapping exists.
   """
   def get_mapped_metadata_field_name(%{metadata_field_names: metadata_field_names}, field_name)
       when is_list(metadata_field_names) do
@@ -42,16 +43,16 @@ defmodule AshTypescript.Rpc.Info do
 
   ## Parameters
   - `rpc_action` - The RpcAction struct
-  - `mapped_field_name` - The mapped metadata field name (atom)
+  - `mapped_field_name` - The mapped metadata field name (string, as sent by the client)
 
   ## Returns
   The original field name (atom) or the provided name if no reverse mapping exists.
 
   ## Examples
-      # With metadata_field_names: [is_valid?: :isValid, field_1: :field1]
-      get_original_metadata_field_name(rpc_action, :isValid) #=> :is_valid?
-      get_original_metadata_field_name(rpc_action, :field1) #=> :field_1
-      get_original_metadata_field_name(rpc_action, :other) #=> :other
+      # With metadata_field_names: [is_valid?: "isValid", field_1: "field1"]
+      get_original_metadata_field_name(rpc_action, "isValid") #=> :is_valid?
+      get_original_metadata_field_name(rpc_action, "field1") #=> :field_1
+      get_original_metadata_field_name(rpc_action, "other") #=> "other"
   """
   def get_original_metadata_field_name(
         %{metadata_field_names: metadata_field_names},
