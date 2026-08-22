@@ -190,6 +190,26 @@ if (listWithInputNoPage.success) {
   const todoId: string = firstTodo.id;
 }
 
+// Test 9b: Limit-only page (first keyset page) - should return keyset paginated structure
+// Runtime rule: when an action supports both strategies, Ash paginates
+// limit-only requests with keyset.
+export const listWithLimitOnly = await listTodos({
+  input: {},
+  fields: ["id", "title"],
+  page: { limit: 20 },
+});
+
+if (listWithLimitOnly.success) {
+  const hasMore: boolean = listWithLimitOnly.data.hasMore;
+  const results: Array<any> = listWithLimitOnly.data.results;
+  const nextPage: string = listWithLimitOnly.data.nextPage;
+  const previousPage: string = listWithLimitOnly.data.previousPage;
+
+  // Should NOT be directly an array
+  // @ts-expect-error - data should be paginated structure, not array
+  const directAccess = listWithLimitOnly.data[0];
+}
+
 // Test 9: List with input parameters and pagination
 export const listWithInputAndPage = await listTodos({
   input: {

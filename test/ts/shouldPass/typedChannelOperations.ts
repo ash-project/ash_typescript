@@ -52,6 +52,12 @@ declare const mockSocket: { channel(topic: string, params?: object): unknown };
 // Test 1: Create channel with suffix (wildcard topic)
 const orgChannel: OrgChannel = createOrgChannel(mockSocket, "org-123");
 
+// Test 1b: Lifecycle calls are exposed on the branded type
+orgChannel.join();
+orgChannel.join(5000);
+orgChannel.leave();
+orgChannel.leave(5000);
+
 // Test 2: Single-event subscription with typed payload
 const itemCreatedRef: number = onOrgChannelMessage(
   orgChannel,

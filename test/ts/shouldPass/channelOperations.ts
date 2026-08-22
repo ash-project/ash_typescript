@@ -65,6 +65,34 @@ listTodosChannel({
   timeoutHandler: () => console.error("List timeout"),
 });
 
+// Test 2b: Channel-based read with pagination — resultHandler narrows to the
+// paginated shape (Page generic threaded like the HTTP functions)
+listTodosChannel({
+  channel: mockChannel,
+  input: {},
+  fields: ["id", "title"],
+  page: { limit: 10, offset: 0 },
+  resultHandler: (result) => {
+    if (result.success) {
+      const hasMore: boolean = result.data.hasMore;
+      const results: Array<{ id: string; title: string }> = result.data.results;
+      const offset: number = result.data.offset;
+    }
+  },
+});
+
+// Test 2c: Channel-based read without page — result stays a plain array
+listTodosChannel({
+  channel: mockChannel,
+  input: {},
+  fields: ["id", "title"],
+  resultHandler: (result) => {
+    if (result.success) {
+      const todos: Array<{ id: string; title: string }> = result.data;
+    }
+  },
+});
+
 // Test 3: Channel-based create operation
 createTodoChannel({
   channel: mockChannel,

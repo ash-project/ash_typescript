@@ -19,6 +19,8 @@ defmodule AshTypescript.TypedChannel.Codegen do
         readonly __channelType: "OrgChannel";
         on(event: string, callback: (payload: unknown) => void): number;
         off(event: string, ref: number): void;
+        join(timeout?: number): unknown;
+        leave(timeout?: number): unknown;
       };
 
       // Payload types
@@ -253,6 +255,8 @@ defmodule AshTypescript.TypedChannel.Codegen do
       readonly __channelType: "#{channel_name}";
       on(event: string, callback: (payload: unknown) => void): number;
       off(event: string, ref: number): void;
+      join(timeout?: number): unknown;
+      leave(timeout?: number): unknown;
     };\
     """
   end

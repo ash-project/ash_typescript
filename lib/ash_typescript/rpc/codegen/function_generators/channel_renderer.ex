@@ -37,11 +37,24 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
         AshTypescript.Rpc.output_field_formatter()
       )
 
+    # For optional pagination, thread the page config through a Page generic so
+    # the resultHandler's result type narrows to the paginated shape when a
+    # `page` is passed — mirroring the HTTP functions' Config["page"] threading.
+    {config_fields_with_page, page_param} =
+      if shape.is_optional_pagination do
+        page_key = format_output_field(:page)
+
+        {replace_page_field(shape.config_fields, page_key),
+         "Page extends #{shape.rpc_action_name_pascal}Config[\"page\"] = undefined"}
+      else
+        {shape.config_fields, nil}
+      end
+
     channel_config_fields =
-      ["  #{format_output_field(:channel)}: Channel;"] ++ shape.config_fields
+      ["  #{format_output_field(:channel)}: Channel;"] ++ config_fields_with_page
 
     {result_handler_type, error_handler_type, timeout_handler_type, generic_part} =
-      build_handler_types(shape)
+      build_handler_types(shape, page_param)
 
     config_fields =
       channel_config_fields ++
@@ -65,7 +78,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
 
     payload_def = "{\n    #{Enum.join(payload_fields, ",\n    ")}\n  }"
 
-    result_type_for_handler = build_result_type_for_handler(shape)
+    result_type_for_handler = build_result_type_for_handler(shape, page_param)
 
     jsdoc = JsdocGenerator.generate_jsdoc(resource, action, rpc_action, opts)
 
@@ -154,88 +167,93 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
     """
   end
 
-  defp build_handler_types(shape) do
-    cond do
-      shape.action.type == :destroy ->
-        if shape.has_metadata do
-          result_type = "#{shape.rpc_action_name_pascal}Result<MetadataFields>"
-          error_type = "any"
-          timeout_type = "() => void"
+  defp build_handler_types(shape, page_param) do
+    result_type = build_result_type_for_handler(shape, page_param)
+    error_type = "any"
+    timeout_type = "() => void"
 
-          metadata_param =
-            "MetadataFields extends ReadonlyArray<keyof #{shape.rpc_action_name_pascal}Metadata> = []"
+    generic_params =
+      cond do
+        shape.action.type == :destroy or not shape.has_fields ->
+          if shape.has_metadata, do: [metadata_param(shape)], else: []
 
-          {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}",
-           "<#{metadata_param}>"}
-        else
-          result_type = "#{shape.rpc_action_name_pascal}Result"
-          error_type = "any"
-          timeout_type = "() => void"
-          {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}", ""}
-        end
+        shape.has_metadata ->
+          [shape.fields_generic, metadata_param(shape)]
 
-      shape.has_fields ->
-        if shape.has_metadata do
-          metadata_param =
-            "MetadataFields extends ReadonlyArray<keyof #{shape.rpc_action_name_pascal}Metadata> = []"
+        true ->
+          [shape.fields_generic]
+      end
 
-          result_type = "#{shape.rpc_action_name_pascal}Result<Fields, MetadataFields>"
-          error_type = "any"
-          timeout_type = "() => void"
+    generic_params =
+      if page_param && shape.has_fields && shape.action.type != :destroy do
+        generic_params ++ [page_param]
+      else
+        generic_params
+      end
 
-          {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}",
-           "<#{shape.fields_generic}, #{metadata_param}>"}
-        else
-          result_type = "#{shape.rpc_action_name_pascal}Result<Fields>"
-          error_type = "any"
-          timeout_type = "() => void"
+    generic_part =
+      case generic_params do
+        [] -> ""
+        params -> "<#{Enum.join(params, ", ")}>"
+      end
 
-          {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}",
-           "<#{shape.fields_generic}>"}
-        end
+    {"(result: #{result_type}) => void", error_type, timeout_type, generic_part}
+  end
 
-      true ->
-        if shape.has_metadata do
-          result_type = "#{shape.rpc_action_name_pascal}Result<MetadataFields>"
-          error_type = "any"
-          timeout_type = "() => void"
+  defp metadata_param(shape) do
+    "MetadataFields extends ReadonlyArray<keyof #{shape.rpc_action_name_pascal}Metadata> = []"
+  end
 
-          metadata_param =
-            "MetadataFields extends ReadonlyArray<keyof #{shape.rpc_action_name_pascal}Metadata> = []"
+  # The page config field spans multiple list elements (an inline union/object
+  # from ConfigBuilder.generate_pagination_config_fields/1, opening with
+  # `page?:` and closing with `);` or `};` at two-space indent). Replaces the
+  # whole run with a single `page?: Page;` so TypeScript infers the Page
+  # generic from the caller's page literal.
+  defp replace_page_field(config_fields, page_key) do
+    opener = "  #{page_key}?:"
 
-          {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}",
-           "<#{metadata_param}>"}
-        else
-          result_type = "#{shape.rpc_action_name_pascal}Result"
-          error_type = "any"
-          timeout_type = "() => void"
-          {"(result: #{result_type}) => void", "#{error_type}", "#{timeout_type}", ""}
-        end
+    case Enum.find_index(config_fields, &String.starts_with?(&1, opener)) do
+      nil ->
+        config_fields
+
+      start_idx ->
+        {before, [first | rest]} = Enum.split(config_fields, start_idx)
+
+        remaining =
+          if String.ends_with?(first, ";") do
+            rest
+          else
+            close_idx = Enum.find_index(rest, &(&1 in ["  );", "  };"]))
+            Enum.drop(rest, close_idx + 1)
+          end
+
+        before ++ ["  #{page_key}?: Page;"] ++ remaining
     end
   end
 
-  defp build_result_type_for_handler(shape) do
-    cond do
-      shape.action.type == :destroy ->
-        if shape.has_metadata do
-          "#{shape.rpc_action_name_pascal}Result<MetadataFields>"
-        else
-          "#{shape.rpc_action_name_pascal}Result"
-        end
+  defp build_result_type_for_handler(shape, page_param) do
+    generic_args =
+      cond do
+        shape.action.type == :destroy or not shape.has_fields ->
+          if shape.has_metadata, do: ["MetadataFields"], else: []
 
-      shape.has_fields ->
-        if shape.has_metadata do
-          "#{shape.rpc_action_name_pascal}Result<Fields, MetadataFields>"
-        else
-          "#{shape.rpc_action_name_pascal}Result<Fields>"
-        end
+        shape.has_metadata ->
+          ["Fields", "MetadataFields"]
 
-      true ->
-        if shape.has_metadata do
-          "#{shape.rpc_action_name_pascal}Result<MetadataFields>"
-        else
-          "#{shape.rpc_action_name_pascal}Result"
-        end
+        true ->
+          ["Fields"]
+      end
+
+    generic_args =
+      if page_param && shape.has_fields && shape.action.type != :destroy do
+        generic_args ++ ["Page"]
+      else
+        generic_args
+      end
+
+    case generic_args do
+      [] -> "#{shape.rpc_action_name_pascal}Result"
+      args -> "#{shape.rpc_action_name_pascal}Result<#{Enum.join(args, ", ")}>"
     end
   end
 end

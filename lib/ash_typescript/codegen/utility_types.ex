@@ -162,6 +162,33 @@ defmodule AshTypescript.Codegen.UtilityTypes do
         ? LeafFieldSelection<T> // Base case: only primitives, no recursion
         : LeafFieldSelection<T> | ComplexFieldSelection<T>; // Recursive case
 
+    // Infers the result value of one selected member inside a TypedMap:
+    // Relationship-wrapped members (embedded resources) recurse through the
+    // wrapped resource; plain TypedSchema members (nested TypedMaps) recurse
+    // directly. The Selection guard satisfies InferResult's constraint.
+    export type InferTypedMapMemberValue<M, Selection> = M extends {
+      __type: "Relationship";
+      __resource: infer Resource;
+    }
+      ? NonNullable<Resource> extends TypedSchema
+        ? Selection extends UnifiedFieldSelection<NonNullable<Resource>>[] | undefined
+          ? M extends { __array: true }
+            ? null extends Resource
+              ? Array<InferResult<NonNullable<Resource>, Selection>> | null
+              : Array<InferResult<NonNullable<Resource>, Selection>>
+            : null extends Resource
+              ? InferResult<NonNullable<Resource>, Selection> | null
+              : InferResult<NonNullable<Resource>, Selection>
+          : never
+        : never
+      : NonNullable<M> extends TypedSchema
+        ? Selection extends UnifiedFieldSelection<NonNullable<M>>[] | undefined
+          ? null extends M
+            ? InferResult<NonNullable<M>, Selection> | null
+            : InferResult<NonNullable<M>, Selection>
+          : never
+        : never;
+
     export type InferFieldValue<
       T extends TypedSchema,
       Field,
@@ -178,7 +205,9 @@ defmodule AshTypescript.Codegen.UtilityTypes do
                 }
                 ? NonNullable<Resource> extends TypedSchema
                   ? T[K] extends { __array: true }
-                    ? Array<InferResult<NonNullable<Resource>, Field[K]>>
+                    ? null extends Resource
+                      ? Array<InferResult<NonNullable<Resource>, Field[K]>> | null
+                      : Array<InferResult<NonNullable<Resource>, Field[K]>>
                     : null extends Resource
                       ? InferResult<NonNullable<Resource>, Field[K]> | null
                       : InferResult<NonNullable<Resource>, Field[K]>
@@ -207,11 +236,7 @@ defmodule AshTypescript.Codegen.UtilityTypes do
                                     : E extends Record<string, any>
                                       ? {
                                           [NestedKey in keyof E]: NestedKey extends keyof NonNullable<T[K]>
-                                            ? NonNullable<NonNullable<T[K]>[NestedKey]> extends TypedSchema
-                                              ? null extends NonNullable<T[K]>[NestedKey]
-                                                ? InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]> | null
-                                                : InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]>
-                                              : never
+                                              ? InferTypedMapMemberValue<NonNullable<T[K]>[NestedKey], E[NestedKey]>
                                             : never;
                                         }
                                       : E extends keyof NonNullable<T[K]>
@@ -232,11 +257,7 @@ defmodule AshTypescript.Codegen.UtilityTypes do
                                     : E extends Record<string, any>
                                       ? {
                                           [NestedKey in keyof E]: NestedKey extends keyof NonNullable<T[K]>
-                                            ? NonNullable<NonNullable<T[K]>[NestedKey]> extends TypedSchema
-                                              ? null extends NonNullable<T[K]>[NestedKey]
-                                                ? InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]> | null
-                                                : InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]>
-                                              : never
+                                              ? InferTypedMapMemberValue<NonNullable<T[K]>[NestedKey], E[NestedKey]>
                                             : never;
                                         }
                                       : E extends keyof NonNullable<T[K]>
@@ -259,11 +280,7 @@ defmodule AshTypescript.Codegen.UtilityTypes do
                                   : E extends Record<string, any>
                                     ? {
                                         [NestedKey in keyof E]: NestedKey extends keyof NonNullable<T[K]>
-                                          ? NonNullable<NonNullable<T[K]>[NestedKey]> extends TypedSchema
-                                            ? null extends NonNullable<T[K]>[NestedKey]
-                                              ? InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]> | null
-                                              : InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]>
-                                            : never
+                                            ? InferTypedMapMemberValue<NonNullable<T[K]>[NestedKey], E[NestedKey]>
                                           : never;
                                       }
                                     : E extends keyof NonNullable<T[K]>
@@ -282,11 +299,7 @@ defmodule AshTypescript.Codegen.UtilityTypes do
                                   : E extends Record<string, any>
                                     ? {
                                         [NestedKey in keyof E]: NestedKey extends keyof NonNullable<T[K]>
-                                          ? NonNullable<NonNullable<T[K]>[NestedKey]> extends TypedSchema
-                                            ? null extends NonNullable<T[K]>[NestedKey]
-                                              ? InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]> | null
-                                              : InferResult<NonNullable<NonNullable<T[K]>[NestedKey]>, E[NestedKey]>
-                                            : never
+                                            ? InferTypedMapMemberValue<NonNullable<T[K]>[NestedKey], E[NestedKey]>
                                           : never;
                                       }
                                     : E extends keyof NonNullable<T[K]>
@@ -333,17 +346,22 @@ defmodule AshTypescript.Codegen.UtilityTypes do
       : {};
 
     // Pagination conditional types
-    // Checks if a page configuration object has any pagination parameters
+    // Checks if a page configuration object has any pagination parameters.
+    // A limit-only page (e.g. { limit: 20 } for the first page) also paginates.
     export type HasPaginationParams<Page> =
       Page extends { offset: any } ? true :
       Page extends { after: any } ? true :
       Page extends { before: any } ? true :
+      Page extends { limit: any } ? true :
       false;
 
-    // Infer which pagination type is being used from the page config
+    // Infer which pagination type is being used from the page config.
+    // A limit-only page resolves to keyset — when an action supports both
+    // strategies, Ash paginates limit-only requests with keyset.
     export type InferPaginationType<Page> =
       Page extends { offset: any } ? "offset" :
       Page extends { after: any } | { before: any } ? "keyset" :
+      Page extends { limit: any } ? "keyset" :
       never;
 
     // Returns either non-paginated (array) or paginated result based on page params

@@ -382,6 +382,18 @@ defmodule AshTypescript.Test.Todo do
       public? true
     end
 
+    # TypedMap calculation with an array-of-embedded-resource field. Pins the
+    # `__primitiveFields` classification: `rows` must be selected with nested
+    # field syntax, only `total` is string-selectable.
+    calculate :metadata_report, :map, AshTypescript.Test.MetadataReportCalculation do
+      public? true
+
+      constraints fields: [
+                    rows: [type: {:array, AshTypescript.Test.TodoMetadata}],
+                    total: [type: :integer, allow_nil?: false]
+                  ]
+    end
+
     # Calculation with field?: false should be excluded from generated TypeScript types
     calculate :internal_score, :integer, expr(1) do
       public? true

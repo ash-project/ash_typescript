@@ -157,4 +157,20 @@ export const invalidFieldsInRelationshipWithinCalc = await getTodo({
   ]
 });
 
+// Test: embedded-resource array fields inside TypedMaps are NOT
+// string-selectable — nested selection is required
+export const stringSelectedEmbeddedRows = await getTodo({
+  input: { id: "00000000-0000-0000-0000-000000000001" },
+  fields: [
+    "id",
+    {
+      metadataReport: [
+        "total",
+        // @ts-expect-error - "rows" is an embedded-resource array and requires nested selection
+        "rows",
+      ],
+    },
+  ],
+});
+
 console.log("Invalid fields tests should FAIL compilation!");

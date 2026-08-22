@@ -550,4 +550,31 @@ if (complexTypedMapScenario.success && complexTypedMapScenario.data) {
   }
 }
 
+// Test: TypedMap with an embedded-resource array field — `rows` is excluded
+// from __primitiveFields and must be selected with nested field syntax, which
+// flows through the Relationship wrapper in the TypedMap schema
+export const todoWithMetadataReport = await getTodo({
+  input: { id: "00000000-0000-0000-0000-000000000001" },
+  fields: [
+    "id",
+    { metadataReport: ["total", { rows: ["category", "priorityScore"] }] },
+  ],
+});
+
+if (todoWithMetadataReport.success && todoWithMetadataReport.data) {
+  const report = todoWithMetadataReport.data.metadataReport;
+
+  if (report) {
+    const total: number = report.total;
+
+    // Nullable embedded-resource array infers as Array<...> | null
+    if (report.rows) {
+      for (const row of report.rows) {
+        const category: string = row.category;
+        const priorityScore: number | null = row.priorityScore;
+      }
+    }
+  }
+}
+
 console.log("Typed maps tests should compile successfully!");
