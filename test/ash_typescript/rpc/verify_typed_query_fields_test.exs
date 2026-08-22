@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
-  use ExUnit.Case, async: true
-
-  @moduletag :generates_warnings
+  use ExUnit.Case, async: false
 
   describe "typed query field validation - invalid fields" do
     test "detects unknown field in typed query" do
@@ -50,7 +48,7 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([DomainWithUnknownField])
+      result = silent_verify_for_domains([DomainWithUnknownField])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field selection/i
@@ -99,7 +97,7 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([DomainWithPrivateField])
+      result = silent_verify_for_domains([DomainWithPrivateField])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field selection/i
@@ -147,7 +145,7 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([DomainWithDuplicateFields])
+      result = silent_verify_for_domains([DomainWithDuplicateFields])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Duplicate field/i
@@ -223,7 +221,7 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([DomainWithRelationshipNoNested])
+        silent_verify_for_domains([DomainWithRelationshipNoNested])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/requires nested field selection/i
@@ -296,7 +294,7 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([DomainWithNestedInvalid])
+      result = silent_verify_for_domains([DomainWithNestedInvalid])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field selection/i
@@ -363,7 +361,7 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([DomainWithCalcNoArgs])
+      result = silent_verify_for_domains([DomainWithCalcNoArgs])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/requires arguments/i
@@ -413,7 +411,7 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([ValidDomain])
+      result = silent_verify_for_domains([ValidDomain])
 
       assert :ok = result
     end
@@ -485,9 +483,20 @@ defmodule AshTypescript.Rpc.VerifyTypedQueryFieldsTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([ValidDomainWithRel])
+      result = silent_verify_for_domains([ValidDomainWithRel])
 
       assert :ok = result
     end
+  end
+
+  # Compiling the throwaway manifest module makes Elixir's parallel checker echo
+  # raised DslErrors (and RPC config IO.warn output) to stderr, so silence it.
+  defp silent_verify_for_domains(domains) do
+    {result, _stderr} =
+      ExUnit.CaptureIO.with_io(:standard_error, fn ->
+        AshTypescript.Manifest.verify_for_domains(domains)
+      end)
+
+    result
   end
 end

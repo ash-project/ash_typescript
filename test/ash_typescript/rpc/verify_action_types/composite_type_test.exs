@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
-  use ExUnit.Case, async: true
-
-  @moduletag :generates_warnings
+  use ExUnit.Case, async: false
 
   describe "verify/1 - custom composite Ash.Type" do
     test "detects invalid field names in composite type return" do
@@ -82,7 +80,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainCompositeReturn])
+      result = silent_verify_for_domains([TestDomainCompositeReturn])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -94,6 +92,8 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
     test "accepts composite type with typescript_field_names callback" do
       defmodule CompositeTypeWithMappings do
         use Ash.Type
+
+        def typescript_type_name, do: "CompositeWithMappings"
 
         @impl true
         def storage_type(_), do: :map
@@ -172,7 +172,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([TestDomainCompositeWithMappings])
+        silent_verify_for_domains([TestDomainCompositeWithMappings])
 
       assert result == :ok
     end
@@ -252,7 +252,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainCompositeArg])
+      result = silent_verify_for_domains([TestDomainCompositeArg])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -339,7 +339,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainNestedComposite])
+      result = silent_verify_for_domains([TestDomainNestedComposite])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -347,5 +347,16 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
       assert error_message =~ "inner_1"
       assert error_message =~ "is_nested?"
     end
+  end
+
+  # Compiling the throwaway manifest module makes Elixir's parallel checker echo
+  # raised DslErrors (and RPC config IO.warn output) to stderr, so silence it.
+  defp silent_verify_for_domains(domains) do
+    {result, _stderr} =
+      ExUnit.CaptureIO.with_io(:standard_error, fn ->
+        AshTypescript.Manifest.verify_for_domains(domains)
+      end)
+
+    result
   end
 end

@@ -2,7 +2,6 @@
 #
 # SPDX-License-Identifier: MIT
 
-ExUnit.configure(exclude: [:generates_warnings])
 ExUnit.start()
 
 # Ensure all test resources are loaded

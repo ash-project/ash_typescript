@@ -94,30 +94,35 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
   end
 
   describe "duplicate route name detection" do
-    @describetag :generates_warnings
-
     alias AshTypescript.TypedController.Verifiers.VerifyTypedController
 
+    # The fixture below intentionally fails verification, so it is defined
+    # inside the capture closure to keep the `@after_verify` DslError that
+    # Elixir's parallel checker echoes out of `mix test` output.
+
     test "rejects duplicate route names" do
-      defmodule ControllerWithDuplicateRoutes do
-        use AshTypescript.TypedController
+      {result, _stderr} =
+        ExUnit.CaptureIO.with_io(:standard_error, fn ->
+          defmodule ControllerWithDuplicateRoutes do
+            use AshTypescript.TypedController
 
-        typed_controller do
-          module_name(AshTypescript.Test.DuplicateRoutesController)
+            typed_controller do
+              module_name(AshTypescript.Test.DuplicateRoutesController)
 
-          route :login do
-            method(:post)
-            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+              route :login do
+                method(:post)
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+              end
+
+              route :login do
+                method(:get)
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+              end
+            end
           end
 
-          route :login do
-            method(:get)
-            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
-          end
-        end
-      end
-
-      result = VerifyTypedController.verify(ControllerWithDuplicateRoutes.spark_dsl_config())
+          VerifyTypedController.verify(ControllerWithDuplicateRoutes.spark_dsl_config())
+        end)
 
       assert {:error, %Spark.Error.DslError{message: message}} = result
       assert message =~ "Duplicate route names"
@@ -182,26 +187,31 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
   end
 
   describe "argument name validation for TypeScript" do
-    @describetag :generates_warnings
-
     alias AshTypescript.TypedController.Verifiers.VerifyTypedController
 
+    # The fixtures below intentionally fail verification, so they are defined
+    # inside the capture closure to keep the `@after_verify` DslError that
+    # Elixir's parallel checker echoes out of `mix test` output.
+
     test "rejects argument names with underscore-number patterns" do
-      defmodule ControllerWithUnderscoreArg do
-        use AshTypescript.TypedController
+      {result, _stderr} =
+        ExUnit.CaptureIO.with_io(:standard_error, fn ->
+          defmodule ControllerWithUnderscoreArg do
+            use AshTypescript.TypedController
 
-        typed_controller do
-          module_name(AshTypescript.Test.UnderscoreArgController)
+            typed_controller do
+              module_name(AshTypescript.Test.UnderscoreArgController)
 
-          route :test do
-            method(:post)
-            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
-            argument :line_1, :string
+              route :test do
+                method(:post)
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+                argument :line_1, :string
+              end
+            end
           end
-        end
-      end
 
-      result = VerifyTypedController.verify(ControllerWithUnderscoreArg.spark_dsl_config())
+          VerifyTypedController.verify(ControllerWithUnderscoreArg.spark_dsl_config())
+        end)
 
       assert {:error, %Spark.Error.DslError{message: message}} = result
       assert message =~ "Invalid names"
@@ -209,20 +219,23 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
     end
 
     test "rejects route names with underscore-number patterns" do
-      defmodule ControllerWithUnderscoreRoute do
-        use AshTypescript.TypedController
+      {result, _stderr} =
+        ExUnit.CaptureIO.with_io(:standard_error, fn ->
+          defmodule ControllerWithUnderscoreRoute do
+            use AshTypescript.TypedController
 
-        typed_controller do
-          module_name(AshTypescript.Test.UnderscoreRouteController)
+            typed_controller do
+              module_name(AshTypescript.Test.UnderscoreRouteController)
 
-          route :step_1 do
-            method(:get)
-            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+              route :step_1 do
+                method(:get)
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+              end
+            end
           end
-        end
-      end
 
-      result = VerifyTypedController.verify(ControllerWithUnderscoreRoute.spark_dsl_config())
+          VerifyTypedController.verify(ControllerWithUnderscoreRoute.spark_dsl_config())
+        end)
 
       assert {:error, %Spark.Error.DslError{message: message}} = result
       assert message =~ "Invalid names"
@@ -230,21 +243,24 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
     end
 
     test "rejects argument names with question marks" do
-      defmodule ControllerWithQuestionMarkArg do
-        use AshTypescript.TypedController
+      {result, _stderr} =
+        ExUnit.CaptureIO.with_io(:standard_error, fn ->
+          defmodule ControllerWithQuestionMarkArg do
+            use AshTypescript.TypedController
 
-        typed_controller do
-          module_name(AshTypescript.Test.QuestionMarkArgController)
+            typed_controller do
+              module_name(AshTypescript.Test.QuestionMarkArgController)
 
-          route :test do
-            method(:post)
-            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
-            argument :is_active?, :boolean
+              route :test do
+                method(:post)
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+                argument :is_active?, :boolean
+              end
+            end
           end
-        end
-      end
 
-      result = VerifyTypedController.verify(ControllerWithQuestionMarkArg.spark_dsl_config())
+          VerifyTypedController.verify(ControllerWithQuestionMarkArg.spark_dsl_config())
+        end)
 
       assert {:error, %Spark.Error.DslError{message: message}} = result
       assert message =~ "Invalid names"
@@ -252,21 +268,24 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
     end
 
     test "suggests better names in error message" do
-      defmodule ControllerWithSuggestion do
-        use AshTypescript.TypedController
+      {result, _stderr} =
+        ExUnit.CaptureIO.with_io(:standard_error, fn ->
+          defmodule ControllerWithSuggestion do
+            use AshTypescript.TypedController
 
-        typed_controller do
-          module_name(AshTypescript.Test.SuggestionController)
+            typed_controller do
+              module_name(AshTypescript.Test.SuggestionController)
 
-          route :test do
-            method(:post)
-            run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
-            argument :address_line_1, :string
+              route :test do
+                method(:post)
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+                argument :address_line_1, :string
+              end
+            end
           end
-        end
-      end
 
-      result = VerifyTypedController.verify(ControllerWithSuggestion.spark_dsl_config())
+          VerifyTypedController.verify(ControllerWithSuggestion.spark_dsl_config())
+        end)
 
       assert {:error, %Spark.Error.DslError{message: message}} = result
       assert message =~ "address_line_1"

@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
-  use ExUnit.Case, async: true
-
-  @moduletag :generates_warnings
+  use ExUnit.Case, async: false
 
   describe "verify/1 - return type field names" do
     test "detects invalid field names in map return type" do
@@ -53,7 +51,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainMapReturn])
+      result = silent_verify_for_domains([TestDomainMapReturn])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -106,7 +104,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainKeywordReturn])
+      result = silent_verify_for_domains([TestDomainKeywordReturn])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -159,7 +157,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainTupleReturn])
+      result = silent_verify_for_domains([TestDomainTupleReturn])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -226,7 +224,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainUnionReturn])
+      result = silent_verify_for_domains([TestDomainUnionReturn])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -281,12 +279,23 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ReturnTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainArrayMapReturn])
+      result = silent_verify_for_domains([TestDomainArrayMapReturn])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
       assert error_message =~ "item_1"
       assert error_message =~ "active?"
     end
+  end
+
+  # Compiling the throwaway manifest module makes Elixir's parallel checker echo
+  # raised DslErrors (and RPC config IO.warn output) to stderr, so silence it.
+  defp silent_verify_for_domains(domains) do
+    {result, _stderr} =
+      ExUnit.CaptureIO.with_io(:standard_error, fn ->
+        AshTypescript.Manifest.verify_for_domains(domains)
+      end)
+
+    result
   end
 end

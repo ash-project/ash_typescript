@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Rpc.VerifyActionTypes.StructTypesTest do
-  use ExUnit.Case, async: true
-
-  @moduletag :generates_warnings
+  use ExUnit.Case, async: false
 
   describe "verify/1 - Struct types with typed_struct_fields" do
     # Tests for custom struct modules used via :struct type with instance_of constraint
@@ -65,7 +63,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.StructTypesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainCustomStructType])
+      result = silent_verify_for_domains([TestDomainCustomStructType])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -137,11 +135,22 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.StructTypesTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([
+        silent_verify_for_domains([
           TestDomainCustomStructTypeWithMappings
         ])
 
       assert result == :ok
     end
+  end
+
+  # Compiling the throwaway manifest module makes Elixir's parallel checker echo
+  # raised DslErrors (and RPC config IO.warn output) to stderr, so silence it.
+  defp silent_verify_for_domains(domains) do
+    {result, _stderr} =
+      ExUnit.CaptureIO.with_io(:standard_error, fn ->
+        AshTypescript.Manifest.verify_for_domains(domains)
+      end)
+
+    result
   end
 end

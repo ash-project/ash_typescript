@@ -26,23 +26,27 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
   end
 
   describe "verify_events_exist" do
-    @describetag :generates_warnings
-
+    # The fixture below intentionally fails verification, so it is defined
+    # inside the capture closure to keep the `@after_verify` DslError that
+    # Elixir's parallel checker echoes out of `mix test` output.
     test "rejects event that does not match any publication" do
-      defmodule ChannelWithMissingEvent do
-        use AshTypescript.TypedChannel
+      {result, _stderr} =
+        ExUnit.CaptureIO.with_io(:standard_error, fn ->
+          defmodule ChannelWithMissingEvent do
+            use AshTypescript.TypedChannel
 
-        typed_channel do
-          topic "missing:*"
+            typed_channel do
+              topic "missing:*"
 
-          resource AshTypescript.Test.ChannelItem do
-            publish(:item_created)
-            publish(:nonexistent_event)
+              resource AshTypescript.Test.ChannelItem do
+                publish(:item_created)
+                publish(:nonexistent_event)
+              end
+            end
           end
-        end
-      end
 
-      result = VerifyTypedChannel.verify(ChannelWithMissingEvent.spark_dsl_config())
+          VerifyTypedChannel.verify(ChannelWithMissingEvent.spark_dsl_config())
+        end)
 
       assert {:error, %Spark.Error.DslError{message: message}} = result
       assert message =~ "No publication with event :nonexistent_event"
@@ -51,8 +55,7 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
   end
 
   describe "verify_unique_event_names" do
-    @describetag :generates_warnings
-
+    # Same as above: the channel fixture below fails verification on purpose.
     test "rejects duplicate event names across resources in the same channel" do
       defmodule DuplicateEventItem do
         @moduledoc false
@@ -78,23 +81,26 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
         end
       end
 
-      defmodule ChannelWithDuplicateEvents do
-        use AshTypescript.TypedChannel
+      {result, _stderr} =
+        ExUnit.CaptureIO.with_io(:standard_error, fn ->
+          defmodule ChannelWithDuplicateEvents do
+            use AshTypescript.TypedChannel
 
-        typed_channel do
-          topic "dup:*"
+            typed_channel do
+              topic "dup:*"
 
-          resource AshTypescript.Test.ChannelItem do
-            publish(:item_created)
+              resource AshTypescript.Test.ChannelItem do
+                publish(:item_created)
+              end
+
+              resource DuplicateEventItem do
+                publish(:item_created)
+              end
+            end
           end
 
-          resource DuplicateEventItem do
-            publish(:item_created)
-          end
-        end
-      end
-
-      result = VerifyTypedChannel.verify(ChannelWithDuplicateEvents.spark_dsl_config())
+          VerifyTypedChannel.verify(ChannelWithDuplicateEvents.spark_dsl_config())
+        end)
 
       assert {:error, %Spark.Error.DslError{message: message}} = result
       assert message =~ "Duplicate event names"

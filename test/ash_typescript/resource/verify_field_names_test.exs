@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Resource.VerifyFieldNamesTest do
-  use ExUnit.Case, async: true
-
-  @moduletag :generates_warnings
+  use ExUnit.Case, async: false
 
   alias AshTypescript.NameValidation
 
@@ -32,29 +30,33 @@ defmodule AshTypescript.Resource.VerifyFieldNamesTest do
 
   describe "verify/1 - calculations with question marks" do
     test "rejects calculation with question mark when no field_names mapping exists" do
-      defmodule ResourceWithUnmappedQuestionMarkCalc do
-        use Ash.Resource,
-          domain: nil,
-          data_layer: Ash.DataLayer.Ets,
-          extensions: [AshTypescript.Resource]
+      silence_stderr(fn ->
+        defmodule ResourceWithUnmappedQuestionMarkCalc do
+          use Ash.Resource,
+            domain: nil,
+            data_layer: Ash.DataLayer.Ets,
+            extensions: [AshTypescript.Resource]
 
-        typescript do
-          type_name "ResourceWithUnmappedQuestionMarkCalc"
-        end
+          typescript do
+            type_name "ResourceWithUnmappedQuestionMarkCalc"
+          end
 
-        attributes do
-          uuid_primary_key :id
-        end
+          attributes do
+            uuid_primary_key :id
+          end
 
-        calculations do
-          calculate :has_review?, :boolean, expr(true) do
-            public? true
+          calculations do
+            calculate :has_review?, :boolean, expr(true) do
+              public? true
+            end
           end
         end
-      end
+      end)
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([ResourceWithUnmappedQuestionMarkCalc])
+        AshTypescript.VerifierChecker.check_all_verifiers([
+          __MODULE__.ResourceWithUnmappedQuestionMarkCalc
+        ])
 
       assert {:error, error_message} = result
       assert error_message =~ "Invalid field names"
@@ -95,27 +97,31 @@ defmodule AshTypescript.Resource.VerifyFieldNamesTest do
 
   describe "verify/1 - attributes with underscore numbers" do
     test "rejects attribute with underscore number when no field_names mapping exists" do
-      defmodule ResourceWithUnmappedUnderscoreAttr do
-        use Ash.Resource,
-          domain: nil,
-          data_layer: Ash.DataLayer.Ets,
-          extensions: [AshTypescript.Resource]
+      silence_stderr(fn ->
+        defmodule ResourceWithUnmappedUnderscoreAttr do
+          use Ash.Resource,
+            domain: nil,
+            data_layer: Ash.DataLayer.Ets,
+            extensions: [AshTypescript.Resource]
 
-        typescript do
-          type_name "ResourceWithUnmappedUnderscoreAttr"
-        end
+          typescript do
+            type_name "ResourceWithUnmappedUnderscoreAttr"
+          end
 
-        attributes do
-          uuid_primary_key :id
+          attributes do
+            uuid_primary_key :id
 
-          attribute :address_line_1, :string do
-            public? true
+            attribute :address_line_1, :string do
+              public? true
+            end
           end
         end
-      end
+      end)
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([ResourceWithUnmappedUnderscoreAttr])
+        AshTypescript.VerifierChecker.check_all_verifiers([
+          __MODULE__.ResourceWithUnmappedUnderscoreAttr
+        ])
 
       assert {:error, error_message} = result
       assert error_message =~ "Invalid field names"
@@ -172,35 +178,39 @@ defmodule AshTypescript.Resource.VerifyFieldNamesTest do
         end
       end
 
-      defmodule ResourceWithUnmappedQuestionMarkAgg do
-        use Ash.Resource,
-          domain: nil,
-          data_layer: Ash.DataLayer.Ets,
-          extensions: [AshTypescript.Resource]
+      silence_stderr(fn ->
+        defmodule ResourceWithUnmappedQuestionMarkAgg do
+          use Ash.Resource,
+            domain: nil,
+            data_layer: Ash.DataLayer.Ets,
+            extensions: [AshTypescript.Resource]
 
-        typescript do
-          type_name "ResourceWithUnmappedQuestionMarkAgg"
-        end
+          typescript do
+            type_name "ResourceWithUnmappedQuestionMarkAgg"
+          end
 
-        attributes do
-          uuid_primary_key :id
-        end
+          attributes do
+            uuid_primary_key :id
+          end
 
-        relationships do
-          has_many :items, AshTypescript.Resource.VerifyFieldNamesTest.RelatedResource do
-            destination_attribute :parent_id
+          relationships do
+            has_many :items, AshTypescript.Resource.VerifyFieldNamesTest.RelatedResource do
+              destination_attribute :parent_id
+            end
+          end
+
+          aggregates do
+            exists :has_items?, :items do
+              public? true
+            end
           end
         end
-
-        aggregates do
-          exists :has_items?, :items do
-            public? true
-          end
-        end
-      end
+      end)
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([ResourceWithUnmappedQuestionMarkAgg])
+        AshTypescript.VerifierChecker.check_all_verifiers([
+          __MODULE__.ResourceWithUnmappedQuestionMarkAgg
+        ])
 
       assert {:error, error_message} = result
       assert error_message =~ "Invalid field names"
@@ -211,32 +221,36 @@ defmodule AshTypescript.Resource.VerifyFieldNamesTest do
 
   describe "verify/1 - union member names (via VerifyMapFieldNames)" do
     test "rejects union member with question mark" do
-      defmodule ResourceWithInvalidUnionMember do
-        use Ash.Resource,
-          domain: nil,
-          data_layer: Ash.DataLayer.Ets,
-          extensions: [AshTypescript.Resource]
+      silence_stderr(fn ->
+        defmodule ResourceWithInvalidUnionMember do
+          use Ash.Resource,
+            domain: nil,
+            data_layer: Ash.DataLayer.Ets,
+            extensions: [AshTypescript.Resource]
 
-        typescript do
-          type_name "ResourceWithInvalidUnionMember"
-        end
+          typescript do
+            type_name "ResourceWithInvalidUnionMember"
+          end
 
-        attributes do
-          uuid_primary_key :id
+          attributes do
+            uuid_primary_key :id
 
-          attribute :content, Ash.Type.Union do
-            public? true
+            attribute :content, Ash.Type.Union do
+              public? true
 
-            constraints types: [
-                          text: [type: :string],
-                          has_html?: [type: :string]
-                        ]
+              constraints types: [
+                            text: [type: :string],
+                            has_html?: [type: :string]
+                          ]
+            end
           end
         end
-      end
+      end)
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([ResourceWithInvalidUnionMember])
+        AshTypescript.VerifierChecker.check_all_verifiers([
+          __MODULE__.ResourceWithInvalidUnionMember
+        ])
 
       assert {:error, error_message} = result
       assert error_message =~ "Invalid"
@@ -245,32 +259,36 @@ defmodule AshTypescript.Resource.VerifyFieldNamesTest do
     end
 
     test "rejects union member with underscore number" do
-      defmodule ResourceWithUnderscoreUnionMember do
-        use Ash.Resource,
-          domain: nil,
-          data_layer: Ash.DataLayer.Ets,
-          extensions: [AshTypescript.Resource]
+      silence_stderr(fn ->
+        defmodule ResourceWithUnderscoreUnionMember do
+          use Ash.Resource,
+            domain: nil,
+            data_layer: Ash.DataLayer.Ets,
+            extensions: [AshTypescript.Resource]
 
-        typescript do
-          type_name "ResourceWithUnderscoreUnionMember"
-        end
+          typescript do
+            type_name "ResourceWithUnderscoreUnionMember"
+          end
 
-        attributes do
-          uuid_primary_key :id
+          attributes do
+            uuid_primary_key :id
 
-          attribute :content, Ash.Type.Union do
-            public? true
+            attribute :content, Ash.Type.Union do
+              public? true
 
-            constraints types: [
-                          text: [type: :string],
-                          html_1: [type: :string]
-                        ]
+              constraints types: [
+                            text: [type: :string],
+                            html_1: [type: :string]
+                          ]
+            end
           end
         end
-      end
+      end)
 
       result =
-        AshTypescript.VerifierChecker.check_all_verifiers([ResourceWithUnderscoreUnionMember])
+        AshTypescript.VerifierChecker.check_all_verifiers([
+          __MODULE__.ResourceWithUnderscoreUnionMember
+        ])
 
       assert {:error, error_message} = result
       assert error_message =~ "Invalid"
@@ -309,5 +327,12 @@ defmodule AshTypescript.Resource.VerifyFieldNamesTest do
 
       assert :ok = result
     end
+  end
+
+  # Compiling fixture modules that intentionally fail Spark verification makes
+  # Elixir's parallel checker echo the raised DslError to stderr, so silence it.
+  defp silence_stderr(fun) do
+    {result, _stderr} = ExUnit.CaptureIO.with_io(:standard_error, fun)
+    result
   end
 end

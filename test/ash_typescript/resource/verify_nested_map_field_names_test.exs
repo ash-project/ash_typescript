@@ -3,47 +3,47 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Resource.VerifyNestedMapFieldNamesTest do
-  use ExUnit.Case, async: true
-
-  @moduletag :generates_warnings
+  use ExUnit.Case, async: false
 
   describe "verify/1 integration - nested invalid field names" do
     test "detects invalid field names in nested map within map" do
-      defmodule TestResourceWithNestedMapInvalidFields do
-        use Ash.Resource,
-          domain: nil,
-          data_layer: Ash.DataLayer.Ets,
-          extensions: [AshTypescript.Resource]
+      silence_stderr(fn ->
+        defmodule TestResourceWithNestedMapInvalidFields do
+          use Ash.Resource,
+            domain: nil,
+            data_layer: Ash.DataLayer.Ets,
+            extensions: [AshTypescript.Resource]
 
-        typescript do
-          type_name "TestResourceWithNestedMapInvalidFields"
-        end
+          typescript do
+            type_name "TestResourceWithNestedMapInvalidFields"
+          end
 
-        attributes do
-          uuid_primary_key :id
+          attributes do
+            uuid_primary_key :id
 
-          attribute :outer, :map do
-            public? true
+            attribute :outer, :map do
+              public? true
 
-            constraints fields: [
-                          valid_field: [type: :string],
-                          nested_map: [
-                            type: :map,
-                            constraints: [
-                              fields: [
-                                inner_field_1: [type: :string],
-                                is_nested?: [type: :boolean]
+              constraints fields: [
+                            valid_field: [type: :string],
+                            nested_map: [
+                              type: :map,
+                              constraints: [
+                                fields: [
+                                  inner_field_1: [type: :string],
+                                  is_nested?: [type: :boolean]
+                                ]
                               ]
                             ]
                           ]
-                        ]
+            end
           end
         end
-      end
+      end)
 
       result =
         AshTypescript.VerifierChecker.check_all_verifiers([
-          TestResourceWithNestedMapInvalidFields
+          __MODULE__.TestResourceWithNestedMapInvalidFields
         ])
 
       assert {:error, error_message} = result
@@ -51,40 +51,42 @@ defmodule AshTypescript.Resource.VerifyNestedMapFieldNamesTest do
     end
 
     test "detects invalid field names in nested keyword within map" do
-      defmodule TestResourceWithNestedKeywordInvalidFields do
-        use Ash.Resource,
-          domain: nil,
-          data_layer: Ash.DataLayer.Ets,
-          extensions: [AshTypescript.Resource]
+      silence_stderr(fn ->
+        defmodule TestResourceWithNestedKeywordInvalidFields do
+          use Ash.Resource,
+            domain: nil,
+            data_layer: Ash.DataLayer.Ets,
+            extensions: [AshTypescript.Resource]
 
-        typescript do
-          type_name "TestResourceWithNestedKeywordInvalidFields"
-        end
+          typescript do
+            type_name "TestResourceWithNestedKeywordInvalidFields"
+          end
 
-        attributes do
-          uuid_primary_key :id
+          attributes do
+            uuid_primary_key :id
 
-          attribute :data, :map do
-            public? true
+            attribute :data, :map do
+              public? true
 
-            constraints fields: [
-                          config: [
-                            type: :keyword,
-                            constraints: [
-                              fields: [
-                                option_1: [type: :string],
-                                enabled?: [type: :boolean]
+              constraints fields: [
+                            config: [
+                              type: :keyword,
+                              constraints: [
+                                fields: [
+                                  option_1: [type: :string],
+                                  enabled?: [type: :boolean]
+                                ]
                               ]
                             ]
                           ]
-                        ]
+            end
           end
         end
-      end
+      end)
 
       result =
         AshTypescript.VerifierChecker.check_all_verifiers([
-          TestResourceWithNestedKeywordInvalidFields
+          __MODULE__.TestResourceWithNestedKeywordInvalidFields
         ])
 
       assert {:error, error_message} = result
@@ -92,56 +94,58 @@ defmodule AshTypescript.Resource.VerifyNestedMapFieldNamesTest do
     end
 
     test "detects invalid field names in union member within map" do
-      defmodule TestResourceWithUnionInMapInvalidFields do
-        use Ash.Resource,
-          domain: nil,
-          data_layer: Ash.DataLayer.Ets,
-          extensions: [AshTypescript.Resource]
+      silence_stderr(fn ->
+        defmodule TestResourceWithUnionInMapInvalidFields do
+          use Ash.Resource,
+            domain: nil,
+            data_layer: Ash.DataLayer.Ets,
+            extensions: [AshTypescript.Resource]
 
-        typescript do
-          type_name "TestResourceWithUnionInMapInvalidFields"
-        end
+          typescript do
+            type_name "TestResourceWithUnionInMapInvalidFields"
+          end
 
-        attributes do
-          uuid_primary_key :id
+          attributes do
+            uuid_primary_key :id
 
-          attribute :data, :map do
-            public? true
+            attribute :data, :map do
+              public? true
 
-            constraints fields: [
-                          content: [
-                            type: :union,
-                            constraints: [
-                              types: [
-                                text: [
-                                  type: :map,
-                                  constraints: [
-                                    fields: [
-                                      text_field_1: [type: :string],
-                                      is_bold?: [type: :boolean]
+              constraints fields: [
+                            content: [
+                              type: :union,
+                              constraints: [
+                                types: [
+                                  text: [
+                                    type: :map,
+                                    constraints: [
+                                      fields: [
+                                        text_field_1: [type: :string],
+                                        is_bold?: [type: :boolean]
+                                      ]
                                     ]
-                                  ]
-                                ],
-                                image: [
-                                  type: :map,
-                                  constraints: [
-                                    fields: [
-                                      url: [type: :string],
-                                      alt_text_2: [type: :string]
+                                  ],
+                                  image: [
+                                    type: :map,
+                                    constraints: [
+                                      fields: [
+                                        url: [type: :string],
+                                        alt_text_2: [type: :string]
+                                      ]
                                     ]
                                   ]
                                 ]
                               ]
                             ]
                           ]
-                        ]
+            end
           end
         end
-      end
+      end)
 
       result =
         AshTypescript.VerifierChecker.check_all_verifiers([
-          TestResourceWithUnionInMapInvalidFields
+          __MODULE__.TestResourceWithUnionInMapInvalidFields
         ])
 
       assert {:error, error_message} = result
@@ -149,51 +153,60 @@ defmodule AshTypescript.Resource.VerifyNestedMapFieldNamesTest do
     end
 
     test "detects invalid field names in deeply nested structures" do
-      defmodule TestResourceWithDeeplyNestedInvalidFields do
-        use Ash.Resource,
-          domain: nil,
-          data_layer: Ash.DataLayer.Ets,
-          extensions: [AshTypescript.Resource]
+      silence_stderr(fn ->
+        defmodule TestResourceWithDeeplyNestedInvalidFields do
+          use Ash.Resource,
+            domain: nil,
+            data_layer: Ash.DataLayer.Ets,
+            extensions: [AshTypescript.Resource]
 
-        typescript do
-          type_name "TestResourceWithDeeplyNestedInvalidFields"
-        end
+          typescript do
+            type_name "TestResourceWithDeeplyNestedInvalidFields"
+          end
 
-        attributes do
-          uuid_primary_key :id
+          attributes do
+            uuid_primary_key :id
 
-          attribute :level1, :map do
-            public? true
+            attribute :level1, :map do
+              public? true
 
-            constraints fields: [
-                          level2: [
-                            type: :map,
-                            constraints: [
-                              fields: [
-                                level3: [
-                                  type: :map,
-                                  constraints: [
-                                    fields: [
-                                      deep_field_1: [type: :string],
-                                      is_deep?: [type: :boolean]
+              constraints fields: [
+                            level2: [
+                              type: :map,
+                              constraints: [
+                                fields: [
+                                  level3: [
+                                    type: :map,
+                                    constraints: [
+                                      fields: [
+                                        deep_field_1: [type: :string],
+                                        is_deep?: [type: :boolean]
+                                      ]
                                     ]
                                   ]
                                 ]
                               ]
                             ]
                           ]
-                        ]
+            end
           end
         end
-      end
+      end)
 
       result =
         AshTypescript.VerifierChecker.check_all_verifiers([
-          TestResourceWithDeeplyNestedInvalidFields
+          __MODULE__.TestResourceWithDeeplyNestedInvalidFields
         ])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in map\/keyword\/tuple/
     end
+  end
+
+  # Compiling fixture modules that intentionally fail Spark verification makes
+  # Elixir's parallel checker echo the raised DslError to stderr, so silence it.
+  defp silence_stderr(fun) do
+    {result, _stderr} = ExUnit.CaptureIO.with_io(:standard_error, fun)
+    result
   end
 end

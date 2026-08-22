@@ -96,6 +96,9 @@ end
 
 defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest.PlainDest do
   @moduledoc false
+  # Deliberately has no AshTypescript.Resource extension *and* a non-`public?`
+  # primary read, so the verifier can only return :ok if it really skips
+  # non-typescript destinations.
   use Ash.Resource, domain: nil
 
   attributes do
@@ -103,7 +106,10 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest.PlainDest do
   end
 
   actions do
-    defaults [:read]
+    read :read do
+      primary? true
+      public? false
+    end
   end
 end
 
@@ -137,9 +143,7 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
   routes through the manifest-based verifier. We assert against the public error
   message rather than the implementation details of any specific helper.
   """
-  use ExUnit.Case, async: true
-
-  @moduletag :generates_warnings
+  use ExUnit.Case, async: false
 
   describe "rpc actions reject non-public destination actions" do
     test "returns error when rpc_action references a non-`public?` action" do
@@ -180,7 +184,7 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
       end
 
       assert {:error, message} =
-               AshTypescript.Manifest.verify_for_domains([NonPublicActionDomain])
+               silent_verify_for_domains([NonPublicActionDomain])
 
       assert message =~ "not `public?`"
       assert message =~ "private_read"
@@ -222,7 +226,7 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
         end
       end
 
-      assert :ok = AshTypescript.Manifest.verify_for_domains([PublicActionDomain])
+      assert :ok = silent_verify_for_domains([PublicActionDomain])
     end
 
     test "returns error when read_action override is not `public?`" do
@@ -267,7 +271,7 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
       end
 
       assert {:error, message} =
-               AshTypescript.Manifest.verify_for_domains([ReadActionNotPublicDomain])
+               silent_verify_for_domains([ReadActionNotPublicDomain])
 
       assert message =~ "not `public?`"
       assert message =~ "private_lookup"
@@ -293,7 +297,7 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
       end
 
       assert {:error, message} =
-               AshTypescript.Manifest.verify_for_domains([RelSourceNonPublicDestDomain])
+               silent_verify_for_domains([RelSourceNonPublicDestDomain])
 
       assert message =~ "not `public?`"
       assert message =~ "dest"
@@ -317,7 +321,7 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
       end
 
       assert :ok =
-               AshTypescript.Manifest.verify_for_domains([RelSourcePublicDestDomain])
+               silent_verify_for_domains([RelSourcePublicDestDomain])
     end
 
     test "skips relationships to non-typescript destinations" do
@@ -336,7 +340,7 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
         end
       end
 
-      assert :ok = AshTypescript.Manifest.verify_for_domains([RelSourcePlainDestDomain])
+      assert :ok = silent_verify_for_domains([RelSourcePlainDestDomain])
     end
   end
 
@@ -381,7 +385,7 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
       end
 
       assert {:error, message} =
-               AshTypescript.Manifest.verify_for_domains([TypedQueryNonPublicDomain])
+               silent_verify_for_domains([TypedQueryNonPublicDomain])
 
       assert message =~ "not `public?`"
       assert message =~ "private_read"
@@ -427,7 +431,18 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
         end
       end
 
-      assert :ok = AshTypescript.Manifest.verify_for_domains([TypedQueryPublicDomain])
+      assert :ok = silent_verify_for_domains([TypedQueryPublicDomain])
     end
+  end
+
+  # Compiling the throwaway manifest module makes Elixir's parallel checker echo
+  # raised DslErrors (and RPC config IO.warn output) to stderr, so silence it.
+  defp silent_verify_for_domains(domains) do
+    {result, _stderr} =
+      ExUnit.CaptureIO.with_io(:standard_error, fn ->
+        AshTypescript.Manifest.verify_for_domains(domains)
+      end)
+
+    result
   end
 end

@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
-  use ExUnit.Case, async: true
-
-  @moduletag :generates_warnings
+  use ExUnit.Case, async: false
 
   describe "metadata field name validation - invalid TypeScript names" do
     test "detects metadata fields with underscores followed by digits" do
@@ -51,7 +49,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([TestDomainWithInvalidMetadataName])
+        silent_verify_for_domains([TestDomainWithInvalidMetadataName])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid metadata field name/
@@ -102,7 +100,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([
+        silent_verify_for_domains([
           TestDomainWithQuestionMarkMetadata
         ])
 
@@ -155,7 +153,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([
+        silent_verify_for_domains([
           TestDomainWithCombinedInvalidMetadata
         ])
 
@@ -211,7 +209,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([TestDomainWithAttributeConflict])
+        silent_verify_for_domains([TestDomainWithAttributeConflict])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Metadata field conflicts with resource field/
@@ -267,7 +265,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([TestDomainWithCalculationConflict])
+        silent_verify_for_domains([TestDomainWithCalculationConflict])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Metadata field conflicts with resource field/
@@ -284,16 +282,16 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         typescript do
           type_name "TestResourceWithMappedFieldConflict"
 
-          field_names internal_name: "externalName"
+          field_names external_name_1: "externalName"
         end
 
         attributes do
           uuid_primary_key :id
-          attribute :internal_name, :string, public?: true
+          attribute :external_name_1, :string, public?: true
         end
 
         actions do
-          defaults [:read, :destroy, create: [:internal_name], update: [:internal_name]]
+          defaults [:read, :destroy, create: [:external_name_1], update: [:external_name_1]]
 
           read :read_with_metadata do
             # Metadata field has the same name as the mapped field name
@@ -319,7 +317,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([TestDomainWithMappedFieldConflict])
+        silent_verify_for_domains([TestDomainWithMappedFieldConflict])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Metadata field conflicts with resource field/
@@ -372,7 +370,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithValidMetadata])
+      result = silent_verify_for_domains([TestDomainWithValidMetadata])
 
       assert result == :ok
     end
@@ -418,7 +416,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithNilMetadata])
+      result = silent_verify_for_domains([TestDomainWithNilMetadata])
 
       assert result == :ok
     end
@@ -464,7 +462,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithFalseMetadata])
+      result = silent_verify_for_domains([TestDomainWithFalseMetadata])
 
       assert result == :ok
     end
@@ -510,7 +508,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithEmptyMetadata])
+      result = silent_verify_for_domains([TestDomainWithEmptyMetadata])
 
       assert result == :ok
     end
@@ -561,7 +559,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithMappedMetadata])
+      result = silent_verify_for_domains([TestDomainWithMappedMetadata])
 
       assert result == :ok
     end
@@ -610,7 +608,7 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithMappedConflict])
+      result = silent_verify_for_domains([TestDomainWithMappedConflict])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Mapped metadata field conflicts with resource field/
@@ -662,12 +660,23 @@ defmodule AshTypescript.Rpc.VerifyMetadataFieldNamesTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([TestDomainWithInvalidMappedName])
+        silent_verify_for_domains([TestDomainWithInvalidMappedName])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid metadata field name/
       assert error_message =~ ~r/field_a/
       assert error_message =~ ~r/field_1/
     end
+  end
+
+  # Compiling the throwaway manifest module makes Elixir's parallel checker echo
+  # raised DslErrors (and RPC config IO.warn output) to stderr, so silence it.
+  defp silent_verify_for_domains(domains) do
+    {result, _stderr} =
+      ExUnit.CaptureIO.with_io(:standard_error, fn ->
+        AshTypescript.Manifest.verify_for_domains(domains)
+      end)
+
+    result
   end
 end

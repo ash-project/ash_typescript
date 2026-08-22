@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
-  use ExUnit.Case, async: true
-
-  @moduletag :generates_warnings
+  use ExUnit.Case, async: false
 
   describe "verify/1 - Truly custom Ash.Type (use Ash.Type)" do
     # Tests for custom types defined with `use Ash.Type` directly,
@@ -16,6 +14,8 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
       # These have no internal field structure, so should always pass
       defmodule CustomPrimitiveType do
         use Ash.Type
+
+        def typescript_type_name, do: "string"
 
         @impl true
         def storage_type(_), do: :string
@@ -75,7 +75,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainPrimitiveCustomType])
+      result = silent_verify_for_domains([TestDomainPrimitiveCustomType])
 
       # Primitive types have no field structure to validate
       assert result == :ok
@@ -84,6 +84,8 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
     test "custom Ash.Type used as action argument passes when primitive" do
       defmodule CustomIdentifierType do
         use Ash.Type
+
+        def typescript_type_name, do: "string"
 
         @impl true
         def storage_type(_), do: :string
@@ -153,7 +155,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainCustomTypeAsArg])
+      result = silent_verify_for_domains([TestDomainCustomTypeAsArg])
 
       assert result == :ok
     end
@@ -237,7 +239,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainCompositeType])
+      result = silent_verify_for_domains([TestDomainCompositeType])
 
       # Composite types are now verified - invalid field names should be detected
       assert {:error, error_message} = result
@@ -327,7 +329,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainCustomMapLikeType])
+      result = silent_verify_for_domains([TestDomainCustomMapLikeType])
 
       # The :map type with field constraints should be verified
       assert {:error, error_message} = result
@@ -339,6 +341,8 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
     test "array of custom primitive Ash.Type passes verification" do
       defmodule CustomTagType do
         use Ash.Type
+
+        def typescript_type_name, do: "string"
 
         @impl true
         def storage_type(_), do: :string
@@ -402,9 +406,20 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CustomAshTypeTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainArrayOfCustomType])
+      result = silent_verify_for_domains([TestDomainArrayOfCustomType])
 
       assert result == :ok
     end
+  end
+
+  # Compiling the throwaway manifest module makes Elixir's parallel checker echo
+  # raised DslErrors (and RPC config IO.warn output) to stderr, so silence it.
+  defp silent_verify_for_domains(domains) do
+    {result, _stderr} =
+      ExUnit.CaptureIO.with_io(:standard_error, fn ->
+        AshTypescript.Manifest.verify_for_domains(domains)
+      end)
+
+    result
   end
 end

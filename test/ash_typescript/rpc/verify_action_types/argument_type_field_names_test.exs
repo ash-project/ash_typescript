@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Rpc.VerifyActionTypes.ArgumentTypeFieldNamesTest do
-  use ExUnit.Case, async: true
-
-  @moduletag :generates_warnings
+  use ExUnit.Case, async: false
 
   describe "verify/1 - argument type field names" do
     test "detects invalid field names in map argument type" do
@@ -55,7 +53,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ArgumentTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainMapArg])
+      result = silent_verify_for_domains([TestDomainMapArg])
 
       assert {:error, error_message} = result
 
@@ -119,7 +117,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ArgumentTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainUnionArg])
+      result = silent_verify_for_domains([TestDomainUnionArg])
 
       assert {:error, error_message} = result
 
@@ -177,7 +175,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ArgumentTypeFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainArrayMapArg])
+      result = silent_verify_for_domains([TestDomainArrayMapArg])
 
       assert {:error, error_message} = result
 
@@ -186,5 +184,16 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ArgumentTypeFieldNamesTest do
 
       assert error_message =~ "item_1"
     end
+  end
+
+  # Compiling the throwaway manifest module makes Elixir's parallel checker echo
+  # raised DslErrors (and RPC config IO.warn output) to stderr, so silence it.
+  defp silent_verify_for_domains(domains) do
+    {result, _stderr} =
+      ExUnit.CaptureIO.with_io(:standard_error, fn ->
+        AshTypescript.Manifest.verify_for_domains(domains)
+      end)
+
+    result
   end
 end

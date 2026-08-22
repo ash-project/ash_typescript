@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
-  use ExUnit.Case, async: true
-
-  @moduletag :generates_warnings
+  use ExUnit.Case, async: false
 
   describe "verify/1 - NewType wrapping Map, Keyword, and Tuple types" do
     test "detects invalid field names in NewType wrapping Map" do
@@ -61,7 +59,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainMapNewType])
+      result = silent_verify_for_domains([TestDomainMapNewType])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -121,7 +119,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainKeywordNewType])
+      result = silent_verify_for_domains([TestDomainKeywordNewType])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -181,7 +179,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainTupleNewType])
+      result = silent_verify_for_domains([TestDomainTupleNewType])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -250,7 +248,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([TestDomainMapNewTypeWithMappings])
+        silent_verify_for_domains([TestDomainMapNewTypeWithMappings])
 
       assert result == :ok
     end
@@ -315,7 +313,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([TestDomainKeywordNewTypeWithMappings])
+        silent_verify_for_domains([TestDomainKeywordNewTypeWithMappings])
 
       assert result == :ok
     end
@@ -381,7 +379,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([TestDomainTupleNewTypeWithMappings])
+        silent_verify_for_domains([TestDomainTupleNewTypeWithMappings])
 
       assert result == :ok
     end
@@ -439,7 +437,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainNewTypeArgument])
+      result = silent_verify_for_domains([TestDomainNewTypeArgument])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types or argument/
@@ -498,7 +496,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainArrayNewType])
+      result = silent_verify_for_domains([TestDomainArrayNewType])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
@@ -571,12 +569,23 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeWrappingTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainUnionWithNewType])
+      result = silent_verify_for_domains([TestDomainUnionWithNewType])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Invalid field names found in action return types/
       assert error_message =~ "nested_1"
       assert error_message =~ "has_value?"
     end
+  end
+
+  # Compiling the throwaway manifest module makes Elixir's parallel checker echo
+  # raised DslErrors (and RPC config IO.warn output) to stderr, so silence it.
+  defp silent_verify_for_domains(domains) do
+    {result, _stderr} =
+      ExUnit.CaptureIO.with_io(:standard_error, fn ->
+        AshTypescript.Manifest.verify_for_domains(domains)
+      end)
+
+    result
   end
 end

@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Rpc.VerifyActionTypes.ValidFieldNamesTest do
-  use ExUnit.Case, async: true
-
-  @moduletag :generates_warnings
+  use ExUnit.Case, async: false
 
   describe "verify/1 - valid field names pass" do
     test "passes for valid field names in return type" do
@@ -54,7 +52,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ValidFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainValidReturn])
+      result = silent_verify_for_domains([TestDomainValidReturn])
 
       assert result == :ok
     end
@@ -107,7 +105,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ValidFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainValidArg])
+      result = silent_verify_for_domains([TestDomainValidArg])
 
       assert result == :ok
     end
@@ -150,9 +148,20 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.ValidFieldNamesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainCrud])
+      result = silent_verify_for_domains([TestDomainCrud])
 
       assert result == :ok
     end
+  end
+
+  # Compiling the throwaway manifest module makes Elixir's parallel checker echo
+  # raised DslErrors (and RPC config IO.warn output) to stderr, so silence it.
+  defp silent_verify_for_domains(domains) do
+    {result, _stderr} =
+      ExUnit.CaptureIO.with_io(:standard_error, fn ->
+        AshTypescript.Manifest.verify_for_domains(domains)
+      end)
+
+    result
   end
 end

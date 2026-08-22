@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
-  use ExUnit.Case, async: true
-
-  @moduletag :generates_warnings
+  use ExUnit.Case, async: false
 
   describe "identity validation - non-existent identities" do
     test "detects identity that doesn't exist on resource" do
@@ -26,7 +24,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
 
         identities do
-          identity :email, [:email]
+          identity :email, [:email], pre_check_with: AshTypescript.Test.Domain
         end
 
         actions do
@@ -51,7 +49,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([TestDomainWithMissingIdentity])
+        silent_verify_for_domains([TestDomainWithMissingIdentity])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Identity not found on resource/
@@ -97,7 +95,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([
+        silent_verify_for_domains([
           TestDomainWithMultipleMissingIdentities
         ])
 
@@ -126,8 +124,8 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
 
         identities do
-          identity :email, [:email]
-          identity :username, [:username]
+          identity :email, [:email], pre_check_with: AshTypescript.Test.Domain
+          identity :username, [:username], pre_check_with: AshTypescript.Test.Domain
         end
 
         actions do
@@ -152,7 +150,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([TestDomainWithAvailableIdentities])
+        silent_verify_for_domains([TestDomainWithAvailableIdentities])
 
       assert {:error, error_message} = result
 
@@ -162,10 +160,16 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
 
     test "detects :_primary_key used on resource without primary key" do
       defmodule TestResourceWithoutPrimaryKey do
+        # Ash.DataLayer.Simple supports update/destroy without a primary key,
+        # which Ash.DataLayer.Ets does not.
         use Ash.Resource,
           domain: nil,
-          data_layer: Ash.DataLayer.Ets,
+          data_layer: Ash.DataLayer.Simple,
           extensions: [AshTypescript.Resource]
+
+        resource do
+          require_primary_key? false
+        end
 
         typescript do
           type_name "TestResourceWithoutPrimaryKey"
@@ -199,7 +203,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([TestDomainWithoutPrimaryKey])
+        silent_verify_for_domains([TestDomainWithoutPrimaryKey])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Resource has no primary key/
@@ -245,7 +249,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithPrimaryKey])
+      result = silent_verify_for_domains([TestDomainWithPrimaryKey])
 
       assert result == :ok
     end
@@ -267,7 +271,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
 
         identities do
-          identity :email, [:email]
+          identity :email, [:email], pre_check_with: AshTypescript.Test.Domain
         end
 
         actions do
@@ -291,7 +295,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithNamedIdentity])
+      result = silent_verify_for_domains([TestDomainWithNamedIdentity])
 
       assert result == :ok
     end
@@ -314,8 +318,8 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
 
         identities do
-          identity :email, [:email]
-          identity :username, [:username]
+          identity :email, [:email], pre_check_with: AshTypescript.Test.Domain
+          identity :username, [:username], pre_check_with: AshTypescript.Test.Domain
         end
 
         actions do
@@ -339,7 +343,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithMixedIdentities])
+      result = silent_verify_for_domains([TestDomainWithMixedIdentities])
 
       assert result == :ok
     end
@@ -383,7 +387,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([TestDomainWithDefaultIdentities])
+        silent_verify_for_domains([TestDomainWithDefaultIdentities])
 
       assert result == :ok
     end
@@ -426,7 +430,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithEmptyIdentities])
+      result = silent_verify_for_domains([TestDomainWithEmptyIdentities])
 
       assert result == :ok
     end
@@ -471,7 +475,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithReadAction])
+      result = silent_verify_for_domains([TestDomainWithReadAction])
 
       assert result == :ok
     end
@@ -514,7 +518,7 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
         end
       end
 
-      result = AshTypescript.Manifest.verify_for_domains([TestDomainWithCreateAction])
+      result = silent_verify_for_domains([TestDomainWithCreateAction])
 
       assert result == :ok
     end
@@ -557,11 +561,22 @@ defmodule AshTypescript.Rpc.VerifyIdentitiesTest do
       end
 
       result =
-        AshTypescript.Manifest.verify_for_domains([TestDomainWithDestroyAction])
+        silent_verify_for_domains([TestDomainWithDestroyAction])
 
       assert {:error, error_message} = result
       assert error_message =~ ~r/Identity not found on resource/
       assert error_message =~ ~r/non_existent/
     end
+  end
+
+  # Compiling the throwaway manifest module makes Elixir's parallel checker echo
+  # raised DslErrors (and RPC config IO.warn output) to stderr, so silence it.
+  defp silent_verify_for_domains(domains) do
+    {result, _stderr} =
+      ExUnit.CaptureIO.with_io(:standard_error, fn ->
+        AshTypescript.Manifest.verify_for_domains(domains)
+      end)
+
+    result
   end
 end
