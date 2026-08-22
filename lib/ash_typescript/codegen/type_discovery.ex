@@ -215,18 +215,96 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
     end
   end
 
-  # Derives non-RPC referenced resources from the spec.
-  # Any non-embedded resource in the spec that isn't an RPC resource
-  # was discovered through reachability (i.e., referenced by an RPC resource).
+  # Derives non-RPC referenced resources from the spec, with one-hop
+  # attribution. Any non-embedded resource in the spec that isn't an RPC
+  # resource was discovered through reachability (i.e., referenced by an RPC
+  # resource, directly or through other reachable resources). Returns
+  # `{module, referencer_descriptions}` tuples so the warning can say where
+  # each reference lives.
   defp find_non_rpc_referenced_resources(resource_lookup, rpc_resources) do
     rpc_set = MapSet.new(rpc_resources)
 
+    warned =
+      resource_lookup
+      |> Map.values()
+      |> Enum.reject(fn r -> r.embedded? or MapSet.member?(rpc_set, r.module) end)
+      |> Enum.map(& &1.module)
+
+    case warned do
+      [] ->
+        []
+
+      _ ->
+        references = collect_references(resource_lookup, MapSet.new(warned))
+
+        warned
+        |> Enum.sort_by(&inspect/1)
+        |> Enum.map(fn module -> {module, Map.get(references, module, [])} end)
+    end
+  end
+
+  # One hop of attribution: scans every resource in the lookup (RPC-configured,
+  # reachable, and embedded alike) for relationships and field types that
+  # reference a warned module. References buried behind named types
+  # (`:type_ref`) are not chased — those modules still get warned about, just
+  # without a "Referenced by" listing.
+  defp collect_references(resource_lookup, warned_set) do
     resource_lookup
     |> Map.values()
-    |> Enum.reject(fn r -> r.embedded? or MapSet.member?(rpc_set, r.module) end)
-    |> Enum.map(& &1.module)
-    |> Enum.sort_by(&inspect/1)
+    |> Enum.flat_map(fn resource ->
+      relationship_refs =
+        resource.relationships
+        |> Map.values()
+        |> Enum.filter(&MapSet.member?(warned_set, &1.destination))
+        |> Enum.map(fn rel ->
+          {rel.destination, "#{inspect(resource.module)} (relationship :#{rel.name})"}
+        end)
+
+      field_refs =
+        resource
+        |> Ash.Info.Manifest.Resource.all_fields()
+        |> Enum.flat_map(fn field ->
+          field.type
+          |> referenced_warned_modules(warned_set)
+          |> Enum.map(fn destination ->
+            {destination, "#{inspect(resource.module)} (field :#{field.name})"}
+          end)
+        end)
+
+      relationship_refs ++ field_refs
+    end)
+    |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+    |> Map.new(fn {module, refs} -> {module, refs |> Enum.uniq() |> Enum.sort()} end)
   end
+
+  # Walks a field's type tree for references to warned resource modules.
+  defp referenced_warned_modules(%Ash.Info.Manifest.Type{kind: kind} = type, warned_set)
+       when kind in [:resource, :embedded_resource] do
+    destination = type.resource_module || type.module
+    if MapSet.member?(warned_set, destination), do: [destination], else: []
+  end
+
+  defp referenced_warned_modules(
+         %Ash.Info.Manifest.Type{kind: :array, item_type: item},
+         warned_set
+       ) do
+    referenced_warned_modules(item, warned_set)
+  end
+
+  defp referenced_warned_modules(
+         %Ash.Info.Manifest.Type{kind: :union, members: members},
+         warned_set
+       )
+       when is_list(members) do
+    Enum.flat_map(members, fn %{type: type} -> referenced_warned_modules(type, warned_set) end)
+  end
+
+  defp referenced_warned_modules(%Ash.Info.Manifest.Type{kind: kind, fields: fields}, warned_set)
+       when kind in [:map, :keyword, :tuple, :struct] and is_list(fields) do
+    Enum.flat_map(fields, fn %{type: type} -> referenced_warned_modules(type, warned_set) end)
+  end
+
+  defp referenced_warned_modules(_type, _warned_set), do: []
 
   # ─────────────────────────────────────────────────────────────────
   # Private: Warning message builders
@@ -288,13 +366,19 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
 
     resource_lines =
       non_rpc_resources
-      |> Enum.flat_map(fn resource ->
-        ["   • #{inspect(resource)}", ""]
+      |> Enum.flat_map(fn
+        {resource, []} ->
+          ["   • #{inspect(resource)}", ""]
+
+        {resource, referencers} ->
+          ["   • #{inspect(resource)}", "     Referenced by:"] ++
+            Enum.map(referencers, &"       - #{&1}") ++ [""]
       end)
 
     explanation_lines = [
-      "   These resources are referenced in attributes, calculations, or aggregates",
-      "   of RPC resources, but are not themselves configured as RPC resources.",
+      "   These resources are referenced in attributes, calculations, aggregates,",
+      "   or relationships of RPC resources (directly, or through other resources",
+      "   they reach), but are not themselves configured as RPC resources.",
       "   They will NOT have TypeScript types or RPC functions generated.",
       "",
       "   If these resources should be accessible via RPC, add them to a domain's",
