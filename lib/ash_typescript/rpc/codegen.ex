@@ -9,6 +9,8 @@ defmodule AshTypescript.Rpc.Codegen do
   import AshTypescript.Helpers, only: [format_output_field: 1]
 
   alias AshTypescript.Codegen.SchemaCore
+  alias AshTypescript.Codegen.ValibotSchemaGenerator
+  alias AshTypescript.Codegen.ZodSchemaGenerator
 
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer
@@ -65,7 +67,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     exports = [{function_name, :value}]
 
-    has_input? = ActionIntrospection.action_input_type(action) != :none
+    has_input? = SchemaCore.action_has_schema?(action)
 
     exports =
       if has_input? do
@@ -78,7 +80,7 @@ defmodule AshTypescript.Rpc.Codegen do
     # Classified as :zod_value so namespace files can re-export from ash_zod.ts
     exports =
       if AshTypescript.Rpc.generate_zod_schemas?() and has_input? do
-        zod_schema_name = format_output_field("#{rpc_action_name}_zod_schema")
+        zod_schema_name = SchemaCore.action_schema_name(ZodSchemaGenerator, rpc_action_name)
         exports ++ [{zod_schema_name, :zod_value}]
       else
         exports
@@ -87,8 +89,9 @@ defmodule AshTypescript.Rpc.Codegen do
     # Classified as :valibot_value so namespace files can re-export from ash_valibot.ts
     exports =
       if AshTypescript.Rpc.generate_valibot_schemas?() and has_input? do
-        suffix = AshTypescript.Rpc.valibot_schema_suffix()
-        valibot_schema_name = format_output_field("#{rpc_action_name}#{suffix}")
+        valibot_schema_name =
+          SchemaCore.action_schema_name(ValibotSchemaGenerator, rpc_action_name)
+
         exports ++ [{valibot_schema_name, :valibot_value}]
       else
         exports

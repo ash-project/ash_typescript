@@ -15,6 +15,9 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
 
   @tc_mutation_methods [:post, :patch, :put, :delete]
 
+  alias AshTypescript.Codegen.SchemaCore
+  alias AshTypescript.Codegen.ValibotSchemaGenerator
+  alias AshTypescript.Codegen.ZodSchemaGenerator
   alias AshTypescript.Helpers
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
 
@@ -363,22 +366,23 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     validate_name = Helpers.format_output_field("validate_#{rpc_action_name}")
     channel_name = Helpers.format_output_field("#{rpc_action_name}_channel")
 
-    # Suffixes are configurable, so derive the names the same way the schema
-    # generators do rather than hardcoding "_zod_schema".
-    zod_schema_name =
-      Helpers.format_output_field("#{rpc_action_name}#{AshTypescript.Rpc.zod_schema_suffix()}")
-
-    valibot_schema_name =
-      Helpers.format_output_field(
-        "#{rpc_action_name}#{AshTypescript.Rpc.valibot_schema_suffix()}"
-      )
+    # An action with no inputs gets no schema, so naming one here would point
+    # readers at an export that does not exist. Names come from SchemaCore so
+    # the configurable suffixes cannot drift.
+    schema_cell = fn formatter ->
+      if SchemaCore.action_has_schema?(action) do
+        "`#{SchemaCore.action_schema_name(formatter, rpc_action_name)}`"
+      else
+        "-"
+      end
+    end
 
     "| `#{function_name}` | #{action_type} |"
     |> maybe_append(" `#{action_name}` |", include_internals?)
     |> maybe_append(" `#{resource_module}` |", include_internals?)
     |> maybe_append(" `#{validate_name}` |", show_validation)
-    |> maybe_append(" `#{zod_schema_name}` |", schema_flags.zod)
-    |> maybe_append(" `#{valibot_schema_name}` |", schema_flags.valibot)
+    |> maybe_append(" #{schema_cell.(ZodSchemaGenerator)} |", schema_flags.zod)
+    |> maybe_append(" #{schema_cell.(ValibotSchemaGenerator)} |", schema_flags.valibot)
     |> maybe_append(" `#{channel_name}` |", show_channel)
   end
 

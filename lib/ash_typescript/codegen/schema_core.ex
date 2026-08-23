@@ -200,13 +200,34 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # ─────────────────────────────────────────────────────────────────
 
   @doc """
+  Whether an RPC action gets an input schema at all.
+
+  An action with no inputs produces no schema, so anything that advertises or
+  re-exports a schema name must ask this first — otherwise it points consumers
+  at an export that does not exist.
+  """
+  def action_has_schema?(action) do
+    ActionIntrospection.action_input_type(action) != :none
+  end
+
+  @doc """
+  Returns the exported schema constant name for an RPC action's input.
+
+  Single source of truth for the name — used by `generate_action_schema/4` (the
+  export itself), the namespace re-export collection, and both manifests, so
+  they cannot drift from the configured `*_schema_suffix`.
+  """
+  def action_schema_name(formatter, rpc_action_name) do
+    format_output_field("#{rpc_action_name}#{formatter.schema_suffix()}")
+  end
+
+  @doc """
   Generates a schema definition for an RPC action's input.
   Returns an empty string when the action has no input.
   """
   def generate_action_schema(formatter, resource, action, rpc_action_name) do
-    if ActionIntrospection.action_input_type(action) != :none do
-      suffix = formatter.schema_suffix()
-      schema_name = format_output_field("#{rpc_action_name}#{suffix}")
+    if action_has_schema?(action) do
+      schema_name = action_schema_name(formatter, rpc_action_name)
       resource_lookup = AshTypescript.resource_lookup()
 
       field_defs =

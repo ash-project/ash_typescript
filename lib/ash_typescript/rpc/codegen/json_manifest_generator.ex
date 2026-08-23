@@ -22,6 +22,9 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
   @tc_mutation_methods [:post, :patch, :put, :delete]
 
   alias AshTypescript.Codegen.ImportResolver
+  alias AshTypescript.Codegen.SchemaCore
+  alias AshTypescript.Codegen.ValibotSchemaGenerator
+  alias AshTypescript.Codegen.ZodSchemaGenerator
   alias AshTypescript.Helpers
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
@@ -156,9 +159,14 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
     input_requirement = ActionIntrospection.action_input_type(action)
 
     show_validation = AshTypescript.Rpc.generate_validation_functions?()
-    show_zod = AshTypescript.Rpc.generate_zod_schemas?()
-    show_valibot = AshTypescript.Rpc.generate_valibot_schemas?()
     show_channel = AshTypescript.Rpc.generate_phx_channel_rpc_actions?()
+
+    # Validation and channel functions exist for every action, but an input
+    # schema is only emitted when the action actually has inputs — so these two
+    # variants are per-action, not just "is the library enabled".
+    has_schema? = SchemaCore.action_has_schema?(action)
+    show_zod = AshTypescript.Rpc.generate_zod_schemas?() and has_schema?
+    show_valibot = AshTypescript.Rpc.generate_valibot_schemas?() and has_schema?
 
     %{
       "functionName" => function_name,
@@ -281,16 +289,18 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
     names =
       if show_zod do
-        suffix = AshTypescript.Rpc.zod_schema_suffix()
-        Map.put(names, "zod", Helpers.format_output_field("#{rpc_action_name}#{suffix}"))
+        Map.put(names, "zod", SchemaCore.action_schema_name(ZodSchemaGenerator, rpc_action_name))
       else
         names
       end
 
     names =
       if show_valibot do
-        suffix = AshTypescript.Rpc.valibot_schema_suffix()
-        Map.put(names, "valibot", Helpers.format_output_field("#{rpc_action_name}#{suffix}"))
+        Map.put(
+          names,
+          "valibot",
+          SchemaCore.action_schema_name(ValibotSchemaGenerator, rpc_action_name)
+        )
       else
         names
       end

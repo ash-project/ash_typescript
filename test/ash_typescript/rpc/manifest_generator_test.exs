@@ -245,12 +245,23 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
       # The row builder must derive names from zod_schema_suffix/
       # valibot_schema_suffix rather than hardcoding "_zod_schema"
       if AshTypescript.Rpc.generate_zod_schemas?() do
-        assert manifest =~ "`getImportantDates#{AshTypescript.Rpc.zod_schema_suffix()}`"
+        assert manifest =~ "`createTodo#{AshTypescript.Rpc.zod_schema_suffix()}`"
       end
 
       if AshTypescript.Rpc.generate_valibot_schemas?() do
-        assert manifest =~ "`getImportantDates#{AshTypescript.Rpc.valibot_schema_suffix()}`"
+        assert manifest =~ "`createTodo#{AshTypescript.Rpc.valibot_schema_suffix()}`"
       end
+    end
+
+    test "input-less actions show a dash instead of a schema name", %{manifest: manifest} do
+      # `destroyTodo` takes no input, so no schema is emitted for it — naming one
+      # would point readers at an export that does not exist
+      refute manifest =~ "`destroyTodoZodSchema`"
+      refute manifest =~ "`destroyTodoValibotSchema`"
+
+      # ...but its validation and channel functions do exist
+      assert manifest =~ "`validateDestroyTodo`"
+      assert manifest =~ "`destroyTodoChannel`"
     end
 
     test "includes Channel column when channel functions enabled", %{manifest: manifest} do

@@ -341,6 +341,41 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
       assert action["variantNames"]["valibot"] == "listTodosValibotSchema"
       assert action["variantNames"]["channel"] == "listTodosChannel"
     end
+
+    test "input-less actions advertise no schema variant", %{manifest: manifest} do
+      # No inputs means SchemaCore emits no schema, so claiming one would point
+      # consumers at an export that does not exist
+      action = Enum.find(manifest["actions"], &(&1["functionName"] == "destroyTodo"))
+
+      assert action["input"] == "none"
+      assert action["variants"]["zod"] == false
+      assert action["variants"]["valibot"] == false
+      refute Map.has_key?(action["variantNames"], "zod")
+      refute Map.has_key?(action["variantNames"], "valibot")
+
+      # Validation and channel functions exist regardless of inputs
+      assert action["variants"]["validation"] == true
+      assert action["variants"]["channel"] == true
+    end
+
+    test "every advertised schema name resolves to a real export", %{manifest: manifest} do
+      {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
+      zod = AshTypescript.Test.CodegenTestHelper.zod_content(files)
+      valibot = AshTypescript.Test.CodegenTestHelper.valibot_content(files)
+
+      for action <- manifest["actions"] do
+        for {variant, source} <- [{"zod", zod}, {"valibot", valibot}] do
+          case action["variantNames"][variant] do
+            nil ->
+              assert action["variants"][variant] == false
+
+            name ->
+              assert source =~ "export const #{name} =",
+                     "#{variant} schema #{name} is advertised but never emitted"
+          end
+        end
+      end
+    end
   end
 
   describe "input classification" do
