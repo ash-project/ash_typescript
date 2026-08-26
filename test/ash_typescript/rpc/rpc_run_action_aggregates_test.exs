@@ -193,7 +193,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["message"] == "Cannot select fields from %{field_type} %{field}"
+      assert error["message"] == "Cannot select fields from %{fieldType} %{field}"
     end
 
     test "rejects nested field selection on exists aggregate", %{conn: conn} do
@@ -206,7 +206,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["message"] == "Cannot select fields from %{field_type} %{field}"
+      assert error["message"] == "Cannot select fields from %{fieldType} %{field}"
     end
 
     test "rejects nested field selection on primitive list aggregate", %{conn: conn} do
@@ -219,7 +219,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
       assert result["success"] == false
       assert is_list(result["errors"])
       [error | _] = result["errors"]
-      assert error["message"] == "Cannot select fields from %{field_type} %{field}"
+      assert error["message"] == "Cannot select fields from %{fieldType} %{field}"
     end
   end
 

@@ -1223,7 +1223,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       assert result["success"] == false
       first_error = List.first(result["errors"])
       assert first_error["type"] == "action_not_found"
-      assert first_error["message"] == "RPC action %{action_name} not found"
+      assert first_error["message"] == "RPC action %{actionName} not found"
       assert first_error["vars"]["actionName"] == "nonexistent_action"
     end
 

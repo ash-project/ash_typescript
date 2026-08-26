@@ -41,7 +41,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   }
 
   alias Ash.Info.Manifest
-  alias AshTypescript.{FieldFormatter, Rpc}
+  alias AshTypescript.{ErrorFormatter, FieldFormatter, Rpc}
   alias AshTypescript.Manifest.Custom
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
@@ -337,10 +337,18 @@ defmodule AshTypescript.Rpc.Pipeline do
   Stage 4: Format output for client consumption.
 
   Applies output field formatting and final response structure.
+
+  The error clause handles failures raised before a `%Request{}` exists (action
+  discovery, identity resolution, parameter validation); errors are formatted the
+  same way as in `format_output/2` so both paths agree on the response shape. The
+  fallback clause formats bare data with no response envelope.
   """
+  def format_output(%{success: false, errors: _} = filtered_result) do
+    format_output_data(filtered_result, Rpc.output_field_formatter(), nil)
+  end
+
   def format_output(filtered_result) do
-    formatter = Rpc.output_field_formatter()
-    format_field_names(filtered_result, formatter)
+    FieldFormatter.format_output_field_names(filtered_result, Rpc.output_field_formatter())
   end
 
   @doc """
@@ -359,7 +367,7 @@ defmodule AshTypescript.Rpc.Pipeline do
         if typed_query_name == "" do
           {:error, {:missing_required_parameter, :typed_query_action}}
         else
-          case find_typed_query(otp_app, typed_query_name) do
+          case find_typed_query(typed_query_name) do
             nil ->
               {:error, {:typed_query_not_found, typed_query_name}}
 
@@ -391,8 +399,15 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp find_typed_query(_otp_app, typed_query_name)
-       when is_binary(typed_query_name) or is_atom(typed_query_name) do
+  @doc """
+  Looks up the manifest entrypoint for a typed query by name.
+
+  Returns the `%Ash.Info.Manifest.Entrypoint{}` or `nil`. Public because
+  `Rpc.run_typed_query/4` needs the same lookup to read the query's `fields`
+  before delegating to `run_action/3`.
+  """
+  def find_typed_query(typed_query_name)
+      when is_binary(typed_query_name) or is_atom(typed_query_name) do
     Map.get(AshTypescript.typed_query_lookup(), to_string(typed_query_name))
   end
 
@@ -529,7 +544,12 @@ defmodule AshTypescript.Rpc.Pipeline do
         atom_key = field_name
         string_key = if is_atom(field_name), do: Atom.to_string(field_name), else: field_name
 
-        Map.get(value, atom_key) || Map.get(value, string_key)
+        # Map.fetch, not ||: a legitimate `false` or `nil` value must not fall
+        # through to the other key form.
+        case Map.fetch(value, atom_key) do
+          {:ok, field_value} -> field_value
+          :error -> Map.get(value, string_key)
+        end
       end)
 
     List.to_tuple(tuple_values)
@@ -927,33 +947,6 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
-  defp format_field_names(data, formatter) do
-    case data do
-      map when is_map(map) and not is_struct(map) ->
-        Enum.into(map, %{}, fn {key, value} ->
-          formatted_key =
-            case key do
-              atom when is_atom(atom) ->
-                FieldFormatter.format_field_name(to_string(atom), formatter)
-
-              string when is_binary(string) ->
-                FieldFormatter.format_field_name(string, formatter)
-
-              other ->
-                other
-            end
-
-          {formatted_key, format_field_names(value, formatter)}
-        end)
-
-      list when is_list(list) ->
-        Enum.map(list, &format_field_names(&1, formatter))
-
-      other ->
-        other
-    end
-  end
-
   defp format_output_data(%{success: true, data: result_data} = result, formatter, request) do
     {actual_data, metadata} =
       if is_map(result_data) and Map.has_key?(result_data, :data) and
@@ -1000,7 +993,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp format_output_data(%{success: false, errors: errors}, formatter, _request) do
-    formatted_errors = Enum.map(errors, &format_field_names(&1, formatter))
+    formatted_errors = Enum.map(errors, &ErrorFormatter.format(&1, formatter))
 
     %{
       FieldFormatter.format_field_name("success", formatter) => false,
@@ -1340,9 +1333,17 @@ defmodule AshTypescript.Rpc.Pipeline do
   end
 
   defp build_named_identity_filter(identity, parsed_identity) when is_map(parsed_identity) do
-    # Build filter from the identity's keys using values from parsed_identity
+    # Build filter from the identity's keys using values from parsed_identity.
+    # Map.fetch, not ||: a legitimate `false` identity value must not fall
+    # through to the other key form.
     Enum.map(identity.keys, fn key ->
-      {key, Map.get(parsed_identity, key) || Map.get(parsed_identity, Atom.to_string(key))}
+      value =
+        case Map.fetch(parsed_identity, key) do
+          {:ok, value} -> value
+          :error -> Map.get(parsed_identity, Atom.to_string(key))
+        end
+
+      {key, value}
     end)
   end
 

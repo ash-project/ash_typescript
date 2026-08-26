@@ -42,6 +42,22 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
+      # Typed query discovery errors
+      {:typed_query_not_found, typed_query_name} ->
+        %{
+          type: "typed_query_not_found",
+          message: "Typed query %{typed_query_name} not found",
+          short_message: "Typed query not found",
+          vars: %{typed_query_name: to_string(typed_query_name)},
+          path: [],
+          fields: [],
+          details: %{
+            suggestion:
+              "Check that the typed query is defined in a typed_queries block in your domain's typescript_rpc configuration",
+            hint: @stale_generated_file_hint
+          }
+        }
+
       # Tenant resolution errors
       {:tenant_required, resource} ->
         %{
@@ -131,6 +147,24 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           fields: [full_field_path],
           details: %{
             suggestion: "Provide arguments in the format: {\"#{field_atom}\": {\"args\": {...}}}",
+            hint: @stale_generated_file_hint
+          }
+        }
+
+      # Invalid field specification format (e.g. calculation args where they are not supported)
+      {:invalid_field_format, field_spec, path} when is_list(path) ->
+        formatted_path = format_path(path)
+
+        %{
+          type: "invalid_field_format",
+          message: "Invalid field specification format",
+          short_message: "Invalid field format",
+          vars: %{},
+          path: formatted_path,
+          fields: [],
+          details: %{
+            field_spec: inspect(field_spec),
+            suggestion: "Check the documentation for valid field specification formats",
             hint: @stale_generated_file_hint
           }
         }

@@ -346,6 +346,90 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     end
   end
 
+  describe "invalid_field_format error" do
+    test "invalid_field_format with path builds a proper client error" do
+      error = {:invalid_field_format, %{"self" => %{"args" => %{}}}, [:user]}
+
+      response = ErrorBuilder.build_error_response(error)
+
+      assert response.type == "invalid_field_format"
+      assert is_binary(response.message)
+      assert response.path == ["user"]
+      assert Map.has_key?(response.details, :hint)
+    end
+  end
+
+  describe "typed_query_not_found error" do
+    test "builds a proper client error" do
+      response = ErrorBuilder.build_error_response({:typed_query_not_found, "missing_query"})
+
+      assert response.type == "typed_query_not_found"
+      assert response.vars.typed_query_name == "missing_query"
+      assert String.contains?(response.details.suggestion, "typed_queries")
+    end
+  end
+
+  describe "fallback error shape" do
+    defmodule NoImplError do
+      use Splode.Error, fields: [:foo], class: :invalid
+
+      def message(_), do: "no protocol implementation for this one"
+    end
+
+    defmodule ShowRaisedErrorsDomain do
+      use Ash.Domain, extensions: [AshTypescript.Rpc], validate_config_inclusion?: false
+
+      typescript_rpc do
+        show_raised_errors? true
+      end
+    end
+
+    @tag capture_log: true
+    test "errors without a protocol implementation surface a `type` key" do
+      error = NoImplError.exception(foo: :bar)
+
+      [response] = AshTypescript.Rpc.Errors.to_errors(error)
+
+      assert response.type == "internal_error"
+      assert response.short_message == "Internal error"
+      assert is_binary(response.error_id)
+      refute Map.has_key?(response, :code)
+    end
+
+    @tag capture_log: true
+    test "error_id reaches the client under the key AshRpcError declares" do
+      error = NoImplError.exception(foo: :bar)
+
+      [response] = AshTypescript.Rpc.Errors.to_errors(error)
+
+      formatted =
+        AshTypescript.ErrorFormatter.format(response, AshTypescript.output_field_formatter())
+
+      assert formatted["errorId"] == response.error_id
+      assert String.contains?(formatted["message"], response.error_id)
+    end
+
+    test "show_raised_errors? exposes the exception with a `type` key" do
+      error = NoImplError.exception(foo: :bar)
+
+      [response] = AshTypescript.Rpc.Errors.to_errors(error, ShowRaisedErrorsDomain)
+
+      assert response.type == "no_impl_error"
+      assert response.message == "no protocol implementation for this one"
+      refute Map.has_key?(response, :code)
+    end
+
+    test "missing tenant surfaces as tenant_required, not internal_error" do
+      error = Ash.Error.Invalid.TenantRequired.exception(resource: Todo)
+
+      [response] = AshTypescript.Rpc.Errors.to_errors(error)
+
+      assert response.type == "tenant_required"
+      assert response.short_message == "Tenant required"
+      assert String.contains?(response.message, "tenant")
+    end
+  end
+
   describe "Reactor.Error.Invalid.RunStepError handling" do
     test "delegates to inner Ash error" do
       inner_error = Ash.Error.Changes.InvalidChanges.exception(message: "bad input")

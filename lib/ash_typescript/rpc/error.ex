@@ -206,6 +206,19 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Query.InvalidPage do
   end
 end
 
+defimpl AshTypescript.Rpc.Error, for: Ash.Error.Invalid.TenantRequired do
+  def to_error(error) do
+    %{
+      message: Exception.message(error),
+      short_message: "Tenant required",
+      vars: Map.new(error.vars || []),
+      type: "tenant_required",
+      fields: [],
+      path: error.path || []
+    }
+  end
+end
+
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Invalid.InvalidPrimaryKey do
   def to_error(error) do
     %{

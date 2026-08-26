@@ -226,7 +226,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       error = List.first(error_response["errors"])
       assert error["type"] == "action_not_found"
-      assert error["message"] == "RPC action %{action_name} not found"
+      assert error["message"] == "RPC action %{actionName} not found"
       assert error["vars"]["actionName"] == "nonexistent_action"
       assert String.contains?(error["details"]["suggestion"], "rpc block")
     end

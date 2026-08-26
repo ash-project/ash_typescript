@@ -27,7 +27,7 @@ defmodule AshTypescript.Rpc.DefaultErrorHandler do
       ...>   message: "Field %{field} is required",
       ...>   short_message: "Required field",
       ...>   vars: %{field: "email"},
-      ...>   code: "required",
+      ...>   type: "required",
       ...>   fields: ["email"]
       ...> }
       iex> handle_error(error, %{})
@@ -35,7 +35,7 @@ defmodule AshTypescript.Rpc.DefaultErrorHandler do
         message: "Field %{field} is required",
         short_message: "Required field",
         vars: %{field: "email"},
-        code: "required",
+        type: "required",
         fields: ["email"]
       }
   """

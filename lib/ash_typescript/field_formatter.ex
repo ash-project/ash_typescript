@@ -235,6 +235,46 @@ defmodule AshTypescript.FieldFormatter do
   end
 
   @doc """
+  Recursively formats all keys in a nested structure for client consumption.
+
+  Walks maps and lists, converting every key with the given formatter. Structs
+  and primitives are returned untouched, and non-atom/non-binary keys are left
+  as-is.
+
+  Used for any payload that is handed to the client without going through a
+  type-driven formatter — RPC responses and typed controller error bodies both
+  rely on this so their field names agree.
+
+  ## Examples
+
+      iex> AshTypescript.FieldFormatter.format_output_field_names(%{short_message: "x"}, :camel_case)
+      %{"shortMessage" => "x"}
+
+      iex> AshTypescript.FieldFormatter.format_output_field_names([%{user_name: "a"}], :camel_case)
+      [%{"userName" => "a"}]
+  """
+  def format_output_field_names(data, formatter) do
+    case data do
+      map when is_map(map) and not is_struct(map) ->
+        Enum.into(map, %{}, fn {key, value} ->
+          formatted_key =
+            case key do
+              key when is_atom(key) or is_binary(key) -> format_field_name(key, formatter)
+              other -> other
+            end
+
+          {formatted_key, format_output_field_names(value, formatter)}
+        end)
+
+      list when is_list(list) ->
+        Enum.map(list, &format_output_field_names(&1, formatter))
+
+      other ->
+        other
+    end
+  end
+
+  @doc """
   Formats a field name using the configured formatter.
 
   ## Examples

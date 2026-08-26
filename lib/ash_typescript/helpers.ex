@@ -103,6 +103,7 @@ defmodule AshTypescript.Helpers do
   def formatted_error_fields_field, do: format_output_field(:fields)
   def formatted_error_path_field, do: format_output_field(:path)
   def formatted_error_details_field, do: format_output_field(:details)
+  def formatted_error_id_field, do: format_output_field(:error_id)
 
   @doc """
   Helper functions for commonly used calculation and field selection field names.

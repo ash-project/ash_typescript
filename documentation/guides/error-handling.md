@@ -49,8 +49,31 @@ export type AshRpcError = {
   path: string[];
   /** Optional map with extra details */
   details?: Record<string, any>;
+  /** Correlation ID, present on internal errors */
+  errorId?: string;
 }
 ```
+
+### Correlation IDs
+
+When an error has no `AshTypescript.Rpc.Error` implementation, the details are
+withheld from the client — the full exception and stacktrace go to the server
+log instead, keyed by a generated UUID. That UUID is sent as `errorId` (and also
+appears in `message`), so you can show it to the user and match their report to
+the log entry:
+
+```typescript
+if (!result.success) {
+  const internal = result.errors.find(e => e.type === "internal_error");
+  if (internal?.errorId) {
+    showSupportDialog(`Something went wrong. Reference: ${internal.errorId}`);
+  }
+}
+```
+
+Validation errors don't carry an `errorId` — they're fully described by `type`,
+`message` and `fields`, and nothing was withheld. To give every error an ID,
+implement the protocol for your own error types and set one yourself.
 
 ## Common Error Types
 
@@ -183,6 +206,16 @@ function interpolateMessage(error: AshRpcError): string {
 // Example: "Field %{field} is required" with vars: {field: "email"}
 // Result: "Field email is required"
 ```
+
+Placeholder names always match the keys in `vars`, whatever
+`output_field_formatter` is configured — a multi-word variable is renamed in the
+template and in `vars` together, so `%{actionName}` arrives alongside
+`vars.actionName` under the default `:camel_case`. Looking up each `vars` key in
+the message, as above, is therefore always sufficient.
+
+The same holds for placeholders in `details` strings (such as `suggestion`), and
+for typed controller route errors, which use this identical shape — see
+[Typed Controllers](typed-controllers.md#error-responses).
 
 ## User-Friendly Messages
 

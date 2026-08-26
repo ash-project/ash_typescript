@@ -171,6 +171,11 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
       assert error["vars"]["expectedKeys"] == "email"
       assert error["vars"]["providedKeys"] == "emai"
 
+      # Placeholders track the formatted vars keys, so a client interpolating
+      # over `vars` renders the message fully.
+      assert error["message"] =~ "%{providedKeys}"
+      assert error["message"] =~ "%{expectedKeys}"
+
       assert "email" in error["details"]["expectedKeys"]
       assert "emai" in error["details"]["providedKeys"]
     end

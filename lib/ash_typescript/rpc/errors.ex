@@ -71,7 +71,7 @@ defmodule AshTypescript.Rpc.Errors do
         %{
           message: Exception.message(error),
           short_message: error.__struct__ |> Module.split() |> List.last(),
-          code: Macro.underscore(error.__struct__ |> Module.split() |> List.last()),
+          type: Macro.underscore(error.__struct__ |> Module.split() |> List.last()),
           vars: %{},
           fields: [],
           path: Map.get(error, :path, [])
@@ -175,7 +175,7 @@ defmodule AshTypescript.Rpc.Errors do
         %{
           message: error.message,
           short_message: "Error description",
-          code: "error_code",
+          type: "error_type",
           vars: %{},
           fields: [],
           path: error.path || []
@@ -187,7 +187,7 @@ defmodule AshTypescript.Rpc.Errors do
     %{
       message: "Something went wrong. Unique error id: #{uuid}",
       short_message: "Internal error",
-      code: "internal_error",
+      type: "internal_error",
       vars: %{},
       fields: [],
       path: Map.get(error, :path, []),
@@ -207,7 +207,7 @@ defmodule AshTypescript.Rpc.Errors do
     %{
       message: "Something went wrong. Unique error id: #{uuid}",
       short_message: "Internal error",
-      code: "internal_error",
+      type: "internal_error",
       vars: %{},
       fields: [],
       path: [],
@@ -219,7 +219,7 @@ defmodule AshTypescript.Rpc.Errors do
     %{
       message: "something went wrong",
       short_message: "Error",
-      code: "error",
+      type: "error",
       vars: %{},
       fields: [],
       path: Map.get(error, :path, [])
@@ -230,7 +230,7 @@ defmodule AshTypescript.Rpc.Errors do
     %{
       message: "something went wrong",
       short_message: "Error",
-      code: "error",
+      type: "error",
       vars: %{},
       fields: [],
       path: []

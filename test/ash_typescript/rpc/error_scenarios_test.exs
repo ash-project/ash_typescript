@@ -90,6 +90,14 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       assert error["message"] =~ "not found"
       # Details use camelCase
       assert error["vars"]["actionName"] == "non_existent_action"
+
+      # The message template's placeholder is renamed alongside the vars key,
+      # so client-side interpolation over `vars` resolves it.
+      assert error["message"] == "RPC action %{actionName} not found"
+
+      assert Enum.all?(Map.keys(error["vars"]), fn key ->
+               String.contains?(error["message"], "%{#{key}}")
+             end)
     end
 
     test "invalid enum value returns invalid_attribute" do

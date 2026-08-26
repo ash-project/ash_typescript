@@ -1407,7 +1407,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
       [error | _] = result["errors"]
 
       assert error["type"] == "invalid_union_input"
-      assert error["message"] == "Union input map contains multiple member keys: %{found_keys}"
+      assert error["message"] == "Union input map contains multiple member keys: %{foundKeys}"
       assert error["shortMessage"] == "Invalid union input"
       # found_keys is now a string in vars (joined with ", ")
       assert is_binary(error["vars"]["foundKeys"])

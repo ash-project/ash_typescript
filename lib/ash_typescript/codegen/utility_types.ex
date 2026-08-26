@@ -421,6 +421,18 @@ defmodule AshTypescript.Codegen.UtilityTypes do
      *   #{formatted_error_path_field()}: ["user", "email"],
      *   #{formatted_error_details_field()}: { suggestion: "Provide a valid email address" }
      * }
+     *
+     * @example
+     * // An internal error withholds detail and carries a correlation ID
+     * const error: AshRpcError = {
+     *   #{formatted_error_type_field()}: "internal_error",
+     *   #{formatted_error_message_field()}: "Something went wrong. Unique error id: 4f3c...",
+     *   #{formatted_error_short_message_field()}: "Internal error",
+     *   #{formatted_error_vars_field()}: {},
+     *   #{formatted_error_fields_field()}: [],
+     *   #{formatted_error_path_field()}: [],
+     *   #{formatted_error_id_field()}: "4f3c..."
+     * }
      */
     export type AshRpcError = {
       /** Machine-readable error type (e.g., "invalid_changes", "not_found") */
@@ -437,6 +449,12 @@ defmodule AshTypescript.Codegen.UtilityTypes do
       #{formatted_error_path_field()}: string[];
       /** Optional map with extra details (e.g., suggestions, hints) */
       #{formatted_error_details_field()}?: Record<string, any>;
+      /**
+       * Correlation ID for an error whose details were withheld. Present on
+       * internal errors, where the full exception is written to the server log
+       * under this same ID — surface it so a user can quote it to support.
+       */
+      #{formatted_error_id_field()}?: string;
     }
 
     /**
