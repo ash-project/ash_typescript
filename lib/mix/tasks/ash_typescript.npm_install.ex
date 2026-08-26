@@ -15,6 +15,11 @@ defmodule Mix.Tasks.AshTypescript.NpmInstall do
         "npm"
       end
 
-    System.cmd(package_manager, ["install"], cd: "assets")
+    {_output, status} =
+      System.cmd(package_manager, ["install"], cd: "assets", into: IO.stream(:stdio, :line))
+
+    if status != 0 do
+      Mix.raise("#{package_manager} install failed with exit code #{status}")
+    end
   end
 end
