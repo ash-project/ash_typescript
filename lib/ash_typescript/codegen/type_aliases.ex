@@ -15,8 +15,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
   """
   def generate_ash_type_aliases(resources, resource_lookup \\ nil)
 
-  def generate_ash_type_aliases(resources, resource_lookup)
-      when is_map(resource_lookup) and map_size(resource_lookup) > 0 do
+  def generate_ash_type_aliases(resources, resource_lookup) when is_map(resource_lookup) do
     # Derive embedded resources from resource_lookup instead of re-scanning
     embedded_resources =
       resource_lookup
@@ -43,7 +42,7 @@ defmodule AshTypescript.Codegen.TypeAliases do
     generate_aliases(types)
   end
 
-  def generate_ash_type_aliases(resources, _no_lookup) do
+  def generate_ash_type_aliases(resources, nil) do
     generate_ash_type_aliases(resources, AshTypescript.resource_lookup())
   end
 

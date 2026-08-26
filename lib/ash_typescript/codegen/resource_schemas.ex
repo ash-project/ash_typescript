@@ -154,7 +154,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         input_schema_resources,
         resource_lookup
       )
-      when is_map(resource_lookup) and map_size(resource_lookup) > 0 do
+      when is_map(resource_lookup) do
     case Map.get(resource_lookup, resource) do
       %Ash.Info.Manifest.Resource{} = api_resource ->
         generate_all_schemas_for_resource_from_spec(
@@ -170,23 +170,14 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     end
   end
 
-  def generate_all_schemas_for_resource(resource, allowed_resources, input_schema_resources, _) do
-    # Convenience fallback: build spec internally
-    resource_lookup = build_resource_lookup()
-
-    case Map.get(resource_lookup, resource) do
-      %Ash.Info.Manifest.Resource{} = api_resource ->
-        generate_all_schemas_for_resource_from_spec(
-          resource,
-          api_resource,
-          allowed_resources,
-          input_schema_resources,
-          resource_lookup
-        )
-
-      nil ->
-        raise "ResourceSchemas: resource #{inspect(resource)} not found in resource_lookup (fallback)"
-    end
+  def generate_all_schemas_for_resource(resource, allowed_resources, input_schema_resources, nil) do
+    # Convenience fallback: build the lookup internally, then take the clause above.
+    generate_all_schemas_for_resource(
+      resource,
+      allowed_resources,
+      input_schema_resources,
+      build_resource_lookup()
+    )
   end
 
   defp generate_all_schemas_for_resource_from_spec(

@@ -73,7 +73,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
   # ─────────────────────────────────────────────────────────────────
 
   def generate_filter_types(resources, allowed_resources, resource_lookup)
-      when is_list(resources) and is_map(resource_lookup) and map_size(resource_lookup) > 0 do
+      when is_list(resources) and is_map(resource_lookup) do
     Enum.map(resources, &generate_filter_type(&1, allowed_resources, resource_lookup))
   end
 
