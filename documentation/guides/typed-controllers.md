@@ -317,25 +317,57 @@ When a request hits a typed controller route, AshTypescript automatically:
 
 ### Error Responses
 
+Route errors use the same shape as RPC errors — the `AshRpcError` type described
+in [Error Handling](error-handling.md) — so one client-side handler works for
+both. All keys are run through the configured `output_field_formatter`.
+
 **422 Unprocessable Entity** (validation errors):
 
 ```json
 {
   "errors": [
-    { "field": "code", "message": "is required" },
-    { "field": "count", "message": "is invalid" }
+    {
+      "type": "required",
+      "message": "is required",
+      "shortMessage": "Required field",
+      "vars": { "field": "code" },
+      "fields": ["code"],
+      "path": []
+    },
+    {
+      "type": "invalid_argument",
+      "message": "length must be greater than or equal to %{min}",
+      "shortMessage": "Invalid argument",
+      "vars": { "field": "username", "min": 3 },
+      "fields": ["username"],
+      "path": []
+    }
   ]
 }
 ```
 
-All validation errors are collected in a single pass, so the client receives every issue at once.
+All validation errors are collected in a single pass, so the client receives
+every issue at once. An argument that violates several constraints produces one
+error per violation.
 
-**500 Internal Server Error** (handler doesn't return `%Plug.Conn{}`):
+As with RPC errors, `message` keeps its `%{var}` placeholders and `vars` carries
+the values — interpolation is left to the client, so you can localize or reword
+messages. See [Message Interpolation](error-handling.md#message-interpolation).
+
+**500 Internal Server Error** (handler doesn't return `%Plug.Conn{}`, or the
+handler raised):
 
 ```json
 {
   "errors": [
-    { "message": "Route handler must return %Plug.Conn{}, got: {:ok, \"result\"}" }
+    {
+      "type": "internal_error",
+      "message": "Route handler must return %Plug.Conn{}, got: {:ok, \"result\"}",
+      "shortMessage": "Internal error",
+      "vars": {},
+      "fields": [],
+      "path": []
+    }
   ]
 }
 ```
@@ -816,7 +848,10 @@ config :ash_typescript,
   typed_controller_error_handler: {MyApp.ErrorHandler, :handle, []}
 ```
 
-The handler is called for each error (both 422 validation errors and 500 server errors). It receives the error map and a context map containing the route name and source module:
+The handler is called for each error (both 422 validation errors and 500 server
+errors). It receives the error map — atom-keyed, in the internal
+`%{type:, message:, short_message:, vars:, fields:, path:}` shape — and a
+context map containing the route name and source module:
 
 ```elixir
 defmodule MyApp.ErrorHandler do
@@ -824,11 +859,15 @@ defmodule MyApp.ErrorHandler do
     # Transform, log, or filter errors
     # Return nil to suppress the error, or a modified error map
     error
-    |> Map.put(:code, "VALIDATION_ERROR")
+    |> Map.put(:severity, "warning")
     |> Map.put(:route, route_name)
   end
 end
 ```
+
+Handlers run *before* field-name formatting, so use snake_case atom keys — any
+key you add is formatted along with the rest (`:severity` is sent as
+`severity`, `:retry_after` as `retryAfter` under the default `:camel_case`).
 
 You can also pass a module implementing `handle_error/2`:
 

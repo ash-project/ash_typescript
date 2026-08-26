@@ -346,15 +346,33 @@ argument :code, :string, allow_nil?: false
 argument :token, :string, constraints: [min_length: 8]
 ```
 
-The error response includes all validation failures at once:
+The error response includes all validation failures at once, using the same
+shape as RPC errors (`AshRpcError`):
 ```json
 {
   "errors": [
-    { "field": "code", "message": "is required" },
-    { "field": "count", "message": "is invalid" }
+    {
+      "type": "required",
+      "message": "is required",
+      "shortMessage": "Required field",
+      "vars": { "field": "code" },
+      "fields": ["code"],
+      "path": []
+    },
+    {
+      "type": "invalid_argument",
+      "message": "length must be greater than or equal to %{min}",
+      "shortMessage": "Invalid argument",
+      "vars": { "field": "token", "min": 8 },
+      "fields": ["token"],
+      "path": []
+    }
   ]
 }
 ```
+
+`message` keeps its `%{var}` placeholders — interpolate them client-side from
+`vars`, as with RPC errors.
 
 #### Error: "Route handler must return %Plug.Conn{}"
 

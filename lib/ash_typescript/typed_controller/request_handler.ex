@@ -14,10 +14,30 @@ defmodule AshTypescript.TypedController.RequestHandler do
   Only declared arguments are passed to the handler — undeclared params
   are dropped. If any required argument is missing or any cast fails,
   a 422 error response is returned without invoking the handler.
+
+  ## Error Shape
+
+  Errors use the same shape as RPC errors (`AshTypescript.Rpc.Error`), so a
+  client can handle both with one code path:
+
+      %{
+        type: "required",
+        message: "is required",
+        short_message: "Required field",
+        vars: %{field: "code"},
+        fields: ["code"],
+        path: []
+      }
+
+  `message` keeps its `%{var}` placeholders and `vars` carries the values, as
+  in RPC — interpolation is left to the client. All keys are run through the
+  configured `output_field_formatter` before being sent.
   """
 
   import Plug.Conn
   import Phoenix.Controller, only: [json: 2]
+
+  alias AshTypescript.{ErrorFormatter, FieldFormatter}
 
   @doc """
   Handles a route request by extracting, casting, and validating arguments,
@@ -32,14 +52,10 @@ defmodule AshTypescript.TypedController.RequestHandler do
 
     case cast_arguments(route.arguments, raw_params) do
       {:ok, cast_params} ->
-        dispatch(conn, route.run, cast_params)
+        dispatch(conn, route.run, cast_params, error_context)
 
       {:error, errors} ->
-        errors = maybe_apply_error_handler(errors, error_context)
-
-        conn
-        |> put_status(422)
-        |> json(%{errors: errors})
+        send_errors(conn, 422, errors, error_context)
     end
   rescue
     e ->
@@ -48,15 +64,25 @@ defmodule AshTypescript.TypedController.RequestHandler do
           do: Exception.message(e),
           else: "Internal server error"
 
-      errors =
-        maybe_apply_error_handler(
-          [%{message: error_msg}],
-          %{route: route_name, source_module: source_module}
-        )
+      send_errors(conn, 500, [internal_error(error_msg)], %{
+        route: route_name,
+        source_module: source_module
+      })
+  end
 
-      conn
-      |> put_status(500)
-      |> json(%{errors: errors})
+  defp send_errors(conn, status, errors, context) do
+    formatter = AshTypescript.output_field_formatter()
+
+    body = %{
+      FieldFormatter.format_field_name(:errors, formatter) =>
+        errors
+        |> maybe_apply_error_handler(context)
+        |> Enum.map(&ErrorFormatter.format(&1, formatter))
+    }
+
+    conn
+    |> put_status(status)
+    |> json(body)
   end
 
   defp cast_arguments(arguments, raw_params) do
@@ -67,8 +93,7 @@ defmodule AshTypescript.TypedController.RequestHandler do
 
         cond do
           is_nil(raw_value) && !arg.allow_nil? ->
-            error = %{field: key, message: "is required"}
-            {params_acc, [error | errors_acc]}
+            {params_acc, [required_error(key) | errors_acc]}
 
           is_nil(raw_value) ->
             value = if arg.default != nil, do: arg.default, else: nil
@@ -86,15 +111,16 @@ defmodule AshTypescript.TypedController.RequestHandler do
                  {:ok, constrained_value} <-
                    Ash.Type.apply_constraints(type, cast_value, constraints) do
               if is_nil(constrained_value) && !arg.allow_nil? do
-                error = %{field: key, message: "is required"}
-                {params_acc, [error | errors_acc]}
+                {params_acc, [required_error(key) | errors_acc]}
               else
                 {Map.put(params_acc, arg.name, constrained_value), errors_acc}
               end
             else
               {:error, error} ->
-                error = %{field: key, message: constraint_error_message(error)}
-                {params_acc, [error | errors_acc]}
+                # Reversed below, so prepend in reverse to keep constraint
+                # violations in the order Ash reported them.
+                errors = Enum.reverse(invalid_argument_errors(key, error))
+                {params_acc, errors ++ errors_acc}
             end
         end
       end)
@@ -106,49 +132,97 @@ defmodule AshTypescript.TypedController.RequestHandler do
     end
   end
 
-  # Humanizes cast/constraint errors: binaries pass through; keyword-list
-  # constraint errors (`[message: "...", max: 10]`) get their `%{var}`
-  # placeholders interpolated; lists of errors are joined.
-  defp constraint_error_message(error) when is_binary(error), do: error
+  defp required_error(key) do
+    %{
+      type: "required",
+      message: "is required",
+      short_message: "Required field",
+      vars: %{field: key},
+      fields: [key],
+      path: []
+    }
+  end
 
-  defp constraint_error_message(error) when is_list(error) do
-    if Keyword.keyword?(error) and Keyword.has_key?(error, :message) do
-      vars = Keyword.drop(error, [:message])
+  defp internal_error(message) do
+    %{
+      type: "internal_error",
+      message: message,
+      short_message: "Internal error",
+      vars: %{},
+      fields: [],
+      path: []
+    }
+  end
 
-      Enum.reduce(vars, Keyword.fetch!(error, :message), fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
-      end)
-    else
-      Enum.map_join(error, "; ", &constraint_error_message/1)
+  # One error per constraint violation, mirroring how RPC surfaces each
+  # Ash error separately rather than joining messages into one string.
+  defp invalid_argument_errors(key, error) do
+    case normalize_cast_errors(error) do
+      [] ->
+        [invalid_argument_error(key, "is invalid", %{})]
+
+      normalized ->
+        Enum.map(normalized, fn {msg, vars} -> invalid_argument_error(key, msg, vars) end)
     end
   end
 
-  defp constraint_error_message(_error), do: "is invalid"
+  defp invalid_argument_error(key, message, vars) do
+    %{
+      type: "invalid_argument",
+      message: message,
+      short_message: "Invalid argument",
+      vars: Map.put(vars, :field, key),
+      fields: [key],
+      path: []
+    }
+  end
 
-  defp dispatch(conn, handler, input) when is_function(handler, 2) do
+  # Normalizes what `Ash.Type.cast_input/3` and `Ash.Type.apply_constraints/3`
+  # return into `{message_template, vars}` pairs. Placeholders are left in the
+  # template and the values kept in `vars`, matching RPC — the client
+  # interpolates. `apply_constraints` returns a list of keyword lists, so a
+  # single argument can produce several violations.
+  defp normalize_cast_errors(error) when is_binary(error), do: [{error, %{}}]
+
+  defp normalize_cast_errors(error) when is_list(error) do
+    if Keyword.keyword?(error) and Keyword.has_key?(error, :message) do
+      vars =
+        error
+        |> Keyword.drop([:message, :vars])
+        |> Map.new()
+        |> Map.merge(Map.new(Keyword.get(error, :vars) || []))
+
+      [{Keyword.fetch!(error, :message), vars}]
+    else
+      Enum.flat_map(error, &normalize_cast_errors/1)
+    end
+  end
+
+  defp normalize_cast_errors(error) when is_exception(error) do
+    [{Exception.message(error), Map.new(Map.get(error, :vars) || [])}]
+  end
+
+  defp normalize_cast_errors(_error), do: [{"is invalid", %{}}]
+
+  defp dispatch(conn, handler, input, context) when is_function(handler, 2) do
     case handler.(conn, input) do
       %Plug.Conn{} = conn -> conn
-      other -> unexpected_return(conn, other)
+      other -> unexpected_return(conn, other, context)
     end
   end
 
-  defp dispatch(conn, handler, input) when is_atom(handler) do
+  defp dispatch(conn, handler, input, context) when is_atom(handler) do
     case handler.run(conn, input) do
       %Plug.Conn{} = conn -> conn
-      other -> unexpected_return(conn, other)
+      other -> unexpected_return(conn, other, context)
     end
   end
 
-  defp unexpected_return(conn, value) do
-    conn
-    |> put_status(500)
-    |> json(%{
-      errors: [
-        %{
-          message: "Route handler must return %Plug.Conn{}, got: #{inspect(value, limit: 50)}"
-        }
-      ]
-    })
+  defp unexpected_return(conn, value, context) do
+    error =
+      internal_error("Route handler must return %Plug.Conn{}, got: #{inspect(value, limit: 50)}")
+
+    send_errors(conn, 500, [error], context)
   end
 
   defp maybe_apply_error_handler(errors, context) do

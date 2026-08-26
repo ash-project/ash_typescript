@@ -19,6 +19,16 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     conn.resp_body |> Jason.decode!()
   end
 
+  # Errors use the RPC error shape, so the affected argument is in `fields`
+  # (a list) rather than a singular `field` key.
+  defp error_for(conn, field) when is_binary(field) do
+    conn |> json_body() |> Map.fetch!("errors") |> Enum.find(&(field in &1["fields"]))
+  end
+
+  defp error_fields(conn) do
+    conn |> json_body() |> Map.fetch!("errors") |> Enum.flat_map(& &1["fields"])
+  end
+
   describe "argument extraction — only declared arguments are passed to handler" do
     test "undeclared params are dropped" do
       conn = call(:echo_params, %{"name" => "alice", "extra_field" => "ignored"})
@@ -84,22 +94,23 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       conn = call(:login, %{})
 
       assert conn.status == 422
-      body = json_body(conn)
-      errors = body["errors"]
-      assert is_list(errors)
+      assert is_list(json_body(conn)["errors"])
 
-      code_error = Enum.find(errors, &(&1["field"] == "code"))
-      assert code_error["message"] == "is required"
+      assert %{
+               "type" => "required",
+               "message" => "is required",
+               "shortMessage" => "Required field",
+               "vars" => %{"field" => "code"},
+               "fields" => ["code"],
+               "path" => []
+             } = error_for(conn, "code")
     end
 
     test "returns 422 with all missing required fields listed" do
       conn = call(:update_provider, %{})
 
       assert conn.status == 422
-      body = json_body(conn)
-
-      field_names = Enum.map(body["errors"], & &1["field"])
-      assert "enabled" in field_names
+      assert "enabled" in error_fields(conn)
     end
 
     test "succeeds when required arguments are present" do
@@ -146,9 +157,10 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       conn = call(:echo_params, %{"name" => "alice", "count" => "not_a_number"})
 
       assert conn.status == 422
-      body = json_body(conn)
 
-      error = Enum.find(body["errors"], &(&1["field"] == "count"))
+      error = error_for(conn, "count")
+      assert error["type"] == "invalid_argument"
+      assert error["shortMessage"] == "Invalid argument"
       assert error["message"] =~ "invalid"
     end
 
@@ -180,9 +192,9 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       conn = call(:update_provider, %{"enabled" => "not_a_bool"})
 
       assert conn.status == 422
-      body = json_body(conn)
 
-      error = Enum.find(body["errors"], &(&1["field"] == "enabled"))
+      error = error_for(conn, "enabled")
+      assert error["type"] == "invalid_argument"
       assert error["message"] =~ "invalid"
     end
   end
@@ -242,9 +254,7 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       conn = call(:search, %{})
 
       assert conn.status == 422
-      body = json_body(conn)
-      field_names = Enum.map(body["errors"], & &1["field"])
-      assert "q" in field_names
+      assert "q" in error_fields(conn)
     end
 
     test "search route succeeds with required q argument" do
@@ -295,24 +305,36 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       assert body["errors"] != []
     end
 
-    test "each error has field and message keys" do
+    test "each error carries the full RPC error shape" do
       conn = call(:login, %{})
 
-      body = json_body(conn)
-
-      for error <- body["errors"] do
-        assert Map.has_key?(error, "field")
-        assert Map.has_key?(error, "message")
+      for error <- json_body(conn)["errors"] do
+        assert is_binary(error["type"])
+        assert is_binary(error["message"])
+        assert is_binary(error["shortMessage"])
+        assert is_map(error["vars"])
+        assert is_list(error["fields"])
+        assert is_list(error["path"])
       end
+    end
+
+    test "error keys respect the configured output_field_formatter" do
+      prev = Application.get_env(:ash_typescript, :output_field_formatter)
+      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
+      on_exit(fn -> reset_env(:output_field_formatter, prev) end)
+
+      conn = call(:login, %{})
+
+      assert %{"Errors" => [%{"Type" => "required", "ShortMessage" => "Required field"} | _]} =
+               json_body(conn)
     end
 
     test "cast errors and required errors can appear together" do
       conn = call(:echo_params, %{"count" => "not_a_number"})
 
       assert conn.status == 422
-      body = json_body(conn)
 
-      fields_with_errors = Enum.map(body["errors"], & &1["field"])
+      fields_with_errors = error_fields(conn)
       # name is required and missing
       assert "name" in fields_with_errors
       # count has an invalid value
@@ -371,8 +393,9 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       assert conn.status == 422
       body = json_body(conn)
 
+      # Handlers run before formatting, so keys they add are formatted too.
       Enum.each(body["errors"], fn error ->
-        assert error["module_handled"] == true
+        assert error["moduleHandled"] == true
       end)
     end
   end
@@ -426,7 +449,8 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       conn = call(:login, %{"code" => ""})
 
       assert conn.status == 422
-      assert %{"errors" => [%{"field" => "code", "message" => "is required"}]} = json_body(conn)
+
+      assert %{"errors" => [%{"type" => "required", "fields" => ["code"]}]} = json_body(conn)
     end
 
     test "empty string becomes nil for a nilable string argument" do
@@ -450,7 +474,7 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       # `tags` declares `items: [min_length: 2]`
       conn = call(:search, %{"q" => "elixir", "tags" => ["ash", "x"]})
       assert conn.status == 422
-      assert [%{"field" => "tags"}] = json_body(conn)["errors"]
+      assert [%{"fields" => ["tags"], "type" => "invalid_argument"}] = json_body(conn)["errors"]
     end
 
     test "array arguments accept an omitted value" do
@@ -462,8 +486,13 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       conn = call(:register, %{"username" => "x", "email" => "a@b.co", "age" => 20})
 
       assert conn.status == 422
-      body = json_body(conn)
-      assert Enum.any?(body["errors"], &(&1["field"] == "username"))
+
+      # `min_length: 3` — the placeholder stays in `message` and the value
+      # lands in `vars`, so the client interpolates (as with RPC errors).
+      error = error_for(conn, "username")
+      assert error["type"] == "invalid_argument"
+      assert error["message"] =~ "%{min}"
+      assert error["vars"]["min"] == 3
     end
   end
 
