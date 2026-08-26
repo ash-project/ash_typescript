@@ -384,7 +384,7 @@ defmodule AshTypescript.Rpc do
   Defaults to false.
   """
   def generate_phx_channel_rpc_actions? do
-    Application.get_env(:ash_typescript, :generate_phx_channel_rpc_actions)
+    Application.get_env(:ash_typescript, :generate_phx_channel_rpc_actions, false)
   end
 
   @doc """
@@ -573,7 +573,10 @@ defmodule AshTypescript.Rpc do
   Main entry point for the new RPC processing pipeline.
 
   ## Parameters
-  - `otp_app` - The OTP application atom
+  - `otp_app` - The OTP application atom. Retained for API compatibility; it does
+    **not** scope action discovery. Actions are resolved from the single manifest
+    in `config :ash_typescript, manifest:`, so passing a different `otp_app` does
+    not restrict — or widen — the set of reachable actions.
   - `conn` - The Plug connection
   - `params` - Request parameters map
 
@@ -595,12 +598,7 @@ defmodule AshTypescript.Rpc do
          {:ok, processed_result} <- Pipeline.process_result(ash_result, parsed_request) do
       Pipeline.format_output(%{success: true, data: processed_result}, parsed_request)
     else
-      {:error, reason} ->
-        error_response = ErrorBuilder.build_error_response(reason)
-        errors = if is_list(error_response), do: error_response, else: [error_response]
-
-        %{success: false, errors: errors}
-        |> Pipeline.format_output()
+      {:error, reason} -> error_response(reason)
     end
   end
 
@@ -608,7 +606,8 @@ defmodule AshTypescript.Rpc do
   Validates action parameters without execution.
   Used for form validation in the client.
 
-  Returns the same client-formatted response map shape as `run_action/3`.
+  Returns the same client-formatted response map shape as `run_action/3`, and
+  treats `otp_app` the same way — it does not scope action discovery.
   """
   @spec validate_action(atom(), Plug.Conn.t(), map()) :: map()
   def validate_action(otp_app, conn, params) do
@@ -618,11 +617,7 @@ defmodule AshTypescript.Rpc do
         |> Pipeline.format_output(parsed_request)
 
       {:error, reason} ->
-        error_response = ErrorBuilder.build_error_response(reason)
-        errors = if is_list(error_response), do: error_response, else: [error_response]
-
-        %{success: false, errors: errors}
-        |> Pipeline.format_output()
+        error_response(reason)
     end
   end
 
@@ -728,14 +723,20 @@ defmodule AshTypescript.Rpc do
   SSR controllers that need to pre-fetch data with type safety.
 
   ## Parameters
-  - `otp_app` - The OTP application name
+  - `otp_app` - The OTP application name. Retained for API compatibility; it does
+    **not** scope typed-query discovery (see `run_action/3`). Queries are resolved
+    from the configured manifest.
   - `typed_query_name` - The atom name of the typed query to execute
   - `params` - Map with optional `:input` and `:page` keys
   - `conn` - The Plug connection (for tenant context, etc.)
 
   ## Returns
-  - `{:ok, data}` - Successfully executed typed query with processed results
-  - `{:error, reason}` - Error during lookup or execution
+  A client-formatted response map (same shape as `run_action/3`):
+  - `%{"success" => true, "data" => data}` on success
+  - `%{"success" => false, "errors" => [error, ...]}` on failure (including
+    when the typed query name is not found)
+
+  Key casing follows the configured `output_field_formatter`.
 
   ## Example
       # In a Phoenix controller
@@ -743,49 +744,39 @@ defmodule AshTypescript.Rpc do
         case AshTypescript.Rpc.run_typed_query(:my_app, :list_todos_user_page, %{}, conn) do
           %{"success" => true, "data" => todos} ->
             render(conn, "index.html", initial_todos: todos)
-          %{"success" => false, "error" => reason} ->
-            # Handle error appropriately
+          %{"success" => false, "errors" => errors} ->
+            # Handle errors appropriately
             send_resp(conn, 500, "Error loading data")
         end
       end
   """
   @spec run_typed_query(atom(), atom(), map(), Plug.Conn.t()) :: map()
   def run_typed_query(otp_app, typed_query_name, params \\ %{}, conn) do
-    case find_typed_query(otp_app, typed_query_name) do
-      {:ok, typed_query} ->
-        rpc_params = %{
+    case Pipeline.find_typed_query(typed_query_name) do
+      nil ->
+        error_response({:typed_query_not_found, typed_query_name})
+
+      entrypoint ->
+        typed_query = AshTypescript.Manifest.Custom.typed_query(entrypoint)
+
+        %{
           "typed_query_action" => Atom.to_string(typed_query_name),
           "fields" => typed_query.fields
         }
-
-        rpc_params =
-          rpc_params
-          |> maybe_add_param("input", params[:input])
-          |> maybe_add_param("page", params[:page])
-          |> maybe_add_param("filter", params[:filter])
-          |> maybe_add_param("sort", params[:sort])
-
-        run_action(otp_app, conn, rpc_params)
-
-      error ->
-        error
+        |> maybe_add_param("input", params[:input])
+        |> maybe_add_param("page", params[:page])
+        |> maybe_add_param("filter", params[:filter])
+        |> maybe_add_param("sort", params[:sort])
+        |> then(&run_action(otp_app, conn, &1))
     end
   end
 
-  defp find_typed_query(otp_app, typed_query_name) do
-    otp_app
-    |> Ash.Info.domains()
-    |> Enum.reduce_while({:error, {:typed_query_not_found, typed_query_name}}, fn domain, _acc ->
-      rpc_config = AshTypescript.Rpc.Info.typescript_rpc(domain)
+  # Builds the client-formatted failure response for a pipeline error reason.
+  # ErrorBuilder returns either a single error or a list of them.
+  defp error_response(reason) do
+    errors = reason |> ErrorBuilder.build_error_response() |> List.wrap()
 
-      Enum.find_value(rpc_config, fn %{typed_queries: typed_queries} ->
-        Enum.find(typed_queries, &(&1.name == typed_query_name))
-      end)
-      |> case do
-        nil -> {:cont, {:error, {:typed_query_not_found, typed_query_name}}}
-        found -> {:halt, {:ok, found}}
-      end
-    end)
+    Pipeline.format_output(%{success: false, errors: errors})
   end
 
   defp maybe_add_param(params, _key, nil), do: params

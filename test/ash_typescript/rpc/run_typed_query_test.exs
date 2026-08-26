@@ -43,17 +43,20 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
   end
 
   describe "run_typed_query/4" do
-    test "returns specific error for non-existent typed query" do
+    test "returns client-formatted error for non-existent typed query" do
       conn = %Plug.Conn{}
 
-      assert {:error, {:typed_query_not_found, :non_existent}} =
+      assert %{"success" => false, "errors" => [error]} =
                Rpc.run_typed_query(:ash_typescript, :non_existent, %{}, conn)
+
+      assert error["type"] == "typed_query_not_found"
+      assert error["vars"]["typedQueryName"] == "non_existent"
     end
 
-    test "returns specific error for non-existent otp_app" do
+    test "typed query lookup is manifest-based, so otp_app does not affect discovery" do
       conn = %Plug.Conn{}
 
-      assert {:error, {:typed_query_not_found, :list_todos_user_page}} =
+      assert %{"success" => true} =
                Rpc.run_typed_query(:non_existent_app, :list_todos_user_page, %{}, conn)
     end
 
