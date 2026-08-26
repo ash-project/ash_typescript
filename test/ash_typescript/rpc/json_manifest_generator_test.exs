@@ -340,6 +340,30 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
       assert action["variantNames"]["zod"] == "listTodosZodSchema"
       assert action["variantNames"]["valibot"] == "listTodosValibotSchema"
       assert action["variantNames"]["channel"] == "listTodosChannel"
+
+      # The validation-channel function is generated whenever both validation
+      # and channel functions are enabled — it must be advertised too.
+      assert action["variants"]["validationChannel"] == true
+      assert action["variantNames"]["validationChannel"] == "validateListTodosChannel"
+    end
+
+    test "every advertised function variant name resolves to a real export", %{
+      manifest: manifest
+    } do
+      {:ok, content} = AshTypescript.Test.CodegenTestHelper.generate_all_content()
+
+      for action <- manifest["actions"] do
+        for variant <- ["validation", "channel", "validationChannel"] do
+          case action["variantNames"][variant] do
+            nil ->
+              assert action["variants"][variant] == false
+
+            name ->
+              assert content =~ "export async function #{name}",
+                     "#{variant} function #{name} is advertised but never emitted"
+          end
+        end
+      end
     end
 
     test "input-less actions advertise no schema variant", %{manifest: manifest} do

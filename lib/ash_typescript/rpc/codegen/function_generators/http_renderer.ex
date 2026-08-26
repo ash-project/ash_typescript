@@ -11,6 +11,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
   """
 
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.{FunctionCore, JsdocGenerator, TypeBuilders}
+  alias AshTypescript.Rpc.Codegen.FunctionNames
   alias AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder
 
   @doc """
@@ -29,11 +30,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
         transport: :http
       )
 
-    function_name =
-      AshTypescript.FieldFormatter.format_field_name(
-        rpc_action_name,
-        AshTypescript.Rpc.output_field_formatter()
-      )
+    function_name = FunctionNames.execution(rpc_action_name)
 
     http_config_fields =
       shape.config_fields ++
@@ -99,11 +96,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
         rpc_action_name
       )
 
-    function_name =
-      AshTypescript.FieldFormatter.format_field_name(
-        "validate_#{rpc_action_name}",
-        AshTypescript.Rpc.output_field_formatter()
-      )
+    function_name = FunctionNames.validation(rpc_action_name)
 
     config_fields =
       ConfigBuilder.build_common_config_fields(resource, action, shape.context,

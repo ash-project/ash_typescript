@@ -6,8 +6,6 @@ defmodule AshTypescript.Rpc.Codegen do
   @moduledoc """
   Generates TypeScript code for interacting with Ash resources via Rpc.
   """
-  import AshTypescript.Helpers, only: [format_output_field: 1]
-
   alias AshTypescript.Codegen.SchemaCore
   alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Codegen.ZodSchemaGenerator
@@ -15,6 +13,7 @@ defmodule AshTypescript.Rpc.Codegen do
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries
+  alias AshTypescript.Rpc.Codegen.FunctionNames
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
   alias AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes
@@ -63,7 +62,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
   defp collect_exports_for_action(resource, action, rpc_action) do
     rpc_action_name = to_string(rpc_action.name)
-    function_name = format_output_field(rpc_action_name)
+    function_name = FunctionNames.execution(rpc_action_name)
 
     exports = [{function_name, :value}]
 
@@ -71,8 +70,7 @@ defmodule AshTypescript.Rpc.Codegen do
 
     exports =
       if has_input? do
-        input_type_name = Macro.camelize(rpc_action_name) <> "Input"
-        exports ++ [{input_type_name, :type}]
+        exports ++ [{FunctionNames.input_type(rpc_action_name), :type}]
       else
         exports
       end
@@ -124,19 +122,16 @@ defmodule AshTypescript.Rpc.Codegen do
 
     exports =
       if AshTypescript.Rpc.generate_validation_functions?() do
-        validate_name = format_output_field("validate_#{rpc_action_name}")
-        exports ++ [{validate_name, :value}]
+        exports ++ [{FunctionNames.validation(rpc_action_name), :value}]
       else
         exports
       end
 
     if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
-      channel_name = format_output_field("#{rpc_action_name}_channel")
-      exports = exports ++ [{channel_name, :value}]
+      exports = exports ++ [{FunctionNames.channel(rpc_action_name), :value}]
 
       if AshTypescript.Rpc.generate_validation_functions?() do
-        validate_channel_name = format_output_field("validate_#{rpc_action_name}_channel")
-        exports ++ [{validate_channel_name, :value}]
+        exports ++ [{FunctionNames.validation_channel(rpc_action_name), :value}]
       else
         exports
       end

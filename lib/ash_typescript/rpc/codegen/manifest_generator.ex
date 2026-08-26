@@ -19,6 +19,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
   alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Codegen.ZodSchemaGenerator
   alias AshTypescript.Helpers
+  alias AshTypescript.Rpc.Codegen.FunctionNames
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
 
   @doc """
@@ -335,6 +336,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     |> maybe_append(" Zod Schema |", schema_flags.zod)
     |> maybe_append(" Valibot Schema |", schema_flags.valibot)
     |> maybe_append(" Channel |", show_channel)
+    |> maybe_append(" Validation Channel |", show_validation and show_channel)
   end
 
   defp build_separator(show_validation, schema_flags, show_channel, include_internals?) do
@@ -345,6 +347,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     |> maybe_append("------------|", schema_flags.zod)
     |> maybe_append("----------------|", schema_flags.valibot)
     |> maybe_append("---------|", show_channel)
+    |> maybe_append("--------------------|", show_validation and show_channel)
   end
 
   defp build_row(
@@ -358,13 +361,14 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
          include_internals?
        ) do
     rpc_action_name = to_string(rpc_action.name)
-    function_name = Helpers.format_output_field(rpc_action_name)
+    function_name = FunctionNames.execution(rpc_action_name)
     action_type = Atom.to_string(action.type)
     action_name = Atom.to_string(rpc_action.action)
     resource_module = inspect(resource)
 
-    validate_name = Helpers.format_output_field("validate_#{rpc_action_name}")
-    channel_name = Helpers.format_output_field("#{rpc_action_name}_channel")
+    validate_name = FunctionNames.validation(rpc_action_name)
+    channel_name = FunctionNames.channel(rpc_action_name)
+    validate_channel_name = FunctionNames.validation_channel(rpc_action_name)
 
     # An action with no inputs gets no schema, so naming one here would point
     # readers at an export that does not exist. Names come from SchemaCore so
@@ -384,10 +388,11 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     |> maybe_append(" #{schema_cell.(ZodSchemaGenerator)} |", schema_flags.zod)
     |> maybe_append(" #{schema_cell.(ValibotSchemaGenerator)} |", schema_flags.valibot)
     |> maybe_append(" `#{channel_name}` |", show_channel)
+    |> maybe_append(" `#{validate_channel_name}` |", show_validation and show_channel)
   end
 
   defp build_action_details(resource, action, rpc_action, namespace, include_internals?) do
-    function_name = Helpers.format_output_field(rpc_action.name)
+    function_name = FunctionNames.execution(rpc_action.name)
     resource_name = resource |> Module.split() |> List.last()
 
     description = get_description(rpc_action, action, resource_name, include_internals?)
@@ -440,7 +445,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     else
       refs =
         Enum.map_join(see_list, ", ", fn action_name ->
-          "`#{Helpers.format_output_field(action_name)}`"
+          "`#{FunctionNames.execution(action_name)}`"
         end)
 
       "**See also:** #{refs}"

@@ -13,8 +13,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
   """
 
   import AshTypescript.Codegen
-  import AshTypescript.Helpers
 
+  alias AshTypescript.Rpc.Codegen.FunctionNames
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
   @doc """
@@ -31,7 +31,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
   """
   def generate_input_type(resource, action, rpc_action_name, resource_lookup) do
     if ActionIntrospection.action_input_type(action) != :none do
-      input_type_name = "#{snake_to_pascal_case(rpc_action_name)}Input"
+      input_type_name = FunctionNames.input_type(rpc_action_name)
 
       input_field_defs =
         Enum.map(action.inputs, fn input ->

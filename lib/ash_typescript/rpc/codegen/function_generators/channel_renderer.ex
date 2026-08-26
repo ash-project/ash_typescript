@@ -11,6 +11,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
   """
 
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.{FunctionCore, JsdocGenerator}
+  alias AshTypescript.Rpc.Codegen.FunctionNames
   alias AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder
 
   import AshTypescript.Helpers, only: [format_output_field: 1]
@@ -31,11 +32,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
         transport: :channel
       )
 
-    function_name =
-      AshTypescript.FieldFormatter.format_field_name(
-        "#{rpc_action_name}_channel",
-        AshTypescript.Rpc.output_field_formatter()
-      )
+    function_name = FunctionNames.channel(rpc_action_name)
 
     # For optional pagination, thread the page config through a Page generic so
     # the resultHandler's result type narrows to the paginated shape when a
@@ -112,11 +109,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer do
         rpc_action_name
       )
 
-    function_name =
-      AshTypescript.FieldFormatter.format_field_name(
-        "validate_#{rpc_action_name}_channel",
-        AshTypescript.Rpc.output_field_formatter()
-      )
+    function_name = FunctionNames.validation_channel(rpc_action_name)
 
     config_fields =
       ["  #{format_output_field(:channel)}: Channel;"] ++

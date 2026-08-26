@@ -270,6 +270,16 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
         assert manifest =~ ~r/`\w+Channel`/
       end
     end
+
+    test "includes Validation Channel column when both validation and channel enabled", %{
+      manifest: manifest
+    } do
+      if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() and
+           AshTypescript.Rpc.generate_validation_functions?() do
+        assert manifest =~ "| Validation Channel |"
+        assert manifest =~ "`validateListTodosChannel`"
+      end
+    end
   end
 
   describe "ManifestGenerator.generate_manifest/1 - action types" do

@@ -26,6 +26,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
   alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Codegen.ZodSchemaGenerator
   alias AshTypescript.Helpers
+  alias AshTypescript.Rpc.Codegen.FunctionNames
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
 
@@ -140,7 +141,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
   defp build_action_entry({resource, action, rpc_action, domain, resource_config}) do
     rpc_action_name = to_string(rpc_action.name)
     pascal_name = Helpers.snake_to_pascal_case(rpc_action_name)
-    function_name = Helpers.format_output_field(rpc_action_name)
+    function_name = FunctionNames.execution(rpc_action_name)
     resource_name = resource |> Module.split() |> List.last()
     namespace = RpcConfigCollector.resolve_namespace(domain, resource_config, rpc_action)
 
@@ -189,7 +190,8 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
         "validation" => show_validation,
         "zod" => show_zod,
         "valibot" => show_valibot,
-        "channel" => show_channel
+        "channel" => show_channel,
+        "validationChannel" => show_validation and show_channel
       },
       "variantNames" =>
         build_variant_names(
@@ -218,9 +220,11 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
         base
       end
 
+    # Same predicate as the Input type emitter (input_types.ex) and the export
+    # collector — destroy actions with inputs get an Input type too.
     base =
-      if action.type != :destroy and has_input?(action) do
-        Map.put(base, "input", "#{pascal_name}Input")
+      if has_input?(action) do
+        Map.put(base, "input", FunctionNames.input_type(rpc_action.name))
       else
         base
       end
@@ -282,7 +286,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
     names =
       if show_validation do
-        Map.put(names, "validation", Helpers.format_output_field("validate_#{rpc_action_name}"))
+        Map.put(names, "validation", FunctionNames.validation(rpc_action_name))
       else
         names
       end
@@ -307,7 +311,18 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
     names =
       if show_channel do
-        Map.put(names, "channel", Helpers.format_output_field("#{rpc_action_name}_channel"))
+        Map.put(names, "channel", FunctionNames.channel(rpc_action_name))
+      else
+        names
+      end
+
+    names =
+      if show_validation and show_channel do
+        Map.put(
+          names,
+          "validationChannel",
+          FunctionNames.validation_channel(rpc_action_name)
+        )
       else
         names
       end
