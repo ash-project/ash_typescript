@@ -45,8 +45,8 @@ if (testKeysetAfterPagination.success) {
   const after: string | null = testKeysetAfterPagination.data.after;
   const before: string | null = testKeysetAfterPagination.data.before;
   const limit: number = testKeysetAfterPagination.data.limit;
-  const previousPage: string = testKeysetAfterPagination.data.previousPage;
-  const nextPage: string = testKeysetAfterPagination.data.nextPage;
+  const previousPage: string | null = testKeysetAfterPagination.data.previousPage;
+  const nextPage: string | null = testKeysetAfterPagination.data.nextPage;
   const results: Array<any> = testKeysetAfterPagination.data.results;
   const type: "keyset" = testKeysetAfterPagination.data.type;
 
@@ -68,8 +68,8 @@ if (testKeysetBeforePagination.success) {
   const after: string | null = testKeysetBeforePagination.data.after;
   const before: string | null = testKeysetBeforePagination.data.before;
   const limit: number = testKeysetBeforePagination.data.limit;
-  const previousPage: string = testKeysetBeforePagination.data.previousPage;
-  const nextPage: string = testKeysetBeforePagination.data.nextPage;
+  const previousPage: string | null = testKeysetBeforePagination.data.previousPage;
+  const nextPage: string | null = testKeysetBeforePagination.data.nextPage;
   const results: Array<any> = testKeysetBeforePagination.data.results;
   const type: "keyset" = testKeysetBeforePagination.data.type;
 

@@ -69,6 +69,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
     has_more_field = formatted_has_more_field()
     limit_field = formatted_limit_field()
     offset_field = formatted_offset_field()
+    count_field = format_output_field(:count)
+    type_field = format_output_field(:type)
 
     if has_metadata do
       """
@@ -80,6 +82,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
         #{has_more_field}: boolean;
         #{limit_field}: number;
         #{offset_field}: number;
+        #{count_field}?: number | null;
+        #{type_field}: "offset";
       };
       """
     else
@@ -91,6 +95,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
         #{has_more_field}: boolean;
         #{limit_field}: number;
         #{offset_field}: number;
+        #{count_field}?: number | null;
+        #{type_field}: "offset";
       };
       """
     end
@@ -104,6 +110,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
     before_field = formatted_before_field()
     previous_page_field = formatted_previous_page_field()
     next_page_field = formatted_next_page_field()
+    count_field = format_output_field(:count)
+    type_field = format_output_field(:type)
 
     if has_metadata do
       """
@@ -116,8 +124,10 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
         #{limit_field}: number;
         #{after_field}: string | null;
         #{before_field}: string | null;
-        #{previous_page_field}: string;
-        #{next_page_field}: string;
+        #{previous_page_field}: string | null;
+        #{next_page_field}: string | null;
+        #{count_field}?: number | null;
+        #{type_field}: "keyset";
       };
       """
     else
@@ -130,8 +140,10 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
         #{limit_field}: number;
         #{after_field}: string | null;
         #{before_field}: string | null;
-        #{previous_page_field}: string;
-        #{next_page_field}: string;
+        #{previous_page_field}: string | null;
+        #{next_page_field}: string | null;
+        #{count_field}?: number | null;
+        #{type_field}: "keyset";
       };
       """
     end
@@ -167,8 +179,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
         #{limit_field}: number;
         #{after_field}: string | null;
         #{before_field}: string | null;
-        #{previous_page_field}: string;
-        #{next_page_field}: string;
+        #{previous_page_field}: string | null;
+        #{next_page_field}: string | null;
         #{count_field}?: number | null;
         #{type_field}: "keyset";
       };
@@ -190,8 +202,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
         #{limit_field}: number;
         #{after_field}: string | null;
         #{before_field}: string | null;
-        #{previous_page_field}: string;
-        #{next_page_field}: string;
+        #{previous_page_field}: string | null;
+        #{next_page_field}: string | null;
         #{count_field}?: number | null;
         #{type_field}: "keyset";
       };
@@ -399,8 +411,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes do
       #{limit_field}: number;
       #{after_field}: string | null;
       #{before_field}: string | null;
-      #{previous_page_field}: string;
-      #{next_page_field}: string;
+      #{previous_page_field}: string | null;
+      #{next_page_field}: string | null;
       #{count_field}?: number | null;
       #{type_field}: "keyset";
     }

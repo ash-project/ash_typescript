@@ -202,8 +202,8 @@ export const listWithLimitOnly = await listTodos({
 if (listWithLimitOnly.success) {
   const hasMore: boolean = listWithLimitOnly.data.hasMore;
   const results: Array<any> = listWithLimitOnly.data.results;
-  const nextPage: string = listWithLimitOnly.data.nextPage;
-  const previousPage: string = listWithLimitOnly.data.previousPage;
+  const nextPage: string | null = listWithLimitOnly.data.nextPage;
+  const previousPage: string | null = listWithLimitOnly.data.previousPage;
 
   // Should NOT be directly an array
   // @ts-expect-error - data should be paginated structure, not array
