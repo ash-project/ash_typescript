@@ -264,12 +264,19 @@ defmodule AshTypescript.Codegen.TypeMapper do
   cannot map to TypeScript. Accepts a `%Ash.Info.Manifest.Type{}` or a bare
   type module.
   """
-  @spec raise_unsupported_type!(Type.t() | atom()) :: no_return()
+  @spec raise_unsupported_type!(Type.t() | atom() | binary()) :: no_return()
   def raise_unsupported_type!(%Type{module: module, name: name, kind: kind}) do
-    raise_unsupported_type!(module || "#{name} (kind: #{inspect(kind)})")
+    # Both clauses delegate rather than one calling the other: a self-recursive
+    # `no_return()` function makes dialyzer's success-typing fixpoint degenerate
+    # into a nested `%Type{module: %Type{module: %Type{}}}` domain, which then
+    # reports every honest call site as "will never succeed".
+    do_raise_unsupported_type!(module || "#{name} (kind: #{inspect(kind)})")
   end
 
-  def raise_unsupported_type!(type) do
+  def raise_unsupported_type!(type), do: do_raise_unsupported_type!(type)
+
+  @spec do_raise_unsupported_type!(atom() | binary()) :: no_return()
+  defp do_raise_unsupported_type!(type) do
     raise """
     unsupported type #{inspect(type)} — AshTypescript cannot map it to a TypeScript type.
 

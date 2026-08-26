@@ -96,10 +96,11 @@ defmodule AshTypescript.TypedController.Transformers.FoldArgumentConstraints do
   end
 
   defp validate_constraints(constraints, schema) do
+    # `Spark.Options.validate/2` errors are always a `%Spark.Options.ValidationError{}`,
+    # which always carries `:message` — so there is no other error shape to catch.
     case Spark.Options.validate(constraints, schema) do
       {:ok, folded} -> {:ok, folded}
       {:error, %{message: message}} -> {:error, message}
-      {:error, error} -> {:error, inspect(error)}
     end
   end
 end
