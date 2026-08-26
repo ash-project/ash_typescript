@@ -51,5 +51,26 @@ defmodule AshTypescript.Codegen.ImportResolverTest do
     test "strips .ts extension from import path" do
       assert ImportResolver.resolve_import_path("assets/js/a.ts", "assets/js/b.ts") == "./b"
     end
+
+    test "cross-branch sibling directories (namespace dir differs from output dir)" do
+      assert ImportResolver.resolve_import_path(
+               "assets/js/namespaces/todos.ts",
+               "assets/js/schemas/ash_zod.ts"
+             ) == "../schemas/ash_zod"
+    end
+
+    test "deeply nested cross-branch traversal" do
+      assert ImportResolver.resolve_import_path(
+               "assets/js/a/b/c/foo.ts",
+               "assets/ts/x/y/bar.ts"
+             ) == "../../../../ts/x/y/bar"
+    end
+
+    test "paths containing redundant segments are normalized" do
+      assert ImportResolver.resolve_import_path(
+               "assets/js/./namespace/todos.ts",
+               "assets/js/sub/../ash_rpc.ts"
+             ) == "../ash_rpc"
+    end
   end
 end

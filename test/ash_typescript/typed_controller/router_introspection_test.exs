@@ -85,6 +85,32 @@ defmodule AshTypescript.TypedController.RouterIntrospectionTest do
     end
   end
 
+  describe "nested scope router introspection" do
+    test "resolves scope prefixes and path params through nested scopes" do
+      route_infos =
+        RouterIntrospector.introspect(
+          AshTypescript.Test.ControllerResourceNestedScopeRouter,
+          routes_config()
+        )
+
+      auth_routes = Enum.filter(route_infos, &(&1.route.name == :auth))
+      assert length(auth_routes) == 3
+
+      prefixes = auth_routes |> Enum.map(& &1.scope_prefix) |> Enum.sort()
+      assert prefixes == ["api_v1", "api_v2", "legacy"]
+
+      v1_auth = Enum.find(auth_routes, &(&1.scope_prefix == "api_v1"))
+      assert v1_auth.path == "/api/v1/auth"
+
+      provider_routes = Enum.filter(route_infos, &(&1.route.name == :provider_page))
+      assert length(provider_routes) == 3
+
+      v2_provider = Enum.find(provider_routes, &(&1.scope_prefix == "api_v2"))
+      assert v2_provider.path == "/api/v2/auth/providers/:provider"
+      assert v2_provider.path_params == [:provider]
+    end
+  end
+
   describe "ambiguous mount detection" do
     test "raises when controller is mounted at multiple paths without as: options" do
       assert_raise RuntimeError, ~r/don't have unique `as:` options/, fn ->
@@ -107,6 +133,18 @@ defmodule AshTypescript.TypedController.RouterIntrospectionTest do
       assert error.message =~ "/admin"
       assert error.message =~ "/app"
       assert error.message =~ ":auth"
+    end
+
+    test "error message contains the unmangled controller module name" do
+      error =
+        assert_raise RuntimeError, fn ->
+          RouterIntrospector.introspect(
+            AshTypescript.Test.ControllerResourceAmbiguousRouter,
+            routes_config()
+          )
+        end
+
+      assert error.message =~ "AshTypescript.Test.SessionController"
     end
   end
 end
