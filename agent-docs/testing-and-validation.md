@@ -75,8 +75,8 @@ Representative files (not exhaustive — `ls` the directories for the full set):
 
 1. **Never Skip TypeScript Validation** - Always run TypeScript compilation after changes
 2. **Test Multi-Layered System** - Validate Elixir backend, TypeScript frontend, and type inference
-3. **Classify Every Behavior Change** - Deltas not listed in
-   `agent-plans/release-0.18-intentional-changes.md` are regressions
+3. **Classify Every Behavior Change** - An unexplained generated-output delta is
+   a regression until shown to be intentional
 
 ## Pre-Change Baseline Checks
 
@@ -199,9 +199,8 @@ diff -ru /tmp/ts_before test/ts --exclude=node_modules --exclude='*.js'
 ```
 
 Look for: removed properties, changed types, new required properties.
-Expect benign noise — field order is alphabetical and manifest-derived
-(see `agent-plans/release-0.18-intentional-changes.md` §4) — and classify every
-remaining hunk against that ledger before calling it a regression.
+Expect benign noise — field order is alphabetical and manifest-derived — and
+classify every remaining hunk before calling it a regression.
 
 ## Adding New Tests
 
@@ -412,4 +411,4 @@ inventing fixtures:
 - [ ] `cd test/ts && npm run testValibot` - Valibot schemas execute against fixtures
 - [ ] `mix format --check-formatted` - Code formatting maintained
 - [ ] `mix credo --strict` - No linting issues
-- [ ] Every generated-output delta classified against `agent-plans/release-0.18-intentional-changes.md`
+- [ ] Every generated-output delta classified as intentional

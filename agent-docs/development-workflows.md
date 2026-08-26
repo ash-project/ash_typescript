@@ -173,6 +173,5 @@ HexDocs documentation for end users. Can include full tutorials, explanations, a
    when validation schemas are involved
 3. Use Tidewave for interactive debugging (recompile first)
 4. Write comprehensive tests before implementation
-5. Classify every behavior change against
-   `agent-plans/release-0.18-intentional-changes.md` — deltas not listed there
-   are regressions
+5. Classify every behavior change — treat an unexplained generated-output delta
+   as a regression until shown to be intentional
