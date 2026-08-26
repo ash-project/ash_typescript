@@ -173,7 +173,7 @@ if Code.ensure_loaded?(Igniter) do
     def add_page_index_route(igniter, web_module) do
       {igniter, router_module} = Igniter.Libs.Phoenix.select_router(igniter)
 
-      case Igniter.Project.Module.find_module(igniter, router_module) do
+      case router_module && Igniter.Project.Module.find_module(igniter, router_module) do
         {:ok, {igniter, source, _zipper}} ->
           router_content = Rewrite.Source.get(source, :content)
 
@@ -187,6 +187,12 @@ if Code.ensure_loaded?(Igniter) do
               placement: :after
             )
           end
+
+        nil ->
+          Igniter.add_warning(
+            igniter,
+            "Could not find router. Please manually add the /ash-typescript route."
+          )
 
         {:error, igniter} ->
           Igniter.add_warning(

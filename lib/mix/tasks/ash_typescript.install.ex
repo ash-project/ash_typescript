@@ -328,6 +328,24 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.Project.Config.configure_new(
         "config.exs",
         :ash_typescript,
+        [:generate_valibot_schemas],
+        false
+      )
+      |> Igniter.Project.Config.configure_new(
+        "config.exs",
+        :ash_typescript,
+        [:valibot_import_path],
+        "valibot"
+      )
+      |> Igniter.Project.Config.configure_new(
+        "config.exs",
+        :ash_typescript,
+        [:valibot_schema_suffix],
+        "ValibotSchema"
+      )
+      |> Igniter.Project.Config.configure_new(
+        "config.exs",
+        :ash_typescript,
         [:phoenix_import_path],
         "phoenix"
       )
@@ -336,11 +354,17 @@ if Code.ensure_loaded?(Igniter) do
     defp create_manifest_module(igniter, app_name) do
       manifest_module = Igniter.Project.Module.module_name(igniter, "AshTypescriptManifest")
 
-      Igniter.Project.Module.create_module(
-        igniter,
-        manifest_module,
-        "use AshTypescript.Manifest, otp_app: :#{app_name}"
-      )
+      {exists?, igniter} = Igniter.Project.Module.module_exists(igniter, manifest_module)
+
+      if exists? do
+        igniter
+      else
+        Igniter.Project.Module.create_module(
+          igniter,
+          manifest_module,
+          "use AshTypescript.Manifest, otp_app: :#{app_name}"
+        )
+      end
     end
 
     defp create_rpc_controller(igniter, app_name, web_module) do
@@ -376,33 +400,40 @@ if Code.ensure_loaded?(Igniter) do
 
       {igniter, router_module} = Igniter.Libs.Phoenix.select_router(igniter)
 
-      case Igniter.Project.Module.find_module(igniter, router_module) do
-        {:ok, {igniter, source, _zipper}} ->
-          router_content = Rewrite.Source.get(source, :content)
+      with router_module when not is_nil(router_module) <- router_module,
+           {:ok, {igniter, source, _zipper}} <-
+             Igniter.Project.Module.find_module(igniter, router_module) do
+        router_content = Rewrite.Source.get(source, :content)
 
-          routes_to_add =
-            []
-            |> maybe_add_route(
-              router_content,
-              "AshTypescriptRpcController, :run",
-              "  post \"#{run_endpoint}\", AshTypescriptRpcController, :run"
-            )
-            |> maybe_add_route(
-              router_content,
-              "AshTypescriptRpcController, :validate",
-              "  post \"#{validate_endpoint}\", AshTypescriptRpcController, :validate"
-            )
+        routes_to_add =
+          []
+          |> maybe_add_route(
+            router_content,
+            "AshTypescriptRpcController, :run",
+            "  post \"#{run_endpoint}\", AshTypescriptRpcController, :run"
+          )
+          |> maybe_add_route(
+            router_content,
+            "AshTypescriptRpcController, :validate",
+            "  post \"#{validate_endpoint}\", AshTypescriptRpcController, :validate"
+          )
 
-          if routes_to_add != [] do
-            routes_string = Enum.join(Enum.reverse(routes_to_add), "\n") <> "\n"
+        if routes_to_add != [] do
+          routes_string = Enum.join(Enum.reverse(routes_to_add), "\n") <> "\n"
 
-            Igniter.Libs.Phoenix.append_to_scope(igniter, "/", routes_string,
-              arg2: web_module,
-              placement: :after
-            )
-          else
-            igniter
-          end
+          Igniter.Libs.Phoenix.append_to_scope(igniter, "/", routes_string,
+            arg2: web_module,
+            placement: :after
+          )
+        else
+          igniter
+        end
+      else
+        nil ->
+          Igniter.add_warning(
+            igniter,
+            "Could not find router. Please manually add RPC routes."
+          )
 
         {:error, igniter} ->
           Igniter.add_warning(

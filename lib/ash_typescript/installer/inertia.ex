@@ -124,7 +124,7 @@ if Code.ensure_loaded?(Igniter) do
     defp add_inertia_plug_to_router(igniter) do
       {igniter, router_module} = Igniter.Libs.Phoenix.select_router(igniter)
 
-      case Igniter.Project.Module.find_module(igniter, router_module) do
+      case router_module && Igniter.Project.Module.find_module(igniter, router_module) do
         {:ok, {igniter, source, _zipper}} ->
           router_content = Rewrite.Source.get(source, :content)
 
@@ -149,6 +149,12 @@ if Code.ensure_loaded?(Igniter) do
             end)
           end
 
+        nil ->
+          Igniter.add_warning(
+            igniter,
+            "Could not find router. Please manually add `plug Inertia.Plug` to your browser pipeline."
+          )
+
         {:error, igniter} ->
           Igniter.add_warning(
             igniter,
@@ -160,7 +166,7 @@ if Code.ensure_loaded?(Igniter) do
     defp add_inertia_pipeline_and_routes(igniter, web_module) do
       {igniter, router_module} = Igniter.Libs.Phoenix.select_router(igniter)
 
-      case Igniter.Project.Module.find_module(igniter, router_module) do
+      case router_module && Igniter.Project.Module.find_module(igniter, router_module) do
         {:ok, {igniter, source, _zipper}} ->
           router_content = Rewrite.Source.get(source, :content)
           clean = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
@@ -233,6 +239,12 @@ if Code.ensure_loaded?(Igniter) do
               end)
             end
           end
+
+        nil ->
+          Igniter.add_warning(
+            igniter,
+            "Could not find router. Please manually add the :inertia pipeline and route."
+          )
 
         {:error, igniter} ->
           Igniter.add_warning(
