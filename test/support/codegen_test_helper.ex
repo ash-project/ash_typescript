@@ -91,8 +91,9 @@ defmodule AshTypescript.Test.CodegenTestHelper do
 
   # The default test manifest intentionally includes resources (e.g. NotExposed)
   # that are referenced by RPC resources without being exposed via RPC. Running
-  # the orchestrator emits the resulting configuration warnings (via the manifest
-  # verifier's `IO.warn`) on nearly every codegen test, drowning out real output.
+  # the orchestrator emits the resulting configuration warnings (the manifest
+  # verifier writes them to stderr) on nearly every codegen test, drowning out
+  # real output.
   #
   # Capture stderr around the generate call rather than toggling the
   # `warn_on_*` config flags: the flags are process-global and these codegen

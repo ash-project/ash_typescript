@@ -23,6 +23,13 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpcWarnings do
   Runs once per compile of the manifest module, so there's no need for the
   per-domain deduplication hack the previous Rpc-DSL-level verifier used.
   Always returns `:ok` — warnings are informational, not errors.
+
+  Emission deliberately uses `IO.puts(:stderr, ...)` rather than `IO.warn/1`.
+  This verifier runs both during compilation of the manifest module and from
+  `Orchestrator.generate/2` at codegen time. In the compile context `IO.warn/1`
+  registers a compiler diagnostic, which fails `mix compile
+  --warnings-as-errors` — and leaving a resource out of `typescript_rpc` is
+  often deliberate, so it must not break the build.
   """
   use Spark.Dsl.Verifier
   alias AshTypescript.Codegen.TypeDiscovery
@@ -44,7 +51,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyRpcWarnings do
 
     case TypeDiscovery.build_rpc_warnings(otp_app, resource_lookup, rpc_resources) do
       nil -> :ok
-      message -> IO.warn(message)
+      message -> IO.puts(:stderr, message)
     end
 
     :ok
