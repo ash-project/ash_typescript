@@ -80,6 +80,9 @@ runTest("testUpdateTaskAllOmittable", () => shouldPass.testUpdateTaskAllOmittabl
 runTest("testUpdateTaskOmittableTitleAcceptsValue", () => shouldPass.testUpdateTaskOmittableTitleAcceptsValue());
 runTest("testUpdateTaskOmittableArchivedAcceptsValue", () => shouldPass.testUpdateTaskOmittableArchivedAcceptsValue());
 runTest("testEmptyOkStringAcceptsEmpty", () => shouldPass.testEmptyOkStringAcceptsEmpty());
+runTest("testArrayCardinalityBoundaries", () => shouldPass.testArrayCardinalityBoundaries());
+runTest("testOptionalArrayOmitted", () => shouldPass.testOptionalArrayOmitted());
+runTest("testNullableArrayAcceptsNull", () => shouldPass.testNullableArrayAcceptsNull());
 
 console.log("\n--- Tests that SHOULD FAIL (invalid constraints) ---\n");
 
@@ -130,6 +133,10 @@ runTest("testOmittableOnlyTitleRejectsNull", () => shouldFail.testOmittableOnlyT
 runTest("testOmittableOnlyArchivedRejectsNull", () => shouldFail.testOmittableOnlyArchivedRejectsNull());
 runTest("testRequiredTitleRejectsNullOnCreate", () => shouldFail.testRequiredTitleRejectsNullOnCreate());
 runTest("testNullableStringRejectsEmpty", () => shouldFail.testNullableStringRejectsEmpty());
+runTest("testArrayBelowMinimum", () => shouldFail.testArrayBelowMinimum());
+runTest("testArrayAboveMaximum", () => shouldFail.testArrayAboveMaximum());
+runTest("testArrayItemConstraintViolation", () => shouldFail.testArrayItemConstraintViolation());
+runTest("testOptionalArrayRejectsNull", () => shouldFail.testOptionalArrayRejectsNull());
 
 console.log("\n========================================");
 console.log("Test Results Summary");

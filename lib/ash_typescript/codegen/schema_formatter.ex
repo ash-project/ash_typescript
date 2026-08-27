@@ -42,8 +42,8 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
   @doc "Map of third-party Ash type modules (e.g. `AshMoney.Types.Money`) to schema strings."
   @callback third_party_types() :: %{module() => String.t()}
 
-  @doc "Wrap an inner schema string in an array type."
-  @callback wrap_array(inner :: String.t()) :: String.t()
+  @doc "Build an array schema, applying outer `:min_length` and `:max_length` constraints."
+  @callback format_array(inner :: String.t(), constraints :: keyword()) :: String.t()
 
   @doc """
   Wrap a schema string as omittable — i.e. the field may be absent from the

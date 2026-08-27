@@ -8,6 +8,7 @@ import {
   createOrgTodoZodSchema,
   createTaskZodSchema,
   updateTaskZodSchema,
+  validateArrayConstraintsOrgTodoZodSchema,
   AshTypescriptTestTodoContentLinkContentZodSchema,
 } from "../../ash_zod";
 
@@ -621,6 +622,40 @@ export function testEmptyOkStringAcceptsEmpty() {
   }
   console.log("allow_empty?: true string accepts the empty string");
   return validated;
+}
+
+function createValidArrayConstraintData() {
+  const uuid = "123e4567-e89b-12d3-a456-426614174000";
+
+  return {
+    minimumReferenceIds: [uuid],
+    maximumReferenceIds: Array(16).fill(uuid),
+    boundedReferenceIds: Array(16).fill(uuid),
+    boundedCodes: ["ab", "12345678", "valid", "code"],
+  };
+}
+
+export function testArrayCardinalityBoundaries() {
+  return validateArrayConstraintsOrgTodoZodSchema.parse(createValidArrayConstraintData());
+}
+
+export function testOptionalArrayOmitted() {
+  const validated = validateArrayConstraintsOrgTodoZodSchema.parse(
+    createValidArrayConstraintData(),
+  );
+
+  if (validated.optionalReferenceIds !== undefined) {
+    throw new Error("Expected optionalReferenceIds to be omitted");
+  }
+
+  return validated;
+}
+
+export function testNullableArrayAcceptsNull() {
+  return validateArrayConstraintsOrgTodoZodSchema.parse({
+    ...createValidArrayConstraintData(),
+    nullableReferenceIds: null,
+  });
 }
 
 console.log("Constraint validation tests should compile and pass successfully!");

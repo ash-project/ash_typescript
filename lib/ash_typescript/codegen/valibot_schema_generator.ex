@@ -86,7 +86,21 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
   @impl true
   def third_party_types, do: @third_party_types
   @impl true
-  def wrap_array(inner), do: "v.array(#{inner})"
+  def format_array(inner, constraints) do
+    pipes =
+      []
+      |> add_pipe_if(
+        "v.minLength(#{Keyword.get(constraints, :min_length)})",
+        not is_nil(Keyword.get(constraints, :min_length))
+      )
+      |> add_pipe_if(
+        "v.maxLength(#{Keyword.get(constraints, :max_length)})",
+        not is_nil(Keyword.get(constraints, :max_length))
+      )
+
+    build_pipe("v.array(#{inner})", pipes)
+  end
+
   @impl true
   def wrap_optional(schema), do: "v.optional(#{schema})"
   @impl true

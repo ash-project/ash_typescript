@@ -86,7 +86,12 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   @impl true
   def third_party_types, do: @third_party_types
   @impl true
-  def wrap_array(inner), do: "z.array(#{inner})"
+  def format_array(inner, constraints) do
+    "z.array(#{inner})"
+    |> add_min(Keyword.get(constraints, :min_length))
+    |> add_max(Keyword.get(constraints, :max_length))
+  end
+
   @impl true
   def wrap_optional(schema), do: "#{schema}.optional()"
   @impl true

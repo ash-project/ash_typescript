@@ -72,8 +72,11 @@ defmodule AshTypescript.Codegen.SchemaCore do
         format_enum_values(formatter, type_info.values || [])
 
       :array ->
+        # Item constraints already live on `item_type`; `type_info.constraints`
+        # carries the array's own cardinality (`min_length`/`max_length`), which
+        # the formatter renders alongside the item schema.
         inner = map_spec_type(formatter, type_info.item_type) || formatter.any_schema()
-        formatter.wrap_array(inner)
+        formatter.format_array(inner, type_info.constraints || [])
 
       :union ->
         map_spec_union(formatter, type_info.members || [])
