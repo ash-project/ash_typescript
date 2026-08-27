@@ -66,7 +66,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
     Ash.Type.File => "File",
     Ash.Type.Function => "Function",
     Ash.Type.Term => "any",
-    Ash.Type.Vector => "number[]",
+    Ash.Type.Vector => "AshVector",
     Ash.Type.Module => "ModuleName"
   }
 

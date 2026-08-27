@@ -7,6 +7,10 @@ defmodule AshTypescript.Codegen.TypeAliasesTest do
 
   alias AshTypescript.Codegen.TypeAliases
 
+  # Only a unique key into the hand-built lookup below. Alias generation never
+  # loads or introspects the resource module, so no real module is needed.
+  @vector_resource __MODULE__.VectorFixture
+
   describe "generate_ash_type_aliases for calculation arguments" do
     test "discovers types from calculation arguments" do
       # Todo has a :filtered_data calculation with arguments using Ash.Type.Date and Ash.Type.UUID
@@ -51,5 +55,45 @@ defmodule AshTypescript.Codegen.TypeAliasesTest do
       # This should not cause any errors
       assert is_binary(result)
     end
+  end
+
+  describe "Ash.Type.Vector" do
+    # Regression: reported in #76. `TypeMapper` and both schema generators mapped
+    # Vector, but `TypeAliases` had no clause for it, so the catch-all reached
+    # `raise_unsupported_type!/1` and any resource with a Vector attribute (e.g. a
+    # pgvector embedding) failed codegen outright.
+    test "does not raise for a resource with a Vector attribute" do
+      result = TypeAliases.generate_ash_type_aliases([@vector_resource], vector_lookup())
+
+      assert is_binary(result)
+    end
+
+    test "declares the AshVector alias" do
+      result = TypeAliases.generate_ash_type_aliases([@vector_resource], vector_lookup())
+
+      assert result =~ "export type AshVector = number[];"
+    end
+  end
+
+  # A hand-built lookup keeps this focused on alias generation: adding a real
+  # Vector attribute to a test resource would churn every generated artifact.
+  defp vector_lookup do
+    %{
+      @vector_resource => %Ash.Info.Manifest.Resource{
+        module: @vector_resource,
+        embedded?: false,
+        fields: %{
+          embedding: %Ash.Info.Manifest.Field{
+            name: :embedding,
+            kind: :attribute,
+            type: %Ash.Info.Manifest.Type{
+              module: Ash.Type.Vector,
+              kind: :vector,
+              name: "Vector"
+            }
+          }
+        }
+      }
+    }
   end
 end

@@ -51,7 +51,7 @@ defmodule AshTypescript.CodegenTest do
       assert Codegen.get_ts_type(%{type: Ash.Type.Binary}) == "Binary"
       assert Codegen.get_ts_type(%{type: Ash.Type.UrlEncodedBinary}) == "UrlEncodedBinary"
       assert Codegen.get_ts_type(%{type: Ash.Type.Term}) == "any"
-      assert Codegen.get_ts_type(%{type: Ash.Type.Vector}) == "number[]"
+      assert Codegen.get_ts_type(%{type: Ash.Type.Vector}) == "AshVector"
       assert Codegen.get_ts_type(%{type: Ash.Type.Module}) == "ModuleName"
     end
   end

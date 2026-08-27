@@ -241,6 +241,13 @@ defmodule AshTypescript.Test.Todo do
       public? true
     end
 
+    # Vector attribute (e.g. a pgvector embedding) so codegen for
+    # `Ash.Type.Vector` and its `AshVector` alias is exercised end to end.
+    attribute :embedding, :vector do
+      public? true
+      constraints dimensions: 3
+    end
+
     create_timestamp :created_at do
       public? true
     end
@@ -476,7 +483,8 @@ defmodule AshTypescript.Test.Todo do
         :coordinates,
         :hierarchy,
         :strict_hierarchy,
-        :custom_data
+        :custom_data,
+        :embedding
       ]
 
       argument :auto_complete, :boolean do
@@ -515,7 +523,8 @@ defmodule AshTypescript.Test.Todo do
         :coordinates,
         :hierarchy,
         :strict_hierarchy,
-        :custom_data
+        :custom_data,
+        :embedding
       ]
     end
 
