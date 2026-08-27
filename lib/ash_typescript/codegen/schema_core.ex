@@ -94,19 +94,26 @@ defmodule AshTypescript.Codegen.SchemaCore do
       :unknown ->
         map_unknown_module(formatter, type_info)
 
-      primitive_kind ->
-        lookup_primitive_kind(formatter, primitive_kind)
+      _primitive_kind ->
+        lookup_primitive(formatter, type_info)
     end
   end
 
-  # Lookup for primitive kinds with a 1:1 Ash module mapping.
-  defp lookup_primitive_kind(formatter, kind) do
-    case Map.get(@kind_to_ash_module, kind) do
-      nil ->
-        formatter.any_schema()
+  # Leaf lookup, mirroring the precedence `TypeMapper.map_type/3` documents:
+  # the type's own module wins over the kind table. `kind` is a coarse bucket
+  # while `module` is the precise identity — Ash files several distinct builtins
+  # under `kind: :term` (`Term`, `File`, `Function`, `Vector`), so resolving by
+  # kind alone collapses them all onto `Ash.Type.Term`.
+  defp lookup_primitive(formatter, %SpecType{module: module, kind: kind}) do
+    cond do
+      module && Map.has_key?(formatter.simple_primitives(), module) ->
+        Map.get(formatter.simple_primitives(), module)
 
-      module ->
-        Map.get(formatter.simple_primitives(), module, formatter.any_schema())
+      (mapped_module = Map.get(@kind_to_ash_module, kind)) != nil ->
+        Map.get(formatter.simple_primitives(), mapped_module, formatter.any_schema())
+
+      true ->
+        formatter.any_schema()
     end
   end
 

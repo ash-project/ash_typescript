@@ -50,7 +50,9 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
     Ash.Type.Binary => "v.string()",
     Ash.Type.UrlEncodedBinary => "v.string()",
     Ash.Type.File => "v.any()",
-    Ash.Type.Function => "v.function()",
+    # A function can never cross a JSON boundary, so there is nothing to
+    # validate; this matches the generated TS type (`export type Function = any`).
+    Ash.Type.Function => "v.any()",
     Ash.Type.Term => "v.any()",
     Ash.Type.Vector => "v.array(v.number())",
     Ash.Type.Module => "v.string()"

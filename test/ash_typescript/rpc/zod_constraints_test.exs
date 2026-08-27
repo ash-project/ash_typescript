@@ -18,6 +18,7 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
   alias AshTypescript.Codegen.ZodSchemaGenerator
   alias AshTypescript.Test.NestedArrayConstraints
   alias AshTypescript.Test.OrgTodo
+  alias AshTypescript.Test.Todo
 
   describe "Integer constraints in Zod schemas" do
     test "generates min constraint for integer arguments" do
@@ -493,6 +494,21 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
       #   export type Money = { amount: string; currency: string };
       assert ZodSchemaGenerator.third_party_types()[AshMoney.Types.Money] ==
                "z.object({ amount: z.string(), currency: z.string() })"
+    end
+  end
+
+  describe "Ash.Type.Vector in zod schemas" do
+    # Regression: Ash files `Ash.Type.Vector` under `kind: :term` (alongside
+    # `Term`, `File` and `Function`), and `SchemaCore` resolved leaves by kind
+    # only — collapsing every one of them onto `Ash.Type.Term` and emitting
+    # `z.any()`. The `Ash.Type.Vector` entry in `simple_primitives` was dead.
+    # `TypeMapper` already documented the right precedence: module over kind.
+    test "resolves a vector by module rather than its :term kind" do
+      action = AshTypescript.Test.SpecHelpers.spec_action(Todo, :create)
+      schema = ZodSchemaGenerator.generate_zod_schema(Todo, action, "create_todo")
+
+      assert schema =~ "embedding: z.array(z.number())"
+      refute schema =~ "embedding: z.any()"
     end
   end
 end

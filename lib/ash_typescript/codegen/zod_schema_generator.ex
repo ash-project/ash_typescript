@@ -50,7 +50,9 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
     Ash.Type.Binary => "z.string()",
     Ash.Type.UrlEncodedBinary => "z.string()",
     Ash.Type.File => "z.any()",
-    Ash.Type.Function => "z.function()",
+    # A function can never cross a JSON boundary, so there is nothing to
+    # validate; this matches the generated TS type (`export type Function = any`).
+    Ash.Type.Function => "z.any()",
     Ash.Type.Term => "z.any()",
     Ash.Type.Vector => "z.array(z.number())",
     Ash.Type.Module => "z.string()"

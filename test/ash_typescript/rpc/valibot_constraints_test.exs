@@ -19,6 +19,7 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
   alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Test.NestedArrayConstraints
   alias AshTypescript.Test.OrgTodo
+  alias AshTypescript.Test.Todo
 
   describe "Integer constraints in Valibot schemas" do
     test "generates min and max constraints for integer arguments via v.pipe" do
@@ -495,6 +496,23 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
       #   export type Money = { amount: string; currency: string };
       assert ValibotSchemaGenerator.third_party_types()[AshMoney.Types.Money] ==
                "v.object({ amount: v.string(), currency: v.string() })"
+    end
+  end
+
+  describe "Ash.Type.Vector in valibot schemas" do
+    # Regression: Ash files `Ash.Type.Vector` under `kind: :term` (alongside
+    # `Term`, `File` and `Function`), and `SchemaCore` resolved leaves by kind
+    # only — collapsing every one of them onto `Ash.Type.Term` and emitting
+    # `v.any()`. The `Ash.Type.Vector` entry in `simple_primitives` was dead.
+    # `TypeMapper` already documented the right precedence: module over kind.
+    test "resolves a vector by module rather than its :term kind" do
+      action = AshTypescript.Test.SpecHelpers.spec_action(Todo, :create)
+      schema = ValibotSchemaGenerator.generate_valibot_schema(Todo, action, "create_todo")
+
+      # Valibot wraps rather than chains, so the vector schema sits inside the
+      # optional/nullable wrappers.
+      assert schema =~ "embedding: v.optional(v.nullable(v.array(v.number())))"
+      refute schema =~ "embedding: v.optional(v.nullable(v.any()))"
     end
   end
 end
