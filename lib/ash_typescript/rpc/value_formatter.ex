@@ -158,11 +158,16 @@ defmodule AshTypescript.Rpc.ValueFormatter do
         end
 
       _ ->
-        if is_custom_type_with_map_storage?(type_info.module) && is_map(value) &&
-             not is_struct(value) do
-          format_map_keys_only(value, formatter, direction)
-        else
-          value
+        cond do
+          type_info.module == Ash.Type.Vector ->
+            format_vector(value)
+
+          is_custom_type_with_map_storage?(type_info.module) && is_map(value) &&
+              not is_struct(value) ->
+            format_map_keys_only(value, formatter, direction)
+
+          true ->
+            value
         end
     end
   end
@@ -250,6 +255,21 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   # ---------------------------------------------------------------------------
   # Resource Handler
   # ---------------------------------------------------------------------------
+
+  # `%Ash.Vector{}` keeps its floats in a packed binary, which is not
+  # JSON-encodable, while generated TypeScript types a vector as `AshVector`
+  # (`number[]`) — so the wire format has to be a plain list. Result extraction
+  # already ran `Map.from_struct/1` by the time formatting runs, hence the second
+  # clause; `from_binary/1` recovers the dimensions from the binary header.
+  # Inbound values arrive as lists and fall through untouched, since
+  # `Ash.Type.Vector.cast_input/2` accepts a list.
+  defp format_vector(%Ash.Vector{} = vector), do: Ash.Vector.to_list(vector)
+
+  defp format_vector(%{data: data}) when is_binary(data) do
+    data |> Ash.Vector.from_binary() |> Ash.Vector.to_list()
+  end
+
+  defp format_vector(other), do: other
 
   defp format_resource(value, resource, formatter, direction, resource_lookups)
 
