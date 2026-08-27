@@ -82,7 +82,7 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
 
   describe "Array constraints in Valibot schemas" do
     test "generates min_length constraint for array arguments" do
-      action = Ash.Resource.Info.action(OrgTodo, :validate_array_constraints)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :validate_array_constraints)
 
       schema =
         ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "array_constraints")
@@ -92,7 +92,7 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
     end
 
     test "generates max_length constraint for array arguments" do
-      action = Ash.Resource.Info.action(OrgTodo, :validate_array_constraints)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :validate_array_constraints)
 
       schema =
         ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "array_constraints")
@@ -102,7 +102,7 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
     end
 
     test "generates both array cardinality constraints" do
-      action = Ash.Resource.Info.action(OrgTodo, :validate_array_constraints)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :validate_array_constraints)
 
       schema =
         ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "array_constraints")
@@ -112,7 +112,7 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
     end
 
     test "preserves item constraints alongside array cardinality constraints" do
-      action = Ash.Resource.Info.action(OrgTodo, :validate_array_constraints)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :validate_array_constraints)
 
       schema =
         ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "array_constraints")
@@ -122,7 +122,7 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
     end
 
     test "applies nested array cardinality constraints at the correct level" do
-      action = Ash.Resource.Info.action(NestedArrayConstraints, :validate)
+      action = AshTypescript.Test.SpecHelpers.spec_action(NestedArrayConstraints, :validate)
 
       schema =
         ValibotSchemaGenerator.generate_valibot_schema(
@@ -136,7 +136,7 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
     end
 
     test "applies array constraints before optional and nullable wrappers" do
-      action = Ash.Resource.Info.action(OrgTodo, :validate_array_constraints)
+      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :validate_array_constraints)
 
       schema =
         ValibotSchemaGenerator.generate_valibot_schema(OrgTodo, action, "array_constraints")
