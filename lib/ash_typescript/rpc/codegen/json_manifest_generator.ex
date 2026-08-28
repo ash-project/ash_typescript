@@ -13,11 +13,15 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
   ## Schema version
 
-  The manifest includes a `version` field (currently `"1.0"`, semver) so
+  The manifest includes a `version` field (currently `"1.1"`, semver) so
   consumers can detect breaking changes to the manifest format.
+
+  1.1 adds a top-level `resources` object exposing per-relationship query
+  capabilities (pagination/filterable/sortable) for nested relationship
+  query options.
   """
 
-  @manifest_version "1.0"
+  @manifest_version "1.1"
 
   @tc_mutation_methods [:post, :patch, :put, :delete]
 
@@ -26,6 +30,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
   alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Codegen.ZodSchemaGenerator
   alias AshTypescript.Helpers
+  alias AshTypescript.Manifest.Custom
   alias AshTypescript.Rpc.Codegen.FunctionNames
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
@@ -44,11 +49,54 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
       "version" => @manifest_version,
       "generatedAt" => Date.utc_today() |> Date.to_string(),
       "files" => build_files(manifest_path),
+      "resources" => build_resources(otp_app),
       "actions" => actions,
       "typedControllerRoutes" => typed_controller_routes
     }
 
     Jason.encode!(manifest, pretty: true) <> "\n"
+  end
+
+  # Per-resource metadata (manifest 1.1): relationship query capabilities,
+  # keyed by the resource's TypeScript type name.
+  defp build_resources(otp_app) do
+    otp_app
+    |> RpcConfigCollector.get_rpc_resources_by_namespace()
+    |> Enum.flat_map(fn {_namespace, actions} -> actions end)
+    |> Enum.map(fn {resource, _action, _rpc_action, _domain, _resource_config} -> resource end)
+    |> Enum.uniq()
+    |> Enum.into(%{}, fn module ->
+      resource_struct = Custom.resolve_resource(module)
+
+      {AshTypescript.Codegen.Helpers.build_resource_type_name(module),
+       %{"relationships" => build_relationship_capabilities(resource_struct)}}
+    end)
+  end
+
+  # Only many-cardinality relationships to RPC-exposed destinations appear.
+  # filterable/sortable reflect the relationship-level gates; the action-level
+  # enable flags are already on each action entry — consumers combine both,
+  # matching the type-system semantics.
+  defp build_relationship_capabilities(resource_struct) do
+    formatter = AshTypescript.Rpc.output_field_formatter()
+
+    resource_struct.relationships
+    |> Enum.filter(fn {_name, rel} ->
+      rel.cardinality == :many and
+        Custom.typescript_resource?(Custom.resolve_resource(rel.destination))
+    end)
+    |> Enum.into(%{}, fn {name, rel} ->
+      client_name =
+        Custom.formatted_field_name(resource_struct, name, formatter) ||
+          AshTypescript.FieldFormatter.format_field_name(name, formatter)
+
+      {client_name,
+       %{
+         "pagination" => to_string(Custom.relationship_pagination(rel)),
+         "filterable" => rel.filterable?,
+         "sortable" => rel.sortable?
+       }}
+    end)
   end
 
   defp build_actions(otp_app) do

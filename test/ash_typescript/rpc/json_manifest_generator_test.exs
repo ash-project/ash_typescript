@@ -37,8 +37,8 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
       assert Map.has_key?(manifest, "typedControllerRoutes")
     end
 
-    test "version is 1.0", %{manifest: manifest} do
-      assert manifest["version"] == "1.0"
+    test "version is 1.1", %{manifest: manifest} do
+      assert manifest["version"] == "1.1"
     end
 
     test "generatedAt is an ISO date", %{manifest: manifest} do
@@ -542,6 +542,28 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
   describe "config accessor" do
     test "json_manifest_file/0 returns configured path" do
       assert AshTypescript.Rpc.json_manifest_file() == "./test/ts/ash_rpc_manifest.json"
+    end
+  end
+
+  describe "relationship query capabilities (manifest 1.1)" do
+    test "resource entries expose many-relationship capabilities" do
+      manifest = generate_manifest()
+
+      rels = manifest["resources"]["Todo"]["relationships"]
+
+      assert rels["comments"] == %{
+               "pagination" => "mixed",
+               "filterable" => true,
+               "sortable" => true
+             }
+
+      assert rels["unfilterableComments"]["filterable"] == false
+      assert rels["unsortableComments"]["sortable"] == false
+      assert rels["unpaginatedComments"]["pagination"] == "none"
+
+      # to-one and non-RPC destinations don't appear
+      refute Map.has_key?(rels, "user")
+      refute Map.has_key?(rels, "notExposedItems")
     end
   end
 
