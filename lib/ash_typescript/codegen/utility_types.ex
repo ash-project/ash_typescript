@@ -61,50 +61,59 @@ defmodule AshTypescript.Codegen.UtilityTypes do
       : never;
 
     // Helper type to infer union field values, avoiding duplication between array and non-array unions
+    // Selection-object walkers use key remapping to drop keys whose value is
+    // undefined: hoisting a selection with `satisfies` widens the array to a
+    // union whose object members grow synthetic `?: undefined` siblings, and
+    // walking those as real selections would collapse the result to never.
+    // `FieldSelection[FieldIndex] extends infer Sel` re-binds the element to a
+    // naked type parameter so widened (non-tuple) selections distribute over
+    // their element union instead of falling through to never.
     export type InferUnionFieldValue<
       UnionSchema extends { __type: "Union"; __primitiveFields: any },
       FieldSelection extends any[],
     > = UnionToIntersection<
       {
-        [FieldIndex in keyof FieldSelection]: FieldSelection[FieldIndex] extends UnionSchema["__primitiveFields"]
-          ? FieldSelection[FieldIndex] extends keyof UnionSchema
-            ? { [P in FieldSelection[FieldIndex]]: UnionSchema[FieldSelection[FieldIndex]] }
-            : never
-          : FieldSelection[FieldIndex] extends Record<string, any>
-            ? {
-                [UnionKey in keyof FieldSelection[FieldIndex]]: UnionKey extends keyof UnionSchema
-                  ? NonNullable<UnionSchema[UnionKey]> extends { __array: true; __type: "TypedMap"; __primitiveFields: infer TypedMapFields }
-                    ? FieldSelection[FieldIndex][UnionKey] extends any[]
-                      ? Array<
-                          UnionToIntersection<
-                            {
-                              [FieldIdx in keyof FieldSelection[FieldIndex][UnionKey]]: FieldSelection[FieldIndex][UnionKey][FieldIdx] extends TypedMapFields
-                                ? FieldSelection[FieldIndex][UnionKey][FieldIdx] extends keyof NonNullable<UnionSchema[UnionKey]>
-                                  ? { [P in FieldSelection[FieldIndex][UnionKey][FieldIdx]]: NonNullable<UnionSchema[UnionKey]>[P] }
-                                  : never
-                                : never;
-                            }[number]
-                          >
-                        > | null
-                      : never
-                    : NonNullable<UnionSchema[UnionKey]> extends { __type: "TypedMap"; __primitiveFields: infer TypedMapFields }
-                      ? FieldSelection[FieldIndex][UnionKey] extends any[]
-                        ? UnionToIntersection<
-                            {
-                              [FieldIdx in keyof FieldSelection[FieldIndex][UnionKey]]: FieldSelection[FieldIndex][UnionKey][FieldIdx] extends TypedMapFields
-                                ? FieldSelection[FieldIndex][UnionKey][FieldIdx] extends keyof NonNullable<UnionSchema[UnionKey]>
-                                  ? { [P in FieldSelection[FieldIndex][UnionKey][FieldIdx]]: NonNullable<UnionSchema[UnionKey]>[P] }
-                                  : never
-                                : never;
-                            }[number]
+        [FieldIndex in keyof FieldSelection]: FieldSelection[FieldIndex] extends infer Sel
+          ? Sel extends UnionSchema["__primitiveFields"]
+            ? Sel extends keyof UnionSchema
+              ? { [P in Sel]: UnionSchema[Sel] }
+              : never
+            : Sel extends Record<string, any>
+              ? {
+                  [UnionKey in keyof Sel as Sel[UnionKey] extends undefined ? never : UnionKey]: UnionKey extends keyof UnionSchema
+                    ? NonNullable<UnionSchema[UnionKey]> extends { __array: true; __type: "TypedMap"; __primitiveFields: infer TypedMapFields }
+                      ? Sel[UnionKey] extends any[]
+                        ? Array<
+                            UnionToIntersection<
+                              {
+                                [FieldIdx in keyof Sel[UnionKey]]: Sel[UnionKey][FieldIdx] extends TypedMapFields
+                                  ? Sel[UnionKey][FieldIdx] extends keyof NonNullable<UnionSchema[UnionKey]>
+                                    ? { [P in Sel[UnionKey][FieldIdx]]: NonNullable<UnionSchema[UnionKey]>[P] }
+                                    : never
+                                  : never;
+                              }[number]
+                            >
                           > | null
                         : never
-                      : NonNullable<UnionSchema[UnionKey]> extends TypedSchema
-                        ? InferResult<NonNullable<UnionSchema[UnionKey]>, FieldSelection[FieldIndex][UnionKey]>
-                        : never
-                  : never;
-              }
-            : never;
+                      : NonNullable<UnionSchema[UnionKey]> extends { __type: "TypedMap"; __primitiveFields: infer TypedMapFields }
+                        ? Sel[UnionKey] extends any[]
+                          ? UnionToIntersection<
+                              {
+                                [FieldIdx in keyof Sel[UnionKey]]: Sel[UnionKey][FieldIdx] extends TypedMapFields
+                                  ? Sel[UnionKey][FieldIdx] extends keyof NonNullable<UnionSchema[UnionKey]>
+                                    ? { [P in Sel[UnionKey][FieldIdx]]: NonNullable<UnionSchema[UnionKey]>[P] }
+                                    : never
+                                  : never;
+                              }[number]
+                            > | null
+                          : never
+                        : NonNullable<UnionSchema[UnionKey]> extends TypedSchema
+                          ? InferResult<NonNullable<UnionSchema[UnionKey]>, Sel[UnionKey]>
+                          : never
+                    : never;
+                }
+              : never
+          : never;
       }[number]
     >;
 
@@ -254,7 +263,7 @@ defmodule AshTypescript.Codegen.UtilityTypes do
         : never
       : Field extends Record<string, any>
         ? {
-            [K in keyof Field]: K extends keyof T
+            [K in keyof Field as Field[K] extends undefined ? never : K]: K extends keyof T
               ? T[K] extends {
                   __type: "Relationship";
                   __resource: infer Resource;
@@ -301,7 +310,7 @@ defmodule AshTypescript.Codegen.UtilityTypes do
                                       : never
                                     : E extends Record<string, any>
                                       ? {
-                                          [NestedKey in keyof E]: NestedKey extends keyof NonNullable<T[K]>
+                                          [NestedKey in keyof E as E[NestedKey] extends undefined ? never : NestedKey]: NestedKey extends keyof NonNullable<T[K]>
                                               ? InferTypedMapMemberValue<NonNullable<T[K]>[NestedKey], E[NestedKey]>
                                             : never;
                                         }
@@ -322,7 +331,7 @@ defmodule AshTypescript.Codegen.UtilityTypes do
                                       : never
                                     : E extends Record<string, any>
                                       ? {
-                                          [NestedKey in keyof E]: NestedKey extends keyof NonNullable<T[K]>
+                                          [NestedKey in keyof E as E[NestedKey] extends undefined ? never : NestedKey]: NestedKey extends keyof NonNullable<T[K]>
                                               ? InferTypedMapMemberValue<NonNullable<T[K]>[NestedKey], E[NestedKey]>
                                             : never;
                                         }
@@ -345,7 +354,7 @@ defmodule AshTypescript.Codegen.UtilityTypes do
                                     : never
                                   : E extends Record<string, any>
                                     ? {
-                                        [NestedKey in keyof E]: NestedKey extends keyof NonNullable<T[K]>
+                                        [NestedKey in keyof E as E[NestedKey] extends undefined ? never : NestedKey]: NestedKey extends keyof NonNullable<T[K]>
                                             ? InferTypedMapMemberValue<NonNullable<T[K]>[NestedKey], E[NestedKey]>
                                           : never;
                                       }
@@ -364,7 +373,7 @@ defmodule AshTypescript.Codegen.UtilityTypes do
                                     : never
                                   : E extends Record<string, any>
                                     ? {
-                                        [NestedKey in keyof E]: NestedKey extends keyof NonNullable<T[K]>
+                                        [NestedKey in keyof E as E[NestedKey] extends undefined ? never : NestedKey]: NestedKey extends keyof NonNullable<T[K]>
                                             ? InferTypedMapMemberValue<NonNullable<T[K]>[NestedKey], E[NestedKey]>
                                           : never;
                                       }
