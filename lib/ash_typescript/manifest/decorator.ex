@@ -57,7 +57,7 @@ defmodule AshTypescript.Manifest.Decorator do
 
     %Manifest{
       manifest
-      | resources: Enum.map(manifest.resources, &decorate_resource/1),
+      | resources: Enum.map(manifest.resources, &decorate_resource(&1, resource_lookup)),
         types: Enum.map(manifest.types, &decorate_type/1),
         entrypoints:
           Enum.map(
@@ -71,15 +71,20 @@ defmodule AshTypescript.Manifest.Decorator do
   # Resource decoration
   # ─────────────────────────────────────────────────────────────────
 
-  defp decorate_resource(%Manifest.Resource{module: module} = resource)
+  defp decorate_resource(resource, resource_lookup \\ nil)
+
+  defp decorate_resource(%Manifest.Resource{module: module} = resource, resource_lookup)
        when is_atom(module) do
-    case build_resource_custom(resource) do
-      nil -> resource
-      custom -> %Manifest.Resource{resource | custom: put_namespace(resource.custom, custom)}
-    end
+    resource =
+      case build_resource_custom(resource) do
+        nil -> resource
+        custom -> %Manifest.Resource{resource | custom: put_namespace(resource.custom, custom)}
+      end
+
+    decorate_relationships(resource, resource_lookup)
   end
 
-  defp decorate_resource(%Manifest.Resource{} = resource), do: resource
+  defp decorate_resource(%Manifest.Resource{} = resource, _resource_lookup), do: resource
 
   defp build_resource_custom(%Manifest.Resource{module: module} = resource) do
     if typescript_resource?(module) do
@@ -150,6 +155,60 @@ defmodule AshTypescript.Manifest.Decorator do
 
   defp collect_field_atoms(%Manifest.Resource{fields: fields, relationships: rels}) do
     (Map.keys(fields) ++ Map.keys(rels)) |> Enum.uniq()
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Relationship decoration (nested query capabilities)
+  # ─────────────────────────────────────────────────────────────────
+
+  defp decorate_relationships(resource, nil), do: resource
+
+  defp decorate_relationships(
+         %Manifest.Resource{module: module, relationships: rels} = resource,
+         resource_lookup
+       ) do
+    decorated =
+      Map.new(rels, fn
+        {name, %Manifest.Relationship{cardinality: :many, destination: dest} = rel} ->
+          if Manifest.get_resource(resource_lookup, dest) && typescript_resource?(dest) do
+            capabilities = relationship_query_capabilities(module, rel)
+            {name, %Manifest.Relationship{rel | custom: put_namespace(rel.custom, capabilities)}}
+          else
+            {name, rel}
+          end
+
+        {name, rel} ->
+          {name, rel}
+      end)
+
+    %Manifest.Resource{resource | relationships: decorated}
+  end
+
+  # Derive from the relationship's configured read_action, falling back to the
+  # destination's primary read. This is the decoration moment where
+  # Ash.Resource.Info is still visible; runtime never touches it.
+  defp relationship_query_capabilities(source_module, %Manifest.Relationship{
+         name: name,
+         destination: dest
+       }) do
+    ash_rel = Ash.Resource.Info.relationship(source_module, name)
+
+    read_action_name =
+      (ash_rel && Map.get(ash_rel, :read_action)) ||
+        case Ash.Resource.Info.primary_action(dest, :read) do
+          nil -> nil
+          action -> action.name
+        end
+
+    pagination =
+      case read_action_name && Ash.Resource.Info.action(dest, read_action_name) do
+        %{pagination: %{offset?: true, keyset?: true}} -> :mixed
+        %{pagination: %{offset?: true}} -> :offset
+        %{pagination: %{keyset?: true}} -> :keyset
+        _ -> :none
+      end
+
+    %{pagination: pagination, read_action: read_action_name}
   end
 
   # ─────────────────────────────────────────────────────────────────

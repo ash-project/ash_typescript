@@ -266,6 +266,37 @@ defmodule AshTypescript.Manifest.Custom do
   def original_argument_name(_, _, _), do: nil
 
   # ─────────────────────────────────────────────────────────────────
+  # Relationship accessors
+  # ─────────────────────────────────────────────────────────────────
+
+  @doc """
+  Returns the pagination capability of a many-cardinality relationship's
+  effective read action, derived at decoration time. `:none` for undecorated
+  relationships (to-one, or destination not an RPC resource).
+  """
+  @spec relationship_pagination(Manifest.Relationship.t() | nil) ::
+          :offset | :keyset | :mixed | :none
+  def relationship_pagination(%Manifest.Relationship{
+        custom: %{ash_typescript: %{pagination: p}}
+      }),
+      do: p
+
+  def relationship_pagination(_), do: :none
+
+  @doc """
+  Returns the effective read action name for a decorated many-cardinality
+  relationship (the relationship's configured `read_action`, falling back to
+  the destination's primary read action). `nil` when undecorated.
+  """
+  @spec relationship_read_action(Manifest.Relationship.t() | nil) :: atom() | nil
+  def relationship_read_action(%Manifest.Relationship{
+        custom: %{ash_typescript: %{read_action: a}}
+      }),
+      do: a
+
+  def relationship_read_action(_), do: nil
+
+  # ─────────────────────────────────────────────────────────────────
   # Action accessors (entrypoint-exposed actions in action_lookup)
   # ─────────────────────────────────────────────────────────────────
 
