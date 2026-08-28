@@ -47,6 +47,7 @@ import "./shouldPass/loadRestrictions";
 import "./shouldPass/firstAggregates";
 import "./shouldPass/typedChannelOperations";
 import "./shouldPass/sortFields";
+import "./shouldPass/nestedQueryOpts";
 import "./rpcHooks";
 
 // Import Zod schema validation tests
