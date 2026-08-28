@@ -77,6 +77,10 @@ defmodule AshTypescript.Test.OrgTodo do
       allow_nil? false
       public? true
     end
+
+    has_many :comments, AshTypescript.Test.OrgComment do
+      public? true
+    end
   end
 
   aggregates do

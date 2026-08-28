@@ -265,6 +265,46 @@ defmodule AshTypescript.Test.Todo do
       public? true
     end
 
+    # Gate-combination fixtures for nested relationship query options.
+    has_many :unfilterable_comments, AshTypescript.Test.TodoComment do
+      public? true
+      filterable? false
+      destination_attribute :todo_id
+    end
+
+    has_many :unsortable_comments, AshTypescript.Test.TodoComment do
+      public? true
+      sortable? false
+      destination_attribute :todo_id
+    end
+
+    has_many :unpaginated_comments, AshTypescript.Test.TodoComment do
+      public? true
+      read_action :read_unpaginated
+      destination_attribute :todo_id
+    end
+
+    has_many :offset_comments, AshTypescript.Test.TodoComment do
+      public? true
+      read_action :read_offset_only
+      destination_attribute :todo_id
+    end
+
+    has_many :keyset_comments, AshTypescript.Test.TodoComment do
+      public? true
+      read_action :read_keyset_only
+      destination_attribute :todo_id
+    end
+
+    # many_to_many fixture for nested relationship query options — TodoComment
+    # doubles as the join resource.
+    many_to_many :commenters, AshTypescript.Test.User do
+      public? true
+      through AshTypescript.Test.TodoComment
+      source_attribute_on_join_resource :todo_id
+      destination_attribute_on_join_resource :user_id
+    end
+
     has_many :not_exposed_items, AshTypescript.Test.NotExposed do
       public? true
     end

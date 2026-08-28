@@ -91,7 +91,26 @@ defmodule AshTypescript.Test.TodoComment do
   end
 
   actions do
-    defaults [:read, :destroy]
+    defaults [:destroy]
+
+    read :read do
+      primary? true
+      pagination offset?: true, keyset?: true, countable: true, required?: false
+    end
+
+    # Deliberately unpaginated — destination read action for
+    # Todo.unpaginated_comments, exercising the :none pagination decoration.
+    read :read_unpaginated
+
+    # Pure-variant pagination fixtures for Todo.offset_comments and
+    # Todo.keyset_comments, exercising the :offset / :keyset decorations.
+    read :read_offset_only do
+      pagination offset?: true, countable: true, required?: false
+    end
+
+    read :read_keyset_only do
+      pagination keyset?: true, countable: true, required?: false
+    end
 
     create :create do
       accept [:content, :author_name, :rating, :is_helpful, :comment_metadata, :author_info]

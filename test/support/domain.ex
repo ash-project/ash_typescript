@@ -172,6 +172,11 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :destroy_org_todo, :destroy
     end
 
+    resource AshTypescript.Test.OrgComment do
+      rpc_action :list_org_comments, :read
+      rpc_action :create_org_comment, :create
+    end
+
     resource AshTypescript.Test.Task do
       rpc_action :list_tasks, :read
       rpc_action :read_tasks_with_metadata, :read_with_metadata
@@ -308,6 +313,7 @@ defmodule AshTypescript.Test.Domain do
     resource AshTypescript.Test.User
     resource AshTypescript.Test.UserSettings
     resource AshTypescript.Test.OrgTodo
+    resource AshTypescript.Test.OrgComment
     resource AshTypescript.Test.Task
     resource AshTypescript.Test.NotExposed
     resource AshTypescript.Test.Post
