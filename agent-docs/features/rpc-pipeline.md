@@ -223,6 +223,67 @@ category =
   end
 ```
 
+### Nested Relationship Query Options
+
+`has_many`/`many_to_many` relationships accept a query-option envelope inside
+field selection:
+
+```elixir
+fields = [
+  "id",
+  %{"comments" => %{
+    "page" => %{"limit" => 20, "offset" => 0, "count" => true},
+    "filter" => %{"rating" => %{"greaterThan" => 2}},
+    "sort" => "-rating",
+    "fields" => ["id", "content"]
+  }}
+]
+```
+
+Processing flow:
+
+- **Atomizer**: envelope option values (`page`/`filter`/`sort`/`limit`/`offset`)
+  pass through byte-identical — they must not be mangled by `field_names`
+  reverse mapping (`envelope_opt_key?/1` short-circuit in `atomizer.ex`).
+- **Classification**: `parse_field_request/1` classifies envelope maps via
+  `classify_nested_map/1` into `{:with_query_opts, name, opts, fields}`. A
+  bare `%{fields: [...]}` map targeted at a relationship is rerouted through
+  the same processor (`process_args_or_relationship_envelope/7`).
+- **Context map**: the trailing argument threaded through `FieldSelector` is a
+  `ctx` map (`%{manifest, enable_filter?, enable_sort?}`). `Pipeline` passes the
+  entrypoint's `enable_filter?`/`enable_sort?` via
+  `RequestedFieldsProcessor.process/5` opts; bare manifest atoms are still
+  accepted and normalized by `to_ctx/1`.
+- **Validation** (`validate_query_opts!/7`, ordered): relationship → `:many`
+  cardinality → RPC destination → no `args` → `page` vs pagination capability
+  (decorated on the manifest relationship by `Manifest.Decorator`, read via
+  `Custom.relationship_pagination/1`) → filter gates (flag then `filterable?`)
+  → sort gates (flag then `sortable?`) → `page` xor bare `limit`/`offset` →
+  non-empty `fields`. Every failure throws a dedicated tuple with a matching
+  `ErrorBuilder` clause (`invalid_query_opts`, `filter_not_supported`,
+  `sort_not_supported`, `pagination_not_supported`, `invalid_pagination`).
+- **Query build**: the load spec becomes `{rel_name, %Ash.Query{}}` — built
+  with `Ash.Query.for_read(Custom.relationship_read_action(rel))` plus
+  `filter_input`/`sort_input`/`page`/`limit`/`offset` and nested
+  select/load. The extraction template is unchanged by the envelope.
+- **Load restrictions**: `extract_single_load_path/2` in `pipeline.ex` has a
+  `{field, %Ash.Query{}}` clause that walks `query.load`, so
+  `allowed_loads`/`denied_loads` see inside envelopes.
+- **Result shaping**: nested `%Ash.Page.Offset{}`/`%Ash.Page.Keyset{}` values in
+  relationship position are shaped by `ResultProcessor.build_page_map/2` — the
+  same function used for top-level pagination, so shapes are identical by
+  construction (keyset cursors are nil on empty pages). `ValueFormatter` has a
+  page-map clause (type-driven: Relationship + page-map shape) that formats
+  keys and results element-wise.
+
+### Top-Level Strictness (0.18)
+
+`validate_top_level_query_params/5` in `pipeline.ex` errors when a top-level
+`filter`/`sort`/`page` is present but unusable (non-list read, disabled flag, or
+no pagination) — previously these were silently dropped. Absent params never
+error; `page: %{}` counts as present. Nested envelopes are unaffected: their
+gating is flags-only and handled in the `FieldSelector`.
+
 ### Embedded Resources
 
 Embedded resources are dispatched through the same `:resource`/`:embedded_resource`

@@ -11,6 +11,18 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## Unreleased
+
+### Features:
+
+* rpc: nested relationship query options — paginate, filter, sort, and slice has_many/many_to_many loads inside field selection, with capability-gated TypeScript types and page-shaped results
+
+* manifest-json: JSON manifest version 1.1 — new top-level `resources` object exposing per-relationship query capabilities (additive)
+
+### Breaking Changes:
+
+* rpc: top-level `filter`/`sort`/`page` parameters now return `filter_not_supported`/`sort_not_supported`/`pagination_not_supported` errors when the action cannot honor them (non-list reads, disabled via `enable_filter?`/`enable_sort?`, or no pagination configured) instead of being silently dropped
+
 ## [v0.17.3](https://github.com/ash-project/ash_typescript/compare/v0.17.2...v0.17.3) (2026-04-30)
 
 

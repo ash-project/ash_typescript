@@ -413,6 +413,7 @@ mix credo --strict                   # Linting
 - **Field Selection**: Unified format supporting nested relationships and calculations
 - **Embedded Resources**: Full relationship-like architecture with calculation support
 - **Union Field Selection**: Selective member fetching with `{ content: ["field1", { nested: ["field2"] }] }`
+- **Nested Relationship Query Options**: has_many/many_to_many loads accept an envelope `{ comments: { page, filter, sort, limit, offset, fields } }` — capability-gated in TS, validated at runtime, `page` yields the top-level page shape
 - **Union Input Format**: REQUIRED wrapped format `{member_name: value}` for all union inputs
 - **Headers Support**: All RPC functions accept optional headers for custom authentication
 - **Type-Driven Dispatch**: Both `FieldSelector` and `ValueFormatter` use `{type, constraints}` pattern for recursive processing
@@ -433,6 +434,9 @@ mix credo --strict                   # Linting
 | "Union input must be a map" | Direct value for union input | Wrap in map: `{member_name: value}` |
 | "Union input map contains multiple member keys" | Multiple union members in input | Provide exactly one member key |
 | "Union input map does not contain any valid member key" | Invalid or missing member key | Use valid member name from union definition |
+| `invalid_query_opts` | Envelope on a non-relationship/to-one field, `args` combined with query opts, or `page` combined with bare `limit`/`offset` | Only use the envelope on has_many/many_to_many; pick `page` or `limit`/`offset` |
+| `filter_not_supported` / `sort_not_supported` | Option disabled (`enable_filter?`/`enable_sort?: false`), relationship not `filterable?`/`sortable?`, or top-level param on a non-list read | Check `details.reason`: `disabled` (flag) vs `unsupported` (structural) |
+| `pagination_not_supported` | Nested `page` on a relationship whose read action has no pagination, or top-level `page` on a non-paginatable action | Add pagination to the destination read action or use bare `limit`/`offset` |
 | Test reads stale generated.ts | Test uses `File.read!("test/ts/generated.ts")` | Use `AshTypescript.Test.CodegenTestHelper.generate_all_content/0` in `setup_all` |
 | Controller 422 error | Missing required argument, failed type cast, or a violated argument constraint (min_length/match/min/max — enforced since 0.18) | Check `allow_nil?`, argument types, and declared `constraints`. Note `""` on a nilable string is normalized to `nil`, and strings are trimmed by default |
 | "Invalid constraints for argument `x`" | Typed-controller route argument declares constraints the Ash type rejects | Fix the constraint keys/values to match `Ash.Type.constraints/1` for that type |

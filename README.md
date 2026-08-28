@@ -46,6 +46,46 @@ By default the module walks `Ash.Info.domains(otp_app)` to find every domain wit
 
 > `mix igniter.install ash_typescript` creates this module and sets the config automatically — you only need to do this by hand for manual installs or when upgrading a project that predates the manifest module.
 
+#### Top-Level `filter`/`sort`/`page` Strictness
+
+Requests that pass a top-level `filter`, `sort`, or `page` parameter the action cannot honor now return a descriptive error (`filter_not_supported`, `sort_not_supported`, `pagination_not_supported`) instead of silently dropping the parameter. A parameter is unusable when the action is not a list read (mutations, `get?` reads, `get_by` reads), when the option is disabled via `enable_filter?: false`/`enable_sort?: false`, or when the action has no pagination configured. The error's `details.reason` distinguishes `disabled` (flag) from `unsupported` (structural). Absent parameters never error; an empty `page: {}` counts as present.
+
+Generated TypeScript clients are unaffected — the generated types never offered these parameters where they were unusable. Hand-crafted or stale clients that relied on silent dropping must remove the parameters.
+
+#### New in 0.18.0: Nested Relationship Query Options
+
+`has_many`/`many_to_many` relationships can now be paginated, filtered, sorted, and sliced directly inside field selection, on any action that returns the resource:
+
+```typescript
+const todo = await getTodo({
+  input: { id: todoId },
+  fields: [
+    "id",
+    {
+      comments: {
+        page: { limit: 20, offset: 0, count: true },
+        filter: { rating: { greaterThan: 2 } },
+        sort: "-rating",
+        fields: ["id", "content", "rating"],
+      },
+    },
+  ],
+});
+
+if (todo.success && todo.data) {
+  const page = todo.data.comments; // paged shape, same as top-level pagination
+  page.results; // Array<{ id, content, rating }>
+  page.hasMore; // boolean
+  page.count;   // number | null
+}
+```
+
+- The envelope keys are **capability-gated in the generated types**: `page` appears only when the relationship's read action has pagination, `filter`/`sort` only when the relationship is `filterable?`/`sortable?` **and** the RPC action doesn't disable them via `enable_filter?`/`enable_sort?`.
+- With a `page` key the relationship's result becomes a page object (offset or keyset, matching top-level pagination shapes). Without `page`, bare `limit`/`offset`/`filter`/`sort` keep the plain array shape.
+- `page` and bare `limit`/`offset` are mutually exclusive — pick one.
+- Envelopes nest to any depth and respect `allowed_loads`/`denied_loads`.
+- The JSON manifest (now version `1.1`) exposes each resource's relationship capabilities under a new `resources` key for third-party integrations.
+
 #### Other Notable Changes in 0.18.0
 
 Generated TypeScript changes (mostly type-level; re-run codegen and recompile your frontend to see any impact):
@@ -101,6 +141,7 @@ Actions and relationship read actions referenced in `typescript_rpc` blocks are 
 - **Zero-config TypeScript generation** - Automatically generates types from Ash resources
 - **End-to-end type safety** - Catch integration errors at compile time, not runtime
 - **Smart field selection** - Request only needed fields with full type inference
+- **Nested relationship query options** - Paginate, filter, sort, and slice has_many/many_to_many loads inside field selection
 - **RPC client generation** - Type-safe function calls for all action types
 - **Get actions** - Single record retrieval with `get?`, `get_by`, and `not_found_error?` options
 - **Phoenix Channel support** - Generate channel-based RPC functions for real-time applications
