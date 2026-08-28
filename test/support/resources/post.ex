@@ -36,6 +36,43 @@ defmodule AshTypescript.Test.Post do
 
     attribute :metadata, :map, public?: true
 
+    # Non-nullable union next to relationships — regression shape for issue #83.
+    # Hoisting a field selection with `satisfies` widens it to an array-of-union
+    # whose object members grow synthetic `?: undefined` siblings; a non-nullable
+    # union sibling must not collapse InferResult to `never`.
+    attribute :engagement, :union do
+      public? true
+      allow_nil? false
+      default "none"
+
+      constraints types: [
+                    metrics: [
+                      type: :map,
+                      tag: :engagement_type,
+                      tag_value: "metrics",
+                      constraints: [
+                        fields: [
+                          views: [type: :integer, allow_nil?: false],
+                          shares: [type: :integer]
+                        ]
+                      ]
+                    ],
+                    survey: [
+                      type: :map,
+                      tag: :engagement_type,
+                      tag_value: "survey",
+                      constraints: [
+                        fields: [
+                          score: [type: :integer, allow_nil?: false],
+                          comment: [type: :string]
+                        ]
+                      ]
+                    ],
+                    none: [type: :string]
+                  ],
+                  storage: :type_and_value
+    end
+
     # Array of untyped maps — regression coverage for the `has?` filter, whose
     # element type (`Record<string, any>`) itself ends in `>`.
     attribute :revisions, {:array, :map}, public?: true
