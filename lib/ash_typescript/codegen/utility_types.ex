@@ -34,6 +34,19 @@ defmodule AshTypescript.Codegen.UtilityTypes do
     // Prefixes per Ash.Query.sort/3: + (asc), - (desc), ++ (asc_nils_first), -- (desc_nils_last)
     export type SortString<T extends string> = T | `+${T}` | `-${T}` | `++${T}` | `--${T}`;
 
+    // Nested relationship pagination input, keyed by the relationship's
+    // __pagination marker ("offset" | "keyset" | "mixed"). Keys of the other
+    // pagination family are typed `never` so passing them is a structural
+    // error (excess-property checking does not fire through the envelope's
+    // conditional types).
+    export type NestedPageInput<P extends string> = P extends "offset"
+      ? { #{formatted_limit_field()}?: number; #{formatted_offset_field()}?: number; #{formatted_count_field()}?: boolean; #{formatted_after_field()}?: never; #{formatted_before_field()}?: never }
+      : P extends "keyset"
+        ? { #{formatted_limit_field()}?: number; #{formatted_after_field()}?: string; #{formatted_before_field()}?: string; #{formatted_count_field()}?: boolean; #{formatted_offset_field()}?: never }
+        :
+            | { #{formatted_limit_field()}?: number; #{formatted_offset_field()}?: number; #{formatted_count_field()}?: boolean; #{formatted_after_field()}?: never; #{formatted_before_field()}?: never }
+            | { #{formatted_limit_field()}?: number; #{formatted_after_field()}?: string; #{formatted_before_field()}?: string; #{formatted_count_field()}?: boolean; #{formatted_offset_field()}?: never };
+
     // Resource schema constraint
     export type TypedSchema = {
       __type: "Resource" | "TypedMap" | "Union";
@@ -109,13 +122,52 @@ defmodule AshTypescript.Codegen.UtilityTypes do
 
     export type LeafFieldSelection<T extends TypedSchema> = T["__primitiveFields"];
 
-    export type ComplexFieldSelection<T extends TypedSchema> = {
+    // Query-option envelope for many-cardinality relationships. Each optional
+    // key is usable only when the corresponding capability marker is present
+    // and the action-level flag (F = filter, S = sort) is enabled; otherwise
+    // the key is typed `never` so passing a value is a structural error (plain
+    // excess-property checking does not fire through these conditional types).
+    // `page` and bare `limit`/`offset` are mutually exclusive: the pagination
+    // part is a union of the two shapes, each `never`-typing the other's keys.
+    export type RelationshipQueryEnvelope<
+      Meta,
+      Dest extends TypedSchema,
+      F extends boolean = true,
+      S extends boolean = true,
+    > = {
+      #{formatted_fields_field()}: UnifiedFieldSelection<Dest, F, S>[];
+    } & (F extends true
+      ? Meta extends { __filterInput: infer FI }
+        ? { #{formatted_filter_field()}?: FI }
+        : { #{formatted_filter_field()}?: never }
+      : { #{formatted_filter_field()}?: never }) &
+      (S extends true
+        ? Meta extends { __sortField: infer SF extends string }
+          ? { #{formatted_sort_field()}?: SortString<SF> | SortString<SF>[] }
+          : { #{formatted_sort_field()}?: never }
+        : { #{formatted_sort_field()}?: never }) &
+      (Meta extends { __pagination: infer P extends string }
+        ? (
+            | { #{formatted_page_field()}?: NestedPageInput<P>; #{formatted_limit_field()}?: never; #{formatted_offset_field()}?: never }
+            | { #{formatted_limit_field()}?: number; #{formatted_offset_field()}?: number; #{formatted_page_field()}?: never }
+          )
+        : { #{formatted_limit_field()}?: number; #{formatted_offset_field()}?: number; #{formatted_page_field()}?: never });
+
+    export type ComplexFieldSelection<
+      T extends TypedSchema,
+      F extends boolean = true,
+      S extends boolean = true,
+    > = {
       [K in ComplexFieldKeys<T>]?: T[K] extends {
         __type: "Relationship";
         __resource: infer Resource;
       }
         ? NonNullable<Resource> extends TypedSchema
-          ? UnifiedFieldSelection<NonNullable<Resource>>[]
+          ? T[K] extends { __array: true }
+            ?
+                | UnifiedFieldSelection<NonNullable<Resource>, F, S>[]
+                | RelationshipQueryEnvelope<T[K], NonNullable<Resource>, F, S>
+            : UnifiedFieldSelection<NonNullable<Resource>, F, S>[]
           : never
         : T[K] extends {
               __type: "ComplexCalculation";
@@ -125,15 +177,15 @@ defmodule AshTypescript.Codegen.UtilityTypes do
             ? NonNullable<ReturnType> extends TypedSchema
               ? {
                   #{formatted_args_field()}: Args;
-                  #{formatted_fields_field()}: UnifiedFieldSelection<NonNullable<ReturnType>>[];
+                  #{formatted_fields_field()}: UnifiedFieldSelection<NonNullable<ReturnType>, F, S>[];
                 }
               : { #{formatted_args_field()}: Args }
             : NonNullable<ReturnType> extends TypedSchema
-              ? { #{formatted_fields_field()}: UnifiedFieldSelection<NonNullable<ReturnType>>[] }
+              ? { #{formatted_fields_field()}: UnifiedFieldSelection<NonNullable<ReturnType>, F, S>[] }
               : never
           : T[K] extends { __type: "TypedMap" }
             ? NonNullable<T[K]> extends TypedSchema
-              ? UnifiedFieldSelection<NonNullable<T[K]>>[]
+              ? UnifiedFieldSelection<NonNullable<T[K]>, F, S>[]
               : never
             : T[K] extends { __type: "Union"; __primitiveFields: infer PrimitiveFields }
               ? T[K] extends { __array: true }
@@ -141,26 +193,30 @@ defmodule AshTypescript.Codegen.UtilityTypes do
                     [UnionKey in keyof Omit<T[K], "__type" | "__primitiveFields" | "__array">]?: NonNullable<T[K][UnionKey]> extends { __type: "TypedMap"; __primitiveFields: any }
                       ? NonNullable<T[K][UnionKey]>["__primitiveFields"][]
                       : NonNullable<T[K][UnionKey]> extends TypedSchema
-                        ? UnifiedFieldSelection<NonNullable<T[K][UnionKey]>>[]
+                        ? UnifiedFieldSelection<NonNullable<T[K][UnionKey]>, F, S>[]
                         : never;
                   })[]
                 : (PrimitiveFields | {
                     [UnionKey in keyof Omit<T[K], "__type" | "__primitiveFields">]?: NonNullable<T[K][UnionKey]> extends { __type: "TypedMap"; __primitiveFields: any }
                       ? NonNullable<T[K][UnionKey]>["__primitiveFields"][]
                       : NonNullable<T[K][UnionKey]> extends TypedSchema
-                        ? UnifiedFieldSelection<NonNullable<T[K][UnionKey]>>[]
+                        ? UnifiedFieldSelection<NonNullable<T[K][UnionKey]>, F, S>[]
                         : never;
                   })[]
                 : NonNullable<T[K]> extends TypedSchema
-                  ? UnifiedFieldSelection<NonNullable<T[K]>>[]
+                  ? UnifiedFieldSelection<NonNullable<T[K]>, F, S>[]
                   : never;
     };
 
     // Main type: Use explicit base case detection to prevent infinite recursion
-    export type UnifiedFieldSelection<T extends TypedSchema> =
+    export type UnifiedFieldSelection<
+      T extends TypedSchema,
+      F extends boolean = true,
+      S extends boolean = true,
+    > =
       HasComplexFields<T> extends false
         ? LeafFieldSelection<T> // Base case: only primitives, no recursion
-        : LeafFieldSelection<T> | ComplexFieldSelection<T>; // Recursive case
+        : LeafFieldSelection<T> | ComplexFieldSelection<T, F, S>; // Recursive case
 
     // Infers the result value of one selected member inside a TypedMap:
     // Relationship-wrapped members (embedded resources) recurse through the
@@ -204,13 +260,23 @@ defmodule AshTypescript.Codegen.UtilityTypes do
                   __resource: infer Resource;
                 }
                 ? NonNullable<Resource> extends TypedSchema
-                  ? T[K] extends { __array: true }
-                    ? null extends Resource
-                      ? Array<InferResult<NonNullable<Resource>, Field[K]>> | null
-                      : Array<InferResult<NonNullable<Resource>, Field[K]>>
-                    : null extends Resource
-                      ? InferResult<NonNullable<Resource>, Field[K]> | null
-                      : InferResult<NonNullable<Resource>, Field[K]>
+                  ? Field[K] extends { #{formatted_fields_field()}: infer NestedFields }
+                    ? NestedFields extends UnifiedFieldSelection<NonNullable<Resource>>[]
+                      ? Field[K] extends { #{formatted_page_field()}: infer Page }
+                        ? T[K] extends { __pagination: infer P extends string }
+                          ? NestedPageResult<NonNullable<Resource>, NestedFields, P, Page>
+                          : never
+                        : T[K] extends { __array: true }
+                          ? Array<InferResult<NonNullable<Resource>, NestedFields>>
+                          : never
+                      : never
+                    : T[K] extends { __array: true }
+                      ? null extends Resource
+                        ? Array<InferResult<NonNullable<Resource>, Field[K]>> | null
+                        : Array<InferResult<NonNullable<Resource>, Field[K]>>
+                      : null extends Resource
+                        ? InferResult<NonNullable<Resource>, Field[K]> | null
+                        : InferResult<NonNullable<Resource>, Field[K]>
                 : never
               : T[K] extends {
                     __type: "ComplexCalculation";
@@ -394,6 +460,42 @@ defmodule AshTypescript.Codegen.UtilityTypes do
             ? KeysetType
             : OffsetType | KeysetType  // Fallback to union if can't determine
         : RecordType;
+
+    // Nested relationship pagination results — shaped identically to the
+    // top-level page payloads, but generic over the destination schema.
+    export type NestedOffsetPageResult<R extends TypedSchema, Fields> = {
+      #{formatted_results_field()}: Fields extends UnifiedFieldSelection<R>[] ? Array<InferResult<R, Fields>> : never;
+      #{formatted_has_more_field()}: boolean;
+      #{formatted_limit_field()}: number;
+      #{formatted_offset_field()}: number;
+      #{formatted_count_field()}?: number | null;
+      #{format_output_field(:type)}: "offset";
+    };
+
+    export type NestedKeysetPageResult<R extends TypedSchema, Fields> = {
+      #{formatted_results_field()}: Fields extends UnifiedFieldSelection<R>[] ? Array<InferResult<R, Fields>> : never;
+      #{formatted_has_more_field()}: boolean;
+      #{formatted_limit_field()}: number;
+      #{formatted_after_field()}: string | null;
+      #{formatted_before_field()}: string | null;
+      #{formatted_previous_page_field()}: string | null;
+      #{formatted_next_page_field()}: string | null;
+      #{formatted_count_field()}?: number | null;
+      #{format_output_field(:type)}: "keyset";
+    };
+
+    // P is the relationship's __pagination marker; Page is the page input the
+    // caller actually passed (used to narrow "mixed" to a concrete side).
+    export type NestedPageResult<R extends TypedSchema, Fields, P extends string, Page> =
+      P extends "offset"
+        ? NestedOffsetPageResult<R, Fields>
+        : P extends "keyset"
+          ? NestedKeysetPageResult<R, Fields>
+          : InferPaginationType<Page> extends "offset"
+            ? NestedOffsetPageResult<R, Fields>
+            : InferPaginationType<Page> extends "keyset"
+              ? NestedKeysetPageResult<R, Fields>
+              : NestedOffsetPageResult<R, Fields> | NestedKeysetPageResult<R, Fields>;
 
     export type SuccessDataFunc<T extends (...args: any[]) => Promise<any>> = Extract<
       Awaited<ReturnType<T>>,

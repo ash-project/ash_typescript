@@ -97,7 +97,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
         result =
           if has_metadata do
             """
-            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{schema_ref}>[];
+            export type #{rpc_action_name_pascal}Fields = #{unified_field_selection_ref(schema_ref, rpc_action)}[];
             #{metadata_type}
             export type Infer#{rpc_action_name_pascal}Result<
               Fields extends #{rpc_action_name_pascal}Fields,
@@ -106,7 +106,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
             """
           else
             """
-            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{schema_ref}>[];
+            export type #{rpc_action_name_pascal}Fields = #{unified_field_selection_ref(schema_ref, rpc_action)}[];
             export type Infer#{rpc_action_name_pascal}Result<
               Fields extends #{rpc_action_name_pascal}Fields,
             > = InferResult<#{schema_ref}, Fields>#{null_suffix};
@@ -132,7 +132,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
               )
 
             fields_type = """
-            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{schema_ref}>[];
+            export type #{rpc_action_name_pascal}Fields = #{unified_field_selection_ref(schema_ref, rpc_action)}[];
             #{metadata_type}
             """
 
@@ -172,7 +172,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
 
             if has_metadata do
               """
-              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{schema_ref}>[];
+              export type #{rpc_action_name_pascal}Fields = #{unified_field_selection_ref(schema_ref, rpc_action)}[];
               #{metadata_type}
               export type Infer#{rpc_action_name_pascal}Result<
                 Fields extends #{rpc_action_name_pascal}Fields,
@@ -181,7 +181,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
               """
             else
               """
-              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{schema_ref}>[];
+              export type #{rpc_action_name_pascal}Fields = #{unified_field_selection_ref(schema_ref, rpc_action)}[];
               export type Infer#{rpc_action_name_pascal}Result<
                 Fields extends #{rpc_action_name_pascal}Fields,
               > = Array<InferResult<#{schema_ref}, Fields>>;
@@ -208,7 +208,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
         result =
           if has_metadata do
             """
-            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{schema_ref}>[];
+            export type #{rpc_action_name_pascal}Fields = #{unified_field_selection_ref(schema_ref, rpc_action)}[];
             #{metadata_type}
             export type Infer#{rpc_action_name_pascal}Result<
               Fields extends #{rpc_action_name_pascal}Fields | undefined,
@@ -217,7 +217,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
             """
           else
             """
-            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{schema_ref}>[];
+            export type #{rpc_action_name_pascal}Fields = #{unified_field_selection_ref(schema_ref, rpc_action)}[];
             #{metadata_type}
             export type Infer#{rpc_action_name_pascal}Result<
               Fields extends #{rpc_action_name_pascal}Fields | undefined,
@@ -259,7 +259,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
 
             if type == :array_of_resource do
               """
-              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{target_resource_name}ResourceSchema>[];
+              export type #{rpc_action_name_pascal}Fields = #{unified_field_selection_ref("#{target_resource_name}ResourceSchema", rpc_action)}[];
 
               export type Infer#{rpc_action_name_pascal}Result<
                 Fields extends #{rpc_action_name_pascal}Fields | undefined,
@@ -267,7 +267,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
               """
             else
               """
-              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{target_resource_name}ResourceSchema>[];
+              export type #{rpc_action_name_pascal}Fields = #{unified_field_selection_ref("#{target_resource_name}ResourceSchema", rpc_action)}[];
 
               export type Infer#{rpc_action_name_pascal}Result<
                 Fields extends #{rpc_action_name_pascal}Fields | undefined,
@@ -280,7 +280,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
 
             if type == :array_of_typed_map do
               """
-              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
+              export type #{rpc_action_name_pascal}Fields = #{unified_field_selection_ref(typed_map_schema, rpc_action)}[];
 
               export type Infer#{rpc_action_name_pascal}Result<
                 Fields extends #{rpc_action_name_pascal}Fields | undefined,
@@ -288,7 +288,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
               """
             else
               """
-              export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
+              export type #{rpc_action_name_pascal}Fields = #{unified_field_selection_ref(typed_map_schema, rpc_action)}[];
 
               export type Infer#{rpc_action_name_pascal}Result<
                 Fields extends #{rpc_action_name_pascal}Fields | undefined,
@@ -308,7 +308,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
             typed_map_schema = build_map_type(fields, nil, field_name_mappings)
 
             """
-            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
+            export type #{rpc_action_name_pascal}Fields = #{unified_field_selection_ref(typed_map_schema, rpc_action)}[];
 
             export type Infer#{rpc_action_name_pascal}Result<
               Fields extends #{rpc_action_name_pascal}Fields | undefined,
@@ -327,7 +327,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
             typed_map_schema = build_map_type(fields, nil, field_name_mappings)
 
             """
-            export type #{rpc_action_name_pascal}Fields = UnifiedFieldSelection<#{typed_map_schema}>[];
+            export type #{rpc_action_name_pascal}Fields = #{unified_field_selection_ref(typed_map_schema, rpc_action)}[];
 
             export type Infer#{rpc_action_name_pascal}Result<
               Fields extends #{rpc_action_name_pascal}Fields | undefined,
@@ -367,6 +367,20 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
               """
             end
         end
+    end
+  end
+
+  # Emits explicit F/S type arguments only when a flag is disabled, keeping
+  # default output byte-identical for unaffected actions. Nested envelope
+  # gating is flags-only, so this reads the raw enable flags rather than
+  # supports_filtering/supports_sorting (which also encode the read/get gate).
+  defp unified_field_selection_ref(schema_ref, rpc_action) do
+    enable_filter? = Map.get(rpc_action, :enable_filter?, true)
+    enable_sort? = Map.get(rpc_action, :enable_sort?, true)
+
+    case {enable_filter?, enable_sort?} do
+      {true, true} -> "UnifiedFieldSelection<#{schema_ref}>"
+      {f, s} -> "UnifiedFieldSelection<#{schema_ref}, #{f}, #{s}>"
     end
   end
 end

@@ -12,6 +12,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   """
 
   alias AshTypescript.Codegen.{Helpers, TypeMapper}
+  alias AshTypescript.Manifest.Custom
 
   # ─────────────────────────────────────────────────────────────────
   # Field Classification
@@ -479,12 +480,41 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
     metadata =
       if rel.type in [:has_many, :many_to_many] do
-        "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type}; }"
+        markers = relationship_query_markers(rel, related_resource_name)
+        "{ __type: \"Relationship\"; __array: true; __resource: #{resource_type};#{markers} }"
       else
         "{ __type: \"Relationship\"; __resource: #{resource_type}; }"
       end
 
     "  #{formatted_name}: #{metadata};"
+  end
+
+  # Capability markers gate which envelope keys the TS types offer. Each is
+  # independently omitted when the capability is absent. Embedded attributes
+  # reuse __type: "Relationship" through a different code path and never get
+  # markers.
+  defp relationship_query_markers(rel, related_resource_name) do
+    pagination =
+      case Custom.relationship_pagination(rel) do
+        :none -> ""
+        kind -> ~s( __pagination: "#{kind}";)
+      end
+
+    filter =
+      if rel.filterable? do
+        " __filterInput: #{related_resource_name}FilterInput;"
+      else
+        ""
+      end
+
+    sort =
+      if rel.sortable? do
+        " __sortField: #{related_resource_name}SortField;"
+      else
+        ""
+      end
+
+    pagination <> filter <> sort
   end
 
   defp spec_non_aggregate_complex_field(
