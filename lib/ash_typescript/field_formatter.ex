@@ -342,6 +342,66 @@ defmodule AshTypescript.FieldFormatter do
     String.match?(string, ~r/^[a-z][a-z0-9_]*$/) && String.contains?(string, "_")
   end
 
+  @doc """
+  Formats a sort string by converting field names from client format to internal format.
+
+  Handles Ash.Query.sort_input format:
+  - "name" or "+name" (ascending)
+  - "++name" (ascending with nils first)
+  - "-name" (descending)
+  - "--name" (descending with nils last)
+  - "-name,++title" (multiple fields with different modifiers)
+
+  Preserves sort modifiers while converting field names using the input formatter.
+
+  ## Examples
+
+      iex> AshTypescript.FieldFormatter.format_sort_string("--startDate,++insertedAt", :camel_case)
+      "--start_date,++inserted_at"
+
+      iex> AshTypescript.FieldFormatter.format_sort_string("-userName", :camel_case)
+      "-user_name"
+
+      iex> AshTypescript.FieldFormatter.format_sort_string(nil, :camel_case)
+      nil
+  """
+  def format_sort_string(nil, _formatter), do: nil
+
+  def format_sort_string(sort_list, formatter) when is_list(sort_list) do
+    sort_list
+    |> Enum.map_join(",", &format_single_sort_field(&1, formatter))
+  end
+
+  def format_sort_string(sort_string, formatter) when is_binary(sort_string) do
+    sort_string
+    |> String.split(",")
+    |> Enum.map_join(",", &format_single_sort_field(&1, formatter))
+  end
+
+  defp format_single_sort_field(field_with_modifier, formatter) do
+    case field_with_modifier do
+      "++" <> field_name ->
+        formatted_field = parse_input_field(field_name, formatter)
+        "++#{formatted_field}"
+
+      "--" <> field_name ->
+        formatted_field = parse_input_field(field_name, formatter)
+        "--#{formatted_field}"
+
+      "+" <> field_name ->
+        formatted_field = parse_input_field(field_name, formatter)
+        "+#{formatted_field}"
+
+      "-" <> field_name ->
+        formatted_field = parse_input_field(field_name, formatter)
+        "-#{formatted_field}"
+
+      field_name ->
+        formatted_field = parse_input_field(field_name, formatter)
+        "#{formatted_field}"
+    end
+  end
+
   # Private helper for parsing field names from client format to internal format
   defp parse_field_name(field_name, formatter) do
     case formatter do

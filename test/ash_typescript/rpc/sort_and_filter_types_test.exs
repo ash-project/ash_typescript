@@ -230,7 +230,7 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       assert request.sort == "--due_date"
     end
 
-    test "list sort is dropped when enable_sort?: false" do
+    test "list sort errors when enable_sort?: false" do
       params = %{
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"],
@@ -238,9 +238,9 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       }
 
       conn = %Plug.Conn{}
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
 
-      assert request.sort == nil
+      assert {:error, {:sort_not_supported, :top_level, :disabled}} =
+               Pipeline.parse_request(:ash_typescript, conn, params)
     end
 
     test "string sort still works" do
@@ -486,7 +486,6 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"],
-        "filter" => %{"status" => %{"eq" => "active"}},
         "sort" => ["++priority", "-createdAt"]
       }
 

@@ -216,7 +216,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
   # ──────────────────────────────────────────────────
 
   describe "sort with enable_sort?: false" do
-    test "string sort is ignored", %{conn: conn} do
+    test "string sort errors as disabled", %{conn: conn} do
       result_without_sort =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos_no_sort",
@@ -230,23 +230,16 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
           "sort" => "-title"
         })
 
-      # Both should succeed and return same data (sort ignored)
       assert result_without_sort["success"] == true
-      assert result_with_sort["success"] == true
 
-      # Results should have identical ordering since sort is dropped
-      ids_without = Enum.map(result_without_sort["data"], & &1["id"])
-      ids_with = Enum.map(result_with_sort["data"], & &1["id"])
-      assert ids_without == ids_with
+      assert result_with_sort["success"] == false
+
+      assert Enum.any?(List.wrap(result_with_sort["errors"]), fn e ->
+               e["type"] == "sort_not_supported"
+             end)
     end
 
-    test "list sort is ignored", %{conn: conn} do
-      result_without_sort =
-        Rpc.run_action(:ash_typescript, conn, %{
-          "action" => "list_todos_no_sort",
-          "fields" => ["id", "title"]
-        })
-
+    test "list sort errors as disabled", %{conn: conn} do
       result_with_list_sort =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos_no_sort",
@@ -254,12 +247,11 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
           "sort" => ["-title", "+completed"]
         })
 
-      assert result_without_sort["success"] == true
-      assert result_with_list_sort["success"] == true
+      assert result_with_list_sort["success"] == false
 
-      ids_without = Enum.map(result_without_sort["data"], & &1["id"])
-      ids_with = Enum.map(result_with_list_sort["data"], & &1["id"])
-      assert ids_without == ids_with
+      assert Enum.any?(List.wrap(result_with_list_sort["errors"]), fn e ->
+               e["type"] == "sort_not_supported"
+             end)
     end
   end
 
@@ -368,7 +360,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
   # ──────────────────────────────────────────────────
 
   describe "filter with enable_filter?: false" do
-    test "isNil filter is ignored when filtering disabled", %{conn: conn} do
+    test "isNil filter errors when filtering disabled", %{conn: conn} do
       result_all =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos_no_filter",
@@ -383,10 +375,12 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
         })
 
       assert result_all["success"] == true
-      assert result_with_filter["success"] == true
 
-      # Should return same results since filter is dropped
-      assert length(result_all["data"]) == length(result_with_filter["data"])
+      assert result_with_filter["success"] == false
+
+      assert Enum.any?(List.wrap(result_with_filter["errors"]), fn e ->
+               e["type"] == "filter_not_supported"
+             end)
     end
   end
 
@@ -469,8 +463,10 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
       assert second["title"] == "Bravo Todo"
     end
 
-    test "combined with enable_filter?: false drops filter but keeps sort", %{conn: conn} do
-      result =
+    test "combined with enable_filter?: false errors on filter but sort alone works", %{
+      conn: conn
+    } do
+      result_with_filter =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos_no_filter",
           "fields" => ["id", "title"],
@@ -478,16 +474,29 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
           "sort" => ["title"]
         })
 
+      assert result_with_filter["success"] == false
+
+      assert Enum.any?(List.wrap(result_with_filter["errors"]), fn e ->
+               e["type"] == "filter_not_supported"
+             end)
+
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_todos_no_filter",
+          "fields" => ["id", "title"],
+          "sort" => ["title"]
+        })
+
       assert result["success"] == true
-      # All 3 todos should be returned (filter is ignored)
       assert length(result["data"]) >= 3
 
-      # But sort should still work
       titles = Enum.map(result["data"], & &1["title"])
       assert titles == Enum.sort(titles)
     end
 
-    test "combined with enable_sort?: false drops sort but keeps filter", %{conn: conn} do
+    test "combined with enable_sort?: false errors on sort but filter alone works", %{
+      conn: conn
+    } do
       result_sorted =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos_no_sort",
@@ -496,15 +505,27 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
           "sort" => ["-title"]
         })
 
-      assert result_sorted["success"] == true
+      assert result_sorted["success"] == false
 
-      # Filter should still work
-      Enum.each(result_sorted["data"], fn todo ->
+      assert Enum.any?(List.wrap(result_sorted["errors"]), fn e ->
+               e["type"] == "sort_not_supported"
+             end)
+
+      result_filtered =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_todos_no_sort",
+          "fields" => ["id", "title", "description"],
+          "filter" => %{"description" => %{"isNil" => true}}
+        })
+
+      assert result_filtered["success"] == true
+
+      Enum.each(result_filtered["data"], fn todo ->
         assert todo["description"] == nil
       end)
     end
 
-    test "combined with both disabled drops filter and sort", %{conn: conn} do
+    test "combined with both disabled errors on filter first", %{conn: conn} do
       result_all =
         Rpc.run_action(:ash_typescript, conn, %{
           "action" => "list_todos_no_filter_no_sort",
@@ -520,13 +541,12 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
         })
 
       assert result_all["success"] == true
-      assert result_with_both["success"] == true
 
-      # Should return same results since both filter and sort are dropped
-      assert length(result_all["data"]) == length(result_with_both["data"])
-      ids_all = Enum.map(result_all["data"], & &1["id"]) |> Enum.sort()
-      ids_both = Enum.map(result_with_both["data"], & &1["id"]) |> Enum.sort()
-      assert ids_all == ids_both
+      assert result_with_both["success"] == false
+
+      assert Enum.any?(List.wrap(result_with_both["errors"]), fn e ->
+               e["type"] == "filter_not_supported"
+             end)
     end
   end
 

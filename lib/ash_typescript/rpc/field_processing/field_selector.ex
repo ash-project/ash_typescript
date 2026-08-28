@@ -20,7 +20,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
   Dispatch is driven by the manifest: `select_fields/5` pattern-matches
   `%Ash.Info.Manifest.Type{}` and branches on its `kind`. Every handler takes a
-  trailing `manifest` argument. Raw Ash types (atoms, `{:array, _}`) hit
+  trailing `ctx` argument (a map carrying the manifest module plus
+  entrypoint-level feature flags). Raw Ash types (atoms, `{:array, _}`) hit
   fallback clauses that resolve via `Ash.Info.Manifest.Generator.TypeResolver`
   and re-dispatch.
 
@@ -45,6 +46,16 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
   @type select_result :: {select :: [atom()], load :: [term()], template :: [term()]}
 
+  @default_ctx_flags %{enable_filter?: true, enable_sort?: true}
+
+  # The trailing "manifest" argument threaded through this module is a context
+  # map carrying the manifest plus entrypoint-level feature flags. Bare module
+  # atoms are still accepted at the public boundary.
+  defp to_ctx(%{manifest: _} = ctx), do: ctx
+
+  defp to_ctx(manifest) when is_atom(manifest),
+    do: Map.put(@default_ctx_flags, :manifest, manifest)
+
   # ---------------------------------------------------------------------------
   # Public API
   # ---------------------------------------------------------------------------
@@ -65,10 +76,16 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       iex> process(MyApp.Todo, :read, [:id, :title, %{user: [:id, :name]}])
       {:ok, {[:id, :title], [{:user, [:id, :name]}], [:id, :title, {:user, [:id, :name]}]}}
   """
-  @spec process(module(), atom(), list(), module()) ::
+  @spec process(module(), atom(), list(), module(), keyword()) ::
           {:ok, select_result()} | {:error, term()}
-  def process(resource, action_name, requested_fields, manifest) do
-    action = Map.get(AshTypescript.action_lookup(manifest), {resource, action_name})
+  def process(resource, action_name, requested_fields, manifest, opts \\ []) do
+    ctx = %{
+      manifest: manifest,
+      enable_filter?: Keyword.get(opts, :enable_filter?, true),
+      enable_sort?: Keyword.get(opts, :enable_sort?, true)
+    }
+
+    action = Map.get(AshTypescript.action_lookup(ctx.manifest), {resource, action_name})
 
     if is_nil(action) do
       throw({:action_not_found, action_name})
@@ -77,7 +94,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     {type, constraints} = action_to_type_spec(resource, action)
 
     {select, load, template} =
-      select_fields(type, constraints, requested_fields, [], manifest)
+      select_fields(type, constraints, requested_fields, [], ctx)
 
     formatted_template = format_extraction_template(template)
 
@@ -148,7 +165,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
           keyword(),
           list(),
           list(),
-          module()
+          module() | map()
         ) ::
           select_result()
 
@@ -158,16 +175,17 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         _constraints,
         requested_fields,
         path,
-        manifest
+        ctx
       ) do
+    ctx = to_ctx(ctx)
     inst = Type.effective_module(type_info)
 
     case type_info.kind do
       :type_ref ->
         full_type =
-          Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(manifest), type_info.module)
+          Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(ctx.manifest), type_info.module)
 
-        select_fields(full_type, [], requested_fields, path, manifest)
+        select_fields(full_type, [], requested_fields, path, ctx)
 
       :array ->
         select_fields(
@@ -175,29 +193,29 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
           [],
           requested_fields,
           path,
-          manifest
+          ctx
         )
 
       kind when kind in [:resource, :embedded_resource] ->
         resource = Type.effective_resource(type_info)
-        select_resource_fields(resource, requested_fields, path, manifest)
+        select_resource_fields(resource, requested_fields, path, ctx)
 
       :union ->
-        select_union_fields(type_info, requested_fields, path, "union_attribute", manifest)
+        select_union_fields(type_info, requested_fields, path, "union_attribute", ctx)
 
       :tuple ->
         if Helpers.has_typescript_field_names?(inst) do
-          select_typed_struct_fields(type_info, requested_fields, path, manifest)
+          select_typed_struct_fields(type_info, requested_fields, path, ctx)
         else
-          select_tuple_fields(type_info, requested_fields, path, manifest)
+          select_tuple_fields(type_info, requested_fields, path, ctx)
         end
 
       :keyword ->
         if Helpers.has_typescript_field_names?(inst) do
-          select_typed_struct_fields(type_info, requested_fields, path, manifest)
+          select_typed_struct_fields(type_info, requested_fields, path, ctx)
         else
           if Type.has_fields?(type_info) do
-            select_typed_map_fields(type_info, requested_fields, path, manifest)
+            select_typed_map_fields(type_info, requested_fields, path, ctx)
           else
             if requested_fields != [] do
               throw(
@@ -212,14 +230,14 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       kind when kind in [:struct, :map] ->
         cond do
           inst && is_atom(inst) && Helpers.ash_resource?(inst) ->
-            select_resource_fields(inst, requested_fields, path, manifest)
+            select_resource_fields(inst, requested_fields, path, ctx)
 
           Helpers.has_typescript_field_names?(inst) ->
-            select_typed_struct_fields(type_info, requested_fields, path, manifest)
+            select_typed_struct_fields(type_info, requested_fields, path, ctx)
 
           Type.has_fields?(type_info) ->
             error_type = if kind == :map, do: "map", else: "field_constrained_type"
-            select_typed_map_fields(type_info, requested_fields, path, manifest, error_type)
+            select_typed_map_fields(type_info, requested_fields, path, ctx, error_type)
 
           true ->
             if requested_fields != [] do
@@ -249,7 +267,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         constraints,
         requested_fields,
         path,
-        manifest
+        ctx
       ) do
     inner_constraints = Keyword.get(constraints, :items, [])
 
@@ -258,19 +276,19 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       inner_constraints,
       requested_fields,
       path,
-      manifest
+      ctx
     )
   end
 
   # Raw Ash type atoms — resolve to %Ash.Info.Manifest.Type{} and re-dispatch
-  def select_fields(type, constraints, requested_fields, path, manifest)
+  def select_fields(type, constraints, requested_fields, path, ctx)
       when is_atom(type) and not is_nil(type) do
     resolved = Ash.Info.Manifest.Generator.TypeResolver.resolve(type, constraints)
-    select_fields(resolved, [], requested_fields, path, manifest)
+    select_fields(resolved, [], requested_fields, path, ctx)
   end
 
   # Catch-all for unrecognized types
-  def select_fields(_type, _constraints, requested_fields, path, _manifest) do
+  def select_fields(_type, _constraints, requested_fields, path, _ctx) do
     if requested_fields != [] do
       throw({:invalid_field_selection, :primitive_type, nil, requested_fields, path})
     end
@@ -287,11 +305,11 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
   Handles attributes, calculations, relationships, and aggregates.
   """
-  def select_resource_fields(resource, requested_fields, path, manifest) do
+  def select_resource_fields(resource, requested_fields, path, ctx) do
     Validation.check_for_duplicates(requested_fields, path)
 
     Enum.reduce(requested_fields, {[], [], []}, fn field, acc ->
-      field = atomize_field_name(field, resource, manifest)
+      field = atomize_field_name(field, resource, ctx)
 
       case parse_field_request(field) do
         {:simple, field_name} ->
@@ -300,7 +318,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
             field_name,
             path,
             acc,
-            manifest
+            ctx
           )
 
         {:nested, field_name, nested_fields} ->
@@ -310,18 +328,29 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
             nested_fields,
             path,
             acc,
-            manifest
+            ctx
+          )
+
+        {:with_query_opts, field_name, opts, fields} ->
+          process_relationship_with_query_opts(
+            resource,
+            field_name,
+            opts,
+            fields,
+            path,
+            acc,
+            ctx
           )
 
         {:with_args, calc_name, args, fields} ->
-          process_calculation_with_args(
+          process_args_or_relationship_envelope(
             resource,
             calc_name,
             args,
             fields,
             path,
             acc,
-            manifest
+            ctx
           )
 
         {:multi_nested, entries} ->
@@ -334,20 +363,31 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
                   nested_fields,
                   path,
                   inner_acc,
-                  manifest
+                  ctx
                 )
 
               is_map(nested_fields) ->
-                case get_args_and_fields(nested_fields) do
-                  {:ok, args, fields} ->
-                    process_calculation_with_args(
+                case classify_nested_map(nested_fields) do
+                  {:with_query_opts, opts, fields} ->
+                    process_relationship_with_query_opts(
+                      resource,
+                      field_name,
+                      opts,
+                      fields,
+                      path,
+                      inner_acc,
+                      ctx
+                    )
+
+                  {:with_args, args, fields} ->
+                    process_args_or_relationship_envelope(
                       resource,
                       field_name,
                       args,
                       fields,
                       path,
                       inner_acc,
-                      manifest
+                      ctx
                     )
 
                   :not_args_structure ->
@@ -357,7 +397,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
                       nested_fields,
                       path,
                       inner_acc,
-                      manifest
+                      ctx
                     )
                 end
 
@@ -368,7 +408,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
                   nested_fields,
                   path,
                   inner_acc,
-                  manifest
+                  ctx
                 )
             end
           end)
@@ -381,18 +421,18 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
          field_name,
          path,
          {select, load, template},
-         manifest
+         ctx
        ) do
-    internal_name = resolve_resource_field_name(resource, field_name, manifest)
+    internal_name = resolve_resource_field_name(resource, field_name, ctx)
 
     {field_type, constraints, category} =
-      get_resource_field_info(resource, internal_name, path, manifest)
+      get_resource_field_info(resource, internal_name, path, ctx)
 
     if category == :calculation_with_args do
       throw({:calculation_requires_args, internal_name, path})
     end
 
-    if requires_nested_selection?(field_type, constraints, manifest) do
+    if requires_nested_selection?(field_type, constraints, ctx) do
       throw({:requires_field_selection, category, internal_name, path})
     end
 
@@ -414,12 +454,12 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
          nested_fields,
          path,
          {select, load, template},
-         manifest
+         ctx
        ) do
-    internal_name = resolve_resource_field_name(resource, field_name, manifest)
+    internal_name = resolve_resource_field_name(resource, field_name, ctx)
 
     {field_type, field_constraints, category} =
-      get_resource_field_info(resource, internal_name, path, manifest)
+      get_resource_field_info(resource, internal_name, path, ctx)
 
     if category == :calculation_with_args do
       throw({:invalid_calculation_args, internal_name, path})
@@ -427,7 +467,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
     # Aggregates that don't return complex types don't support nested field selection
     if category == :aggregate &&
-         !requires_nested_selection?(field_type, field_constraints, manifest) do
+         !requires_nested_selection?(field_type, field_constraints, ctx) do
       throw({:invalid_field_selection, internal_name, :aggregate, path})
     end
 
@@ -436,12 +476,12 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
 
     if category == :calculation &&
-         !requires_nested_selection?(field_type, field_constraints, manifest) do
+         !requires_nested_selection?(field_type, field_constraints, ctx) do
       throw({:field_does_not_support_nesting, internal_name, path})
     end
 
     if category == :attribute &&
-         !requires_nested_selection?(field_type, field_constraints, manifest) do
+         !requires_nested_selection?(field_type, field_constraints, ctx) do
       throw({:field_does_not_support_nesting, internal_name, path})
     end
 
@@ -477,7 +517,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         field_constraints,
         nested_fields,
         new_path,
-        manifest
+        ctx
       )
 
     case category do
@@ -501,7 +541,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       :relationship ->
         dest_resource = extract_relationship_destination(field_type, resource, internal_name)
 
-        unless Custom.typescript_resource?(Custom.resolve_resource(dest_resource, manifest)) do
+        unless Custom.typescript_resource?(Custom.resolve_resource(dest_resource, ctx.manifest)) do
           throw({:unknown_field, internal_name, resource, path})
         end
 
@@ -550,13 +590,13 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
          fields,
          path,
          {select, load, template},
-         manifest
+         ctx
        ) do
-    internal_name = resolve_resource_field_name(resource, calc_name, manifest)
+    internal_name = resolve_resource_field_name(resource, calc_name, ctx)
 
     calc_field =
       case Ash.Info.Manifest.get_field(
-             AshTypescript.resource_lookup(manifest),
+             AshTypescript.resource_lookup(ctx.manifest),
              resource,
              internal_name
            ) do
@@ -570,7 +610,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
     field_type = calc_field.type
     new_path = path ++ [internal_name]
-    is_complex_return_type = requires_nested_selection?(field_type, [], manifest)
+    is_complex_return_type = requires_nested_selection?(field_type, [], ctx)
 
     calc_accepts_args = has_any_arguments?(calc_field)
     calc_requires_args = has_required_arguments?(calc_field)
@@ -599,7 +639,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
           throw({:invalid_field_selection, internal_name, :calculation, path})
 
         is_list(fields) and fields != [] ->
-          select_fields(field_type, [], fields, new_path, manifest)
+          select_fields(field_type, [], fields, new_path, ctx)
 
         is_complex_return_type ->
           throw({:requires_field_selection, :complex_type, internal_name, path})
@@ -639,15 +679,247 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     {select, load ++ [load_spec], template ++ [template_item]}
   end
 
-  defp get_resource_field_info(resource, field_name, path, manifest)
-       when is_atom(resource) do
+  # ---------------------------------------------------------------------------
+  # Relationship Query Envelopes
+  # ---------------------------------------------------------------------------
+
+  # An args/fields map targeted at a relationship is a bare-fields envelope
+  # (e.g. %{comments: %{fields: [...]}}) — route it through the query-opts
+  # processor. Calculations keep the existing args path.
+  defp process_args_or_relationship_envelope(resource, calc_name, args, fields, path, acc, ctx) do
+    internal = resolve_resource_field_name(resource, calc_name, ctx)
+
+    case get_resource_relationship(resource, internal, ctx.manifest) do
+      %Ash.Info.Manifest.Relationship{} ->
+        process_relationship_with_query_opts(
+          resource,
+          calc_name,
+          %{args: args},
+          fields,
+          path,
+          acc,
+          ctx
+        )
+
+      nil ->
+        process_calculation_with_args(resource, calc_name, args, fields, path, acc, ctx)
+    end
+  end
+
+  # Fields take precedence over relationships, mirroring
+  # get_resource_field_info_from_spec.
+  defp get_resource_relationship(resource, field_name, manifest) do
     api_resource =
       Ash.Info.Manifest.get_resource!(AshTypescript.resource_lookup(manifest), resource)
 
-    get_resource_field_info_from_spec(api_resource, resource, field_name, path, manifest)
+    if Map.has_key?(api_resource.fields, field_name) do
+      nil
+    else
+      Map.get(api_resource.relationships, field_name)
+    end
   end
 
-  defp get_resource_field_info_from_spec(api_resource, resource, field_name, path, manifest) do
+  defp process_relationship_with_query_opts(
+         resource,
+         field_name,
+         opts,
+         fields,
+         path,
+         {select, load, template},
+         ctx
+       ) do
+    internal_name = resolve_resource_field_name(resource, field_name, ctx)
+
+    rel = get_resource_relationship(resource, internal_name, ctx.manifest)
+    rel = validate_query_opts!(resource, internal_name, rel, opts, fields, path, ctx)
+
+    %Ash.Info.Manifest.Relationship{destination: dest} = rel
+
+    new_path = path ++ [internal_name]
+
+    dest_type = %Ash.Info.Manifest.Type{
+      kind: :resource,
+      name: "Resource",
+      module: dest,
+      resource_module: dest,
+      constraints: []
+    }
+
+    {nested_select, nested_load, nested_template} =
+      select_fields(dest_type, [], fields, new_path, ctx)
+
+    input_formatter = AshTypescript.Rpc.input_field_formatter()
+
+    parsed_page =
+      case Map.get(opts, :page) do
+        nil ->
+          nil
+
+        page ->
+          parse_nested_page(
+            page,
+            internal_name,
+            path,
+            input_formatter,
+            Custom.relationship_pagination(rel)
+          )
+      end
+
+    parsed_filter =
+      case Map.get(opts, :filter) do
+        nil -> nil
+        filter -> FieldFormatter.parse_input_fields(filter, input_formatter)
+      end
+
+    parsed_sort =
+      case Map.get(opts, :sort) do
+        nil -> nil
+        sort -> FieldFormatter.format_sort_string(sort, input_formatter)
+      end
+
+    query =
+      dest
+      |> Ash.Query.for_read(Custom.relationship_read_action(rel))
+      |> then(fn q ->
+        if parsed_filter, do: Ash.Query.filter_input(q, parsed_filter), else: q
+      end)
+      |> then(fn q -> if parsed_sort, do: Ash.Query.sort_input(q, parsed_sort), else: q end)
+      |> then(fn q ->
+        if parsed_page, do: Ash.Query.page(q, Keyword.new(parsed_page)), else: q
+      end)
+      |> then(fn q ->
+        case Map.get(opts, :limit) do
+          nil -> q
+          limit -> Ash.Query.limit(q, limit)
+        end
+      end)
+      |> then(fn q ->
+        case Map.get(opts, :offset) do
+          nil -> q
+          offset -> Ash.Query.offset(q, offset)
+        end
+      end)
+      |> Ash.Query.select(nested_select)
+      |> Ash.Query.load(nested_load)
+
+    {select, load ++ [{internal_name, query}], template ++ [{internal_name, nested_template}]}
+  end
+
+  @offset_page_keys [:limit, :offset, :count]
+  @keyset_page_keys [:limit, :after, :before, :count]
+
+  # Validation order (spec):
+  # 1. relationship  2. cardinality :many  3. destination is RPC resource
+  # 4. args exclusivity  5. page vs pagination capability  6. filter gates
+  # 7. sort gates  8. page xor bare limit/offset  9. non-empty fields
+  defp validate_query_opts!(resource, internal_name, rel, opts, fields, path, ctx) do
+    rel =
+      case rel do
+        nil ->
+          case get_resource_field_kind(resource, internal_name, ctx.manifest) do
+            nil -> throw({:unknown_field, internal_name, resource, path})
+            kind -> throw({:query_opts_on_non_relationship, internal_name, kind, path})
+          end
+
+        %Ash.Info.Manifest.Relationship{cardinality: :one} ->
+          throw({:query_opts_on_to_one, internal_name, path})
+
+        %Ash.Info.Manifest.Relationship{cardinality: :many} = rel ->
+          rel
+      end
+
+    unless Custom.typescript_resource?(Custom.resolve_resource(rel.destination, ctx.manifest)) do
+      throw({:unknown_field, internal_name, resource, path})
+    end
+
+    if Map.get(opts, :args) != nil do
+      throw({:args_and_query_opts_combined, internal_name, path})
+    end
+
+    if Map.get(opts, :page) != nil and Custom.relationship_pagination(rel) == :none do
+      throw({:nested_pagination_not_supported, internal_name, path})
+    end
+
+    if Map.get(opts, :filter) != nil do
+      cond do
+        not ctx.enable_filter? ->
+          throw({:filter_not_supported, internal_name, :disabled, path})
+
+        not rel.filterable? ->
+          throw({:filter_not_supported, internal_name, :unsupported, path})
+
+        true ->
+          :ok
+      end
+    end
+
+    if Map.get(opts, :sort) != nil do
+      cond do
+        not ctx.enable_sort? ->
+          throw({:sort_not_supported, internal_name, :disabled, path})
+
+        not rel.sortable? ->
+          throw({:sort_not_supported, internal_name, :unsupported, path})
+
+        true ->
+          :ok
+      end
+    end
+
+    if Map.get(opts, :page) != nil and
+         (Map.get(opts, :limit) != nil or Map.get(opts, :offset) != nil) do
+      throw({:page_and_limit_offset_combined, internal_name, path})
+    end
+
+    if is_nil(fields) or fields == [] do
+      throw({:requires_field_selection, :relationship, internal_name, path})
+    end
+
+    rel
+  end
+
+  defp get_resource_field_kind(resource, field_name, manifest) do
+    api_resource =
+      Ash.Info.Manifest.get_resource!(AshTypescript.resource_lookup(manifest), resource)
+
+    case Map.get(api_resource.fields, field_name) do
+      %Ash.Info.Manifest.Field{kind: kind} -> kind
+      nil -> nil
+    end
+  end
+
+  defp parse_nested_page(page, field_name, path, formatter, pagination) when is_map(page) do
+    parsed = FieldFormatter.parse_input_fields(page, formatter)
+
+    allowed =
+      case pagination do
+        :offset -> @offset_page_keys
+        :keyset -> @keyset_page_keys
+        _ -> Enum.uniq(@offset_page_keys ++ @keyset_page_keys)
+      end
+
+    invalid = Map.keys(parsed) -- allowed
+
+    if invalid != [] do
+      throw({:invalid_nested_page, field_name, {:unknown_keys, invalid}, path})
+    end
+
+    parsed
+  end
+
+  defp parse_nested_page(_page, field_name, path, _formatter, _pagination) do
+    throw({:invalid_nested_page, field_name, :not_a_map, path})
+  end
+
+  defp get_resource_field_info(resource, field_name, path, ctx)
+       when is_atom(resource) do
+    api_resource =
+      Ash.Info.Manifest.get_resource!(AshTypescript.resource_lookup(ctx.manifest), resource)
+
+    get_resource_field_info_from_spec(api_resource, resource, field_name, path, ctx)
+  end
+
+  defp get_resource_field_info_from_spec(api_resource, resource, field_name, path, ctx) do
     case Map.get(api_resource.fields, field_name) do
       %Ash.Info.Manifest.Field{kind: kind, type: type_info} = field ->
         case kind do
@@ -657,7 +929,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
                 has_any_arguments?(field) ->
                   :calculation_with_args
 
-                requires_nested_selection?(type_info, [], manifest) ->
+                requires_nested_selection?(type_info, [], ctx) ->
                   :calculation_complex
 
                 true ->
@@ -669,7 +941,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
           :attribute ->
             # Use the type info to classify - use the fallback classifier
             # since it handles all the nested selection logic correctly
-            category = classify_attribute_category_from_type(type_info, manifest)
+            category = classify_attribute_category_from_type(type_info, ctx)
             {type_info, [], category}
 
           :aggregate ->
@@ -709,20 +981,24 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
   defp classify_attribute_category_from_type(
          %Ash.Info.Manifest.Type{kind: :type_ref} = type_info,
-         manifest
+         ctx
        ) do
-    full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(manifest), type_info.module)
-    classify_attribute_category_from_type(full_type, manifest)
+    full_type =
+      Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(ctx.manifest), type_info.module)
+
+    classify_attribute_category_from_type(full_type, ctx)
   end
 
-  defp classify_attribute_category_from_type(%Ash.Info.Manifest.Type{} = type_info, manifest) do
+  defp classify_attribute_category_from_type(%Ash.Info.Manifest.Type{} = type_info, ctx) do
     # For array types, classify based on the inner type
     effective_type = if type_info.kind == :array, do: type_info.item_type, else: type_info
 
     case effective_type do
       %Ash.Info.Manifest.Type{kind: :type_ref} = ref ->
-        full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(manifest), ref.module)
-        classify_attribute_category_from_type(full_type, manifest)
+        full_type =
+          Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(ctx.manifest), ref.module)
+
+        classify_attribute_category_from_type(full_type, ctx)
 
       %Ash.Info.Manifest.Type{kind: kind} when kind in [:resource, :embedded_resource] ->
         :embedded_resource
@@ -778,13 +1054,13 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         %Ash.Info.Manifest.Type{} = type_info,
         requested_fields,
         path,
-        manifest
+        ctx
       ) do
     if requested_fields == [] do
       throw({:requires_field_selection, :field_constrained_type, nil})
     end
 
-    {_forward, reverse_map} = typed_struct_field_maps(type_info, manifest)
+    {_forward, reverse_map} = typed_struct_field_maps(type_info, ctx)
     fields = Type.get_fields(type_info)
 
     Validation.check_for_duplicates(requested_fields, path)
@@ -804,7 +1080,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
           new_path = path ++ [internal_name]
 
           {_nested_select, _nested_load, nested_template} =
-            select_fields(sub_type, [], nested_fields, new_path, manifest)
+            select_fields(sub_type, [], nested_fields, new_path, ctx)
 
           {select, load, template ++ [{internal_name, nested_template}]}
 
@@ -816,13 +1092,13 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
   # Returns `{forward, reverse}` typescript field-name maps for a typed struct,
   # preferring the precomputed decoration (carried on the type or resolved from
-  # the manifest's type lookup by module) and falling back to live reflection.
-  defp typed_struct_field_maps(type_info, manifest) do
+  # the ctx's type lookup by module) and falling back to live reflection.
+  defp typed_struct_field_maps(type_info, ctx) do
     with nil <- Custom.type_field_name_mappings_pair(type_info),
          module = Type.effective_module(type_info),
          nil <-
            Custom.type_field_name_mappings_pair(
-             Ash.Info.Manifest.get_type(AshTypescript.type_lookup(manifest), module)
+             Ash.Info.Manifest.get_type(AshTypescript.type_lookup(ctx.manifest), module)
            ) do
       {Helpers.typescript_field_names(module), Helpers.typescript_field_names_reverse(module)}
     end
@@ -857,7 +1133,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         %Ash.Info.Manifest.Type{} = type_info,
         requested_fields,
         path,
-        manifest,
+        ctx,
         error_type \\ "field_constrained_type"
       ) do
     fields = Type.get_fields(type_info)
@@ -886,7 +1162,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
             new_path = path ++ [internal_name]
 
             {_nested_select, _nested_load, nested_template} =
-              select_fields(sub_type, [], nested_fields, new_path, manifest)
+              select_fields(sub_type, [], nested_fields, new_path, ctx)
 
             {select, load, template ++ [{internal_name, nested_template}]}
 
@@ -902,7 +1178,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
               new_path = path ++ [internal_name]
 
               {_nested_select, _nested_load, nested_template} =
-                select_fields(sub_type, [], nested, new_path, manifest)
+                select_fields(sub_type, [], nested, new_path, ctx)
 
               {s, l, t ++ [{internal_name, nested_template}]}
             end)
@@ -922,7 +1198,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   template stores both the field_name and its index for result processing.
   When no fields are requested, all fields are returned.
   """
-  def select_tuple_fields(%Ash.Info.Manifest.Type{} = type_info, requested_fields, path, manifest) do
+  def select_tuple_fields(%Ash.Info.Manifest.Type{} = type_info, requested_fields, path, ctx) do
     fields = Type.get_fields(type_info)
     field_names = Enum.map(fields, fn f -> f.name end)
 
@@ -960,7 +1236,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
             new_path = path ++ [field_atom]
 
             {_nested_select, _nested_load, nested_template} =
-              select_fields(sub_type, [], nested_fields, new_path, manifest)
+              select_fields(sub_type, [], nested_fields, new_path, ctx)
 
             {select, load, template ++ [{field_name, nested_template}]}
 
@@ -980,7 +1256,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
                 new_path = path ++ [field_atom]
 
                 {_nested_select, _nested_load, nested_template} =
-                  select_fields(sub_type, [], nested_fields, new_path, manifest)
+                  select_fields(sub_type, [], nested_fields, new_path, ctx)
 
                 {s, l, t ++ [{field_atom, nested_template}]}
               else
@@ -1012,7 +1288,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         requested_fields,
         path,
         error_type,
-        manifest
+        ctx
       ) do
     members = type_info.members || []
     normalized_fields = normalize_union_fields(requested_fields)
@@ -1031,7 +1307,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
               error_type,
               load_acc,
               template_acc,
-              manifest
+              ctx
             )
 
           {:nested, member_name, nested_fields} ->
@@ -1043,7 +1319,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
               error_type,
               load_acc,
               template_acc,
-              manifest
+              ctx
             )
 
           {:multi_nested, entries} ->
@@ -1057,7 +1333,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
                 error_type,
                 l_acc,
                 t_acc,
-                manifest
+                ctx
               )
             end)
 
@@ -1078,7 +1354,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
          error_type,
          load_acc,
          template_acc,
-         manifest
+         ctx
        ) do
     internal_name = convert_union_member_name(member_name)
     member = find_union_member_spec(members, internal_name)
@@ -1088,7 +1364,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
 
     # Check if member requires nested selection (embedded resources, typed maps, etc.)
-    if requires_nested_selection?(member.type, [], manifest) do
+    if requires_nested_selection?(member.type, [], ctx) do
       throw({:requires_field_selection, :complex_type, internal_name, path})
     end
 
@@ -1103,7 +1379,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
          error_type,
          load_acc,
          template_acc,
-         manifest
+         ctx
        ) do
     internal_name = convert_union_member_name(member_name)
     member = find_union_member_spec(members, internal_name)
@@ -1120,7 +1396,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         [],
         nested_fields,
         new_path,
-        manifest
+        ctx
       )
 
     if nested_load != [] do
@@ -1170,12 +1446,10 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         {:simple, field_name}
 
       {field_name, %{} = nested} when is_map(nested) ->
-        case get_args_and_fields(nested) do
-          {:ok, args, fields} ->
-            {:with_args, field_name, args, fields}
-
-          :not_args_structure ->
-            {:nested, field_name, nested}
+        case classify_nested_map(nested) do
+          {:with_query_opts, opts, fields} -> {:with_query_opts, field_name, opts, fields}
+          {:with_args, args, fields} -> {:with_args, field_name, args, fields}
+          :not_args_structure -> {:nested, field_name, nested}
         end
 
       {field_name, nested_fields} when is_list(nested_fields) ->
@@ -1186,12 +1460,10 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
         case nested_fields do
           %{} = nested when is_map(nested) ->
-            case get_args_and_fields(nested) do
-              {:ok, args, fields} ->
-                {:with_args, field_name, args, fields}
-
-              :not_args_structure ->
-                {:nested, field_name, nested}
+            case classify_nested_map(nested) do
+              {:with_query_opts, opts, fields} -> {:with_query_opts, field_name, opts, fields}
+              {:with_args, args, fields} -> {:with_args, field_name, args, fields}
+              :not_args_structure -> {:nested, field_name, nested}
             end
 
           nested_fields when is_list(nested_fields) ->
@@ -1210,8 +1482,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
-  defp atomize_field_name(field, resource, manifest) when is_binary(field) do
-    res_struct = Custom.resolve_resource(resource, manifest)
+  defp atomize_field_name(field, resource, ctx) when is_binary(field) do
+    res_struct = Custom.resolve_resource(resource, ctx.manifest)
 
     if Custom.typescript_resource?(res_struct) do
       case Custom.original_field_name(res_struct, field) do
@@ -1223,29 +1495,79 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
-  defp atomize_field_name(%{} = map, resource, manifest) do
+  defp atomize_field_name(%{} = map, resource, ctx) do
     Enum.into(map, %{}, fn {key, value} ->
-      atomized_key = atomize_field_name(key, resource, manifest)
-      atomized_value = atomize_nested_value(value, resource, manifest)
+      atomized_key = atomize_field_name(key, resource, ctx)
+      atomized_value = atomize_nested_value(value, resource, ctx)
       {atomized_key, atomized_value}
     end)
   end
 
-  defp atomize_field_name(field, _resource, _manifest), do: field
+  defp atomize_field_name(field, _resource, _ctx), do: field
 
-  defp atomize_nested_value(value, resource, manifest) when is_list(value) do
-    Enum.map(value, fn item -> atomize_field_name(item, resource, manifest) end)
+  @query_opt_keys [:page, :filter, :sort, :limit, :offset]
+  @envelope_keys [:args, :fields | @query_opt_keys]
+
+  defp atomize_nested_value(value, resource, ctx) when is_list(value) do
+    Enum.map(value, fn item -> atomize_field_name(item, resource, ctx) end)
   end
 
-  defp atomize_nested_value(%{args: _} = value, _resource, _manifest), do: value
-  defp atomize_nested_value(%{"args" => _} = value, _resource, _manifest), do: value
-  defp atomize_nested_value(%{fields: _} = value, _resource, _manifest), do: value
-  defp atomize_nested_value(%{"fields" => _} = value, _resource, _manifest), do: value
+  # Envelope maps (args/fields or query options, atom- or string-keyed) pass
+  # through untouched — their keys and option values are resolved later by the
+  # envelope processors.
+  defp atomize_nested_value(%{} = value, resource, ctx) do
+    if Enum.any?(@envelope_keys, fn key ->
+         Map.has_key?(value, key) or Map.has_key?(value, Atom.to_string(key))
+       end) do
+      value
+    else
+      atomize_field_name(value, resource, ctx)
+    end
+  end
 
-  defp atomize_nested_value(%{} = value, resource, manifest),
-    do: atomize_field_name(value, resource, manifest)
+  defp atomize_nested_value(value, _resource, _ctx), do: value
 
-  defp atomize_nested_value(value, _resource, _manifest), do: value
+  # Collects envelope query options from a nested map (string or atom keys).
+  # Returns {:ok, opts_map} when at least one option key is present, else
+  # :no_query_opts. Absent keys are simply missing from the map.
+  defp get_query_opts(map) when is_map(map) do
+    opts =
+      Enum.reduce(@query_opt_keys, %{}, fn key, acc ->
+        case fetch_string_or_atom(map, key) do
+          {:ok, value} -> Map.put(acc, key, value)
+          :error -> acc
+        end
+      end)
+
+    if opts == %{}, do: :no_query_opts, else: {:ok, opts}
+  end
+
+  defp fetch_string_or_atom(map, key) do
+    cond do
+      Map.has_key?(map, key) -> {:ok, Map.get(map, key)}
+      Map.has_key?(map, Atom.to_string(key)) -> {:ok, Map.get(map, Atom.to_string(key))}
+      true -> :error
+    end
+  end
+
+  defp classify_nested_map(nested) do
+    case get_query_opts(nested) do
+      {:ok, opts} ->
+        {args, fields} =
+          case get_args_and_fields(nested) do
+            {:ok, args, fields} -> {args, fields}
+            :not_args_structure -> {nil, nil}
+          end
+
+        {:with_query_opts, Map.put(opts, :args, args), fields}
+
+      :no_query_opts ->
+        case get_args_and_fields(nested) do
+          {:ok, args, fields} -> {:with_args, args, fields}
+          :not_args_structure -> :not_args_structure
+        end
+    end
+  end
 
   # Extracts args and fields from a map, handling both atom and string keys.
   # Returns {:ok, args, fields} or :not_args_structure.
@@ -1273,9 +1595,9 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
-  defp resolve_resource_field_name(resource, field_name, manifest)
+  defp resolve_resource_field_name(resource, field_name, ctx)
        when is_binary(field_name) do
-    res_struct = Custom.resolve_resource(resource, manifest)
+    res_struct = Custom.resolve_resource(resource, ctx.manifest)
 
     if Custom.typescript_resource?(res_struct) do
       case Custom.original_field_name(res_struct, field_name) do
@@ -1287,9 +1609,9 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     end
   end
 
-  defp resolve_resource_field_name(resource, field_name, manifest)
+  defp resolve_resource_field_name(resource, field_name, ctx)
        when is_atom(field_name) do
-    Custom.original_field_name(Custom.resolve_resource(resource, manifest), field_name) ||
+    Custom.original_field_name(Custom.resolve_resource(resource, ctx.manifest), field_name) ||
       field_name
   end
 
@@ -1320,23 +1642,27 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   defp requires_nested_selection?(
          %Ash.Info.Manifest.Type{kind: :type_ref} = type_info,
          _type_constraints,
-         manifest
+         ctx
        ) do
-    full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(manifest), type_info.module)
-    requires_nested_selection?(full_type, [], manifest)
+    full_type =
+      Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(ctx.manifest), type_info.module)
+
+    requires_nested_selection?(full_type, [], ctx)
   end
 
   defp requires_nested_selection?(
          %Ash.Info.Manifest.Type{} = type_info,
          _type_constraints,
-         manifest
+         ctx
        ) do
     effective_type = if type_info.kind == :array, do: type_info.item_type, else: type_info
 
     case effective_type do
       %Ash.Info.Manifest.Type{kind: :type_ref} = ref ->
-        full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(manifest), ref.module)
-        requires_nested_selection?(full_type, [], manifest)
+        full_type =
+          Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(ctx.manifest), ref.module)
+
+        requires_nested_selection?(full_type, [], ctx)
 
       %Ash.Info.Manifest.Type{kind: kind} when kind in [:resource, :embedded_resource] ->
         true

@@ -15,7 +15,7 @@ defmodule AshTypescript.Rpc.EnableSortTest do
   end
 
   describe "enable_sort? option - pipeline behavior" do
-    test "sort is dropped when enable_sort? is false" do
+    test "sort errors when enable_sort? is false" do
       params = %{
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"],
@@ -24,9 +24,8 @@ defmodule AshTypescript.Rpc.EnableSortTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
-
-      assert request.sort == nil
+      assert {:error, {:sort_not_supported, :top_level, :disabled}} =
+               Pipeline.parse_request(:ash_typescript, conn, params)
     end
 
     test "sort is preserved when enable_sort? is true (default)" do
@@ -47,8 +46,7 @@ defmodule AshTypescript.Rpc.EnableSortTest do
       params = %{
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"],
-        "filter" => %{"status" => %{"eq" => "active"}},
-        "sort" => "-createdAt"
+        "filter" => %{"status" => %{"eq" => "active"}}
       }
 
       conn = %Plug.Conn{}
@@ -59,7 +57,7 @@ defmodule AshTypescript.Rpc.EnableSortTest do
       assert request.filter == %{status: %{eq: "active"}}
     end
 
-    test "both filter and sort are dropped when both enable options are false" do
+    test "filter errors first when both enable options are false" do
       params = %{
         "action" => "list_todos_no_filter_no_sort",
         "fields" => ["id", "title"],
@@ -69,10 +67,8 @@ defmodule AshTypescript.Rpc.EnableSortTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
-
-      assert request.filter == nil
-      assert request.sort == nil
+      assert {:error, {:filter_not_supported, :top_level, :disabled}} =
+               Pipeline.parse_request(:ash_typescript, conn, params)
     end
   end
 
@@ -163,7 +159,7 @@ defmodule AshTypescript.Rpc.EnableSortTest do
       assert request.sort == nil
     end
 
-    test "complex multi-field sort is dropped when enable_sort?: false" do
+    test "complex multi-field sort errors when enable_sort?: false" do
       params = %{
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"],
@@ -172,12 +168,11 @@ defmodule AshTypescript.Rpc.EnableSortTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
-
-      assert request.sort == nil
+      assert {:error, {:sort_not_supported, :top_level, :disabled}} =
+               Pipeline.parse_request(:ash_typescript, conn, params)
     end
 
-    test "empty string sort is dropped when enable_sort?: false" do
+    test "empty string sort counts as present and errors when enable_sort?: false" do
       params = %{
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"],
@@ -186,8 +181,8 @@ defmodule AshTypescript.Rpc.EnableSortTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
-      assert request.sort == nil
+      assert {:error, {:sort_not_supported, :top_level, :disabled}} =
+               Pipeline.parse_request(:ash_typescript, conn, params)
     end
   end
 
@@ -280,8 +275,7 @@ defmodule AshTypescript.Rpc.EnableSortTest do
       params = %{
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"],
-        "input" => %{"filterCompleted" => true},
-        "sort" => "-createdAt"
+        "input" => %{"filterCompleted" => true}
       }
 
       conn = %Plug.Conn{}
@@ -299,7 +293,6 @@ defmodule AshTypescript.Rpc.EnableSortTest do
         "action" => "list_todos_no_sort",
         "fields" => ["id", "title"],
         "filter" => %{"status" => %{"eq" => "active"}},
-        "sort" => "-createdAt",
         "page" => %{"limit" => 10}
       }
 
@@ -316,8 +309,6 @@ defmodule AshTypescript.Rpc.EnableSortTest do
       params = %{
         "action" => "list_todos_no_filter_no_sort",
         "fields" => ["id", "title"],
-        "filter" => %{"status" => %{"eq" => "active"}},
-        "sort" => "-createdAt",
         "page" => %{"limit" => 10}
       }
 

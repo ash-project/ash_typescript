@@ -15,7 +15,7 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
   end
 
   describe "enable_filter? option - pipeline behavior" do
-    test "filter is dropped when enable_filter? is false" do
+    test "filter errors when enable_filter? is false" do
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"],
@@ -24,9 +24,8 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
-
-      assert request.filter == nil
+      assert {:error, {:filter_not_supported, :top_level, :disabled}} =
+               Pipeline.parse_request(:ash_typescript, conn, params)
     end
 
     test "filter is preserved when enable_filter? is true (default)" do
@@ -47,8 +46,7 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"],
-        "sort" => "-createdAt",
-        "filter" => %{"status" => %{"eq" => "active"}}
+        "sort" => "-createdAt"
       }
 
       conn = %Plug.Conn{}
@@ -130,7 +128,7 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       assert request.filter == nil
     end
 
-    test "complex nested filter is dropped when enable_filter?: false" do
+    test "complex nested filter errors when enable_filter?: false" do
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"],
@@ -144,12 +142,11 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
-
-      assert request.filter == nil
+      assert {:error, {:filter_not_supported, :top_level, :disabled}} =
+               Pipeline.parse_request(:ash_typescript, conn, params)
     end
 
-    test "empty map filter is dropped when enable_filter?: false" do
+    test "empty map filter errors when enable_filter?: false" do
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"],
@@ -158,8 +155,8 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
-      assert request.filter == nil
+      assert {:error, {:filter_not_supported, :top_level, :disabled}} =
+               Pipeline.parse_request(:ash_typescript, conn, params)
     end
   end
 
@@ -233,8 +230,7 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"],
-        "input" => %{"filterCompleted" => true},
-        "filter" => %{"status" => %{"eq" => "active"}}
+        "input" => %{"filterCompleted" => true}
       }
 
       conn = %Plug.Conn{}
@@ -251,7 +247,6 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       params = %{
         "action" => "list_todos_no_filter",
         "fields" => ["id", "title"],
-        "filter" => %{"status" => %{"eq" => "active"}},
         "sort" => "-createdAt",
         "page" => %{"limit" => 10}
       }

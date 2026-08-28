@@ -39,12 +39,13 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessor do
 
   Returns `{:ok, {select_fields, load_fields, extraction_template}}` or `{:error, error}`.
   """
-  def process(resource, action_name, requested_fields, manifest_module \\ nil) do
+  def process(resource, action_name, requested_fields, manifest_module \\ nil, opts \\ []) do
     FieldSelector.process(
       resource,
       action_name,
       requested_fields,
-      manifest_module || AshTypescript.manifest_module()
+      manifest_module || AshTypescript.manifest_module(),
+      opts
     )
   end
 end

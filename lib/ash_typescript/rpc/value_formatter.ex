@@ -74,6 +74,30 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     format(value, type, [], formatter, direction, lookups, ti)
   end
 
+  # Nested relationship pagination (output only): the value is the page map
+  # produced by ResultProcessor.build_page_map/2 in the relationship position.
+  # Dispatch is type-driven (Relationship + page-map shape), never heuristic
+  # sniffing of arbitrary user maps.
+  def format(
+        %{type: page_type, results: results} = page_map,
+        %Ash.Info.Manifest.Relationship{destination: dest, cardinality: :many},
+        _constraints,
+        formatter,
+        :output = direction,
+        lookups,
+        _ti
+      )
+      when page_type in [:offset, :keyset] and not is_struct(page_map) do
+    Enum.into(page_map, %{}, fn
+      {:results, _} ->
+        {FieldFormatter.format_field_name(:results, formatter),
+         Enum.map(results, &format_resource(&1, dest, formatter, direction, lookups))}
+
+      {key, value} ->
+        {FieldFormatter.format_field_name(key, formatter), value}
+    end)
+  end
+
   # %Ash.Info.Manifest.Relationship{} — format as resource
   def format(
         value,

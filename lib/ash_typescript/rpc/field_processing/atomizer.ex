@@ -82,7 +82,16 @@ defmodule AshTypescript.Rpc.FieldProcessing.Atomizer do
 
     Enum.into(field_map, %{}, fn {key, value} ->
       atom_key = convert_map_key_to_atom(key, formatter, resource, manifest)
-      processed_value = process_field_value(value, formatter, resource, is_calc_args, manifest)
+
+      processed_value =
+        if is_calc_args and envelope_opt_key?(key) do
+          # Query-option values (page/filter/sort/limit/offset) are opaque here;
+          # the FieldSelector formats them with the top-level formatter machinery.
+          value
+        else
+          process_field_value(value, formatter, resource, is_calc_args, manifest)
+        end
+
       {atom_key, processed_value}
     end)
   end
@@ -108,10 +117,18 @@ defmodule AshTypescript.Rpc.FieldProcessing.Atomizer do
     key
   end
 
+  @query_opt_atom_keys [:page, :filter, :sort, :limit, :offset]
+  @query_opt_string_keys Enum.map(@query_opt_atom_keys, &Atom.to_string/1)
+  @envelope_atom_keys [:args, :fields | @query_opt_atom_keys]
+  @envelope_string_keys Enum.map(@envelope_atom_keys, &Atom.to_string/1)
+
   defp is_calculation_args_map?(map) when is_map(map) do
-    Map.has_key?(map, "args") or Map.has_key?(map, :args) or
-      Map.has_key?(map, "fields") or Map.has_key?(map, :fields)
+    Enum.any?(@envelope_atom_keys, &Map.has_key?(map, &1)) or
+      Enum.any?(@envelope_string_keys, &Map.has_key?(map, &1))
   end
+
+  defp envelope_opt_key?(key) when is_binary(key), do: key in @query_opt_string_keys
+  defp envelope_opt_key?(key) when is_atom(key), do: key in @query_opt_atom_keys
 
   @doc """
   Processes field values, handling lists and nested maps.

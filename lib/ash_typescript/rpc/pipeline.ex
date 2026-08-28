@@ -84,12 +84,22 @@ defmodule AshTypescript.Rpc.Pipeline do
            discover_action(otp_app, normalized_params),
          resource_lookups = AshTypescript.resource_lookup(),
          type_index = %{},
+         enable_filter? = Custom.filtering_enabled?(entrypoint),
+         enable_sort? = Custom.sorting_enabled?(entrypoint),
          :ok <-
            validate_required_parameters_for_action_type(
              normalized_params,
              action,
              rpc_action,
              validation_mode?
+           ),
+         :ok <-
+           validate_top_level_query_params(
+             normalized_params,
+             action,
+             rpc_action,
+             enable_filter?,
+             enable_sort?
            ),
          requested_fields <-
            RequestedFieldsProcessor.atomize_requested_fields(
@@ -103,7 +113,9 @@ defmodule AshTypescript.Rpc.Pipeline do
              requested_fields,
              validation_mode?,
              resource_lookups,
-             type_index
+             type_index,
+             enable_filter?: enable_filter?,
+             enable_sort?: enable_sort?
            ),
          :ok <- validate_load_restrictions(load, entrypoint),
          {:ok, input} <-
@@ -178,12 +190,6 @@ defmodule AshTypescript.Rpc.Pipeline do
           []
         end
 
-      # enable_filter? and enable_sort? default to true - when false, drop respective params
-      enable_filter? = Custom.filtering_enabled?(entrypoint)
-      enable_sort? = Custom.sorting_enabled?(entrypoint)
-      filter = if enable_filter?, do: normalized_params[:filter], else: nil
-      sort = if enable_sort?, do: formatted_sort, else: nil
-
       request =
         Request.new(%{
           domain: domain,
@@ -200,8 +206,8 @@ defmodule AshTypescript.Rpc.Pipeline do
           input: input,
           identity: normalized_params[:identity],
           get_by: get_by,
-          filter: filter,
-          sort: sort,
+          filter: normalized_params[:filter],
+          sort: formatted_sort,
           pagination: pagination,
           show_metadata: show_metadata,
           resource_lookups: resource_lookups,
@@ -661,6 +667,54 @@ defmodule AshTypescript.Rpc.Pipeline do
     end
   end
 
+  # Top-level filter/sort/page must error when explicitly present but unusable
+  # (breaking change in 0.18 — previously silently dropped). Absent params never
+  # error; `page: %{}` counts as present. Nested envelopes are unaffected: their
+  # gating is flags-only and handled in the FieldSelector.
+  defp validate_top_level_query_params(params, action, rpc_action, enable_filter?, enable_sort?) do
+    ash_get? = action.type == :read and Map.get(action, :get?, false)
+    rpc_get? = Map.get(rpc_action, :get?, false)
+    rpc_get_by = (Map.get(rpc_action, :get_by) || []) != []
+    list_read? = action.type == :read and not (ash_get? or rpc_get? or rpc_get_by)
+
+    with :ok <-
+           validate_top_level_param(
+             params[:filter],
+             list_read?,
+             enable_filter?,
+             :filter_not_supported
+           ),
+         :ok <-
+           validate_top_level_param(
+             params[:sort],
+             list_read?,
+             enable_sort?,
+             :sort_not_supported
+           ) do
+      validate_top_level_page(params[:page], list_read?, action)
+    end
+  end
+
+  defp validate_top_level_param(nil, _list_read?, _enabled?, _error), do: :ok
+
+  defp validate_top_level_param(_present, list_read?, enabled?, error) do
+    cond do
+      not list_read? -> {:error, {error, :top_level, :unsupported}}
+      not enabled? -> {:error, {error, :top_level, :disabled}}
+      true -> :ok
+    end
+  end
+
+  defp validate_top_level_page(nil, _list_read?, _action), do: :ok
+
+  defp validate_top_level_page(_present, list_read?, action) do
+    if list_read? and ActionIntrospection.action_supports_pagination?(action) do
+      :ok
+    else
+      {:error, {:pagination_not_supported, :top_level, :unsupported}}
+    end
+  end
+
   defp parse_pagination(params) do
     case params[:page] do
       nil ->
@@ -887,65 +941,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   defp apply_pagination(query, nil), do: Ash.Query.page(query, nil)
   defp apply_pagination(query, page), do: Ash.Query.page(query, page)
 
-  @doc """
-  Formats a sort string by converting field names from client format to internal format.
-
-  Handles Ash.Query.sort_input format:
-  - "name" or "+name" (ascending)
-  - "++name" (ascending with nils first)
-  - "-name" (descending)
-  - "--name" (descending with nils last)
-  - "-name,++title" (multiple fields with different modifiers)
-
-  Preserves sort modifiers while converting field names using the input formatter.
-
-  ## Examples
-
-      iex> format_sort_string("--startDate,++insertedAt", :camel_case)
-      "--start_date,++inserted_at"
-
-      iex> format_sort_string("-userName", :camel_case)
-      "-user_name"
-
-      iex> format_sort_string(nil, :camel_case)
-      nil
-  """
-  def format_sort_string(nil, _formatter), do: nil
-
-  def format_sort_string(sort_list, formatter) when is_list(sort_list) do
-    sort_list
-    |> Enum.map_join(",", &format_single_sort_field(&1, formatter))
-  end
-
-  def format_sort_string(sort_string, formatter) when is_binary(sort_string) do
-    sort_string
-    |> String.split(",")
-    |> Enum.map_join(",", &format_single_sort_field(&1, formatter))
-  end
-
-  defp format_single_sort_field(field_with_modifier, formatter) do
-    case field_with_modifier do
-      "++" <> field_name ->
-        formatted_field = FieldFormatter.parse_input_field(field_name, formatter)
-        "++#{formatted_field}"
-
-      "--" <> field_name ->
-        formatted_field = FieldFormatter.parse_input_field(field_name, formatter)
-        "--#{formatted_field}"
-
-      "+" <> field_name ->
-        formatted_field = FieldFormatter.parse_input_field(field_name, formatter)
-        "+#{formatted_field}"
-
-      "-" <> field_name ->
-        formatted_field = FieldFormatter.parse_input_field(field_name, formatter)
-        "-#{formatted_field}"
-
-      field_name ->
-        formatted_field = FieldFormatter.parse_input_field(field_name, formatter)
-        "#{formatted_field}"
-    end
-  end
+  defdelegate format_sort_string(sort, formatter), to: AshTypescript.FieldFormatter
 
   defp format_output_data(%{success: true, data: result_data} = result, formatter, request) do
     {actual_data, metadata} =
@@ -1112,7 +1108,8 @@ defmodule AshTypescript.Rpc.Pipeline do
          [],
          true = _validation_mode?,
          _resource_lookups,
-         _type_index
+         _type_index,
+         _opts
        ) do
     {:ok, {[], [], []}}
   end
@@ -1123,9 +1120,10 @@ defmodule AshTypescript.Rpc.Pipeline do
          requested_fields,
          _validation_mode?,
          _resource_lookups,
-         _type_index
+         _type_index,
+         opts
        ) do
-    RequestedFieldsProcessor.process(resource, action_name, requested_fields)
+    RequestedFieldsProcessor.process(resource, action_name, requested_fields, nil, opts)
   end
 
   defp validate_fields_if_needed(_params, false), do: :ok
@@ -1579,6 +1577,19 @@ defmodule AshTypescript.Rpc.Pipeline do
 
     nested_load_paths =
       nested
+      |> Enum.filter(&is_tuple/1)
+      |> Enum.flat_map(fn item -> extract_single_load_path(item, current_path) end)
+
+    [current_path | nested_load_paths]
+  end
+
+  # Relationship loaded via a nested query (envelope with query options):
+  # the query's own load list carries the deeper loads.
+  defp extract_single_load_path({field, %Ash.Query{} = query}, path) when is_atom(field) do
+    current_path = path ++ [field]
+
+    nested_load_paths =
+      query.load
       |> Enum.filter(&is_tuple/1)
       |> Enum.flat_map(fn item -> extract_single_load_path(item, current_path) end)
 

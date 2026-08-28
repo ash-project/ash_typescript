@@ -40,33 +40,16 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       ) do
     case result do
       %Ash.Page.Offset{results: results} = page ->
-        processed_results =
+        build_page_map(
+          page,
           extract_list_fields(results, extraction_template, resource, resource_lookups)
-
-        page
-        |> Map.take([:limit, :offset, :count])
-        |> Map.put(:results, processed_results)
-        |> Map.put(:has_more, page.more? || false)
-        |> Map.put(:type, :offset)
+        )
 
       %Ash.Page.Keyset{results: results} = page ->
-        processed_results =
+        build_page_map(
+          page,
           extract_list_fields(results, extraction_template, resource, resource_lookups)
-
-        {previous_page_cursor, next_page_cursor} =
-          if Enum.empty?(results) do
-            {nil, nil}
-          else
-            {List.first(results).__metadata__.keyset, List.last(results).__metadata__.keyset}
-          end
-
-        page
-        |> Map.take([:before, :after, :limit, :count])
-        |> Map.put(:has_more, page.more? || false)
-        |> Map.put(:results, processed_results)
-        |> Map.put(:previous_page, previous_page_cursor)
-        |> Map.put(:next_page, next_page_cursor)
-        |> Map.put(:type, :keyset)
+        )
 
       [] ->
         []
@@ -81,6 +64,36 @@ defmodule AshTypescript.Rpc.ResultProcessor do
       result ->
         extract_single_result(result, extraction_template, resource, resource_lookups)
     end
+  end
+
+  @doc """
+  Shapes an `%Ash.Page.Offset{}`/`%Ash.Page.Keyset{}` into the client page map.
+  Used for both top-level pagination and nested relationship pagination so the
+  shapes are identical by construction. Keyset cursors are nil on empty pages.
+  """
+  def build_page_map(%Ash.Page.Offset{} = page, processed_results) do
+    page
+    |> Map.take([:limit, :offset, :count])
+    |> Map.put(:results, processed_results)
+    |> Map.put(:has_more, page.more? || false)
+    |> Map.put(:type, :offset)
+  end
+
+  def build_page_map(%Ash.Page.Keyset{results: results} = page, processed_results) do
+    {previous_page_cursor, next_page_cursor} =
+      if Enum.empty?(results) do
+        {nil, nil}
+      else
+        {List.first(results).__metadata__.keyset, List.last(results).__metadata__.keyset}
+      end
+
+    page
+    |> Map.take([:before, :after, :limit, :count])
+    |> Map.put(:has_more, page.more? || false)
+    |> Map.put(:results, processed_results)
+    |> Map.put(:previous_page, previous_page_cursor)
+    |> Map.put(:next_page, next_page_cursor)
+    |> Map.put(:type, :keyset)
   end
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -128,6 +141,26 @@ defmodule AshTypescript.Rpc.ResultProcessor do
         resource_lookups
       ) do
     extract_value(value, type, [], template, resource_lookups)
+  end
+
+  # Nested relationship pagination: the relationship value is a page struct.
+  def extract_value(
+        %page_struct{} = page,
+        %Ash.Info.Manifest.Relationship{destination: dest, cardinality: :many},
+        _constraints,
+        template,
+        resource_lookups
+      )
+      when page_struct in [Ash.Page.Offset, Ash.Page.Keyset] do
+    processed =
+      extract_array_value(
+        page.results,
+        %Ash.Info.Manifest.Type{kind: :resource, module: dest, resource_module: dest},
+        template,
+        resource_lookups
+      )
+
+    build_page_map(page, processed)
   end
 
   # %Ash.Info.Manifest.Relationship{} — delegate to resource/array handler
