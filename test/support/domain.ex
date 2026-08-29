@@ -79,6 +79,17 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :list_todos_deny_user, :read, denied_loads: [:user]
       # Test denied_loads with nested fields
       rpc_action :list_todos_deny_nested, :read, denied_loads: [comments: [:todo]]
+
+      # Nested scalar loads (a calculation on a related resource) must be
+      # checked against the restrictions too - see CVE-3210 regression test.
+      rpc_action :list_todos_allow_nested_calc, :read,
+        allowed_loads: [comments: [:weighted_score]]
+
+      rpc_action :list_todos_deny_nested_calc, :read, denied_loads: [comments: [:weighted_score]]
+
+      # Restriction on a loadable field that has a `field_names` mapping
+      # (User maps is_active?: "isActive") - guards the generated Omit keys.
+      rpc_action :list_todos_deny_mapped_calc, :read, denied_loads: [user: [:is_active?]]
       rpc_action :get_keyword_options_todo, :get_keyword_options
       rpc_action :get_coordinates_info_todo, :get_coordinates_info
       rpc_action :get_custom_data_todo, :get_custom_data
@@ -119,6 +130,9 @@ defmodule AshTypescript.Test.Domain do
       # Test namespace at action level
       rpc_action :list_users, :read, namespace: "users"
       rpc_action :read_with_invalid_arg, :read_with_invalid_arg
+
+      # Flat restriction on a mapped calculation (is_active? -> "isActive")
+      rpc_action :list_users_deny_mapped_calc, :read, denied_loads: [:is_active?]
       rpc_action :get_by_id, :get_by_id
       rpc_action :create_user, :create
       rpc_action :update_user, :update

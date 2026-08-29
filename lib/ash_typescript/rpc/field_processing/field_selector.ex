@@ -42,11 +42,16 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   alias AshTypescript.Helpers
   alias AshTypescript.Manifest.Custom
   alias AshTypescript.Rpc.FieldProcessing.FieldSelector.Validation
+  alias AshTypescript.Rpc.LoadRestrictions
   alias AshTypescript.TypeSystem.Introspection
 
   @type select_result :: {select :: [atom()], load :: [term()], template :: [term()]}
 
-  @default_ctx_flags %{enable_filter?: true, enable_sort?: true}
+  @default_ctx_flags %{
+    enable_filter?: true,
+    enable_sort?: true,
+    load_restrictions: :none
+  }
 
   # The trailing "manifest" argument threaded through this module is a context
   # map carrying the manifest plus entrypoint-level feature flags. Bare module
@@ -82,7 +87,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     ctx = %{
       manifest: manifest,
       enable_filter?: Keyword.get(opts, :enable_filter?, true),
-      enable_sort?: Keyword.get(opts, :enable_sort?, true)
+      enable_sort?: Keyword.get(opts, :enable_sort?, true),
+      load_restrictions: Keyword.get(opts, :load_restrictions, :none)
     }
 
     action = Map.get(AshTypescript.action_lookup(ctx.manifest), {resource, action_name})
@@ -444,6 +450,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         throw({:requires_field_selection, :relationship, internal_name, path})
 
       cat when cat in [:calculation, :aggregate] ->
+        check_load_allowed!(path, internal_name, ctx)
         {select, load ++ [internal_name], template ++ [internal_name]}
     end
   end
@@ -531,6 +538,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
            ] ->
         new_load =
           if nested_load != [] do
+            check_load_allowed!(path, internal_name, ctx)
             load ++ [{internal_name, nested_load}]
           else
             load
@@ -545,10 +553,12 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
           throw({:unknown_field, internal_name, resource, path})
         end
 
+        check_load_allowed!(path, internal_name, ctx)
         load_spec = build_load_spec(internal_name, nested_select, nested_load)
         {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
 
       :calculation ->
+        check_load_allowed!(path, internal_name, ctx)
         load_spec = build_load_spec(internal_name, nested_select, nested_load)
         {select, load ++ [load_spec], template ++ [{internal_name, nested_template}]}
 
@@ -558,6 +568,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
         # Ash queries) or a non-resource type (TypedStruct/map where sub-field
         # extraction is handled by the template).
         returns_resource = calculation_returns_resource?(field_type, field_constraints)
+        check_load_allowed!(path, internal_name, ctx)
 
         load_spec =
           if returns_resource do
@@ -576,6 +587,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       :aggregate ->
         # Aggregates don't support nested loads - just load the aggregate itself
         # The template will handle extracting nested fields from the result
+        check_load_allowed!(path, internal_name, ctx)
         {select, load ++ [internal_name], template ++ [{internal_name, nested_template}]}
 
       :calculation_with_args ->
@@ -675,6 +687,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       else
         {internal_name, nested_template}
       end
+
+    check_load_allowed!(path, internal_name, ctx)
 
     {select, load ++ [load_spec], template ++ [template_item]}
   end
@@ -801,6 +815,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       end)
       |> Ash.Query.select(nested_select)
       |> Ash.Query.load(nested_load)
+
+    check_load_allowed!(path, internal_name, ctx)
 
     {select, load ++ [{internal_name, query}], template ++ [{internal_name, nested_template}]}
   end
@@ -1398,6 +1414,8 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       )
 
     if nested_load != [] do
+      check_load_allowed!(path, internal_name, ctx)
+
       {load_acc ++ [{internal_name, nested_load}],
        template_acc ++ [{member_name, nested_template}]}
     else
@@ -1674,6 +1692,16 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       _ ->
         false
     end
+  end
+
+  # Called at every point where this module appends to the Ash load statement:
+  # a load can only reach the load statement through one of these calls, so the
+  # action's allowed_loads/denied_loads cannot be bypassed by a load shape the
+  # check doesn't know about. `load_restrictions` is absent from the context only
+  # for non-RPC callers (verifiers, typed-query checks), which have no entrypoint
+  # and therefore no restrictions.
+  defp check_load_allowed!(path, internal_name, ctx) do
+    LoadRestrictions.check!(path ++ [internal_name], Map.get(ctx, :load_restrictions, :none))
   end
 
   defp build_load_spec(field_name, nested_select, nested_load) do

@@ -162,6 +162,137 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
     end
   end
 
+  describe "nested scalar loads - CVE-3210" do
+    test "rejects a nested calculation on an allowed relationship" do
+      params = %{
+        "action" => "list_todos_allow_only_user",
+        "fields" => ["id", %{"user" => ["id", "isActive"]}]
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:error, {:load_not_allowed, disallowed}} =
+               Pipeline.parse_request(:ash_typescript, conn, params)
+
+      assert Enum.any?(disallowed, &String.contains?(&1, "is_active?"))
+    end
+
+    test "allows a nested calculation that is explicitly allowed" do
+      params = %{
+        "action" => "list_todos_allow_nested_calc",
+        "fields" => ["id", %{"comments" => ["id", "weightedScore"]}]
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert request.load == [{:comments, [:id, :weighted_score]}]
+    end
+
+    test "rejects a denied nested calculation" do
+      params = %{
+        "action" => "list_todos_deny_nested_calc",
+        "fields" => ["id", %{"comments" => ["id", "weightedScore"]}]
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:error, {:load_denied, denied}} =
+               Pipeline.parse_request(:ash_typescript, conn, params)
+
+      assert Enum.any?(denied, &String.contains?(&1, "weighted_score"))
+    end
+
+    test "allows attributes on a relationship whose calculation is denied" do
+      params = %{
+        "action" => "list_todos_deny_nested_calc",
+        "fields" => ["id", %{"comments" => ["id", "content"]}]
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert request.load == [{:comments, [:id, :content]}]
+    end
+
+    test "allows a nested calculation that is not denied" do
+      params = %{
+        "action" => "list_todos_deny_nested",
+        "fields" => ["id", %{"comments" => ["id", "weightedScore"]}]
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert request.load == [{:comments, [:id, :weighted_score]}]
+    end
+
+    test "rejects a nested embedded calculation with and without a query envelope" do
+      # allowed_loads: [:user, comments: [:todo]] - comments.comment_metadata is not allowed.
+      # The two forms request the same fields and must be answered identically;
+      # enforcement rides along with field selection rather than inspecting the
+      # built %Ash.Query{}, which placed envelope loads in load_through.
+      plain = %{
+        "action" => "list_todos_allow_nested",
+        "fields" => ["id", %{"comments" => ["id", %{"commentMetadata" => ["displayCategory"]}]}]
+      }
+
+      envelope = %{
+        "action" => "list_todos_allow_nested",
+        "fields" => [
+          "id",
+          %{"comments" => %{"fields" => ["id", %{"commentMetadata" => ["displayCategory"]}]}}
+        ]
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:error, {:load_not_allowed, plain_disallowed}} =
+               Pipeline.parse_request(:ash_typescript, conn, plain)
+
+      assert {:error, {:load_not_allowed, envelope_disallowed}} =
+               Pipeline.parse_request(:ash_typescript, conn, envelope)
+
+      assert Enum.any?(plain_disallowed, &String.contains?(&1, "comment_metadata"))
+      assert Enum.any?(envelope_disallowed, &String.contains?(&1, "comment_metadata"))
+    end
+
+    test "rejects a nested union member load inside a query envelope" do
+      params = %{
+        "action" => "list_todos_allow_nested",
+        "fields" => [
+          "id",
+          %{
+            "comments" => %{
+              "fields" => ["id", %{"authorInfo" => [%{"metadata" => ["displayCategory"]}]}]
+            }
+          }
+        ]
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:error, {:load_not_allowed, disallowed}} =
+               Pipeline.parse_request(:ash_typescript, conn, params)
+
+      assert Enum.any?(disallowed, &String.contains?(&1, "author_info"))
+    end
+
+    test "rejects a nested calculation inside a relationship query envelope" do
+      params = %{
+        "action" => "list_todos_allow_nested",
+        "fields" => ["id", %{"comments" => %{"limit" => 2, "fields" => ["id", "weightedScore"]}}]
+      }
+
+      conn = %Plug.Conn{}
+
+      assert {:error, {:load_not_allowed, disallowed}} =
+               Pipeline.parse_request(:ash_typescript, conn, params)
+
+      assert Enum.any?(disallowed, &String.contains?(&1, "weighted_score"))
+    end
+  end
+
   describe "neither option - default behavior" do
     test "allows all loads when no restriction is set" do
       params = %{
