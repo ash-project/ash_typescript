@@ -83,7 +83,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     {flat_denies, nested_denies} = partition_restrictions(denied_loads)
 
     if Enum.empty?(nested_denies) do
-      generate_simple_deny_schema(flat_denies, schema_name, base_schema)
+      generate_simple_deny_schema(resource, flat_denies, schema_name, base_schema)
     else
       generate_nested_deny_schema(
         resource,
@@ -96,12 +96,13 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     end
   end
 
-  defp generate_simple_deny_schema(denied_fields, schema_name, base_schema) do
-    formatted_fields = format_fields_for_typescript(denied_fields)
-
-    """
-    type #{schema_name} = Omit<#{base_schema}, #{formatted_fields}>;
-    """
+  defp generate_simple_deny_schema(resource, denied_fields, schema_name, base_schema) do
+    build_restricted_schema(
+      schema_name,
+      base_schema,
+      format_fields_for_typescript(resource, denied_fields),
+      ""
+    )
   end
 
   defp generate_nested_deny_schema(
@@ -132,34 +133,18 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
 
     all_fields_to_omit = flat_denies ++ Enum.map(overrides, fn {field_name, _} -> field_name end)
 
-    if Enum.empty?(all_fields_to_omit) and Enum.empty?(overrides) do
-      # Edge case: only nested restrictions, no flat denies
-      override_fields = generate_override_fields(overrides)
+    schema =
+      build_restricted_schema(
+        schema_name,
+        base_schema,
+        format_fields_for_typescript(resource, all_fields_to_omit),
+        generate_override_fields(overrides)
+      )
 
-      """
-      #{nested_schemas}
-      type #{schema_name} = #{base_schema} & {
-      #{override_fields}
-      };
-      """
-    else
-      formatted_omits = format_fields_for_typescript(all_fields_to_omit)
-      override_fields = generate_override_fields(overrides)
-
-      if Enum.empty?(overrides) do
-        """
-        #{nested_schemas}
-        type #{schema_name} = Omit<#{base_schema}, #{formatted_omits}>;
-        """
-      else
-        """
-        #{nested_schemas}
-        type #{schema_name} = Omit<#{base_schema}, #{formatted_omits}> & {
-        #{override_fields}
-        };
-        """
-      end
-    end
+    """
+    #{nested_schemas}
+    #{schema}
+    """
   end
 
   defp process_nested_deny_field(
@@ -314,7 +299,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     all_loadable_fields = get_loadable_field_names(resource, resource_lookup)
 
     if Enum.empty?(nested_allows) and Enum.empty?(flat_allows) do
-      generate_simple_deny_schema(all_loadable_fields, schema_name, base_schema)
+      generate_simple_deny_schema(resource, all_loadable_fields, schema_name, base_schema)
     else
       generate_nested_allow_only_schema(
         resource,
@@ -367,24 +352,27 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
 
     allowed_loadables = flat_allows ++ nested_field_names
     fields_to_omit = all_loadable_fields -- allowed_loadables
-    all_fields_to_omit = fields_to_omit ++ nested_field_names ++ flat_allows
 
-    formatted_omits = format_fields_for_typescript(all_fields_to_omit)
-    override_fields = generate_override_fields(all_overrides)
+    # A flat allow is omitted only when an override replaces it (relationships,
+    # embedded resources and unions get an AttributesOnlySchema override so their
+    # own loads stay out of reach). Scalar loads - calculations and aggregates -
+    # have no override, so omitting them would forbid the very field the action
+    # allows.
+    overridden_flat_allows = Enum.map(flat_overrides, fn {field_name, _} -> field_name end)
+    all_fields_to_omit = fields_to_omit ++ nested_field_names ++ overridden_flat_allows
 
-    if Enum.empty?(all_overrides) do
-      """
-      #{nested_schemas}
-      type #{schema_name} = Omit<#{base_schema}, #{formatted_omits}>;
-      """
-    else
-      """
-      #{nested_schemas}
-      type #{schema_name} = Omit<#{base_schema}, #{formatted_omits}> & {
-      #{override_fields}
-      };
-      """
-    end
+    schema =
+      build_restricted_schema(
+        schema_name,
+        base_schema,
+        format_fields_for_typescript(resource, all_fields_to_omit),
+        generate_override_fields(all_overrides)
+      )
+
+    """
+    #{nested_schemas}
+    #{schema}
+    """
   end
 
   defp process_flat_allow_field(resource, field_name, resource_lookup) do
@@ -827,10 +815,36 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     relationships ++ calculations ++ aggregates
   end
 
-  defp format_fields_for_typescript(fields) when fields == [], do: "never"
+  # Emits one restricted schema.
+  #
+  # `Omit` alone cannot restrict scalar loads: field selection reads leaf names
+  # from `__primitiveFields` (`LeafFieldSelection<T> = T["__primitiveFields"]`),
+  # a string-literal union that `Omit` does not touch. Calculations and
+  # aggregates therefore stayed selectable no matter what was omitted, so every
+  # restricted schema rewrites that union with the same key list.
+  defp build_restricted_schema(schema_name, base_schema, formatted_omits, override_fields) do
+    body =
+      [
+        ~s(  __primitiveFields: Exclude<#{base_schema}["__primitiveFields"], #{formatted_omits}>;),
+        override_fields
+      ]
+      |> Enum.reject(&(&1 in [nil, ""]))
+      |> Enum.join("\n")
 
-  defp format_fields_for_typescript(fields) do
-    Enum.map_join(fields, " | ", &"'#{format_output_field(&1)}'")
+    """
+    type #{schema_name} = Omit<#{base_schema}, '__primitiveFields' | #{formatted_omits}> & {
+    #{body}
+    };
+    """
+  end
+
+  defp format_fields_for_typescript(_resource, fields) when fields == [], do: "never"
+
+  # Omit keys must match the resource schema's own keys, which are built with the
+  # resource-aware formatter - a `field_names is_active?: "isActive"` mapping
+  # would otherwise emit 'isActive?' and the Omit would silently do nothing.
+  defp format_fields_for_typescript(resource, fields) do
+    Enum.map_join(fields, " | ", &"'#{format_client_field_name(resource, &1)}'")
   end
 
   defp format_client_field_name(resource, field_name) do

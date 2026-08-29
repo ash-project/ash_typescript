@@ -5,6 +5,9 @@
 // Load Restrictions Tests - shouldFail
 
 import {
+  listTodosDenyNestedCalc,
+  listTodosDenyMappedCalc,
+  listUsersDenyMappedCalc,
   listTodosDenyUser,
   listTodosAllowOnlyUser,
   listTodosAllowNested,
@@ -103,6 +106,36 @@ export const allowNestedCannotSelectNotExposed = await listTodosAllowNested({
     {
       // @ts-expect-error - "notExposedItems" is not in allowed_loads
       notExposedItems: ["id"],
+    },
+  ],
+});
+
+// denied_loads on a field with a `field_names` mapping (is_active? -> "isActive").
+// The generated Omit used the unmapped 'isActive?' key, so it silently did nothing.
+export const denyMappedCalcCannotSelectMappedCalc = await listTodosDenyMappedCalc({
+  fields: [
+    "id",
+    {
+      // @ts-expect-error - "isActive" on user is denied by denied_loads
+      user: ["id", "isActive"],
+    },
+  ],
+});
+
+export const denyMappedCalcFlatCannotSelectMappedCalc = await listUsersDenyMappedCalc({
+  // @ts-expect-error - "isActive" is denied by denied_loads
+  fields: ["id", "isActive"],
+});
+
+// Scalar loads are selected through `__primitiveFields`, which `Omit` cannot
+// reach - restricted schemas must rewrite that union or a denied calculation
+// stays selectable.
+export const denyNestedCalcCannotSelectDeniedCalc = await listTodosDenyNestedCalc({
+  fields: [
+    "id",
+    {
+      // @ts-expect-error - "weightedScore" on comments is denied by denied_loads
+      comments: ["id", "weightedScore"],
     },
   ],
 });

@@ -21,7 +21,8 @@ defmodule AshTypescript.Rpc.RestrictedSchemaCodegenTest do
 
   describe "denied_loads schema generation" do
     test "generates Omit schema for simple denied_loads", %{generated: generated} do
-      assert generated =~ ~r/type ListTodosDenyUserSchema = Omit<TodoResourceSchema, 'user'>/
+      assert generated =~
+               ~r/type ListTodosDenyUserSchema = Omit<TodoResourceSchema, '__primitiveFields' \| 'user'>/
     end
 
     test "uses restricted schema in Fields type", %{generated: generated} do
@@ -61,12 +62,12 @@ defmodule AshTypescript.Rpc.RestrictedSchemaCodegenTest do
       generated: generated
     } do
       assert generated =~
-               ~r/type ListTodosDenyNestedSchemaComments = Omit<TodoCommentResourceSchema, 'todo'>/
+               ~r/type ListTodosDenyNestedSchemaComments = Omit<TodoCommentResourceSchema, '__primitiveFields' \| 'todo'>/
     end
 
     test "generates main schema that overrides comments relationship", %{generated: generated} do
       assert generated =~
-               ~r/type ListTodosDenyNestedSchema = Omit<TodoResourceSchema, 'comments'> & \{/
+               ~r/type ListTodosDenyNestedSchema = Omit<TodoResourceSchema, '__primitiveFields' \| 'comments'> & \{/
 
       assert generated =~
                ~r/comments: \{ __type: "Relationship"; __array: true; __resource: ListTodosDenyNestedSchemaComments; \}/
@@ -97,6 +98,35 @@ defmodule AshTypescript.Rpc.RestrictedSchemaCodegenTest do
 
       assert generated =~
                ~r/user: \{ __type: "Relationship"; __resource: UserAttributesOnlySchema/
+    end
+  end
+
+  describe "scalar loads (calculations and aggregates)" do
+    test "an allowed scalar calculation is not omitted", %{generated: generated} do
+      # allowed_loads: [comments: [:weighted_score]]
+      assert generated =~
+               ~r/type ListTodosAllowNestedCalcSchemaComments = Omit<TodoCommentResourceSchema, [^>]*'todo'/
+
+      refute generated =~
+               ~r/type ListTodosAllowNestedCalcSchemaComments = Omit<TodoCommentResourceSchema, [^>]*'weightedScore'/
+    end
+
+    test "restricted schemas rewrite __primitiveFields so scalar loads are actually restricted",
+         %{generated: generated} do
+      # Omit cannot reach the leaf-name union: LeafFieldSelection<T> = T["__primitiveFields"]
+      assert generated =~
+               ~r/type ListTodosDenyNestedCalcSchemaComments = Omit<TodoCommentResourceSchema, '__primitiveFields' \| 'weightedScore'> & \{\n\s*__primitiveFields: Exclude<TodoCommentResourceSchema\["__primitiveFields"\], 'weightedScore'>;/
+    end
+
+    test "omit keys use the resource-aware field name mapping", %{generated: generated} do
+      # User maps is_active? -> "isActive"; 'isActive?' would be a silent no-op
+      assert generated =~
+               ~r/type ListUsersDenyMappedCalcSchema = Omit<UserResourceSchema, '__primitiveFields' \| 'isActive'>/
+
+      assert generated =~
+               ~r/type ListTodosDenyMappedCalcSchemaUser = Omit<UserResourceSchema, '__primitiveFields' \| 'isActive'>/
+
+      refute generated =~ ~r/'isActive\?'/
     end
   end
 

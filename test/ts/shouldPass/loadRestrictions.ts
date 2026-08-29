@@ -5,6 +5,7 @@
 // Load Restrictions Tests - shouldPass
 
 import {
+  listTodosAllowNestedCalc,
   listTodosDenyUser,
   listTodosAllowOnlyUser,
   listTodosAllowNested,
@@ -298,6 +299,20 @@ if (allowOnlyUserWithCount.success) {
     const user = todo.user;
     if (user) {
       const userId: string = user.id;
+    }
+  }
+}
+
+// allowed_loads: [comments: [:weighted_score]] - the allowed scalar calculation
+// must remain selectable (it used to be omitted from the generated schema).
+export const allowNestedCalcCanSelectAllowedCalc = await listTodosAllowNestedCalc({
+  fields: ["id", { comments: ["id", "weightedScore"] }],
+});
+
+if (allowNestedCalcCanSelectAllowedCalc.success) {
+  for (const todo of allowNestedCalcCanSelectAllowedCalc.data) {
+    for (const comment of todo.comments) {
+      const weightedScore: number | null = comment.weightedScore;
     }
   }
 }
