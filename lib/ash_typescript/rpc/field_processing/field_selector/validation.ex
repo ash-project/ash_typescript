@@ -75,6 +75,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector.Validation do
 
   # Normalizes a string field name to an atom using the formatter
   defp normalize_field_name(field_name, formatter) when is_binary(field_name) do
-    FieldFormatter.convert_to_field_atom(field_name, formatter)
+    FieldFormatter.resolve_field_name(field_name, formatter)
   end
 end

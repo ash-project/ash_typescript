@@ -1150,12 +1150,12 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       Enum.reduce(requested_fields, {[], [], []}, fn field, {select, load, template} ->
         case parse_field_request(field) do
           {:simple, field_name} ->
-            internal_name = convert_to_field_atom(field_name)
+            internal_name = resolve_field_name(field_name)
             validate_field_exists_in_fields!(internal_name, fields, path, error_type)
             {select, load, template ++ [internal_name]}
 
           {:nested, field_name, nested_fields} ->
-            internal_name = convert_to_field_atom(field_name)
+            internal_name = resolve_field_name(field_name)
             validate_field_exists_in_fields!(internal_name, fields, path, error_type)
 
             sub_type = Type.find_field_type(type_info, internal_name)
@@ -1171,7 +1171,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
           {:multi_nested, entries} ->
             Enum.reduce(entries, {select, load, template}, fn {field_name, nested}, {s, l, t} ->
-              internal_name = convert_to_field_atom(field_name)
+              internal_name = resolve_field_name(field_name)
               validate_field_exists_in_fields!(internal_name, fields, path, error_type)
 
               sub_type = Type.find_field_type(type_info, internal_name)
@@ -1216,7 +1216,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       Enum.reduce(requested_fields, {[], [], []}, fn field, {select, load, template} ->
         case parse_field_request(field) do
           {:simple, field_name} ->
-            field_atom = convert_to_field_atom(field_name)
+            field_atom = resolve_field_name(field_name)
 
             unless Enum.any?(fields, fn f -> f.name == field_atom end) do
               throw({:unknown_field, field_atom, "tuple", path})
@@ -1226,7 +1226,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
             {select, load, template ++ [%{field_name: field_atom, index: index}]}
 
           {:nested, field_name, nested_fields} ->
-            field_atom = convert_to_field_atom(field_name)
+            field_atom = resolve_field_name(field_name)
 
             unless Enum.any?(fields, fn f -> f.name == field_atom end) do
               throw({:unknown_field, field_atom, "tuple", path})
@@ -1243,7 +1243,7 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
           {:multi_nested, entries} ->
             Enum.reduce(entries, {select, load, template}, fn {field_name, nested_fields},
                                                               {s, l, t} ->
-              field_atom = convert_to_field_atom(field_name)
+              field_atom = resolve_field_name(field_name)
 
               unless Enum.any?(fields, fn f -> f.name == field_atom end) do
                 throw({:unknown_field, field_atom, "tuple", path})
@@ -1602,10 +1602,10 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
     if Custom.typescript_resource?(res_struct) do
       case Custom.original_field_name(res_struct, field_name) do
         original when is_atom(original) and not is_nil(original) -> original
-        _ -> convert_to_field_atom(field_name)
+        _ -> resolve_field_name(field_name)
       end
     else
-      convert_to_field_atom(field_name)
+      resolve_field_name(field_name)
     end
   end
 
@@ -1615,9 +1615,9 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
       field_name
   end
 
-  defp convert_to_field_atom(field_name) do
+  defp resolve_field_name(field_name) do
     formatter = AshTypescript.Rpc.input_field_formatter()
-    FieldFormatter.convert_to_field_atom(field_name, formatter)
+    FieldFormatter.resolve_field_name(field_name, formatter)
   end
 
   # Extracts relationship destination from Ash.Info.Manifest type info

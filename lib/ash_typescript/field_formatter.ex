@@ -151,29 +151,31 @@ defmodule AshTypescript.FieldFormatter do
   end
 
   @doc """
-  Converts a field name to an atom, applying the formatter for case conversion.
+  Resolves a field name to its existing atom, applying the formatter for case conversion.
 
-  Unlike `parse_input_field/2` which tries to use existing atoms, this function
-  always creates an atom (using String.to_atom/1 for strings that aren't existing atoms).
-  Use this when you need guaranteed atom output for field selection.
+  Atoms are passed through unchanged. Every valid string field name corresponds to
+  an atom that already exists (resource attributes, relationships, calculations, and
+  aggregates are all defined at compile time), so a string resolves to an existing
+  atom when one is available and otherwise returns the formatted string unchanged.
+  Downstream field selection compares the result against the known field atoms, so an
+  unresolved name simply fails as an unknown field.
+
+  This deliberately never calls `String.to_atom/1`: client-supplied field names
+  are attacker-controllable, and minting a fresh atom per name would allow atom
+  table exhaustion (a node-wide denial of service).
 
   ## Examples
 
-      iex> AshTypescript.FieldFormatter.convert_to_field_atom("userName", :camel_case)
+      iex> AshTypescript.FieldFormatter.resolve_field_name("userName", :camel_case)
       :user_name
 
-      iex> AshTypescript.FieldFormatter.convert_to_field_atom(:user_name, :camel_case)
+      iex> AshTypescript.FieldFormatter.resolve_field_name(:user_name, :camel_case)
       :user_name
   """
-  def convert_to_field_atom(field_name, _formatter) when is_atom(field_name), do: field_name
+  def resolve_field_name(field_name, _formatter) when is_atom(field_name), do: field_name
 
-  def convert_to_field_atom(field_name, formatter) when is_binary(field_name) do
-    result = parse_input_field(field_name, formatter)
-
-    case result do
-      atom when is_atom(atom) -> atom
-      string when is_binary(string) -> String.to_atom(string)
-    end
+  def resolve_field_name(field_name, formatter) when is_binary(field_name) do
+    parse_input_field(field_name, formatter)
   end
 
   @doc """
