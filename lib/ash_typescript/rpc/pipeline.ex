@@ -1166,12 +1166,9 @@ defmodule AshTypescript.Rpc.Pipeline do
        when is_map(identity) do
     resource = query.resource
 
-    case build_identity_filter(resource, identity, identities, lookups) do
-      {:ok, filter} ->
-        {:ok, Ash.Query.do_filter(query, filter)}
-
-      {:error, _} = error ->
-        error
+    with {:ok, filter} <- build_identity_filter(resource, identity, identities, lookups),
+         :ok <- validate_scalar_identity_filter(filter) do
+      {:ok, Ash.Query.do_filter(query, filter)}
     end
   end
 
@@ -1179,12 +1176,9 @@ defmodule AshTypescript.Rpc.Pipeline do
        when not is_nil(identity) do
     resource = query.resource
 
-    case build_identity_filter(resource, identity, identities, lookups) do
-      {:ok, filter} ->
-        {:ok, Ash.Query.do_filter(query, filter)}
-
-      {:error, _} = error ->
-        error
+    with {:ok, filter} <- build_identity_filter(resource, identity, identities, lookups),
+         :ok <- validate_scalar_identity_filter(filter) do
+      {:ok, Ash.Query.do_filter(query, filter)}
     end
   end
 
@@ -1331,6 +1325,38 @@ defmodule AshTypescript.Rpc.Pipeline do
       {internal_key, value}
     end)
   end
+
+  # Identity/primary-key values are applied through the *trusted* filter API
+  # (Ash.Query.do_filter/2), so a map or list value would be interpreted as an
+  # operator expression (e.g. `%{"greater_than" => ""}` => `field > ""`) instead
+  # of an equality match. Identity lookups are equality-only, so reject any
+  # non-scalar value before it reaches the filter. JSON input only ever yields
+  # string/number/boolean/nil/list/map, so "not a map and not a list" cleanly
+  # rejects operator maps while preserving legitimate operands (including false).
+  defp validate_scalar_identity_filter(filter) do
+    invalid_keys =
+      filter
+      |> Enum.reject(fn {_key, value} -> scalar_identity_value?(value) end)
+      |> Enum.map(fn {key, _value} -> key end)
+
+    if invalid_keys == [] do
+      :ok
+    else
+      output_formatter = Rpc.output_field_formatter()
+
+      formatted_keys =
+        Enum.map_join(invalid_keys, ", ", &FieldFormatter.format_field_name(&1, output_formatter))
+
+      {:error,
+       {:invalid_identity,
+        %{
+          message:
+            "Identity values must be scalar equality operands. Non-scalar value provided for: #{formatted_keys}"
+        }}}
+    end
+  end
+
+  defp scalar_identity_value?(value), do: not (is_map(value) or is_list(value))
 
   defp build_named_identity_filter(identity, parsed_identity) when is_map(parsed_identity) do
     # Build filter from the identity's keys using values from parsed_identity.

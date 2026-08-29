@@ -267,6 +267,50 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
       refute "isActive?" in error["details"]["expectedKeys"]
       refute "is_active?" in error["details"]["expectedKeys"]
     end
+
+    test "update rejects an operator map as a named identity value (filter injection)", %{
+      conn: conn,
+      user: user
+    } do
+      # Identity values reach the trusted filter API (Ash.Query.do_filter/2).
+      # An operator map like %{"greater_than" => ""} would otherwise compile to
+      # `email > ""` instead of an equality match, mutating a record the caller
+      # never named. It must be rejected as a non-scalar identity value.
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "update_user_by_email",
+          "identity" => %{"email" => %{"greater_than" => ""}},
+          "input" => %{"name" => "Injected"},
+          "fields" => ["id", "name", "email"]
+        })
+
+      assert %{"success" => false, "errors" => [error]} = result
+      assert error["type"] == "invalid_identity"
+
+      # The named user must be untouched — the injected predicate never ran.
+      reloaded =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_user_by_email",
+          "getBy" => %{"email" => user["email"]},
+          "fields" => ["id", "name"]
+        })
+
+      assert %{"success" => true, "data" => data} = reloaded
+      assert data["name"] == user["name"]
+    end
+
+    test "update rejects a non-scalar primary key identity value", %{conn: conn, user: user} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "update_user",
+          "identity" => [user["id"]],
+          "input" => %{"name" => "Injected PK"},
+          "fields" => ["id", "name"]
+        })
+
+      assert %{"success" => false, "errors" => [error]} = result
+      assert error["type"] == "invalid_identity"
+    end
   end
 
   describe "actor-scoped actions (no identity)" do
