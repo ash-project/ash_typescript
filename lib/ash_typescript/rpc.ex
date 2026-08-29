@@ -634,7 +634,17 @@ defmodule AshTypescript.Rpc do
         validate_read_action(request, input, opts)
 
       action_type when action_type in [:update, :destroy] ->
-        case Ash.get(resource, request.identity, opts) do
+        # Load the target with the RPC action's configured read_action so
+        # validation resolves the same record set as execution. Without :action,
+        # Ash falls back to the primary read action, turning this into an
+        # existence/field oracle for records read_action is meant to hide.
+        get_opts =
+          case request.rpc_action.read_action do
+            nil -> opts
+            read_action -> Keyword.put(opts, :action, read_action)
+          end
+
+        case Ash.get(resource, request.identity, get_opts) do
           {:ok, record} ->
             perform_form_validation(record, action.name, input, opts, request)
 

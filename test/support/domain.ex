@@ -47,6 +47,13 @@ defmodule AshTypescript.Test.Domain do
 
       rpc_action :create_todo, :create
       rpc_action :update_todo, :update
+
+      # Update scoped to a non-primary read action, used to verify that
+      # validate_action honors read_action when loading the target (CVE-3201).
+      rpc_action :update_todo_scoped, :update do
+        read_action :read_incomplete
+      end
+
       rpc_action :complete_todo, :complete
       rpc_action :set_priority_todo, :set_priority
       rpc_action :update_todo_with_untyped_data, :update_with_untyped_data

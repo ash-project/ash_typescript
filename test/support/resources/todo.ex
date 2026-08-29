@@ -802,6 +802,12 @@ defmodule AshTypescript.Test.Todo do
       filter expr(priority in [:high, :urgent])
     end
 
+    # Scoped read action used to verify update/destroy target lookups honor the
+    # RPC action's configured read_action (see CVE-3201 regression test).
+    read :read_incomplete do
+      filter expr(completed == false)
+    end
+
     action :assign_to_user, :map do
       constraints fields: [
                     assignee_id: [type: :uuid, allow_nil?: false],
