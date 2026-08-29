@@ -545,6 +545,12 @@ defmodule AshTypescript.Rpc.ResultProcessor do
 
   def normalize_primitive(nil), do: nil
 
+  # Authorization-redacted and unloaded fields must never be serialized: the
+  # generic struct fallback below would Map.from_struct/1 them and leak
+  # Ash.ForbiddenField.original_value (the real value, hidden only from Inspect).
+  def normalize_primitive(%Ash.ForbiddenField{}), do: nil
+  def normalize_primitive(%Ash.NotLoaded{}), do: nil
+
   def normalize_primitive(value) do
     cond do
       match?(%DateTime{}, value) ->
