@@ -568,6 +568,20 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
+      {:invalid_get_by, %{message: message}} ->
+        %{
+          type: "invalid_get_by",
+          message: message,
+          short_message: "Invalid getBy value",
+          vars: %{},
+          path: [:get_by],
+          fields: [],
+          details: %{
+            suggestion: "Provide a scalar value for each getBy field",
+            hint: @stale_generated_file_hint
+          }
+        }
+
       {:missing_identity, %{expected_keys: expected_keys, identities: identities}} ->
         expected_keys_str = Enum.join(expected_keys, ", ")
 

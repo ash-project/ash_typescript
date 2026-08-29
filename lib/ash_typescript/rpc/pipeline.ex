@@ -664,7 +664,7 @@ defmodule AshTypescript.Rpc.Pipeline do
               end
             end)
 
-          {:ok, validated_get_by}
+          validate_scalar_get_by(validated_get_by)
       end
     end
   end
@@ -935,6 +935,35 @@ defmodule AshTypescript.Rpc.Pipeline do
   defp apply_get_by_filter(query, get_by) when is_map(get_by) do
     filter = Enum.map(get_by, fn {field, value} -> {field, value} end)
     Ash.Query.do_filter(query, filter)
+  end
+
+  # get_by values are applied through the *trusted* filter API
+  # (Ash.Query.do_filter/2), so a map or list value would be interpreted as an
+  # operator expression (e.g. `%{"less_than" => "b"}` => `field < "b"`) instead
+  # of an equality match, turning an exact-key lookup into an arbitrary
+  # predicate. get_by lookups are equality-only, so reject any non-scalar value
+  # before it reaches the filter (reuses scalar_identity_value?/1).
+  defp validate_scalar_get_by(get_by) do
+    invalid_keys =
+      get_by
+      |> Enum.reject(fn {_key, value} -> scalar_identity_value?(value) end)
+      |> Enum.map(fn {key, _value} -> key end)
+
+    if invalid_keys == [] do
+      {:ok, get_by}
+    else
+      output_formatter = Rpc.output_field_formatter()
+
+      formatted_keys =
+        Enum.map_join(invalid_keys, ", ", &FieldFormatter.format_field_name(&1, output_formatter))
+
+      {:error,
+       {:invalid_get_by,
+        %{
+          message:
+            "getBy values must be scalar equality operands. Non-scalar value provided for: #{formatted_keys}"
+        }}}
+    end
   end
 
   defp apply_sort(query, nil), do: query

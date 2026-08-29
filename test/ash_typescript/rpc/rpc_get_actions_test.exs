@@ -402,6 +402,40 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       [error | _] = result["errors"]
       assert error["type"] == "unknown_field"
     end
+
+    test "rejects operator map in getBy value (filter injection, CVE 3212)", %{conn: conn} do
+      # An operator map in place of an exact getBy value would otherwise be
+      # interpreted by Ash.Query.do_filter/2 as a predicate (email < "b"),
+      # turning the exact-key lookup into an arbitrary filter that selects a
+      # record the caller never named.
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_user_by_email",
+          "getBy" => %{
+            "email" => %{"less_than" => "b"}
+          },
+          "fields" => ["id", "name", "email"]
+        })
+
+      assert result["success"] == false
+      [error | _] = result["errors"]
+      assert error["type"] == "invalid_get_by"
+    end
+
+    test "rejects list value in getBy value (filter injection, CVE 3212)", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_user_by_email",
+          "getBy" => %{
+            "email" => ["alice@example.com", "bob@example.com"]
+          },
+          "fields" => ["id", "name", "email"]
+        })
+
+      assert result["success"] == false
+      [error | _] = result["errors"]
+      assert error["type"] == "invalid_get_by"
+    end
   end
 
   describe "get_by option with multiple fields - composite lookup" do
