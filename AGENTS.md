@@ -277,6 +277,7 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Field atomization** | `lib/ash_typescript/rpc/field_processing/atomizer.ex` |
 | **Field selection (type-driven)** | `lib/ash_typescript/rpc/field_processing/field_selector.ex` |
 | **Field validation helpers** | `lib/ash_typescript/rpc/field_processing/field_selector/validation.ex` |
+| **Load restriction enforcement** | `lib/ash_typescript/rpc/load_restrictions.ex` (checked from `field_selector.ex`) |
 | **Result extraction** | `lib/ash_typescript/rpc/result_processor.ex` |
 | **Unified field extraction** | `lib/ash_typescript/rpc/field_extractor.ex` |
 | **Unified value formatting** | `lib/ash_typescript/rpc/value_formatter.ex` |
