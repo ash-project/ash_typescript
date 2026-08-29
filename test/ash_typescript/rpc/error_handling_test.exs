@@ -430,6 +430,74 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     end
   end
 
+  describe "error handler failures fail closed" do
+    defmodule PartialErrorHandler do
+      @moduledoc """
+      A redaction hook written the way error handlers usually are: a function
+      that pattern matches only the error shapes the developer anticipated.
+      """
+      def handle_error(%{type: "invalid_attribute"} = error, _context) do
+        %{error | message: "Invalid value.", short_message: "Invalid value", vars: %{}}
+      end
+
+      # No clause for any other error type -> FunctionClauseError.
+
+      def throw_error(_error, _context), do: throw(:nope)
+    end
+
+    defmodule RedactingDomain do
+      use Ash.Domain, extensions: [AshTypescript.Rpc], validate_config_inclusion?: false
+
+      typescript_rpc do
+        error_handler {PartialErrorHandler, :handle_error, []}
+      end
+    end
+
+    defmodule ThrowingHandlerDomain do
+      use Ash.Domain, extensions: [AshTypescript.Rpc], validate_config_inclusion?: false
+
+      typescript_rpc do
+        error_handler {PartialErrorHandler, :throw_error, []}
+      end
+    end
+
+    @secret "search backend unreachable at es.internal:9200 (token=S3cr3t-Pr0d-Pw)"
+
+    test "an error class the handler matches is redacted" do
+      error = Ash.Error.Changes.InvalidAttribute.exception(field: :email, message: @secret)
+
+      [response] = AshTypescript.Rpc.Errors.to_errors(error, RedactingDomain)
+
+      assert response.message == "Invalid value."
+      refute String.contains?(response.message, "S3cr3t-Pr0d-Pw")
+    end
+
+    @tag capture_log: true
+    test "an error class the handler raises on returns a generic error, not the raw one" do
+      error = Ash.Error.Query.InvalidArgument.exception(field: :filter, message: @secret)
+
+      [response] = AshTypescript.Rpc.Errors.to_errors(error, RedactingDomain)
+
+      assert response.type == "internal_error"
+      assert response.short_message == "Internal error"
+      assert is_binary(response.error_id)
+      assert response.vars == %{}
+      assert response.fields == []
+      refute String.contains?(response.message, "S3cr3t-Pr0d-Pw")
+      refute String.contains?(response.message, "es.internal")
+    end
+
+    @tag capture_log: true
+    test "a handler that throws is treated the same as one that raises" do
+      error = Ash.Error.Query.InvalidArgument.exception(field: :filter, message: @secret)
+
+      [response] = AshTypescript.Rpc.Errors.to_errors(error, ThrowingHandlerDomain)
+
+      assert response.type == "internal_error"
+      refute String.contains?(response.message, "S3cr3t-Pr0d-Pw")
+    end
+  end
+
   describe "Reactor.Error.Invalid.RunStepError handling" do
     test "delegates to inner Ash error" do
       inner_error = Ash.Error.Changes.InvalidChanges.exception(message: "bad input")

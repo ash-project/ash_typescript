@@ -127,13 +127,45 @@ defmodule AshTypescript.Rpc.Errors do
     end
   rescue
     e ->
-      Logger.warning("""
-      Error handler failed: #{inspect(e)}
-      Handler: #{inspect({module, function, args})}
-      Original error: #{inspect(error)}
-      """)
+      handler_failure(inspect(e), __STACKTRACE__, {module, function, args}, error)
+  catch
+    kind, reason ->
+      handler_failure(
+        "#{kind}: #{inspect(reason)}",
+        __STACKTRACE__,
+        {module, function, args},
+        error
+      )
+  end
 
-      error
+  # Error handlers are the application's hook for redacting or suppressing errors
+  # before they reach the client, so a handler that fails must fail closed - never
+  # fall back to the unredacted error it was supposed to sanitize.
+  defp handler_failure(reason, stacktrace, handler, error) do
+    uuid = Ash.UUID.generate()
+
+    Logger.error("""
+    Error handler failed, returning a generic error instead of the unhandled one.
+    Error ID: #{uuid}
+    Handler: #{inspect(handler)}
+    Failure: #{reason}
+    Original error: #{inspect(error)}
+    #{Exception.format_stacktrace(stacktrace)}
+    """)
+
+    generic_internal_error(uuid, [])
+  end
+
+  defp generic_internal_error(uuid, path) do
+    %{
+      message: "Something went wrong. Unique error id: #{uuid}",
+      short_message: "Internal error",
+      type: "internal_error",
+      vars: %{},
+      fields: [],
+      path: path,
+      error_id: uuid
+    }
   end
 
   defp get_domain_error_handler(domain) do
@@ -184,15 +216,7 @@ defmodule AshTypescript.Rpc.Errors do
     end
     """)
 
-    %{
-      message: "Something went wrong. Unique error id: #{uuid}",
-      short_message: "Internal error",
-      type: "internal_error",
-      vars: %{},
-      fields: [],
-      path: Map.get(error, :path, []),
-      error_id: uuid
-    }
+    generic_internal_error(uuid, Map.get(error, :path, []))
   end
 
   defp handle_unimplemented_error(error, _show_raised_errors?) do
@@ -204,15 +228,7 @@ defmodule AshTypescript.Rpc.Errors do
     Error: #{inspect(error)}
     """)
 
-    %{
-      message: "Something went wrong. Unique error id: #{uuid}",
-      short_message: "Internal error",
-      type: "internal_error",
-      vars: %{},
-      fields: [],
-      path: [],
-      error_id: uuid
-    }
+    generic_internal_error(uuid, [])
   end
 
   defp fallback_error_response(error, _show_raised_errors?) when is_exception(error) do
