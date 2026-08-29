@@ -430,6 +430,68 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     end
   end
 
+  describe "error payload serialization" do
+    defmodule InternalConfig do
+      defstruct [:name, :db_host, :api_key]
+    end
+
+    defp serialized_vars(vars) do
+      error =
+        Ash.Error.Changes.InvalidChanges.exception(
+          fields: [:amount],
+          message: "bad",
+          vars: vars
+        )
+
+      [response] = AshTypescript.Rpc.Errors.to_errors(error)
+      response.vars
+    end
+
+    @tag capture_log: true
+    test "unknown structs are reduced to their module name, not unwrapped" do
+      config = %InternalConfig{
+        name: "standard",
+        db_host: "postgres://admin@10.0.0.5:5432/prod",
+        api_key: "sk_live_SUPER_SECRET"
+      }
+
+      vars = serialized_vars(rule: config)
+
+      assert vars.rule == "#AshTypescript.Rpc.ErrorHandlingTest.InternalConfig<>"
+      refute String.contains?(Jason.encode!(vars), "sk_live_SUPER_SECRET")
+      refute String.contains?(Jason.encode!(vars), "10.0.0.5")
+    end
+
+    @tag capture_log: true
+    test "Ash.ForbiddenField keeps its original_value hidden" do
+      forbidden = %Ash.ForbiddenField{
+        field: :ssn,
+        type: :attribute,
+        original_value: "123-45-6789"
+      }
+
+      vars = serialized_vars(value: forbidden)
+
+      refute String.contains?(Jason.encode!(vars), "123-45-6789")
+    end
+
+    test "value structs serialize to their natural representation" do
+      vars = serialized_vars(max: Decimal.new("100.5"), name: Ash.CiString.new("Fred"))
+
+      assert vars.max == "100.5"
+      assert vars.name == "Fred"
+    end
+
+    @tag capture_log: true
+    test "pids, references and functions do not leak identifiers" do
+      vars = serialized_vars(pid: self(), ref: make_ref(), fun: &Enum.count/1)
+
+      assert vars.pid == "#PID<>"
+      assert vars.ref == "#Reference<>"
+      assert vars.fun == "#Function<>"
+    end
+  end
+
   describe "error handler failures fail closed" do
     defmodule PartialErrorHandler do
       @moduledoc """

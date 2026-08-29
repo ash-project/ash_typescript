@@ -361,11 +361,23 @@ defmodule AshTypescript.Rpc.Errors do
   defp serialize_error(%Date{} = value), do: Date.to_iso8601(value)
   defp serialize_error(%Time{} = value), do: Time.to_iso8601(value)
   defp serialize_error(%NaiveDateTime{} = value), do: NaiveDateTime.to_iso8601(value)
+  defp serialize_error(%Decimal{} = value), do: Decimal.to_string(value, :normal)
+  defp serialize_error(%Ash.CiString{} = value), do: Ash.CiString.value(value)
 
-  defp serialize_error(value) when is_struct(value) do
-    value
-    |> Map.from_struct()
-    |> serialize_error()
+  # Structs we have no serialization for are reduced to their module name.
+  # Unwrapping them with Map.from_struct/1 would emit every field to the client,
+  # defeating redaction the struct itself declares - `Ash.ForbiddenField`, for
+  # instance, hides the `original_value` the actor is not allowed to see.
+  defp serialize_error(%module{}) do
+    Logger.warning("""
+    Dropped a #{inspect(module)} value while serializing an RPC error.
+
+    Structs without a known serialization are replaced with their module name so
+    their fields are not disclosed to the client. Convert the value to a string,
+    number, or plain map before putting it in an error's `vars` or `path`.
+    """)
+
+    opaque_term(module)
   end
 
   defp serialize_error(value) when is_map(value) do
@@ -374,10 +386,11 @@ defmodule AshTypescript.Rpc.Errors do
     end)
   end
 
-  defp serialize_error(value)
-       when is_pid(value) or is_reference(value) or is_function(value) do
-    inspect(value)
-  end
+  defp serialize_error(value) when is_pid(value), do: opaque_term(PID)
+  defp serialize_error(value) when is_reference(value), do: opaque_term(Reference)
+  defp serialize_error(value) when is_function(value), do: opaque_term(Function)
 
   defp serialize_error(value), do: value
+
+  defp opaque_term(module), do: "##{inspect(module)}<>"
 end
