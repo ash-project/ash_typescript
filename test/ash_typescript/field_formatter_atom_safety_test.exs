@@ -64,4 +64,46 @@ defmodule AshTypescript.FieldFormatterAtomSafetyTest do
     result = FieldFormatter.resolve_field_name(long, :camel_case)
     assert is_binary(result)
   end
+
+  describe "typed struct field selection (CVE-3209)" do
+    # AshTypescript.Test.Todo's :statistics attribute is a TypedStruct that
+    # implements typescript_field_names/0, so field selection on it routes through
+    # FieldSelector.select_typed_struct_fields/4 - a distinct call site from the
+    # one CVE-3192 covered, which minted an atom per unknown name.
+    defp select_statistics_fields(fields) do
+      AshTypescript.Rpc.RequestedFieldsProcessor.process(
+        AshTypescript.Test.Todo,
+        :read,
+        [%{"statistics" => fields}]
+      )
+    end
+
+    test "an unknown field name is rejected without minting an atom" do
+      name = "zzAtomBombStat#{System.unique_integer([:positive])}"
+
+      refute atom_exists?(Macro.underscore(name))
+
+      assert {:error, {:unknown_field, unknown, "field_constrained_type", [:statistics]}} =
+               select_statistics_fields([name])
+
+      assert is_binary(unknown)
+      refute atom_exists?(unknown)
+    end
+
+    test "a batch of unique unknown field names mints no atoms" do
+      names = for i <- 1..500, do: "zzAtomBombBatch#{i}_#{System.unique_integer([:positive])}"
+
+      Enum.each(names, fn name ->
+        assert {:error, {:unknown_field, _, _, _}} = select_statistics_fields([name])
+        refute atom_exists?(Macro.underscore(name))
+      end)
+    end
+
+    test "valid field names still resolve, including mapped ones" do
+      assert {:ok, {_select, _load, template}} =
+               select_statistics_fields(["viewCount", "allCompleted"])
+
+      assert [statistics: [:view_count, :all_completed?]] = template
+    end
+  end
 end

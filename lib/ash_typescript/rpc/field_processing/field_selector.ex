@@ -1106,13 +1106,11 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
 
   defp resolve_typed_struct_field(field_name, reverse_map) when is_binary(field_name) do
     case Map.get(reverse_map, field_name) do
-      nil ->
-        formatter = AshTypescript.Rpc.input_field_formatter()
-        converted = FieldFormatter.parse_input_field(field_name, formatter)
-        if is_atom(converted), do: converted, else: String.to_atom(converted)
-
-      internal ->
-        internal
+      # Never mint an atom here: an unresolved name has no matching field atom, so
+      # it stays a string and fails validate_field_exists_in_fields!/4 as an unknown
+      # field. Minting would only let client input grow the atom table.
+      nil -> resolve_field_name(field_name)
+      internal -> internal
     end
   end
 
