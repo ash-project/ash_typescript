@@ -447,5 +447,5 @@ page_opts = %{limit: 50, after: cursor}
 
 - [Field Selection](field-selection.md) - Dynamic field selection for RPC actions
 - [Querying Data](querying-data.md) - Filtering, sorting, pagination
-- [RPC Action Options](../features/rpc-action-options.md) - Load restrictions for security
+- [RPC Action Options](../features/rpc-action-options.md) - Load restrictions for shaping an action's loadable surface
 - [Frontend Frameworks](../getting-started/frontend-frameworks.md) - Framework-specific setup

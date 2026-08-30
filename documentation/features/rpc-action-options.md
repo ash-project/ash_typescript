@@ -27,6 +27,8 @@ rpc_action :function_name, :ash_action_name, options
 
 Control which relationships and calculations clients can request using `allowed_loads` and `denied_loads`.
 
+Load restrictions shape the API surface of an action — they are **not** an authorization mechanism. Access control is handled by your Ash policies (including field policies), which apply to every load regardless of these options. Use load restrictions to keep an endpoint's loadable surface tight, most commonly to stop clients from requesting expensive loads (heavy aggregates, deep relationship trees) on actions that don't need them.
+
 Both lists are validated at compile time: every entry must resolve to a loadable public field (relationship, calculation, aggregate, or embedded-resource attribute), with nested keywords checked against the relationship's destination resource. Typos fail compilation instead of silently never matching.
 
 ### allowed_loads (Whitelist)
@@ -61,8 +63,8 @@ Block specific fields while allowing all others:
 ```elixir
 typescript_rpc do
   resource MyApp.Todo do
-    # Everything except internal_notes can be loaded
-    rpc_action :list_todos, :read, denied_loads: [:internal_notes, :audit_log]
+    # Everything except the expensive aggregates can be loaded
+    rpc_action :list_todos, :read, denied_loads: [:activity_stats, :full_history]
   end
 end
 ```
@@ -73,9 +75,9 @@ const result = await listTodos({
   fields: ["id", "title", { user: ["name"] }]
 });
 
-// Error: "internal_notes" is denied
+// Error: "activity_stats" is denied
 const result = await listTodos({
-  fields: ["id", "title", { internal_notes: ["content"] }]
+  fields: ["id", "title", { activity_stats: ["total_events"] }]
 });
 ```
 
@@ -152,9 +154,9 @@ const result = await listTodos({
 ```
 
 ```typescript
-// With denied_loads: [:internal_notes]
+// With denied_loads: [:activity_stats]
 const result = await listTodos({
-  fields: ["id", { internal_notes: ["content"] }]
+  fields: ["id", { activity_stats: ["total_events"] }]
 });
 
 // Returns:
@@ -162,8 +164,8 @@ const result = await listTodos({
 //   success: false,
 //   errors: [{
 //     type: "load_denied",
-//     message: "Field 'internal_notes' is denied",
-//     fields: ["internal_notes"]
+//     message: "Field 'activity_stats' is denied",
+//     fields: ["activity_stats"]
 //   }]
 // }
 ```
@@ -172,10 +174,10 @@ const result = await listTodos({
 
 | Option | Use When |
 |--------|----------|
-| `allowed_loads` | You want explicit control over a small set of loadable fields |
-| `denied_loads` | You want to block a few sensitive fields while allowing most |
+| `allowed_loads` | An action only needs a small, known set of loadable fields |
+| `denied_loads` | Most fields are fine and you only need to block a few expensive ones |
 
-**Best practice**: Use `allowed_loads` for security-sensitive endpoints where you want explicit control. Use `denied_loads` when most fields are safe and you only need to block a few.
+**Best practice**: Use `allowed_loads` when you want a lean endpoint with an explicit loadable surface. Use `denied_loads` when you only need to keep a few expensive loads off an action. In both cases, rely on Ash policies — not load restrictions — for access control.
 
 ## Query Controls
 

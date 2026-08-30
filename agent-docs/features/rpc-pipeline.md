@@ -496,7 +496,11 @@ field the action allows.
 |--------|-----------------|----------------|
 | **Approach** | Whitelist | Blacklist |
 | **Default** | Nothing loadable | Everything loadable |
-| **Use case** | Strict security, minimal exposure | Block specific sensitive fields |
+| **Use case** | Lean endpoint with a small, explicit loadable surface | Block a few expensive loads while allowing most |
+
+Load restrictions shape an action's API surface (typically to keep expensive
+loads off endpoints that don't need them) — they are **not** an authorization
+mechanism. Ash policies apply to every load regardless of these options.
 
 **Implementation locations**:
 - DSL schema: `lib/ash_typescript/rpc.ex` (RpcAction struct + schema)
