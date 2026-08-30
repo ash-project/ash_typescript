@@ -9,10 +9,35 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
 
   alias AshTypescript.TypedController.RequestHandler
 
+  # Dedicated controller for the `one_of` allowlist vector — kept out of the
+  # shared test Session (and the codegen config) so it never touches generated
+  # snapshots, only the runtime constraint-enforcement path.
+  defmodule AllowlistSession do
+    use AshTypescript.TypedController
+
+    typed_controller do
+      module_name(AshTypescript.TypedController.RequestHandlerTest.AllowlistController)
+
+      post :grant do
+        run fn conn, params ->
+          Plug.Conn.send_resp(conn, 200, "role=#{params.role}")
+        end
+
+        argument :role, :atom, allow_nil?: false, constraints: [one_of: [:viewer, :editor]]
+      end
+    end
+  end
+
   defp call(action, params) do
     :get
     |> Plug.Test.conn("/test", "")
     |> RequestHandler.handle(AshTypescript.Test.Session, action, params)
+  end
+
+  defp call(source_module, action, params) do
+    :get
+    |> Plug.Test.conn("/test", "")
+    |> RequestHandler.handle(source_module, action, params)
   end
 
   defp json_body(conn) do
@@ -493,6 +518,28 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       assert error["type"] == "invalid_argument"
       assert error["message"] =~ "%{min}"
       assert error["vars"]["min"] == 3
+    end
+
+    test "one_of allowlist rejects a value outside the declared set" do
+      # The flagship CVE-3216 vector: an atom `one_of` allowlist gating a role.
+      # `:admin` must already exist as an atom for this to exercise the
+      # constraint rather than the cast's atom-existence check — as it would in
+      # any real app with an `:admin` role. Reference the literal to intern it.
+      _ = :admin
+      conn = call(AllowlistSession, :grant, %{"role" => "admin"})
+
+      # Without apply_constraints, cast_input(:atom, "admin", one_of: ...) returns
+      # {:ok, :admin} and the handler runs privileged. The constraint check is
+      # what turns this into a 422.
+      assert conn.status == 422
+      assert %{"errors" => [%{"type" => "invalid_argument", "fields" => ["role"]}]} = json_body(conn)
+    end
+
+    test "one_of allowlist accepts a value inside the declared set" do
+      conn = call(AllowlistSession, :grant, %{"role" => "editor"})
+
+      assert conn.status == 200
+      assert conn.resp_body == "role=editor"
     end
   end
 
