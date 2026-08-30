@@ -28,6 +28,24 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     end
   end
 
+  # Declares an argument literally named `action` so a test can observe whether
+  # a reserved key sneaks back in through a case/style variant (`Action`).
+  defmodule ReservedSession do
+    use AshTypescript.TypedController
+
+    typed_controller do
+      module_name(AshTypescript.TypedController.RequestHandlerTest.ReservedController)
+
+      get :reserved_echo do
+        run fn conn, params ->
+          Plug.Conn.send_resp(conn, 200, "action=#{inspect(Map.get(params, :action))}")
+        end
+
+        argument :action, :string, allow_nil?: true
+      end
+    end
+  end
+
   defp call(action, params) do
     :get
     |> Plug.Test.conn("/test", "")
@@ -246,6 +264,41 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       body = json_body(conn)
       refute Map.has_key?(body["params"], "display_name")
       refute Map.has_key?(body["params"], "displayName")
+    end
+  end
+
+  describe "parameter collision (CVE-3217)" do
+    test "two request keys folding to one argument name are rejected, not silently merged" do
+      # Mirrors the IDOR vector: a route `/users/:userId` merges the trusted
+      # path param `userId` last, but an attacker appends `?user_id=<victim>`.
+      # Both fold to `user_id`. Before the fix, Map.new/2 silently kept the
+      # attacker's value and the handler ran; now the ambiguous request is a 422.
+      conn =
+        call(:echo_params, %{
+          "name" => "alice",
+          "userId" => "alice-1",
+          "user_id" => "victim-999"
+        })
+
+      assert conn.status == 422
+
+      assert %{"errors" => [%{"type" => "ambiguous_param", "fields" => ["user_id"]}]} =
+               json_body(conn)
+    end
+
+    test "distinct keys that do not collide still succeed" do
+      conn = call(:echo_params, %{"name" => "alice", "count" => "5"})
+
+      assert conn.status == 200
+    end
+
+    test "reserved keys are dropped after normalization, not before" do
+      # `Action` folds to `action`. The reserved-key filter runs after
+      # normalization, so it cannot be re-injected via a case variant.
+      before = call(ReservedSession, :reserved_echo, %{"Action" => "evil"})
+
+      assert before.status == 200
+      assert before.resp_body == "action=nil"
     end
   end
 
@@ -532,7 +585,9 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       # {:ok, :admin} and the handler runs privileged. The constraint check is
       # what turns this into a 422.
       assert conn.status == 422
-      assert %{"errors" => [%{"type" => "invalid_argument", "fields" => ["role"]}]} = json_body(conn)
+
+      assert %{"errors" => [%{"type" => "invalid_argument", "fields" => ["role"]}]} =
+               json_body(conn)
     end
 
     test "one_of allowlist accepts a value inside the declared set" do

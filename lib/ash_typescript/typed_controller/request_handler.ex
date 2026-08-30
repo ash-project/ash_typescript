@@ -48,11 +48,15 @@ defmodule AshTypescript.TypedController.RequestHandler do
     route = Enum.find(routes, &(&1.name == route_name))
     error_context = %{route: route_name, source_module: source_module}
 
-    raw_params = extract_input(params)
+    case extract_input(params) do
+      {:ok, raw_params} ->
+        case cast_arguments(route.arguments, raw_params) do
+          {:ok, cast_params} ->
+            dispatch(conn, route.run, cast_params, error_context)
 
-    case cast_arguments(route.arguments, raw_params) do
-      {:ok, cast_params} ->
-        dispatch(conn, route.run, cast_params, error_context)
+          {:error, errors} ->
+            send_errors(conn, 422, errors, error_context)
+        end
 
       {:error, errors} ->
         send_errors(conn, 422, errors, error_context)
@@ -137,6 +141,22 @@ defmodule AshTypescript.TypedController.RequestHandler do
       type: "required",
       message: "is required",
       short_message: "Required field",
+      vars: %{field: key},
+      fields: [key],
+      path: []
+    }
+  end
+
+  # Two distinct request keys normalized to the same argument name (e.g. a
+  # trusted path param `userId` and an attacker-supplied query param `user_id`
+  # both fold to `user_id`). We cannot tell which the caller meant — and
+  # Phoenix's guarantee that path params win is already gone by the time params
+  # reach us — so we reject rather than silently pick one.
+  defp ambiguous_param_error(key) do
+    %{
+      type: "ambiguous_param",
+      message: "resolves to a duplicate parameter name",
+      short_message: "Ambiguous parameter",
       vars: %{field: key},
       fields: [key],
       path: []
@@ -242,20 +262,54 @@ defmodule AshTypescript.TypedController.RequestHandler do
     end
   end
 
+  # Reserved keys are filtered *after* normalization so a client cannot slip a
+  # dropped key back in via a case/style variant (e.g. `Action` folds to
+  # `action`). Collisions are detected during normalization and reported as a
+  # 422 rather than silently resolved.
   defp extract_input(params) do
-    params
-    |> Map.drop(["_format", "action", "controller"])
-    |> Map.reject(fn {key, _} -> String.starts_with?(key, "_") end)
-    |> normalize_keys()
+    with {:ok, normalized} <- normalize_keys(params) do
+      filtered =
+        normalized
+        |> Map.drop(["_format", "action", "controller"])
+        |> Map.reject(fn {key, _} -> String.starts_with?(key, "_") end)
+
+      {:ok, filtered}
+    end
   end
 
   defp normalize_keys(map) when is_map(map) do
-    Map.new(map, fn {key, value} ->
-      {Macro.underscore(key), normalize_value(value)}
+    Enum.reduce_while(map, {:ok, %{}}, fn {key, value}, {:ok, acc} ->
+      normalized_key = Macro.underscore(key)
+
+      if Map.has_key?(acc, normalized_key) do
+        {:halt, {:error, [ambiguous_param_error(normalized_key)]}}
+      else
+        case normalize_value(value) do
+          {:ok, normalized_value} ->
+            {:cont, {:ok, Map.put(acc, normalized_key, normalized_value)}}
+
+          {:error, _} = error ->
+            {:halt, error}
+        end
+      end
     end)
   end
 
   defp normalize_value(value) when is_map(value), do: normalize_keys(value)
-  defp normalize_value(value) when is_list(value), do: Enum.map(value, &normalize_value/1)
-  defp normalize_value(value), do: value
+
+  defp normalize_value(value) when is_list(value) do
+    value
+    |> Enum.reduce_while({:ok, []}, fn item, {:ok, acc} ->
+      case normalize_value(item) do
+        {:ok, normalized} -> {:cont, {:ok, [normalized | acc]}}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, items} -> {:ok, Enum.reverse(items)}
+      {:error, _} = error -> error
+    end
+  end
+
+  defp normalize_value(value), do: {:ok, value}
 end
