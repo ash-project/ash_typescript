@@ -252,18 +252,18 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
          */
         export interface ValidationConfig {
           // Request data
-          #{formatted_input_field()}?: Record<string, any>;
+          #{formatted_input_field()}?: Record<string, any> | undefined;
 
           // HTTP customization
-          #{formatted_headers_field()}?: Record<string, string>;
-          #{formatted_fetch_options_field()}?: RequestInit;
-          #{formatted_custom_fetch_field()}?: (
+          #{formatted_headers_field()}?: Record<string, string> | undefined;
+          #{formatted_fetch_options_field()}?: RequestInit | undefined;
+          #{formatted_custom_fetch_field()}?: ((
             input: RequestInfo | URL,
             init?: RequestInit,
-          ) => Promise<Response>;
+          ) => Promise<Response>) | undefined;
 
           // Hook context
-          #{formatted_hook_ctx_field()}?: #{validation_hook_context_type};
+          #{formatted_hook_ctx_field()}?: #{validation_hook_context_type} | undefined;
         }
         """
       else
@@ -279,11 +279,11 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
          */
         export interface ActionChannelConfig {
           // Request data
-          #{formatted_input_field()}?: Record<string, any>;
+          #{formatted_input_field()}?: Record<string, any> | undefined;
           #{formatted_identity_field()}?: any;
-          #{formatted_fields_field()}?: ReadonlyArray<string | Record<string, any>>;
-          #{formatted_filter_field()}?: Record<string, any>;
-          #{formatted_sort_field()}?: string | string[];
+          #{formatted_fields_field()}?: ReadonlyArray<string | Record<string, any>> | undefined;
+          #{formatted_filter_field()}?: Record<string, any> | undefined;
+          #{formatted_sort_field()}?: string | string[] | undefined;
           #{formatted_page_field()}?:
             | {
                 #{formatted_limit_field()}?: number;
@@ -294,23 +294,24 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
                 #{formatted_limit_field()}?: number;
                 #{formatted_after_field()}?: string;
                 #{formatted_before_field()}?: string;
-              };
+              }
+            | undefined;
 
           // Metadata
-          #{formatted_metadata_fields_field()}?: ReadonlyArray<string>;
+          #{formatted_metadata_fields_field()}?: ReadonlyArray<string> | undefined;
 
           // Channel-specific
           #{formatted_channel_field()}: any; // Phoenix Channel
           #{formatted_result_handler_field()}: (result: any) => void;
-          #{formatted_error_handler_field()}?: (error: any) => void;
-          #{formatted_timeout_handler_field()}?: () => void;
-          #{formatted_timeout_field()}?: number;
+          #{formatted_error_handler_field()}?: ((error: any) => void) | undefined;
+          #{formatted_timeout_handler_field()}?: (() => void) | undefined;
+          #{formatted_timeout_field()}?: number | undefined;
 
           // Multitenancy
-          #{formatted_tenant_field()}?: string;
+          #{formatted_tenant_field()}?: string | undefined;
 
           // Hook context
-          #{formatted_hook_ctx_field()}?: #{action_channel_hook_context_type};
+          #{formatted_hook_ctx_field()}?: #{action_channel_hook_context_type} | undefined;
         }
         """
       else
@@ -327,21 +328,21 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
          */
         export interface ValidationChannelConfig {
           // Request data
-          #{formatted_input_field()}?: Record<string, any>;
+          #{formatted_input_field()}?: Record<string, any> | undefined;
           #{formatted_identity_field()}?: any;
 
           // Channel-specific
           #{formatted_channel_field()}: any; // Phoenix Channel
           #{formatted_result_handler_field()}: (result: any) => void;
-          #{formatted_error_handler_field()}?: (error: any) => void;
-          #{formatted_timeout_handler_field()}?: () => void;
-          #{formatted_timeout_field()}?: number;
+          #{formatted_error_handler_field()}?: ((error: any) => void) | undefined;
+          #{formatted_timeout_handler_field()}?: (() => void) | undefined;
+          #{formatted_timeout_field()}?: number | undefined;
 
           // Multitenancy
-          #{formatted_tenant_field()}?: string;
+          #{formatted_tenant_field()}?: string | undefined;
 
           // Hook context
-          #{formatted_hook_ctx_field()}?: #{validation_channel_hook_context_type};
+          #{formatted_hook_ctx_field()}?: #{validation_channel_hook_context_type} | undefined;
         }
         """
       else
@@ -356,11 +357,11 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
      */
     export interface ActionConfig {
       // Request data
-      #{formatted_input_field()}?: Record<string, any>;
+      #{formatted_input_field()}?: Record<string, any> | undefined;
       #{formatted_identity_field()}?: any;
-      #{formatted_fields_field()}?: Array<string | Record<string, any>>; // Field selection
-      #{formatted_filter_field()}?: Record<string, any>; // Filter options (for reads)
-      #{formatted_sort_field()}?: string | string[]; // Sort options
+      #{formatted_fields_field()}?: Array<string | Record<string, any>> | undefined; // Field selection
+      #{formatted_filter_field()}?: Record<string, any> | undefined; // Filter options (for reads)
+      #{formatted_sort_field()}?: string | string[] | undefined; // Sort options
       #{formatted_page_field()}?:
         | {
             // Offset-based pagination
@@ -373,24 +374,25 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
             #{formatted_limit_field()}?: number;
             #{formatted_after_field()}?: string;
             #{formatted_before_field()}?: string;
-          };
+          }
+        | undefined;
 
       // Metadata
-      #{formatted_metadata_fields_field()}?: ReadonlyArray<string>;
+      #{formatted_metadata_fields_field()}?: ReadonlyArray<string> | undefined;
 
       // HTTP customization
-      #{formatted_headers_field()}?: Record<string, string>; // Custom headers
-      #{formatted_fetch_options_field()}?: RequestInit; // Fetch options (signal, cache, etc.)
-      #{formatted_custom_fetch_field()}?: (
+      #{formatted_headers_field()}?: Record<string, string> | undefined; // Custom headers
+      #{formatted_fetch_options_field()}?: RequestInit | undefined; // Fetch options (signal, cache, etc.)
+      #{formatted_custom_fetch_field()}?: ((
         input: RequestInfo | URL,
         init?: RequestInit,
-      ) => Promise<Response>;
+      ) => Promise<Response>) | undefined;
 
       // Multitenancy
-      #{formatted_tenant_field()}?: string; // Tenant parameter
+      #{formatted_tenant_field()}?: string | undefined; // Tenant parameter
 
       // Hook context
-      #{formatted_hook_ctx_field()}?: #{action_hook_context_type};
+      #{formatted_hook_ctx_field()}?: #{action_hook_context_type} | undefined;
     }
     #{validation_config_interface}
     #{action_channel_config_interface}
