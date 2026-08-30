@@ -28,6 +28,31 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     end
   end
 
+  # A handler that falls through with an {:error, secret-bearing struct}
+  # instead of a conn — the unexpected-return path must not echo the term
+  # to the client unless show_raised_errors is enabled (CVE-3218).
+  defmodule LeakyUser do
+    defstruct [:id, :hashed_password]
+  end
+
+  defmodule BadReturnSession do
+    use AshTypescript.TypedController
+
+    typed_controller do
+      module_name(AshTypescript.TypedController.RequestHandlerTest.BadReturnController)
+
+      get :bad_return do
+        run fn _conn, _params ->
+          {:error,
+           %AshTypescript.TypedController.RequestHandlerTest.LeakyUser{
+             id: "usr_1",
+             hashed_password: "$2b$12$SECRETHASH"
+           }}
+        end
+      end
+    end
+  end
+
   # Declares an argument literally named `action` so a test can observe whether
   # a reserved key sneaks back in through a case/style variant (`Action`).
   defmodule ReservedSession do
@@ -505,6 +530,40 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       body = json_body(conn)
       error = hd(body["errors"])
       assert error["message"] == "test error for show_raised_errors"
+    end
+
+    # CVE-3218: a non-conn handler return was inspected verbatim into the 500
+    # body, leaking internal struct fields to an unauthenticated client.
+    test "unexpected handler return is not echoed when show_raised_errors is false (CVE-3218)" do
+      Application.put_env(:ash_typescript, :typed_controller_show_raised_errors, false)
+
+      {conn, log} =
+        ExUnit.CaptureLog.with_log(fn ->
+          call(BadReturnSession, :bad_return, %{})
+        end)
+
+      assert conn.status == 500
+      error = conn |> json_body() |> Map.fetch!("errors") |> hd()
+      assert error["message"] == "Internal server error"
+      refute conn.resp_body =~ "SECRETHASH"
+
+      # The diagnostic still reaches the developer server-side.
+      assert log =~ "Route handler must return %Plug.Conn{}"
+      assert log =~ "SECRETHASH"
+    end
+
+    test "unexpected handler return is detailed when show_raised_errors is true" do
+      Application.put_env(:ash_typescript, :typed_controller_show_raised_errors, true)
+
+      {conn, _log} =
+        ExUnit.CaptureLog.with_log(fn ->
+          call(BadReturnSession, :bad_return, %{})
+        end)
+
+      assert conn.status == 500
+      error = conn |> json_body() |> Map.fetch!("errors") |> hd()
+      assert error["message"] =~ "Route handler must return %Plug.Conn{}"
+      assert error["message"] =~ "SECRETHASH"
     end
   end
 

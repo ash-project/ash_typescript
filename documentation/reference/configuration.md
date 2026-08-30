@@ -182,7 +182,7 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `typed_controller_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for typed controller hook context |
 | `typed_controller_import_into_generated` | `list(map)` | `[]` | Custom imports for generated routes file |
 | `typed_controller_error_handler` | `mfa \| module \| nil` | `nil` | Custom error transformation handler |
-| `typed_controller_show_raised_errors` | `boolean` | `false` | Show exception messages in 500 responses |
+| `typed_controller_show_raised_errors` | `boolean` | `false` | Show exception messages and unexpected handler return values in 500 responses |
 | `always_regenerate` | `boolean` | `false` | With `--dev --check` (dev plug), write files directly instead of raising `PendingCodegen` |
 | `not_found_error?` | `boolean` | `true` | Global default: `true` returns error on not found, `false` returns null |
 | `add_ash_internals_to_jsdoc` | `boolean` | `false` | Show Ash resource/action details in JSDoc |
@@ -431,7 +431,7 @@ config :ash_typescript,
 | `typed_controller_hook_context_type` | `string` | `"Record<string, any>"` | TypeScript type for hook context |
 | `typed_controller_import_into_generated` | `list(map)` | `[]` | Custom imports (`%{import_name: "Name", file: "./path"}`) |
 | `typed_controller_error_handler` | `mfa \| module \| nil` | `nil` | Custom error transformation handler |
-| `typed_controller_show_raised_errors` | `boolean` | `false` | Show exception messages in 500 responses |
+| `typed_controller_show_raised_errors` | `boolean` | `false` | Show exception messages and unexpected handler return values in 500 responses |
 
 See [Typed Controllers](../guides/typed-controllers.md) for complete documentation.
 

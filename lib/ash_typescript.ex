@@ -638,10 +638,11 @@ defmodule AshTypescript do
   end
 
   @doc """
-  Gets whether to show actual exception messages in typed controller 500 responses.
+  Gets whether to show actual error detail in typed controller 500 responses.
 
   When `false` (default), 500 responses return "Internal server error".
-  When `true`, the actual exception message is included.
+  When `true`, the actual exception message — or the inspected value of an
+  unexpected (non-`%Plug.Conn{}`) handler return — is included.
 
   ## Configuration
 

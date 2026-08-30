@@ -878,7 +878,7 @@ config :ash_typescript,
 
 ### Show Raised Errors
 
-By default, unhandled exceptions in route handlers return a generic "Internal server error" message. For development, you can expose the actual exception message:
+By default, unhandled exceptions in route handlers — and handlers that return something other than a `%Plug.Conn{}` — return a generic "Internal server error" message. For development, you can expose the actual error detail:
 
 ```elixir
 # config/dev.exs
@@ -886,7 +886,7 @@ config :ash_typescript,
   typed_controller_show_raised_errors: true
 ```
 
-When enabled, 500 responses include the real exception message instead of the generic one. **Do not enable in production.**
+When enabled, 500 responses include the real exception message (or the inspected handler return value) instead of the generic one. **Do not enable in production.** Unexpected handler return values are always logged server-side regardless of this setting.
 
 ## Configuration Reference
 
@@ -903,7 +903,7 @@ When enabled, 500 responses include the real exception message instead of the ge
 | `typed_controller_hook_context_type` | string | `"Record<string, any>"` | TypeScript type for hook context |
 | `typed_controller_import_into_generated` | list of maps | `[]` | Custom imports for generated file |
 | `typed_controller_error_handler` | MFA tuple, module, or nil | `nil` | Custom error transformation handler |
-| `typed_controller_show_raised_errors` | boolean | `false` | Show exception messages in 500 responses |
+| `typed_controller_show_raised_errors` | boolean | `false` | Show exception messages and unexpected handler return values in 500 responses |
 | `enable_controller_namespace_files` | boolean | `false` | Generate separate files for namespaced routes |
 | `controller_namespace_output_dir` | string or nil | `nil` | Directory for namespace files (defaults to `routes_output_file` dir) |
 

@@ -37,6 +37,8 @@ defmodule AshTypescript.TypedController.RequestHandler do
   import Plug.Conn
   import Phoenix.Controller, only: [json: 2]
 
+  require Logger
+
   alias AshTypescript.{ErrorFormatter, FieldFormatter}
 
   @doc """
@@ -238,11 +240,20 @@ defmodule AshTypescript.TypedController.RequestHandler do
     end
   end
 
+  # The detailed message is gated like raised exceptions above: the returned
+  # term is internal application data (e.g. an {:error, struct} fallthrough),
+  # so echoing it to the client by default would leak whatever it carries.
   defp unexpected_return(conn, value, context) do
-    error =
-      internal_error("Route handler must return %Plug.Conn{}, got: #{inspect(value, limit: 50)}")
+    detail = "Route handler must return %Plug.Conn{}, got: #{inspect(value, limit: 50)}"
 
-    send_errors(conn, 500, [error], context)
+    Logger.error("#{inspect(context.source_module)} route #{inspect(context.route)}: #{detail}")
+
+    error_msg =
+      if AshTypescript.typed_controller_show_raised_errors?(),
+        do: detail,
+        else: "Internal server error"
+
+    send_errors(conn, 500, [internal_error(error_msg)], context)
   end
 
   defp maybe_apply_error_handler(errors, context) do
