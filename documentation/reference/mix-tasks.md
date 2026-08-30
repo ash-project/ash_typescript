@@ -110,6 +110,10 @@ mix ash_typescript.codegen --check
 
 # Preview generated code without writing to file
 mix ash_typescript.codegen --dry-run
+
+# Override the configured output location for a single run
+mix ash_typescript.codegen --output assets/js
+mix ash_typescript.codegen --output myfolder/client.ts
 ```
 
 #### Options
@@ -121,8 +125,31 @@ mix ash_typescript.codegen --dry-run
 | `--check` | `boolean` | `false` | Raise `Ash.Error.Framework.PendingCodegen` if generated code is out of date. Covers every generated artifact, including the Markdown and JSON manifests (the JSON manifest's `generatedAt` stamp is ignored, so a date-only difference is not a diff). Only bypassed when `--dev` is also passed and `always_regenerate: true` is configured. |
 | `--dev` | `boolean` | `false` | Marks a development-plug invocation (`AshPhoenix.Plug.CheckCodegenStatus` passes `--dev --check`); combined with `always_regenerate: true`, files are written instead of raising |
 | `--dry-run` | `boolean` | `false` | Print files that would change to stdout (with `# <path>` headers) without writing them — manifests included |
+| `--output PATH` | `string` | — | Override the `output_file` config for this run (alias: `-o`). See [Overriding the output location](#overriding-the-output-location) |
 
-Output file locations are controlled by configuration (`output_file` and friends) — see the [Configuration Reference](configuration.md#multi-file-output).
+Output file locations are otherwise controlled by configuration (`output_file` and friends) — see the [Configuration Reference](configuration.md#multi-file-output).
+
+#### Overriding the output location
+
+`--output` overrides the `output_file` config, which is the path every other
+generated file auto-derives from. A path ending in `.ts` is used verbatim as the
+RPC functions file; anything else is treated as a directory and gets
+`ash_rpc.ts` appended.
+
+```bash
+# both write assets/js/ash_rpc.ts + assets/js/ash_types.ts (+ ash_zod.ts / ash_valibot.ts when enabled)
+mix ash_typescript.codegen --output assets/js
+mix ash_typescript.codegen --output assets/js/ash_rpc.ts
+
+# writes myfolder/client.ts + myfolder/ash_types.ts (+ ash_zod.ts / ash_valibot.ts when enabled)
+mix ash_typescript.codegen --output myfolder/client.ts
+```
+
+Paths set **explicitly** via `types_output_file`, `zod_output_file`,
+`valibot_output_file`, `routes_output_file` or `typed_channels_output_file` still
+win over the derived location — `--output` only moves the paths that were left to
+auto-derive. To relocate everything, either leave those keys unset or override
+them in config as well.
 
 #### Generated Content
 

@@ -7,16 +7,38 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
   Generates TypeScript types for Ash Rpc-calls.
 
   Output file locations are controlled by configuration (`output_file` and
-  friends) — see the Configuration Reference.
+  friends) — see the Configuration Reference. `--output` overrides the
+  `output_file` config for a single run.
 
   Usage:
     mix ash_typescript.codegen [--check | --dry-run] [--dev]
-      [--run-endpoint PATH] [--validate-endpoint PATH]
+      [--output PATH] [--run-endpoint PATH] [--validate-endpoint PATH]
+
+  ## `--output`
+
+  Overrides the `output_file` config, which every other generated path
+  auto-derives from. A path ending in `.ts` is used verbatim as the RPC
+  functions file; anything else is treated as a directory and gets
+  `ash_rpc.ts` appended.
+
+      # both write assets/js/ash_rpc.ts + assets/js/ash_types.ts + ...
+      mix ash_typescript.codegen --output assets/js
+      mix ash_typescript.codegen --output assets/js/ash_rpc.ts
+
+      # writes myfolder/client.ts + myfolder/ash_types.ts + ...
+      mix ash_typescript.codegen --output myfolder/client.ts
+
+  Paths set explicitly via `types_output_file`, `zod_output_file`,
+  `valibot_output_file`, `routes_output_file` or `typed_channels_output_file`
+  still win over the derived location — `--output` only moves the paths that
+  were left to auto-derive.
   """
 
   @shortdoc "Generates TypeScript types for Ash Rpc-calls"
 
   use Mix.Task
+
+  @default_rpc_filename "ash_rpc.ts"
 
   alias AshTypescript.Codegen.Orchestrator
   alias AshTypescript.Rpc.Codegen.JsonManifestGenerator
@@ -25,17 +47,24 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
   def run(args) do
     Mix.Task.run("compile")
 
+    # Parsing stays lenient (no `:strict`) on purpose: `mix ash.codegen` appends
+    # `--name <value>` to argv before forwarding to every extension's codegen
+    # task, and passes each extension's own flags through as well, so rejecting
+    # unrecognized switches here would break `mix ash.codegen` outright.
     {opts, _remaining, _invalid} =
       OptionParser.parse(args,
         switches: [
           check: :boolean,
           dev: :boolean,
           dry_run: :boolean,
+          output: :string,
           run_endpoint: :string,
           validate_endpoint: :string
         ],
-        aliases: [r: :run_endpoint, v: :validate_endpoint]
+        aliases: [o: :output, r: :run_endpoint, v: :validate_endpoint]
       )
+
+    apply_output_override(Keyword.get(opts, :output))
 
     otp_app = Mix.Project.config()[:app]
 
@@ -84,6 +113,24 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
       {:error, error_message} ->
         Mix.raise(error_message)
     end
+  end
+
+  # `:output_file` is the key every other generated path derives from (see
+  # `AshTypescript.config_or_derive/3`), so overriding it before generation is
+  # enough to relocate the whole output set.
+  defp apply_output_override(nil), do: :ok
+
+  defp apply_output_override(""), do: Mix.raise("--output requires a path")
+
+  defp apply_output_override(path) do
+    resolved =
+      if Path.extname(path) == ".ts" do
+        path
+      else
+        Path.join(path, @default_rpc_filename)
+      end
+
+    Application.put_env(:ash_typescript, :output_file, resolved)
   end
 
   defp handle_files(files, opts) do
