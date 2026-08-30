@@ -71,7 +71,7 @@ defmodule AshTypescript.TypedController.BasePathTest do
 
       [provider_page_body | _] = String.split(after_provider_page, "\n}\n", parts: 2)
       assert String.contains?(provider_page_body, "${_basePath}")
-      assert String.contains?(provider_page_body, "${path.provider}")
+      assert String.contains?(provider_page_body, "${encodeURIComponent(path.provider)}")
     end
 
     test "action functions include base path prefix in URL", %{typescript: typescript} do

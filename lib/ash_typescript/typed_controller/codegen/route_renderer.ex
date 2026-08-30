@@ -370,13 +370,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   defp build_url_template(path, path_params, use_path_prefix, has_base_path) do
     template =
       Enum.reduce(path_params, path, fn param, acc ->
-        interpolation =
-          if use_path_prefix do
-            "${#{format_output_field(:path)}.#{format_output_field(param)}}"
-          else
-            "${#{format_output_field(param)}}"
-          end
-
+        interpolation = path_param_interpolation(param, use_path_prefix)
         String.replace(acc, ":#{param}", interpolation)
       end)
 
@@ -396,18 +390,26 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   defp build_url_template_to_variable(path, path_params, use_path_prefix, has_base_path) do
     template =
       Enum.reduce(path_params, path, fn param, acc ->
-        interpolation =
-          if use_path_prefix do
-            "${#{format_output_field(:path)}.#{format_output_field(param)}}"
-          else
-            "${#{format_output_field(param)}}"
-          end
-
+        interpolation = path_param_interpolation(param, use_path_prefix)
         String.replace(acc, ":#{param}", interpolation)
       end)
 
     prefix = if has_base_path, do: "${_basePath}", else: ""
     "const base = `#{prefix}#{template}`;"
+  end
+
+  # Path-param values are always encodeURIComponent-wrapped so a value can never
+  # alter URL structure (e.g. a "/"-prefixed value forming a protocol-relative
+  # URL that redirects the request and its credentialed headers to another host).
+  defp path_param_interpolation(param, use_path_prefix) do
+    var =
+      if use_path_prefix do
+        "#{format_output_field(:path)}.#{format_output_field(param)}"
+      else
+        format_output_field(param)
+      end
+
+    "${encodeURIComponent(#{var})}"
   end
 
   defp build_jsdoc(route, path) do

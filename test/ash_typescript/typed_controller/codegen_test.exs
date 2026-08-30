@@ -99,7 +99,27 @@ defmodule AshTypescript.TypedController.CodegenTest do
         String.split(typescript, "export function providerPagePath(", parts: 2)
 
       [provider_page_body | _] = String.split(after_provider_page, "\n}\n", parts: 2)
-      assert String.contains?(provider_page_body, "${path.provider}")
+      assert String.contains?(provider_page_body, "${encodeURIComponent(path.provider)}")
+    end
+
+    # Regression: path-param values must be encodeURIComponent-wrapped so a value
+    # cannot alter URL structure. Without encoding, a "/"-prefixed value on a
+    # leading-param route ("/:slug") forms a protocol-relative URL that redirects
+    # the request — and its credentialed headers — to another host (CVE-3215).
+    test "path helper and action wrap every path param in encodeURIComponent", %{
+      typescript: typescript
+    } do
+      # Raw interpolation of a path param must never appear anywhere.
+      refute String.contains?(typescript, "${path.provider}")
+      assert String.contains?(typescript, "${encodeURIComponent(path.provider)}")
+
+      # Both the GET path helper and the mutation action function must encode.
+      for anchor <- ["export function providerPagePath(", "export async function updateProvider("] do
+        [_, after_anchor] = String.split(typescript, anchor, parts: 2)
+        [body | _] = String.split(after_anchor, "\n}\n", parts: 2)
+        assert String.contains?(body, "${encodeURIComponent(path.provider)}")
+        refute String.contains?(body, "${path.provider}")
+      end
     end
 
     test "generates path helper for search route with required query param", %{
@@ -410,7 +430,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
         String.split(typescript, "export function adminProfilePath(", parts: 2)
 
       [admin_profile_body | _] = String.split(after_admin_profile, "\n}\n", parts: 2)
-      assert String.contains?(admin_profile_body, "${path.userId}")
+      assert String.contains?(admin_profile_body, "${encodeURIComponent(path.userId)}")
     end
 
     test "generates app profile path with user_id as query param", %{typescript: typescript} do
@@ -454,7 +474,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
     end
 
     test "update_provider function uses path object for URL template", %{typescript: typescript} do
-      assert String.contains?(typescript, "${path.provider}")
+      assert String.contains?(typescript, "${encodeURIComponent(path.provider)}")
     end
 
     test "generates JSDoc for PATCH action", %{typescript: typescript} do
@@ -499,7 +519,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
         String.split(typescript, "export function providerPagePath(", parts: 2)
 
       [provider_page_body | _] = String.split(after_provider_page, "\n}\n", parts: 2)
-      assert String.contains?(provider_page_body, "${provider}")
+      assert String.contains?(provider_page_body, "${encodeURIComponent(provider)}")
       refute String.contains?(provider_page_body, "${path.provider}")
     end
 
@@ -521,7 +541,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
         String.split(typescript, "export async function updateProvider(", parts: 2)
 
       [update_provider_body | _] = String.split(after_update_provider, "\n}\n", parts: 2)
-      assert String.contains?(update_provider_body, "${provider}")
+      assert String.contains?(update_provider_body, "${encodeURIComponent(provider)}")
       refute String.contains?(update_provider_body, "${path.provider}")
     end
 
