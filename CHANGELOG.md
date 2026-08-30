@@ -19,6 +19,12 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * manifest-json: JSON manifest version 1.1 — new top-level `resources` object exposing per-relationship query capabilities (additive)
 
+* codegen: `mix ash_typescript.codegen --output PATH` (alias `-o`) overrides the `output_file` config for a single run; a `.ts` path is used as the RPC file, anything else is treated as a directory (#65)
+
+### Bug Fixes:
+
+* codegen: generated RPC action wrappers now type-check under `exactOptionalPropertyTypes: true` — the static `ActionConfig`/`ValidationConfig`/`ActionChannelConfig`/`ValidationChannelConfig` interfaces declare `| undefined` on their optional properties (#77)
+
 ### Breaking Changes:
 
 * rpc: top-level `filter`/`sort`/`page` parameters now return `filter_not_supported`/`sort_not_supported`/`pagination_not_supported` errors when the action cannot honor them (non-list reads, disabled via `enable_filter?`/`enable_sort?`, or no pagination configured) instead of being silently dropped
