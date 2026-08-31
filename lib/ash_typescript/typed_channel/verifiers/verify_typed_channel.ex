@@ -28,6 +28,8 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
 
   use Spark.Dsl.Verifier
 
+  alias AshTypescript.TypedChannel.Info
+
   @impl true
   def verify(dsl) do
     channel_resources = Spark.Dsl.Verifier.get_entities(dsl, [:typed_channel])
@@ -48,7 +50,7 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
         Enum.flat_map(channel_resource.publications, fn pub ->
           event_str = to_string(pub.event)
 
-          if find_publication(publications, event_str) do
+          if Info.find_publication(publications, event_str) do
             []
           else
             [
@@ -125,7 +127,7 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
       publications = Ash.Notifier.PubSub.Info.publications(resource_module)
 
       Enum.reduce(channel_resource.publications, acc, fn pub, {non_public, missing_returns} ->
-        case find_publication(publications, to_string(pub.event)) do
+        case Info.find_publication(publications, to_string(pub.event)) do
           nil ->
             {non_public, missing_returns}
 
@@ -191,12 +193,5 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
     # Trailing "" keeps consecutive blocks (and anything printed after) visually
     # separated, matching the "\n\n" join the RPC warnings use.
     ([header, ""] ++ entry_lines ++ explanation_lines ++ [""]) |> Enum.join("\n")
-  end
-
-  defp find_publication(publications, event_str) do
-    Enum.find(publications, fn pub ->
-      event_name = pub.event || pub.action
-      to_string(event_name) == event_str
-    end)
   end
 end

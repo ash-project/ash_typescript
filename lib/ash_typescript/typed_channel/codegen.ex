@@ -228,7 +228,7 @@ defmodule AshTypescript.TypedChannel.Codegen do
       channel_resource.publications
       |> Enum.map(fn pub ->
         event_str = to_string(pub.event)
-        matching_pub = find_publication(publications, event_str)
+        matching_pub = Info.find_publication(publications, event_str)
 
         ts_type = resolve_payload_type(matching_pub, resource_module)
 
@@ -408,12 +408,5 @@ defmodule AshTypescript.TypedChannel.Codegen do
     event_str
     |> Macro.camelize()
     |> then(&"#{&1}Payload")
-  end
-
-  defp find_publication(publications, event_str) do
-    Enum.find(publications, fn pub ->
-      event_name = pub.event || pub.action
-      to_string(event_name) == event_str
-    end)
   end
 end
