@@ -172,7 +172,7 @@ A hand-rolled type matching nothing gets a schema derived from
 `z.iso.datetime()`, …). Storage types with no unambiguous JSON wire form resolve to
 `any_schema()` — a wrong schema rejects valid data, which is worse than not validating.
 
-Before 0.19 every hand-rolled custom type collapsed to a flat `z.string()`/`v.string()`,
+Before 0.18 every hand-rolled custom type collapsed to a flat `z.string()`/`v.string()`,
 which *rejected* its own valid values whenever the type wasn't string-backed. Note the
 fallback is deliberately permissive: a `:map`-storage type validates as a record, not as
 its precise object shape. Use a NewType or an override if you need precision.
