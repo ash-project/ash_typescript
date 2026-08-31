@@ -409,9 +409,19 @@ Both Zod and Valibot can be enabled simultaneously — they generate into separa
 | `valibot_import_path` | `string` | `"valibot"` | Import path for Valibot library |
 | `valibot_schema_suffix` | `string` | `"ValibotSchema"` | Suffix for schema names |
 | `generate_validation_functions` | `boolean` | `false` | Generate server validation functions |
+| `zod_mapping_overrides` | `list` | `[]` | Override the Zod schema for a custom Ash type |
+| `valibot_mapping_overrides` | `list` | `[]` | Override the Valibot schema for a custom Ash type |
+| `zod_import_into_generated` | `list` | `[]` | Extra imports for the generated Zod schema file |
+| `valibot_import_into_generated` | `list` | `[]` | Extra imports for the generated Valibot schema file |
+
+Custom Ash types get their schema from their constraints (for `Ash.Type.NewType`)
+or from their storage type (for hand-rolled types). See
+[Custom Types](../advanced/custom-types.md#validation-schemas-for-custom-types)
+for how to control that.
 
 ## Next Steps
 
+- [Custom Types](../advanced/custom-types.md) - Control schemas for custom Ash types
 - [Error Handling](error-handling.md) - Handle validation errors
 - [CRUD Operations](crud-operations.md) - Complete CRUD patterns
 - [Phoenix Channels](../features/phoenix-channels.md) - Real-time validation

@@ -57,6 +57,15 @@ config :ash_typescript,
   # Type mapping overrides
   type_mapping_overrides: [],
 
+  # Validation-schema overrides for hand-rolled custom types
+  zod_mapping_overrides: [],
+  valibot_mapping_overrides: [],
+
+  # Extra imports for the generated schema files, so an override above can
+  # name a schema you authored in TypeScript
+  zod_import_into_generated: [],
+  valibot_import_into_generated: [],
+
   # TypeScript type for untyped maps
   untyped_map_type: "Record<string, any>",
 
@@ -160,6 +169,10 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `phoenix_import_path` | `string` | `"phoenix"` | Import path for Phoenix library |
 | `import_into_generated` | `list` | `[]` | List of custom modules to import |
 | `type_mapping_overrides` | `list` | `[]` | Override TypeScript types for Ash types |
+| `zod_mapping_overrides` | `list` | `[]` | Override generated Zod schemas for custom Ash types |
+| `valibot_mapping_overrides` | `list` | `[]` | Override generated Valibot schemas for custom Ash types |
+| `zod_import_into_generated` | `list` | `[]` | Extra imports for the generated Zod schema file |
+| `valibot_import_into_generated` | `list` | `[]` | Extra imports for the generated Valibot schema file |
 | `untyped_map_type` | `string` | `"Record<string, any>"` | TypeScript type for untyped maps |
 | `warn_on_missing_rpc_config` | `boolean` | `true` | Warn about resources with extension not in RPC config |
 | `warn_on_non_rpc_references` | `boolean` | `true` | Warn about non-RPC resources referenced by RPC resources |

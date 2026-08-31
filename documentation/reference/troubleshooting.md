@@ -218,6 +218,42 @@ See [Custom Types](../advanced/custom-types.md).
 
 **Solution:** Run codegen in the environment where the resources compile, e.g. `MIX_ENV=test mix ash_typescript.codegen`, or set up a `test.codegen` alias with `preferred_envs` (see [Mix Tasks Reference](mix-tasks.md#test-environment-code-generation)).
 
+### Validation Schema Issues
+
+#### A custom type generates `z.any()` / `v.any()`
+
+**Cause:** A hand-rolled `use Ash.Type` module whose `storage_type/1` has no unambiguous JSON wire form. AshTypescript stays permissive rather than guessing, since a wrong schema rejects valid data.
+
+**Solution:** Express the type as an `Ash.Type.NewType` with constraints (which covers the TypeScript type *and* the schema), or set the schema directly:
+
+```elixir
+config :ash_typescript,
+  zod_mapping_overrides: [{MyApp.CustomType, "z.string()"}],
+  valibot_mapping_overrides: [{MyApp.CustomType, "v.string()"}]
+```
+
+#### A custom type's schema is more permissive than its TypeScript type
+
+**Cause:** A hand-rolled `:map`-storage type generates `z.record(z.string(), z.any())`. Its real shape lives in `cast_input/2`, which can't be introspected — only the storage type is visible.
+
+**Solution:** Use an `Ash.Type.NewType` with `fields` constraints, or a schema mapping override.
+
+#### Error: `Cannot find name 'X'` in generated `ash_zod.ts` / `ash_valibot.ts`
+
+**Cause:** A mapping override references an imported symbol, but the generated schema file imports only its validation library. `import_into_generated` does **not** apply to the schema files — it targets the types and RPC files.
+
+**Solution:** Declare the import with the per-library key:
+
+```elixir
+config :ash_typescript,
+  zod_mapping_overrides: [{MyApp.ObjectId, "CustomZodSchemas.objectId"}],
+  zod_import_into_generated: [
+    %{import_name: "CustomZodSchemas", file: "assets/js/customZodSchemas.ts"}
+  ]
+```
+
+See [Custom Types](../advanced/custom-types.md#validation-schemas-for-custom-types).
+
 ### Field Selection Issues
 
 **Symptoms:**

@@ -370,7 +370,7 @@ mix credo --strict                   # Linting
 | **Action metadata** | [features/action-metadata.md](agent-docs/features/action-metadata.md) | `test/ash_typescript/rpc/rpc_metadata_test.exs`, `test/ash_typescript/rpc/verify_metadata_field_names_test.exs` |
 | **RPC pipeline or field processing** | [features/rpc-pipeline.md](agent-docs/features/rpc-pipeline.md) | `test/ash_typescript/rpc/rpc_*_test.exs` |
 | **Load restrictions** | [features/rpc-pipeline.md](agent-docs/features/rpc-pipeline.md) (RPC Action Options) | `test/ash_typescript/rpc/load_restrictions_test.exs` |
-| **Validation schemas (Zod & Valibot)** | [features/validation-schemas.md](agent-docs/features/validation-schemas.md) | `test/ash_typescript/rpc/zod_constraints_test.exs`, `test/ash_typescript/rpc/valibot_constraints_test.exs` |
+| **Validation schemas (Zod & Valibot)** | [features/validation-schemas.md](agent-docs/features/validation-schemas.md) | `test/ash_typescript/rpc/zod_constraints_test.exs`, `test/ash_typescript/rpc/valibot_constraints_test.exs`, `test/ash_typescript/rpc/custom_type_schema_test.exs` |
 | **Embedded resources** | [features/embedded-resources.md](agent-docs/features/embedded-resources.md) | `test/support/resources/embedded/` |
 | **Union types** | [features/union-systems-core.md](agent-docs/features/union-systems-core.md) | `test/ash_typescript/rpc/rpc_run_action_union_*_test.exs`, `test/ash_typescript/union_types_test.exs` |
 | **Namespaces, JSDoc, Manifest, JSON Manifest** | [features/developer-experience.md](agent-docs/features/developer-experience.md) | `test/ash_typescript/rpc/namespace_test.exs`, `test/ash_typescript/rpc/json_manifest_generator_test.exs` |
@@ -434,6 +434,9 @@ mix credo --strict                   # Linting
 | "Invalid field names found" | Field/arg with `_1` or `?` | Use `field_names` or `argument_names` DSL options |
 | "Invalid field names found in map/keyword/tuple type constraints" | Map constraint fields invalid | Create `Ash.Type.NewType` with `typescript_field_names/0` callback |
 | "Unsupported types found — AshTypescript cannot map them" | Reachable type module has no TS mapping | Implement `typescript_type_name/0` on the type, or add `config :ash_typescript, type_mapping_overrides: [{Mod, "<ts type>"}]` |
+| Zod/Valibot schema is `z.any()` for a custom type | Hand-rolled type whose `storage_type/1` has no unambiguous JSON form | Add `zod_mapping_overrides` / `valibot_mapping_overrides`, or express the type as an `Ash.Type.NewType` with constraints |
+| Zod/Valibot schema too permissive (e.g. `z.record`) for a custom type | Hand-rolled `:map`-storage type — the shape lives in `cast_input/2` and can't be introspected | Use an `Ash.Type.NewType` with `fields` constraints, or a schema mapping override |
+| `Cannot find name 'X'` in generated `ash_zod.ts` / `ash_valibot.ts` | A mapping override references an imported symbol with no matching import | Add `zod_import_into_generated` / `valibot_import_into_generated` (`import_into_generated` does **not** apply to schema files) |
 | "Invalid metadata field name" | Metadata field with `_1` or `?` | Use `metadata_field_names` DSL option in `rpc_action` |
 | "Metadata field conflicts with resource field" | Metadata field shadows resource field | Rename metadata field or use different mapped name |
 | TypeScript `unknown` types | Schema key mismatch | Check `__type` metadata generation |

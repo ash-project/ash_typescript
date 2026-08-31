@@ -90,18 +90,110 @@ Dispatch is on manifest `kind`, so a custom type resolving to a **concrete kind*
 (e.g. a string-backed `Ash.Type.NewType`) gets that kind's structural schema. There is
 no blanket `is_custom_type? → any` short-circuit (removed in 0.18).
 
-Only `kind: :unknown` reaches `SchemaCore.map_unknown_module/2`, which cascades:
+Only `kind: :unknown` reaches `SchemaCore.map_unknown_module/2`. **An
+`Ash.Type.NewType` never lands here** — it resolves to its subtype's kind (or a
+`:type_ref`) and carries its declared constraints through the normal dispatch.
+What reaches this path is a hand-rolled `use Ash.Type` module, whose shape lives
+in `cast_input/2` and is not introspectable.
 
-1. `AshPostgres.Ltree` → `ltree_array()` when `escape?: true`, else `ltree_union()`
-2. `formatter.simple_primitives()` lookup
-3. `formatter.third_party_types()` lookup — `AshDoubleEntry.ULID` → `z.string()`/`v.string()`;
+The cascade:
+
+1. `formatter.mapping_overrides()` — `zod_mapping_overrides` / `valibot_mapping_overrides` config
+2. `AshPostgres.Ltree` → `ltree_array()` when `escape?: true`, else `ltree_union()`
+3. `formatter.simple_primitives()` lookup
+4. `formatter.third_party_types()` lookup — `AshDoubleEntry.ULID` → `z.string()`/`v.string()`;
    `AshMoney.Types.Money` → `z.object({ amount: z.string(), currency: z.string() })` (valibot mirror)
-4. `Introspection.is_custom_type?/1` → `formatter.custom_type_fallback()` (`z.string()`/`v.string()`)
-5. otherwise `formatter.any_schema()`
+5. `Introspection.is_custom_type?/1` → schema derived from `Ash.Type.storage_type/1`
+6. otherwise `formatter.any_schema()`
+
+#### Controlling a custom type's schema
+
+**First choice: make it an `Ash.Type.NewType`.** Constraints declared on a NewType
+flow through the normal dispatch for scalars, maps, arrays, and unions alike — no
+override, no callback, and the TypeScript type stays in sync automatically:
+
+```elixir
+use Ash.Type.NewType, subtype_of: :integer, constraints: [min: 1, max: 100]
+# → z.number().int().min(1).max(100)
+
+use Ash.Type.NewType,
+  subtype_of: :map,
+  constraints: [fields: [lat: [type: :float], lng: [type: :float]]]
+# → z.object({ lat: z.number().nullable().optional(), ... })
+```
+
+**Second choice: config overrides**, for types that must stay hand-rolled (custom
+cast semantics, casting into a struct) or that come from a dependency. This is
+also the only way to emit raw library syntax such as a brand or `.refine()`:
+
+```elixir
+config :ash_typescript,
+  zod_mapping_overrides: [{MyApp.Weird, ~s{z.string().brand<"Id">()}}],
+  valibot_mapping_overrides: [{MyApp.Weird, "v.string()"}]
+```
+
+An override may also **name a schema you authored in TypeScript** instead of an
+inline expression. The generated schema files import only their own library, so
+the reference needs a matching per-library import entry — otherwise the emitted
+code references an undefined name and `tsc` fails:
+
+```elixir
+config :ash_typescript,
+  zod_mapping_overrides: [{MyApp.ObjectId, "CustomZodSchemas.objectId"}],
+  zod_import_into_generated: [
+    %{import_name: "CustomZodSchemas", file: "assets/js/customZodSchemas.ts"}
+  ]
+```
+
+```ts
+// ash_zod.ts
+import { z } from "zod";
+import * as CustomZodSchemas from "./customZodSchemas";
+// ...
+customId: CustomZodSchemas.objectId.nullable().optional(),
+```
+
+These keys are deliberately **separate from `import_into_generated`**, which
+targets `ash_types.ts` and the RPC file. Reusing it would inject unrelated
+modules (custom types, hooks) into the schema files and risk import cycles when a
+hooks file imports from `ash_zod.ts`. `SharedSchemaGenerator` resolves them via
+the shared `ImportResolver`, so paths are relative to the schema file.
+
+There is deliberately **no ash_typescript-specific callback** for this. Third-party
+types can't be expected to implement one, so commonly used official Ash libraries
+are carried in the in-tree `third_party_types()` accept-list instead; everyone else
+uses a NewType or config.
+
+#### Storage-derived fallback
+
+A hand-rolled type matching nothing gets a schema derived from
+`Ash.Type.storage_type/1` (`:integer` → `z.number().int()`, `:map`/`:jsonb` →
+`z.record(...)`, `{:array, :string}` → `z.array(z.string())`, `:utc_datetime_usec` →
+`z.iso.datetime()`, …). Storage types with no unambiguous JSON wire form resolve to
+`any_schema()` — a wrong schema rejects valid data, which is worse than not validating.
+
+Before 0.19 every hand-rolled custom type collapsed to a flat `z.string()`/`v.string()`,
+which *rejected* its own valid values whenever the type wasn't string-backed. Note the
+fallback is deliberately permissive: a `:map`-storage type validates as a record, not as
+its precise object shape. Use a NewType or an override if you need precision.
 
 ⚠️ After touching this path, run `npm run testZod` **and** `npm run testValibot` from
 `test/ts/` — they are the only checks that execute the generated schemas against real
 data (type-level compilation will not catch e.g. an empty `z.object({})` for Money).
+
+Runtime coverage for this cascade lives in `test/ts/{zod,valibot}/{shouldPass,shouldFail}/customTypeSchemas.ts`
+(kept apart from `constraintValidation.ts`, which covers constraint rendering rather than
+type resolution). The two test fixtures in `config/config.exs` cover both reasons to reach
+for an override:
+
+| Type | Storage | Without an override | Override source |
+|------|---------|---------------------|-----------------|
+| `AshTypescript.Test.CustomIdentifier` | `:string` | `z.any()` — no `typescript_type_name` | `test/ts/customZodSchemas.ts` |
+| `AshTypescript.Test.GeoPoint` | `:map` | `z.record(z.string(), z.any())` — too permissive | `test/ts/custom/nestedZodSchemas.ts` |
+
+`GeoPoint` deliberately imports from a **subdirectory**, so `ImportResolver` has to emit
+`./custom/nestedZodSchemas` rather than a same-directory sibling, and its `shouldFail`
+tests reject a point missing `lng` — something the storage-derived record would accept.
 
 ## Configuration
 

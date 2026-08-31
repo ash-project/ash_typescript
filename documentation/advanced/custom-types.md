@@ -181,6 +181,123 @@ interface ProductResourceSchema {
 | `typescript_type_name/0` callback | You control the Ash type definition |
 | `type_mapping_overrides` | The type is from a dependency you can't modify |
 
+## Validation Schemas for Custom Types
+
+`type_mapping_overrides` and `typescript_type_name/0` control the generated
+**TypeScript type**. They do not affect the generated **Zod/Valibot schema** —
+that is resolved separately, and has its own set of options.
+
+### Prefer `Ash.Type.NewType`
+
+A type built with `Ash.Type.NewType` needs nothing at all. Its declared
+constraints flow into both the TypeScript type and the validation schema, for
+scalars, maps, arrays, and unions alike:
+
+```elixir
+defmodule MyApp.Score do
+  use Ash.Type.NewType, subtype_of: :integer, constraints: [min: 1, max: 100]
+end
+```
+
+```typescript
+score: z.number().int().min(1).max(100).nullable().optional(),
+```
+
+This is the recommended approach whenever you can express your type this way.
+
+### Hand-Rolled Types Derive From Storage
+
+A type built with `use Ash.Type` casts through arbitrary code, so its shape
+can't be inspected. AshTypescript derives a schema from `storage_type/1`:
+
+| `storage_type/1` | Generated Zod |
+|------------------|---------------|
+| `:integer` | `z.number().int()` |
+| `:float` | `z.number()` |
+| `:boolean` | `z.boolean()` |
+| `:string`, `:ci_string`, `:atom` | `z.string()` |
+| `:uuid`, `:binary_id` | `z.uuid()` |
+| `:date` | `z.iso.date()` |
+| `:time`, `:time_usec` | `z.string().time()` |
+| `:naive_datetime`, `:utc_datetime`, `:utc_datetime_usec` | `z.iso.datetime()` |
+| `:decimal`, `:binary` | `z.string()` |
+| `:map`, `:jsonb` | `z.record(z.string(), z.any())` |
+| `{:array, inner}` | `z.array(<inner>)` |
+| anything else | `z.any()` |
+
+This is permissive but never wrong: a `:map`-storage type validates as a record
+rather than as its precise object shape. Use an override below if you need
+precision.
+
+### Schema Mapping Overrides
+
+For hand-rolled types, or types from a dependency, set the schema directly:
+
+```elixir
+config :ash_typescript,
+  zod_mapping_overrides: [
+    {SomeLib.ObjectId, ~s{z.string().brand<"ObjectId">()}}
+  ],
+  valibot_mapping_overrides: [
+    {SomeLib.ObjectId, "v.string()"}
+  ]
+```
+
+The two lists are independent — a type with a Zod override but no Valibot
+override keeps its storage-derived Valibot schema. Overrides also take
+precedence over the built-in third-party mappings.
+
+### Referencing a Schema You Wrote
+
+An override can name a schema authored in TypeScript instead of an inline
+expression. Because the generated schema files import only their validation
+library, you must also declare the import, or the generated code will reference
+an undefined name:
+
+```elixir
+config :ash_typescript,
+  zod_mapping_overrides: [{SomeLib.ObjectId, "CustomZodSchemas.objectId"}],
+  zod_import_into_generated: [
+    %{import_name: "CustomZodSchemas", file: "assets/js/customZodSchemas.ts"}
+  ]
+```
+
+```typescript
+// assets/js/customZodSchemas.ts — yours to maintain
+import { z } from "zod";
+export const objectId = z.string().min(3).brand<"ObjectId">();
+```
+
+```typescript
+// ash_zod.ts — generated
+import { z } from "zod";
+import * as CustomZodSchemas from "./customZodSchemas";
+
+export const createTaskZodSchema = z.object({
+  customId: CustomZodSchemas.objectId.nullable().optional(),
+});
+```
+
+These keys are separate from `import_into_generated`, which targets the types
+and RPC files. Keeping them separate stops unrelated modules from being pulled
+into the schema files, where they could create import cycles.
+
+> #### No schema callback {: .info}
+>
+> There is deliberately no ash_typescript-specific callback for validation
+> schemas. Third-party types can't be expected to implement one, so commonly
+> used official Ash libraries are supported in-tree, and everything else uses a
+> `NewType` or config.
+
+### Choosing an Approach
+
+| Approach | Use When |
+|----------|----------|
+| `Ash.Type.NewType` with constraints | You control the type and it fits the NewType model — covers the type *and* the schema |
+| Storage-derived default | The type is hand-rolled and a permissive schema is acceptable |
+| `zod_mapping_overrides` / `valibot_mapping_overrides` | You need precision or raw library syntax (brands, `.refine()`) |
+| `zod_import_into_generated` / `valibot_import_into_generated` | The override should reuse a schema you maintain in TypeScript |
+
 ## Untyped Map Type Configuration
 
 By default, AshTypescript generates `Record<string, any>` for map-like types without field constraints. You can configure this to use stricter types.
