@@ -11,9 +11,22 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
-## Unreleased
+## [v0.18.0](https://github.com/ash-project/ash_typescript/compare/v0.17.3...v0.18.0) (2026-08-31)
 
-### Features:
+### Highlights:
+
+Fuller context for the most significant changes in this release. The complete
+commit-level record follows below.
+
+#### Breaking
+
+* typed-channel: broadcast payloads are now formatted with the `output_field_formatter` before reaching the client — `use AshTypescript.TypedChannel` intercepts the declared events and formats via `handle_out/3`, so the wire matches the generated payload types; the module must now also `use Phoenix.Channel` (compile warning otherwise) (#79)
+
+* rpc: top-level `filter`/`sort`/`page` parameters now return `filter_not_supported`/`sort_not_supported`/`pagination_not_supported` errors when the action cannot honor them (non-list reads, disabled via `enable_filter?`/`enable_sort?`, or no pagination configured) instead of being silently dropped
+
+* validation-schemas: the `AshTypescript.Codegen.SchemaFormatter` behaviour replaces the `custom_type_fallback/0` callback with `mapping_overrides/0`. Only affects out-of-tree formatter implementations; the two in-tree formatters (Zod, Valibot) are updated
+
+#### Features
 
 * rpc: nested relationship query options — paginate, filter, sort, and slice has_many/many_to_many loads inside field selection, with capability-gated TypeScript types and page-shaped results
 
@@ -25,7 +38,7 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * validation-schemas: new `zod_import_into_generated` / `valibot_import_into_generated` config injects user-authored imports into the generated schema files, so a mapping override can name a schema written in TypeScript (e.g. `"CustomZodSchemas.objectId"`) instead of an inline expression. Scoped per library rather than reusing `import_into_generated`, which targets the types and RPC files (#84)
 
-### Bug Fixes:
+#### Bug Fixes
 
 * codegen: generated RPC action wrappers now type-check under `exactOptionalPropertyTypes: true` — the static `ActionConfig`/`ValidationConfig`/`ActionChannelConfig`/`ValidationChannelConfig` interfaces declare `| undefined` on their optional properties (#77)
 
@@ -33,11 +46,203 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 ### Breaking Changes:
 
-* typed-channel: broadcast payloads are now formatted with the `output_field_formatter` before reaching the client — `use AshTypescript.TypedChannel` intercepts the declared events and formats via `handle_out/3`, so the wire matches the generated payload types; the module must now also `use Phoenix.Channel` (compile warning otherwise) (#79)
+* rpc: nested query envelopes; strict top-level filter/sort/page by [@Torkan](https://github.com/Torkan)
 
-* validation-schemas: the `AshTypescript.Codegen.SchemaFormatter` behaviour replaces the `custom_type_fallback/0` callback with `mapping_overrides/0`. Only affects out-of-tree formatter implementations; the two in-tree formatters (Zod, Valibot) are updated
+* typed-controller: return route errors in the RPC error shape by [@Torkan](https://github.com/Torkan)
 
-* rpc: top-level `filter`/`sort`/`page` parameters now return `filter_not_supported`/`sort_not_supported`/`pagination_not_supported` errors when the action cannot honor them (non-list reads, disabled via `enable_filter?`/`enable_sort?`, or no pagination configured) instead of being silently dropped
+* errors: replace error `code` with `type` and keep placeholders client-resolvable by [@Torkan](https://github.com/Torkan)
+
+
+
+### Features:
+
+* validation-schemas: add schema mapping overrides for custom Ash types by [@Torkan](https://github.com/Torkan)
+
+* codegen: add --output flag to override output_file for a single run (closes #65) by [@Torkan](https://github.com/Torkan)
+
+* manifest-json: expose relationship query capabilities (manifest 1.1) by [@Torkan](https://github.com/Torkan)
+
+* codegen: capability-gated types for nested relationship query options by [@Torkan](https://github.com/Torkan)
+
+* manifest: decorate many-relationships with query capabilities by [@Torkan](https://github.com/Torkan)
+
+* typed-controller: support array route arguments by [@Torkan](https://github.com/Torkan)
+
+* manifest: add a Valibot Schema column to the Markdown manifest by [@Torkan](https://github.com/Torkan)
+
+* typed-controller: apply Ash argument semantics and generate Valibot route schemas by [@Torkan](https://github.com/Torkan)
+
+* manifest: reject unmappable types and invalid rpc_action options at compile time by [@Torkan](https://github.com/Torkan)
+
+* typed-channel: add independently toggleable publication warnings by [@Torkan](https://github.com/Torkan)
+
+* installer: scaffold AshTypescriptManifest module and manifest config by [@Torkan](https://github.com/Torkan)
+
+* manifest: precompute action classification, input maps and bulk strategy under Custom by [@Torkan](https://github.com/Torkan)
+
+* manifest: add O(1) entrypoint lookup maps for RPC actions and typed queries by [@Torkan](https://github.com/Torkan)
+
+* manifest: precompute runtime source-of-truth data under Custom decoration by [@Torkan](https://github.com/Torkan)
+
+* manifest: decorate manifest with ash_typescript metadata under custom namespace by [@Torkan](https://github.com/Torkan)
+
+* ash_api_spec: raise on non-public attrs in entrypoint accept lists by [@Torkan](https://github.com/Torkan)
+
+* ash_api_spec: add type_lookup with strict get_type! lookup by [@Torkan](https://github.com/Torkan)
+
+* ash_api_spec: add visibility options to include private fields in spec generation by [@Torkan](https://github.com/Torkan)
+
+* add SpecCache with persistent_term for zero-cost spec reads by [@Torkan](https://github.com/Torkan)
+
+* AshApiSpec: add convenience functions to Type and top-level module by [@Torkan](https://github.com/Torkan)
+
+* AshApiSpec: hydrate union members with tag info and resolved types by [@Torkan](https://github.com/Torkan)
+
+* populate entrypoint config from RPC DSL and use it in codegen by [@Torkan](https://github.com/Torkan)
+
+* AshApiSpec: move actions from resources to top-level entrypoints by [@Torkan](https://github.com/Torkan)
+
+* resolve type_ref in codegen and RPC runtime consumers by [@Torkan](https://github.com/Torkan)
+
+* AshApiSpec: add overrides option and type_ref references for named types by [@Torkan](https://github.com/Torkan)
+
+* ash-api-spec: add accessible_relationships and accepted_fields convenience functions by [@Torkan](https://github.com/Torkan)
+
+* ash-api-spec: expand convenience API and adopt throughout codebase by [@Torkan](https://github.com/Torkan)
+
+* rpc: add TypeIndex for pre-computed runtime type lookups by [@Torkan](https://github.com/Torkan)
+
+* ash-api-spec: add resource lookup API and action-scoped generation by [@Torkan](https://github.com/Torkan)
+
+* codegen: add AshApiSpec fast-path to FilterTypes and enforce resource_lookup by [@Torkan](https://github.com/Torkan)
+
+* codegen: add AshApiSpec fast-path to ResourceSchemas and enforce resource_lookup by [@Torkan](https://github.com/Torkan)
+
+* codegen: add %AshApiSpec.Field{} dispatch to TypeMapper and fix ensure_codegen_instance_of by [@Torkan](https://github.com/Torkan)
+
+* codegen: generate AshApiSpec at entry point and thread resource_lookup to submodules by [@Torkan](https://github.com/Torkan)
+
+* rpc: add %AshApiSpec.Resource{} fast path to FieldSelector by [@Torkan](https://github.com/Torkan)
+
+* rpc: thread resource_lookups through runtime pipeline by [@Torkan](https://github.com/Torkan)
+
+* rpc: persist resource lookups and add %Type{} dispatch for runtime type resolution by [@Torkan](https://github.com/Torkan)
+
+* codegen: add %AshApiSpec.Type{} dispatch to TypeMapper and ResourceSchemas by [@Torkan](https://github.com/Torkan)
+
+* ash-api-spec: add missing primitive types and fix type resolver edge cases by [@Torkan](https://github.com/Torkan)
+
+* ash-api-spec: add reachability analysis, generator pipeline, and JSON serializer by [@Torkan](https://github.com/Torkan)
+
+* ash-api-spec: add type resolver and builders by [@Torkan](https://github.com/Torkan)
+
+* ash-api-spec: add struct definitions for API specification IR by [@Torkan](https://github.com/Torkan)
+
+### Bug Fixes:
+
+* typed-channel: format broadcast payloads with output_field_formatter (closes #79) by [@Torkan](https://github.com/Torkan)
+
+* codegen: add | undefined to optional config props for exactOptionalPropertyTypes (closes #77) by [@Torkan](https://github.com/Torkan)
+
+* typed-controller: gate unexpected handler return detail behind show_raised_errors (CVE-3218) by [@Torkan](https://github.com/Torkan)
+
+* typed-controller: reject colliding request params instead of silently merging (CVE-3217) by [@Torkan](https://github.com/Torkan)
+
+* typed-controller: encode path params in generated route URLs (CVE-3215) by [@Torkan](https://github.com/Torkan)
+
+* rpc: redact ForbiddenField and NotLoaded in normalize_primitive by [@Torkan](https://github.com/Torkan)
+
+* rpc: reject non-scalar get_by values before trusted filter by [@Torkan](https://github.com/Torkan)
+
+* rpc: reject non-scalar identity values before trusted filter by [@Torkan](https://github.com/Torkan)
+
+* codegen: make restricted schemas restrict scalar loads by [@Torkan](https://github.com/Torkan)
+
+* rpc: enforce load restrictions during field selection by [@Torkan](https://github.com/Torkan)
+
+* rpc: stop minting atoms for typed struct field names by [@Torkan](https://github.com/Torkan)
+
+* rpc: stop unwrapping unknown structs into RPC error payloads by [@Torkan](https://github.com/Torkan)
+
+* rpc: fail closed when a configured error handler crashes by [@Torkan](https://github.com/Torkan)
+
+* rpc: scope validate_action target lookup to the configured read_action by [@Torkan](https://github.com/Torkan)
+
+* rpc: prevent atom-table exhaustion from client-supplied field names by [@Torkan](https://github.com/Torkan)
+
+* codegen: skip satisfies-widened undefined keys in InferResult by [@Torkan](https://github.com/Torkan)
+
+* codegen: resolve leaf validation types by module before kind by [@Torkan](https://github.com/Torkan)
+
+* rpc: serialize Ash.Type.Vector values as number arrays by [@Torkan](https://github.com/Torkan)
+
+* codegen: add AshVector type alias for Ash.Type.Vector by [@Torkan](https://github.com/Torkan)
+
+* typed-channel: emit grouped publication warnings to stderr by [@Torkan](https://github.com/Torkan)
+
+* manifest: stop RPC config warnings failing --warnings-as-errors by [@Torkan](https://github.com/Torkan)
+
+* mix: raise when npm install exits non-zero by [@Torkan](https://github.com/Torkan)
+
+* installer: warn on a missing router and scaffold valibot config by [@Torkan](https://github.com/Torkan)
+
+* codegen: support generation from an empty manifest by [@Torkan](https://github.com/Torkan)
+
+* codegen: align pagination result types with runtime payloads by [@Torkan](https://github.com/Torkan)
+
+* codegen: advertise the validation-channel function and centralize generated names by [@Torkan](https://github.com/Torkan)
+
+* manifest: only advertise schema variants for actions that have one by [@Torkan](https://github.com/Torkan)
+
+* typed-controller: export and advertise GET-route validation schemas by [@Torkan](https://github.com/Torkan)
+
+* codegen: check and preview the manifests like any other artifact by [@Torkan](https://github.com/Torkan)
+
+* codegen: attribute non-RPC resource references in the warning by [@Torkan](https://github.com/Torkan)
+
+* rpc: resolve resources against scoped manifests during field processing by [@Torkan](https://github.com/Torkan)
+
+* codegen: drive non-empty string schemas from allow_empty? constraints by [@Torkan](https://github.com/Torkan)
+
+* codegen: correct type-level shapes for typed maps, keyset pages and channels by [@Torkan](https://github.com/Torkan)
+
+* manifest: recompile the manifest module when its domains change by [@Torkan](https://github.com/Torkan)
+
+* codegen: propagate array cardinality constraints by Rodolfo Torres
+
+* codegen: restore @ashActionDef JSDoc tag via concrete action lookup by [@Torkan](https://github.com/Torkan)
+
+* codegen: map Money/Ltree/ULID third-party types instead of falling back to any by [@Torkan](https://github.com/Torkan)
+
+* test: respect explicit false for deadline_factor calc option by [@Torkan](https://github.com/Torkan)
+
+* resource: validate map field names through NewType and array constraints by [@Torkan](https://github.com/Torkan)
+
+* rpc: preserve false values when extracting plain map fields by [@Torkan](https://github.com/Torkan)
+
+* guard typescript_field_names checks with Code.ensure_loaded?/1 by [@Torkan](https://github.com/Torkan)
+
+* preserve false values when extracting plain map fields (#80) by [@vasspilka](https://github.com/vasspilka)
+
+* reachability: traverse action returns and metadata types by [@Torkan](https://github.com/Torkan)
+
+* resolve all dialyzer warnings in value_formatter and spec_cache by [@Torkan](https://github.com/Torkan)
+
+* resolve rebase conflicts in codegen modules by [@Torkan](https://github.com/Torkan)
+
+* handle type_ref in resource schema classification and action introspection by [@Torkan](https://github.com/Torkan)
+
+* resolve dialyzer warning in generate_resource_lookup by [@Torkan](https://github.com/Torkan)
+
+* remove dead code branch flagged by dialyzer in type_mapper by [@Torkan](https://github.com/Torkan)
+
+* resolve dialyzer warnings by extracting array tuple clauses and removing dead fallbacks by [@Torkan](https://github.com/Torkan)
+
+* rpc: use ActionIntrospection to determine input type for exports by [@Torkan](https://github.com/Torkan)
+
+### Performance Improvements:
+
+* use pre-computed resource_lookup instead of regenerating AshApiSpec inline by [@Torkan](https://github.com/Torkan)
 
 ## [v0.17.3](https://github.com/ash-project/ash_typescript/compare/v0.17.2...v0.17.3) (2026-04-30)
 
