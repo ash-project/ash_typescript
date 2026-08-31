@@ -7,6 +7,8 @@
 
 import * as shouldPass from "./zod/shouldPass/constraintValidation";
 import * as shouldFail from "./zod/shouldFail/constraintValidation";
+import * as customPass from "./zod/shouldPass/customTypeSchemas";
+import * as customFail from "./zod/shouldFail/customTypeSchemas";
 
 interface TestResult {
   name: string;
@@ -137,6 +139,17 @@ runTest("testArrayBelowMinimum", () => shouldFail.testArrayBelowMinimum());
 runTest("testArrayAboveMaximum", () => shouldFail.testArrayAboveMaximum());
 runTest("testArrayItemConstraintViolation", () => shouldFail.testArrayItemConstraintViolation());
 runTest("testOptionalArrayRejectsNull", () => shouldFail.testOptionalArrayRejectsNull());
+
+console.log("\n--- Custom types and schema mapping overrides ---\n");
+
+runTest("testColorPaletteObjectAccepted", () => customPass.testColorPaletteObjectAccepted());
+runTest("testPriorityScoreNumberAccepted", () => customPass.testPriorityScoreNumberAccepted());
+runTest("testOverriddenCustomIdAccepted", () => customPass.testOverriddenCustomIdAccepted());
+runTest("testOverriddenGeoPointAccepted", () => customPass.testOverriddenGeoPointAccepted());
+runTest("testPriorityScoreStringRejected", () => customFail.testPriorityScoreStringRejected());
+runTest("testOverriddenCustomIdTooShort", () => customFail.testOverriddenCustomIdTooShort());
+runTest("testOverriddenGeoPointOutOfRange", () => customFail.testOverriddenGeoPointOutOfRange());
+runTest("testOverriddenGeoPointMissingField", () => customFail.testOverriddenGeoPointMissingField());
 
 console.log("\n========================================");
 console.log("Test Results Summary");
