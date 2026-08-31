@@ -62,6 +62,11 @@ defmodule AshTypescript.Test.Task do
       public? true
     end
 
+    attribute :geo_point, AshTypescript.Test.GeoPoint do
+      allow_nil? true
+      public? true
+    end
+
     attribute :price, AshMoney.Types.Money do
       allow_nil? true
       public? true
@@ -181,7 +186,7 @@ defmodule AshTypescript.Test.Task do
     end
 
     create :create do
-      accept [:title, :price]
+      accept [:title, :price, :custom_id, :geo_point]
       primary? true
       metadata :some_string, :string, allow_nil?: false
       metadata :some_number, :integer, allow_nil?: false

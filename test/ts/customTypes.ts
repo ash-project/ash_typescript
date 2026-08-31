@@ -14,6 +14,16 @@ export type ColorPaletteValidationErrors = {
   accent?: string[];
 };
 
+export type GeoPoint = {
+  lat: number;
+  lng: number;
+};
+
+export type GeoPointValidationErrors = {
+  lat?: string[];
+  lng?: string[];
+};
+
 export type Percentage = number;
 
 export type PercentageValidationErrors = string[];
