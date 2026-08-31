@@ -27,6 +27,8 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 ### Breaking Changes:
 
+* typed-channel: broadcast payloads are now formatted with the `output_field_formatter` before reaching the client — `use AshTypescript.TypedChannel` intercepts the declared events and formats via `handle_out/3`, so the wire matches the generated payload types; the module must now also `use Phoenix.Channel` (compile warning otherwise) (#79)
+
 * rpc: top-level `filter`/`sort`/`page` parameters now return `filter_not_supported`/`sort_not_supported`/`pagination_not_supported` errors when the action cannot honor them (non-list reads, disabled via `enable_filter?`/`enable_sort?`, or no pagination configured) instead of being silently dropped
 
 ## [v0.17.3](https://github.com/ash-project/ash_typescript/compare/v0.17.2...v0.17.3) (2026-04-30)
