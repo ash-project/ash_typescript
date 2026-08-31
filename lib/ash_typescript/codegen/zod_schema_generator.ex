@@ -78,7 +78,9 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   @impl true
   def any_schema, do: "z.any()"
   @impl true
-  def custom_type_fallback, do: "z.string()"
+  def mapping_overrides, do: AshTypescript.Rpc.zod_mapping_overrides()
+  @impl true
+  def custom_imports, do: AshTypescript.Rpc.zod_import_into_generated()
   @impl true
   def aggregate_types, do: @aggregate_types
   @impl true

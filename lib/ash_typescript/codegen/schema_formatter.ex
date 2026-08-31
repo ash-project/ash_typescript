@@ -27,8 +27,25 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
   @doc "Fallback schema for unknown/any type"
   @callback any_schema() :: String.t()
 
-  @doc "Fallback for custom Ash types that carry a `typescript_type_name`"
-  @callback custom_type_fallback() :: String.t()
+  @doc """
+  Per-library schema overrides from application config, for hand-rolled custom
+  types whose generated schema needs to be controlled by hand.
+
+  Returns a keyword list of `{type_module, schema_string}` tuples. Consulted by
+  `AshTypescript.Codegen.SchemaCore` ahead of the in-tree accept-lists, mirroring
+  how `type_mapping_overrides` works on the TypeScript side.
+  """
+  @callback mapping_overrides() :: keyword(String.t())
+
+  @doc """
+  Extra imports to inject into this formatter's generated schema file, so a
+  `mapping_overrides/0` entry can reference a schema the user authored in
+  TypeScript instead of an inline library expression.
+
+  Returns a list of `%{import_name: String.t(), file: String.t()}` maps — the
+  same shape as `import_into_generated`, but scoped per library.
+  """
+  @callback custom_imports() :: list(map())
 
   @doc "Map of aggregate kind atoms to their schema strings (e.g. `%{count: \"z.number().int()\"}`)."
   @callback aggregate_types() :: %{atom() => String.t()}

@@ -42,6 +42,24 @@ defmodule AshTypescript.Codegen.SchemaCore do
     term: Ash.Type.Term
   }
 
+  # Ash `storage_type/1` results → corresponding Ash type module, used to derive
+  # a schema for hand-rolled custom types that match nothing else. Only
+  # storage types with an unambiguous JSON wire form are listed; anything else
+  # resolves to the formatter's `any_schema()`.
+  @storage_to_ash_module %{
+    boolean: Ash.Type.Boolean,
+    uuid: Ash.Type.UUID,
+    binary_id: Ash.Type.UUID,
+    date: Ash.Type.Date,
+    time: Ash.Type.Time,
+    time_usec: Ash.Type.TimeUsec,
+    naive_datetime: Ash.Type.NaiveDatetime,
+    utc_datetime: Ash.Type.UtcDatetime,
+    utc_datetime_usec: Ash.Type.UtcDatetimeUsec,
+    decimal: Ash.Type.Decimal,
+    binary: Ash.Type.Binary
+  }
+
   # ─────────────────────────────────────────────────────────────────
   # Core Type Mapping (dispatches on %Ash.Info.Manifest.Type{})
   # ─────────────────────────────────────────────────────────────────
@@ -118,8 +136,20 @@ defmodule AshTypescript.Codegen.SchemaCore do
   end
 
   # Handles `:unknown` kinds — custom Ash types (Ltree, ULID, Money, third-party).
+  #
+  # Only hand-rolled `use Ash.Type` modules reach here — an `Ash.Type.NewType`
+  # resolves to its subtype's kind (or a `:type_ref`) and carries its declared
+  # constraints through the normal dispatch, so it never lands on `:unknown`.
+  #
+  # Config overrides win over the in-tree accept-lists, which cover commonly
+  # used official Ash libraries. A type matching nothing falls back to a schema
+  # derived from its `storage_type/1` rather than a flat string — a custom type
+  # storing `:integer` validates as a number, not as text.
   defp map_unknown_module(formatter, %SpecType{module: module} = type_info) do
     cond do
+      (override = mapping_override(formatter, module)) != nil ->
+        override
+
       module == AshPostgres.Ltree ->
         if Keyword.get(type_info.constraints || [], :escape?, false),
           do: formatter.ltree_array(),
@@ -132,10 +162,47 @@ defmodule AshTypescript.Codegen.SchemaCore do
         Map.get(formatter.third_party_types(), module)
 
       module && Introspection.is_custom_type?(module) ->
-        formatter.custom_type_fallback()
+        storage_derived_schema(formatter, module)
 
       true ->
         formatter.any_schema()
+    end
+  end
+
+  defp mapping_override(formatter, module) when is_atom(module) and not is_nil(module) do
+    case List.keyfind(formatter.mapping_overrides(), module, 0) do
+      {_module, schema} -> schema
+      nil -> nil
+    end
+  end
+
+  defp mapping_override(_formatter, _module), do: nil
+
+  # Derives a schema from the type's Ash storage type. Unrecognized storage
+  # falls through to the permissive `any_schema()` rather than guessing — a
+  # wrong schema rejects valid data, which is worse than not validating.
+  defp storage_derived_schema(formatter, module) do
+    storage_schema(formatter, Ash.Type.storage_type(module))
+  rescue
+    _ -> formatter.any_schema()
+  end
+
+  defp storage_schema(formatter, {:array, inner}),
+    do: formatter.format_array(storage_schema(formatter, inner), [])
+
+  defp storage_schema(formatter, :integer), do: formatter.format_integer([])
+  defp storage_schema(formatter, :float), do: formatter.format_float([])
+
+  defp storage_schema(formatter, storage) when storage in [:string, :ci_string, :atom],
+    do: formatter.format_string([], false)
+
+  defp storage_schema(formatter, storage) when storage in [:map, :jsonb],
+    do: formatter.wrap_record()
+
+  defp storage_schema(formatter, storage) do
+    case Map.get(@storage_to_ash_module, storage) do
+      nil -> formatter.any_schema()
+      mapped -> Map.get(formatter.simple_primitives(), mapped, formatter.any_schema())
     end
   end
 

@@ -78,7 +78,9 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
   @impl true
   def any_schema, do: "v.any()"
   @impl true
-  def custom_type_fallback, do: "v.string()"
+  def mapping_overrides, do: AshTypescript.Rpc.valibot_mapping_overrides()
+  @impl true
+  def custom_imports, do: AshTypescript.Rpc.valibot_import_into_generated()
   @impl true
   def aggregate_types, do: @aggregate_types
   @impl true
