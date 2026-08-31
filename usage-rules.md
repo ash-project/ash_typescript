@@ -291,6 +291,8 @@ end
 
 Resources must have `pub_sub` publications with matching `event:` names. For typed payloads, use `transform :some_calc` referencing an `:auto`-typed calculation (recommended — Ash derives `returns` automatically), or set `returns:` explicitly. Without either, the payload type is `unknown`.
 
+The module must also `use Phoenix.Channel` (compile warning otherwise): the declared events are automatically intercepted and their payloads formatted with the configured `output_field_formatter` before being pushed, so the wire payload matches the generated TypeScript types.
+
 ### Generated TypeScript
 
 ```typescript

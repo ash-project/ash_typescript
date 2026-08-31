@@ -178,8 +178,11 @@ defmodule MyApp.Post do
   # ...
 end
 
-# Channel definition (unchanged — only references events)
-defmodule MyApp.OrgChannel do
+# Channel definition — must also be a Phoenix channel (compile warning otherwise).
+# Declared events are auto-intercepted and payloads formatted with the
+# output_field_formatter before push, so the wire matches the generated types.
+defmodule MyAppWeb.OrgChannel do
+  use Phoenix.Channel
   use AshTypescript.TypedChannel
 
   typed_channel do
@@ -190,6 +193,9 @@ defmodule MyApp.OrgChannel do
       publish :post_updated
     end
   end
+
+  @impl true
+  def join("org:" <> _org_id, _payload, socket), do: {:ok, socket}
 end
 ```
 
@@ -452,6 +458,7 @@ mix credo --strict                   # Linting
 | Invalid names for TypeScript (controller) | Route/argument names with `_1` or `?` | Rename to avoid patterns that produce awkward camelCase |
 | `allow_nil?: true` on always-present path param | Path param always provided by router | Set `allow_nil?: false` on the argument |
 | `allow_nil?: false` on sometimes-present path param | Path param only at some mounts | Set `allow_nil?: true` (default) on the argument |
+| "AshTypescript.TypedChannel is being used in module X without `use Phoenix.Channel`" | Typed channel module isn't a Phoenix channel, so payload interception can't be injected | Add `use Phoenix.Channel` and a `join/3` to the module |
 | "No publication with event X found" | Typed channel event doesn't match any publication | Check `event:` option on the resource's `pub_sub` block |
 | "Duplicate event names found in typed_channel" | Same event name across resources in one channel | Use unique event names per channel |
 | "Payload type name conflict" | Same event name across different channels maps to different TS types | Rename events or ensure same `returns` type |

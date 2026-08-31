@@ -120,7 +120,8 @@ publish :create, [:id],
 ### Channel definition
 
 ```elixir
-defmodule MyApp.OrgChannel do
+defmodule MyAppWeb.OrgChannel do
+  use Phoenix.Channel
   use AshTypescript.TypedChannel
 
   typed_channel do
@@ -135,8 +136,13 @@ defmodule MyApp.OrgChannel do
       publish :comment_created
     end
   end
+
+  @impl true
+  def join("org:" <> _org_id, _payload, socket), do: {:ok, socket}
 end
 ```
+
+The module must also `use Phoenix.Channel` (compile warning otherwise). `use AshTypescript.TypedChannel` injects — via Spark's `handle_before_compile/1` and `AshTypescript.TypedChannel.Interception` — an intercept for every declared event plus `handle_out/3` clauses that format the broadcast payload through `AshTypescript.TypedChannel.PayloadFormatter` (the publication's `returns` type + `ValueFormatter`, same as RPC output) before pushing. This makes the wire payload match the generated TypeScript types, which use the `output_field_formatter`. User-defined `intercept` calls are merged into the intercept list, and no `handle_out/3` clause is injected for an event the module already handles itself (detected via `Module.get_definition/2`, since `before_compile` clauses shadow an identical clause head in the module body). Such a module should also `intercept` that event itself to avoid a spurious Phoenix definition-time warning. Interception disables Phoenix's fastlane for the declared events (per-subscriber encoding).
 
 ### Section Options
 

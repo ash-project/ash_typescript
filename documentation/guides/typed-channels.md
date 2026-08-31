@@ -90,15 +90,15 @@ publish :create, [:id],
 
 ### 2. Define your channel
 
-A typed channel consists of two parts: a DSL module that declares which events get TypeScript types, and a Phoenix channel that handles runtime behavior. You can put them in the same module or keep them separate.
+A typed channel is a Phoenix channel that also uses the `AshTypescript.TypedChannel` DSL to declare which events get TypeScript types. Both `use` statements go in the same module — a compile warning is emitted if `use Phoenix.Channel` is missing, because the typed channel machinery hooks into the channel itself (see [Payload formatting](#payload-formatting) below).
 
 ```elixir
 defmodule MyAppWeb.OrgChannel do
-  # DSL for TypeScript codegen — declares which events to type
-  use AshTypescript.TypedChannel
-
   # Phoenix channel for runtime behavior
   use Phoenix.Channel
+
+  # DSL for TypeScript codegen — declares which events to type
+  use AshTypescript.TypedChannel
 
   typed_channel do
     topic "org:*"
@@ -330,6 +330,18 @@ Payload type name conflict detected across typed channels.
 ```
 
 To fix this, rename the conflicting events to be unique, or ensure they return the same type.
+
+## Payload Formatting
+
+The generated payload types use the configured `output_field_formatter` (e.g. `conversation_id` becomes `conversationId` with `:camel_case`), matching the rest of the generated TypeScript. To make the wire payload match, `use AshTypescript.TypedChannel` automatically intercepts every declared event (via `Phoenix.Channel.intercept/1`) and injects `handle_out/3` clauses that format the broadcast payload — using the publication's `returns` type and the same type-driven formatter as RPC results — before pushing to the client.
+
+Things to know:
+
+- Formatting happens at the websocket boundary only. Elixir-side subscribers of the same PubSub topics (e.g. LiveViews) still receive the raw, untransformed payload.
+- Your own `intercept` calls and `handle_out/3` clauses are preserved — the typed events are merged into the intercept list, and no clause is injected for an event you already handle yourself, so your clause owns the push (and you are responsible for formatting that payload).
+- If you do write your own `handle_out/3` for a declared event, add it to your own `intercept/1` list as well. Phoenix checks the intercept list at definition time, before AshTypescript merges the typed events in, so it otherwise prints a spurious "An intercept for event ... has not yet been defined" warning. Listing it twice is harmless — the lists are deduplicated.
+- Intercepting disables Phoenix's fastlane optimization for the declared events: payloads are encoded once per subscriber instead of once per broadcast. This is the standard cost of `Phoenix.Channel.intercept/1` and is usually negligible.
+- Because the interception must live in the channel that serves the topic, the DSL module must itself be a Phoenix channel — a compile warning is emitted otherwise, and payloads would reach clients unformatted.
 
 ## Frontend Usage Patterns
 
