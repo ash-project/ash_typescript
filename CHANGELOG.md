@@ -21,13 +21,21 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 * codegen: `mix ash_typescript.codegen --output PATH` (alias `-o`) overrides the `output_file` config for a single run; a `.ts` path is used as the RPC file, anything else is treated as a directory (#65)
 
+* validation-schemas: new `zod_mapping_overrides` / `valibot_mapping_overrides` config for controlling the schema generated for hand-rolled custom Ash types — the counterpart to `type_mapping_overrides`, and the only way to emit raw library syntax such as a Zod brand (#84)
+
+* validation-schemas: new `zod_import_into_generated` / `valibot_import_into_generated` config injects user-authored imports into the generated schema files, so a mapping override can name a schema written in TypeScript (e.g. `"CustomZodSchemas.objectId"`) instead of an inline expression. Scoped per library rather than reusing `import_into_generated`, which targets the types and RPC files (#84)
+
 ### Bug Fixes:
 
 * codegen: generated RPC action wrappers now type-check under `exactOptionalPropertyTypes: true` — the static `ActionConfig`/`ValidationConfig`/`ActionChannelConfig`/`ValidationChannelConfig` interfaces declare `| undefined` on their optional properties (#77)
 
+* validation-schemas: hand-rolled custom Ash types now derive their schema from `Ash.Type.storage_type/1` instead of collapsing to a flat `z.string()`/`v.string()`. A custom type storing `:integer` previously generated a string schema that *rejected* its own valid values while the generated TypeScript type said `number`. `Ash.Type.NewType` was never affected — its constraints already flowed through (#84)
+
 ### Breaking Changes:
 
 * typed-channel: broadcast payloads are now formatted with the `output_field_formatter` before reaching the client — `use AshTypescript.TypedChannel` intercepts the declared events and formats via `handle_out/3`, so the wire matches the generated payload types; the module must now also `use Phoenix.Channel` (compile warning otherwise) (#79)
+
+* validation-schemas: the `AshTypescript.Codegen.SchemaFormatter` behaviour replaces the `custom_type_fallback/0` callback with `mapping_overrides/0`. Only affects out-of-tree formatter implementations; the two in-tree formatters (Zod, Valibot) are updated
 
 * rpc: top-level `filter`/`sort`/`page` parameters now return `filter_not_supported`/`sort_not_supported`/`pagination_not_supported` errors when the action cannot honor them (non-list reads, disabled via `enable_filter?`/`enable_sort?`, or no pagination configured) instead of being silently dropped
 
