@@ -8,6 +8,7 @@ defmodule AshTypescript.Test.ContentFeedChannel do
 
   Mixes events from two resources: ChannelArticle and ChannelReview.
   """
+  use Phoenix.Channel
   use AshTypescript.TypedChannel
 
   typed_channel do
@@ -22,4 +23,7 @@ defmodule AshTypescript.Test.ContentFeedChannel do
       publish(:review_submitted)
     end
   end
+
+  @impl true
+  def join(_topic, _payload, socket), do: {:ok, socket}
 end

@@ -8,6 +8,7 @@ defmodule AshTypescript.Test.ModerationChannel do
 
   Mixes events from all three resources: ChannelArticle, ChannelReview, and ChannelAlert.
   """
+  use Phoenix.Channel
   use AshTypescript.TypedChannel
 
   typed_channel do
@@ -25,4 +26,7 @@ defmodule AshTypescript.Test.ModerationChannel do
       publish(:alert_sent)
     end
   end
+
+  @impl true
+  def join(_topic, _payload, socket), do: {:ok, socket}
 end

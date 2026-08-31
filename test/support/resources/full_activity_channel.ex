@@ -15,6 +15,7 @@ defmodule AshTypescript.Test.FullActivityChannel do
   - alert_sent: :map → {id: UUID, message: string | null, severity: string | null}
   - alert_cleared: :utc_datetime → UtcDateTime
   """
+  use Phoenix.Channel
   use AshTypescript.TypedChannel
 
   typed_channel do
@@ -36,4 +37,7 @@ defmodule AshTypescript.Test.FullActivityChannel do
       publish(:alert_cleared)
     end
   end
+
+  @impl true
+  def join(_topic, _payload, socket), do: {:ok, socket}
 end

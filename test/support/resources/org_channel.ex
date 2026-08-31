@@ -8,6 +8,7 @@ defmodule AshTypescript.Test.OrgChannel do
 
   Subscribes to item events published by AshTypescript.Test.ChannelItem.
   """
+  use Phoenix.Channel
   use AshTypescript.TypedChannel
 
   typed_channel do
@@ -19,4 +20,7 @@ defmodule AshTypescript.Test.OrgChannel do
       publish(:item_deleted)
     end
   end
+
+  @impl true
+  def join("org:" <> _suffix, _payload, socket), do: {:ok, socket}
 end

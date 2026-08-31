@@ -58,7 +58,10 @@ end
 
 defmodule AshTypescript.Test.TypedChannel.ConflictChannelA do
   @moduledoc false
+  use Phoenix.Channel
   use AshTypescript.TypedChannel
+
+  def join(_topic, _payload, socket), do: {:ok, socket}
 
   typed_channel do
     topic "conflict_a:*"
@@ -71,7 +74,10 @@ end
 
 defmodule AshTypescript.Test.TypedChannel.ConflictChannelB do
   @moduledoc false
+  use Phoenix.Channel
   use AshTypescript.TypedChannel
+
+  def join(_topic, _payload, socket), do: {:ok, socket}
 
   typed_channel do
     topic "conflict_b:*"

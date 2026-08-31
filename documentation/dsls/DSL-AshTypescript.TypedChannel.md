@@ -10,6 +10,12 @@ event, AshTypescript reads the publication's `returns` type and generates a
 typed TypeScript payload type. An event map and typed subscription helper are
 also generated for the channel.
 
+The module must also be a Phoenix channel (`use Phoenix.Channel`) — the
+declared events are automatically intercepted so their payloads can be
+formatted with the configured `output_field_formatter` before reaching the
+client (see `AshTypescript.TypedChannel.Interception`). A compile warning is
+emitted when `use Phoenix.Channel` is missing.
+
 The recommended way to get typed payloads is to use `transform :some_calc` on
 publications, pointing to a resource calculation with `:auto` typing. Ash
 auto-derives the `returns` type from the calculation expression. You can also
@@ -18,6 +24,7 @@ use explicit `returns:` with an anonymous function transform.
 ## Usage
 
     defmodule MyAppWeb.OrgAdminChannel do
+      use Phoenix.Channel
       use AshTypescript.TypedChannel
 
       @impl true

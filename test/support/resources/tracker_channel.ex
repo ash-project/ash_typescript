@@ -11,6 +11,7 @@ defmodule AshTypescript.Test.TrackerChannel do
   - `:auto` type calculations (string, map, boolean, aggregate)
   - relationship traversal in map expressions
   """
+  use Phoenix.Channel
   use AshTypescript.TypedChannel
 
   typed_channel do
@@ -29,4 +30,7 @@ defmodule AshTypescript.Test.TrackerChannel do
       publish(:tracker_report)
     end
   end
+
+  @impl true
+  def join(_topic, _payload, socket), do: {:ok, socket}
 end

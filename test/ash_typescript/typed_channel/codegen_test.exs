@@ -10,7 +10,10 @@
 # Channel with a static topic (no wildcard) — exercises the no-suffix factory path.
 defmodule AshTypescript.Test.TypedChannel.StaticTopicChannel do
   @moduledoc false
+  use Phoenix.Channel
   use AshTypescript.TypedChannel
+
+  def join(_topic, _payload, socket), do: {:ok, socket}
 
   typed_channel do
     topic "notifications"
@@ -130,7 +133,10 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
 
       defmodule NoReturnsChannel do
         @moduledoc false
+        use Phoenix.Channel
         use AshTypescript.TypedChannel
+
+        def join(_topic, _payload, socket), do: {:ok, socket}
 
         typed_channel do
           topic "things:*"

@@ -33,7 +33,10 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
       {result, _stderr} =
         ExUnit.CaptureIO.with_io(:standard_error, fn ->
           defmodule ChannelWithMissingEvent do
+            use Phoenix.Channel
             use AshTypescript.TypedChannel
+
+            def join(_topic, _payload, socket), do: {:ok, socket}
 
             typed_channel do
               topic "missing:*"
@@ -84,7 +87,10 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
       {result, _stderr} =
         ExUnit.CaptureIO.with_io(:standard_error, fn ->
           defmodule ChannelWithDuplicateEvents do
+            use Phoenix.Channel
             use AshTypescript.TypedChannel
+
+            def join(_topic, _payload, socket), do: {:ok, socket}
 
             typed_channel do
               topic "dup:*"
@@ -139,7 +145,10 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
 
           defmodule NoReturnsChannel do
             @moduledoc false
+            use Phoenix.Channel
             use AshTypescript.TypedChannel
+
+            def join(_topic, _payload, socket), do: {:ok, socket}
 
             typed_channel do
               topic "verifier_things:*"
@@ -187,7 +196,10 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
 
           defmodule NotPublicChannel do
             @moduledoc false
+            use Phoenix.Channel
             use AshTypescript.TypedChannel
+
+            def join(_topic, _payload, socket), do: {:ok, socket}
 
             typed_channel do
               topic "verifier_secret:*"
@@ -232,7 +244,10 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
 
           defmodule QuietNoReturnsChannel do
             @moduledoc false
+            use Phoenix.Channel
             use AshTypescript.TypedChannel
+
+            def join(_topic, _payload, socket), do: {:ok, socket}
 
             typed_channel do
               topic "quiet_things:*"
@@ -279,7 +294,10 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
 
           defmodule QuietNotPublicChannel do
             @moduledoc false
+            use Phoenix.Channel
             use AshTypescript.TypedChannel
+
+            def join(_topic, _payload, socket), do: {:ok, socket}
 
             typed_channel do
               topic "quiet_secret:*"
