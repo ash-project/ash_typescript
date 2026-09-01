@@ -70,7 +70,7 @@ commit-level record follows below.
 
 * manifest: add a Valibot Schema column to the Markdown manifest by [@Torkan](https://github.com/Torkan)
 
-* typed-controller: apply Ash argument semantics and generate Valibot route schemas by [@Torkan](https://github.com/Torkan)
+* typed-controller: apply Ash argument semantics and generate Valibot route schemas (CVE-2026-82732) by [@Torkan](https://github.com/Torkan)
 
 * manifest: reject unmappable types and invalid rpc_action options at compile time by [@Torkan](https://github.com/Torkan)
 
@@ -144,13 +144,13 @@ commit-level record follows below.
 
 * codegen: add | undefined to optional config props for exactOptionalPropertyTypes (closes #77) by [@Torkan](https://github.com/Torkan)
 
-* typed-controller: gate unexpected handler return detail behind show_raised_errors (CVE-3218) by [@Torkan](https://github.com/Torkan)
+* typed-controller: gate unexpected handler return detail behind show_raised_errors (CVE-2026-82733) by [@Torkan](https://github.com/Torkan)
 
-* typed-controller: reject colliding request params instead of silently merging (CVE-3217) by [@Torkan](https://github.com/Torkan)
+* typed-controller: reject colliding request params instead of silently merging by [@Torkan](https://github.com/Torkan)
 
-* typed-controller: encode path params in generated route URLs (CVE-3215) by [@Torkan](https://github.com/Torkan)
+* typed-controller: encode path params in generated route URLs (CVE-2026-82731) by [@Torkan](https://github.com/Torkan)
 
-* rpc: redact ForbiddenField and NotLoaded in normalize_primitive by [@Torkan](https://github.com/Torkan)
+* rpc: redact ForbiddenField and NotLoaded in normalize_primitive (CVE-2026-82730) by [@Torkan](https://github.com/Torkan)
 
 * rpc: reject non-scalar get_by values before trusted filter by [@Torkan](https://github.com/Torkan)
 
@@ -160,15 +160,15 @@ commit-level record follows below.
 
 * rpc: enforce load restrictions during field selection by [@Torkan](https://github.com/Torkan)
 
-* rpc: stop minting atoms for typed struct field names by [@Torkan](https://github.com/Torkan)
+* rpc: stop minting atoms for typed struct field names (CVE-2026-77856) by [@Torkan](https://github.com/Torkan)
 
 * rpc: stop unwrapping unknown structs into RPC error payloads by [@Torkan](https://github.com/Torkan)
 
-* rpc: fail closed when a configured error handler crashes by [@Torkan](https://github.com/Torkan)
+* rpc: fail closed when a configured error handler crashes (CVE-2026-77950) by [@Torkan](https://github.com/Torkan)
 
 * rpc: scope validate_action target lookup to the configured read_action by [@Torkan](https://github.com/Torkan)
 
-* rpc: prevent atom-table exhaustion from client-supplied field names by [@Torkan](https://github.com/Torkan)
+* rpc: prevent atom-table exhaustion from client-supplied field names (CVE-2026-74837) by [@Torkan](https://github.com/Torkan)
 
 * codegen: skip satisfies-widened undefined keys in InferResult by [@Torkan](https://github.com/Torkan)
 
