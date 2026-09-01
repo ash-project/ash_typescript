@@ -663,6 +663,10 @@ defmodule AshTypescript.Codegen.TypeMapper do
     is_nested_typed_map_field?(%{type: full})
   end
 
+  defp is_nested_typed_map_field?(%{type: %Type{kind: :map, fields: fields}})
+       when fields in [nil, []],
+       do: false
+
   defp is_nested_typed_map_field?(%{type: %Type{kind: kind}})
        when kind in [:map, :struct, :keyword, :tuple, :union, :resource, :embedded_resource],
        do: true

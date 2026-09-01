@@ -94,10 +94,20 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
   A list of embedded resource modules referenced by RPC resources.
   """
   def find_embedded_resources(otp_app) do
-    rpc_resources = get_rpc_resources(otp_app)
+    action_names_by_resource =
+      otp_app
+      |> AshTypescript.Rpc.Codegen.RpcConfigCollector.get_rpc_action_entrypoint_configs()
+      |> Enum.group_by(& &1.resource, & &1.action)
+
+    entries =
+      otp_app
+      |> get_rpc_resources()
+      |> Enum.map(fn resource ->
+        {resource, action_names_by_resource |> Map.get(resource, []) |> Enum.uniq()}
+      end)
 
     {reachable_resources, _} =
-      Ash.Info.Manifest.Generator.Reachability.find_reachable(rpc_resources)
+      Ash.Info.Manifest.Generator.Reachability.find_reachable(entries)
 
     Enum.filter(reachable_resources, fn resource ->
       Ash.Resource.Info.resource?(resource) and Ash.Resource.Info.embedded?(resource)
