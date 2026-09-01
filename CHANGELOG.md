@@ -11,6 +11,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.18.1](https://github.com/ash-project/ash_typescript/compare/v0.18.0...v0.18.1) (2026-09-01)
+
+
+
+
+### Bug Fixes:
+
+* only find embedded resources from entrypoints by [@zachdaniel](https://github.com/zachdaniel)
+
+* support map fields w/ no declared subfields by [@zachdaniel](https://github.com/zachdaniel)
+
 ## [v0.18.0](https://github.com/ash-project/ash_typescript/compare/v0.17.3...v0.18.0) (2026-08-31)
 
 ### Highlights:
