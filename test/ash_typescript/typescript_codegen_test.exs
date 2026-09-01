@@ -306,6 +306,85 @@ defmodule AshTypescript.CodegenTest do
       result = Codegen.build_map_type([])
       assert result == "{, __type: \"TypedMap\", __primitiveFields: never}"
     end
+
+    test "map field with no declared subfields is a selectable primitive" do
+      fields = [
+        %{
+          name: :name,
+          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.String, []),
+          allow_nil?: false
+        },
+        %{
+          name: :metadata,
+          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.Map, []),
+          allow_nil?: true
+        }
+      ]
+
+      result = Codegen.build_map_type(fields)
+
+      assert result ==
+               "{name: string, metadata: Record<string, any> | null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"metadata\"}"
+    end
+
+    test "typed map whose only field is a plain map does not collapse to never" do
+      fields = [
+        %{
+          name: :metadata,
+          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.Map, []),
+          allow_nil?: false
+        }
+      ]
+
+      result = Codegen.build_map_type(fields)
+
+      assert result =~ "__primitiveFields: \"metadata\""
+      refute result =~ "__primitiveFields: never"
+    end
+
+    test "array of plain maps is a selectable primitive" do
+      fields = [
+        %{
+          name: :entries,
+          type:
+            Ash.Info.Manifest.Generator.TypeResolver.resolve(
+              {:array, Ash.Type.Map},
+              []
+            ),
+          allow_nil?: false
+        }
+      ]
+
+      result = Codegen.build_map_type(fields)
+
+      assert result =~ "__primitiveFields: \"entries\""
+    end
+
+    test "map field with declared subfields is still excluded from primitive fields" do
+      fields = [
+        %{
+          name: :name,
+          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.String, []),
+          allow_nil?: false
+        },
+        %{
+          name: :details,
+          type:
+            Ash.Info.Manifest.Generator.TypeResolver.resolve(
+              Ash.Type.Map,
+              fields: [count: [type: :integer, allow_nil?: false]]
+            ),
+          allow_nil?: false
+        }
+      ]
+
+      result = Codegen.build_map_type(fields)
+
+      # Nested typed maps need `{ details: [...] }` selection, so they must not
+      # appear in the primitive union.
+      assert result =~ "__primitiveFields: \"name\"}"
+      refute result =~ "\"details\""
+    end
   end
 
   describe "error handling" do
