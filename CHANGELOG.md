@@ -11,6 +11,17 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.18.2](https://github.com/ash-project/ash_typescript/compare/v0.18.1...v0.18.2) (2026-09-03)
+
+
+
+
+### Bug Fixes:
+
+* generate the AshAuthentication error protocol impls by [@Torkan](https://github.com/Torkan)
+
+* respect output_field_formatter in generated config option names by [@Torkan](https://github.com/Torkan)
+
 ## [v0.18.1](https://github.com/ash-project/ash_typescript/compare/v0.18.0...v0.18.1) (2026-09-01)
 
 
