@@ -17,6 +17,15 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
   """
   use ExUnit.Case, async: false
 
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :valibot_mapping_overrides,
+      :zod_mapping_overrides
+    ])
+  end
+
   alias Ash.Info.Manifest.Generator.TypeResolver
   alias AshTypescript.Codegen.SchemaCore
   alias AshTypescript.Codegen.ValibotSchemaGenerator

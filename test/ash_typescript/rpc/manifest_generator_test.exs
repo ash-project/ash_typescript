@@ -16,6 +16,18 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
 
   @moduletag :ash_typescript
 
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :add_ash_internals_to_manifest,
+      :generate_phx_channel_rpc_actions,
+      :generate_validation_functions,
+      :generate_zod_schemas,
+      :typed_controllers
+    ])
+  end
+
   # Reset config to defaults after each test
   setup do
     original_internals = Application.get_env(:ash_typescript, :add_ash_internals_to_manifest)

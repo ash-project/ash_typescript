@@ -6,6 +6,20 @@ defmodule AshTypescript.TypedController.NamespaceTest do
   # Not async because tests modify global Application config
   use ExUnit.Case, async: false
 
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :controller_namespace_output_dir,
+      :enable_controller_namespace_files,
+      :enable_namespace_files,
+      :output_file,
+      :routes_output_file,
+      :types_output_file,
+      :zod_output_file
+    ])
+  end
+
   alias AshTypescript.TypedController.Codegen
   alias AshTypescript.TypedController.Codegen.RouteConfigCollector
 

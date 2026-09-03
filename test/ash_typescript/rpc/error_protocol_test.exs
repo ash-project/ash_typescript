@@ -9,6 +9,13 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
 
   @moduletag :ash_typescript
 
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:policies])
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:policies], :ash)
+  end
+
   describe "Error protocol implementation" do
     test "InvalidChanges error is properly transformed" do
       error = %Ash.Error.Changes.InvalidChanges{

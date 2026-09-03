@@ -4,6 +4,16 @@
 
 defmodule AshTypescript.Rpc.RpcRunActionUserTest do
   use ExUnit.Case, async: false
+
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :input_field_formatter,
+      :output_field_formatter
+    ])
+  end
+
   alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 

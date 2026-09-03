@@ -31,6 +31,14 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
 
   @moduletag :ash_typescript
 
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :warn_on_missing_channel_returns
+    ])
+  end
+
   @org_topic "org:*"
 
   describe "generate_channel_types/2 — with topic" do

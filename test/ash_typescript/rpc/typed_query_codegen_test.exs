@@ -10,6 +10,12 @@ defmodule AshTypescript.Rpc.TypedQueryCodegenTest do
 
   @moduletag :ash_typescript
 
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:enable_namespace_files])
+  end
+
   setup do
     Application.put_env(:ash_typescript, :enable_namespace_files, false)
     :ok

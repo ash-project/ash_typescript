@@ -14,6 +14,12 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
   """
   use ExUnit.Case, async: true
 
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:enable_namespace_files])
+  end
+
   alias AshTypescript.Codegen.ZodSchemaGenerator
   alias AshTypescript.Rpc.ValidationErrorSchemas
   alias AshTypescript.Test.OrgTodo

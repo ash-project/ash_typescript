@@ -9,6 +9,21 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
   @moduletag :ash_typescript
 
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :generate_valibot_schemas,
+      :generate_zod_schemas,
+      :typed_controller_after_request_hook,
+      :typed_controller_before_request_hook,
+      :typed_controller_hook_context_type,
+      :typed_controller_import_into_generated,
+      :typed_controller_mode,
+      :typed_controller_path_params_style
+    ])
+  end
+
   setup_all do
     {:ok, files} = CodegenTestHelper.generate_files()
     typescript = CodegenTestHelper.routes_content(files)

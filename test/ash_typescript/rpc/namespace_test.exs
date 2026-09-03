@@ -5,6 +5,26 @@
 defmodule AshTypescript.Rpc.NamespaceTest do
   use ExUnit.Case, async: false
 
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :add_ash_internals_to_jsdoc,
+      :enable_namespace_files,
+      :json_manifest_file,
+      :manifest_file,
+      :namespace_output_dir,
+      :output_file,
+      :routes_output_file,
+      :typed_channels_output_file,
+      :types_output_file,
+      :valibot_output_file,
+      :warn_on_missing_rpc_config,
+      :warn_on_non_rpc_references,
+      :zod_output_file
+    ])
+  end
+
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.JsdocGenerator
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
 

@@ -15,6 +15,14 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
 
   @moduletag :ash_typescript
 
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :json_manifest_filename_format
+    ])
+  end
+
   setup_all do
     json = JsonManifestGenerator.generate_json_manifest(:ash_typescript)
     manifest = Jason.decode!(json)

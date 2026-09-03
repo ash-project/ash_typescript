@@ -9,6 +9,15 @@ defmodule AshTypescript.TypedController.BasePathTest do
 
   @moduletag :ash_typescript
 
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :typed_controller_base_path,
+      :typed_controller_mode
+    ])
+  end
+
   defp with_base_path(base_path, fun) do
     previous = Application.get_env(:ash_typescript, :typed_controller_base_path)
     Application.put_env(:ash_typescript, :typed_controller_base_path, base_path)

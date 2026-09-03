@@ -7,6 +7,26 @@ defmodule AshTypescript.CodegenCheckTest do
 
   @moduletag :tmp_dir
 
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :always_regenerate,
+      :enable_namespace_files,
+      :json_manifest_file,
+      :manifest_file,
+      :namespace_output_dir,
+      :output_file,
+      :routes_output_file,
+      :typed_channels_output_file,
+      :types_output_file,
+      :valibot_output_file,
+      :warn_on_missing_rpc_config,
+      :warn_on_non_rpc_references,
+      :zod_output_file
+    ])
+  end
+
   setup %{tmp_dir: tmp_dir} do
     original_config =
       Map.new(

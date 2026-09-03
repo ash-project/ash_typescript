@@ -22,6 +22,15 @@ end
 defmodule AshTypescript.Codegen.TypeDiscoveryTest do
   use ExUnit.Case, async: true
 
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :warn_on_missing_rpc_config,
+      :warn_on_non_rpc_references
+    ])
+  end
+
   alias AshTypescript.Codegen.TypeDiscovery
   alias AshTypescript.Codegen.TypeDiscoveryTest.MissingRpcConfigDomain
 

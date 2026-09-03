@@ -6,6 +6,12 @@ defmodule AshTypescript.FilterFormattingTest do
   # async: false because we're modifying application config
   use ExUnit.Case, async: false
 
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:output_field_formatter])
+  end
+
   alias AshTypescript.Codegen.FilterTypes
   alias AshTypescript.Test.{Post, User}
 

@@ -7,6 +7,16 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
 
   @moduletag :ash_typescript
 
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :output_field_formatter,
+      :typed_controller_error_handler,
+      :typed_controller_show_raised_errors
+    ])
+  end
+
   alias AshTypescript.TypedController.RequestHandler
 
   # Dedicated controller for the `one_of` allowlist vector — kept out of the
