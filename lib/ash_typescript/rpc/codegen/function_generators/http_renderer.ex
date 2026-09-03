@@ -10,6 +10,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
   HTTP function using executeActionRpcRequest.
   """
 
+  import AshTypescript.Helpers
+
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.{FunctionCore, JsdocGenerator, TypeBuilders}
   alias AshTypescript.Rpc.Codegen.FunctionNames
   alias AshTypescript.Rpc.Codegen.Helpers.PayloadBuilder
@@ -32,13 +34,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
 
     function_name = FunctionNames.execution(rpc_action_name)
 
-    http_config_fields =
-      shape.config_fields ++
-        [
-          "  headers?: Record<string, string>;",
-          "  fetchOptions?: RequestInit;",
-          "  customFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;"
-        ]
+    http_config_fields = shape.config_fields ++ fetch_config_fields()
 
     {config_type_export, config_type_ref} =
       TypeBuilders.build_optional_pagination_config(
@@ -105,13 +101,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
         is_validation: true
       )
 
-    config_fields =
-      config_fields ++
-        [
-          "  headers?: Record<string, string>;",
-          "  fetchOptions?: RequestInit;",
-          "  customFetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;"
-        ]
+    config_fields = config_fields ++ fetch_config_fields()
 
     config_type_def = "{\n#{Enum.join(config_fields, "\n")}\n}"
 
@@ -138,5 +128,16 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer do
       );
     }
     """
+  end
+
+  # The fetch-related config fields shared by execution and validation functions.
+  # Field names must go through the output field formatter so they match the
+  # names the static fetch helpers read off the config object.
+  defp fetch_config_fields do
+    [
+      "  #{formatted_headers_field()}?: Record<string, string>;",
+      "  #{formatted_fetch_options_field()}?: RequestInit;",
+      "  #{formatted_custom_fetch_field()}?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;"
+    ]
   end
 end

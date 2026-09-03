@@ -9,6 +9,7 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
   alias AshTypescript.FieldFormatter
   alias AshTypescript.Rpc
   alias AshTypescript.Test.Formatters
+  alias AshTypescript.Test.TestHelpers
 
   doctest AshTypescript.FieldFormatter
 
@@ -688,6 +689,87 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       refute String.contains?(typescript_output, "name: string")
       refute String.contains?(typescript_output, "email: string")
       refute String.contains?(typescript_output, "title: string")
+    end
+  end
+
+  describe "TypeScript codegen config option formatting" do
+    # The hook context fields are only emitted when the corresponding hooks are
+    # configured, so set them explicitly rather than relying on ambient config.
+    setup do
+      TestHelpers.restore_application_env_on_exit(TestHelpers.rpc_hook_config_keys())
+
+      Application.put_env(
+        :ash_typescript,
+        :rpc_action_before_request_hook,
+        "RpcHooks.beforeActionRequest"
+      )
+
+      Application.put_env(
+        :ash_typescript,
+        :rpc_validation_before_request_hook,
+        "RpcHooks.beforeValidationRequest"
+      )
+
+      Application.put_env(
+        :ash_typescript,
+        :rpc_action_before_channel_push_hook,
+        "ChannelHooks.beforeChannelPush"
+      )
+
+      Application.put_env(
+        :ash_typescript,
+        :rpc_validation_before_channel_push_hook,
+        "ChannelHooks.beforeValidationChannelPush"
+      )
+
+      :ok
+    end
+
+    # Regression test for #91: the HTTP renderer and hook context config fields
+    # hardcoded camelCase, so with a non-camelCase formatter the generated config
+    # *types* declared `fetchOptions`/`customFetch`/`hookCtx` while the static
+    # fetch helpers read `fetch_options`/`custom_fetch`/`hook_ctx` off the same
+    # config object - making both options impossible to pass.
+    test "formats RPC config option names with :snake_case formatter" do
+      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
+
+      {:ok, typescript_output} =
+        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+
+      assert String.contains?(typescript_output, "fetch_options?: RequestInit;")
+      assert String.contains?(typescript_output, "custom_fetch?: (input: RequestInfo")
+      assert String.contains?(typescript_output, "headers?: Record<string, string>;")
+
+      # The per-action config types are built by ConfigBuilder and emit the hook
+      # field without a `| undefined` union, which distinguishes them from the
+      # shared config types in TypescriptStatic - so these pin ConfigBuilder
+      # specifically rather than passing on TypescriptStatic's output alone.
+      assert String.contains?(typescript_output, "hook_ctx?: ActionHookContext;")
+      assert String.contains?(typescript_output, "hook_ctx?: ValidationHookContext;")
+      assert String.contains?(typescript_output, "hook_ctx?: ActionChannelHookContext;")
+      assert String.contains?(typescript_output, "hook_ctx?: ValidationChannelHookContext;")
+
+      refute String.contains?(typescript_output, "fetchOptions?:")
+      refute String.contains?(typescript_output, "customFetch?:")
+      refute String.contains?(typescript_output, "hookCtx?:")
+    end
+
+    test "formats RPC config option names with a custom formatter" do
+      Application.put_env(:ash_typescript, :output_field_formatter, {Formatters, :custom_format})
+
+      {:ok, typescript_output} =
+        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+
+      assert String.contains?(typescript_output, "custom_fetch_options?: RequestInit;")
+      assert String.contains?(typescript_output, "custom_custom_fetch?: (input: RequestInfo")
+      assert String.contains?(typescript_output, "custom_headers?: Record<string, string>;")
+
+      assert String.contains?(typescript_output, "custom_hook_ctx?: ActionHookContext;")
+      assert String.contains?(typescript_output, "custom_hook_ctx?: ValidationHookContext;")
+
+      refute String.contains?(typescript_output, "fetchOptions?:")
+      refute String.contains?(typescript_output, "customFetch?:")
+      refute String.contains?(typescript_output, "hookCtx?:")
     end
   end
 end

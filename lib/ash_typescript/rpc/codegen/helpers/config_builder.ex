@@ -332,25 +332,29 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
       cond do
         # Channel validation hooks
         is_channel and is_validation and AshTypescript.Rpc.rpc_validation_channel_hooks_enabled?() ->
-          config_fields ++ ["  hookCtx?: ValidationChannelHookContext;"]
+          config_fields ++ [hook_ctx_config_field("ValidationChannelHookContext")]
 
         # Channel action hooks
         is_channel and not is_validation and AshTypescript.Rpc.rpc_action_channel_hooks_enabled?() ->
-          config_fields ++ ["  hookCtx?: ActionChannelHookContext;"]
+          config_fields ++ [hook_ctx_config_field("ActionChannelHookContext")]
 
         # HTTP validation hooks
         not is_channel and is_validation and AshTypescript.Rpc.rpc_validation_hooks_enabled?() ->
-          config_fields ++ ["  hookCtx?: ValidationHookContext;"]
+          config_fields ++ [hook_ctx_config_field("ValidationHookContext")]
 
         # HTTP action hooks
         not is_channel and not is_validation and AshTypescript.Rpc.rpc_action_hooks_enabled?() ->
-          config_fields ++ ["  hookCtx?: ActionHookContext;"]
+          config_fields ++ [hook_ctx_config_field("ActionHookContext")]
 
         true ->
           config_fields
       end
 
     config_fields
+  end
+
+  defp hook_ctx_config_field(hook_context_type) do
+    "  #{formatted_hook_ctx_field()}?: #{hook_context_type};"
   end
 
   @doc """
