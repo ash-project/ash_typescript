@@ -5,7 +5,15 @@
 defmodule AshTypescript.Rpc.ChannelLifecycleHooksConfigTest do
   use ExUnit.Case
 
+  alias AshTypescript.Test.TestHelpers
+
   @moduletag :ash_typescript
+
+  setup do
+    # Every test here mutates global hook config; snapshot it so the values from
+    # config/config.exs survive for later tests in the run.
+    TestHelpers.restore_application_env_on_exit(TestHelpers.rpc_hook_config_keys())
+  end
 
   describe "channel lifecycle hooks configuration" do
     test "rpc_action_before_channel_push_hook/0 returns nil when not configured" do
@@ -21,7 +29,6 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksConfigTest do
       )
 
       assert AshTypescript.rpc_action_before_channel_push_hook() == "ChannelHooks.beforePush"
-      Application.delete_env(:ash_typescript, :rpc_action_before_channel_push_hook)
     end
 
     test "rpc_action_after_channel_response_hook/0 returns nil when not configured" do
@@ -38,8 +45,6 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksConfigTest do
 
       assert AshTypescript.rpc_action_after_channel_response_hook() ==
                "ChannelHooks.afterResponse"
-
-      Application.delete_env(:ash_typescript, :rpc_action_after_channel_response_hook)
     end
 
     test "rpc_validation_before_channel_push_hook/0 returns nil when not configured" do
@@ -56,8 +61,6 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksConfigTest do
 
       assert AshTypescript.rpc_validation_before_channel_push_hook() ==
                "ChannelHooks.beforeValidationPush"
-
-      Application.delete_env(:ash_typescript, :rpc_validation_before_channel_push_hook)
     end
 
     test "rpc_validation_after_channel_response_hook/0 returns nil when not configured" do
@@ -74,8 +77,6 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksConfigTest do
 
       assert AshTypescript.rpc_validation_after_channel_response_hook() ==
                "ChannelHooks.afterValidationResponse"
-
-      Application.delete_env(:ash_typescript, :rpc_validation_after_channel_response_hook)
     end
 
     test "rpc_action_channel_hook_context_type/0 returns default when not configured" do
@@ -91,7 +92,6 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksConfigTest do
       )
 
       assert AshTypescript.rpc_action_channel_hook_context_type() == "MyChannelContext"
-      Application.delete_env(:ash_typescript, :rpc_action_channel_hook_context_type)
     end
 
     test "rpc_validation_channel_hook_context_type/0 returns default when not configured" do
@@ -110,8 +110,6 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksConfigTest do
 
       assert AshTypescript.rpc_validation_channel_hook_context_type() ==
                "MyValidationChannelContext"
-
-      Application.delete_env(:ash_typescript, :rpc_validation_channel_hook_context_type)
     end
   end
 
@@ -131,7 +129,6 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksConfigTest do
 
       Application.delete_env(:ash_typescript, :rpc_action_after_channel_response_hook)
       assert AshTypescript.Rpc.rpc_action_channel_hooks_enabled?() == true
-      Application.delete_env(:ash_typescript, :rpc_action_before_channel_push_hook)
     end
 
     test "rpc_action_channel_hooks_enabled?/0 returns true when afterChannelResponse hook configured" do
@@ -144,7 +141,6 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksConfigTest do
       )
 
       assert AshTypescript.Rpc.rpc_action_channel_hooks_enabled?() == true
-      Application.delete_env(:ash_typescript, :rpc_action_after_channel_response_hook)
     end
 
     test "rpc_action_channel_hooks_enabled?/0 returns true when both hooks configured" do
@@ -161,8 +157,6 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksConfigTest do
       )
 
       assert AshTypescript.Rpc.rpc_action_channel_hooks_enabled?() == true
-      Application.delete_env(:ash_typescript, :rpc_action_before_channel_push_hook)
-      Application.delete_env(:ash_typescript, :rpc_action_after_channel_response_hook)
     end
 
     test "rpc_validation_channel_hooks_enabled?/0 returns false when no hooks configured" do
@@ -180,7 +174,6 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksConfigTest do
 
       Application.delete_env(:ash_typescript, :rpc_validation_after_channel_response_hook)
       assert AshTypescript.Rpc.rpc_validation_channel_hooks_enabled?() == true
-      Application.delete_env(:ash_typescript, :rpc_validation_before_channel_push_hook)
     end
 
     test "rpc_validation_channel_hooks_enabled?/0 returns true when afterChannelResponse hook configured" do
@@ -193,7 +186,6 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksConfigTest do
       )
 
       assert AshTypescript.Rpc.rpc_validation_channel_hooks_enabled?() == true
-      Application.delete_env(:ash_typescript, :rpc_validation_after_channel_response_hook)
     end
 
     test "rpc_validation_channel_hooks_enabled?/0 returns true when both hooks configured" do
@@ -210,8 +202,6 @@ defmodule AshTypescript.Rpc.ChannelLifecycleHooksConfigTest do
       )
 
       assert AshTypescript.Rpc.rpc_validation_channel_hooks_enabled?() == true
-      Application.delete_env(:ash_typescript, :rpc_validation_before_channel_push_hook)
-      Application.delete_env(:ash_typescript, :rpc_validation_after_channel_response_hook)
     end
   end
 end

@@ -5,37 +5,14 @@
 defmodule AshTypescript.Rpc.LifecycleHooksCodegenTest do
   use ExUnit.Case
 
+  alias AshTypescript.Test.TestHelpers
+
   @moduletag :ash_typescript
 
   setup do
     Application.put_env(:ash_typescript, :enable_namespace_files, false)
 
-    original_config = [
-      rpc_action_before_request_hook:
-        Application.get_env(:ash_typescript, :rpc_action_before_request_hook),
-      rpc_action_after_request_hook:
-        Application.get_env(:ash_typescript, :rpc_action_after_request_hook),
-      rpc_validation_before_request_hook:
-        Application.get_env(:ash_typescript, :rpc_validation_before_request_hook),
-      rpc_validation_after_request_hook:
-        Application.get_env(:ash_typescript, :rpc_validation_after_request_hook),
-      rpc_action_hook_context_type:
-        Application.get_env(:ash_typescript, :rpc_action_hook_context_type),
-      rpc_validation_hook_context_type:
-        Application.get_env(:ash_typescript, :rpc_validation_hook_context_type)
-    ]
-
-    on_exit(fn ->
-      Enum.each(original_config, fn {key, value} ->
-        if value do
-          Application.put_env(:ash_typescript, key, value)
-        else
-          Application.delete_env(:ash_typescript, key)
-        end
-      end)
-    end)
-
-    :ok
+    TestHelpers.restore_application_env_on_exit(TestHelpers.rpc_hook_config_keys())
   end
 
   describe "TypeScript generation with action hooks enabled" do
