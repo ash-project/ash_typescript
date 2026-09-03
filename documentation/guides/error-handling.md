@@ -90,6 +90,14 @@ implement the protocol for your own error types and set one yourself.
 | `load_denied` | Requested field in `denied_loads` |
 | `unknown_field` | Unknown or inaccessible field |
 | `unknown_error` | Unexpected error |
+| `authentication_failed` | Sign-in failed (requires `ash_authentication`) |
+| `invalid_token` | Token was missing, expired or revoked (requires `ash_authentication`) |
+
+The last two are only produced when `ash_authentication` is a dependency of your
+app; AshTypescript declares it as an optional dependency and implements the error
+protocol for `AshAuthentication.Errors.AuthenticationFailed` and
+`AshAuthentication.Errors.InvalidToken` when it is present. Without it those
+exceptions never occur in the first place.
 
 ## Basic Error Handling
 

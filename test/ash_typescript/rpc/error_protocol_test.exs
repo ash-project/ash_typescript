@@ -375,6 +375,122 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
     end
   end
 
+  # `ash_authentication` is an optional dependency of ash_typescript. Declaring
+  # it is what makes Mix compile it before ash_typescript in a consuming app, so
+  # the `Code.ensure_loaded?` guards around these two impls are true and the
+  # impls actually get generated. Before that they never were - not here and not
+  # in any consuming app - and a failed sign-in came back as a generic
+  # `internal_error`.
+  describe "AshAuthentication error impls" do
+    test "impls exist for both AshAuthentication error types" do
+      assert Error.impl_for(%AshAuthentication.Errors.AuthenticationFailed{})
+      assert Error.impl_for(%AshAuthentication.Errors.InvalidToken{})
+    end
+
+    test "AuthenticationFailed is transformed into a typed error" do
+      error =
+        AshAuthentication.Errors.AuthenticationFailed.exception(
+          field: :password,
+          strategy: :password
+        )
+
+      result = Error.to_error(error)
+
+      assert result.message == "Authentication failed"
+      assert result.short_message == "Authentication failed"
+      assert result.type == "authentication_failed"
+      assert result.fields == [:password]
+      assert result.path == []
+    end
+
+    test "AuthenticationFailed keeps its message generic so it cannot enumerate users" do
+      # `caused_by` is for server-side debugging - whatever it holds must not
+      # reach the client.
+      error =
+        AshAuthentication.Errors.AuthenticationFailed.exception(
+          caused_by:
+            AshAuthentication.Errors.InvalidToken.exception(
+              type: :magic_link,
+              reason: "Token did not pass verification"
+            )
+        )
+
+      result = Error.to_error(error)
+
+      assert result.message == "Authentication failed"
+      refute result.message =~ "verification"
+      assert result.fields == []
+    end
+
+    test "InvalidToken is transformed into a typed error" do
+      error =
+        AshAuthentication.Errors.InvalidToken.exception(
+          type: :magic_link,
+          field: :token,
+          reason: "Token did not pass verification"
+        )
+
+      result = Error.to_error(error)
+
+      assert result.message == "Invalid magic_link token: Token did not pass verification"
+      assert result.short_message == "Invalid token"
+      assert result.type == "invalid_token"
+      assert result.fields == [:token]
+    end
+
+    test "InvalidToken without a reason still produces a message" do
+      error = AshAuthentication.Errors.InvalidToken.exception(type: :confirmation)
+
+      result = Error.to_error(error)
+
+      assert result.message == "Invalid confirmation token"
+      assert result.type == "invalid_token"
+      assert result.fields == []
+    end
+
+    test "a failed sign-in surfaces as a typed error, not a generic internal error" do
+      # The reported symptom: AshAuthentication raises these wrapped in an
+      # `Ash.Error.Forbidden` class, and the full pipeline used to fall through
+      # to `handle_unimplemented_error/2`.
+      error =
+        AshAuthentication.Errors.AuthenticationFailed.exception(
+          field: :password,
+          strategy: :password
+        )
+
+      [result] = Errors.to_errors(error)
+
+      assert result.type == "authentication_failed"
+      assert result.short_message == "Authentication failed"
+      # Field names are formatted for the client.
+      assert result.fields == ["password"]
+      refute Map.has_key?(result, :error_id)
+    end
+
+    test "an invalid token surfaces as a typed error through the full pipeline" do
+      error =
+        AshAuthentication.Errors.InvalidToken.exception(type: :confirmation, field: :token)
+
+      [result] = Errors.to_errors(error)
+
+      assert result.type == "invalid_token"
+      assert result.fields == ["token"]
+      refute Map.has_key?(result, :error_id)
+    end
+
+    test "auth errors survive JSON encoding" do
+      errors = [
+        AshAuthentication.Errors.AuthenticationFailed.exception(strategy: :password),
+        AshAuthentication.Errors.InvalidToken.exception(type: :sign_in, reason: "expired")
+      ]
+
+      for error <- errors do
+        [result] = Errors.to_errors(error)
+        assert {:ok, _json} = Jason.encode(result)
+      end
+    end
+  end
+
   describe "Policy breakdown in message (via ash_typescript config)" do
     test "message is static when config not set" do
       error = %Ash.Error.Forbidden.Policy{vars: []}

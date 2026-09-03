@@ -182,6 +182,7 @@ defmodule AshTypescript.MixProject do
   defp deps do
     [
       {:ash, ash_version("~> 3.27")},
+      {:ash_authentication, "~> 4.0", optional: true},
       {:ash_phoenix, "~> 2.0"},
       {:ash_postgres, "~> 2.0", only: [:dev, :test]},
       {:git_ops, "~> 2.0", only: [:dev], runtime: false},

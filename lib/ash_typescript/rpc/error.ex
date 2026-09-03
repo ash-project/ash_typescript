@@ -262,11 +262,11 @@ if Code.ensure_loaded?(AshAuthentication.Errors.AuthenticationFailed) do
   defimpl AshTypescript.Rpc.Error, for: AshAuthentication.Errors.AuthenticationFailed do
     def to_error(error) do
       %{
-        message: Map.get(error, :message) || "Authentication failed",
+        message: Exception.message(error),
         short_message: "Authentication failed",
         vars: Map.new(error.vars || []),
         type: "authentication_failed",
-        fields: List.wrap(Map.get(error, :field)),
+        fields: List.wrap(error.field),
         path: error.path || []
       }
     end
@@ -277,11 +277,11 @@ if Code.ensure_loaded?(AshAuthentication.Errors.InvalidToken) do
   defimpl AshTypescript.Rpc.Error, for: AshAuthentication.Errors.InvalidToken do
     def to_error(error) do
       %{
-        message: Map.get(error, :message) || "Invalid token",
+        message: Exception.message(error),
         short_message: "Invalid token",
         vars: Map.new(error.vars || []),
         type: "invalid_token",
-        fields: [],
+        fields: List.wrap(error.field),
         path: error.path || []
       }
     end
