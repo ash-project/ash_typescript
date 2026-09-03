@@ -7,6 +7,16 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
   Tests for get? and get_by RPC action options.
   """
   use ExUnit.Case, async: false
+
+  # Snapshot the global config this module mutates so it cannot leak into
+  # later test modules.
+  setup_all do
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :enable_namespace_files,
+      :not_found_error?
+    ])
+  end
+
   alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
@@ -906,15 +916,11 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
   describe "not_found_error? global config" do
     setup do
-      conn = TestHelpers.build_rpc_conn()
+      # Restore per test, not just per module: later tests in this file rely on
+      # the default (unset) behaviour.
+      TestHelpers.restore_application_env_on_exit([:not_found_error?])
 
-      original_config = Application.get_env(:ash_typescript, :not_found_error?, true)
-
-      on_exit(fn ->
-        Application.put_env(:ash_typescript, :not_found_error?, original_config)
-      end)
-
-      %{conn: conn, original_config: original_config}
+      %{conn: TestHelpers.build_rpc_conn()}
     end
 
     test "global config false makes default behavior return null", %{conn: conn} do
