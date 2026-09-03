@@ -363,6 +363,63 @@ defmodule AshTypescript.Test.TestHelpers do
     end
   end
 
+  @rpc_hook_config_keys [
+    :rpc_action_before_request_hook,
+    :rpc_action_after_request_hook,
+    :rpc_validation_before_request_hook,
+    :rpc_validation_after_request_hook,
+    :rpc_action_hook_context_type,
+    :rpc_validation_hook_context_type,
+    :rpc_action_before_channel_push_hook,
+    :rpc_action_after_channel_response_hook,
+    :rpc_validation_before_channel_push_hook,
+    :rpc_validation_after_channel_response_hook,
+    :rpc_action_channel_hook_context_type,
+    :rpc_validation_channel_hook_context_type
+  ]
+
+  @doc """
+  The full set of RPC lifecycle hook config keys (HTTP and channel).
+
+  Pass these to `restore_application_env_on_exit/2` from any test that reads or
+  mutates hook configuration, so the values from `config/config.exs` survive.
+  """
+  def rpc_hook_config_keys, do: @rpc_hook_config_keys
+
+  @doc """
+  Snapshots the given application env keys and restores them when the test exits.
+
+  Call this from a `setup` block before mutating global config. Unlike
+  `with_application_config/2` this does not wrap the test body, so individual
+  tests stay free to `put_env`/`delete_env` whatever they need - every key
+  listed here is returned to its original value (or deleted again if it was
+  originally unset) regardless of which path the test took.
+
+  Without this, a test that ends by deleting a key leaves it deleted for every
+  later test in the run, since deleting is not the same as restoring the value
+  configured in `config/config.exs`.
+
+  ## Examples
+
+      setup do
+        AshTypescript.Test.TestHelpers.restore_application_env_on_exit(
+          AshTypescript.Test.TestHelpers.rpc_hook_config_keys()
+        )
+      end
+  """
+  def restore_application_env_on_exit(keys, app \\ :ash_typescript) do
+    originals = Enum.map(keys, fn key -> {key, Application.fetch_env(app, key)} end)
+
+    ExUnit.Callbacks.on_exit(fn ->
+      Enum.each(originals, fn
+        {key, {:ok, value}} -> Application.put_env(app, key, value)
+        {key, :error} -> Application.delete_env(app, key)
+      end)
+    end)
+
+    :ok
+  end
+
   # Private helper functions
 
   defp create_user_via_rpc(conn, opts) do
