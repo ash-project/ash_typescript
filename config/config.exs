@@ -133,3 +133,5 @@ end
 if File.exists?("config/#{config_env()}.exs") do
   import_config "#{config_env()}.exs"
 end
+
+config :ash, default_string_length_count: :codepoints
