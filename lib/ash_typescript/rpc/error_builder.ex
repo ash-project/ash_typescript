@@ -516,6 +516,30 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
+      {:unknown_page_keys, keys} ->
+        keys =
+          Enum.map(
+            keys,
+            &AshTypescript.FieldFormatter.format_field_name(
+              &1,
+              AshTypescript.Rpc.output_field_formatter()
+            )
+          )
+
+        %{
+          type: "invalid_pagination",
+          message: "Unknown pagination keys: %{keys}",
+          short_message: "Invalid pagination",
+          vars: %{keys: Enum.join(keys, ", ")},
+          path: ["page"],
+          fields: keys,
+          details: %{
+            expected:
+              "Offset pagination (limit, offset, count) or keyset pagination (limit, after, before)",
+            hint: @stale_generated_file_hint
+          }
+        }
+
       {:invalid_pagination, invalid_value} ->
         %{
           type: "invalid_pagination",

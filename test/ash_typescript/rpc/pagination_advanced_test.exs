@@ -497,6 +497,24 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
   end
 
   describe "pagination edge cases" do
+    test "unknown page option returns an invalid pagination error" do
+      conn = TestHelpers.build_rpc_conn()
+
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_todos",
+          "fields" => ["id"],
+          "page" => %{"limit" => 10, "notAPageOptionXyz" => 1}
+        })
+
+      assert result["success"] == false
+      assert [error] = result["errors"]
+      assert error["type"] == "invalid_pagination"
+      assert error["vars"] == %{"keys" => "notAPageOptionXyz"}
+      assert error["fields"] == ["notAPageOptionXyz"]
+      assert error["path"] == ["page"]
+    end
+
     test "empty result set returns empty array with pagination" do
       conn = TestHelpers.build_rpc_conn()
       # Don't create any test data

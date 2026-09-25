@@ -46,6 +46,8 @@ defmodule AshTypescript.Rpc.Pipeline do
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.Rpc.LoadRestrictions
 
+  @page_keys [:limit, :offset, :count, :after, :before]
+
   @doc """
   Stage 1: Parse and validate request.
 
@@ -725,7 +727,11 @@ defmodule AshTypescript.Rpc.Pipeline do
       page when is_map(page) ->
         formatter = Rpc.input_field_formatter()
         parsed_page = FieldFormatter.parse_input_fields(page, formatter)
-        {:ok, parsed_page}
+
+        case Map.keys(parsed_page) -- @page_keys do
+          [] -> {:ok, parsed_page}
+          unknown_keys -> {:error, {:unknown_page_keys, Enum.map(unknown_keys, &to_string/1)}}
+        end
 
       invalid ->
         {:error, {:invalid_pagination, invalid}}
@@ -970,7 +976,7 @@ defmodule AshTypescript.Rpc.Pipeline do
   defp apply_sort(query, sort), do: Ash.Query.sort_input(query, sort)
 
   defp apply_pagination(query, nil), do: Ash.Query.page(query, nil)
-  defp apply_pagination(query, page), do: Ash.Query.page(query, page)
+  defp apply_pagination(query, page), do: Ash.Query.page(query, Map.to_list(page))
 
   defdelegate format_sort_string(sort, formatter), to: AshTypescript.FieldFormatter
 
