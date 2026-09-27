@@ -19,6 +19,27 @@ defmodule AshTypescript.TypedController.Codegen do
     TypescriptStatic
   }
 
+  @doc """
+  Resolves the configured typed controller routes against `router`.
+
+  Returns `nil` when no typed controllers are configured, which lets callers tell
+  "nothing configured" apart from "configured but not mounted". The orchestrator
+  resolves once and passes the result to the other codegen functions as
+  `:route_infos`, so one codegen run introspects the router only once.
+  """
+  def typed_route_infos(router) do
+    case RouteConfigCollector.get_typed_controllers() do
+      [] -> nil
+      routes_config -> resolve_route_infos(router, routes_config)
+    end
+  end
+
+  defp fetch_route_infos(opts) do
+    Keyword.get_lazy(opts, :route_infos, fn ->
+      typed_route_infos(Keyword.get(opts, :router) || AshTypescript.router())
+    end)
+  end
+
   @doc false
   def resolve_route_infos(router, routes_config) do
     if router do
@@ -167,32 +188,31 @@ defmodule AshTypescript.TypedController.Codegen do
   ## Parameters
 
     * `opts` - Options keyword list:
+      * `:route_infos` - Pre-resolved routes from `typed_route_infos/1`; when absent,
+        the function resolves them from `:router`
       * `:router` - Phoenix router module
       * `:import_paths` - `%{types: path}` for import resolution (types only, no Zod)
   """
   def generate_controller_content(opts) do
-    router = Keyword.get(opts, :router) || AshTypescript.router()
     import_paths = Keyword.get(opts, :import_paths, %{types: nil})
     shared_type_names = Keyword.get(opts, :shared_type_names, [])
     base_path = Keyword.get(opts, :base_path) || AshTypescript.typed_controller_base_path()
     output_file = Keyword.get(opts, :output_file) || AshTypescript.routes_output_file()
 
-    routes_config = RouteConfigCollector.get_typed_controllers()
+    case fetch_route_infos(opts) do
+      nil ->
+        ""
 
-    if routes_config == [] do
-      ""
-    else
-      route_infos = resolve_route_infos(router, routes_config)
+      route_infos ->
+        validate_path_param_arguments!(route_infos)
 
-      validate_path_param_arguments!(route_infos)
-
-      generate_typescript_with_imports(
-        route_infos,
-        import_paths,
-        shared_type_names,
-        base_path,
-        output_file
-      )
+        generate_typescript_with_imports(
+          route_infos,
+          import_paths,
+          shared_type_names,
+          base_path,
+          output_file
+        )
     end
   end
 
@@ -201,24 +221,22 @@ defmodule AshTypescript.TypedController.Codegen do
 
   Returns a list of schema strings (one per route that has non-path arguments).
   These are meant to be passed to SharedSchemaGenerator as `:additional_schemas`.
+  Accepts `:route_infos` from `typed_route_infos/1` or resolves them from `:router`.
   """
   def collect_route_schemas(formatter, opts \\ []) do
-    router = Keyword.get(opts, :router) || AshTypescript.router()
-    routes_config = RouteConfigCollector.get_typed_controllers()
+    case fetch_route_infos(opts) do
+      nil ->
+        []
 
-    if routes_config == [] do
-      []
-    else
-      route_infos = resolve_route_infos(router, routes_config)
+      route_infos ->
+        sorted_infos =
+          Enum.sort_by(route_infos, fn info ->
+            {info.scope_prefix || "", info.route.name}
+          end)
 
-      sorted_infos =
-        Enum.sort_by(route_infos, fn info ->
-          {info.scope_prefix || "", info.route.name}
-        end)
-
-      sorted_infos
-      |> Enum.map(&RouteRenderer.render_schema(&1, formatter))
-      |> Enum.reject(&(&1 == ""))
+        sorted_infos
+        |> Enum.map(&RouteRenderer.render_schema(&1, formatter))
+        |> Enum.reject(&(&1 == ""))
     end
   end
 
@@ -296,19 +314,17 @@ defmodule AshTypescript.TypedController.Codegen do
   Groups route infos by resolved namespace.
 
   Returns a map of `%{namespace => [route_info]}` where namespace is a string or nil.
+  Accepts `:route_infos` from `typed_route_infos/1` or resolves them from `:router`.
   """
   def get_routes_by_namespace(opts \\ []) do
-    router = Keyword.get(opts, :router) || AshTypescript.router()
-    routes_config = RouteConfigCollector.get_typed_controllers()
+    case fetch_route_infos(opts) do
+      nil ->
+        %{}
 
-    if routes_config == [] do
-      %{}
-    else
-      route_infos = resolve_route_infos(router, routes_config)
-
-      Enum.group_by(route_infos, fn info ->
-        RouteConfigCollector.resolve_route_namespace(info.route, info.source_module)
-      end)
+      route_infos ->
+        Enum.group_by(route_infos, fn info ->
+          RouteConfigCollector.resolve_route_namespace(info.route, info.source_module)
+        end)
     end
   end
 

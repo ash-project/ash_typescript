@@ -76,7 +76,8 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
     embedded_resources = TypeDiscovery.find_embedded_resources(otp_app)
     struct_argument_resources = TypeDiscovery.find_struct_argument_resources(otp_app)
-    controller_resources = collect_typed_controller_resources()
+    route_infos = ControllerCodegen.typed_route_infos(AshTypescript.router())
+    controller_resources = collect_typed_controller_resources(route_infos)
 
     all_resources =
       (rpc_resources ++ embedded_resources ++ struct_argument_resources ++ controller_resources)
@@ -121,7 +122,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
       Enum.reduce(SchemaFormatter.enabled(), files, fn formatter, files ->
         controller_schemas =
           if routes_output_file do
-            ControllerCodegen.collect_route_schemas(formatter, router: AshTypescript.router())
+            ControllerCodegen.collect_route_schemas(formatter, route_infos: route_infos)
           else
             []
           end
@@ -161,8 +162,6 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
     files =
       if routes_output_file do
-        router = AshTypescript.router()
-
         types_import_path =
           ImportResolver.resolve_import_path(routes_output_file, types_output_file)
 
@@ -170,7 +169,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
         routes_content =
           ControllerCodegen.generate_controller_content(
-            router: router,
+            route_infos: route_infos,
             import_paths: import_paths,
             shared_type_names: shared_type_names
           )
@@ -235,7 +234,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
     files =
       if routes_output_file && AshTypescript.enable_controller_namespace_files?() do
-        grouped = ControllerCodegen.get_routes_by_namespace(router: AshTypescript.router())
+        grouped = ControllerCodegen.get_routes_by_namespace(route_infos: route_infos)
 
         output_dir =
           AshTypescript.controller_namespace_output_dir() ||
@@ -365,17 +364,10 @@ defmodule AshTypescript.Codegen.Orchestrator do
     end
   end
 
-  defp collect_typed_controller_resources do
-    router = AshTypescript.router()
-    routes_config = ControllerCodegen.RouteConfigCollector.get_typed_controllers()
+  defp collect_typed_controller_resources(nil), do: []
 
-    if routes_config == [] do
-      []
-    else
-      route_infos = ControllerCodegen.resolve_route_infos(router, routes_config)
-      ControllerCodegen.collect_referenced_resources(route_infos)
-    end
-  end
+  defp collect_typed_controller_resources(route_infos),
+    do: ControllerCodegen.collect_referenced_resources(route_infos)
 
   # Run manifest-level verifiers (cross-domain RPC checks, typed query validation,
   # etc.) against the configured manifest module's persisted Spark DSL state.

@@ -398,7 +398,7 @@ if (!result.success) {
 
 ## Effect Schema Alternative
 
-AshTypescript also supports [Effect Schema](https://effect.website/) for projects built on Effect. The generated schemas target **Effect v4** (`effect@4`), which ships `Schema` inside the `effect` package. Enable it alongside or instead of Zod and Valibot:
+AshTypescript also supports [Effect Schema](https://effect.website/) for projects built on Effect. The generated schemas target stable **Effect v4** (`effect@^4.0.0`), which ships `Schema` inside the `effect` package. Enable it alongside or instead of Zod and Valibot:
 
 ```elixir
 config :ash_typescript,
