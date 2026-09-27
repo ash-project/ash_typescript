@@ -6,19 +6,16 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
   @moduledoc """
   Behaviour defining the output-format interface for schema generators.
 
-  Implement this behaviour to add a new validation library target (e.g. Zod, Valibot, Effect).
-  `AshTypescript.Codegen.SchemaCore` handles all resource introspection, topological
-  sorting, and structural generation; implementations only provide the output syntax.
+  This is an internal interface. Each in-tree validation library (Zod, Valibot, Effect)
+  implements it, and the codegen orchestrator calls a fixed list of these formatters;
+  no config option registers an external one, so the callbacks may change between
+  releases. `AshTypescript.Codegen.SchemaCore` handles all resource introspection,
+  topological sorting, and structural generation; implementations only provide the
+  output syntax.
 
-  ## Implementing a new formatter
-
-      defmodule MyLib.SchemaFormatter do
-        @behaviour AshTypescript.Codegen.SchemaFormatter
-
-        def null_schema, do: "ml.null()"
-        def any_schema, do: "ml.any()"
-        # ...
-      end
+  Adding a library means implementing this behaviour and wiring the new formatter into
+  the orchestrator, import resolution, RPC and route codegen, and both manifest
+  generators, following `AshTypescript.Codegen.ZodSchemaGenerator`.
   """
 
   @doc "Schema for nil / null type"
