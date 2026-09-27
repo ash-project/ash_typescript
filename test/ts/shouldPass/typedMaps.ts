@@ -9,6 +9,7 @@ import {
   getTodo,
   createTodo,
   updateTodo,
+  listUsersMap,
   buildCSRFHeaders,
 } from "../generated";
 
@@ -573,6 +574,26 @@ if (todoWithMetadataReport.success && todoWithMetadataReport.data) {
         const category: string = row.category;
         const priorityScore: number | null = row.priorityScore;
       }
+    }
+  }
+}
+
+// An array of typed maps nested in a typed map (a generic action's return)
+// selects its members like any nested typed map
+export const usersMapWithNestedSelection = await listUsersMap({
+  fields: ["totalCount", { results: ["id", "email", "isAdmin"] }],
+});
+
+if (usersMapWithNestedSelection.success) {
+  const totalCount: number | null = usersMapWithNestedSelection.data.totalCount;
+
+  if (usersMapWithNestedSelection.data.results) {
+    for (const user of usersMapWithNestedSelection.data.results) {
+      const id: string | null = user.id;
+      const email: string | null = user.email;
+      const isAdmin: boolean | null = user.isAdmin;
+      // @ts-expect-error - "phone" was not selected
+      user.phone;
     }
   }
 }
