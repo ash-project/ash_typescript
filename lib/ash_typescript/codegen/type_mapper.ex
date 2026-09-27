@@ -380,7 +380,10 @@ defmodule AshTypescript.Codegen.TypeMapper do
     fields = Type.get_fields(type_info)
 
     if fields == [] do
-      AshTypescript.untyped_map_type()
+      case unknown_module_mapping(type_info) do
+        {:ok, ts} -> ts
+        :unsupported -> AshTypescript.untyped_map_type()
+      end
     else
       inst = Type.effective_module(type_info)
       field_name_mappings = get_field_name_mappings_from_module(inst)
