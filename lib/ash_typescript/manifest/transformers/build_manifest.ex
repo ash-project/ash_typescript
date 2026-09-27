@@ -59,15 +59,7 @@ defmodule AshTypescript.Manifest.Transformers.BuildManifest do
     # and `extra_root_tuples` is built from `rpc_resources`), so one pass suffices.
     Enum.each(rpc_resources, &Code.ensure_compiled!/1)
 
-    # Generate unified Ash.Info.Manifest with action-scoped reachability and RPC config
-    {:ok, manifest} =
-      Ash.Info.Manifest.Generator.generate(otp_app: otp_app, action_entrypoints: all_entrypoints)
-
-    # Ensure every module the decorator will later interrogate is compiled.
-    # Reachability can drag in additional resources (relationship destinations
-    # without their own RPC entries) and embedded resource modules whose
-    # `AshTypescript.Resource` DSL state we need to read.
-    ensure_all_modules_compiled(manifest)
+    manifest = generate_until_complete(otp_app, all_entrypoints)
 
     # Persist the raw per-resource RPC configs alongside the manifest so
     # verifiers can read RPC-specific data (typed_queries, etc.) that isn't
@@ -83,18 +75,36 @@ defmodule AshTypescript.Manifest.Transformers.BuildManifest do
     {:ok, dsl_state}
   end
 
-  defp ensure_all_modules_compiled(%Ash.Info.Manifest{resources: resources, types: types}) do
-    Enum.each(resources, fn %Ash.Info.Manifest.Resource{module: mod} ->
-      if is_atom(mod), do: Code.ensure_compiled!(mod)
-    end)
+  # Reachability reads each module with `Code.ensure_loaded?/1`, which does not
+  # wait for a module still compiling in parallel: such a module is listed (as a
+  # relationship destination) but not traversed, so whatever is reachable only
+  # through it goes missing. Any reached module that was not loaded when the
+  # walk started may have been skipped that way, so wait for those and walk
+  # again; each round loads more modules, so this reaches a fixed point, and the
+  # final walk leaves every module the decorator interrogates compiled.
+  defp generate_until_complete(otp_app, entrypoints) do
+    loaded_before = MapSet.new(:code.all_loaded(), &elem(&1, 0))
 
-    Enum.each(types, fn
-      %Ash.Info.Manifest.Type{kind: :embedded_resource, module: mod} when is_atom(mod) ->
-        Code.ensure_compiled!(mod)
+    {:ok, manifest} =
+      Ash.Info.Manifest.Generator.generate(otp_app: otp_app, action_entrypoints: entrypoints)
 
-      _ ->
-        :ok
-    end)
+    case manifest |> manifest_modules() |> Enum.reject(&MapSet.member?(loaded_before, &1)) do
+      [] ->
+        manifest
+
+      pending ->
+        Enum.each(pending, &Code.ensure_compiled!/1)
+        generate_until_complete(otp_app, entrypoints)
+    end
+  end
+
+  defp manifest_modules(%Ash.Info.Manifest{resources: resources, types: types}) do
+    resource_modules = for %Ash.Info.Manifest.Resource{module: mod} <- resources, do: mod
+
+    embedded_modules =
+      for %Ash.Info.Manifest.Type{kind: :embedded_resource, module: mod} <- types, do: mod
+
+    Enum.filter(resource_modules ++ embedded_modules, &is_atom/1)
   end
 
   # Returns a list of `{domain, %AshTypescript.Rpc.Resource{}}` covering every
