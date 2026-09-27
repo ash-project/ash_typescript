@@ -7,16 +7,28 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
   Behaviour defining the output-format interface for schema generators.
 
   This is an internal interface. Each in-tree validation library (Zod, Valibot, Effect)
-  implements it, and the codegen orchestrator calls a fixed list of these formatters;
-  no config option registers an external one, so the callbacks may change between
-  releases. `AshTypescript.Codegen.SchemaCore` handles all resource introspection,
-  topological sorting, and structural generation; implementations only provide the
-  output syntax.
+  implements it, and `all/0` lists them; no config option registers an external one,
+  so the callbacks may change between releases. `AshTypescript.Codegen.SchemaCore`
+  handles all resource introspection, topological sorting, and structural generation;
+  implementations only provide the output syntax.
 
-  Adding a library means implementing this behaviour and wiring the new formatter into
-  the orchestrator, import resolution, RPC and route codegen, and both manifest
-  generators, following `AshTypescript.Codegen.ZodSchemaGenerator`.
+  Every per-library site (the orchestrator, namespace re-exports, RPC and route
+  codegen, both manifest generators) iterates `all/0` or `enabled/0`, so adding a
+  library means implementing this behaviour and appending the module to `all/0`.
   """
+
+  alias AshTypescript.Codegen.{EffectSchemaGenerator, ValibotSchemaGenerator, ZodSchemaGenerator}
+
+  @doc """
+  Every in-tree formatter, in the order their output appears in namespace
+  re-exports, manifest columns, and JSON manifest keys.
+  """
+  @spec all() :: [module()]
+  def all, do: [ZodSchemaGenerator, ValibotSchemaGenerator, EffectSchemaGenerator]
+
+  @doc "The formatters whose schema generation the project config enables."
+  @spec enabled() :: [module()]
+  def enabled, do: Enum.filter(all(), & &1.generate_schemas_enabled?())
 
   @doc "Schema for nil / null type"
   @callback null_schema() :: String.t()
@@ -132,4 +144,16 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
 
   @doc "The import path for the validation library from application config."
   @callback configured_import_path() :: String.t()
+
+  @doc ~S'Stable lowercase key for manifest entries (e.g. "zod", "valibot" or "effect").'
+  @callback key() :: String.t()
+
+  @doc "Path of the generated schema file for this library."
+  @callback output_file() :: String.t()
+
+  @doc """
+  The route's DSL override for this library's schema name (e.g. `zod_schema_name`),
+  or `nil` when the route uses the derived name.
+  """
+  @callback route_schema_name_override(route :: struct()) :: String.t() | nil
 end

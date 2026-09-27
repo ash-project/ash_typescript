@@ -28,11 +28,9 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
   @tc_mutation_methods [:post, :patch, :put, :delete]
 
-  alias AshTypescript.Codegen.EffectSchemaGenerator
   alias AshTypescript.Codegen.ImportResolver
   alias AshTypescript.Codegen.SchemaCore
-  alias AshTypescript.Codegen.ValibotSchemaGenerator
-  alias AshTypescript.Codegen.ZodSchemaGenerator
+  alias AshTypescript.Codegen.SchemaFormatter
   alias AshTypescript.Helpers
   alias AshTypescript.Manifest.Custom
   alias AshTypescript.Rpc.Codegen.FunctionNames
@@ -126,25 +124,9 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
     files = Map.put(files, "types", file_entry(manifest_path, AshTypescript.types_output_file()))
 
     files =
-      if AshTypescript.Rpc.generate_zod_schemas?() do
-        Map.put(files, "zod", file_entry(manifest_path, AshTypescript.zod_output_file()))
-      else
-        files
-      end
-
-    files =
-      if AshTypescript.Rpc.generate_valibot_schemas?() do
-        Map.put(files, "valibot", file_entry(manifest_path, AshTypescript.valibot_output_file()))
-      else
-        files
-      end
-
-    files =
-      if AshTypescript.Rpc.generate_effect_schemas?() do
-        Map.put(files, "effect", file_entry(manifest_path, AshTypescript.effect_output_file()))
-      else
-        files
-      end
+      Enum.reduce(SchemaFormatter.enabled(), files, fn formatter, files ->
+        Map.put(files, formatter.key(), file_entry(manifest_path, formatter.output_file()))
+      end)
 
     files =
       case AshTypescript.routes_output_file() do
@@ -225,9 +207,10 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
     # schema is only emitted when the action actually has inputs — so these two
     # variants are per-action, not just "is the library enabled".
     has_schema? = SchemaCore.action_has_schema?(action)
-    show_zod = AshTypescript.Rpc.generate_zod_schemas?() and has_schema?
-    show_valibot = AshTypescript.Rpc.generate_valibot_schemas?() and has_schema?
-    show_effect = AshTypescript.Rpc.generate_effect_schemas?() and has_schema?
+    schema_formatters = if has_schema?, do: SchemaFormatter.enabled(), else: []
+
+    schema_variants =
+      Map.new(SchemaFormatter.all(), &{&1.key(), &1 in schema_formatters})
 
     %{
       "functionName" => function_name,
@@ -246,21 +229,17 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
       "pagination" => build_pagination(action, is_get_action),
       "enableFilter" => Map.get(rpc_action, :enable_filter?, true),
       "enableSort" => Map.get(rpc_action, :enable_sort?, true),
-      "variants" => %{
-        "validation" => show_validation,
-        "zod" => show_zod,
-        "valibot" => show_valibot,
-        "effect" => show_effect,
-        "channel" => show_channel,
-        "validationChannel" => show_validation and show_channel
-      },
+      "variants" =>
+        Map.merge(schema_variants, %{
+          "validation" => show_validation,
+          "channel" => show_channel,
+          "validationChannel" => show_validation and show_channel
+        }),
       "variantNames" =>
         build_variant_names(
           rpc_action_name,
           show_validation,
-          show_zod,
-          show_valibot,
-          show_effect,
+          schema_formatters,
           show_channel
         )
     }
@@ -346,9 +325,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
   defp build_variant_names(
          rpc_action_name,
          show_validation,
-         show_zod,
-         show_valibot,
-         show_effect,
+         schema_formatters,
          show_channel
        ) do
     names = %{}
@@ -361,33 +338,9 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
       end
 
     names =
-      if show_zod do
-        Map.put(names, "zod", SchemaCore.action_schema_name(ZodSchemaGenerator, rpc_action_name))
-      else
-        names
-      end
-
-    names =
-      if show_valibot do
-        Map.put(
-          names,
-          "valibot",
-          SchemaCore.action_schema_name(ValibotSchemaGenerator, rpc_action_name)
-        )
-      else
-        names
-      end
-
-    names =
-      if show_effect do
-        Map.put(
-          names,
-          "effect",
-          SchemaCore.action_schema_name(EffectSchemaGenerator, rpc_action_name)
-        )
-      else
-        names
-      end
+      Enum.reduce(schema_formatters, names, fn formatter, names ->
+        Map.put(names, formatter.key(), SchemaCore.action_schema_name(formatter, rpc_action_name))
+      end)
 
     names =
       if show_channel do
@@ -524,36 +477,22 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
     types =
       %{}
       |> maybe_put_route_type(has_input_type, "input", fn -> route_input_type_name(info) end)
-      |> maybe_put_route_type(
-        has_schemas and AshTypescript.Rpc.generate_zod_schemas?(),
-        "zod",
-        fn ->
-          AshTypescript.TypedController.Codegen.route_zod_schema_name(
-            info.route,
-            info.scope_prefix
-          )
-        end
-      )
-      |> maybe_put_route_type(
-        has_schemas and AshTypescript.Rpc.generate_valibot_schemas?(),
-        "valibot",
-        fn ->
-          AshTypescript.TypedController.Codegen.route_valibot_schema_name(
-            info.route,
-            info.scope_prefix
-          )
-        end
-      )
-      |> maybe_put_route_type(
-        has_schemas and AshTypescript.Rpc.generate_effect_schemas?(),
-        "effect",
-        fn ->
-          AshTypescript.TypedController.Codegen.route_effect_schema_name(
-            info.route,
-            info.scope_prefix
-          )
-        end
-      )
+
+    types =
+      if has_schemas do
+        Enum.reduce(SchemaFormatter.enabled(), types, fn formatter, types ->
+          name =
+            AshTypescript.TypedController.Codegen.route_schema_name(
+              formatter,
+              info.route,
+              info.scope_prefix
+            )
+
+          Map.put(types, formatter.key(), name)
+        end)
+      else
+        types
+      end
 
     if types == %{}, do: entry, else: Map.put(entry, "types", types)
   end

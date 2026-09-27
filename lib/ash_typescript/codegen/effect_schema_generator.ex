@@ -151,6 +151,12 @@ defmodule AshTypescript.Codegen.EffectSchemaGenerator do
   def library_name, do: "Effect"
   @impl true
   def configured_import_path, do: AshTypescript.Rpc.effect_import_path()
+  @impl true
+  def key, do: "effect"
+  @impl true
+  def output_file, do: AshTypescript.effect_output_file()
+  @impl true
+  def route_schema_name_override(route), do: route.effect_schema_name
 
   @impl true
   def format_string(constraints, require_non_empty) do

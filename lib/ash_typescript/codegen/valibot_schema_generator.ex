@@ -135,6 +135,12 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
   def library_name, do: "Valibot"
   @impl true
   def configured_import_path, do: AshTypescript.Rpc.valibot_import_path()
+  @impl true
+  def key, do: "valibot"
+  @impl true
+  def output_file, do: AshTypescript.valibot_output_file()
+  @impl true
+  def route_schema_name_override(route), do: route.valibot_schema_name
 
   @impl true
   def format_string(constraints, require_non_empty) do

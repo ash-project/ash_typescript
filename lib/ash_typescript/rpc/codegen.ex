@@ -6,10 +6,8 @@ defmodule AshTypescript.Rpc.Codegen do
   @moduledoc """
   Generates TypeScript code for interacting with Ash resources via Rpc.
   """
-  alias AshTypescript.Codegen.EffectSchemaGenerator
   alias AshTypescript.Codegen.SchemaCore
-  alias AshTypescript.Codegen.ValibotSchemaGenerator
-  alias AshTypescript.Codegen.ZodSchemaGenerator
+  alias AshTypescript.Codegen.SchemaFormatter
 
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.ChannelRenderer
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.HttpRenderer
@@ -76,31 +74,14 @@ defmodule AshTypescript.Rpc.Codegen do
         exports
       end
 
-    # Classified as :zod_value so namespace files can re-export from ash_zod.ts
+    # Schema exports carry their formatter so namespace files re-export each
+    # one from that library's schema file.
     exports =
-      if AshTypescript.Rpc.generate_zod_schemas?() and has_input? do
-        zod_schema_name = SchemaCore.action_schema_name(ZodSchemaGenerator, rpc_action_name)
-        exports ++ [{zod_schema_name, :zod_value}]
-      else
-        exports
-      end
-
-    # Classified as :valibot_value so namespace files can re-export from ash_valibot.ts
-    exports =
-      if AshTypescript.Rpc.generate_valibot_schemas?() and has_input? do
-        valibot_schema_name =
-          SchemaCore.action_schema_name(ValibotSchemaGenerator, rpc_action_name)
-
-        exports ++ [{valibot_schema_name, :valibot_value}]
-      else
-        exports
-      end
-
-    # Classified as :effect_value so namespace files can re-export from ash_effect.ts
-    exports =
-      if AshTypescript.Rpc.generate_effect_schemas?() and has_input? do
-        effect_schema_name = SchemaCore.action_schema_name(EffectSchemaGenerator, rpc_action_name)
-        exports ++ [{effect_schema_name, :effect_value}]
+      if has_input? do
+        exports ++
+          Enum.map(SchemaFormatter.enabled(), fn formatter ->
+            {SchemaCore.action_schema_name(formatter, rpc_action_name), {:schema, formatter}}
+          end)
       else
         exports
       end
@@ -336,9 +317,7 @@ defmodule AshTypescript.Rpc.Codegen do
         namespace,
         actions,
         main_file_path,
-        zod_file_path \\ nil,
-        valibot_file_path \\ nil,
-        effect_file_path \\ nil
+        schema_files \\ %{}
       ) do
     namespace_dir = AshTypescript.Rpc.namespace_output_dir() || Path.dirname(main_file_path)
     namespace_file = Path.join(namespace_dir, "#{namespace}.ts")
@@ -349,9 +328,7 @@ defmodule AshTypescript.Rpc.Codegen do
       exports,
       namespace_file,
       main_file_path,
-      zod_file_path,
-      valibot_file_path,
-      effect_file_path
+      schema_files
     )
   end
 

@@ -109,8 +109,9 @@ config :ash_typescript,
 This generates one file per namespace in `namespace_output_dir` (default: the directory of
 the main `output_file`):
 
-- `rpc/todos.ts` — re-exports the "todos" namespace's functions, input types and Zod/Valibot/Effect
-  schemas **from** the main output file (Effect schemas re-export from the Effect file, export kind `:effect_value`)
+- `rpc/todos.ts` — re-exports the "todos" namespace's functions and input types **from** the
+  main output file, and its Zod/Valibot/Effect schemas from each library's schema file
+  (export kind `{:schema, formatter}`)
 - `rpc/admin.ts` — same for "admin"
 
 The main output file is unchanged and does **not** import the namespace files — the
@@ -363,8 +364,7 @@ arguments have no `types` key at all.
 
 The route-level `"zod"`, `"valibot"`, and `"effect"` names honor a route's
 `zod_schema_name` / `valibot_schema_name` / `effect_schema_name` overrides; the
-single sources of truth are `TypedController.Codegen.route_zod_schema_name/2`,
-`route_valibot_schema_name/2`, and `route_effect_schema_name/2`, shared by the
+single source of truth is `TypedController.Codegen.route_schema_name/3`, shared by the
 renderer, namespace re-exports, and the manifests, so they cannot drift. Each key
 appears only when the corresponding `generate_*_schemas` config is enabled. The
 Markdown manifest applies the same gating to its `Zod Schema`, `Valibot Schema`,

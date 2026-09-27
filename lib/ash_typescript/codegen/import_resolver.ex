@@ -12,6 +12,8 @@ defmodule AshTypescript.Codegen.ImportResolver do
   import from another.
   """
 
+  alias AshTypescript.Codegen.SchemaFormatter
+
   @namespace_custom_code_marker "// --- Custom code below this line is preserved on regeneration (do not edit this line) ---"
 
   @doc """
@@ -126,116 +128,57 @@ defmodule AshTypescript.Codegen.ImportResolver do
   ## Parameters
 
     * `namespace` - The namespace name (used in the header comment)
-    * `exports` - List of `{name, kind}` tuples where kind is `:value`, `:type`, `:zod_value`,
-      `:valibot_value`, or `:effect_value`
+    * `exports` - List of `{name, kind}` tuples where kind is `:value`, `:type`, or
+      `{:schema, formatter}` for a validation schema produced by that
+      `AshTypescript.Codegen.SchemaFormatter`
     * `namespace_file` - Full path of the namespace file being generated (for import resolution)
     * `main_file_path` - Path to the main source file (RPC or routes)
-    * `zod_file_path` - Path to the Zod file (nil to import Zod from main file)
-    * `valibot_file_path` - Path to the Valibot file (nil to import Valibot from main file)
-    * `effect_file_path` - Path to the Effect file (nil to import Effect from main file)
+    * `schema_files` - Map of formatter module to its schema file path; a formatter
+      missing from the map re-exports from the main file
   """
   def generate_namespace_reexport_content(
         namespace,
         exports,
         namespace_file,
         main_file_path,
-        zod_file_path \\ nil,
-        valibot_file_path \\ nil,
-        effect_file_path \\ nil
+        schema_files \\ %{}
       ) do
     main_import_path = resolve_import_path(namespace_file, main_file_path)
+    names_by_kind = Enum.group_by(exports, &elem(&1, 1), &elem(&1, 0))
 
-    {effect_exports, non_effect_exports} =
-      Enum.split_with(exports, fn {_name, kind} -> kind == :effect_value end)
-
-    {valibot_exports, non_valibot_exports} =
-      Enum.split_with(non_effect_exports, fn {_name, kind} -> kind == :valibot_value end)
-
-    {zod_exports, non_zod_exports} =
-      Enum.split_with(non_valibot_exports, fn {_name, kind} -> kind == :zod_value end)
-
-    {type_exports, value_exports} =
-      Enum.split_with(non_zod_exports, fn {_name, kind} -> kind == :type end)
-
-    type_names = type_exports |> Enum.map(fn {name, _} -> name end) |> Enum.sort()
-    value_names = value_exports |> Enum.map(fn {name, _} -> name end) |> Enum.sort()
-    zod_names = zod_exports |> Enum.map(fn {name, _} -> name end) |> Enum.sort()
-    valibot_names = valibot_exports |> Enum.map(fn {name, _} -> name end) |> Enum.sort()
-    effect_names = effect_exports |> Enum.map(fn {name, _} -> name end) |> Enum.sort()
-
-    type_export_line =
-      if type_names != [] do
-        "export type {\n  #{Enum.join(type_names, ",\n  ")}\n} from \"#{main_import_path}\";\n"
-      else
-        ""
-      end
-
-    value_export_line =
-      if value_names != [] do
-        "export {\n  #{Enum.join(value_names, ",\n  ")}\n} from \"#{main_import_path}\";\n"
-      else
-        ""
-      end
-
-    zod_export_line =
-      if zod_names != [] do
-        zod_import_path =
-          if zod_file_path do
-            resolve_import_path(namespace_file, zod_file_path)
-          else
-            main_import_path
+    schema_sources =
+      Enum.map(SchemaFormatter.all(), fn formatter ->
+        import_path =
+          case Map.get(schema_files, formatter) do
+            nil -> main_import_path
+            path -> resolve_import_path(namespace_file, path)
           end
 
-        "export {\n  #{Enum.join(zod_names, ",\n  ")}\n} from \"#{zod_import_path}\";\n"
-      else
-        ""
-      end
+        {{:schema, formatter}, "export", import_path}
+      end)
 
-    valibot_export_line =
-      if valibot_names != [] do
-        valibot_import_path =
-          if valibot_file_path do
-            resolve_import_path(namespace_file, valibot_file_path)
-          else
-            main_import_path
-          end
+    blocks =
+      [{:type, "export type", main_import_path}, {:value, "export", main_import_path}]
+      |> Kernel.++(schema_sources)
+      |> Enum.flat_map(fn {kind, keyword, import_path} ->
+        case Map.get(names_by_kind, kind, []) do
+          [] ->
+            []
 
-        "export {\n  #{Enum.join(valibot_names, ",\n  ")}\n} from \"#{valibot_import_path}\";\n"
-      else
-        ""
-      end
+          names ->
+            names = Enum.sort(names)
+            ["#{keyword} {\n  #{Enum.join(names, ",\n  ")}\n} from \"#{import_path}\";\n"]
+        end
+      end)
 
-    # Appended to the Valibot line rather than given its own template line, so
-    # projects without Effect schemas keep byte-identical namespace files.
-    effect_export_line =
-      if effect_names != [] do
-        effect_import_path =
-          if effect_file_path do
-            resolve_import_path(namespace_file, effect_file_path)
-          else
-            main_import_path
-          end
-
-        separator = if valibot_export_line == "", do: "", else: "\n"
-
-        separator <>
-          "export {\n  #{Enum.join(effect_names, ",\n  ")}\n} from \"#{effect_import_path}\";\n"
-      else
-        ""
-      end
-
-    """
+    header = """
     // Generated by AshTypescript - Namespace: #{namespace}
     // WARNING: Do not edit this section - it will be overwritten on regeneration
-
-    #{type_export_line}
-    #{value_export_line}
-    #{zod_export_line}
-    #{valibot_export_line}#{effect_export_line}
-    #{@namespace_custom_code_marker}
     """
-    |> String.trim()
-    |> Kernel.<>("\n")
+
+    # Each section ends in a newline, so joining on "\n" leaves exactly one
+    # blank line between sections, whichever export kinds are present.
+    Enum.join([header | blocks] ++ [@namespace_custom_code_marker], "\n") <> "\n"
   end
 
   defp filter_used_types(type_names, content) do

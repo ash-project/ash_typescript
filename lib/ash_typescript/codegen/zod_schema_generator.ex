@@ -126,6 +126,12 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   def library_name, do: "Zod"
   @impl true
   def configured_import_path, do: AshTypescript.Rpc.zod_import_path()
+  @impl true
+  def key, do: "zod"
+  @impl true
+  def output_file, do: AshTypescript.zod_output_file()
+  @impl true
+  def route_schema_name_override(route), do: route.zod_schema_name
 
   @impl true
   def format_string(constraints, require_non_empty) do

@@ -18,7 +18,7 @@ AshTypescript generates runtime validation schemas alongside TypeScript types. T
 
 The schema generation uses a **formatter behaviour pattern** to avoid duplication:
 
-- **`SchemaFormatter`** (`codegen/schema_formatter.ex`) — Behaviour defining ~26 output-syntax callbacks (e.g. `wrap_optional`, `format_enum`, `format_string`, `format_array`, `object_constructor`). `object_constructor/0` returns the full top-level object constructor (`"z.object"`, `"v.object"`, `"Schema.Struct"`); it replaced the former `library_prefix/0` callback, which could not express Effect's `Schema.Struct`.
+- **`SchemaFormatter`** (`codegen/schema_formatter.ex`) — Behaviour defining ~26 output-syntax callbacks (e.g. `wrap_optional`, `format_enum`, `format_string`, `format_array`, `object_constructor`). `object_constructor/0` returns the full top-level object constructor (`"z.object"`, `"v.object"`, `"Schema.Struct"`); it replaced the former `library_prefix/0` callback, which could not express Effect's `Schema.Struct`. The module also holds the registry: `SchemaFormatter.all/0` lists the in-tree formatters and `enabled/0` filters them by `generate_schemas_enabled?/0`. Every per-library site (orchestrator, namespace re-exports, RPC and route codegen, both manifests) iterates the registry, reading `key/0`, `output_file/0`, `schema_suffix/0`, `library_name/0` and `route_schema_name_override/1` instead of branching per library.
 - **`SchemaCore`** (`codegen/schema_core.ex`) — All shared logic: topological sort, field/action introspection, type mapping dispatch, regex safety. Delegates output syntax to the formatter.
 - **`SharedSchemaGenerator`** (`codegen/shared_schema_generator.ex`) — `generate/2` assembles the final schema file (imports, resource schemas, per-action schemas) for any formatter.
 
@@ -271,11 +271,11 @@ The `Orchestrator` calls `generate_schema_file/8` for each enabled library, pass
 ### Typed Controllers
 
 Route argument schemas compose through the **same** shared function as RPC action inputs —
-`RouteRenderer.render_zod_schema/1`, `render_valibot_schema/1`, and `render_effect_schema/1`
-(`typed_controller/codegen/route_renderer.ex`) all delegate to a shared
-`render_validation_schema/3` that calls `SchemaCore.compose_input_field/5` per argument.
-One pipeline, so route/RPC drift is structurally impossible (0.18). Each library is
-gated on its own flag (`AshTypescript.Rpc.generate_zod_schemas?/0` /
+`RouteRenderer.render_schema/2` (`typed_controller/codegen/route_renderer.ex`) takes the
+formatter and delegates to `render_validation_schema/3`, which calls
+`SchemaCore.compose_input_field/5` per argument. One pipeline, so route/RPC drift is
+structurally impossible (0.18). Each library is gated on its formatter's
+`generate_schemas_enabled?/0` (backed by `generate_zod_schemas?/0` /
 `generate_valibot_schemas?/0` / `generate_effect_schemas?/0`), and routes support
 `zod_schema_name` / `valibot_schema_name` / `effect_schema_name` overrides for collisions with RPC action schema names.
 
@@ -331,6 +331,6 @@ To add support for another library (e.g. ArkType, Yup):
 
 1. Create a new formatter module implementing `SchemaFormatter` (~225 lines)
 2. Add config accessors — behavior/suffix/import path in `lib/ash_typescript/rpc.ex`, output file in `lib/ash_typescript.ex`
-3. Add the library to the orchestrator's schema file generation loop
-4. Add namespace re-export support in `import_resolver.ex`
-5. Add JSON manifest entries in `json_manifest_generator.ex`
+3. Append the module to `SchemaFormatter.all/0`. The orchestrator, namespace re-exports, RPC and route codegen, and both manifests pick it up from the registry.
+4. Add a `<library>_schema_name` option to the typed controller `route` DSL (`typed_controller/dsl.ex`) and return it from `route_schema_name_override/1`
+5. Add runtime tests under `test/ts/` and a `CodegenTestHelper` accessor for the new file

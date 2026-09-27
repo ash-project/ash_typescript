@@ -24,14 +24,12 @@ defmodule AshTypescript.Codegen.Orchestrator do
   """
 
   alias AshTypescript.Codegen.{
-    EffectSchemaGenerator,
     ImportResolver,
     SchemaCore,
+    SchemaFormatter,
     SharedSchemaGenerator,
     SharedTypesGenerator,
-    TypeDiscovery,
-    ValibotSchemaGenerator,
-    ZodSchemaGenerator
+    TypeDiscovery
   }
 
   alias AshTypescript.Rpc.Codegen, as: RpcCodegen
@@ -55,14 +53,9 @@ defmodule AshTypescript.Codegen.Orchestrator do
   def generate(otp_app, opts \\ []) do
     rpc_output_file = Application.get_env(:ash_typescript, :output_file)
     types_output_file = AshTypescript.types_output_file()
-    zod_output_file = AshTypescript.zod_output_file()
-    valibot_output_file = AshTypescript.valibot_output_file()
-    effect_output_file = AshTypescript.effect_output_file()
     routes_output_file = AshTypescript.routes_output_file()
     typed_channels_output_file = AshTypescript.typed_channels_output_file()
-    zod_enabled? = AshTypescript.Rpc.generate_zod_schemas?()
-    valibot_enabled? = AshTypescript.Rpc.generate_valibot_schemas?()
-    effect_enabled? = AshTypescript.Rpc.generate_effect_schemas?()
+    schema_files = Map.new(SchemaFormatter.all(), &{&1, &1.output_file()})
 
     rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
     channel_entries = collect_typed_channel_entries()
@@ -125,73 +118,25 @@ defmodule AshTypescript.Codegen.Orchestrator do
       end
 
     files =
-      if zod_enabled? do
-        controller_zod_schemas =
+      Enum.reduce(SchemaFormatter.enabled(), files, fn formatter, files ->
+        controller_schemas =
           if routes_output_file do
-            ControllerCodegen.collect_route_zod_schemas(router: AshTypescript.router())
+            ControllerCodegen.collect_route_schemas(formatter, router: AshTypescript.router())
           else
             []
           end
 
         generate_schema_file(
           files,
-          ZodSchemaGenerator,
-          zod_output_file,
+          formatter,
+          Map.fetch!(schema_files, formatter),
           types_output_file,
           schema_resources,
           resources_and_actions,
           rpc_output_file,
-          controller_zod_schemas
+          controller_schemas
         )
-      else
-        files
-      end
-
-    files =
-      if valibot_enabled? do
-        controller_valibot_schemas =
-          if routes_output_file do
-            ControllerCodegen.collect_route_valibot_schemas(router: AshTypescript.router())
-          else
-            []
-          end
-
-        generate_schema_file(
-          files,
-          ValibotSchemaGenerator,
-          valibot_output_file,
-          types_output_file,
-          schema_resources,
-          resources_and_actions,
-          rpc_output_file,
-          controller_valibot_schemas
-        )
-      else
-        files
-      end
-
-    files =
-      if effect_enabled? do
-        controller_effect_schemas =
-          if routes_output_file do
-            ControllerCodegen.collect_route_effect_schemas(router: AshTypescript.router())
-          else
-            []
-          end
-
-        generate_schema_file(
-          files,
-          EffectSchemaGenerator,
-          effect_output_file,
-          types_output_file,
-          schema_resources,
-          resources_and_actions,
-          rpc_output_file,
-          controller_effect_schemas
-        )
-      else
-        files
-      end
+      end)
 
     files =
       if rpc_output_file do
@@ -281,9 +226,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
             namespace,
             items,
             rpc_output_file,
-            zod_output_file,
-            valibot_output_file,
-            effect_output_file
+            schema_files
           )
         end)
       else
@@ -303,9 +246,7 @@ defmodule AshTypescript.Codegen.Orchestrator do
             namespace,
             items,
             routes_output_file,
-            zod_output_file,
-            valibot_output_file,
-            effect_output_file
+            schema_files
           )
         end)
       else

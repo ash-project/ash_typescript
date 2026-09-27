@@ -408,12 +408,11 @@ Namespace file generation requires `enable_controller_namespace_files: true`. Wi
 Route exports are categorized as:
 - `:value` — path helper functions
 - `:type` — input type definitions
-- `:zod_value` — Zod schema constants
-- `:valibot_value` — Valibot schema constants
-- `:effect_value` — Effect schema constants (re-exported from the Effect file)
+- `{:schema, formatter}` — validation schema constants, re-exported from that
+  formatter's schema file (`ash_zod.ts`, `ash_valibot.ts`, `ash_effect.ts`)
 
 Path helpers are exported for every route; the action function and named input
-type only for mutation routes in `:full` mode; the `:zod_value`/`:valibot_value`/`:effect_value`
+type only for mutation routes in `:full` mode; the `{:schema, formatter}`
 schemas for every route with non-path arguments (matching what
 `RouteRenderer` actually renders). The same predicate drives both manifests.
 
@@ -503,7 +502,7 @@ When hooks are enabled, `TypedControllerConfig` gains a `hookCtx?: TypedControll
 When `generate_zod_schemas: true`, routes with non-path arguments generate Zod
 schemas — **any** route, not just mutations: a GET route's query arguments are
 exactly what its path helper takes, so they get a schema too. These are emitted into the **shared Zod file** (`zod_output_file`, e.g.
-`ash_zod.ts`) — not into the routes file — via `Codegen.collect_route_zod_schemas/1`,
+`ash_zod.ts`) — not into the routes file — via `Codegen.collect_route_schemas/2`,
 which passes them to the shared schema generator as `additional_schemas`:
 
 ```typescript
@@ -515,7 +514,7 @@ export const loginZodSchema = z.object({
 
 When `generate_valibot_schemas: true`, the same routes also generate Valibot
 schemas into the shared Valibot file (`valibot_output_file`, e.g. `ash_valibot.ts`)
-via `Codegen.collect_route_valibot_schemas/1`:
+via `Codegen.collect_route_schemas/2`:
 
 ```typescript
 export const loginValibotSchema = v.object({
@@ -526,7 +525,7 @@ export const loginValibotSchema = v.object({
 
 When `generate_effect_schemas: true`, the same routes also generate Effect
 schemas into the shared Effect file (`effect_output_file`, e.g. `ash_effect.ts`)
-via `Codegen.collect_route_effect_schemas/1`:
+via `Codegen.collect_route_schemas/2`:
 
 ```typescript
 export const loginEffectSchema = Schema.Struct({
@@ -537,7 +536,7 @@ export const loginEffectSchema = Schema.Struct({
 
 Schema naming follows the `zod_schema_suffix` / `valibot_schema_suffix` / `effect_schema_suffix` configs, or the route's `zod_schema_name` / `valibot_schema_name` / `effect_schema_name` overrides. Multi-mount routes include the scope prefix in the schema name.
 
-**Implementation**: `RouteRenderer.render_zod_schema/1`, `render_valibot_schema/1`, and `render_effect_schema/1` share `render_validation_schema/3`, which composes each field through the shared `SchemaCore.compose_input_field/5` — the same pipeline RPC action inputs use — so route and action schemas cannot drift. The `min(1)` on `code` is *derived* from the folded `allow_empty?: false` string default, not hardcoded.
+**Implementation**: `RouteRenderer.render_schema/2` takes the formatter and delegates to `render_validation_schema/3`, which composes each field through the shared `SchemaCore.compose_input_field/5` — the same pipeline RPC action inputs use — so route and action schemas cannot drift. The `min(1)` on `code` is *derived* from the folded `allow_empty?: false` string default, not hardcoded.
 
 ## Path Param `allow_nil?` Validation
 
