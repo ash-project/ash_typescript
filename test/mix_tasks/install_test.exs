@@ -19,7 +19,7 @@ defmodule Mix.Tasks.AshTypescript.InstallTest do
     end)
   end
 
-  test "scaffolds zod and valibot config symmetrically" do
+  test "scaffolds zod, valibot and effect config symmetrically" do
     config = scaffolded_config()
 
     assert config =~ "generate_zod_schemas: false"
@@ -29,6 +29,10 @@ defmodule Mix.Tasks.AshTypescript.InstallTest do
     assert config =~ "generate_valibot_schemas: false"
     assert config =~ ~s(valibot_import_path: "valibot")
     assert config =~ ~s(valibot_schema_suffix: "ValibotSchema")
+
+    assert config =~ "generate_effect_schemas: false"
+    assert config =~ ~s(effect_import_path: "effect")
+    assert config =~ ~s(effect_schema_suffix: "EffectSchema")
   end
 
   test "scaffolds the required manifest module and core options" do

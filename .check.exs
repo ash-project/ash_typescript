@@ -33,6 +33,7 @@
     {:compile_should_fail, "mix cmd --cd test/ts npm run compileShouldFail", deps: [:test_codegen]},
     {:test_zod, "mix cmd --cd test/ts npm run testZod", deps: [:test_codegen]},
     {:test_valibot, "mix cmd --cd test/ts npm run testValibot", deps: [:test_codegen]},
+    {:test_effect, "mix cmd --cd test/ts npm run testEffect", deps: [:test_codegen]},
 
     ## custom new tools may be added (mix tasks or arbitrary commands)
     # {:my_mix_task, command: "mix release", env: %{"MIX_ENV" => "prod"}},

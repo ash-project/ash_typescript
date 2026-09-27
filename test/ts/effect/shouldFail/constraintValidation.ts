@@ -1,0 +1,1109 @@
+// SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs.contributors>
+//
+// SPDX-License-Identifier: MIT
+
+import { Exit, Schema, SchemaIssue } from "effect";
+import {
+  createOrgTodoEffectSchema,
+  createTaskEffectSchema,
+  updateTaskEffectSchema,
+  validateArrayConstraintsOrgTodoEffectSchema,
+  AshTypescriptTestTodoContentLinkContentEffectSchema,
+} from "../../ash_effect";
+
+const formatIssues = SchemaIssue.makeFormatterStandardSchemaV1();
+
+// Returns the top-level input keys that failed validation. Callers decode with
+// `{ errors: "all" }` so every violation is reported, not just the first.
+function failedKeys(error: Schema.SchemaError): Set<string> {
+  return new Set(
+    formatIssues(error.issue).issues.flatMap((issue) => {
+      const [first] = issue.path ?? [];
+      if (first === undefined) return [];
+      return [String(typeof first === "object" ? first.key : first)];
+    }),
+  );
+}
+
+function expectFailedKeys(error: Schema.SchemaError, keys: string[]) {
+  const failed = failedKeys(error);
+  const missing = keys.filter((key) => !failed.has(key));
+
+  if (missing.length > 0) {
+    throw new Error(`Expected violations for: ${missing.join(", ")}`);
+  }
+
+  return error.issue;
+}
+
+function createValidBaseData() {
+  return {
+    title: "Test",
+    userId: "123e4567-e89b-12d3-a456-426614174000",
+    numberOfEmployees: 10,
+    someString: "valid",
+    email: "test@example.com",
+    phoneNumber: "+15551234567",
+    hexColor: "#123456",
+    slug: "test",
+    version: "1.0.0",
+    caseInsensitiveCode: "ABC-1234",
+    price: 10.5,
+    temperature: 20.0,
+    percentage: 50.0,
+    username: "testuser",
+    companyName: "Acme Corp",
+    countryCode: "US",
+    autoComplete: false,
+    address: { streetAddress: "123 Main St", locationId: "LOC123" },
+  };
+}
+
+export function testIntegerBelowMin() {
+  const invalidData = {
+    ...createValidBaseData(),
+    numberOfEmployees: 0, // Below min: 1
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected numberOfEmployees < 1:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testIntegerAboveMax() {
+  const invalidData = {
+    ...createValidBaseData(),
+    numberOfEmployees: 1001, // Above max: 1000
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected numberOfEmployees > 1000:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testIntegerNegative() {
+  const invalidData = {
+    ...createValidBaseData(),
+    numberOfEmployees: -10, // Negative, below min: 1
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log(
+        "Correctly rejected negative numberOfEmployees:",
+        error.issue,
+      );
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testStringEmpty() {
+  const invalidData = {
+    ...createValidBaseData(),
+    someString: "", // Below min_length: 1
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected empty someString:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testStringTooLong() {
+  const invalidData = {
+    ...createValidBaseData(),
+    someString: "a".repeat(101), // Above max_length: 100
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected someString > 100 chars:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testStringWayTooLong() {
+  const invalidData = {
+    ...createValidBaseData(),
+    someString: "a".repeat(500), // Way above max_length: 100
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log(
+        "Correctly rejected someString way over limit:",
+        error.issue,
+      );
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testRegexInvalidUrl() {
+  const invalidData = {
+    url: "not-a-url", // Doesn't match ^https?://
+    title: "Invalid link",
+  };
+
+  try {
+    Schema.decodeUnknownSync(AshTypescriptTestTodoContentLinkContentEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected invalid URL format:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testRegexFtpUrl() {
+  const invalidData = {
+    url: "ftp://example.com", // Doesn't match ^https?:// (no ftp)
+    title: "FTP link",
+  };
+
+  try {
+    Schema.decodeUnknownSync(AshTypescriptTestTodoContentLinkContentEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected FTP URL:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testMultipleConstraintViolations() {
+  const invalidData = {
+    ...createValidBaseData(),
+    numberOfEmployees: 5000, // Above max: 1000
+    someString: "", // Below min_length: 1
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData, {
+      errors: "all",
+    });
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      return expectFailedKeys(error, ["numberOfEmployees", "someString"]);
+    }
+    throw error;
+  }
+}
+
+export function testSafeParseConstraintViolation() {
+  const invalidData = {
+    ...createValidBaseData(),
+    numberOfEmployees: 2000, // Above max: 1000
+  };
+
+  const result = Schema.decodeUnknownExit(createOrgTodoEffectSchema)(invalidData);
+
+  if (Exit.isFailure(result)) {
+    console.log("Exit decode correctly failed:", result.cause);
+    return result.cause;
+  } else {
+    throw new Error("Should have failed validation");
+  }
+}
+
+export function testIntegerFloatingPoint() {
+  const invalidData = {
+    ...createValidBaseData(),
+    numberOfEmployees: 10.5,
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected floating point:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testBoundaryViolations() {
+  const justBelowMin = {
+    ...createValidBaseData(),
+    numberOfEmployees: 0.99, // Just below 1
+  };
+
+  const justAboveMax = {
+    ...createValidBaseData(),
+    numberOfEmployees: 1000.01, // Just above 1000
+  };
+
+  const errors: any[] = [];
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(justBelowMin);
+    throw new Error("Should have failed for below min");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      errors.push({ case: "below min", errors: error.issue });
+    }
+  }
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(justAboveMax);
+    throw new Error("Should have failed for above max");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      errors.push({ case: "above max", errors: error.issue });
+    }
+  }
+
+  console.log("Boundary violations detected:", errors);
+  return errors;
+}
+
+export function testRequiredFieldMissing() {
+  const { numberOfEmployees, ...invalidData } = createValidBaseData();
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected missing required field:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testInvalidEmailNoAt() {
+  const invalidData = {
+    title: "Test",
+    userId: "123e4567-e89b-12d3-a456-426614174000",
+    numberOfEmployees: 10,
+    someString: "valid",
+    email: "notanemail.com", // Missing @
+    phoneNumber: "+15551234567",
+    hexColor: "#123456",
+    slug: "test",
+    version: "1.0.0",
+    caseInsensitiveCode: "ABC-1234",
+    autoComplete: false,
+    address: { streetAddress: "123 Main St", locationId: "LOC123" },
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected invalid email:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testInvalidEmailNoDomain() {
+  const invalidData = {
+    title: "Test",
+    userId: "123e4567-e89b-12d3-a456-426614174000",
+    numberOfEmployees: 10,
+    someString: "valid",
+    email: "user@example", // Missing .com or similar
+    phoneNumber: "+15551234567",
+    hexColor: "#123456",
+    slug: "test",
+    version: "1.0.0",
+    caseInsensitiveCode: "ABC-1234",
+    autoComplete: false,
+    address: { streetAddress: "123 Main St", locationId: "LOC123" },
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log(
+        "Correctly rejected email without domain extension:",
+        error.issue,
+      );
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testInvalidPhoneStartsWithZero() {
+  const invalidData = {
+    title: "Test",
+    userId: "123e4567-e89b-12d3-a456-426614174000",
+    numberOfEmployees: 10,
+    someString: "valid",
+    email: "test@example.com",
+    phoneNumber: "+05551234567", // Starts with 0 after +
+    hexColor: "#123456",
+    slug: "test",
+    version: "1.0.0",
+    caseInsensitiveCode: "ABC-1234",
+    autoComplete: false,
+    address: { streetAddress: "123 Main St", locationId: "LOC123" },
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected phone starting with 0:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testInvalidPhoneTooShort() {
+  const invalidData = {
+    title: "Test",
+    userId: "123e4567-e89b-12d3-a456-426614174000",
+    numberOfEmployees: 10,
+    someString: "valid",
+    email: "test@example.com",
+    phoneNumber: "+1", // Too short (needs at least 2 digits after country code)
+    hexColor: "#123456",
+    slug: "test",
+    version: "1.0.0",
+    caseInsensitiveCode: "ABC-1234",
+    autoComplete: false,
+    address: { streetAddress: "123 Main St", locationId: "LOC123" },
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected phone too short:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testInvalidHexColorLength() {
+  const invalidData = {
+    title: "Test",
+    userId: "123e4567-e89b-12d3-a456-426614174000",
+    numberOfEmployees: 10,
+    someString: "valid",
+    email: "test@example.com",
+    phoneNumber: "+15551234567",
+    hexColor: "#FFF", // Only 3 characters, needs 6
+    slug: "test",
+    version: "1.0.0",
+    caseInsensitiveCode: "ABC-1234",
+    autoComplete: false,
+    address: { streetAddress: "123 Main St", locationId: "LOC123" },
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log(
+        "Correctly rejected hex color with wrong length:",
+        error.issue,
+      );
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testInvalidHexColorNoHash() {
+  const invalidData = {
+    title: "Test",
+    userId: "123e4567-e89b-12d3-a456-426614174000",
+    numberOfEmployees: 10,
+    someString: "valid",
+    email: "test@example.com",
+    phoneNumber: "+15551234567",
+    hexColor: "FF5733", // Missing #
+    slug: "test",
+    version: "1.0.0",
+    caseInsensitiveCode: "ABC-1234",
+    autoComplete: false,
+    address: { streetAddress: "123 Main St", locationId: "LOC123" },
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected hex color without #:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testInvalidSlugUppercase() {
+  const invalidData = {
+    title: "Test",
+    userId: "123e4567-e89b-12d3-a456-426614174000",
+    numberOfEmployees: 10,
+    someString: "valid",
+    email: "test@example.com",
+    phoneNumber: "+15551234567",
+    hexColor: "#123456",
+    slug: "Test-Slug", // Contains uppercase (only lowercase allowed)
+    version: "1.0.0",
+    caseInsensitiveCode: "ABC-1234",
+    autoComplete: false,
+    address: { streetAddress: "123 Main St", locationId: "LOC123" },
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected slug with uppercase:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testInvalidSlugStartsWithHyphen() {
+  const invalidData = {
+    title: "Test",
+    userId: "123e4567-e89b-12d3-a456-426614174000",
+    numberOfEmployees: 10,
+    someString: "valid",
+    email: "test@example.com",
+    phoneNumber: "+15551234567",
+    hexColor: "#123456",
+    slug: "-test-slug", // Cannot start with hyphen
+    version: "1.0.0",
+    caseInsensitiveCode: "ABC-1234",
+    autoComplete: false,
+    address: { streetAddress: "123 Main St", locationId: "LOC123" },
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log(
+        "Correctly rejected slug starting with hyphen:",
+        error.issue,
+      );
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testInvalidVersionMissingPatch() {
+  const invalidData = {
+    title: "Test",
+    userId: "123e4567-e89b-12d3-a456-426614174000",
+    numberOfEmployees: 10,
+    someString: "valid",
+    email: "test@example.com",
+    phoneNumber: "+15551234567",
+    hexColor: "#123456",
+    slug: "test",
+    version: "1.0", // Missing patch version (needs X.Y.Z)
+    caseInsensitiveCode: "ABC-1234",
+    autoComplete: false,
+    address: { streetAddress: "123 Main St", locationId: "LOC123" },
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected version missing patch:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testInvalidVersionWithLetters() {
+  const invalidData = {
+    title: "Test",
+    userId: "123e4567-e89b-12d3-a456-426614174000",
+    numberOfEmployees: 10,
+    someString: "valid",
+    email: "test@example.com",
+    phoneNumber: "+15551234567",
+    hexColor: "#123456",
+    slug: "test",
+    version: "1.0.0-beta", // Contains non-numeric characters
+    caseInsensitiveCode: "ABC-1234",
+    autoComplete: false,
+    address: { streetAddress: "123 Main St", locationId: "LOC123" },
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected version with letters:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testInvalidCodeWrongFormat() {
+  const invalidData = {
+    title: "Test",
+    userId: "123e4567-e89b-12d3-a456-426614174000",
+    numberOfEmployees: 10,
+    someString: "valid",
+    email: "test@example.com",
+    phoneNumber: "+15551234567",
+    hexColor: "#123456",
+    slug: "test",
+    version: "1.0.0",
+    caseInsensitiveCode: "AB-1234", // Only 2 letters instead of 3
+    autoComplete: false,
+    address: { streetAddress: "123 Main St", locationId: "LOC123" },
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected code with wrong format:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testInvalidOptionalUrlWrongProtocol() {
+  const invalidData = {
+    title: "Test",
+    userId: "123e4567-e89b-12d3-a456-426614174000",
+    numberOfEmployees: 10,
+    someString: "valid",
+    email: "test@example.com",
+    phoneNumber: "+15551234567",
+    hexColor: "#123456",
+    slug: "test",
+    version: "1.0.0",
+    caseInsensitiveCode: "ABC-1234",
+    autoComplete: false,
+    address: { streetAddress: "123 Main St", locationId: "LOC123" },
+    optionalUrl: "ftp://example.com", // Wrong protocol
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected URL with wrong protocol:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testFloatPriceBelowMin() {
+  const invalidData = { ...createValidBaseData(), price: -0.01 }; // Below min: 0.0
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected price below minimum:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testFloatPriceAboveMax() {
+  const invalidData = { ...createValidBaseData(), price: 1000000.0 }; // Above max: 999999.99
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected price above maximum:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testFloatTemperatureAtGtBoundary() {
+  const invalidData = { ...createValidBaseData(), temperature: -273.15 }; // At greater_than boundary (exclusive)
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log(
+        "Correctly rejected temperature at gt boundary:",
+        error.issue,
+      );
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testFloatTemperatureAtLtBoundary() {
+  const invalidData = { ...createValidBaseData(), temperature: 1000000.0 }; // At less_than boundary (exclusive)
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log(
+        "Correctly rejected temperature at lt boundary:",
+        error.issue,
+      );
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testFloatPercentageBelowMin() {
+  const invalidData = { ...createValidBaseData(), percentage: -0.1 }; // Below min: 0.0
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected percentage below minimum:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testFloatPercentageAboveMax() {
+  const invalidData = { ...createValidBaseData(), percentage: 100.01 }; // Above max: 100.0
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected percentage above maximum:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testOptionalFloatInvalid() {
+  const invalidData = { ...createValidBaseData(), optionalRating: 5.5 }; // Above max: 5.0
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected invalid optional rating:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testMultipleFloatViolations() {
+  const invalidData = {
+    ...createValidBaseData(),
+    price: -100.0, // Below min
+    temperature: -300.0, // Below gt
+    percentage: 150.0, // Above max
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData, {
+      errors: "all",
+    });
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      return expectFailedKeys(error, ["price", "temperature", "percentage"]);
+    }
+    throw error;
+  }
+}
+
+export function testCiStringUsernameTooShort() {
+  const invalidData = { ...createValidBaseData(), username: "ab" }; // Below min: 3
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected username too short:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testCiStringUsernameTooLong() {
+  const invalidData = { ...createValidBaseData(), username: "a".repeat(21) }; // Above max: 20
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected username too long:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testCiStringCompanyNameInvalidChars() {
+  const invalidData = { ...createValidBaseData(), companyName: "Acme@Corp!" }; // Contains @ and !
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log(
+        "Correctly rejected company name with invalid chars:",
+        error.issue,
+      );
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testCiStringCompanyNameTooShort() {
+  const invalidData = { ...createValidBaseData(), companyName: "A" }; // Below min: 2
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected company name too short:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testCiStringCountryCodeWrongLength() {
+  const invalidData = { ...createValidBaseData(), countryCode: "USA" }; // 3 characters instead of 2
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log(
+        "Correctly rejected country code wrong length:",
+        error.issue,
+      );
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testCiStringCountryCodeWithNumber() {
+  const invalidData = { ...createValidBaseData(), countryCode: "U1" }; // Contains number
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log("Correctly rejected country code with number:", error.issue);
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testOptionalCiStringInvalid() {
+  const invalidData = { ...createValidBaseData(), optionalNickname: "a" }; // Below min: 2
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log(
+        "Correctly rejected invalid optional nickname:",
+        error.issue,
+      );
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testMultipleCiStringViolations() {
+  const invalidData = {
+    ...createValidBaseData(),
+    username: "ab", // Too short
+    companyName: "A", // Too short
+    countryCode: "123", // Invalid format
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData, {
+      errors: "all",
+    });
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      return expectFailedKeys(error, ["username", "companyName", "countryCode"]);
+    }
+    throw error;
+  }
+}
+
+// Third-party type: AshMoney.Types.Money
+// Reject inputs that don't match the { amount: string; currency: string } shape
+// at both compile time (via @ts-expect-error on the inferred input type) and
+// runtime (via Schema.decodeUnknownSync throwing a SchemaError).
+
+export function testMoneyMissingAmount() {
+  const bad: (typeof createTaskEffectSchema)["Encoded"] = {
+    title: "Bad",
+    // @ts-expect-error - Money input requires `amount: string`
+    price: { currency: "USD" },
+  };
+
+  try {
+    Schema.decodeUnknownSync(createTaskEffectSchema)(bad);
+    throw new Error("Should have thrown for missing amount");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testMoneyWrongFieldTypes() {
+  const bad: (typeof createTaskEffectSchema)["Encoded"] = {
+    title: "Bad",
+    price: {
+      // @ts-expect-error - Money `amount` must be string, not number
+      amount: 99,
+      // @ts-expect-error - Money `currency` must be string, not number
+      currency: 42,
+    },
+  };
+
+  try {
+    Schema.decodeUnknownSync(createTaskEffectSchema)(bad);
+    throw new Error("Should have thrown for non-string amount/currency");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+// Omittable-only fields (`Schema.optional(...)` without `Schema.NullOr(...)`)
+// accept `undefined` / absent keys but reject explicit `null`.
+
+export function testOmittableOnlyTitleRejectsNull() {
+  // updateTaskEffectSchema.title is
+  // Schema.optional(Schema.String.check(Schema.isMinLength(1)))
+  // — omittable (update doesn't require it) but not nullable (attr has
+  // allow_nil?: false).
+  try {
+    Schema.decodeUnknownSync(updateTaskEffectSchema)({ title: null });
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log(
+        "Correctly rejected null for omittable-only title:",
+        error.issue,
+      );
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testOmittableOnlyArchivedRejectsNull() {
+  // updateTaskEffectSchema.isArchived is Schema.optional(Schema.Boolean) — omittable
+  // but not nullable.
+  try {
+    Schema.decodeUnknownSync(updateTaskEffectSchema)({ isArchived: null });
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log(
+        "Correctly rejected null for omittable-only isArchived:",
+        error.issue,
+      );
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+export function testRequiredTitleRejectsNullOnCreate() {
+  // createTaskEffectSchema.title is Schema.String.check(Schema.isMinLength(1)) —
+  // neither nullable nor omittable. Sending null must fail.
+  try {
+    Schema.decodeUnknownSync(createTaskEffectSchema)({ title: null });
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log(
+        "Correctly rejected null for required title:",
+        error.issue,
+      );
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+function createValidArrayConstraintData() {
+  const uuid = "123e4567-e89b-12d3-a456-426614174000";
+
+  return {
+    minimumReferenceIds: [uuid],
+    maximumReferenceIds: [uuid],
+    boundedReferenceIds: [uuid],
+    boundedCodes: ["valid"],
+  };
+}
+
+function expectArrayConstraintFailure(input: unknown) {
+  const result = Schema.decodeUnknownExit(validateArrayConstraintsOrgTodoEffectSchema)(input);
+
+  if (Exit.isSuccess(result)) {
+    throw new Error("Should have failed array constraint validation");
+  }
+
+  return result.cause;
+}
+
+export function testArrayBelowMinimum() {
+  return expectArrayConstraintFailure({
+    ...createValidArrayConstraintData(),
+    minimumReferenceIds: [],
+  });
+}
+
+export function testArrayAboveMaximum() {
+  const uuid = "123e4567-e89b-12d3-a456-426614174000";
+
+  return expectArrayConstraintFailure({
+    ...createValidArrayConstraintData(),
+    maximumReferenceIds: Array(17).fill(uuid),
+  });
+}
+
+export function testArrayItemConstraintViolation() {
+  return expectArrayConstraintFailure({
+    ...createValidArrayConstraintData(),
+    boundedCodes: ["x"],
+  });
+}
+
+export function testOptionalArrayRejectsNull() {
+  return expectArrayConstraintFailure({
+    ...createValidArrayConstraintData(),
+    optionalReferenceIds: null,
+  });
+}
+
+export function testNullableStringRejectsEmpty() {
+  // description is nullable+omittable, but Ash strings default to
+  // allow_empty?: false — the schema carries minLength(1), so "" must fail
+  // even though null is accepted.
+  const invalidData = {
+    ...createValidBaseData(),
+    description: "",
+  };
+
+  try {
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(invalidData);
+    throw new Error("Should have failed validation");
+  } catch (error) {
+    if (Schema.isSchemaError(error)) {
+      console.log(
+        "Correctly rejected empty string for description:",
+        error.issue,
+      );
+      return error.issue;
+    }
+    throw error;
+  }
+}
+
+console.log("Constraint validation failure tests should compile successfully!");
+console.log("These tests verify that constraints are enforced at runtime.");

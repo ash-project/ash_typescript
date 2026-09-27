@@ -37,6 +37,7 @@ defmodule AshTypescript.MixProject do
       preferred_envs: [
         "test.codegen": :test,
         "test.test_valibot": :test,
+        "test.test_effect": :test,
         tidewave: :test
       ]
     ]
@@ -213,6 +214,7 @@ defmodule AshTypescript.MixProject do
       "test.compile_should_fail": "cmd cd test/ts && npm run compileShouldFail",
       "test.test_zod": "cmd cd test/ts && npm run testZod",
       "test.test_valibot": "cmd cd test/ts && npm run testValibot",
+      "test.test_effect": "cmd cd test/ts && npm run testEffect",
       tidewave:
         "run --no-halt -e 'port = String.to_integer(System.get_env(\"TIDEWAVE_PORT\") || \"4012\"); Agent.start(fn -> Bandit.start_link(plug: Tidewave, port: port) end)'",
       sobelow: "sobelow --skip",

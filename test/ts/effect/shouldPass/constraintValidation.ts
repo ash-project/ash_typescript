@@ -1,0 +1,647 @@
+// SPDX-FileCopyrightText: 2025 ash_typescript contributors <https://github.com/ash-project/ash_typescript/graphs.contributors>
+//
+// SPDX-License-Identifier: MIT
+
+import { Exit, Schema } from "effect";
+import {
+  createOrgTodoEffectSchema,
+  createTaskEffectSchema,
+  updateTaskEffectSchema,
+  validateArrayConstraintsOrgTodoEffectSchema,
+  AshTypescriptTestTodoContentLinkContentEffectSchema,
+} from "../../ash_effect";
+
+function createValidBaseData() {
+  return {
+    title: "Test",
+    userId: "123e4567-e89b-12d3-a456-426614174000",
+    numberOfEmployees: 10,
+    someString: "valid",
+    email: "test@example.com",
+    phoneNumber: "+15551234567",
+    hexColor: "#123456",
+    slug: "test",
+    version: "1.0.0",
+    caseInsensitiveCode: "ABC-1234",
+    price: 10.50,
+    temperature: 20.0,
+    percentage: 50.0,
+    username: "testuser",
+    companyName: "Acme Corp",
+    countryCode: "US",
+    autoComplete: false,
+    address: { streetAddress: "123 Main St", locationId: "LOC123" },
+  };
+}
+
+export function testIntegerMinConstraint() {
+  const validData = {
+    ...createValidBaseData(),
+    numberOfEmployees: 1, // Exactly at minimum (min: 1)
+  };
+
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  console.log("Integer min constraint passed:", validated.numberOfEmployees);
+  return validated;
+}
+
+export function testIntegerMaxConstraint() {
+  const validData = {
+    ...createValidBaseData(),
+    numberOfEmployees: 1000, // Exactly at maximum (max: 1000)
+  };
+
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  console.log("Integer max constraint passed:", validated.numberOfEmployees);
+  return validated;
+}
+
+export function testIntegerMidRangeConstraint() {
+  const validData = {
+    ...createValidBaseData(),
+    numberOfEmployees: 500, // Mid-range value
+  };
+
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  return validated;
+}
+
+export function testStringMinLengthConstraint() {
+  const validData = {
+    ...createValidBaseData(),
+    someString: "a", // Exactly at minimum (min_length: 1)
+  };
+
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  console.log("String min length constraint passed:", validated.someString);
+  return validated;
+}
+
+export function testStringMaxLengthConstraint() {
+  const validData = {
+    ...createValidBaseData(),
+    someString: "a".repeat(100), // Exactly at maximum (max_length: 100)
+  };
+
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  console.log("String max length constraint passed, length:", validated.someString.length);
+  return validated;
+}
+
+export function testStringMidRangeLengthConstraint() {
+  const validData = {
+    ...createValidBaseData(),
+    someString: "This is a valid string with moderate length",
+  };
+
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  return validated;
+}
+
+export function testRegexConstraintValid() {
+  const validData = {
+    url: "https://example.com", // Matches ^https?://
+    title: "Example link",
+  };
+
+  const validated = Schema.decodeUnknownSync(AshTypescriptTestTodoContentLinkContentEffectSchema)(validData);
+  console.log("Regex constraint passed:", validated.url);
+  return validated;
+}
+
+export function testRegexConstraintHttpUrl() {
+  const validData = {
+    url: "http://example.com", // Also matches ^https?://
+    title: "Example link",
+  };
+
+  const validated = Schema.decodeUnknownSync(AshTypescriptTestTodoContentLinkContentEffectSchema)(validData);
+  return validated;
+}
+
+export function testAllConstraintsTogether() {
+  const validData = {
+    ...createValidBaseData(),
+    title: "Complete todo",
+    description: "This has all valid fields",
+    status: "pending",
+    priority: "high",
+    numberOfEmployees: 250, // Valid: between 1 and 1000
+    someString: "Valid string with good length", // Valid: between 1 and 100 chars
+    email: "complete@example.com",
+    slug: "complete-todo",
+    version: "2.1.5",
+    caseInsensitiveCode: "XYZ-9999",
+    autoComplete: true,
+    tags: ["work", "urgent"],
+  };
+
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  console.log("All constraints passed:", {
+    employees: validated.numberOfEmployees,
+    stringLength: validated.someString.length,
+  });
+  return validated;
+}
+
+export function testSafeParsingWithConstraints() {
+  const validData = {
+    ...createValidBaseData(),
+    numberOfEmployees: 50,
+  };
+
+  const result = Schema.decodeUnknownExit(createOrgTodoEffectSchema)(validData);
+
+  if (Exit.isSuccess(result)) {
+    console.log("Exit decode succeeded with constraints:", result.value);
+    return result.value;
+  } else {
+    throw new Error("Unexpected validation failure");
+  }
+}
+
+export function testOptionalConstrainedField() {
+  const validData = {
+    ...createValidBaseData(),
+    numberOfEmployees: 100, // Valid when present
+    slug: "test-slug-123",
+    version: "1.2.3",
+    description: "Valid description",
+  };
+
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  return validated;
+}
+
+export function testValidEmails() {
+  const validEmails = [
+    "user@example.com",
+    "test.user@example.com",
+    "test+tag@example.co.uk",
+    "user_name@example-domain.com",
+  ];
+
+  for (const email of validEmails) {
+    const validData = { ...createValidBaseData(), email };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All valid emails passed!");
+  return true;
+}
+
+export function testValidPhoneNumbers() {
+  const validPhones = [
+    "+15551234567",
+    "+442071234567",
+    "+861234567890",
+    "15551234567", // Without + is valid
+  ];
+
+  for (const phone of validPhones) {
+    const validData = { ...createValidBaseData(), phoneNumber: phone };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All valid phone numbers passed!");
+  return true;
+}
+
+export function testValidHexColors() {
+  const validColors = [
+    "#000000",
+    "#FFFFFF",
+    "#FF5733",
+    "#aAbBcC",
+    "#123456",
+  ];
+
+  for (const color of validColors) {
+    const validData = { ...createValidBaseData(), hexColor: color };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All valid hex colors passed!");
+  return true;
+}
+
+export function testValidSlugs() {
+  const validSlugs = [
+    "test",
+    "test-slug",
+    "test-slug-123",
+    "a-b-c-d-e",
+    "123-456",
+  ];
+
+  for (const slug of validSlugs) {
+    const validData = { ...createValidBaseData(), slug };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All valid slugs passed!");
+  return true;
+}
+
+export function testValidVersions() {
+  const validVersions = [
+    "0.0.0",
+    "1.0.0",
+    "1.2.3",
+    "10.20.30",
+    "999.999.999",
+  ];
+
+  for (const version of validVersions) {
+    const validData = { ...createValidBaseData(), version };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All valid versions passed!");
+  return true;
+}
+
+export function testCaseInsensitiveCodes() {
+  const validCodes = [
+    "ABC-1234",
+    "abc-1234",
+    "AbC-5678",
+    "XYZ-0000",
+  ];
+
+  for (const code of validCodes) {
+    const validData = { ...createValidBaseData(), caseInsensitiveCode: code };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All case-insensitive codes passed!");
+  return true;
+}
+
+export function testOptionalUrlOmitted() {
+  const validData = createValidBaseData();
+
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  console.log("Optional URL field successfully omitted");
+  return validated;
+}
+
+export function testOptionalUrlProvided() {
+  const validUrls = [
+    "https://example.com",
+    "http://test.com",
+    "https://example.com/path/to/resource",
+    "http://localhost:3000",
+  ];
+
+  for (const url of validUrls) {
+    const validData = { ...createValidBaseData(), optionalUrl: url };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All optional URLs passed!");
+  return true;
+}
+
+export function testFloatPriceValid() {
+  const validPrices = [
+    0.0,
+    0.01,
+    100.50,
+    999999.99,
+  ];
+
+  for (const price of validPrices) {
+    const validData = { ...createValidBaseData(), price };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All valid prices passed!");
+  return true;
+}
+
+export function testFloatTemperatureValid() {
+  const validTemperatures = [
+    -273.14,
+    0.0,
+    100.0,
+    999999.99,
+  ];
+
+  for (const temperature of validTemperatures) {
+    const validData = { ...createValidBaseData(), temperature };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All valid temperatures passed!");
+  return true;
+}
+
+export function testFloatPercentageValid() {
+  const validPercentages = [
+    0.0,
+    0.5,
+    50.0,
+    99.99,
+    100.0,
+  ];
+
+  for (const percentage of validPercentages) {
+    const validData = { ...createValidBaseData(), percentage };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All valid percentages passed!");
+  return true;
+}
+
+export function testOptionalFloatOmitted() {
+  const validData = createValidBaseData();
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  console.log("Optional rating successfully omitted");
+  return validated;
+}
+
+export function testOptionalFloatProvided() {
+  const validRatings = [
+    0.0,
+    2.5,
+    4.99,
+    5.0,
+  ];
+
+  for (const rating of validRatings) {
+    const validData = { ...createValidBaseData(), optionalRating: rating };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All optional ratings passed!");
+  return true;
+}
+
+export function testFloatPrecision() {
+  const testCases = [
+    { price: 19.99 },
+    { price: 123.456 },
+    { temperature: -100.123 },
+    { percentage: 33.333 },
+  ];
+
+  for (const testCase of testCases) {
+    const validData = { ...createValidBaseData(), ...testCase };
+    const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+    if ('price' in testCase) {
+      console.log(`Price precision: ${validated.price}`);
+    }
+  }
+
+  console.log("Float precision preserved!");
+  return true;
+}
+
+export function testCiStringUsernameValid() {
+  const validUsernames = [
+    "abc",
+    "testuser",
+    "a".repeat(20),
+  ];
+
+  for (const username of validUsernames) {
+    const validData = { ...createValidBaseData(), username };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All valid usernames passed!");
+  return true;
+}
+
+export function testCiStringCompanyNameValid() {
+  const validCompanyNames = [
+    "AB",
+    "Acme Corp",
+    "Test Company 123",
+    "A".repeat(100),
+  ];
+
+  for (const companyName of validCompanyNames) {
+    const validData = { ...createValidBaseData(), companyName };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All valid company names passed!");
+  return true;
+}
+
+export function testCiStringCountryCodeValid() {
+  const validCountryCodes = [
+    "US",
+    "uk",
+    "Ca",
+    "FR",
+  ];
+
+  for (const countryCode of validCountryCodes) {
+    const validData = { ...createValidBaseData(), countryCode };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All valid country codes passed!");
+  return true;
+}
+
+export function testOptionalCiStringOmitted() {
+  const validData = createValidBaseData();
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  console.log("Optional nickname successfully omitted");
+  return validated;
+}
+
+export function testOptionalCiStringProvided() {
+  const validNicknames = [
+    "ab",
+    "Johnny",
+    "a".repeat(15),
+  ];
+
+  for (const nickname of validNicknames) {
+    const validData = { ...createValidBaseData(), optionalNickname: nickname };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All optional nicknames passed!");
+  return true;
+}
+
+export function testCiStringCaseVariations() {
+  const testCases = [
+    { username: "TestUser", companyName: "ACME CORP", countryCode: "us" },
+    { username: "TESTUSER", companyName: "acme corp", countryCode: "US" },
+    { username: "testuser", companyName: "Acme Corp", countryCode: "Us" },
+  ];
+
+  for (const testCase of testCases) {
+    const validData = { ...createValidBaseData(), ...testCase };
+    Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  }
+
+  console.log("All case variations passed!");
+  return true;
+}
+
+// Third-party type: AshMoney.Types.Money
+// Expected validation shape: { amount: string; currency: string }
+
+export function testMoneyValidShape() {
+  const validated = Schema.decodeUnknownSync(createTaskEffectSchema)({
+    title: "Buy milk",
+    price: { amount: "4.99", currency: "USD" },
+  });
+  console.log("Money valid shape passed:", validated.price);
+  return validated;
+}
+
+export function testMoneyOptionalOmitted() {
+  const validated = Schema.decodeUnknownSync(createTaskEffectSchema)({ title: "Priceless" });
+  console.log("Money optional omitted passed:", validated.price);
+  return validated;
+}
+
+// Nullable + omittable fields (allow_nil?: true): accept both `null`
+// and an absent key.
+
+export function testNullableDescriptionAcceptsNull() {
+  const validData = { ...createValidBaseData(), description: null };
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  if (validated.description !== null) {
+    throw new Error(`Expected description to be null, got ${validated.description}`);
+  }
+  console.log("Nullable description accepts null");
+  return validated;
+}
+
+export function testNullableOptionalUrlAcceptsNull() {
+  const validData = { ...createValidBaseData(), optionalUrl: null };
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  if (validated.optionalUrl !== null) {
+    throw new Error(`Expected optionalUrl to be null, got ${validated.optionalUrl}`);
+  }
+  console.log("Nullable optional URL accepts null (regex skipped for null)");
+  return validated;
+}
+
+export function testNullableOptionalRatingAcceptsNull() {
+  const validData = { ...createValidBaseData(), optionalRating: null };
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  if (validated.optionalRating !== null) {
+    throw new Error(`Expected optionalRating to be null, got ${validated.optionalRating}`);
+  }
+  console.log("Nullable optional rating accepts null (min/max skipped for null)");
+  return validated;
+}
+
+export function testNullableOptionalNicknameAcceptsNull() {
+  const validData = { ...createValidBaseData(), optionalNickname: null };
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  if (validated.optionalNickname !== null) {
+    throw new Error(`Expected optionalNickname to be null, got ${validated.optionalNickname}`);
+  }
+  console.log("Nullable optional nickname accepts null (min/max skipped for null)");
+  return validated;
+}
+
+export function testNullableMoneyAcceptsNull() {
+  const validated = Schema.decodeUnknownSync(createTaskEffectSchema)({ title: "Free", price: null });
+  if (validated.price !== null) {
+    throw new Error(`Expected price to be null, got ${JSON.stringify(validated.price)}`);
+  }
+  console.log("Nullable money accepts null");
+  return validated;
+}
+
+export function testNullableTypedStructAcceptsNull() {
+  const validated = Schema.decodeUnknownSync(updateTaskEffectSchema)({ stats: null });
+  if (validated.stats !== null) {
+    throw new Error(`Expected stats to be null, got ${JSON.stringify(validated.stats)}`);
+  }
+  console.log("Nullable typed struct accepts null");
+  return validated;
+}
+
+// Omittable-only fields (allow_nil?: false on update): accept absent
+// keys and supplied values. Rejecting `null` is in the shouldFail suite.
+
+export function testUpdateTaskAllOmittable() {
+  const validated = Schema.decodeUnknownSync(updateTaskEffectSchema)({});
+  console.log("Update task with empty object passed (all fields omittable)");
+  return validated;
+}
+
+export function testUpdateTaskOmittableTitleAcceptsValue() {
+  const validated = Schema.decodeUnknownSync(updateTaskEffectSchema)({ title: "Updated" });
+  if (validated.title !== "Updated") {
+    throw new Error(`Expected title to be 'Updated', got ${validated.title}`);
+  }
+  console.log("Omittable-only title accepts a value");
+  return validated;
+}
+
+export function testUpdateTaskOmittableArchivedAcceptsValue() {
+  const validated = Schema.decodeUnknownSync(updateTaskEffectSchema)({ isArchived: true });
+  if (validated.isArchived !== true) {
+    throw new Error(`Expected isArchived to be true, got ${validated.isArchived}`);
+  }
+  console.log("Omittable-only isArchived accepts a value");
+  return validated;
+}
+
+export function testEmptyOkStringAcceptsEmpty() {
+  // empty_ok_string declares allow_empty?: true, so unlike other strings it
+  // must NOT carry minLength(1) — the empty string is valid input.
+  const validData = {
+    ...createValidBaseData(),
+    emptyOkString: "",
+  };
+
+  const validated = Schema.decodeUnknownSync(createOrgTodoEffectSchema)(validData);
+  if (validated.emptyOkString !== "") {
+    throw new Error(`Expected emptyOkString to be "", got ${validated.emptyOkString}`);
+  }
+  console.log("allow_empty?: true string accepts the empty string");
+  return validated;
+}
+
+function createValidArrayConstraintData() {
+  const uuid = "123e4567-e89b-12d3-a456-426614174000";
+
+  return {
+    minimumReferenceIds: [uuid],
+    maximumReferenceIds: Array(16).fill(uuid),
+    boundedReferenceIds: Array(16).fill(uuid),
+    boundedCodes: ["ab", "12345678", "valid", "code"],
+  };
+}
+
+export function testArrayCardinalityBoundaries() {
+  return Schema.decodeUnknownSync(validateArrayConstraintsOrgTodoEffectSchema)(createValidArrayConstraintData(),
+  );
+}
+
+export function testOptionalArrayOmitted() {
+  const validated = Schema.decodeUnknownSync(validateArrayConstraintsOrgTodoEffectSchema)(createValidArrayConstraintData(),
+  );
+
+  if (validated.optionalReferenceIds !== undefined) {
+    throw new Error("Expected optionalReferenceIds to be omitted");
+  }
+
+  return validated;
+}
+
+export function testNullableArrayAcceptsNull() {
+  return Schema.decodeUnknownSync(validateArrayConstraintsOrgTodoEffectSchema)({
+    ...createValidArrayConstraintData(),
+    nullableReferenceIds: null,
+  });
+}
+
+console.log("Effect Constraint validation tests should compile and pass successfully!");

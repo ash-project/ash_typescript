@@ -12,6 +12,7 @@ defmodule AshTypescript.CodegenCheckTest do
   setup_all do
     AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
       :always_regenerate,
+      :effect_output_file,
       :enable_namespace_files,
       :json_manifest_file,
       :manifest_file,
@@ -30,7 +31,7 @@ defmodule AshTypescript.CodegenCheckTest do
   setup %{tmp_dir: tmp_dir} do
     original_config =
       Map.new(
-        ~w[output_file types_output_file zod_output_file valibot_output_file always_regenerate enable_namespace_files namespace_output_dir routes_output_file typed_channels_output_file manifest_file json_manifest_file warn_on_missing_rpc_config warn_on_non_rpc_references]a,
+        ~w[output_file types_output_file zod_output_file valibot_output_file effect_output_file always_regenerate enable_namespace_files namespace_output_dir routes_output_file typed_channels_output_file manifest_file json_manifest_file warn_on_missing_rpc_config warn_on_non_rpc_references]a,
         &{&1, Application.get_env(:ash_typescript, &1)}
       )
 
@@ -49,6 +50,8 @@ defmodule AshTypescript.CodegenCheckTest do
       :valibot_output_file,
       Path.join(tmp_dir, "ash_valibot.ts")
     )
+
+    Application.put_env(:ash_typescript, :effect_output_file, Path.join(tmp_dir, "ash_effect.ts"))
 
     Application.put_env(
       :ash_typescript,

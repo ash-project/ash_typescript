@@ -45,8 +45,8 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
       assert Map.has_key?(manifest, "typedControllerRoutes")
     end
 
-    test "version is 1.1", %{manifest: manifest} do
-      assert manifest["version"] == "1.1"
+    test "version is 1.2", %{manifest: manifest} do
+      assert manifest["version"] == "1.2"
     end
 
     test "generatedAt is an ISO date", %{manifest: manifest} do
@@ -105,6 +105,13 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
       if AshTypescript.Rpc.generate_valibot_schemas?() do
         assert manifest["files"]["valibot"]["importPath"] == "./ash_valibot"
         assert manifest["files"]["valibot"]["filename"] == "./ash_valibot.ts"
+      end
+    end
+
+    test "effect file entry when effect enabled", %{manifest: manifest} do
+      if AshTypescript.Rpc.generate_effect_schemas?() do
+        assert manifest["files"]["effect"]["importPath"] == "./ash_effect"
+        assert manifest["files"]["effect"]["filename"] == "./ash_effect.ts"
       end
     end
 
@@ -334,7 +341,7 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
   end
 
   describe "variant names" do
-    test "includes validation, zod, valibot, and channel names when all enabled", %{
+    test "includes validation, zod, valibot, effect, and channel names when all enabled", %{
       manifest: manifest
     } do
       action = Enum.find(manifest["actions"], &(&1["functionName"] == "listTodos"))
@@ -342,11 +349,13 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
       assert action["variants"]["validation"] == true
       assert action["variants"]["zod"] == true
       assert action["variants"]["valibot"] == true
+      assert action["variants"]["effect"] == true
       assert action["variants"]["channel"] == true
 
       assert action["variantNames"]["validation"] == "validateListTodos"
       assert action["variantNames"]["zod"] == "listTodosZodSchema"
       assert action["variantNames"]["valibot"] == "listTodosValibotSchema"
+      assert action["variantNames"]["effect"] == "listTodosEffectSchema"
       assert action["variantNames"]["channel"] == "listTodosChannel"
 
       # The validation-channel function is generated whenever both validation
@@ -382,8 +391,10 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
       assert action["input"] == "none"
       assert action["variants"]["zod"] == false
       assert action["variants"]["valibot"] == false
+      assert action["variants"]["effect"] == false
       refute Map.has_key?(action["variantNames"], "zod")
       refute Map.has_key?(action["variantNames"], "valibot")
+      refute Map.has_key?(action["variantNames"], "effect")
 
       # Validation and channel functions exist regardless of inputs
       assert action["variants"]["validation"] == true
@@ -394,9 +405,10 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
       {:ok, files} = AshTypescript.Test.CodegenTestHelper.generate_files()
       zod = AshTypescript.Test.CodegenTestHelper.zod_content(files)
       valibot = AshTypescript.Test.CodegenTestHelper.valibot_content(files)
+      effect = AshTypescript.Test.CodegenTestHelper.effect_content(files)
 
       for action <- manifest["actions"] do
-        for {variant, source} <- [{"zod", zod}, {"valibot", valibot}] do
+        for {variant, source} <- [{"zod", zod}, {"valibot", valibot}, {"effect", effect}] do
           case action["variantNames"][variant] do
             nil ->
               assert action["variants"][variant] == false
@@ -509,6 +521,16 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
       assert create_task["types"]["valibot"] == "createTaskRouteValibotSchema"
     end
 
+    test "route effect name honors the effect_schema_name override", %{manifest: manifest} do
+      login = Enum.find(manifest["typedControllerRoutes"], &(&1["functionName"] == "login"))
+
+      create_task =
+        Enum.find(manifest["typedControllerRoutes"], &(&1["functionName"] == "createTask"))
+
+      assert login["types"]["effect"] == "loginEffectSchema"
+      assert create_task["types"]["effect"] == "createTaskRouteEffectSchema"
+    end
+
     test "mutation routes without input advertise no schemas at all", %{manifest: manifest} do
       logout =
         Enum.find(manifest["typedControllerRoutes"], &(&1["functionName"] == "logout"))
@@ -524,6 +546,7 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
       # manifest must advertise them for GET routes too
       assert search["types"]["zod"] == "searchZodSchema"
       assert search["types"]["valibot"] == "searchValibotSchema"
+      assert search["types"]["effect"] == "searchEffectSchema"
 
       # ...but a GET route has no named input type
       refute Map.has_key?(search["types"], "input")

@@ -11,7 +11,8 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
   kind and carries its declared constraints through the normal dispatch. What
   lands here is a hand-rolled `use Ash.Type` module, resolved in this order:
 
-  1. `zod_mapping_overrides` / `valibot_mapping_overrides` config
+  1. `zod_mapping_overrides` / `valibot_mapping_overrides` /
+     `effect_mapping_overrides` config
   2. the in-tree accept-lists (`simple_primitives`, `third_party_types`)
   3. a schema derived from the type's `storage_type/1`
   """
@@ -21,12 +22,14 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
   # later test modules.
   setup_all do
     AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :effect_mapping_overrides,
       :valibot_mapping_overrides,
       :zod_mapping_overrides
     ])
   end
 
   alias Ash.Info.Manifest.Generator.TypeResolver
+  alias AshTypescript.Codegen.EffectSchemaGenerator
   alias AshTypescript.Codegen.SchemaCore
   alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Codegen.ZodSchemaGenerator
@@ -103,31 +106,39 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
   defp valibot(type),
     do: SchemaCore.get_type(ValibotSchemaGenerator, TypeResolver.resolve(type, []))
 
+  defp effect(type),
+    do: SchemaCore.get_type(EffectSchemaGenerator, TypeResolver.resolve(type, []))
+
   describe "storage-derived fallback" do
     test "an integer-storage custom type validates as a number, not a string" do
       assert zod(PriorityScore) == "z.number().int()"
       assert valibot(PriorityScore) == "v.pipe(v.number(), v.integer())"
+      assert effect(PriorityScore) == "Schema.Int"
     end
 
     test "a map-storage custom type validates as a record, not a string" do
       assert zod(ColorPalette) == "z.record(z.string(), z.any())"
       assert valibot(ColorPalette) == "v.record(v.string(), v.any())"
+      assert effect(ColorPalette) == "Schema.Record(Schema.String, Schema.Any)"
     end
 
     test "derives from storage for datetime-backed types" do
       assert zod(DatetimeStorageType) == "z.iso.datetime()"
       assert valibot(DatetimeStorageType) == "v.pipe(v.string(), v.isoTimestamp())"
+      assert effect(DatetimeStorageType) =~ "Schema.String.check(Schema.isPattern("
     end
 
     test "derives an array schema for array storage" do
       assert zod(ArrayStorageType) == "z.array(z.string())"
       assert valibot(ArrayStorageType) == "v.array(v.string())"
+      assert effect(ArrayStorageType) == "Schema.Array(Schema.String)"
     end
 
     test "unmappable storage stays permissive rather than guessing" do
       # A wrong schema rejects valid data, which is worse than not validating.
       assert zod(OpaqueStorageType) == "z.any()"
       assert valibot(OpaqueStorageType) == "v.any()"
+      assert effect(OpaqueStorageType) == "Schema.Any"
     end
   end
 
@@ -137,10 +148,12 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
       # env, and `delete_env` would wipe them for every later test.
       zod_config = Application.get_env(:ash_typescript, :zod_mapping_overrides)
       valibot_config = Application.get_env(:ash_typescript, :valibot_mapping_overrides)
+      effect_config = Application.get_env(:ash_typescript, :effect_mapping_overrides)
 
       on_exit(fn ->
         Application.put_env(:ash_typescript, :zod_mapping_overrides, zod_config)
         Application.put_env(:ash_typescript, :valibot_mapping_overrides, valibot_config)
+        Application.put_env(:ash_typescript, :effect_mapping_overrides, effect_config)
       end)
     end
 
@@ -153,8 +166,13 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
         {IntegerStorageType, "v.string()"}
       ])
 
+      Application.put_env(:ash_typescript, :effect_mapping_overrides, [
+        {IntegerStorageType, "Schema.String"}
+      ])
+
       assert zod(IntegerStorageType) == ~s{z.string().brand<"Id">()}
       assert valibot(IntegerStorageType) == "v.string()"
+      assert effect(IntegerStorageType) == "Schema.String"
     end
 
     test "overrides are independent per library" do
@@ -163,8 +181,10 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
       ])
 
       assert zod(IntegerStorageType) == "z.string()"
-      # Valibot has no override configured, so it keeps the storage-derived schema.
+      # Valibot and Effect have no override configured, so they keep the
+      # storage-derived schema.
       assert valibot(IntegerStorageType) == "v.pipe(v.number(), v.integer())"
+      assert effect(IntegerStorageType) == "Schema.Int"
     end
 
     test "an unrelated override does not leak onto other types" do
@@ -180,9 +200,11 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
       # overrides and the map-storage fallback is all that's left.
       Application.put_env(:ash_typescript, :zod_mapping_overrides, [])
       Application.put_env(:ash_typescript, :valibot_mapping_overrides, [])
+      Application.put_env(:ash_typescript, :effect_mapping_overrides, [])
 
       assert zod(GeoPoint) == "z.record(z.string(), z.any())"
       assert valibot(GeoPoint) == "v.record(v.string(), v.any())"
+      assert effect(GeoPoint) == "Schema.Record(Schema.String, Schema.Any)"
     end
 
     test "an override wins over an in-tree third-party mapping" do
@@ -209,12 +231,17 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
       refute content =~ "colorPalette: z.string()"
     end
 
-    test "configured overrides reach both generators", %{content: content} do
+    test "configured overrides reach every generator", %{content: content} do
       # AshTypescript.Test.CustomIdentifier has no `typescript_type_name`, so
       # without the config overrides in config/config.exs it would fall through
       # to `z.any()` / `v.any()` here.
       assert content =~ "customId: CustomZodSchemas.objectId"
       assert content =~ "customId: v.optional(v.nullable(CustomValibotSchemas.objectId))"
+
+      assert content =~
+               "customId: Schema.optional(Schema.NullOr(CustomEffectSchemas.objectId))"
+
+      refute content =~ "customId: Schema.Any"
       refute content =~ "customId: z.any()"
       refute content =~ "customId: v.any()"
     end
@@ -224,6 +251,7 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
       # record schema below and accept a half-built point.
       assert content =~ "geoPoint: NestedZodSchemas.geoPoint"
       assert content =~ "geoPoint: v.optional(v.nullable(NestedValibotSchemas.geoPoint))"
+      assert content =~ "geoPoint: Schema.optional(Schema.NullOr(NestedEffectSchemas.geoPoint))"
       refute content =~ "geoPoint: z.record(z.string(), z.any())"
       refute content =~ "geoPoint: v.record(v.string(), v.any())"
     end
@@ -233,6 +261,7 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
       # otherwise the generated TypeScript references an undefined name.
       assert content =~ ~s{import * as CustomZodSchemas from "./customZodSchemas";}
       assert content =~ ~s{import * as CustomValibotSchemas from "./customValibotSchemas";}
+      assert content =~ ~s{import * as CustomEffectSchemas from "./customEffectSchemas";}
     end
   end
 
@@ -248,20 +277,40 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
           String.ends_with?(path, "ash_valibot.ts") && c
         end)
 
-      %{zod: zod, valibot: valibot}
+      effect =
+        Enum.find_value(files, "", fn {path, c} ->
+          String.ends_with?(path, "ash_effect.ts") && c
+        end)
+
+      %{zod: zod, valibot: valibot, effect: effect}
     end
 
-    test "each schema file imports only its own configured module", %{zod: zod, valibot: valibot} do
+    test "each schema file imports only its own configured module", %{
+      zod: zod,
+      valibot: valibot,
+      effect: effect
+    } do
       assert zod =~ ~s(import * as CustomZodSchemas from "./customZodSchemas";)
       refute zod =~ "CustomValibotSchemas"
+      refute zod =~ "CustomEffectSchemas"
 
       assert valibot =~ ~s(import * as CustomValibotSchemas from "./customValibotSchemas";)
       refute valibot =~ "CustomZodSchemas"
+      refute valibot =~ "CustomEffectSchemas"
+
+      assert effect =~ ~s(import * as CustomEffectSchemas from "./customEffectSchemas";)
+      refute effect =~ "CustomZodSchemas"
+      refute effect =~ "CustomValibotSchemas"
     end
 
-    test "every configured entry is emitted, not just the first", %{zod: zod, valibot: valibot} do
+    test "every configured entry is emitted, not just the first", %{
+      zod: zod,
+      valibot: valibot,
+      effect: effect
+    } do
       assert zod =~ ~s(import * as NestedZodSchemas from "./custom/nestedZodSchemas";)
       assert valibot =~ ~s(import * as NestedValibotSchemas from "./custom/nestedValibotSchemas";)
+      assert effect =~ ~s(import * as NestedEffectSchemas from "./custom/nestedEffectSchemas";)
     end
 
     test "import paths resolve relative to the schema file, not the project root", %{zod: zod} do
@@ -274,13 +323,15 @@ defmodule AshTypescript.Rpc.CustomTypeSchemaTest do
 
     test "the shared import_into_generated modules stay out of the schema files", %{
       zod: zod,
-      valibot: valibot
+      valibot: valibot,
+      effect: effect
     } do
       # `import_into_generated` targets the types and RPC files; pulling those
       # into the schema files risks import cycles.
       for module <- ["RpcHooks", "ChannelHooks"] do
         refute zod =~ module
         refute valibot =~ module
+        refute effect =~ module
       end
     end
   end

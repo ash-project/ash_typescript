@@ -253,6 +253,13 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
       end
     end
 
+    test "includes Effect Schema column when effect schemas enabled", %{manifest: manifest} do
+      if AshTypescript.Rpc.generate_effect_schemas?() do
+        assert manifest =~ "| Effect Schema |"
+        assert manifest =~ ~r/`\w+EffectSchema`/
+      end
+    end
+
     test "schema names honor the configured suffixes", %{manifest: manifest} do
       # The row builder must derive names from zod_schema_suffix/
       # valibot_schema_suffix rather than hardcoding "_zod_schema"
@@ -263,6 +270,10 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
       if AshTypescript.Rpc.generate_valibot_schemas?() do
         assert manifest =~ "`createTodo#{AshTypescript.Rpc.valibot_schema_suffix()}`"
       end
+
+      if AshTypescript.Rpc.generate_effect_schemas?() do
+        assert manifest =~ "`createTodo#{AshTypescript.Rpc.effect_schema_suffix()}`"
+      end
     end
 
     test "input-less actions show a dash instead of a schema name", %{manifest: manifest} do
@@ -270,6 +281,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
       # would point readers at an export that does not exist
       refute manifest =~ "`destroyTodoZodSchema`"
       refute manifest =~ "`destroyTodoValibotSchema`"
+      refute manifest =~ "`destroyTodoEffectSchema`"
 
       # ...but its validation and channel functions do exist
       assert manifest =~ "`validateDestroyTodo`"
@@ -578,6 +590,13 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
       end
     end
 
+    test "includes Effect Schema column when effect schemas enabled", %{manifest: manifest} do
+      if AshTypescript.Rpc.generate_effect_schemas?() do
+        assert manifest =~ "| Effect Schema |"
+        assert manifest =~ "`loginEffectSchema`"
+      end
+    end
+
     test "lists schemas for GET routes with query args", %{manifest: manifest} do
       # `search` has non-path arguments, so schemas exist for it even though it
       # has no named input type
@@ -587,6 +606,10 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
 
       if AshTypescript.Rpc.generate_valibot_schemas?() do
         assert manifest =~ "`searchValibotSchema`"
+      end
+
+      if AshTypescript.Rpc.generate_effect_schemas?() do
+        assert manifest =~ "`searchEffectSchema`"
       end
     end
 

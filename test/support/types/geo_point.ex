@@ -11,7 +11,7 @@ defmodule AshTypescript.Test.GeoPoint do
   only manage `z.record(z.string(), z.any())` / `v.record(v.string(), v.any())`.
   `config/config.exs` tightens that to a precise object schema authored in
   TypeScript, referenced through `zod_mapping_overrides` /
-  `valibot_mapping_overrides`.
+  `valibot_mapping_overrides` / `effect_mapping_overrides`.
   """
   use Ash.Type
 

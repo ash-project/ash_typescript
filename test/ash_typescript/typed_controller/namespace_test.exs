@@ -135,6 +135,9 @@ defmodule AshTypescript.TypedController.NamespaceTest do
       valibot_names =
         for {name, :valibot_value} <- exports, do: name
 
+      effect_names =
+        for {name, :effect_value} <- exports, do: name
+
       # `search` and `provider_page` are GET routes with non-path arguments, so
       # RouteRenderer emits schemas for them — the namespace file must re-export
       # them or consumers cannot reach a schema that exists
@@ -142,6 +145,8 @@ defmodule AshTypescript.TypedController.NamespaceTest do
       assert "providerPageZodSchema" in zod_names
       assert "searchValibotSchema" in valibot_names
       assert "providerPageValibotSchema" in valibot_names
+      assert "searchEffectSchema" in effect_names
+      assert "providerPageEffectSchema" in effect_names
     end
 
     test "does not collect input types for GET routes", %{route_infos: grouped} do
@@ -190,6 +195,17 @@ defmodule AshTypescript.TypedController.NamespaceTest do
       assert "updateProviderValibotSchema" in valibot_names
 
       refute "logoutValibotSchema" in valibot_names
+    end
+
+    test "collects effect schema exports when enabled", %{route_infos: grouped} do
+      auth_routes = Map.get(grouped, "auth", [])
+      exports = Codegen.collect_route_exports(auth_routes)
+      effect_names = for {name, :effect_value} <- exports, do: name
+
+      assert "loginEffectSchema" in effect_names
+      assert "updateProviderEffectSchema" in effect_names
+
+      refute "logoutEffectSchema" in effect_names
     end
 
     test "account namespace exports contain only profile route", %{route_infos: grouped} do
@@ -302,6 +318,27 @@ defmodule AshTypescript.TypedController.NamespaceTest do
 
       assert content =~ "loginValibotSchema"
       assert content =~ "ash_valibot"
+    end
+
+    test "re-exports Effect schemas from effect file" do
+      route_infos =
+        Codegen.get_routes_by_namespace(router: AshTypescript.Test.ControllerResourceTestRouter)
+
+      auth_routes = Map.get(route_infos, "auth", [])
+
+      content =
+        Codegen.generate_controller_namespace_reexport_content(
+          "auth",
+          auth_routes,
+          "./test/ts/generated_routes.ts",
+          "./test/ts/ash_zod.ts",
+          "./test/ts/ash_valibot.ts",
+          "./test/ts/ash_effect.ts"
+        )
+
+      assert content =~ ~r/export \{[^}]*loginEffectSchema[^}]*\} from "\.\/ash_effect";/
+      # The Valibot and Effect blocks stay separated by a blank line.
+      assert content =~ ~s(from "./ash_valibot";\n\nexport {)
     end
 
     test "account namespace file only contains profile exports" do

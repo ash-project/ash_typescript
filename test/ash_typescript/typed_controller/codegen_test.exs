@@ -13,6 +13,7 @@ defmodule AshTypescript.TypedController.CodegenTest do
   # later test modules.
   setup_all do
     AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :generate_effect_schemas,
       :generate_valibot_schemas,
       :generate_zod_schemas,
       :typed_controller_after_request_hook,
@@ -1084,6 +1085,85 @@ defmodule AshTypescript.TypedController.CodegenTest do
 
     test "collects no route Valibot schemas" do
       assert AshTypescript.TypedController.Codegen.collect_route_valibot_schemas(
+               router: AshTypescript.Test.ControllerResourceTestRouter
+             ) == []
+    end
+  end
+
+  describe "Effect schema generation" do
+    setup %{files: files} do
+      %{effect: CodegenTestHelper.effect_content(files)}
+    end
+
+    defp effect_schema_body(effect, name) do
+      [_, after_schema] =
+        String.split(effect, "export const #{name} = Schema.Struct({", parts: 2)
+
+      [schema_body | _] = String.split(after_schema, "});", parts: 2)
+      schema_body
+    end
+
+    test "imports Schema from effect", %{effect: effect} do
+      assert String.contains?(effect, "import { Schema } from \"effect\";")
+    end
+
+    test "generates Effect schemas for mutation routes with input args", %{effect: effect} do
+      body = effect_schema_body(effect, "loginEffectSchema")
+
+      assert String.contains?(body, "code: Schema.String.check(Schema.isMinLength(1)),")
+      assert String.contains?(body, "rememberMe: Schema.optional(Schema.NullOr(Schema.Boolean)),")
+    end
+
+    test "excludes path params from the update_provider schema", %{effect: effect} do
+      body = effect_schema_body(effect, "updateProviderEffectSchema")
+
+      assert String.contains?(body, "enabled: Schema.Boolean,")
+      refute String.contains?(body, "provider")
+    end
+
+    test "no Effect schema for mutation routes without input args", %{effect: effect} do
+      refute String.contains?(effect, "logoutEffectSchema")
+    end
+
+    test "generates string, integer, and float constraints", %{effect: effect} do
+      body = effect_schema_body(effect, "registerEffectSchema")
+
+      assert String.contains?(
+               body,
+               "username: Schema.String.check(Schema.isMinLength(3), Schema.isMaxLength(20), Schema.isPattern(/^[a-zA-Z0-9_]+$/)),"
+             )
+
+      assert String.contains?(
+               body,
+               "age: Schema.Int.check(Schema.isGreaterThanOrEqualTo(13), Schema.isLessThanOrEqualTo(120)),"
+             )
+
+      assert String.contains?(
+               body,
+               "score: Schema.optional(Schema.NullOr(Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0.0), Schema.isLessThanOrEqualTo(100.0)))),"
+             )
+    end
+
+    test "honors effect_schema_name and references the embedded resource schema", %{
+      effect: effect
+    } do
+      body = effect_schema_body(effect, "createTaskRouteEffectSchema")
+
+      assert String.contains?(body, "metadata: TaskMetadataEffectSchema,")
+    end
+  end
+
+  describe "Effect schema generation disabled" do
+    setup do
+      prev = Application.get_env(:ash_typescript, :generate_effect_schemas)
+      Application.put_env(:ash_typescript, :generate_effect_schemas, false)
+
+      on_exit(fn -> reset_env(:generate_effect_schemas, prev) end)
+      :ok
+    end
+
+    test "collects no route Effect schemas" do
+      assert AshTypescript.TypedController.Codegen.collect_route_effect_schemas(
                router: AshTypescript.Test.ControllerResourceTestRouter
              ) == []
     end

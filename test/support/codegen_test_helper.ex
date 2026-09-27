@@ -72,6 +72,14 @@ defmodule AshTypescript.Test.CodegenTestHelper do
   end
 
   @doc """
+  Extracts the shared Effect file content from a files map.
+  """
+  def effect_content(files) do
+    path = AshTypescript.effect_output_file()
+    Map.get(files, path, "")
+  end
+
+  @doc """
   Extracts the routes file content from a files map.
   """
   def routes_content(files) do
