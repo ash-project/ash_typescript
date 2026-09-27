@@ -7,7 +7,7 @@ SPDX-License-Identifier: MIT
 
 # Form Validation
 
-AshTypescript provides two complementary validation mechanisms: client-side validation schemas (Zod or Valibot) for instant feedback and validation functions for server-side business logic.
+AshTypescript provides two complementary validation mechanisms: client-side validation schemas (Zod, Valibot, or Effect Schema) for instant feedback and validation functions for server-side business logic.
 
 ## Two-Layer Validation Strategy
 
@@ -69,7 +69,7 @@ export const createTodoZodSchema = z.object({
 });
 ```
 
-**Non-empty strings:** string fields get `min(1)` (Valibot: `minLength(1)`) whenever the Ash type has `allow_empty?: false` — the default for `:string` — including nullable/optional fields. This is deliberate: the server would silently convert `""` to `nil` on nullable fields, so rejecting `""` client-side surfaces the problem instead of storing an unintended `nil`. If a field should genuinely accept empty strings, declare `constraints: [allow_empty?: true]` on the attribute/argument and the `min(1)` disappears.
+**Non-empty strings:** string fields get `min(1)` (Valibot: `minLength(1)`, Effect: `Schema.isMinLength(1)`) whenever the Ash type has `allow_empty?: false` — the default for `:string` — including nullable/optional fields. This is deliberate: the server would silently convert `""` to `nil` on nullable fields, so rejecting `""` client-side surfaces the problem instead of storing an unintended `nil`. If a field should genuinely accept empty strings, declare `constraints: [allow_empty?: true]` on the attribute/argument and the `min(1)` disappears.
 
 ### Using Zod Schemas
 
@@ -396,7 +396,32 @@ if (!result.success) {
 }
 ```
 
-Both Zod and Valibot can be enabled simultaneously — they generate into separate files (`ash_zod.ts` and `ash_valibot.ts`).
+## Effect Schema Alternative
+
+AshTypescript also supports [Effect Schema](https://effect.website/) for projects built on Effect. The generated schemas target **Effect v4** (`effect@4`), which ships `Schema` inside the `effect` package. Enable it alongside or instead of Zod and Valibot:
+
+```elixir
+config :ash_typescript,
+  generate_effect_schemas: true,
+  effect_import_path: "effect",
+  effect_schema_suffix: "EffectSchema"
+```
+
+Effect schemas use `Schema.Struct` and `.check(...)` refinements:
+
+```typescript
+import { Exit, Schema } from 'effect';
+import { createTodoEffectSchema } from './ash_effect';
+
+const result = Schema.decodeUnknownExit(createTodoEffectSchema)(formData);
+if (Exit.isFailure(result)) {
+  // Handle validation errors
+}
+```
+
+Effect v4 is ESM-only, so your TypeScript config needs `moduleResolution` set to `nodenext` or `bundler`.
+
+Zod, Valibot, and Effect can be enabled simultaneously — they generate into separate files (`ash_zod.ts`, `ash_valibot.ts`, and `ash_effect.ts`).
 
 ## Configuration Reference
 
@@ -408,11 +433,16 @@ Both Zod and Valibot can be enabled simultaneously — they generate into separa
 | `generate_valibot_schemas` | `boolean` | `false` | Generate Valibot validation schemas |
 | `valibot_import_path` | `string` | `"valibot"` | Import path for Valibot library |
 | `valibot_schema_suffix` | `string` | `"ValibotSchema"` | Suffix for schema names |
+| `generate_effect_schemas` | `boolean` | `false` | Generate Effect Schema validation schemas (requires Effect v4) |
+| `effect_import_path` | `string` | `"effect"` | Import path for the Effect library |
+| `effect_schema_suffix` | `string` | `"EffectSchema"` | Suffix for schema names |
 | `generate_validation_functions` | `boolean` | `false` | Generate server validation functions |
 | `zod_mapping_overrides` | `list` | `[]` | Override the Zod schema for a custom Ash type |
 | `valibot_mapping_overrides` | `list` | `[]` | Override the Valibot schema for a custom Ash type |
+| `effect_mapping_overrides` | `list` | `[]` | Override the Effect schema for a custom Ash type |
 | `zod_import_into_generated` | `list` | `[]` | Extra imports for the generated Zod schema file |
 | `valibot_import_into_generated` | `list` | `[]` | Extra imports for the generated Valibot schema file |
+| `effect_import_into_generated` | `list` | `[]` | Extra imports for the generated Effect schema file |
 
 Custom Ash types get their schema from their constraints (for `Ash.Type.NewType`)
 or from their storage type (for hand-rolled types). See

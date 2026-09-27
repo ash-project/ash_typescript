@@ -137,17 +137,17 @@ RPC functions file; anything else is treated as a directory and gets
 `ash_rpc.ts` appended.
 
 ```bash
-# both write assets/js/ash_rpc.ts + assets/js/ash_types.ts (+ ash_zod.ts / ash_valibot.ts when enabled)
+# both write assets/js/ash_rpc.ts + assets/js/ash_types.ts (+ ash_zod.ts / ash_valibot.ts / ash_effect.ts when enabled)
 mix ash_typescript.codegen --output assets/js
 mix ash_typescript.codegen --output assets/js/ash_rpc.ts
 
-# writes myfolder/client.ts + myfolder/ash_types.ts (+ ash_zod.ts / ash_valibot.ts when enabled)
+# writes myfolder/client.ts + myfolder/ash_types.ts (+ ash_zod.ts / ash_valibot.ts / ash_effect.ts when enabled)
 mix ash_typescript.codegen --output myfolder/client.ts
 ```
 
 Paths set **explicitly** via `types_output_file`, `zod_output_file`,
-`valibot_output_file`, `routes_output_file` or `typed_channels_output_file` still
-win over the derived location — `--output` only moves the paths that were left to
+`valibot_output_file`, `effect_output_file`, `routes_output_file` or
+`typed_channels_output_file` still win over the derived location — `--output` only moves the paths that were left to
 auto-derive. To relocate everything, either leave those keys unset or override
 them in config as well.
 
@@ -170,8 +170,8 @@ When run, this task generates:
    - Type-safe query building
    - Nested relationship filtering
 
-4. **Zod / Valibot Validation Schemas** (if enabled)
-   - Runtime type validation (into `ash_zod.ts` / `ash_valibot.ts`)
+4. **Zod / Valibot / Effect Validation Schemas** (if enabled)
+   - Runtime type validation (into `ash_zod.ts` / `ash_valibot.ts` / `ash_effect.ts`)
    - Schema for each resource
    - Nested validation support
 

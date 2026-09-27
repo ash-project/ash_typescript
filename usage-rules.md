@@ -67,7 +67,7 @@ SPDX-License-Identifier: MIT
 | **Default GET** | `route :home do run fn ... end end` | Method defaults to :get |
 | **Route Argument** | `argument :code, :string, allow_nil?: false` | Colocated in route |
 | **Array Argument** | `argument :tags, {:array, :string}` | Any Ash type form, arrays included |
-| **Route Schema Names** | `zod_schema_name "x"` / `valibot_schema_name "x"` | Avoid collisions with RPC action schemas |
+| **Route Schema Names** | `zod_schema_name "x"` / `valibot_schema_name "x"` / `effect_schema_name "x"` | Avoid collisions with RPC action schemas |
 | **Route Namespace** | `namespace "auth"` | Inside typed_controller or route do block |
 | **Route Description** | `description "..."` | JSDoc on route (inside do block) |
 | **Route Deprecated** | `deprecated true` | Deprecation notice (inside do block) |
@@ -77,7 +77,7 @@ SPDX-License-Identifier: MIT
 | **Routes Output** | `config :ash_typescript, routes_output_file: "routes.ts"` | Route file path |
 | **Paths-Only Mode** | `config :ash_typescript, typed_controller_mode: :paths_only` | Skip fetch functions |
 | **GET Query Params** | `argument :q, :string, allow_nil?: false` on GET route | Becomes `?q=value`; arrays become `?tags[]=a&tags[]=b` |
-| **Route Validation Schemas** | Zod/Valibot schemas for any route with non-path args | Emitted into `ash_zod.ts` / `ash_valibot.ts`, GET included |
+| **Route Validation Schemas** | Zod/Valibot/Effect schemas for any route with non-path args | Emitted into `ash_zod.ts` / `ash_valibot.ts` / `ash_effect.ts`, GET included |
 | **Typed Channel** | `use AshTypescript.TypedChannel` | Server-push event subscriptions |
 | **Channel Topic** | `typed_channel do topic "org:*"` | Wildcard or static topic |
 | **Channel Resource** | `resource MyApp.Post do publish :event end` | Declare events per resource |
@@ -256,7 +256,7 @@ updateProvider({ provider: "github" }, { enabled: true })
 - Arguments follow Ash action-argument semantics: `constraints:` are validated at compile time and enforced at runtime — a failure returns 422 without invoking the handler
 - Empty string on a required string argument → 422 `is required`; on a nilable string argument the handler receives `nil`. Strings are trimmed by default (`trim?`)
 - Route arguments accept any Ash type form, including `{:array, inner}`; item constraints go under `constraints: [items: [...]]`
-- Validation schemas are generated for every route with non-path arguments (GET query params included), not just mutations — they live in the shared `ash_zod.ts`/`ash_valibot.ts`, and the JSON manifest advertises them under `typedControllerRoutes[].types`
+- Validation schemas are generated for every route with non-path arguments (GET query params included), not just mutations — they live in the shared `ash_zod.ts`/`ash_valibot.ts`/`ash_effect.ts`, and the JSON manifest advertises them under `typedControllerRoutes[].types`
 
 ## Typed Channel (Event Subscriptions)
 
@@ -412,6 +412,7 @@ config :ash_typescript,
   generate_phx_channel_rpc_actions: false,
   generate_zod_schemas: false,
   generate_valibot_schemas: false,
+  generate_effect_schemas: false,         # Effect Schema (requires effect@4)
   require_tenant_parameters: false,
   not_found_error?: true,
   # JSDoc/Manifest
@@ -457,7 +458,7 @@ config :ash_typescript,
 
 Not exhaustive — see `documentation/reference/configuration.md` for the full key list.
 
-**Validation schemas**: generated Zod/Valibot string schemas carry `min(1)` whenever the attribute's constraints have `allow_empty?: false` (the Ash default), including nullable and optional fields. Send `null`, not `""`.
+**Validation schemas**: generated Zod/Valibot string schemas carry `min(1)` (Effect: `Schema.isMinLength(1)`) whenever the attribute's constraints have `allow_empty?: false` (the Ash default), including nullable and optional fields. Send `null`, not `""`.
 
 ## Commands
 

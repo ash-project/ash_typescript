@@ -98,6 +98,7 @@ defmodule MyApp.Session do
       # Optional: rename the generated schemas to dodge RPC action collisions
       zod_schema_name "loginRouteZodSchema"
       valibot_schema_name "loginRouteValibotSchema"
+      effect_schema_name "loginRouteEffectSchema"
     end
 
     # Method defaults to :get when omitted. Arguments accept any Ash type form,
@@ -265,6 +266,7 @@ AshTypescript.Rpc.RequestedFieldsProcessor.process(
 | **Sort types generation** | `lib/ash_typescript/codegen/sort_types.ex` |
 | **Zod schema generation** | `lib/ash_typescript/codegen/zod_schema_generator.ex` |
 | **Valibot schema generation** | `lib/ash_typescript/codegen/valibot_schema_generator.ex` |
+| **Effect Schema generation** | `lib/ash_typescript/codegen/effect_schema_generator.ex` |
 | **Utility types generation** | `lib/ash_typescript/codegen/utility_types.ex` |
 | **Import path resolution** | `lib/ash_typescript/codegen/import_resolver.ex` |
 | **Shared types generator** | `lib/ash_typescript/codegen/shared_types_generator.ex` |
@@ -335,13 +337,18 @@ npm run compileShouldPass            # Test valid patterns (type-level)
 npm run compileShouldFail            # Test invalid patterns fail (type-level)
 npm run testZod                      # Run generated Zod schemas against real data
 npm run testValibot                  # Run generated Valibot schemas against real data
+npm run testEffect                   # Run generated Effect schemas against real data
 ```
 
-`testZod` / `testValibot` compile and **execute** the generated validation
-schemas against fixture inputs — they are the only path that exercises schema
-runtime behavior (e.g. catches a bug like an empty `z.object({})` for a type
-that should validate `{ amount, currency }`). Always run them after touching
-`third_party_types`, constraint generation, or any other validation codegen.
+`testZod` / `testValibot` / `testEffect` compile and **execute** the generated
+validation schemas against fixture inputs — they are the only path that
+exercises schema runtime behavior (e.g. catches a bug like an empty
+`z.object({})` for a type that should validate `{ amount, currency }`). Always
+run them after touching `third_party_types`, constraint generation, or any other
+validation codegen. Effect v4 is ESM-only, so `testEffect` compiles with
+`--module nodenext --moduleResolution nodenext`, and the Effect tests under
+`test/ts/effect/` stay out of `shouldPass.ts`/`shouldFail.ts` (node10
+resolution); only `testEffect` compiles and runs them.
 
 ### Quality Checks
 ```bash
@@ -370,7 +377,7 @@ mix credo --strict                   # Linting
 | **Action metadata** | [features/action-metadata.md](agent-docs/features/action-metadata.md) | `test/ash_typescript/rpc/rpc_metadata_test.exs`, `test/ash_typescript/rpc/verify_metadata_field_names_test.exs` |
 | **RPC pipeline or field processing** | [features/rpc-pipeline.md](agent-docs/features/rpc-pipeline.md) | `test/ash_typescript/rpc/rpc_*_test.exs` |
 | **Load restrictions** | [features/rpc-pipeline.md](agent-docs/features/rpc-pipeline.md) (RPC Action Options) | `test/ash_typescript/rpc/load_restrictions_test.exs` |
-| **Validation schemas (Zod & Valibot)** | [features/validation-schemas.md](agent-docs/features/validation-schemas.md) | `test/ash_typescript/rpc/zod_constraints_test.exs`, `test/ash_typescript/rpc/valibot_constraints_test.exs`, `test/ash_typescript/rpc/custom_type_schema_test.exs` |
+| **Validation schemas (Zod, Valibot & Effect)** | [features/validation-schemas.md](agent-docs/features/validation-schemas.md) | `test/ash_typescript/rpc/zod_constraints_test.exs`, `test/ash_typescript/rpc/valibot_constraints_test.exs`, `test/ash_typescript/rpc/effect_constraints_test.exs`, `test/ash_typescript/rpc/custom_type_schema_test.exs` |
 | **Embedded resources** | [features/embedded-resources.md](agent-docs/features/embedded-resources.md) | `test/support/resources/embedded/` |
 | **Union types** | [features/union-systems-core.md](agent-docs/features/union-systems-core.md) | `test/ash_typescript/rpc/rpc_run_action_union_*_test.exs`, `test/ash_typescript/union_types_test.exs` |
 | **Namespaces, JSDoc, Manifest, JSON Manifest** | [features/developer-experience.md](agent-docs/features/developer-experience.md) | `test/ash_typescript/rpc/namespace_test.exs`, `test/ash_typescript/rpc/json_manifest_generator_test.exs` |
@@ -400,8 +407,8 @@ mix credo --strict                   # Linting
 - **ValueFormatter** - Unified type-aware value formatting
 
 ### Multi-File Codegen Architecture
-- **Orchestrator** (`codegen/orchestrator.ex`): Coordinates all file generation — types, Zod, Valibot, RPC, routes, typed channels, namespace re-exports
-- **SchemaCore** (`codegen/schema_core.ex`): Shared validation schema logic (topological sort, type mapping, field introspection) used by both Zod and Valibot via `SchemaFormatter` behaviour
+- **Orchestrator** (`codegen/orchestrator.ex`): Coordinates all file generation — types, Zod, Valibot, Effect, RPC, routes, typed channels, namespace re-exports
+- **SchemaCore** (`codegen/schema_core.ex`): Shared validation schema logic (topological sort, type mapping, field introspection) used by Zod, Valibot, and Effect via `SchemaFormatter` behaviour
 - **ImportResolver** (`codegen/import_resolver.ex`): Shared utility for import path resolution and namespace re-export generation (used by both RPC and controller codegen)
 - **CodegenTestHelper** (`test/support/codegen_test_helper.ex`): Test wrapper for orchestrator — use `generate_all_content/0` for string assertions, `generate_files/0` for file-level assertions
 
@@ -434,9 +441,9 @@ mix credo --strict                   # Linting
 | "Invalid field names found" | Field/arg with `_1` or `?` | Use `field_names` or `argument_names` DSL options |
 | "Invalid field names found in map/keyword/tuple type constraints" | Map constraint fields invalid | Create `Ash.Type.NewType` with `typescript_field_names/0` callback |
 | "Unsupported types found — AshTypescript cannot map them" | Reachable type module has no TS mapping | Implement `typescript_type_name/0` on the type, or add `config :ash_typescript, type_mapping_overrides: [{Mod, "<ts type>"}]` |
-| Zod/Valibot schema is `z.any()` for a custom type | Hand-rolled type whose `storage_type/1` has no unambiguous JSON form | Add `zod_mapping_overrides` / `valibot_mapping_overrides`, or express the type as an `Ash.Type.NewType` with constraints |
-| Zod/Valibot schema too permissive (e.g. `z.record`) for a custom type | Hand-rolled `:map`-storage type — the shape lives in `cast_input/2` and can't be introspected | Use an `Ash.Type.NewType` with `fields` constraints, or a schema mapping override |
-| `Cannot find name 'X'` in generated `ash_zod.ts` / `ash_valibot.ts` | A mapping override references an imported symbol with no matching import | Add `zod_import_into_generated` / `valibot_import_into_generated` (`import_into_generated` does **not** apply to schema files) |
+| Zod/Valibot/Effect schema is `z.any()` / `Schema.Any` for a custom type | Hand-rolled type whose `storage_type/1` has no unambiguous JSON form | Add `zod_mapping_overrides` / `valibot_mapping_overrides` / `effect_mapping_overrides`, or express the type as an `Ash.Type.NewType` with constraints |
+| Zod/Valibot/Effect schema too permissive (e.g. `z.record`) for a custom type | Hand-rolled `:map`-storage type — the shape lives in `cast_input/2` and can't be introspected | Use an `Ash.Type.NewType` with `fields` constraints, or a schema mapping override |
+| `Cannot find name 'X'` in generated `ash_zod.ts` / `ash_valibot.ts` / `ash_effect.ts` | A mapping override references an imported symbol with no matching import | Add `zod_import_into_generated` / `valibot_import_into_generated` / `effect_import_into_generated` (`import_into_generated` does **not** apply to schema files) |
 | "Invalid metadata field name" | Metadata field with `_1` or `?` | Use `metadata_field_names` DSL option in `rpc_action` |
 | "Metadata field conflicts with resource field" | Metadata field shadows resource field | Rename metadata field or use different mapped name |
 | TypeScript `unknown` types | Schema key mismatch | Check `__type` metadata generation |
@@ -550,7 +557,7 @@ config :ash_typescript,
 ```
 
 - `json_manifest_filename_format` controls the `filename` field in each `files` entry. `importPath` (no `.ts`, for TypeScript imports) is always relative to the manifest.
-- The manifest includes a `"version": "1.0"` field using semver for consumer compatibility detection.
+- The manifest includes a `"version": "1.2"` field using semver for consumer compatibility detection.
 - The manifest is written independently of other file changes — it's always generated if the file doesn't exist or content changed.
 
 **Implementation:** `lib/ash_typescript/rpc.ex` (`json_manifest_file/0`, `json_manifest_filename_format/0`) + `lib/ash_typescript/rpc/codegen/json_manifest_generator.ex` + `lib/mix/tasks/ash_typescript.codegen.ex`
@@ -573,6 +580,7 @@ npm run compileShouldPass            # Test valid patterns (type-level)
 npm run compileShouldFail            # Test invalid patterns fail (type-level)
 npm run testZod                      # Run generated Zod schemas at runtime
 npm run testValibot                  # Run generated Valibot schemas at runtime
+npm run testEffect                   # Run generated Effect schemas at runtime
 mix test                             # Run Elixir tests (do NOT prefix with MIX_ENV=test)
 ```
 

@@ -16,8 +16,8 @@ list them (`ls test/ts/shouldPass/*.ts`); the set grows regularly.
 | Kind | Files |
 |------|-------|
 | **Type-level entry points** | `shouldPass.ts` (~38 files in `shouldPass/`), `shouldFail.ts` (~15 files in `shouldFail/`) |
-| **Runtime entry points** | `runZodTests.ts`, `runValibotTests.ts` (compiled *and executed*) |
-| **Generated artifacts** | `generated.ts`, `ash_types.ts`, `ash_zod.ts`, `ash_valibot.ts`, `generated_routes.ts`, `generated_typed_channels.ts`, `MANIFEST.md`, `ash_rpc_manifest.json`, `namespace/`, `account.ts`, `auth.ts` |
+| **Runtime entry points** | `runZodTests.ts`, `runValibotTests.ts`, `runEffectTests.ts` (compiled *and executed*) |
+| **Generated artifacts** | `generated.ts`, `ash_types.ts`, `ash_zod.ts`, `ash_valibot.ts`, `ash_effect.ts`, `generated_routes.ts`, `generated_typed_channels.ts`, `MANIFEST.md`, `ash_rpc_manifest.json`, `namespace/`, `account.ts`, `auth.ts` |
 | **Hand-written support** | `customTypes.ts`, `rpcHooks.ts`, `channelHooks.ts`, `routeHooks.ts` |
 
 `shouldPass/` covers CRUD, calculations, relationships, custom types, embedded
@@ -39,15 +39,21 @@ npm run compileShouldFail     # Invalid patterns (must fail)
 # Execute generated validation schemas against fixture data
 npm run testZod
 npm run testValibot
+npm run testEffect
 
 # Run Elixir tests (do NOT prefix with MIX_ENV=test)
 mix test
 ```
 
-`testZod`/`testValibot` are the **only** path that exercises schema runtime
-behavior. Always run them after touching `third_party_types`, constraint
+`testZod`/`testValibot`/`testEffect` are the **only** path that exercises schema
+runtime behavior. Always run them after touching `third_party_types`, constraint
 generation, or any other validation codegen. Root-level equivalents:
-`mix test.test_zod`, `mix test.test_valibot`.
+`mix test.test_zod`, `mix test.test_valibot`, `mix test.test_effect`.
+
+Effect v4 is ESM-only, so `testEffect` compiles with `--module nodenext
+--moduleResolution nodenext`. `shouldPass.ts`/`shouldFail.ts` compile with node10
+resolution and do not import `test/ts/effect/`; only `testEffect` compiles and
+runs the Effect tests.
 
 ## Test Categories
 
@@ -90,6 +96,7 @@ cd test/ts && npm run compileShouldPass # Valid patterns work
 cd test/ts && npm run compileShouldFail # Invalid patterns rejected
 cd test/ts && npm run testZod          # Zod schemas execute against fixtures
 cd test/ts && npm run testValibot      # Valibot schemas execute against fixtures
+cd test/ts && npm run testEffect       # Effect schemas execute against fixtures
 ```
 
 **If any baseline check fails, STOP and fix before proceeding.**
@@ -137,7 +144,7 @@ semantics end to end. Constraints are validated and folded at compile time by
 are now compile errors), the handler runs `cast_input` → `apply_constraints` →
 `allow_nil?` recheck, and route Zod fields compose through the same
 `SchemaCore.compose_input_field/5` as RPC action inputs. When changing any of
-these, also run `npm run testZod` / `npm run testValibot`.
+these, also run `npm run testZod` / `npm run testValibot` / `npm run testEffect`.
 
 ### Type System Changes
 When modifying `lib/ash_typescript/codegen/` modules (type_mapper.ex, resource_schemas.ex, etc.) or `lib/ash_typescript/rpc/codegen.ex`:
@@ -184,7 +191,7 @@ mix test test/ash_typescript/rpc/calculations_test.exs
 ## Breaking Change Detection
 
 Codegen emits ~10 artifacts, so a `generated.ts`-only diff misses most changes
-(`ash_types.ts`, `ash_zod.ts`, `ash_valibot.ts`, `ash_rpc_manifest.json`, …).
+(`ash_types.ts`, `ash_zod.ts`, `ash_valibot.ts`, `ash_effect.ts`, `ash_rpc_manifest.json`, …).
 Snapshot the whole tree to a scratch dir **outside the repo** — a stray `.ts`
 inside `test/ts/` fails the reuse lint.
 
@@ -409,6 +416,7 @@ inventing fixtures:
 - [ ] `cd test/ts && npm run compileShouldFail` - Invalid patterns fail correctly
 - [ ] `cd test/ts && npm run testZod` - Zod schemas execute against fixtures
 - [ ] `cd test/ts && npm run testValibot` - Valibot schemas execute against fixtures
+- [ ] `cd test/ts && npm run testEffect` - Effect schemas execute against fixtures
 - [ ] `mix format --check-formatted` - Code formatting maintained
 - [ ] `mix credo --strict` - No linting issues
 - [ ] Every generated-output delta classified as intentional

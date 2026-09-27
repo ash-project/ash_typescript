@@ -103,7 +103,7 @@ Three dependency types are mapped without any callback, in
 | `AshPostgres.Ltree` | `AshPostgresLtreeArray` when `escape?: true`, else `AshPostgresLtreeFlexible` |
 | `AshDoubleEntry.ULID` | `ULID` |
 
-Aliases are emitted by `codegen/type_aliases.ex`. Zod/Valibot have parallel
+Aliases are emitted by `codegen/type_aliases.ex`. Zod/Valibot/Effect have parallel
 `@third_party_types` entries in their formatter modules.
 
 ## Architecture Benefits
@@ -124,7 +124,7 @@ Aliases are emitted by `codegen/type_aliases.ex`. Zod/Valibot have parallel
 - `lib/ash_typescript/codegen/shared_types_generator.ex` - Assembles `ash_types.ts`
 - `lib/ash_typescript/codegen/filter_types.ex` - Filter input types
 - `lib/ash_typescript/codegen/sort_types.ex` - Sort field types
-- `lib/ash_typescript/codegen/schema_core.ex` - Shared Zod/Valibot type dispatch
+- `lib/ash_typescript/codegen/schema_core.ex` - Shared Zod/Valibot/Effect type dispatch
 - `lib/ash_typescript/manifest/verifiers/verify_mappable_types.ex` - Compile-time unmappable-type check
 - `lib/ash_typescript/type_system/introspection.ex` - Type introspection and classification
 - `lib/ash_typescript/rpc/codegen.ex` - RPC client generation

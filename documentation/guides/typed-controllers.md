@@ -242,6 +242,7 @@ end
 | `namespace` | string | No | — | Namespace for this route (overrides controller-level namespace) |
 | `zod_schema_name` | string | No | — | Override generated Zod schema name (avoids collisions with RPC) |
 | `valibot_schema_name` | string | No | — | Override generated Valibot schema name (avoids collisions with RPC) |
+| `effect_schema_name` | string | No | — | Override generated Effect schema name (avoids collisions with RPC) |
 
 ### `argument` Options
 
@@ -798,7 +799,7 @@ import * as RouteHooks from "./routeHooks";
 import * as Analytics from "./analytics";
 ```
 
-## Validation Schema Generation (Zod & Valibot)
+## Validation Schema Generation (Zod, Valibot & Effect)
 
 When `generate_zod_schemas: true` is configured, every route with non-path arguments — mutations and GET routes alike — also generates a Zod validation schema:
 
@@ -823,9 +824,18 @@ export const loginValibotSchema = v.object({
 });
 ```
 
-The schemas use the same `zod_import_path`/`valibot_import_path` and `zod_schema_suffix`/`valibot_schema_suffix` settings as RPC schemas, and are emitted into the shared schema files (`ash_zod.ts` / `ash_valibot.ts`) rather than the routes file.
+When `generate_effect_schemas: true` is configured, equivalent Effect schemas are generated too:
 
-If a route name collides with an RPC action name (both would generate the same schema constant), set `zod_schema_name` / `valibot_schema_name` on the route to rename its schemas.
+```typescript
+export const loginEffectSchema = Schema.Struct({
+  code: Schema.String.check(Schema.isMinLength(1)),
+  rememberMe: Schema.optional(Schema.NullOr(Schema.Boolean)),
+});
+```
+
+The schemas use the same `zod_import_path`/`valibot_import_path`/`effect_import_path` and `zod_schema_suffix`/`valibot_schema_suffix`/`effect_schema_suffix` settings as RPC schemas, and are emitted into the shared schema files (`ash_zod.ts` / `ash_valibot.ts` / `ash_effect.ts`) rather than the routes file.
+
+If a route name collides with an RPC action name (both would generate the same schema constant), set `zod_schema_name` / `valibot_schema_name` / `effect_schema_name` on the route to rename its schemas.
 
 For GET routes the schema validates the same query object the path helper takes, which makes it useful for validating a form before building the URL:
 
@@ -909,7 +919,7 @@ When enabled, 500 responses include the real exception message (or the inspected
 
 All three of `typed_controllers`, `router`, and `routes_output_file` must be configured for route generation to run.
 
-Route helpers are part of AshTypescript's multi-file output architecture — shared types and Zod/Valibot schemas are generated into separate files that both RPC and controller code import from. See [Configuration Reference — Multi-File Output](../reference/configuration.md#multi-file-output) for the full file layout.
+Route helpers are part of AshTypescript's multi-file output architecture — codegen writes shared types and Zod/Valibot/Effect schemas into separate files that both RPC and controller code import from. See [Configuration Reference — Multi-File Output](../reference/configuration.md#multi-file-output) for the full file layout.
 
 ### Path Params Style
 

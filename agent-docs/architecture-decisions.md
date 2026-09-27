@@ -42,7 +42,7 @@ Key architectural decisions and their reasoning for AI assistant context.
 **Change**: Unified multi-file codegen orchestration, HTTP verb shortcuts for TypedController DSL, controller namespace support, and shared ImportResolver
 **Why**: Simplify codegen coordination, improve DSL ergonomics, and enable route namespacing
 **Impact**:
-- **Orchestrator** (`codegen/orchestrator.ex`) now coordinates all file generation in a single pass, replacing the previous sequential approach in the mix task. It emits types, Zod, Valibot, RPC, routes, typed channels, the Markdown + JSON manifests, and namespace re-exports
+- **Orchestrator** (`codegen/orchestrator.ex`) now coordinates all file generation in a single pass, replacing the previous sequential approach in the mix task. It emits types, Zod, Valibot, Effect, RPC, routes, typed channels, the Markdown + JSON manifests, and namespace re-exports
 - **HTTP verb shortcuts**: `get :auth do`, `post :login do` etc. — cleaner syntax using Spark `auto_set_fields`. Positional method arg also supported: `route :auth, :post do`. Default method is `:get` when omitted.
 - **Controller namespaces**: `namespace "auth"` at controller and route level, with route-level overriding controller-level. Generates `namespace/*.ts` re-export files.
 - **ImportResolver** extracted as shared utility for import path resolution and namespace re-export generation (used by both RPC and controller codegen)

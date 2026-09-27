@@ -220,7 +220,7 @@ See [Custom Types](../advanced/custom-types.md).
 
 ### Validation Schema Issues
 
-#### A custom type generates `z.any()` / `v.any()`
+#### A custom type generates `z.any()` / `v.any()` / `Schema.Any`
 
 **Cause:** A hand-rolled `use Ash.Type` module whose `storage_type/1` has no unambiguous JSON wire form. AshTypescript stays permissive rather than guessing, since a wrong schema rejects valid data.
 
@@ -229,7 +229,8 @@ See [Custom Types](../advanced/custom-types.md).
 ```elixir
 config :ash_typescript,
   zod_mapping_overrides: [{MyApp.CustomType, "z.string()"}],
-  valibot_mapping_overrides: [{MyApp.CustomType, "v.string()"}]
+  valibot_mapping_overrides: [{MyApp.CustomType, "v.string()"}],
+  effect_mapping_overrides: [{MyApp.CustomType, "Schema.String"}]
 ```
 
 #### A custom type's schema is more permissive than its TypeScript type
@@ -238,11 +239,11 @@ config :ash_typescript,
 
 **Solution:** Use an `Ash.Type.NewType` with `fields` constraints, or a schema mapping override.
 
-#### Error: `Cannot find name 'X'` in generated `ash_zod.ts` / `ash_valibot.ts`
+#### Error: `Cannot find name 'X'` in generated `ash_zod.ts` / `ash_valibot.ts` / `ash_effect.ts`
 
 **Cause:** A mapping override references an imported symbol, but the generated schema file imports only its validation library. `import_into_generated` does **not** apply to the schema files — it targets the types and RPC files.
 
-**Solution:** Declare the import with the per-library key:
+**Solution:** Declare the import with the per-library key (`zod_import_into_generated`, `valibot_import_into_generated`, or `effect_import_into_generated`):
 
 ```elixir
 config :ash_typescript,
@@ -253,6 +254,20 @@ config :ash_typescript,
 ```
 
 See [Custom Types](../advanced/custom-types.md#validation-schemas-for-custom-types).
+
+#### Error: `Duplicate Zod|Valibot|Effect schema names detected`
+
+**Cause:** An RPC action and a typed controller route share a name, so both generate the same schema constant (e.g. `createTaskEffectSchema`).
+
+**Solution:** Rename the route's schema with `zod_schema_name`, `valibot_schema_name`, or `effect_schema_name` in the route definition:
+
+```elixir
+post :create_task do
+  run fn conn, _params -> Plug.Conn.send_resp(conn, 201, "Created") end
+  argument :title, :string, allow_nil?: false
+  effect_schema_name "createTaskRouteEffectSchema"
+end
+```
 
 ### Field Selection Issues
 

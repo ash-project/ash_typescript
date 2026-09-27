@@ -109,8 +109,8 @@ config :ash_typescript,
 This generates one file per namespace in `namespace_output_dir` (default: the directory of
 the main `output_file`):
 
-- `rpc/todos.ts` — re-exports the "todos" namespace's functions, input types and Zod/Valibot
-  schemas **from** the main output file
+- `rpc/todos.ts` — re-exports the "todos" namespace's functions, input types and Zod/Valibot/Effect
+  schemas **from** the main output file (Effect schemas re-export from the Effect file, export kind `:effect_value`)
 - `rpc/admin.ts` — same for "admin"
 
 The main output file is unchanged and does **not** import the namespace files — the
@@ -292,6 +292,7 @@ The manifest includes a `version` field (currently `"1.0"`) using semver so cons
     "types": { "importPath": "./ash_types", "filename": "./ash_types.ts" },
     "zod": { "importPath": "./ash_zod", "filename": "./ash_zod.ts" },
     "valibot": { "importPath": "./ash_valibot", "filename": "./ash_valibot.ts" },
+    "effect": { "importPath": "./ash_effect", "filename": "./ash_effect.ts" },
     "routes": { "importPath": "./routes", "filename": "./routes.ts" },
     "typedChannels": { "importPath": "./ash_typed_channels", "filename": "./ash_typed_channels.ts" }
   },
@@ -323,11 +324,12 @@ The manifest includes a `version` field (currently `"1.0"`) using semver so cons
       },
       "enableFilter": true,
       "enableSort": true,
-      "variants": { "validation": true, "zod": true, "valibot": true, "channel": true },
+      "variants": { "validation": true, "zod": true, "valibot": true, "effect": true, "channel": true },
       "variantNames": {
         "validation": "validateListTodos",
         "zod": "listTodosZodSchema",
         "valibot": "listTodosValibotSchema",
+        "effect": "listTodosEffectSchema",
         "channel": "listTodosChannel"
       }
     }
@@ -346,7 +348,7 @@ The manifest includes a `version` field (currently `"1.0"`) using semver so cons
       "path": "/auth/login",
       "pathParams": [],
       "mutation": true,
-      "types": { "input": "LoginInput", "zod": "loginZodSchema", "valibot": "loginValibotSchema" }
+      "types": { "input": "LoginInput", "zod": "loginZodSchema", "valibot": "loginValibotSchema", "effect": "loginEffectSchema" }
     }
   ]
 }
@@ -355,17 +357,18 @@ The manifest includes a `version` field (currently `"1.0"`) using semver so cons
 Every typed controller route appears in `typedControllerRoutes`, including GET path
 helpers (`"mutation": false`). A route carries a `types` object when it has
 anything to advertise: `"input"` only for mutation routes (the named input type
-belongs to the fetch function), but `"zod"`/`"valibot"` for **any** route with
+belongs to the fetch function), but `"zod"`/`"valibot"`/`"effect"` for **any** route with
 non-path arguments — GET query params get schemas too. Routes with no non-path
 arguments have no `types` key at all.
 
-The route-level `"zod"` and `"valibot"` names honor a route's `zod_schema_name` /
-`valibot_schema_name` overrides; the single sources of truth are
-`TypedController.Codegen.route_zod_schema_name/2` and `route_valibot_schema_name/2`,
-shared by the renderer, namespace re-exports, and the manifests, so they cannot
-drift. Each key appears only when the corresponding `generate_*_schemas` config
-is enabled. (The Markdown manifest lists no Valibot names anywhere — for routes
-or RPC actions — so route Valibot names surface only in the JSON manifest.)
+The route-level `"zod"`, `"valibot"`, and `"effect"` names honor a route's
+`zod_schema_name` / `valibot_schema_name` / `effect_schema_name` overrides; the
+single sources of truth are `TypedController.Codegen.route_zod_schema_name/2`,
+`route_valibot_schema_name/2`, and `route_effect_schema_name/2`, shared by the
+renderer, namespace re-exports, and the manifests, so they cannot drift. Each key
+appears only when the corresponding `generate_*_schemas` config is enabled. The
+Markdown manifest applies the same gating to its `Zod Schema`, `Valibot Schema`,
+and `Effect Schema` columns.
 
 ### Action Entry Fields
 
@@ -437,10 +440,10 @@ config :ash_typescript,
 The manifest includes:
 - All RPC actions grouped by domain or namespace
 - Action types and function names
-- Validation functions, Zod schemas, and channel functions (when enabled)
+- Validation functions, Zod/Valibot/Effect schemas, and channel functions (when enabled)
 - Descriptions, deprecation notices, and related actions
 - Typed queries
-- A `## Typed Controller Routes` section (Method / Path / Function / Input Type / Zod Schema)
+- A `## Typed Controller Routes` section (Method / Path / Function / Input Type / Zod Schema, plus Valibot Schema / Effect Schema columns when enabled)
   when typed controllers are configured — includes GET path helpers
 
 ### Sample Output

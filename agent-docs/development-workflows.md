@@ -109,8 +109,8 @@ they compile *and execute* the generated schemas against fixture inputs and are
 the only path that catches runtime schema bugs:
 
 ```bash
-cd test/ts && npm run testZod && npm run testValibot
-# or from the repo root: mix test.test_zod && mix test.test_valibot
+cd test/ts && npm run testZod && npm run testValibot && npm run testEffect
+# or from the repo root: mix test.test_zod && mix test.test_valibot && mix test.test_effect
 ```
 
 ### Multi-File Codegen Tests
@@ -169,7 +169,7 @@ HexDocs documentation for end users. Can include full tutorials, explanations, a
 
 1. Always use the test-env aliases (`mix test.codegen`, `mix test`) — do **not**
    prefix with `MIX_ENV=test`; `mix.exs` `preferred_envs` already handles it
-2. Validate TypeScript compilation after changes, plus `testZod`/`testValibot`
+2. Validate TypeScript compilation after changes, plus `testZod`/`testValibot`/`testEffect`
    when validation schemas are involved
 3. Use Tidewave for interactive debugging (recompile first)
 4. Write comprehensive tests before implementation

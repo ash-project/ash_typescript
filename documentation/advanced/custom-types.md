@@ -88,7 +88,7 @@ Some common third-party Ash types are mapped out of the box — no callback or o
 
 | Type module | Generated TypeScript |
 |-------------|---------------------|
-| `AshMoney.Types.Money` | `Money` alias (`{ amount, currency }`, with matching Zod/Valibot object schemas) |
+| `AshMoney.Types.Money` | `Money` alias (`{ amount, currency }`, with matching Zod/Valibot/Effect object schemas) |
 | `AshPostgres.Ltree` | `AshPostgresLtreeArray` / `AshPostgresLtreeFlexible` alias (depending on the `escape?` constraint) |
 | `AshDoubleEntry.ULID` | `ULID` (string) alias |
 
@@ -184,7 +184,7 @@ interface ProductResourceSchema {
 ## Validation Schemas for Custom Types
 
 `type_mapping_overrides` and `typescript_type_name/0` control the generated
-**TypeScript type**. They do not affect the generated **Zod/Valibot schema** —
+**TypeScript type**. They do not affect the generated **Zod/Valibot/Effect schema** —
 that is resolved separately, and has its own set of options.
 
 ### Prefer `Ash.Type.NewType`
@@ -240,11 +240,14 @@ config :ash_typescript,
   ],
   valibot_mapping_overrides: [
     {SomeLib.ObjectId, "v.string()"}
+  ],
+  effect_mapping_overrides: [
+    {SomeLib.ObjectId, "Schema.String"}
   ]
 ```
 
-The two lists are independent — a type with a Zod override but no Valibot
-override keeps its storage-derived Valibot schema. Overrides also take
+The three lists are independent — a type with a Zod override but no Valibot or
+Effect override keeps its storage-derived Valibot and Effect schemas. Overrides also take
 precedence over the built-in third-party mappings.
 
 ### Referencing a Schema You Wrote
@@ -278,6 +281,9 @@ export const createTaskZodSchema = z.object({
 });
 ```
 
+`valibot_import_into_generated` and `effect_import_into_generated` take the same
+shape for `ash_valibot.ts` and `ash_effect.ts`.
+
 These keys are separate from `import_into_generated`, which targets the types
 and RPC files. Keeping them separate stops unrelated modules from being pulled
 into the schema files, where they could create import cycles.
@@ -295,8 +301,8 @@ into the schema files, where they could create import cycles.
 |----------|----------|
 | `Ash.Type.NewType` with constraints | You control the type and it fits the NewType model — covers the type *and* the schema |
 | Storage-derived default | The type is hand-rolled and a permissive schema is acceptable |
-| `zod_mapping_overrides` / `valibot_mapping_overrides` | You need precision or raw library syntax (brands, `.refine()`) |
-| `zod_import_into_generated` / `valibot_import_into_generated` | The override should reuse a schema you maintain in TypeScript |
+| `zod_mapping_overrides` / `valibot_mapping_overrides` / `effect_mapping_overrides` | You need precision or raw library syntax (brands, `.refine()`) |
+| `zod_import_into_generated` / `valibot_import_into_generated` / `effect_import_into_generated` | The override should reuse a schema you maintain in TypeScript |
 
 ## Untyped Map Type Configuration
 
