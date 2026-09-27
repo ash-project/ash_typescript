@@ -29,7 +29,8 @@ defmodule Mix.Tasks.AshTypescript.Codegen do
       mix ash_typescript.codegen --output myfolder/client.ts
 
   Paths set explicitly via `types_output_file`, `zod_output_file`,
-  `valibot_output_file`, `routes_output_file` or `typed_channels_output_file`
+  `valibot_output_file`, `effect_output_file`, `routes_output_file` or
+  `typed_channels_output_file`
   still win over the derived location — `--output` only moves the paths that
   were left to auto-derive.
   """

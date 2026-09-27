@@ -15,6 +15,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
 
   @tc_mutation_methods [:post, :patch, :put, :delete]
 
+  alias AshTypescript.Codegen.EffectSchemaGenerator
   alias AshTypescript.Codegen.SchemaCore
   alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Codegen.ZodSchemaGenerator
@@ -230,9 +231,10 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     show_validation = AshTypescript.Rpc.generate_validation_functions?()
     show_zod = AshTypescript.Rpc.generate_zod_schemas?()
     show_valibot = AshTypescript.Rpc.generate_valibot_schemas?()
+    show_effect = AshTypescript.Rpc.generate_effect_schemas?()
     show_channel = AshTypescript.Rpc.generate_phx_channel_rpc_actions?()
 
-    schema_flags = %{zod: show_zod, valibot: show_valibot}
+    schema_flags = %{zod: show_zod, valibot: show_valibot, effect: show_effect}
 
     headers = build_headers(show_validation, schema_flags, show_channel, include_internals?)
     separator = build_separator(show_validation, schema_flags, show_channel, include_internals?)
@@ -282,9 +284,10 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     show_validation = AshTypescript.Rpc.generate_validation_functions?()
     show_zod = AshTypescript.Rpc.generate_zod_schemas?()
     show_valibot = AshTypescript.Rpc.generate_valibot_schemas?()
+    show_effect = AshTypescript.Rpc.generate_effect_schemas?()
     show_channel = AshTypescript.Rpc.generate_phx_channel_rpc_actions?()
 
-    schema_flags = %{zod: show_zod, valibot: show_valibot}
+    schema_flags = %{zod: show_zod, valibot: show_valibot, effect: show_effect}
 
     headers = build_headers(show_validation, schema_flags, show_channel, include_internals?)
     separator = build_separator(show_validation, schema_flags, show_channel, include_internals?)
@@ -335,6 +338,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     |> maybe_append(" Validation |", show_validation)
     |> maybe_append(" Zod Schema |", schema_flags.zod)
     |> maybe_append(" Valibot Schema |", schema_flags.valibot)
+    |> maybe_append(" Effect Schema |", schema_flags.effect)
     |> maybe_append(" Channel |", show_channel)
     |> maybe_append(" Validation Channel |", show_validation and show_channel)
   end
@@ -346,6 +350,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     |> maybe_append("------------|", show_validation)
     |> maybe_append("------------|", schema_flags.zod)
     |> maybe_append("----------------|", schema_flags.valibot)
+    |> maybe_append("---------------|", schema_flags.effect)
     |> maybe_append("---------|", show_channel)
     |> maybe_append("--------------------|", show_validation and show_channel)
   end
@@ -387,6 +392,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     |> maybe_append(" `#{validate_name}` |", show_validation)
     |> maybe_append(" #{schema_cell.(ZodSchemaGenerator)} |", schema_flags.zod)
     |> maybe_append(" #{schema_cell.(ValibotSchemaGenerator)} |", schema_flags.valibot)
+    |> maybe_append(" #{schema_cell.(EffectSchemaGenerator)} |", schema_flags.effect)
     |> maybe_append(" `#{channel_name}` |", show_channel)
     |> maybe_append(" `#{validate_channel_name}` |", show_validation and show_channel)
   end
@@ -511,11 +517,14 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
       route_infos =
         AshTypescript.TypedController.Codegen.resolve_route_infos(router, routes_config)
 
-      show_zod = AshTypescript.Rpc.generate_zod_schemas?()
-      show_valibot = AshTypescript.Rpc.generate_valibot_schemas?()
+      schema_flags = %{
+        zod: AshTypescript.Rpc.generate_zod_schemas?(),
+        valibot: AshTypescript.Rpc.generate_valibot_schemas?(),
+        effect: AshTypescript.Rpc.generate_effect_schemas?()
+      }
 
-      headers = build_tc_headers(show_zod, show_valibot)
-      separator = build_tc_separator(show_zod, show_valibot)
+      headers = build_tc_headers(schema_flags)
+      separator = build_tc_separator(schema_flags)
 
       sorted_infos =
         Enum.sort_by(route_infos, fn info ->
@@ -524,7 +533,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
 
       rows =
         sorted_infos
-        |> Enum.map_join("\n", fn info -> build_tc_row(info, show_zod, show_valibot) end)
+        |> Enum.map_join("\n", fn info -> build_tc_row(info, schema_flags) end)
 
       """
 
@@ -538,19 +547,21 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     end
   end
 
-  defp build_tc_headers(show_zod, show_valibot) do
+  defp build_tc_headers(schema_flags) do
     "| Method | Path | Function | Input Type |"
-    |> maybe_append(" Zod Schema |", show_zod)
-    |> maybe_append(" Valibot Schema |", show_valibot)
+    |> maybe_append(" Zod Schema |", schema_flags.zod)
+    |> maybe_append(" Valibot Schema |", schema_flags.valibot)
+    |> maybe_append(" Effect Schema |", schema_flags.effect)
   end
 
-  defp build_tc_separator(show_zod, show_valibot) do
+  defp build_tc_separator(schema_flags) do
     "|--------|------|----------|------------|"
-    |> maybe_append("------------|", show_zod)
-    |> maybe_append("----------------|", show_valibot)
+    |> maybe_append("------------|", schema_flags.zod)
+    |> maybe_append("----------------|", schema_flags.valibot)
+    |> maybe_append("---------------|", schema_flags.effect)
   end
 
-  defp build_tc_row(info, show_zod, show_valibot) do
+  defp build_tc_row(info, schema_flags) do
     method = info.method |> to_string() |> String.upcase()
     path = info.path || ""
 
@@ -593,11 +604,15 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     "| #{method} | #{path} | `#{function_name}` | #{input_type} |"
     |> maybe_append(
       " #{schema_cell.(&AshTypescript.TypedController.Codegen.route_zod_schema_name/2)} |",
-      show_zod
+      schema_flags.zod
     )
     |> maybe_append(
       " #{schema_cell.(&AshTypescript.TypedController.Codegen.route_valibot_schema_name/2)} |",
-      show_valibot
+      schema_flags.valibot
+    )
+    |> maybe_append(
+      " #{schema_cell.(&AshTypescript.TypedController.Codegen.route_effect_schema_name/2)} |",
+      schema_flags.effect
     )
   end
 end

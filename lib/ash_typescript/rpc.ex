@@ -370,6 +370,26 @@ defmodule AshTypescript.Rpc do
   end
 
   @doc """
+  Gets the Effect Schema overrides for custom types from application configuration.
+
+  The Effect counterpart to `zod_mapping_overrides/0`.
+
+  ## Configuration
+
+      config :ash_typescript,
+        effect_mapping_overrides: [
+          {AshObjectIds.Type, "Schema.String"}
+        ]
+
+  ## Returns
+  A keyword list of `{type_module, effect_schema_string}` tuples, or an empty
+  list if not configured.
+  """
+  def effect_mapping_overrides do
+    Application.get_env(:ash_typescript, :effect_mapping_overrides, [])
+  end
+
+  @doc """
   Gets extra imports to inject into the generated Zod schema file.
 
   Use this alongside `zod_mapping_overrides/0` when an override should reference
@@ -414,6 +434,28 @@ defmodule AshTypescript.Rpc do
   """
   def valibot_import_into_generated do
     Application.get_env(:ash_typescript, :valibot_import_into_generated, [])
+  end
+
+  @doc """
+  Gets extra imports to inject into the generated Effect schema file.
+
+  The Effect counterpart to `zod_import_into_generated/0`.
+
+  ## Configuration
+
+      config :ash_typescript,
+        effect_import_into_generated: [
+          %{import_name: "CustomEffectSchemas", file: "assets/js/customEffectSchemas.ts"}
+        ],
+        effect_mapping_overrides: [
+          {MyApp.ObjectId, "CustomEffectSchemas.objectId"}
+        ]
+
+  ## Returns
+  A list of `%{import_name: String.t(), file: String.t()}` maps, or an empty list.
+  """
+  def effect_import_into_generated do
+    Application.get_env(:ash_typescript, :effect_import_into_generated, [])
   end
 
   @doc """
@@ -466,6 +508,35 @@ defmodule AshTypescript.Rpc do
   """
   def valibot_schema_suffix do
     Application.get_env(:ash_typescript, :valibot_schema_suffix, "ValibotSchema")
+  end
+
+  @doc """
+  Determines if Effect Schema generation is enabled.
+
+  When true, generates Effect v4 schemas alongside TypeScript types for runtime
+  validation. Defaults to false (opt-in feature).
+  """
+  def generate_effect_schemas? do
+    Application.get_env(:ash_typescript, :generate_effect_schemas, false)
+  end
+
+  @doc """
+  Gets the Effect import path for generated TypeScript.
+
+  The generated schema file imports `{ Schema }` from this path.
+  Defaults to "effect", the package that ships Schema in Effect v4.
+  """
+  def effect_import_path do
+    Application.get_env(:ash_typescript, :effect_import_path, "effect")
+  end
+
+  @doc """
+  Gets the suffix used for generated Effect schema constants.
+
+  Defaults to "EffectSchema" (e.g., createTodoEffectSchema).
+  """
+  def effect_schema_suffix do
+    Application.get_env(:ash_typescript, :effect_schema_suffix, "EffectSchema")
   end
 
   @doc """

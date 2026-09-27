@@ -13,18 +13,22 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
   ## Schema version
 
-  The manifest includes a `version` field (currently `"1.1"`, semver) so
+  The manifest includes a `version` field (currently `"1.2"`, semver) so
   consumers can detect breaking changes to the manifest format.
 
   1.1 adds a top-level `resources` object exposing per-relationship query
   capabilities (pagination/filterable/sortable) for nested relationship
   query options.
+
+  1.2 adds Effect Schema entries: `variants.effect` on every action,
+  `files.effect`, and `typedControllerRoutes[].types.effect`.
   """
 
-  @manifest_version "1.1"
+  @manifest_version "1.2"
 
   @tc_mutation_methods [:post, :patch, :put, :delete]
 
+  alias AshTypescript.Codegen.EffectSchemaGenerator
   alias AshTypescript.Codegen.ImportResolver
   alias AshTypescript.Codegen.SchemaCore
   alias AshTypescript.Codegen.ValibotSchemaGenerator
@@ -136,6 +140,13 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
       end
 
     files =
+      if AshTypescript.Rpc.generate_effect_schemas?() do
+        Map.put(files, "effect", file_entry(manifest_path, AshTypescript.effect_output_file()))
+      else
+        files
+      end
+
+    files =
       case AshTypescript.routes_output_file() do
         nil ->
           files
@@ -216,6 +227,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
     has_schema? = SchemaCore.action_has_schema?(action)
     show_zod = AshTypescript.Rpc.generate_zod_schemas?() and has_schema?
     show_valibot = AshTypescript.Rpc.generate_valibot_schemas?() and has_schema?
+    show_effect = AshTypescript.Rpc.generate_effect_schemas?() and has_schema?
 
     %{
       "functionName" => function_name,
@@ -238,6 +250,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
         "validation" => show_validation,
         "zod" => show_zod,
         "valibot" => show_valibot,
+        "effect" => show_effect,
         "channel" => show_channel,
         "validationChannel" => show_validation and show_channel
       },
@@ -247,6 +260,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
           show_validation,
           show_zod,
           show_valibot,
+          show_effect,
           show_channel
         )
     }
@@ -329,7 +343,14 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
     end
   end
 
-  defp build_variant_names(rpc_action_name, show_validation, show_zod, show_valibot, show_channel) do
+  defp build_variant_names(
+         rpc_action_name,
+         show_validation,
+         show_zod,
+         show_valibot,
+         show_effect,
+         show_channel
+       ) do
     names = %{}
 
     names =
@@ -352,6 +373,17 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
           names,
           "valibot",
           SchemaCore.action_schema_name(ValibotSchemaGenerator, rpc_action_name)
+        )
+      else
+        names
+      end
+
+    names =
+      if show_effect do
+        Map.put(
+          names,
+          "effect",
+          SchemaCore.action_schema_name(EffectSchemaGenerator, rpc_action_name)
         )
       else
         names
@@ -507,6 +539,16 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
         "valibot",
         fn ->
           AshTypescript.TypedController.Codegen.route_valibot_schema_name(
+            info.route,
+            info.scope_prefix
+          )
+        end
+      )
+      |> maybe_put_route_type(
+        has_schemas and AshTypescript.Rpc.generate_effect_schemas?(),
+        "effect",
+        fn ->
+          AshTypescript.TypedController.Codegen.route_effect_schema_name(
             info.route,
             info.scope_prefix
           )

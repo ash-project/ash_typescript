@@ -15,6 +15,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   import AshTypescript.Codegen.TypeMapper, only: [get_ts_input_type: 1]
 
   alias Ash.Info.Manifest.Generator.TypeResolver
+  alias AshTypescript.Codegen.EffectSchemaGenerator
   alias AshTypescript.Codegen.SchemaCore
   alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Codegen.ZodSchemaGenerator
@@ -256,6 +257,26 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
         )
 
       render_validation_schema(route_info, ValibotSchemaGenerator, schema_name)
+    else
+      ""
+    end
+  end
+
+  @doc """
+  Renders the Effect schema for a route's input.
+
+  Returns an empty string for routes without non-path arguments,
+  or when Effect schema generation is disabled.
+  """
+  def render_effect_schema(route_info) do
+    if AshTypescript.Rpc.generate_effect_schemas?() do
+      schema_name =
+        AshTypescript.TypedController.Codegen.route_effect_schema_name(
+          route_info.route,
+          route_info.scope_prefix
+        )
+
+      render_validation_schema(route_info, EffectSchemaGenerator, schema_name)
     else
       ""
     end

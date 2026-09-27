@@ -745,6 +745,26 @@ defmodule AshTypescript do
   end
 
   @doc """
+  Gets the output file path for shared Effect validation schemas.
+
+  Resource Effect schemas are generated into this dedicated file.
+
+  Auto-derives from `output_file` directory with default name `ash_effect.ts`.
+  Falls back to `"assets/js/ash_effect.ts"` if `output_file` is also unset.
+
+  ## Configuration
+
+      config :ash_typescript,
+        effect_output_file: "assets/js/ash_effect.ts"
+
+  ## Returns
+  A string file path (always non-nil).
+  """
+  def effect_output_file do
+    config_or_derive(:effect_output_file, "ash_effect.ts", "assets/js/ash_effect.ts")
+  end
+
+  @doc """
   Determines if controller namespace file generation is enabled.
 
   When true, namespaced typed controller routes are generated into separate files.

@@ -71,6 +71,7 @@ defmodule AshTypescript.TypedController.Dsl do
       :deprecated,
       :zod_schema_name,
       :valibot_schema_name,
+      :effect_schema_name,
       :namespace,
       see: [],
       arguments: [],
@@ -157,6 +158,12 @@ defmodule AshTypescript.TypedController.Dsl do
       required: false,
       doc:
         "Override the generated Valibot schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Valibot schema."
+    ],
+    effect_schema_name: [
+      type: :string,
+      required: false,
+      doc:
+        "Override the generated Effect schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Effect schema."
     ],
     namespace: [
       type: :string,

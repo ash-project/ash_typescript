@@ -346,6 +346,24 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.Project.Config.configure_new(
         "config.exs",
         :ash_typescript,
+        [:generate_effect_schemas],
+        false
+      )
+      |> Igniter.Project.Config.configure_new(
+        "config.exs",
+        :ash_typescript,
+        [:effect_import_path],
+        "effect"
+      )
+      |> Igniter.Project.Config.configure_new(
+        "config.exs",
+        :ash_typescript,
+        [:effect_schema_suffix],
+        "EffectSchema"
+      )
+      |> Igniter.Project.Config.configure_new(
+        "config.exs",
+        :ash_typescript,
         [:phoenix_import_path],
         "phoenix"
       )

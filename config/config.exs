@@ -13,10 +13,13 @@ config :ash_typescript,
   require_tenant_parameters: false,
   generate_zod_schemas: false,
   generate_valibot_schemas: false,
+  generate_effect_schemas: false,
   generate_phx_channel_rpc_actions: false,
   generate_validation_functions: true,
   valibot_import_path: "valibot",
   valibot_schema_suffix: "ValibotSchema",
+  effect_import_path: "effect",
+  effect_schema_suffix: "EffectSchema",
   zod_import_path: "zod",
   zod_schema_suffix: "ZodSchema",
   phoenix_import_path: "phoenix",
@@ -50,6 +53,7 @@ if Mix.env() == :test do
     generate_validation_functions: true,
     generate_zod_schemas: true,
     generate_valibot_schemas: true,
+    generate_effect_schemas: true,
     add_ash_internals_to_jsdoc: true,
     add_ash_internals_to_manifest: true,
     manifest_file: "./test/ts/MANIFEST.md",
@@ -124,6 +128,17 @@ if Mix.env() == :test do
       %{
         import_name: "NestedValibotSchemas",
         file: "./test/ts/custom/nestedValibotSchemas.ts"
+      }
+    ],
+    effect_mapping_overrides: [
+      {AshTypescript.Test.CustomIdentifier, "CustomEffectSchemas.objectId"},
+      {AshTypescript.Test.GeoPoint, "NestedEffectSchemas.geoPoint"}
+    ],
+    effect_import_into_generated: [
+      %{import_name: "CustomEffectSchemas", file: "./test/ts/customEffectSchemas.ts"},
+      %{
+        import_name: "NestedEffectSchemas",
+        file: "./test/ts/custom/nestedEffectSchemas.ts"
       }
     ]
 

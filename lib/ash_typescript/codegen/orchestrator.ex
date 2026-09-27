@@ -11,17 +11,20 @@ defmodule AshTypescript.Codegen.Orchestrator do
                       channel payload type aliases and events maps
   - `ash_zod.ts` — ALL Zod schemas: resource-level + per-action RPC + per-route controller
   - `ash_valibot.ts` — ALL Valibot schemas: resource-level + per-action RPC + per-route controller
+  - `ash_effect.ts` — ALL Effect schemas: resource-level + per-action RPC + per-route controller
   - `ash_rpc.ts` — imports types from ash_types.ts (no Zod), hook types, helper functions,
                     per-action input types, per-action result types, per-action RPC functions
   - `routes.ts` — imports types from ash_types.ts (no Zod), static code, per-route path
                    helpers, per-route input types, per-route action functions
   - `ash_typed_channels.ts` — imports types from ash_types.ts, channel subscription helper functions
-  - `namespace/*.ts` — re-exports: functions + types from ash_rpc.ts, Zod schemas from ash_zod.ts
+  - `namespace/*.ts` — re-exports: functions + types from ash_rpc.ts, validation schemas from
+                       ash_zod.ts / ash_valibot.ts / ash_effect.ts
 
   Returns a map of `%{file_path => content}` for all generated files.
   """
 
   alias AshTypescript.Codegen.{
+    EffectSchemaGenerator,
     ImportResolver,
     SchemaCore,
     SharedSchemaGenerator,
@@ -54,10 +57,12 @@ defmodule AshTypescript.Codegen.Orchestrator do
     types_output_file = AshTypescript.types_output_file()
     zod_output_file = AshTypescript.zod_output_file()
     valibot_output_file = AshTypescript.valibot_output_file()
+    effect_output_file = AshTypescript.effect_output_file()
     routes_output_file = AshTypescript.routes_output_file()
     typed_channels_output_file = AshTypescript.typed_channels_output_file()
     zod_enabled? = AshTypescript.Rpc.generate_zod_schemas?()
     valibot_enabled? = AshTypescript.Rpc.generate_valibot_schemas?()
+    effect_enabled? = AshTypescript.Rpc.generate_effect_schemas?()
 
     rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
     channel_entries = collect_typed_channel_entries()
@@ -166,6 +171,29 @@ defmodule AshTypescript.Codegen.Orchestrator do
       end
 
     files =
+      if effect_enabled? do
+        controller_effect_schemas =
+          if routes_output_file do
+            ControllerCodegen.collect_route_effect_schemas(router: AshTypescript.router())
+          else
+            []
+          end
+
+        generate_schema_file(
+          files,
+          EffectSchemaGenerator,
+          effect_output_file,
+          types_output_file,
+          schema_resources,
+          resources_and_actions,
+          rpc_output_file,
+          controller_effect_schemas
+        )
+      else
+        files
+      end
+
+    files =
       if rpc_output_file do
         types_import_path = ImportResolver.resolve_import_path(rpc_output_file, types_output_file)
 
@@ -254,7 +282,8 @@ defmodule AshTypescript.Codegen.Orchestrator do
             items,
             rpc_output_file,
             zod_output_file,
-            valibot_output_file
+            valibot_output_file,
+            effect_output_file
           )
         end)
       else
@@ -275,7 +304,8 @@ defmodule AshTypescript.Codegen.Orchestrator do
             items,
             routes_output_file,
             zod_output_file,
-            valibot_output_file
+            valibot_output_file,
+            effect_output_file
           )
         end)
       else

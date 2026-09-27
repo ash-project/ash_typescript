@@ -16,6 +16,7 @@ spark_locals_without_parens = [
   denied_loads: 1,
   deprecated: 1,
   description: 1,
+  effect_schema_name: 1,
   enable_filter?: 1,
   enable_sort?: 1,
   error_handler: 1,

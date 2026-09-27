@@ -70,7 +70,8 @@ defmodule AshTypescript.Codegen.SharedSchemaGenerator do
 
   # User-authored imports for this formatter's file, so a `mapping_overrides`
   # entry can name a schema the user wrote in TypeScript. Scoped per library
-  # (`zod_import_into_generated` / `valibot_import_into_generated`) rather than
+  # (`zod_import_into_generated` / `valibot_import_into_generated` /
+  # `effect_import_into_generated`) rather than
   # reusing `import_into_generated`, which targets the types and RPC files and
   # would drag unrelated modules — and potential import cycles — in here.
   defp custom_import_lines(formatter, schema_output_file) do

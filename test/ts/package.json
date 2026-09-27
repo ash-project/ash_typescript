@@ -14,13 +14,15 @@
     "compileShouldPass": "tsc shouldPass.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop -noErrorTruncation",
     "compileShouldFail": "tsc shouldFail.ts --lib DOM,es2022 --module es2022 --target es2022 --strict --moduleResolution node --esModuleInterop -noErrorTruncation",
     "testZod": "tsc runZodTests.ts --lib DOM,es2022 --module commonjs --target es2022 --strict --moduleResolution node --esModuleInterop --skipLibCheck && node runZodTests.js",
-    "testValibot": "tsc runValibotTests.ts --lib DOM,es2022 --module commonjs --target es2022 --strict --moduleResolution node --esModuleInterop --skipLibCheck && node runValibotTests.js"
+    "testValibot": "tsc runValibotTests.ts --lib DOM,es2022 --module commonjs --target es2022 --strict --moduleResolution node --esModuleInterop --skipLibCheck && node runValibotTests.js",
+    "testEffect": "tsc runEffectTests.ts --lib DOM,es2022 --module nodenext --moduleResolution nodenext --target es2022 --strict --skipLibCheck && node runEffectTests.js"
   },
   "devDependencies": {
     "@types/phoenix": "^1.6.6",
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "effect": "^4.0.0-rc.117",
     "phoenix": "^1.8.1",
     "valibot": "^1.2.0",
     "zod": "^4.0.17"
