@@ -119,7 +119,7 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   @impl true
   def section_header, do: "Zod Schemas for Input Resources"
   @impl true
-  def library_prefix, do: "z"
+  def object_constructor, do: "z.object"
   @impl true
   def import_statement(path), do: "import { z } from \"#{path}\";"
   @impl true

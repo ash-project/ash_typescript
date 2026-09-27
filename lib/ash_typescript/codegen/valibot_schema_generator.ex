@@ -128,7 +128,7 @@ defmodule AshTypescript.Codegen.ValibotSchemaGenerator do
   @impl true
   def section_header, do: "Valibot Schemas for Input Resources"
   @impl true
-  def library_prefix, do: "v"
+  def object_constructor, do: "v.object"
   @impl true
   def import_statement(path), do: "import * as v from \"#{path}\";"
   @impl true

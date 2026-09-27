@@ -6,7 +6,7 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
   @moduledoc """
   Behaviour defining the output-format interface for schema generators.
 
-  Implement this behaviour to add a new validation library target (e.g. Zod, Valibot).
+  Implement this behaviour to add a new validation library target (e.g. Zod, Valibot, Effect).
   `AshTypescript.Codegen.SchemaCore` handles all resource introspection, topological
   sorting, and structural generation; implementations only provide the output syntax.
 
@@ -64,15 +64,16 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
 
   @doc """
   Wrap a schema string as omittable — i.e. the field may be absent from the
-  input object. In zod this is `.optional()`; in valibot, `v.optional(...)`.
-  Both libraries' optional accepts `undefined` only — not `null`. To accept
-  `null`, compose with `wrap_nullable/1`.
+  input object. In zod this is `.optional()`; in valibot, `v.optional(...)`;
+  in Effect, `Schema.optional(...)`. Each accepts `undefined` only — not
+  `null`. To accept `null`, compose with `wrap_nullable/1`.
   """
   @callback wrap_optional(schema :: String.t()) :: String.t()
 
   @doc """
   Wrap a schema string as nullable — i.e. the field's value may be `null`.
-  In zod this is `.nullable()`; in valibot, `v.nullable(...)`.
+  In zod this is `.nullable()`; in valibot, `v.nullable(...)`; in Effect,
+  `Schema.NullOr(...)`.
 
   For fields that may be both omitted *and* null (the common case for nullable
   Ash attributes — `JSON.stringify` drops `undefined` keys, so clearing a
@@ -114,7 +115,7 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
   @doc "Ltree type represented as a string-or-array-of-strings union."
   @callback ltree_union() :: String.t()
 
-  @doc ~S'The schema variable name suffix (e.g. `"Schema"` or `"ValibotSchema"`).'
+  @doc ~S'The schema variable name suffix (e.g. `"ZodSchema"`, `"ValibotSchema"` or `"EffectSchema"`).'
   @callback schema_suffix() :: String.t()
 
   @doc "Whether schema generation is enabled in the current project config."
@@ -123,13 +124,13 @@ defmodule AshTypescript.Codegen.SchemaFormatter do
   @doc "Human-readable label for the resource schemas section comment header."
   @callback section_header() :: String.t()
 
-  @doc ~S'The library namespace prefix used when building schema declarations ("z" or "v").'
-  @callback library_prefix() :: String.t()
+  @doc ~S'The object schema constructor used for top-level schema declarations (e.g. "z.object", "v.object" or "Schema.Struct").'
+  @callback object_constructor() :: String.t()
 
   @doc ~S'The TypeScript import statement for the validation library (e.g. `import { z } from "zod"`).'
   @callback import_statement(import_path :: String.t()) :: String.t()
 
-  @doc ~S'Human-readable library name for comments and error messages (e.g. "Zod" or "Valibot").'
+  @doc ~S'Human-readable library name for comments and error messages (e.g. "Zod", "Valibot" or "Effect").'
   @callback library_name() :: String.t()
 
   @doc "The import path for the validation library from application config."

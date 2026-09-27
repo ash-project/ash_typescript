@@ -256,7 +256,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
   @doc """
   Computes the effective minimum length for a string schema.
 
-  Shared by the Zod and Valibot formatters so the rule cannot drift: an
+  Shared by every schema formatter so the rule cannot drift: an
   explicit `:min_length` replaces the implicit non-empty minimum — but when
   the string is non-empty (`allow_empty?: false`), the minimum is floored at
   1, since the server nulls `""` regardless of a declared `min_length: 0`.
@@ -314,10 +314,9 @@ defmodule AshTypescript.Codegen.SchemaCore do
         )
 
       field_lines = Enum.map(field_defs, fn {name, type} -> "  #{name}: #{type}," end)
-      kw = formatter.library_prefix()
 
       """
-      export const #{schema_name} = #{kw}.object({
+      export const #{schema_name} = #{formatter.object_constructor()}({
       #{Enum.join(field_lines, "\n")}
       });
       """
@@ -377,7 +376,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
   end
 
   # ─────────────────────────────────────────────────────────────────
-  # Regex utilities (shared by both formatters)
+  # Regex utilities (shared by all formatters)
   # ─────────────────────────────────────────────────────────────────
 
   @doc "Returns true when a regex source string is safe to emit as a JS literal."
@@ -552,7 +551,6 @@ defmodule AshTypescript.Codegen.SchemaCore do
   defp generate_schema_impl(formatter, resource, resource_lookup) do
     resource_name = CodegenHelpers.build_resource_type_name(resource)
     schema_name = "#{resource_name}#{formatter.schema_suffix()}"
-    kw = formatter.library_prefix()
     api_resource = Ash.Info.Manifest.get_resource!(resource_lookup, resource)
 
     fields =
@@ -575,7 +573,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
       end)
 
     """
-    export const #{schema_name} = #{kw}.object({
+    export const #{schema_name} = #{formatter.object_constructor()}({
     #{fields}
     });
     """
