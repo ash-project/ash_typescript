@@ -277,7 +277,6 @@ defmodule AshTypescript.TypedController.Codegen do
     static_code =
       if AshTypescript.typed_controller_mode() == :full do
         TypescriptStatic.generate_static_code(
-          skip_zod: true,
           base_path: base_path,
           output_file: output_file
         )

@@ -7,7 +7,7 @@ defmodule AshTypescript.TypedController.Codegen.TypescriptStatic do
   Generates static TypeScript code for typed controller routes.
 
   This includes:
-  - Import statements (Zod, custom imports)
+  - Custom import statements
   - Hook context type definitions
   - TypedControllerConfig interface
   - executeTypedControllerRequest helper function
@@ -25,7 +25,8 @@ defmodule AshTypescript.TypedController.Codegen.TypescriptStatic do
 
   ## Options
 
-    * `:skip_zod` - When true, omits the Zod import (for split-file mode)
+    * `:base_path` - Base URL prefix for the `_basePath` constant
+    * `:output_file` - The target output file path, for resolving custom import paths
   """
   def generate_static_code(opts \\ []) do
     imports = generate_imports(opts)
@@ -52,32 +53,17 @@ defmodule AshTypescript.TypedController.Codegen.TypescriptStatic do
   end
 
   defp generate_imports(opts) do
-    skip_zod = Keyword.get(opts, :skip_zod, false)
     output_file = Keyword.get(opts, :output_file)
 
-    zod_import =
-      if not skip_zod and AshTypescript.Rpc.generate_zod_schemas?() do
-        zod_path = AshTypescript.Rpc.zod_import_path()
-        "import { z } from \"#{zod_path}\";"
-      else
+    case AshTypescript.typed_controller_import_into_generated() do
+      [] ->
         ""
-      end
 
-    config_imports =
-      case AshTypescript.typed_controller_import_into_generated() do
-        [] ->
-          ""
-
-        imports when is_list(imports) ->
-          ImportResolver.resolve_custom_imports(output_file, imports)
-      end
-
-    [zod_import, config_imports]
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.join("\n")
-    |> case do
-      "" -> ""
-      imports_str -> imports_str <> "\n"
+      imports when is_list(imports) ->
+        case ImportResolver.resolve_custom_imports(output_file, imports) do
+          "" -> ""
+          imports_str -> imports_str <> "\n"
+        end
     end
   end
 

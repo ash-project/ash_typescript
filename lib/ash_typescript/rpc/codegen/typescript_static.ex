@@ -21,44 +21,17 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
   Generates TypeScript import statements based on configuration.
 
   Includes:
-  - Zod import (if zod schemas enabled and not skipped)
   - Phoenix Channel import (if channel RPC actions enabled)
   - Custom imports from application config
 
+  Validation library imports live in the schema files (`ash_zod.ts` etc.), not here.
+
   ## Options
 
-    * `:skip_zod` - When true, omits the Zod import (for split-file mode where Zod is in ash_zod.ts)
     * `:output_file` - The target output file path, for resolving custom import paths
   """
   def generate_imports(opts \\ []) do
-    skip_zod = Keyword.get(opts, :skip_zod, false)
-    skip_valibot = Keyword.get(opts, :skip_valibot, false)
-    skip_effect = Keyword.get(opts, :skip_effect, false)
     output_file = Keyword.get(opts, :output_file)
-
-    zod_import =
-      if not skip_zod and AshTypescript.Rpc.generate_zod_schemas?() do
-        zod_path = AshTypescript.Rpc.zod_import_path()
-        "import { z } from \"#{zod_path}\";"
-      else
-        ""
-      end
-
-    valibot_import =
-      if not skip_valibot and AshTypescript.Rpc.generate_valibot_schemas?() do
-        valibot_path = AshTypescript.Rpc.valibot_import_path()
-        "import * as v from \"#{valibot_path}\";"
-      else
-        ""
-      end
-
-    effect_import =
-      if not skip_effect and AshTypescript.Rpc.generate_effect_schemas?() do
-        effect_path = AshTypescript.Rpc.effect_import_path()
-        "import { Schema } from \"#{effect_path}\";"
-      else
-        ""
-      end
 
     phoenix_import =
       if AshTypescript.Rpc.generate_phx_channel_rpc_actions?() do
@@ -81,7 +54,7 @@ defmodule AshTypescript.Rpc.Codegen.TypescriptStatic do
       end
 
     all_imports =
-      [zod_import, valibot_import, effect_import, phoenix_import, config_imports]
+      [phoenix_import, config_imports]
       |> Enum.reject(&(&1 == ""))
       |> Enum.join("\n")
       |> case do

@@ -466,7 +466,7 @@ This is useful when mutations are handled via a different client library or dire
 
 The `TypescriptStatic` module generates boilerplate TypeScript code included once at the top of the routes file (only in `:full` mode):
 
-1. **Import statements** — Zod import (only when `generate_zod_schemas: true` **and** `:skip_zod` is not set; in the default split-file mode route schemas live in `ash_zod.ts`, so the routes file gets no Zod import) and custom imports from `typed_controller_import_into_generated`
+1. **Import statements** — custom imports from `typed_controller_import_into_generated`. Route schemas live in the schema files (`ash_zod.ts` etc.), so the routes file imports no validation library
 2. **Hook context type** — `TypedControllerHookContext` type alias (if hooks are enabled)
 3. **`TypedControllerConfig` interface** — Configuration object for requests (headers, fetchOptions, customFetch, hookCtx)
 4. **`executeTypedControllerRequest` helper** — Centralizes request execution with hook integration (before/after hooks, custom fetch, header merging)
