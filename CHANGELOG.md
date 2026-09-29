@@ -11,6 +11,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.18.4](https://github.com/ash-project/ash_typescript/compare/v0.18.3...v0.18.4) (2026-09-29)
+
+
+
+
+### Bug Fixes:
+
+* codegen: keep nullability of arrays of embedded resources by [@Torkan](https://github.com/Torkan) [(#98)](https://github.com/ash-project/ash_typescript/pull/98)
+
+* rpc: apply nested field selection inside typed map returns of generic actions by [@Torkan](https://github.com/Torkan) [(#98)](https://github.com/ash-project/ash_typescript/pull/98)
+
+* allow field selection into arrays of typed maps nested in typed maps by linlogge [(#98)](https://github.com/ash-project/ash_typescript/pull/98)
+
 ## [v0.18.3](https://github.com/ash-project/ash_typescript/compare/v0.18.2...v0.18.3) (2026-09-25)
 
 
