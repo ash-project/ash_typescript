@@ -90,6 +90,12 @@ defmodule AshTypescript.Test.Domain do
       # Restriction on a loadable field that has a `field_names` mapping
       # (User maps is_active?: "isActive") - guards the generated Omit keys.
       rpc_action :list_todos_deny_mapped_calc, :read, denied_loads: [user: [:is_active?]]
+
+      # Nested restriction inside a nullable array of embedded resources -
+      # guards that the restricted override keeps the `| null`.
+      rpc_action :list_todos_deny_history_calc, :read,
+        denied_loads: [metadata_history: [:display_category]]
+
       rpc_action :get_keyword_options_todo, :get_keyword_options
       rpc_action :get_coordinates_info_todo, :get_coordinates_info
       rpc_action :get_custom_data_todo, :get_custom_data
@@ -325,6 +331,7 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :list_users_map, :list_users_map
       rpc_action :get_metrics, :get_metrics
       rpc_action :get_nested_stats, :get_nested_stats
+      rpc_action :get_metadata_report, :get_metadata_report
     end
   end
 

@@ -632,9 +632,37 @@ defmodule AshTypescript.Codegen.TypeMapper do
         {field_name, wrapper, false}
 
       nil ->
-        {field_name, map_type(type, [], :output), allow_nil || false}
+        case typed_map_array_item(type) do
+          %Type{} = item ->
+            inner_content = item |> map_type([], :output) |> String.slice(1..-2//1)
+            {field_name, "{ __array: true; #{inner_content} }", allow_nil || false}
+
+          nil ->
+            {field_name, map_type(type, [], :output), allow_nil || false}
+        end
     end
   end
+
+  # An array of typed maps uses the `{ __array: true; ...TypedMap }` encoding
+  # resource schemas use for such attributes: ComplexFieldSelection and
+  # InferFieldValue select into that shape, while a bare `Array<{...}>` matches
+  # none of their branches and the member could not be selected at all.
+  defp typed_map_array_item(%Type{kind: :type_ref} = ref),
+    do: ref |> resolve_type_ref() |> typed_map_array_item()
+
+  defp typed_map_array_item(%Type{kind: :array, item_type: %Type{} = item}) do
+    case resolve_type_ref(item) do
+      %Type{kind: :map, fields: [_ | _]} = typed_map -> typed_map
+      _ -> nil
+    end
+  end
+
+  defp typed_map_array_item(_type), do: nil
+
+  defp resolve_type_ref(%Type{kind: :type_ref, module: mod}),
+    do: Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), mod)
+
+  defp resolve_type_ref(type), do: type
 
   # Returns {resource_module, array?} when the (possibly array-wrapped,
   # type_ref-resolved) type is a resource or embedded resource; nil otherwise.

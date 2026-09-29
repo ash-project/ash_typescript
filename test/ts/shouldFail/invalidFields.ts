@@ -7,6 +7,7 @@
 
 import {
   getTodo,
+  listUsersMap,
 } from "../generated";
 
 // Test 1: Invalid field names in calculations
@@ -170,6 +171,26 @@ export const stringSelectedEmbeddedRows = await getTodo({
         "rows",
       ],
     },
+  ],
+});
+
+export const invalidNestedTypedMapArrayField = await listUsersMap({
+  fields: [
+    {
+      results: [
+        "id",
+        // @ts-expect-error - "password" is not a field of the results typed map
+        "password",
+      ],
+    },
+  ],
+});
+
+export const unselectedNestedTypedMapArray = await listUsersMap({
+  fields: [
+    "totalCount",
+    // @ts-expect-error - "results" is an array of typed maps and requires nested selection
+    "results",
   ],
 });
 

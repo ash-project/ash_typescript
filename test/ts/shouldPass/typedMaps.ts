@@ -9,6 +9,8 @@ import {
   getTodo,
   createTodo,
   updateTodo,
+  listUsersMap,
+  getMetadataReport,
   buildCSRFHeaders,
 } from "../generated";
 
@@ -573,6 +575,44 @@ if (todoWithMetadataReport.success && todoWithMetadataReport.data) {
         const category: string = row.category;
         const priorityScore: number | null = row.priorityScore;
       }
+    }
+  }
+}
+
+// An array of typed maps nested in a typed map (a generic action's return)
+// selects its members like any nested typed map
+export const usersMapWithNestedSelection = await listUsersMap({
+  fields: ["totalCount", { results: ["id", "email", "isAdmin"] }],
+});
+
+if (usersMapWithNestedSelection.success) {
+  const totalCount: number | null = usersMapWithNestedSelection.data.totalCount;
+
+  if (usersMapWithNestedSelection.data.results) {
+    for (const user of usersMapWithNestedSelection.data.results) {
+      const id: string | null = user.id;
+      const email: string | null = user.email;
+      const isAdmin: boolean | null = user.isAdmin;
+      // @ts-expect-error - "phone" was not selected
+      user.phone;
+    }
+  }
+}
+
+// An array of embedded resources inside a generic action's typed-map return
+export const metadataReport = await getMetadataReport({
+  fields: ["total", { rows: ["category", "priorityScore"] }],
+});
+
+if (metadataReport.success) {
+  const total: number = metadataReport.data.total;
+
+  if (metadataReport.data.rows) {
+    for (const row of metadataReport.data.rows) {
+      const category: string = row.category;
+      const priorityScore: number | null | undefined = row.priorityScore;
+      // @ts-expect-error - "isUrgent" was not selected
+      row.isUrgent;
     }
   }
 }

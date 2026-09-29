@@ -53,6 +53,17 @@ defmodule AshTypescript.Rpc.NestedMapFieldFormattingTest do
              "Expected 'totalCount' in generated TypeScript but got snake_case"
     end
 
+    test "an array of typed maps inside a typed map uses the selectable __array encoding", %{
+      generated: generated
+    } do
+      [fields_type] = Regex.run(~r/export type ListUsersMapFields = [^\n]+/, generated)
+
+      assert fields_type =~ ~r/results: \{ __array: true; id: string \| null, /,
+             "Expected results as { __array: true; ...TypedMap }, got: #{fields_type}"
+
+      refute fields_type =~ "results: Array<"
+    end
+
     test "nested map fields should NOT contain snake_case versions", %{generated: generated} do
       nested_map_types =
         generated
