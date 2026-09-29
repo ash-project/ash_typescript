@@ -287,20 +287,31 @@ defmodule AshTypescript.Rpc.Pipeline do
           if unconstrained_map_action?(request.action) do
             {:ok, ResultProcessor.normalize_primitive(result)}
           else
-            resource_for_mapping =
-              get_field_mapping_module(request.action, request.resource)
-
             filtered =
-              if is_mutation_with_no_fields do
-                %{}
-              else
-                ResultProcessor.process(
-                  result,
-                  request.extraction_template,
-                  resource_for_mapping,
-                  request.resource_lookups,
-                  request.type_index
-                )
+              cond do
+                is_mutation_with_no_fields ->
+                  %{}
+
+                # Plain map data carries no type to dispatch on, so typed map
+                # returns are extracted against the declared `action.returns`
+                # (otherwise nested arrays/embedded resources come back whole).
+                typed_map_return?(request.action) ->
+                  ResultProcessor.extract_value(
+                    result,
+                    request.action.returns,
+                    [],
+                    request.extraction_template,
+                    request.resource_lookups
+                  )
+
+                true ->
+                  ResultProcessor.process(
+                    result,
+                    request.extraction_template,
+                    get_field_mapping_module(request.action, request.resource),
+                    request.resource_lookups,
+                    request.type_index
+                  )
               end
 
             filtered_with_metadata = add_metadata(filtered, result, request)
@@ -318,7 +329,6 @@ defmodule AshTypescript.Rpc.Pipeline do
   # Returns:
   # - resource module for resource-returning actions
   # - TypedStruct module for typed_struct returns (if it has typescript_field_names/0)
-  # - nil for typed_map returns (field mapping comes from type constraints)
   # - request.resource as fallback for CRUD actions
   defp get_field_mapping_module(action, default_resource) do
     if action.type != :action do
@@ -333,9 +343,6 @@ defmodule AshTypescript.Rpc.Pipeline do
                function_exported?(module, :typescript_field_names, 0),
              do: module,
              else: nil
-
-        {:ok, type, _fields} when type in [:typed_map, :array_of_typed_map] ->
-          nil
 
         _ ->
           default_resource
@@ -1102,6 +1109,13 @@ defmodule AshTypescript.Rpc.Pipeline do
   defp unconstrained_map_action?(action) do
     case ActionIntrospection.action_returns_field_selectable_type?(action) do
       {:ok, type, _} when type in [:unconstrained_map, :array_of_unconstrained_map] -> true
+      _ -> false
+    end
+  end
+
+  defp typed_map_return?(action) do
+    case ActionIntrospection.action_returns_field_selectable_type?(action) do
+      {:ok, type, _} when type in [:typed_map, :array_of_typed_map] -> true
       _ -> false
     end
   end

@@ -129,6 +129,68 @@ defmodule AshTypescript.Rpc.MapFieldNameRpcTest do
       assert Map.has_key?(first_result, "lastName"), "Expected 'lastName' in result item"
       assert Map.has_key?(first_result, "isAdmin"), "Expected 'isAdmin' in result item"
     end
+
+    test "applies the nested selection to each item of the array", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_users_map",
+          "fields" => [%{"results" => ["id", "email"]}]
+        })
+
+      assert result["success"] == true, inspect(result)
+
+      assert result["data"] == %{
+               "results" => [%{"id" => "user-1", "email" => "test@example.com"}]
+             }
+    end
+
+    test "formats nested primitive values when selecting array items", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "list_users_map",
+          "fields" => ["totalCount", %{"results" => ["insertedAt"]}]
+        })
+
+      assert result["success"] == true, inspect(result)
+
+      assert result["data"] == %{
+               "totalCount" => 1,
+               "results" => [%{"insertedAt" => "2025-01-01T00:00:00Z"}]
+             }
+    end
+  end
+
+  describe "get_metadata_report array of embedded resources in a typed map" do
+    test "applies the nested selection to each embedded resource", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_metadata_report",
+          "fields" => ["total", %{"rows" => ["category", "priorityScore"]}]
+        })
+
+      assert result["success"] == true, inspect(result)
+
+      assert result["data"] == %{
+               "total" => 2,
+               "rows" => [
+                 %{"category" => "work", "priorityScore" => 80},
+                 %{"category" => "personal", "priorityScore" => 20}
+               ]
+             }
+    end
+  end
+
+  describe "get_nested_stats nested typed map selection" do
+    test "only returns the selected nested fields", %{conn: conn} do
+      result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "get_nested_stats",
+          "fields" => [%{"userStats" => ["activeUsers"]}]
+        })
+
+      assert result["success"] == true, inspect(result)
+      assert result["data"] == %{"userStats" => %{"activeUsers" => 1000}}
+    end
   end
 
   describe "output field formatting consistency" do

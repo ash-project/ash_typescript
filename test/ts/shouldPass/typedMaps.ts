@@ -10,6 +10,7 @@ import {
   createTodo,
   updateTodo,
   listUsersMap,
+  getMetadataReport,
   buildCSRFHeaders,
 } from "../generated";
 
@@ -594,6 +595,24 @@ if (usersMapWithNestedSelection.success) {
       const isAdmin: boolean | null = user.isAdmin;
       // @ts-expect-error - "phone" was not selected
       user.phone;
+    }
+  }
+}
+
+// An array of embedded resources inside a generic action's typed-map return
+export const metadataReport = await getMetadataReport({
+  fields: ["total", { rows: ["category", "priorityScore"] }],
+});
+
+if (metadataReport.success) {
+  const total: number = metadataReport.data.total;
+
+  if (metadataReport.data.rows) {
+    for (const row of metadataReport.data.rows) {
+      const category: string = row.category;
+      const priorityScore: number | null | undefined = row.priorityScore;
+      // @ts-expect-error - "isUrgent" was not selected
+      row.isUrgent;
     }
   }
 }

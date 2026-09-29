@@ -72,6 +72,26 @@ defmodule AshTypescript.Test.NestedMapResource do
       end
     end
 
+    # Typed map return with an array of embedded resources — the runtime must
+    # apply the nested selection to each struct instead of returning it whole.
+    action :get_metadata_report, :map do
+      constraints fields: [
+                    rows: [type: {:array, AshTypescript.Test.TodoMetadata}],
+                    total: [type: :integer, allow_nil?: false]
+                  ]
+
+      run fn _input, _context ->
+        {:ok,
+         %{
+           rows: [
+             %AshTypescript.Test.TodoMetadata{category: "work", priority_score: 80},
+             %AshTypescript.Test.TodoMetadata{category: "personal", priority_score: 20}
+           ],
+           total: 2
+         }}
+      end
+    end
+
     action :get_metrics, :map do
       constraints fields: [
                     total: [type: :integer],
