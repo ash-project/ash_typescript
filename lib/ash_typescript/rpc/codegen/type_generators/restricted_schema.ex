@@ -712,14 +712,10 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     is_array = api_field_is_array?(attr)
 
     resource_type =
-      if is_array do
-        nested_schema_name
+      if Map.get(attr, :allow_nil?, true) do
+        "#{nested_schema_name} | null"
       else
-        if Map.get(attr, :allow_nil?, true) do
-          "#{nested_schema_name} | null"
-        else
-          nested_schema_name
-        end
+        nested_schema_name
       end
 
     metadata =

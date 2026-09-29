@@ -596,15 +596,13 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     if embedded_resource in allowed_resources do
       embedded_resource_name = Helpers.build_resource_type_name(embedded_resource)
 
+      # Nullability lives inside `__resource` for arrays too; InferFieldValue
+      # turns it into `Array<...> | null`.
       resource_type =
-        if is_array do
-          "#{embedded_resource_name}#{schema_suffix}"
+        if field.allow_nil? do
+          "#{embedded_resource_name}#{schema_suffix} | null"
         else
-          if field.allow_nil? do
-            "#{embedded_resource_name}#{schema_suffix} | null"
-          else
-            "#{embedded_resource_name}#{schema_suffix}"
-          end
+          "#{embedded_resource_name}#{schema_suffix}"
         end
 
       metadata =

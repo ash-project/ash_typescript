@@ -198,7 +198,10 @@ if (complexEmbeddedScenario.success && complexEmbeddedScenario.data) {
     }
   }
 
-  // Array embedded resources (metadataHistory)
+  // Array embedded resources (metadataHistory) are nullable (allow_nil? true)
+  const nullableHistory: typeof complexEmbeddedScenario.data.metadataHistory =
+    null;
+
   if (complexEmbeddedScenario.data.metadataHistory) {
     const historyArray = complexEmbeddedScenario.data.metadataHistory;
     if (historyArray.length > 0) {

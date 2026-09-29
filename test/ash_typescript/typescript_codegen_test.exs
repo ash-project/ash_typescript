@@ -429,7 +429,7 @@ defmodule AshTypescript.CodegenTest do
                "metadata: { __type: \"Relationship\"; __resource: TodoMetadataResourceSchema | null; };"
 
       assert result =~
-               "metadataHistory: { __type: \"Relationship\"; __array: true; __resource: TodoMetadataResourceSchema; };"
+               "metadataHistory: { __type: \"Relationship\"; __array: true; __resource: TodoMetadataResourceSchema | null; };"
     end
 
     test "generates complete TodoComment resource schema" do

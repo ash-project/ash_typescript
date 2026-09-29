@@ -39,6 +39,14 @@ defmodule AshTypescript.Rpc.RestrictedSchemaCodegenTest do
     test "uses restricted schema in InferResult", %{generated: generated} do
       assert generated =~ ~r/InferResult<ListTodosDenyUserSchema, Fields>/
     end
+
+    test "keeps nullability of a restricted array of embedded resources", %{
+      generated: generated
+    } do
+      assert generated =~
+               "metadataHistory: { __type: \"Relationship\"; __array: true; " <>
+                 "__resource: ListTodosDenyHistoryCalcSchemaMetadataHistory | null; }"
+    end
   end
 
   describe "allowed_loads schema generation" do
