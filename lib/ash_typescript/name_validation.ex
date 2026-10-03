@@ -28,6 +28,17 @@ defmodule AshTypescript.NameValidation do
   end
 
   @doc """
+  Returns `true` when `name` (atom or string) can be written as-is as a
+  TypeScript property name / identifier (`[A-Za-z_$][A-Za-z0-9_$]*`).
+
+  Catches what `invalid_name?/1` doesn't — names like `:"foo-bar"`, `:"1st"` or
+  `:"with space"`, which would otherwise be emitted as unquoted keys.
+  """
+  def identifier?(name) do
+    Regex.match?(~r/\A[A-Za-z_$][A-Za-z0-9_$]*\z/, to_string(name))
+  end
+
+  @doc """
   Returns the suggested replacement name for use in error messages. Does not
   apply the configured client formatter — callers should call this only to
   show the user what to put in their `field_names` mapping.

@@ -292,6 +292,224 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
       assert message =~ "address_line1"
     end
 
+    test "rejects returns field names with question marks" do
+      {result, _stderr} =
+        ExUnit.CaptureIO.with_io(:standard_error, fn ->
+          defmodule ControllerWithQuestionMarkReturnField do
+            use AshTypescript.TypedController
+
+            typed_controller do
+              module_name(AshTypescript.Test.QuestionMarkReturnFieldController)
+
+              get :status do
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+                returns :map
+                constraints fields: [is_active?: [type: :boolean], label: [type: :string]]
+              end
+            end
+          end
+
+          VerifyTypedController.verify(ControllerWithQuestionMarkReturnField.spark_dsl_config())
+        end)
+
+      assert {:error, %Spark.Error.DslError{message: message}} = result
+      assert message =~ "Invalid field names"
+
+      assert message =~
+               "route :status, returns field `is_active?` → consider renaming to :is_active"
+
+      refute message =~ "label"
+    end
+
+    test "rejects field names nested in arrays and typed maps, reporting their path" do
+      {result, _stderr} =
+        ExUnit.CaptureIO.with_io(:standard_error, fn ->
+          defmodule ControllerWithNestedInvalidReturnField do
+            use AshTypescript.TypedController
+
+            typed_controller do
+              module_name(AshTypescript.Test.NestedInvalidReturnFieldController)
+
+              get :items do
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+                returns {:array, :map}
+
+                constraints items: [
+                              fields: [
+                                address: [
+                                  type: :map,
+                                  constraints: [fields: [line_1: [type: :string]]]
+                                ]
+                              ]
+                            ]
+              end
+            end
+          end
+
+          VerifyTypedController.verify(ControllerWithNestedInvalidReturnField.spark_dsl_config())
+        end)
+
+      assert {:error, %Spark.Error.DslError{message: message}} = result
+
+      assert message =~
+               "route :items, returns field `[].address.line_1` → consider renaming to :line1"
+    end
+
+    test "rejects invalid field names in argument types" do
+      {result, _stderr} =
+        ExUnit.CaptureIO.with_io(:standard_error, fn ->
+          defmodule ControllerWithInvalidArgumentField do
+            use AshTypescript.TypedController
+
+            typed_controller do
+              module_name(AshTypescript.Test.InvalidArgumentFieldController)
+
+              post :save do
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+                argument :opts, :map, constraints: [fields: [is_on?: [type: :boolean]]]
+              end
+            end
+          end
+
+          VerifyTypedController.verify(ControllerWithInvalidArgumentField.spark_dsl_config())
+        end)
+
+      assert {:error, %Spark.Error.DslError{message: message}} = result
+      assert message =~ "route :save, argument :opts field `is_on?` → consider renaming to :is_on"
+    end
+
+    defmodule UnmappedFlags do
+      use Ash.Type.NewType,
+        subtype_of: :map,
+        constraints: [fields: [is_on?: [type: :boolean]]]
+    end
+
+    test "honors typescript_field_names on types, rejecting only unmapped invalid names" do
+      {result, _stderr} =
+        ExUnit.CaptureIO.with_io(:standard_error, fn ->
+          defmodule ControllerReturningUnmappedNewType do
+            use AshTypescript.TypedController
+
+            typed_controller do
+              module_name(AshTypescript.Test.ReturningUnmappedNewTypeController)
+
+              get :stats do
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+                # Maps `completed?`/`is_urgent?` but leaves `total_count` unmapped (valid)
+                returns AshTypescript.Test.TaskStats
+              end
+
+              get :raw do
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+                returns AshTypescript.TypedController.VerifyTypedControllerTest.UnmappedFlags
+              end
+            end
+          end
+
+          VerifyTypedController.verify(ControllerReturningUnmappedNewType.spark_dsl_config())
+        end)
+
+      assert {:error, %Spark.Error.DslError{message: message}} = result
+      assert message =~ "route :raw, returns field `is_on?` → consider renaming to :is_on"
+      refute message =~ "route :stats"
+    end
+
+    defmodule BadlyMappedFlags do
+      use Ash.Type.NewType,
+        subtype_of: :map,
+        constraints: [fields: [ok: [type: :boolean]]]
+
+      def typescript_field_names, do: [ok: "ok?"]
+    end
+
+    test "points at the mapping when a mapped field name is invalid" do
+      {result, _stderr} =
+        ExUnit.CaptureIO.with_io(:standard_error, fn ->
+          defmodule ControllerReturningBadlyMappedType do
+            use AshTypescript.TypedController
+
+            typed_controller do
+              module_name(AshTypescript.Test.ReturningBadlyMappedTypeController)
+
+              get :flags do
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+                returns AshTypescript.TypedController.VerifyTypedControllerTest.BadlyMappedFlags
+              end
+            end
+          end
+
+          VerifyTypedController.verify(ControllerReturningBadlyMappedType.spark_dsl_config())
+        end)
+
+      assert {:error, %Spark.Error.DslError{message: message}} = result
+
+      assert message =~
+               ~s[route :flags, returns field `ok` is mapped to "ok?" by ] <>
+                 "AshTypescript.TypedController.VerifyTypedControllerTest.BadlyMappedFlags" <>
+                 ".typescript_field_names/0 → fix the mapping"
+
+      refute message =~ "consider renaming to :ok"
+    end
+
+    test "rejects field names that are not valid identifiers" do
+      {result, _stderr} =
+        ExUnit.CaptureIO.with_io(:standard_error, fn ->
+          defmodule ControllerWithNonIdentifierFields do
+            use AshTypescript.TypedController
+
+            typed_controller do
+              module_name(AshTypescript.Test.NonIdentifierFieldsController)
+
+              get :odd do
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+                returns :map
+
+                constraints fields: [
+                              "1st": [type: :string],
+                              "foo-bar": [type: :string],
+                              "with space": [type: :string],
+                              fine: [type: :string]
+                            ]
+              end
+            end
+          end
+
+          VerifyTypedController.verify(ControllerWithNonIdentifierFields.spark_dsl_config())
+        end)
+
+      assert {:error, %Spark.Error.DslError{message: message}} = result
+
+      for name <- ["1st", "foo-bar", "with space"] do
+        assert message =~
+                 "route :odd, returns field `#{name}` is not a valid TypeScript identifier"
+      end
+
+      refute message =~ "`fine`"
+    end
+
+    test "rejects argument names that are not valid identifiers" do
+      {result, _stderr} =
+        ExUnit.CaptureIO.with_io(:standard_error, fn ->
+          defmodule ControllerWithNonIdentifierArgument do
+            use AshTypescript.TypedController
+
+            typed_controller do
+              module_name(AshTypescript.Test.NonIdentifierArgumentController)
+
+              post :save do
+                run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+                argument :"foo-bar", :string
+              end
+            end
+          end
+
+          VerifyTypedController.verify(ControllerWithNonIdentifierArgument.spark_dsl_config())
+        end)
+
+      assert {:error, %Spark.Error.DslError{message: message}} = result
+      assert message =~ ~s[route :save, argument :"foo-bar" is not a valid TypeScript identifier]
+    end
+
     test "accepts valid route and argument names" do
       result =
         VerifyTypedController.verify(AshTypescript.Test.Session.spark_dsl_config())
