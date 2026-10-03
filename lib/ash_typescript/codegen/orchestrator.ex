@@ -62,18 +62,19 @@ defmodule AshTypescript.Codegen.Orchestrator do
     rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
     channel_entries = collect_typed_channel_entries()
 
-    if rpc_output_file do
-      domains = Ash.Info.domains(otp_app)
+    # Spark only reports per-module verifier failures as compile warnings, so
+    # re-run them here to fail codegen. Typed controllers and channels are
+    # checked whether or not RPC output is configured.
+    rpc_modules = if rpc_output_file, do: rpc_resources ++ Ash.Info.domains(otp_app), else: []
 
-      # `run_manifest_verifiers/2` runs `VerifyRpcWarnings`, which already emits
-      # the RPC-configuration warnings (gated by the same config flags). Don't
-      # emit them again here.
-      with :ok <- AshTypescript.VerifierChecker.check_all_verifiers(rpc_resources ++ domains),
-           :ok <- run_manifest_verifiers(otp_app, domains) do
-        :ok
-      else
-        {:error, error_message} -> throw({:error, error_message})
-      end
+    verifier_modules =
+      rpc_modules ++ AshTypescript.typed_controllers() ++ AshTypescript.typed_channels()
+
+    with :ok <- AshTypescript.VerifierChecker.check_all_verifiers(verifier_modules),
+         :ok <- run_manifest_verifiers(rpc_output_file) do
+      :ok
+    else
+      {:error, error_message} -> throw({:error, error_message})
     end
 
     embedded_resources = TypeDiscovery.find_embedded_resources(otp_app)
@@ -408,7 +409,12 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
   # Run manifest-level verifiers (cross-domain RPC checks, typed query validation,
   # etc.) against the configured manifest module's persisted Spark DSL state.
-  defp run_manifest_verifiers(_otp_app, _domains) do
+  # These run `VerifyRpcWarnings`, which already emits the RPC-configuration
+  # warnings (gated by the same config flags), so they aren't emitted again here.
+  # Only relevant when RPC output is configured.
+  defp run_manifest_verifiers(nil), do: :ok
+
+  defp run_manifest_verifiers(_rpc_output_file) do
     AshTypescript.Manifest.run_verifiers(AshTypescript.manifest_module())
   end
 end

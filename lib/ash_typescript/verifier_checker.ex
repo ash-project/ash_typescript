@@ -4,10 +4,11 @@
 
 defmodule AshTypescript.VerifierChecker do
   @moduledoc """
-  Re-runs per-module Spark verifiers for the AshTypescript Resource and Rpc
-  extensions. Spark emits warnings (rather than raising) when a verifier fails;
-  during codegen we want to promote those warnings to hard errors. This module
-  iterates the configured verifiers for each module and aggregates failures.
+  Re-runs per-module Spark verifiers for the AshTypescript Resource, Rpc,
+  TypedController and TypedChannel extensions. Spark emits warnings (rather
+  than raising) when a verifier fails; during codegen we want to promote those
+  warnings to hard errors. This module iterates the configured verifiers for
+  each module and aggregates failures.
 
   Manifest-level verifiers are *not* run here — they're a property of the
   `AshTypescript.Manifest` module and are checked at compile time by Spark, and
@@ -16,7 +17,7 @@ defmodule AshTypescript.VerifierChecker do
   """
 
   @doc """
-  Checks per-module Resource/Rpc extension verifiers for a list of modules.
+  Checks per-module AshTypescript extension verifiers for a list of modules.
   Returns `:ok` or `{:error, formatted_message}`.
   """
   def check_all_verifiers(modules) do
@@ -30,7 +31,12 @@ defmodule AshTypescript.VerifierChecker do
     extensions = Spark.extensions(module)
     dsl_config = module.spark_dsl_config()
 
-    ash_typescript_extensions = [AshTypescript.Resource, AshTypescript.Rpc]
+    ash_typescript_extensions = [
+      AshTypescript.Resource,
+      AshTypescript.Rpc,
+      AshTypescript.TypedController.Dsl,
+      AshTypescript.TypedChannel.Dsl
+    ]
 
     extensions
     |> Enum.filter(&(&1 in ash_typescript_extensions))
