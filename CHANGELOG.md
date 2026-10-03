@@ -11,6 +11,23 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.19.0](https://github.com/ash-project/ash_typescript/compare/v0.18.4...v0.19.0) (2026-10-03)
+
+
+
+
+### Features:
+
+* typed-controller: validate route field and identifier names for TypeScript by [@Torkan](https://github.com/Torkan)
+
+* typed-controller: add returns for typed JSON route results by [@Torkan](https://github.com/Torkan)
+
+### Bug Fixes:
+
+* codegen: fail codegen on typed controller and channel verifier errors by [@Torkan](https://github.com/Torkan)
+
+* codegen: use typescript_field_names mappings as-is and resolve named types outside the manifest by [@Torkan](https://github.com/Torkan)
+
 ## [v0.18.4](https://github.com/ash-project/ash_typescript/compare/v0.18.3...v0.18.4) (2026-09-29)
 
 
