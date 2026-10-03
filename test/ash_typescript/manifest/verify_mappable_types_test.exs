@@ -59,6 +59,15 @@ defmodule AshTypescript.Manifest.VerifyMappableTypesTest do
     def dump_to_native(_, _), do: :error
   end
 
+  defmodule ConstrainedNamedCustomType do
+    @moduledoc false
+    use Ash.Type.NewType,
+      subtype_of: :map,
+      constraints: [fields: [value: [type: :string]]]
+
+    def typescript_type_name, do: "string"
+  end
+
   describe "unmappable custom types" do
     test "bare custom type on an attribute is rejected with remediation guidance" do
       defmodule ResourceWithBareAttribute do
@@ -294,6 +303,54 @@ defmodule AshTypescript.Manifest.VerifyMappableTypesTest do
       end)
 
       assert silent_verify_for_domains([DomainWithOverriddenType]) == :ok
+    end
+  end
+
+  describe "custom type conflicts" do
+    test "rejects a custom type with both a TypeScript name and constraints" do
+      defmodule ResourceWithConstrainedNamedType do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "ResourceWithConstrainedNamedType"
+        end
+
+        attributes do
+          uuid_primary_key :id
+
+          attribute :value,
+                    AshTypescript.Manifest.VerifyMappableTypesTest.ConstrainedNamedCustomType do
+            public? true
+          end
+        end
+
+        actions do
+          defaults [:read]
+        end
+      end
+
+      defmodule DomainWithConstrainedNamedType do
+        use Ash.Domain, otp_app: :ash_typescript, extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource ResourceWithConstrainedNamedType do
+            rpc_action :list_constrained, :read
+          end
+        end
+
+        resources do
+          resource ResourceWithConstrainedNamedType
+        end
+      end
+
+      assert {:error, message} = silent_verify_for_domains([DomainWithConstrainedNamedType])
+
+      assert message =~ "both `typescript_type_name/0` and constraints"
+      assert message =~ "Remove one or the other"
+      assert message =~ "field :value"
     end
   end
 

@@ -181,6 +181,27 @@ interface ProductResourceSchema {
 | `typescript_type_name/0` callback | You control the Ash type definition |
 | `type_mapping_overrides` | The type is from a dependency you can't modify |
 
+### Naming an `Ash.Type.NewType`
+
+The `typescript_type_name/0` callback also works on an `Ash.Type.NewType`. A
+NewType of a scalar, or of a `:map` without `fields` constraints (which would
+otherwise generate an untyped record), is emitted under the given name:
+
+```elixir
+defmodule MyApp.Layout do
+  use Ash.Type.NewType, subtype_of: :map
+
+  def typescript_type_name, do: "CustomTypes.Layout"
+end
+```
+
+```typescript
+layout: CustomTypes.Layout | null;
+```
+
+A NewType of a `:map` *with* `fields` constraints keeps its generated typed map,
+since that is what field selection uses.
+
 ## Validation Schemas for Custom Types
 
 `type_mapping_overrides` and `typescript_type_name/0` control the generated

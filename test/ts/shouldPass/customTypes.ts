@@ -37,6 +37,21 @@ if (colorPaletteTest.success && colorPaletteTest.data?.colorPalette) {
   );
 }
 
+// Test 0.2: A map NewType with typescript_type_name is typed by that name,
+// not as an untyped record
+export const layoutTest = await getTodo({
+  input: { id: "00000000-0000-0000-0000-000000000001" },
+  fields: ["id", "layout"],
+});
+
+if (layoutTest.success && layoutTest.data?.layout) {
+  const columns: number | undefined = layoutTest.data.layout.columns;
+  const areas: string[] | undefined = layoutTest.data.layout.areas;
+  // @ts-expect-error - "rows" is not part of the Layout type
+  layoutTest.data.layout.rows;
+  console.log(`Layout: ${columns} columns, ${areas?.length} areas`);
+}
+
 // Test 5.1: Create operation with colorPalette custom type in input
 export const createWithColorPalette = await createTodo({
   input: {
