@@ -210,6 +210,19 @@ defmodule AshTypescript.TypeSystem.Introspection do
   def has_typescript_field_names?(_), do: false
 
   @doc """
+  Returns the full definition of a named type (a `:type_ref` module).
+
+  Looks the type up in the manifest first. Named types outside the manifest —
+  e.g. a NewType referenced only by a typed controller route, which RPC
+  reachability never collects — are resolved directly from the module.
+  """
+  @spec named_type_definition(module()) :: Ash.Info.Manifest.Type.t()
+  def named_type_definition(module) do
+    Ash.Info.Manifest.get_type(AshTypescript.type_lookup(), module) ||
+      Ash.Info.Manifest.Generator.TypeResolver.resolve_definition(module)
+  end
+
+  @doc """
   Gets the typescript_field_names as a map, or empty map if not available.
 
   ## Examples

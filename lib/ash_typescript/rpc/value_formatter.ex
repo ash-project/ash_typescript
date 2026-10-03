@@ -22,6 +22,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   alias AshTypescript.FieldFormatter
   alias AshTypescript.Helpers
   alias AshTypescript.Manifest.Custom
+  alias AshTypescript.TypeSystem.Introspection
 
   @type direction :: :input | :output
 
@@ -141,7 +142,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
 
     case type_info.kind do
       :type_ref ->
-        full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), type_info.module)
+        full_type = Introspection.named_type_definition(type_info.module)
         format(value, full_type, [], formatter, direction, resource_lookups)
 
       :array ->

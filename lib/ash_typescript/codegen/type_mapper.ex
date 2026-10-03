@@ -14,6 +14,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
   alias AshTypescript.Codegen.Helpers
   alias AshTypescript.TypeSystem.Introspection
 
+  import AshTypescript.Helpers, only: [format_mapped_output_field: 2]
+
   # ─────────────────────────────────────────────────────────────────
   # Type Constants
   # ─────────────────────────────────────────────────────────────────
@@ -173,7 +175,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
     case type_info.kind do
       :type_ref ->
         # Resolve the named type module to its full definition and re-dispatch
-        full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), type_info.module)
+        full_type = Introspection.named_type_definition(type_info.module)
         map_type(full_type, [], direction)
 
       :array ->
@@ -435,19 +437,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
       |> Enum.map_join(", ", fn field ->
         {field_name, field_type_str, allow_nil} = extract_field_info_for_input(field)
 
-        # Apply field name mapping if available
-        mapped_field_name =
-          if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
-            Keyword.get(field_name_mappings, field_name)
-          else
-            field_name
-          end
-
-        formatted_field_name =
-          AshTypescript.FieldFormatter.format_field_name(
-            mapped_field_name,
-            AshTypescript.Rpc.output_field_formatter()
-          )
+        formatted_field_name = format_mapped_output_field(field_name, field_name_mappings)
 
         optional_marker = if allow_nil, do: "?", else: ""
         null_type = if allow_nil, do: " | null", else: ""
@@ -517,21 +507,71 @@ defmodule AshTypescript.Codegen.TypeMapper do
     end
   end
 
+  @doc """
+  Maps a typed controller route's `returns` type to a TypeScript type.
+
+  Route handlers send their response body as-is, so — like channel payloads —
+  typed containers map to plain object types without the field-selection
+  metadata RPC output types carry, and containers without `fields` constraints
+  map to the untyped map type. Unlike `map_channel_payload_type/2`, this
+  recurses through arrays and nested typed containers.
+
+  Named types (NewTypes, enums) are expanded in place rather than looked up in
+  the manifest, since a type used only by a route is not reachable from RPC.
+  Resources and unions are rejected at compile time by
+  `AshTypescript.TypedController.Transformers.FoldArgumentConstraints`.
+  """
+  @spec map_route_result_type(atom() | tuple(), keyword()) :: String.t()
+  def map_route_result_type(type, constraints) do
+    type
+    |> Ash.Info.Manifest.Generator.TypeResolver.resolve(constraints)
+    |> map_plain_output_type()
+  end
+
+  defp map_plain_output_type(%Type{kind: :type_ref, module: module}) do
+    module
+    |> Ash.Info.Manifest.Generator.TypeResolver.resolve_definition()
+    |> map_plain_output_type()
+  end
+
+  defp map_plain_output_type(%Type{kind: :array, item_type: item_type}),
+    do: wrap_array(map_plain_output_type(item_type))
+
+  defp map_plain_output_type(%Type{kind: kind} = type_info)
+       when kind in [:map, :keyword, :tuple, :struct] do
+    case Type.get_fields(type_info) do
+      [] ->
+        AshTypescript.untyped_map_type()
+
+      fields ->
+        # Mirrors map_struct/map_typed_container: structs only take name
+        # mappings from an explicit instance_of module.
+        field_name_mappings =
+          if kind == :struct,
+            do: get_field_name_mappings_from_module(type_info.instance_of),
+            else: get_field_name_mappings_from_module(Type.effective_module(type_info))
+
+        field_types =
+          Enum.map_join(fields, ", ", fn %{name: name, type: field_type, allow_nil?: allow_nil} ->
+            null_suffix = if allow_nil, do: " | null", else: ""
+
+            "#{format_mapped_output_field(name, field_name_mappings)}: " <>
+              "#{map_plain_output_type(field_type)}#{null_suffix}"
+          end)
+
+        "{#{field_types}}"
+    end
+  end
+
+  defp map_plain_output_type(type_info), do: map_type(type_info, [], :output)
+
   defp build_plain_map_type(fields, field_name_mappings) do
     field_types =
       fields
       |> Enum.map_join(", ", fn {field_name, field_config} ->
         field_type = map_type(field_config[:type], field_config[:constraints] || [], :output)
 
-        formatted_field_name =
-          if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
-            Keyword.get(field_name_mappings, field_name) |> to_string()
-          else
-            field_name
-          end
-          |> AshTypescript.FieldFormatter.format_field_name(
-            AshTypescript.Rpc.output_field_formatter()
-          )
+        formatted_field_name = format_mapped_output_field(field_name, field_name_mappings)
 
         allow_nil = Keyword.get(field_config, :allow_nil?, true)
         optional = if allow_nil, do: " | null", else: ""
@@ -560,15 +600,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
       |> Enum.map_join(", ", fn field ->
         {field_name, field_type_str, allow_nil} = extract_field_info(field)
 
-        formatted_field_name =
-          if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
-            Keyword.get(field_name_mappings, field_name) |> to_string()
-          else
-            field_name
-          end
-          |> AshTypescript.FieldFormatter.format_field_name(
-            AshTypescript.Rpc.output_field_formatter()
-          )
+        formatted_field_name = format_mapped_output_field(field_name, field_name_mappings)
 
         optional = if allow_nil, do: " | null", else: ""
         "#{formatted_field_name}: #{field_type_str}#{optional}"
@@ -592,15 +624,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
           |> Enum.map_join(" | ", fn field ->
             field_name = extract_field_name(field)
 
-            formatted_field_name =
-              if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name) do
-                Keyword.get(field_name_mappings, field_name) |> to_string()
-              else
-                field_name
-              end
-              |> AshTypescript.FieldFormatter.format_field_name(
-                AshTypescript.Rpc.output_field_formatter()
-              )
+            formatted_field_name = format_mapped_output_field(field_name, field_name_mappings)
 
             "\"#{formatted_field_name}\""
           end)

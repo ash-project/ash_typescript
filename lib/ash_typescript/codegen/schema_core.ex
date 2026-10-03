@@ -106,7 +106,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
         map_typed_container(formatter, type_info)
 
       :type_ref ->
-        full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), type_info.module)
+        full_type = Introspection.named_type_definition(type_info.module)
         map_spec_type(formatter, full_type)
 
       :unknown ->
@@ -463,12 +463,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
         schema_type = map_spec_type(formatter, field_type)
         schema_type = maybe_wrap_nullable_optional(formatter, schema_type, allow_nil, allow_nil)
 
-        base_name =
-          if field_name_mappings && Keyword.has_key?(field_name_mappings, field_name),
-            do: Keyword.get(field_name_mappings, field_name),
-            else: field_name
-
-        "#{format_output_field(base_name)}: #{schema_type}"
+        "#{format_mapped_output_field(field_name, field_name_mappings)}: #{schema_type}"
       end)
 
     formatter.wrap_object(field_schemas)

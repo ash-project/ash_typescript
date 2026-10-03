@@ -78,6 +78,19 @@ defmodule AshTypescript.Helpers do
   end
 
   @doc """
+  Returns the client-facing name of a container field: its
+  `typescript_field_names` mapping, used exactly as written, or else the
+  output-formatted field name. Matches what `ValueFormatter` emits and parses
+  at runtime.
+  """
+  def format_mapped_output_field(field_name, field_name_mappings) do
+    case field_name_mappings && Keyword.get(field_name_mappings, field_name) do
+      mapped when is_binary(mapped) -> mapped
+      _ -> format_output_field(field_name)
+    end
+  end
+
+  @doc """
   Helper functions for commonly used pagination field names.
   These ensure consistency across all pagination-related type generation.
   """
