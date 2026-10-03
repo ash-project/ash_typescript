@@ -237,6 +237,10 @@ defmodule AshTypescript.Codegen.TypeMapper do
   def unknown_module_mapping(%Type{module: module} = type_info) do
     cond do
       is_atom(module) and not is_nil(module) and Introspection.is_custom_type?(module) ->
+        if custom_type_with_constraints?(type_info) do
+          raise ArgumentError, custom_type_constraints_error(module)
+        end
+
         {:ok, AshTypescript.Manifest.Custom.type_name(type_info) || module.typescript_type_name()}
 
       (override = get_type_mapping_override(module)) != nil ->
@@ -257,6 +261,34 @@ defmodule AshTypescript.Codegen.TypeMapper do
       true ->
         :unsupported
     end
+  end
+
+  @doc false
+  def custom_type_with_constraints?(%Type{module: module, constraints: constraints}) do
+    if is_atom(module) and Introspection.is_custom_type?(module) do
+      constraints = if Ash.Type.NewType.new_type?(module), do: [], else: constraints
+
+      constraints not in [nil, []] or module_constraints(module) not in [nil, []]
+    else
+      false
+    end
+  end
+
+  def custom_type_with_constraints?(_), do: false
+
+  defp module_constraints(module) do
+    cond do
+      function_exported?(module, :subtype_constraints, 0) -> module.subtype_constraints()
+      true -> []
+    end
+  end
+
+  def custom_type_constraints_error(module) do
+    """
+    custom type #{inspect(module)} defines both `typescript_type_name/0` and constraints.
+
+    Remove either `typescript_type_name/0` or the constraints so AshTypescript can determine the TypeScript shape.
+    """
   end
 
   @doc """

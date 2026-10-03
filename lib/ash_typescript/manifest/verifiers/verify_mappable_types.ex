@@ -104,9 +104,13 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
 
   defp walk(%Type{kind: :unknown, module: mod} = type, context)
        when is_atom(mod) and not is_nil(mod) do
-    case TypeMapper.unknown_module_mapping(type) do
-      {:ok, _ts} -> []
-      :unsupported -> [{mod, context}]
+    if TypeMapper.custom_type_with_constraints?(type) do
+      [{mod, context, :conflicting_custom_type}]
+    else
+      case TypeMapper.unknown_module_mapping(type) do
+        {:ok, _ts} -> []
+        :unsupported -> [{mod, context, :unsupported}]
+      end
     end
   end
 
@@ -121,6 +125,15 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
     Enum.flat_map(fields, fn %{type: field_type} -> walk(field_type, context) end)
   end
 
+  defp walk(%Type{module: mod} = type, context)
+       when is_atom(mod) and not is_nil(mod) do
+    if TypeMapper.custom_type_with_constraints?(type) do
+      [{mod, context, :conflicting_custom_type}]
+    else
+      []
+    end
+  end
+
   # Everything else: primitives, module-less unknowns, and references to named
   # definitions (:type_ref, :resource, :embedded_resource) that are walked
   # independently via `collect_from_types`/`collect_from_resources`.
@@ -133,16 +146,20 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMappableTypes do
   defp build_error(offenders, module) do
     listing =
       offenders
-      |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+      |> Enum.group_by(&elem(&1, 0))
       |> Enum.sort_by(fn {mod, _} -> inspect(mod) end)
-      |> Enum.map_join("\n\n", fn {mod, contexts} ->
+      |> Enum.map_join("\n\n", fn {mod, entries} ->
         locations =
-          contexts
-          |> Enum.uniq()
-          |> Enum.sort()
-          |> Enum.map_join("\n", &"      - #{&1}")
+          entries
+          |> Enum.uniq_by(&elem(&1, 1))
+          |> Enum.sort_by(&elem(&1, 1))
+          |> Enum.map_join("\n", fn {_mod, context, _reason} -> "      - #{context}" end)
 
-        "  • #{inspect(mod)}\n#{locations}"
+        if Enum.any?(entries, &(elem(&1, 2) == :conflicting_custom_type)) do
+          "  • #{inspect(mod)}\n#{locations}\n      This type defines both `typescript_type_name/0` and constraints. Remove one or the other."
+        else
+          "  • #{inspect(mod)}\n#{locations}"
+        end
       end)
 
     Spark.Error.DslError.exception(
