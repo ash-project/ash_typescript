@@ -113,6 +113,8 @@ the `AshTypescript.TypedController.Route` behaviour. Handlers receive
 | [`zod_schema_name`](#typed_controller-route-zod_schema_name){: #typed_controller-route-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
 | [`valibot_schema_name`](#typed_controller-route-valibot_schema_name){: #typed_controller-route-valibot_schema_name } | `String.t` |  | Override the generated Valibot schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Valibot schema. |
 | [`namespace`](#typed_controller-route-namespace){: #typed_controller-route-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
+| [`returns`](#typed_controller-route-returns){: #typed_controller-route-returns } | `module` |  | The Ash type of the JSON response body, used to generate a TypeScript result type (and a fetch function for GET routes). Plain data only — no resources or unions. The handler still sends the body; use `AshTypescript.TypedController.json/2` to format it to match. |
+| [`constraints`](#typed_controller-route-constraints){: #typed_controller-route-constraints } | `keyword` | `[]` | Constraints for the `returns` type. |
 
 
 ### typed_controller.route.argument
@@ -186,6 +188,8 @@ Define a GET route. Shorthand for `route :name, :get`.
 | [`zod_schema_name`](#typed_controller-get-zod_schema_name){: #typed_controller-get-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
 | [`valibot_schema_name`](#typed_controller-get-valibot_schema_name){: #typed_controller-get-valibot_schema_name } | `String.t` |  | Override the generated Valibot schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Valibot schema. |
 | [`namespace`](#typed_controller-get-namespace){: #typed_controller-get-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
+| [`returns`](#typed_controller-get-returns){: #typed_controller-get-returns } | `module` |  | The Ash type of the JSON response body, used to generate a TypeScript result type (and a fetch function for GET routes). Plain data only — no resources or unions. The handler still sends the body; use `AshTypescript.TypedController.json/2` to format it to match. |
+| [`constraints`](#typed_controller-get-constraints){: #typed_controller-get-constraints } | `keyword` | `[]` | Constraints for the `returns` type. |
 
 
 ### typed_controller.get.argument
@@ -259,6 +263,8 @@ Define a POST route. Shorthand for `route :name, :post`.
 | [`zod_schema_name`](#typed_controller-post-zod_schema_name){: #typed_controller-post-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
 | [`valibot_schema_name`](#typed_controller-post-valibot_schema_name){: #typed_controller-post-valibot_schema_name } | `String.t` |  | Override the generated Valibot schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Valibot schema. |
 | [`namespace`](#typed_controller-post-namespace){: #typed_controller-post-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
+| [`returns`](#typed_controller-post-returns){: #typed_controller-post-returns } | `module` |  | The Ash type of the JSON response body, used to generate a TypeScript result type (and a fetch function for GET routes). Plain data only — no resources or unions. The handler still sends the body; use `AshTypescript.TypedController.json/2` to format it to match. |
+| [`constraints`](#typed_controller-post-constraints){: #typed_controller-post-constraints } | `keyword` | `[]` | Constraints for the `returns` type. |
 
 
 ### typed_controller.post.argument
@@ -332,6 +338,8 @@ Define a PATCH route. Shorthand for `route :name, :patch`.
 | [`zod_schema_name`](#typed_controller-patch-zod_schema_name){: #typed_controller-patch-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
 | [`valibot_schema_name`](#typed_controller-patch-valibot_schema_name){: #typed_controller-patch-valibot_schema_name } | `String.t` |  | Override the generated Valibot schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Valibot schema. |
 | [`namespace`](#typed_controller-patch-namespace){: #typed_controller-patch-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
+| [`returns`](#typed_controller-patch-returns){: #typed_controller-patch-returns } | `module` |  | The Ash type of the JSON response body, used to generate a TypeScript result type (and a fetch function for GET routes). Plain data only — no resources or unions. The handler still sends the body; use `AshTypescript.TypedController.json/2` to format it to match. |
+| [`constraints`](#typed_controller-patch-constraints){: #typed_controller-patch-constraints } | `keyword` | `[]` | Constraints for the `returns` type. |
 
 
 ### typed_controller.patch.argument
@@ -405,6 +413,8 @@ Define a PUT route. Shorthand for `route :name, :put`.
 | [`zod_schema_name`](#typed_controller-put-zod_schema_name){: #typed_controller-put-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
 | [`valibot_schema_name`](#typed_controller-put-valibot_schema_name){: #typed_controller-put-valibot_schema_name } | `String.t` |  | Override the generated Valibot schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Valibot schema. |
 | [`namespace`](#typed_controller-put-namespace){: #typed_controller-put-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
+| [`returns`](#typed_controller-put-returns){: #typed_controller-put-returns } | `module` |  | The Ash type of the JSON response body, used to generate a TypeScript result type (and a fetch function for GET routes). Plain data only — no resources or unions. The handler still sends the body; use `AshTypescript.TypedController.json/2` to format it to match. |
+| [`constraints`](#typed_controller-put-constraints){: #typed_controller-put-constraints } | `keyword` | `[]` | Constraints for the `returns` type. |
 
 
 ### typed_controller.put.argument
@@ -478,6 +488,8 @@ Define a DELETE route. Shorthand for `route :name, :delete`.
 | [`zod_schema_name`](#typed_controller-delete-zod_schema_name){: #typed_controller-delete-zod_schema_name } | `String.t` |  | Override the generated Zod schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Zod schema. |
 | [`valibot_schema_name`](#typed_controller-delete-valibot_schema_name){: #typed_controller-delete-valibot_schema_name } | `String.t` |  | Override the generated Valibot schema name (used as-is for the exported const). Use when the default name collides with an RPC action's Valibot schema. |
 | [`namespace`](#typed_controller-delete-namespace){: #typed_controller-delete-namespace } | `String.t` |  | Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace. |
+| [`returns`](#typed_controller-delete-returns){: #typed_controller-delete-returns } | `module` |  | The Ash type of the JSON response body, used to generate a TypeScript result type (and a fetch function for GET routes). Plain data only — no resources or unions. The handler still sends the body; use `AshTypescript.TypedController.json/2` to format it to match. |
+| [`constraints`](#typed_controller-delete-constraints){: #typed_controller-delete-constraints } | `keyword` | `[]` | Constraints for the `returns` type. |
 
 
 ### typed_controller.delete.argument

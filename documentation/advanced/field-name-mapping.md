@@ -160,6 +160,13 @@ type Resource = {
 }
 ```
 
+A mapped name is the exact client-facing name: it is used as written under every
+`output_field_formatter`, in generated types, Zod/Valibot schemas, request parsing,
+and responses. The formatter only applies to fields without a mapping. With
+`output_field_formatter: :pascal_case`, the type above is still
+`{ field1, isActive, line2 }`, and an unmapped `created_at` field next to them
+would become `CreatedAt`.
+
 ## Metadata Field Name Mapping
 
 For invalid metadata field names, use the `metadata_field_names` option on the RPC action:
@@ -251,6 +258,10 @@ config :ash_typescript,
   input_field_formatter: :camel_case,   # How inputs are formatted
   output_field_formatter: :camel_case   # How outputs are formatted
 ```
+
+Explicit string mappings (`field_names`, `argument_names`, `typescript_field_names/0`)
+always take precedence over the formatter: those names are used exactly as written and
+never reformatted.
 
 **Available formatters:**
 - `:camel_case` - Converts to camelCase (default)

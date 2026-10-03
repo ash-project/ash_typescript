@@ -39,12 +39,12 @@ The `AshTypescript.TypedController` DSL generates TypeScript path helpers and ty
 │  - Hook context type definition                          │
 ├─────────────────────────────────────────────────────────┤
 │  Rendering Layer: RouteRenderer                           │
-│  - GET routes → path helper functions                    │
+│  - GET routes → path helpers (+ fetch fn with returns)   │
 │  - Mutation routes → typed async action functions         │
 │  - Zod/Valibot schema generation for route inputs        │
 │  - Input types from colocated route arguments            │
 │  - JSDoc with @see tags, @deprecated                     │
-│  - Field name mapping (camelCase)                        │
+│  - Field name mapping (output_field_formatter)           │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -68,18 +68,30 @@ end
 `RequestHandler.handle/4` provides the bridge between Phoenix and the route handler:
 
 1. **Look up** route definition from the source module's DSL
-2. **Strip** Phoenix-internal params (`_format`, `action`, `controller`, `_*` prefixed)
-3. **Normalize** param keys (camelCase → snake_case), recursively through nested maps and lists
+2. **Resolve** top-level keys (`extract_input/2`). An exact match on an argument's
+   generated client name (`Helpers.format_output_field/1`, same as codegen) wins.
+   Otherwise the key goes through `FieldFormatter.parse_input_field/2` with
+   `input_field_formatter`, which also covers router path params under their segment
+   name (`user_id`). Collisions across **all** keys → 422 `ambiguous_param` (CVE-3217).
+3. **Strip** Phoenix-internal params (`_format`, `action`, `controller`, `_*` prefixed)
+   after resolution, so a style variant (`Action`) can't re-inject them
 4. **Extract** only declared arguments — undeclared params are dropped
 5. **Fill** missing params from the argument's `default` (or `nil`) — a missing required
    argument (`allow_nil?: false`) is a 422 error
-6. **Cast** values via `Ash.Type.cast_input/3` — invalid → 422 error
+6. **Format + cast** values. `ValueFormatter.format(value, arg.type, arg.constraints,
+   input_field_formatter, :input, resource_lookup)` maps nested client keys back, the
+   same type-driven path RPC inputs use: typed maps, `typescript_field_names`, embedded
+   resources, union unwrapping (a thrown union error → "is invalid"). Untyped maps pass
+   through unchanged. Then `Ash.Type.cast_input/3` runs; invalid → 422 error
 7. **Apply constraints** via `Ash.Type.apply_constraints/3` — trims strings per `trim?`,
    converts `""` → `nil` under `allow_empty?: false`, and enforces declared constraints
    (`min_length`, `match`, `min`/`max`, …)
 8. **Re-check `allow_nil?`** on the constrained value — an argument constrained to `nil`
    (e.g. `""` on a required string) fails with `"is required"`
-9. **Dispatch** to handler with atom-keyed params map: `fn.(conn, params)` or `module.run(conn, params)`
+9. **Dispatch** to handler with atom-keyed params map: `fn.(conn, params)` or `module.run(conn, params)`.
+   The route struct is stored in `conn.private[:ash_typescript_route]` for
+   `AshTypescript.TypedController.json/2` / `format_result/2`, which format a result with
+   `ValueFormatter` (`:output`, `output_field_formatter`) against `route.returns`
 10. **Return** the `%Plug.Conn{}` directly — no `{:ok, conn}` wrapping needed
 
 Steps 6–8 mirror Ash's action-argument semantics exactly — the same cast → constrain →
@@ -190,6 +202,8 @@ end
 | `namespace` | string | No | - | Namespace for this route (overrides controller-level namespace) |
 | `zod_schema_name` | string | No | - | Override generated Zod schema name (avoids collisions with RPC) |
 | `valibot_schema_name` | string | No | - | Override generated Valibot schema name (avoids collisions with RPC) |
+| `returns` | Ash type | No | - | JSON response body type → exported `{Route}Result` TS type. Plain data only (no resources/unions). Declarative only — the handler still sends the body |
+| `constraints` | keyword | No | `[]` | Constraints for `returns`; validated/folded at compile time like argument constraints |
 
 ### Argument Options
 
@@ -226,6 +240,7 @@ Typed controllers are validated at compile time with these constraints:
 - **Handlers required** — every route must have a `run` handler
 - **Valid argument types** — all argument types must be valid Ash types
 - **Valid names for TypeScript** — route and argument names must not contain `_1`-style patterns or `?` characters (uses `AshTypescript.NameValidation`, the same helper the resource verifiers use)
+- **Valid argument/`returns` types** — `FoldArgumentConstraints` rejects types that aren't Ash types (`Ash.Type.ash_type?/1`) with a DslError
 - **Valid argument constraints** — constraints are validated and folded against the type's constraint schema by the `FoldArgumentConstraints` transformer, so invalid constraints are compile errors exactly as in Ash. Folding also makes type defaults explicit (`allow_empty?: false`, `trim?: true` for strings), which is what drives the derived `min(1)` in route Zod/Valibot schemas and the runtime trimming/nulling behavior.
 
 Path parameters are also validated at codegen time:
@@ -357,6 +372,70 @@ export async function updateProvider(
 }
 ```
 
+### Result Types (`returns`)
+
+Routes declaring `returns` get `export type {Route}Result = ...` (name from
+`Codegen.route_result_type_name/2`, scope-prefixed for multi-mount), rendered for
+**every** route, GET included and in `:paths_only` mode. Mutation functions of such
+routes return `Promise<TypedControllerResponse<{Route}Result>>` instead of
+`Promise<Response>`.
+
+- **GET routes with `returns` get a fetch function** (`search(query, config)`) in
+  `:full` mode, via `RouteRenderer.render_get_fetch_function/1`. It takes the path
+  helper's params (`path`/positional per `typed_controller_path_params_style`, then
+  `query`) plus `config`, and calls the path helper for the URL. Path/query
+  serialization and `_basePath` therefore live in one place, and the base path is
+  never applied twice. GET routes without `returns` stay path-helper only.
+- `Codegen.fetch_function?/1` is the single rule for "has a fetch function" (full
+  mode and mutation, or GET with `returns`). It's used by the renderer,
+  `collect_route_exports/1` and both manifests (`functionName` / Function column).
+- `executeTypedControllerRequest` sends `Content-Type: application/json` only when
+  there is a body.
+
+- Their fetch functions pass `{ Accept: "application/json" }` as the trailing
+  `defaultHeaders` argument of `executeTypedControllerRequest`. It's merged after
+  `Content-Type` and before `config.headers`, so callers can override it. Routes
+  without `returns` omit the argument.
+- `TypedControllerResponse<T>` (emitted by `TypescriptStatic` in `:full` mode) is a
+  union discriminated on `ok`: `json(): Promise<T>` when `ok: true`, `Promise<unknown>`
+  otherwise. A plain `Response` is assignable to it, so no cast is needed.
+- **Plain data only.** `FoldArgumentConstraints.validate_return_type/2` walks the
+  resolved type and rejects resources/embedded resources (the caller can't control
+  what the handler loads) and unions (their TS output types are field-selection
+  shapes), at any depth and with a path in the error (e.g. `[].metadata`). Recursive
+  NewTypes are rejected too.
+- **Field names must be valid TS names.** `VerifyTypedController` walks `returns` and
+  every argument type (same shape as `map_route_result_type/2`) and rejects field names
+  with `?` or `_<digit>`, or that fail `NameValidation.identifier?/1`, with a path in the
+  error. There is deliberately no route-level name mapping: handlers send/receive bodies
+  as-is. A type's own `typescript_field_names/0` is honored, as for RPC; an invalid
+  *mapped* name is reported against the mapping.
+- **Enforcement.** Spark reports verifier failures as compile warnings only.
+  `Orchestrator.generate/2` re-runs them through `VerifierChecker` for every configured
+  typed controller and typed channel (independent of RPC output), so codegen fails.
+- **Route-only named types.** A NewType referenced only by routes isn't in the manifest
+  type lookup. `Introspection.named_type_definition/1` (used by `TypeMapper`, `SchemaCore`,
+  `ValueFormatter`) falls back to `TypeResolver.resolve_definition/1` for such types.
+- The type comes from `TypeMapper.map_route_result_type/2`: plain wire types (no
+  `__type`/`__primitiveFields` field-selection metadata). It recurses through arrays
+  and typed maps/structs, applying `typescript_field_names` and the output field
+  formatter. Containers without `fields` map to `AshTypescript.untyped_map_type()`.
+  NewType/enum `:type_ref`s are expanded via `TypeResolver.resolve_definition/1`, **not**
+  the manifest `type_lookup`, because a type used only by a route isn't reachable
+  from RPC. Enums become inline literal unions, so result types never depend on
+  types in `ash_types.ts` beyond scalar aliases (`UUID`, `UtcDateTime`, …).
+- `returns` doesn't enforce anything: `RequestHandler` never checks the handler's
+  response. Handlers opt in to matching output via `AshTypescript.TypedController.json/2`.
+- `FoldArgumentConstraints` runs `Ash.Type.init/2` after validation, for arguments and
+  `returns`, as Ash does for action arguments. This merges a NewType's own constraints
+  (its `fields`) and resolves nested field types (`:uuid` → `Ash.Type.UUID`). Without it,
+  casting silently skips nested values of NewType arguments.
+- `ValueFormatter`'s `:type_ref` dispatch falls back to
+  `TypeResolver.resolve_definition/1` for named types missing from the manifest (types
+  used only by typed controllers).
+- Result types are listed in namespace re-exports (`:type`), the JSON manifest
+  (`types.result`) and the Markdown manifest (`Result Type` column).
+
 ### Function Parameter Order
 
 1. **Path object** (if route has path parameters): `path: { param: string }`
@@ -373,7 +452,7 @@ export async function updateProvider(
 
 ### Function Naming
 
-| Scenario | GET | Mutation |
+| Scenario | Path helper (all routes) | Fetch function (mutations, GET with `returns`) |
 |----------|-----|---------|
 | Single mount | `actionNamePath` | `actionName` |
 | Multi-mount | `scopePrefixActionNamePath` | `scopePrefixActionName` |
@@ -410,8 +489,9 @@ Route exports are categorized as:
 - `:zod_value` — Zod schema constants
 - `:valibot_value` — Valibot schema constants
 
-Path helpers are exported for every route; the action function and named input
-type only for mutation routes in `:full` mode; the `:zod_value`/`:valibot_value`
+Path helpers are exported for every route; the fetch function per
+`Codegen.fetch_function?/1`; the named input type only for mutation routes in
+`:full` mode; the result type for every route declaring `returns`; the `:zod_value`/`:valibot_value`
 schemas for every route with non-path arguments (matching what
 `RouteRenderer` actually renders). The same predicate drives both manifests.
 
@@ -458,7 +538,7 @@ config :ash_typescript,
 
 This is useful when mutations are handled via a different client library or directly with `fetch`. In `:full` mode (the default), mutation routes generate both a path helper and a typed async fetch function.
 
-**Implementation**: `RouteRenderer.render_no_zod/2` checks `AshTypescript.typed_controller_mode()` — when `:paths_only` or when the route is a GET, only the path helper is rendered.
+**Implementation**: `RouteRenderer.render_no_zod/2` renders a fetch function only when `Codegen.fetch_function?/1` holds (`:full` mode and a mutation route or a GET route with `returns`); otherwise only the path helper (and any result type) is rendered.
 
 ## TypescriptStatic Code Generation
 
@@ -623,7 +703,7 @@ The `Orchestrator` coordinates all file generation (types, Zod, Valibot, RPC, ro
 | `lib/ash_typescript/typed_controller/info.ex` | Spark introspection helpers |
 | `lib/ash_typescript/typed_controller/route.ex` | Route handler behaviour |
 | `lib/ash_typescript/typed_controller/request_handler.ex` | Phoenix→handler request bridge |
-| `lib/ash_typescript/typed_controller/transformers/fold_argument_constraints.ex` | Compile-time validation + folding of route-argument constraints |
+| `lib/ash_typescript/typed_controller/transformers/fold_argument_constraints.ex` | Compile-time validation + folding of route-argument and `returns` constraints |
 | `lib/ash_typescript/typed_controller/transformers/generate_controller.ex` | Compile-time controller module generation |
 | `lib/ash_typescript/typed_controller/verifiers/verify_typed_controller.ex` | Compile-time validation |
 | `lib/ash_typescript/typed_controller/codegen.ex` | Codegen orchestration entry point (namespace grouping, export collection) |

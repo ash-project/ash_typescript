@@ -242,6 +242,8 @@ end
 | `namespace` | string | No | — | Namespace for this route (overrides controller-level namespace) |
 | `zod_schema_name` | string | No | — | Override generated Zod schema name (avoids collisions with RPC) |
 | `valibot_schema_name` | string | No | — | Override generated Valibot schema name (avoids collisions with RPC) |
+| `returns` | Ash type | No | — | Type of the JSON response body, used to generate a TypeScript result type. Plain data types only. See [Response Types](#response-types) |
+| `constraints` | keyword | No | `[]` | Constraints for the `returns` type (e.g. `fields` for a `:map`). Validated against `Ash.Type.constraints/1` at compile time |
 
 ### `argument` Options
 
@@ -307,11 +309,11 @@ Handlers **must** return a `%Plug.Conn{}` struct. Returning anything else result
 
 When a request hits a typed controller route, AshTypescript automatically:
 
-1. **Strips** Phoenix internal params (`_format`, `action`, `controller`, params starting with `_`)
-2. **Normalizes** camelCase param keys to snake_case
+1. **Resolves** param keys to argument names. A key matching an argument's generated client name (from your `output_field_formatter`) maps to that argument; any other key is parsed with your `input_field_formatter`. That also covers router path params, which arrive under their segment name (`:user_id`). Two keys resolving to the same name are rejected with a 422
+2. **Strips** Phoenix internal params (`_format`, `action`, `controller`, params starting with `_`)
 3. **Extracts** only declared arguments (undeclared params are dropped)
 4. **Validates** required arguments (`allow_nil?: false`) — missing args produce 422 errors
-5. **Casts** values using `Ash.Type.cast_input/3` — invalid values produce 422 errors
+5. **Formats and casts** values. Nested keys are converted per the argument's type, as for RPC action inputs: typed maps use the `input_field_formatter`, `typescript_field_names` mappings and embedded resource field names are reversed, wrapped union input is unwrapped, and untyped maps are passed through as sent. Values are then cast with `Ash.Type.cast_input/3`, and invalid values produce 422 errors
 6. **Applies constraints** using `Ash.Type.apply_constraints/3` — violations (e.g. `min_length`, `match`, `min`/`max`) produce 422 errors. This follows Ash string semantics: strings are trimmed by default (`trim?: true`), and `""` on a nilable string is normalized to `nil` (on a required string it produces a 422 "is required")
 7. **Dispatches** to the handler with atom-keyed params
 
@@ -545,6 +547,119 @@ export async function updateProvider(
 ```
 
 Path parameters are excluded from the input type and placed in the `path` parameter.
+
+### Response Types
+
+Declare `returns` (and optionally `constraints`) on a route to type its response
+body, using the same type and constraints syntax as an Ash generic action:
+
+```elixir
+post :login do
+  argument :code, :string, allow_nil?: false
+
+  returns :map
+
+  constraints fields: [
+                user_id: [type: :uuid, allow_nil?: false],
+                remember_me: [type: :boolean]
+              ]
+
+  run fn conn, params ->
+    user = log_in!(params.code)
+    json(conn, %{userId: user.id, rememberMe: params.remember_me})
+  end
+end
+```
+
+```typescript
+export type LoginResult = {userId: UUID, rememberMe: boolean | null};
+
+export async function login(
+  input: LoginInput,
+  config?: TypedControllerConfig,
+): Promise<TypedControllerResponse<LoginResult>> { ... }
+```
+
+Fetch functions of routes declaring `returns` send `Accept: application/json`, since
+the route is declared to respond with JSON. Headers you pass in `config.headers`
+take precedence, so you can still override it per request.
+
+`TypedControllerResponse<T>` is a `Response` whose `json()` is typed as `T` once
+you have checked `ok`. Failed responses (validation errors, server errors, or any
+non-2xx status your handler sends) have an `unknown` body:
+
+```typescript
+const response = await login({ code });
+
+if (response.ok) {
+  const { userId } = await response.json(); // LoginResult
+} else {
+  const body = await response.json(); // unknown
+}
+```
+
+`returns` describes plain JSON data, so only these types are supported, at any depth:
+
+| Ash type | TypeScript |
+|----------|------------|
+| Primitives (`:string`, `:integer`, `:float`, `:boolean`, `:uuid`, dates, …) | The matching scalar type (`string`, `number`, `UUID`, …) |
+| `:atom` with `one_of`, `Ash.Type.Enum` modules | String literal union (`"ok" \| "pending"`) |
+| `:map`, `:keyword`, `:tuple`, `:struct` **with** `fields` constraints | Object type with exactly those fields (`allow_nil?` fields become `T \| null`) |
+| The same **without** `fields` constraints | `Record<string, any>` (or your `untyped_map_type`) |
+| `{:array, inner}` | `Array<inner>` |
+| `Ash.Type.NewType` of any of the above | Expanded inline |
+
+Resources and embedded resources are rejected at compile time. The handler decides
+what it loads, so the caller can't select fields the way RPC actions allow. Unions
+are rejected too. Model those results as typed maps instead.
+
+Field names inside `fields` constraints must be representable in TypeScript, since
+the body is sent as-is: names with a `?` or an underscore before a digit
+(`is_active?`, `line_1`), or that aren't valid identifiers (`:"foo-bar"`), are
+rejected. Rename them (`is_active`, `line1`). The same applies to fields inside
+argument types.
+
+The handler still sends the response itself. To make the body match the generated
+result type, send it with `AshTypescript.TypedController.json/2`. It formats the data
+against the route's `returns` type, applying your `output_field_formatter` and any
+`typescript_field_names` mappings at every level:
+
+```elixir
+run fn conn, params ->
+  user = log_in!(params.code)
+  AshTypescript.TypedController.json(conn, %{user_id: user.id, remember_me: params.remember_me})
+end
+# => {"userId": "…", "rememberMe": true}
+```
+
+Pass maps with atom keys for typed containers. For a non-200 status, call
+`Plug.Conn.put_status/2` first. To format without sending, use
+`AshTypescript.TypedController.format_result/2`. Both raise if the route has no
+`returns`. If you send the body some other way, matching the declared type is up to you.
+
+Routes without `returns` keep returning a plain `Promise<Response>`.
+
+#### GET Routes with `returns`
+
+A GET route that declares `returns` is a JSON endpoint, so in `:full` mode it gets a
+fetch function next to its path helper. The function takes the path helper's
+parameters plus `config`, and builds the URL by calling the helper:
+
+```typescript
+export async function search(
+  query: { q: string; page?: number | null },
+  config?: TypedControllerConfig,
+): Promise<TypedControllerResponse<SearchResult>> {
+  return executeTypedControllerRequest(searchPath(query), "GET", "search", undefined, config, { Accept: "application/json" });
+}
+```
+
+GET requests carry no body, so no `Content-Type` header is sent. Hooks, `customFetch`,
+`fetchOptions` and `config.headers` behave exactly as they do for mutation routes.
+
+GET routes **without** `returns` (page renders, redirects, …) still only get a path
+helper. In `:paths_only` mode no route gets a fetch function, but result types are
+still exported, so you can type the body when fetching a path helper's URL yourself.
 
 ### Function Parameter Order
 
@@ -933,8 +1048,13 @@ AshTypescript validates typed controllers at compile time:
 
 - **Unique route names** — no duplicates within a module
 - **Handlers present** — every route must have a `run` handler
-- **Valid argument types** — all types must be valid Ash types
-- **Valid names for TypeScript** — route and argument names must not contain `_1`-style patterns or `?` characters
+- **Valid argument and `returns` types** — all types must be valid Ash types, and their constraints must be valid for the type
+- **Valid names for TypeScript** — route and argument names must be valid identifiers without `_1`-style patterns or `?` characters
+- **Valid field names for TypeScript** — the same applies to field names inside `returns` and argument types (`fields` constraints, at any depth)
+
+Like other Spark verifiers, these checks are reported as warnings when the module
+compiles (so `mix compile --warnings-as-errors` fails), and `mix ash_typescript.codegen`
+fails with the same errors instead of generating code.
 
 Path parameters are also validated at codegen time:
 

@@ -100,6 +100,14 @@ defmodule MyApp.Session do
       valibot_schema_name "loginRouteValibotSchema"
     end
 
+    # Declared JSON response → `{Route}Result` TS type + typed fetch function (GET too).
+    # Plain data only (no resources/unions); `json/2` formats per output_field_formatter
+    get :current_user do
+      returns :map
+      constraints fields: [user_id: [type: :uuid, allow_nil?: false]]
+      run fn conn, _params -> AshTypescript.TypedController.json(conn, %{user_id: "..."}) end
+    end
+
     # Method defaults to :get when omitted. Arguments accept any Ash type form,
     # arrays included; GET args become query params (`?tags[]=a&tags[]=b`)
     route :home do
@@ -458,7 +466,8 @@ mix credo --strict                   # Linting
 | "allowed_loads contains invalid load paths" | `allowed_loads`/`denied_loads` entry isn't a loadable public field | Fix the path; nested keys validated against the relationship destination |
 | "show_metadata contains unknown metadata fields" | `show_metadata` names a field the action's `metadata` doesn't define | Only list declared metadata fields |
 | Path param without matching argument | Router path has `:param` but no DSL argument | Add `argument :param, :string` to the route definition |
-| Invalid names for TypeScript (controller) | Route/argument names with `_1` or `?` | Rename to avoid patterns that produce awkward camelCase |
+| Invalid names for TypeScript (controller) | Route/argument names with `_1` or `?`, or that aren't valid identifiers (`:"foo-bar"`) | Rename to avoid patterns that produce awkward camelCase |
+| "Invalid field names found in typed controller route types" | A `fields` constraint (in `returns` or an argument type, at any depth) has a name with `_1` or `?`, or one that isn't a valid identifier — or a type's `typescript_field_names/0` maps a field to such a name | Rename the field (or fix the mapping) — route bodies are sent as-is, so there is no route-level name mapping. Spark only warns at compile time; codegen fails |
 | `allow_nil?: true` on always-present path param | Path param always provided by router | Set `allow_nil?: false` on the argument |
 | `allow_nil?: false` on sometimes-present path param | Path param only at some mounts | Set `allow_nil?: true` (default) on the argument |
 | "AshTypescript.TypedChannel is being used in module X without `use Phoenix.Channel`" | Typed channel module isn't a Phoenix channel, so payload interception can't be injected | Add `use Phoenix.Channel` and a `join/3` to the module |
@@ -586,3 +595,184 @@ mix test                             # Run Elixir tests (do NOT prefix with MIX_
 
 ---
 **🎯 Primary Goal**: Generate type-safe TypeScript clients from Ash resources with full feature support and optimal developer experience.
+
+<!-- usage-rules-start -->
+<!-- ash-start -->
+## ash usage
+_A declarative, extensible framework for building Elixir applications._
+
+@deps/ash/usage-rules.md
+<!-- ash-end -->
+<!-- ash:actions-start -->
+## ash:actions usage
+@deps/ash/usage-rules/actions.md
+<!-- ash:actions-end -->
+<!-- ash:aggregates-start -->
+## ash:aggregates usage
+@deps/ash/usage-rules/aggregates.md
+<!-- ash:aggregates-end -->
+<!-- ash:authorization-start -->
+## ash:authorization usage
+@deps/ash/usage-rules/authorization.md
+<!-- ash:authorization-end -->
+<!-- ash:calculations-start -->
+## ash:calculations usage
+@deps/ash/usage-rules/calculations.md
+<!-- ash:calculations-end -->
+<!-- ash:code_interfaces-start -->
+## ash:code_interfaces usage
+@deps/ash/usage-rules/code_interfaces.md
+<!-- ash:code_interfaces-end -->
+<!-- ash:code_structure-start -->
+## ash:code_structure usage
+@deps/ash/usage-rules/code_structure.md
+<!-- ash:code_structure-end -->
+<!-- ash:data_layers-start -->
+## ash:data_layers usage
+@deps/ash/usage-rules/data_layers.md
+<!-- ash:data_layers-end -->
+<!-- ash:exist_expressions-start -->
+## ash:exist_expressions usage
+@deps/ash/usage-rules/exist_expressions.md
+<!-- ash:exist_expressions-end -->
+<!-- ash:generating_code-start -->
+## ash:generating_code usage
+@deps/ash/usage-rules/generating_code.md
+<!-- ash:generating_code-end -->
+<!-- ash:migrations-start -->
+## ash:migrations usage
+@deps/ash/usage-rules/migrations.md
+<!-- ash:migrations-end -->
+<!-- ash:query_filter-start -->
+## ash:query_filter usage
+@deps/ash/usage-rules/query_filter.md
+<!-- ash:query_filter-end -->
+<!-- ash:querying_data-start -->
+## ash:querying_data usage
+@deps/ash/usage-rules/querying_data.md
+<!-- ash:querying_data-end -->
+<!-- ash:relationships-start -->
+## ash:relationships usage
+@deps/ash/usage-rules/relationships.md
+<!-- ash:relationships-end -->
+<!-- ash:testing-start -->
+## ash:testing usage
+@deps/ash/usage-rules/testing.md
+<!-- ash:testing-end -->
+<!-- ash_authentication-start -->
+## ash_authentication usage
+_Authentication extension for the Ash Framework._
+
+@deps/ash_authentication/usage-rules.md
+<!-- ash_authentication-end -->
+<!-- ash_phoenix-start -->
+## ash_phoenix usage
+_Utilities for integrating Ash and Phoenix_
+
+@deps/ash_phoenix/usage-rules.md
+<!-- ash_phoenix-end -->
+<!-- ash_phoenix:best_practices-start -->
+## ash_phoenix:best_practices usage
+@deps/ash_phoenix/usage-rules/best_practices.md
+<!-- ash_phoenix:best_practices-end -->
+<!-- ash_phoenix:debugging_form_submissions-start -->
+## ash_phoenix:debugging_form_submissions usage
+@deps/ash_phoenix/usage-rules/debugging_form_submissions.md
+<!-- ash_phoenix:debugging_form_submissions-end -->
+<!-- ash_phoenix:error_handling-start -->
+## ash_phoenix:error_handling usage
+@deps/ash_phoenix/usage-rules/error_handling.md
+<!-- ash_phoenix:error_handling-end -->
+<!-- ash_phoenix:form_integration-start -->
+## ash_phoenix:form_integration usage
+@deps/ash_phoenix/usage-rules/form_integration.md
+<!-- ash_phoenix:form_integration-end -->
+<!-- ash_phoenix:nested_forms-start -->
+## ash_phoenix:nested_forms usage
+@deps/ash_phoenix/usage-rules/nested_forms.md
+<!-- ash_phoenix:nested_forms-end -->
+<!-- ash_phoenix:union_forms-start -->
+## ash_phoenix:union_forms usage
+@deps/ash_phoenix/usage-rules/union_forms.md
+<!-- ash_phoenix:union_forms-end -->
+<!-- ash_postgres-start -->
+## ash_postgres usage
+_The PostgreSQL data layer for Ash Framework_
+
+@deps/ash_postgres/usage-rules.md
+<!-- ash_postgres-end -->
+<!-- ash_postgres:advanced_features-start -->
+## ash_postgres:advanced_features usage
+@deps/ash_postgres/usage-rules/advanced_features.md
+<!-- ash_postgres:advanced_features-end -->
+<!-- ash_postgres:best_practices-start -->
+## ash_postgres:best_practices usage
+@deps/ash_postgres/usage-rules/best_practices.md
+<!-- ash_postgres:best_practices-end -->
+<!-- ash_postgres:check_constraints-start -->
+## ash_postgres:check_constraints usage
+@deps/ash_postgres/usage-rules/check_constraints.md
+<!-- ash_postgres:check_constraints-end -->
+<!-- ash_postgres:configuration-start -->
+## ash_postgres:configuration usage
+@deps/ash_postgres/usage-rules/configuration.md
+<!-- ash_postgres:configuration-end -->
+<!-- ash_postgres:custom_indexes-start -->
+## ash_postgres:custom_indexes usage
+@deps/ash_postgres/usage-rules/custom_indexes.md
+<!-- ash_postgres:custom_indexes-end -->
+<!-- ash_postgres:custom_sql_statements-start -->
+## ash_postgres:custom_sql_statements usage
+@deps/ash_postgres/usage-rules/custom_sql_statements.md
+<!-- ash_postgres:custom_sql_statements-end -->
+<!-- ash_postgres:foreign_keys-start -->
+## ash_postgres:foreign_keys usage
+@deps/ash_postgres/usage-rules/foreign_keys.md
+<!-- ash_postgres:foreign_keys-end -->
+<!-- ash_postgres:migrations-start -->
+## ash_postgres:migrations usage
+@deps/ash_postgres/usage-rules/migrations.md
+<!-- ash_postgres:migrations-end -->
+<!-- ash_postgres:multitenancy-start -->
+## ash_postgres:multitenancy usage
+@deps/ash_postgres/usage-rules/multitenancy.md
+<!-- ash_postgres:multitenancy-end -->
+<!-- ex_check-start -->
+## ex_check usage
+_ex_check_
+
+@deps/ex_check/usage-rules.md
+<!-- ex_check-end -->
+<!-- igniter-start -->
+## igniter usage
+_A code generation and project patching framework_
+
+@deps/igniter/usage-rules.md
+<!-- igniter-end -->
+<!-- sobelow-start -->
+## sobelow usage
+_Security-focused static analysis for Elixir & the Phoenix framework_
+
+@deps/sobelow/usage-rules.md
+<!-- sobelow-end -->
+<!-- spark-start -->
+## spark usage
+_Generic tooling for building DSLs_
+
+@deps/spark/usage-rules.md
+<!-- spark-end -->
+<!-- usage_rules-start -->
+## usage_rules usage
+_A config-driven dev tool for Elixir projects to manage AGENTS.md files and agent skills from dependencies_
+
+@deps/usage_rules/usage-rules.md
+<!-- usage_rules-end -->
+<!-- usage_rules:elixir-start -->
+## usage_rules:elixir usage
+@deps/usage_rules/usage-rules/elixir.md
+<!-- usage_rules:elixir-end -->
+<!-- usage_rules:otp-start -->
+## usage_rules:otp usage
+@deps/usage_rules/usage-rules/otp.md
+<!-- usage_rules:otp-end -->
+<!-- usage-rules-end -->

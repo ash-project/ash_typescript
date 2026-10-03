@@ -346,18 +346,21 @@ The manifest includes a `version` field (currently `"1.0"`) using semver so cons
       "path": "/auth/login",
       "pathParams": [],
       "mutation": true,
-      "types": { "input": "LoginInput", "zod": "loginZodSchema", "valibot": "loginValibotSchema" }
+      "types": { "input": "LoginInput", "result": "LoginResult", "zod": "loginZodSchema", "valibot": "loginValibotSchema" }
     }
   ]
 }
 ```
 
 Every typed controller route appears in `typedControllerRoutes`, including GET path
-helpers (`"mutation": false`). A route carries a `types` object when it has
-anything to advertise: `"input"` only for mutation routes (the named input type
-belongs to the fetch function), but `"zod"`/`"valibot"` for **any** route with
-non-path arguments — GET query params get schemas too. Routes with no non-path
-arguments have no `types` key at all.
+helpers (`"mutation": false`). `functionName` is the fetch function when the route
+has one (`Codegen.fetch_function?/1`: mutations, and GET routes declaring `returns`,
+in `:full` mode), otherwise the path helper. A route carries a `types` object when it has
+anything to advertise: `"input"` only for mutation routes in `:full` mode (the named input type
+belongs to the fetch function), `"result"` for any route declaring `returns`
+(GET included), and `"zod"`/`"valibot"` for **any** route with non-path
+arguments — GET query params get schemas too. Routes with nothing to advertise
+have no `types` key at all.
 
 The route-level `"zod"` and `"valibot"` names honor a route's `zod_schema_name` /
 `valibot_schema_name` overrides; the single sources of truth are
