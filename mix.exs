@@ -28,7 +28,17 @@ defmodule AshTypescript.MixProject do
       dialyzer: [
         plt_add_apps: [:mix]
       ],
+      usage_rules: usage_rules(),
       consolidate_protocols: Mix.env() != :test
+    ]
+  end
+
+  # Read by `mix usage_rules.sync` (and its `--check` run in `mix check`):
+  # link every dependency's usage rules into AGENTS.md as `@deps/...` references.
+  defp usage_rules do
+    [
+      file: "AGENTS.md",
+      usage_rules: {:all, link: :at}
     ]
   end
 
@@ -221,9 +231,7 @@ defmodule AshTypescript.MixProject do
         "docs",
         "spark.replace_doc_links"
       ],
-      sync_usage_rules: [
-        "usage_rules.sync AGENTS.md --all --link-to-folder deps --link-style at"
-      ],
+      sync_usage_rules: ["usage_rules.sync"],
       credo: "credo --strict",
       "spark.formatter":
         "spark.formatter --extensions AshTypescript.Rpc,AshTypescript.Resource,AshTypescript.TypedController.Dsl,AshTypescript.TypedChannel.Dsl",
