@@ -55,6 +55,24 @@ defmodule AshTypescript.TypedController.CodegenTest do
       assert String.contains?(typescript, "export type AppLoginInput = {")
     end
 
+    test "GET fetch functions pass path and query params through to the path helper", %{
+      typescript: typescript
+    } do
+      # :user_id is a path param at the admin mount only
+      assert String.contains?(
+               typescript,
+               "export async function adminProfile(path: { userId: string }, " <>
+                 "query?: { bio?: string | null }, config?: TypedControllerConfig): " <>
+                 "Promise<TypedControllerResponse<AdminProfileResult>> {\n" <>
+                 "  return executeTypedControllerRequest(adminProfilePath(path, query), "
+             )
+
+      assert String.contains?(
+               typescript,
+               "executeTypedControllerRequest(appProfilePath(query), "
+             )
+    end
+
     test "generates prefixed PATCH functions for each scope", %{typescript: typescript} do
       assert String.contains?(typescript, "export async function adminUpdateProvider(")
       assert String.contains?(typescript, "export async function appUpdateProvider(")
@@ -178,6 +196,11 @@ defmodule AshTypescript.TypedController.CodegenTest do
       end
     end
 
+    test "GET routes without returns get no fetch function", %{typescript: typescript} do
+      refute String.contains?(typescript, "export async function auth(")
+      refute String.contains?(typescript, "export async function providerPage(")
+    end
+
     test "generates JSDoc for path helpers", %{typescript: typescript} do
       assert String.contains?(typescript, "Path helper for /auth")
       assert String.contains?(typescript, "Path helper for /auth/providers/:provider")
@@ -230,6 +253,143 @@ defmodule AshTypescript.TypedController.CodegenTest do
     test "generates path helper alongside logout action function", %{typescript: typescript} do
       assert String.contains?(typescript, "export function logoutPath(")
       assert String.contains?(typescript, "return \"/auth/logout\"")
+    end
+  end
+
+  describe "route result types" do
+    test "exports a plain object result type for map returns", %{typescript: typescript} do
+      assert String.contains?(
+               typescript,
+               "export type LoginResult = {userId: UUID, rememberMe: boolean | null, " <>
+                 "session: {expiresAt: UtcDateTime | null}};"
+             )
+    end
+
+    test "maps NewType fields through typescript_field_names without selection metadata", %{
+      typescript: typescript
+    } do
+      assert String.contains?(
+               typescript,
+               "export type UpdateProviderResult = {field1: string, isActive: boolean, line2: string | null};"
+             )
+
+      refute typescript =~ ~r/export type \w+Result = .*__type/
+    end
+
+    test "maps primitive returns directly", %{typescript: typescript} do
+      assert String.contains?(typescript, "export type CreateTaskResult = number;")
+    end
+
+    test "maps a map without fields constraints to the untyped map type", %{
+      typescript: typescript
+    } do
+      assert String.contains?(typescript, "export type ProfileResult = Record<string, any>;")
+    end
+
+    test "expands NewTypes not reachable from RPC, with inline enums and untyped nested maps",
+         %{typescript: typescript} do
+      assert String.contains?(
+               typescript,
+               "export type RegisterResult = {totalCount: number, " <>
+                 ~s[status: "ok" | "pending", extra: Record<string, any> | null};]
+             )
+    end
+
+    test "exports result types for GET routes", %{typescript: typescript} do
+      assert String.contains?(
+               typescript,
+               "export type SearchResult = Array<{id: UUID, title: string | null, tagNames: Array<string>}>;"
+             )
+    end
+
+    test "action functions of routes declaring returns resolve to a typed response", %{
+      typescript: typescript
+    } do
+      assert String.contains?(
+               typescript,
+               "export async function login(input: LoginInput, config?: TypedControllerConfig): " <>
+                 "Promise<TypedControllerResponse<LoginResult>> {"
+             )
+
+      assert String.contains?(
+               typescript,
+               "Promise<TypedControllerResponse<UpdateProviderResult>>"
+             )
+    end
+
+    test "action functions of routes declaring returns request JSON", %{typescript: typescript} do
+      assert String.contains?(
+               typescript,
+               ~s[return executeTypedControllerRequest("/auth/login", "POST", "login", ] <>
+                 ~s[JSON.stringify(input), config, { Accept: "application/json" });]
+             )
+    end
+
+    test "GET routes declaring returns get a fetch function built on the path helper", %{
+      typescript: typescript
+    } do
+      assert String.contains?(
+               typescript,
+               "export async function search(query: { q: string; page?: number | null; " <>
+                 "tags?: Array<string> | null }, config?: TypedControllerConfig): " <>
+                 "Promise<TypedControllerResponse<SearchResult>> {\n" <>
+                 ~s[  return executeTypedControllerRequest(searchPath(query), "GET", "search", ] <>
+                 ~s[undefined, config, { Accept: "application/json" });]
+             )
+
+      # All-optional query args keep the query parameter optional
+      assert String.contains?(
+               typescript,
+               "export async function profile(query?: { userId?: string | null; " <>
+                 "bio?: string | null }, config?: TypedControllerConfig): " <>
+                 "Promise<TypedControllerResponse<ProfileResult>> {"
+             )
+
+      assert String.contains?(typescript, " * GET /search\n")
+    end
+
+    test "routes without returns send no Accept header", %{typescript: typescript} do
+      assert String.contains?(
+               typescript,
+               ~s[return executeTypedControllerRequest("/auth/logout", "POST", "logout", undefined, config);]
+             )
+    end
+
+    test "helper sends Content-Type only with a body and merges default headers before config headers",
+         %{typescript: typescript} do
+      assert String.contains?(typescript, "defaultHeaders?: Record<string, string>,")
+
+      assert typescript =~
+               ~r/\.\.\.\(body !== undefined \? \{ "Content-Type": "application\/json" \} : \{\}\),\s+\.\.\.defaultHeaders,\s+\.\.\.processedConfig\.headers,/
+    end
+
+    test "routes without returns keep resolving to a plain Response", %{typescript: typescript} do
+      assert String.contains?(
+               typescript,
+               "export async function logout(config?: TypedControllerConfig): Promise<Response> {"
+             )
+
+      refute String.contains?(typescript, "LogoutResult")
+    end
+
+    test "generates the TypedControllerResponse type discriminated on ok", %{
+      typescript: typescript
+    } do
+      assert String.contains?(typescript, "export type TypedControllerResponse<T> =")
+
+      assert String.contains?(
+               typescript,
+               ~s[(Omit<Response, "ok" | "json"> & { ok: true; json(): Promise<T> })]
+             )
+
+      assert String.contains?(
+               typescript,
+               ~s[(Omit<Response, "ok" | "json"> & { ok: false; json(): Promise<unknown> })]
+             )
+    end
+
+    test "imports shared types referenced only by result types", %{typescript: typescript} do
+      assert typescript =~ ~r/import type \{[^}]*\bUtcDateTime\b[^}]*\} from/
     end
   end
 
@@ -524,6 +684,21 @@ defmodule AshTypescript.TypedController.CodegenTest do
       %{typescript: typescript}
     end
 
+    test "GET fetch functions pass positional path params through to the path helper" do
+      typescript =
+        CodegenTestHelper.generate_controller_content(
+          router: AshTypescript.Test.ControllerResourceMultiMountRouter
+        )
+
+      assert String.contains?(
+               typescript,
+               "export async function adminProfile(userId: string, " <>
+                 "query?: { bio?: string | null }, config?: TypedControllerConfig): " <>
+                 "Promise<TypedControllerResponse<AdminProfileResult>> {\n" <>
+                 "  return executeTypedControllerRequest(adminProfilePath(userId, query), "
+             )
+    end
+
     test "GET path helper uses flat positional args for path params", %{typescript: typescript} do
       assert String.contains?(typescript, "export function providerPagePath(provider: string,")
       refute String.contains?(typescript, "providerPagePath(path:")
@@ -621,6 +796,18 @@ defmodule AshTypescript.TypedController.CodegenTest do
     test "does not generate TypedControllerConfig or helper", %{typescript: typescript} do
       refute String.contains?(typescript, "TypedControllerConfig")
       refute String.contains?(typescript, "executeTypedControllerRequest")
+      refute String.contains?(typescript, "TypedControllerResponse")
+    end
+
+    test "does not generate fetch functions for GET routes declaring returns", %{
+      typescript: typescript
+    } do
+      refute String.contains?(typescript, "export async function search(")
+    end
+
+    test "still exports result types", %{typescript: typescript} do
+      assert String.contains?(typescript, "export type LoginResult = {")
+      assert String.contains?(typescript, "export type SearchResult = Array<")
     end
   end
 

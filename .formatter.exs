@@ -42,6 +42,7 @@ spark_locals_without_parens = [
   read_action: 1,
   resource: 1,
   resource: 2,
+  returns: 1,
   route: 1,
   route: 2,
   route: 3,

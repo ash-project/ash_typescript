@@ -123,6 +123,17 @@ defmodule AshTypescript.TypedController.NamespaceTest do
       assert "echoParams" in value_names
     end
 
+    test "collects fetch function exports only for GET routes declaring returns", %{
+      route_infos: grouped
+    } do
+      auth_routes = Map.get(grouped, "auth", [])
+      value_names = for {name, :value} <- Codegen.collect_route_exports(auth_routes), do: name
+
+      assert "search" in value_names
+      refute "auth" in value_names
+      refute "providerPage" in value_names
+    end
+
     test "collects validation schema exports for GET routes with query args", %{
       route_infos: grouped
     } do
@@ -142,6 +153,18 @@ defmodule AshTypescript.TypedController.NamespaceTest do
       assert "providerPageZodSchema" in zod_names
       assert "searchValibotSchema" in valibot_names
       assert "providerPageValibotSchema" in valibot_names
+    end
+
+    test "collects result type exports for routes declaring returns", %{route_infos: grouped} do
+      auth_routes = Map.get(grouped, "auth", [])
+      exports = Codegen.collect_route_exports(auth_routes)
+      type_names = for {name, :type} <- exports, do: name
+
+      assert "LoginResult" in type_names
+      assert "UpdateProviderResult" in type_names
+      # Result types are exported for GET routes as well
+      assert "SearchResult" in type_names
+      refute "LogoutResult" in type_names
     end
 
     test "does not collect input types for GET routes", %{route_infos: grouped} do

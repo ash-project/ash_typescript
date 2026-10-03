@@ -465,9 +465,8 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
   defp build_route_entry(info) do
     method = info.method |> to_string() |> String.upcase()
     is_mutation = info.method in @tc_mutation_methods
-    mode = AshTypescript.typed_controller_mode()
 
-    function_name = build_route_function_name(info, is_mutation, mode)
+    function_name = AshTypescript.TypedController.Codegen.route_function_name(info)
 
     path_param_set = MapSet.new(info.path_params)
 
@@ -475,10 +474,14 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
       info.route.arguments
       |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
 
-    # A named input type exists only for the mutation fetch functions, whereas
-    # validation schemas are rendered for any route with non-path arguments
-    # (including GET query params) — mirror both predicates exactly.
-    has_input_type = is_mutation and input_args != []
+    # A named input type exists only for the mutation fetch functions (so not
+    # in :paths_only mode), whereas validation schemas are rendered for any
+    # route with non-path arguments (including GET query params) — mirror both
+    # predicates exactly.
+    has_input_type =
+      is_mutation and input_args != [] and
+        AshTypescript.TypedController.Codegen.fetch_function?(info)
+
     has_schemas = input_args != []
 
     entry = %{
@@ -491,7 +494,18 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
     types =
       %{}
-      |> maybe_put_route_type(has_input_type, "input", fn -> route_input_type_name(info) end)
+      |> maybe_put_route_type(has_input_type, "input", fn ->
+        AshTypescript.TypedController.Codegen.route_input_type_name(
+          info.route,
+          info.scope_prefix
+        )
+      end)
+      |> maybe_put_route_type(info.route.returns != nil, "result", fn ->
+        AshTypescript.TypedController.Codegen.route_result_type_name(
+          info.route,
+          info.scope_prefix
+        )
+      end)
       |> maybe_put_route_type(
         has_schemas and AshTypescript.Rpc.generate_zod_schemas?(),
         "zod",
@@ -518,25 +532,4 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
   defp maybe_put_route_type(types, false, _key, _build), do: types
   defp maybe_put_route_type(types, true, key, build), do: Map.put(types, key, build.())
-
-  defp route_input_type_name(info) do
-    case info.scope_prefix do
-      nil -> Macro.camelize("#{info.route.name}_input")
-      prefix -> Macro.camelize("#{prefix}_#{info.route.name}_input")
-    end
-  end
-
-  defp build_route_function_name(info, is_mutation, mode) do
-    if is_mutation and mode == :full do
-      case info.scope_prefix do
-        nil -> Helpers.format_output_field(info.route.name)
-        prefix -> Helpers.format_output_field(:"#{prefix}_#{info.route.name}")
-      end
-    else
-      case info.scope_prefix do
-        nil -> Helpers.format_output_field(:"#{info.route.name}_path")
-        prefix -> Helpers.format_output_field(:"#{prefix}_#{info.route.name}_path")
-      end
-    end
-  end
 end

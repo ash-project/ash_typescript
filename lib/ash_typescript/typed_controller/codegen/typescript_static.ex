@@ -10,6 +10,7 @@ defmodule AshTypescript.TypedController.Codegen.TypescriptStatic do
   - Import statements (Zod, custom imports)
   - Hook context type definitions
   - TypedControllerConfig interface
+  - TypedControllerResponse type (for routes declaring `returns`)
   - executeTypedControllerRequest helper function
   """
 
@@ -32,9 +33,10 @@ defmodule AshTypescript.TypedController.Codegen.TypescriptStatic do
     base_path_var = generate_base_path_variable(Keyword.get(opts, :base_path, ""))
     hook_context_type = generate_hook_context_type()
     config_interface = generate_config_interface()
+    response_type = generate_response_type()
     helper_function = generate_helper_function()
 
-    [imports, base_path_var, hook_context_type, config_interface, helper_function]
+    [imports, base_path_var, hook_context_type, config_interface, response_type, helper_function]
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n")
   end
@@ -116,6 +118,20 @@ defmodule AshTypescript.TypedController.Codegen.TypescriptStatic do
     """
   end
 
+  # Discriminated on `ok` so the body is only typed as the route's result once
+  # the caller has checked for success — error responses (422 validation
+  # errors, 500s, or anything else the handler sends) stay `unknown`.
+  defp generate_response_type do
+    """
+    /**
+     * A fetch Response whose JSON body is typed as `T` when `ok` is true
+     */
+    export type TypedControllerResponse<T> =
+      | (Omit<Response, "ok" | "json"> & { ok: true; json(): Promise<T> })
+      | (Omit<Response, "ok" | "json"> & { ok: false; json(): Promise<unknown> });
+    """
+  end
+
   defp generate_helper_function do
     before_hook = AshTypescript.typed_controller_before_request_hook()
     after_hook = AshTypescript.typed_controller_after_request_hook()
@@ -162,10 +178,12 @@ defmodule AshTypescript.TypedController.Codegen.TypescriptStatic do
       #{action_name_param}: string,
       body: string | undefined,
       config?: TypedControllerConfig,
+      defaultHeaders?: Record<string, string>,
     ): Promise<Response> {
     #{before_hook_code}
       const headers: Record<string, string> = {
-        "Content-Type": "application/json",
+        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...defaultHeaders,
         ...processedConfig.#{headers_field},
       };
 

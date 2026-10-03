@@ -6,7 +6,9 @@ defmodule AshTypescript.TypedController.RequestHandler do
   @moduledoc """
   Handles request lifecycle for typed controller routes.
 
-  Normalizes params (camelCase → snake_case), extracts and casts declared
+  Resolves request keys to argument names (the generated client name, or the
+  configured `input_field_formatter`), formats nested values type-aware like
+  RPC inputs (reversing `typescript_field_names` mappings), casts declared
   arguments using `Ash.Type.cast_input/3`, validates required arguments,
   then dispatches to the route handler (inline fn/2 or module implementing
   `AshTypescript.TypedController.Route`).
@@ -39,7 +41,10 @@ defmodule AshTypescript.TypedController.RequestHandler do
 
   require Logger
 
+  import AshTypescript.Helpers, only: [format_output_field: 1]
+
   alias AshTypescript.{ErrorFormatter, FieldFormatter}
+  alias AshTypescript.Rpc.ValueFormatter
 
   @doc """
   Handles a route request by extracting, casting, and validating arguments,
@@ -50,11 +55,13 @@ defmodule AshTypescript.TypedController.RequestHandler do
     route = Enum.find(routes, &(&1.name == route_name))
     error_context = %{route: route_name, source_module: source_module}
 
-    case extract_input(params) do
+    case extract_input(params, route.arguments) do
       {:ok, raw_params} ->
         case cast_arguments(route.arguments, raw_params) do
           {:ok, cast_params} ->
-            dispatch(conn, route.run, cast_params, error_context)
+            conn
+            |> put_private(:ash_typescript_route, route)
+            |> dispatch(route.run, cast_params, error_context)
 
           {:error, errors} ->
             send_errors(conn, 422, errors, error_context)
@@ -109,11 +116,13 @@ defmodule AshTypescript.TypedController.RequestHandler do
             type = Ash.Type.get_type(arg.type)
             constraints = arg.constraints || []
 
-            # Mirror Ash's action-argument semantics: cast, then apply type
+            # Mirror Ash's action-argument semantics: map client field names
+            # inside the value back to internal ones, cast, then apply type
             # constraints (e.g. strings: trim, empty -> nil, length checks),
             # then re-check allow_nil? — a constrained-to-nil value (like ""
             # under allow_empty?: false) fails a required argument.
-            with {:ok, cast_value} <- Ash.Type.cast_input(type, raw_value, constraints),
+            with {:ok, value} <- format_input_value(raw_value, arg),
+                 {:ok, cast_value} <- Ash.Type.cast_input(type, value, constraints),
                  {:ok, constrained_value} <-
                    Ash.Type.apply_constraints(type, cast_value, constraints) do
               if is_nil(constrained_value) && !arg.allow_nil? do
@@ -136,6 +145,25 @@ defmodule AshTypescript.TypedController.RequestHandler do
     else
       {:error, Enum.reverse(errors)}
     end
+  end
+
+  # Type-aware, like RPC action inputs: nested keys are parsed with the
+  # configured input formatter, and `typescript_field_names` mappings (typed
+  # structs/NewTypes) and embedded resource field names are reversed. Untyped
+  # maps are passed through as sent. Wrapped union input is unwrapped; an
+  # invalid union shape is thrown by the formatter and becomes a cast error.
+  defp format_input_value(value, arg) do
+    {:ok,
+     ValueFormatter.format(
+       value,
+       arg.type,
+       arg.constraints || [],
+       AshTypescript.input_field_formatter(),
+       :input,
+       AshTypescript.resource_lookup()
+     )}
+  catch
+    :throw, _error -> {:error, "is invalid"}
   end
 
   defp required_error(key) do
@@ -273,54 +301,47 @@ defmodule AshTypescript.TypedController.RequestHandler do
     end
   end
 
-  # Reserved keys are filtered *after* normalization so a client cannot slip a
+  # Each request key is resolved to an internal name: the generated client name
+  # of a declared argument (via the output formatter, exactly as codegen names
+  # it) wins; anything else is parsed with the input formatter — which also
+  # covers router path params, which arrive under their segment name (e.g.
+  # `user_id`). Nested keys are formatted per argument type in `cast_arguments/2`.
+  #
+  # Reserved keys are filtered *after* resolution so a client cannot slip a
   # dropped key back in via a case/style variant (e.g. `Action` folds to
-  # `action`). Collisions are detected during normalization and reported as a
-  # 422 rather than silently resolved.
-  defp extract_input(params) do
-    with {:ok, normalized} <- normalize_keys(params) do
-      filtered =
-        normalized
-        |> Map.drop(["_format", "action", "controller"])
-        |> Map.reject(fn {key, _} -> String.starts_with?(key, "_") end)
-
-      {:ok, filtered}
+  # `action`). Collisions are detected across all keys and reported as a 422
+  # rather than silently resolved.
+  defp extract_input(params, arguments) do
+    with {:ok, resolved} <- resolve_param_keys(params, arguments) do
+      {:ok,
+       resolved
+       |> Map.drop(["_format", "action", "controller"])
+       |> Map.reject(fn {key, _} -> String.starts_with?(key, "_") end)}
     end
   end
 
-  defp normalize_keys(map) when is_map(map) do
-    Enum.reduce_while(map, {:ok, %{}}, fn {key, value}, {:ok, acc} ->
-      normalized_key = Macro.underscore(key)
+  defp resolve_param_keys(params, arguments) do
+    client_names = Map.new(arguments, &{format_output_field(&1.name), to_string(&1.name)})
+    input_formatter = AshTypescript.input_field_formatter()
 
-      if Map.has_key?(acc, normalized_key) do
-        {:halt, {:error, [ambiguous_param_error(normalized_key)]}}
+    Enum.reduce_while(params, {:ok, %{}}, fn {key, value}, {:ok, acc} ->
+      internal_key = resolve_param_key(to_string(key), client_names, input_formatter)
+
+      if Map.has_key?(acc, internal_key) do
+        {:halt, {:error, [ambiguous_param_error(internal_key)]}}
       else
-        case normalize_value(value) do
-          {:ok, normalized_value} ->
-            {:cont, {:ok, Map.put(acc, normalized_key, normalized_value)}}
-
-          {:error, _} = error ->
-            {:halt, error}
-        end
+        {:cont, {:ok, Map.put(acc, internal_key, value)}}
       end
     end)
   end
 
-  defp normalize_value(value) when is_map(value), do: normalize_keys(value)
+  defp resolve_param_key(key, client_names, input_formatter) do
+    case Map.fetch(client_names, key) do
+      {:ok, internal_key} ->
+        internal_key
 
-  defp normalize_value(value) when is_list(value) do
-    value
-    |> Enum.reduce_while({:ok, []}, fn item, {:ok, acc} ->
-      case normalize_value(item) do
-        {:ok, normalized} -> {:cont, {:ok, [normalized | acc]}}
-        {:error, _} = error -> {:halt, error}
-      end
-    end)
-    |> case do
-      {:ok, items} -> {:ok, Enum.reverse(items)}
-      {:error, _} = error -> error
+      :error ->
+        key |> FieldFormatter.parse_input_field(input_formatter) |> to_string()
     end
   end
-
-  defp normalize_value(value), do: {:ok, value}
 end

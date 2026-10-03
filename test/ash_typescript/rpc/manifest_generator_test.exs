@@ -24,6 +24,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
       :generate_phx_channel_rpc_actions,
       :generate_validation_functions,
       :generate_zod_schemas,
+      :typed_controller_mode,
       :typed_controllers
     ])
   end
@@ -544,6 +545,20 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
     end
   end
 
+  describe "ManifestGenerator - typed controller routes section in :paths_only mode" do
+    setup do
+      Application.put_env(:ash_typescript, :typed_controller_mode, :paths_only)
+      on_exit(fn -> Application.delete_env(:ash_typescript, :typed_controller_mode) end)
+      %{manifest: ManifestGenerator.generate_manifest()}
+    end
+
+    test "lists path helpers and no input types, since no fetch functions exist", %{
+      manifest: manifest
+    } do
+      assert manifest =~ "| POST | /auth/login | `loginPath` | - | LoginResult |"
+    end
+  end
+
   describe "ManifestGenerator - typed controller routes section" do
     setup do
       manifest = ManifestGenerator.generate_manifest()
@@ -555,7 +570,14 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
     end
 
     test "includes route table with Method, Path, Function columns", %{manifest: manifest} do
-      assert manifest =~ "| Method | Path | Function | Input Type |"
+      assert manifest =~ "| Method | Path | Function | Input Type | Result Type |"
+    end
+
+    test "lists the result type of routes declaring returns", %{manifest: manifest} do
+      assert manifest =~ "| POST | /auth/login | `login` | LoginInput | LoginResult |"
+      assert manifest =~ "| POST | /auth/logout | `logout` | - | - |"
+      # GET routes declaring returns list their fetch function
+      assert manifest =~ "| GET | /search | `search` | - | SearchResult |"
     end
 
     test "includes route entries for configured routes", %{manifest: manifest} do

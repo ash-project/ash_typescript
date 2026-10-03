@@ -99,6 +99,12 @@ defmodule AshTypescript.TypedController.BasePathTest do
       assert String.contains?(login_path_body, "${_basePath}/auth/login")
     end
 
+    test "GET fetch functions get the base path from the path helper, not twice", %{
+      typescript: typescript
+    } do
+      assert String.contains?(typescript, "executeTypedControllerRequest(searchPath(query), ")
+    end
+
     test "query param paths include base path prefix in variable", %{typescript: typescript} do
       [_, after_search] =
         String.split(typescript, "export function searchPath(", parts: 2)

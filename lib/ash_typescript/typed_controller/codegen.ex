@@ -17,6 +17,24 @@ defmodule AshTypescript.TypedController.Codegen do
     TypescriptStatic
   }
 
+  @mutation_methods [:post, :patch, :put, :delete]
+
+  @doc """
+  Whether a route gets a generated fetch function (in addition to its path helper).
+
+  Only in `:full` mode: every mutation route, and GET routes that declare
+  `returns` — those are JSON endpoints, whereas other GET routes typically
+  render pages and are navigated to rather than fetched.
+
+  Single source of truth for the rule — used by `RouteRenderer`,
+  `collect_route_exports/1`, and both manifest generators.
+  """
+  def fetch_function?(route_info) do
+    AshTypescript.typed_controller_mode() == :full and
+      (route_info.method in @mutation_methods or
+         (route_info.method == :get and route_info.route.returns != nil))
+  end
+
   @doc false
   def resolve_route_infos(router, routes_config) do
     if router do
@@ -339,8 +357,7 @@ defmodule AshTypescript.TypedController.Codegen do
       path_params = info.path_params
       method = info.method
 
-      is_mutation = method in [:post, :patch, :put, :delete]
-      is_full_mode = AshTypescript.typed_controller_mode() == :full
+      is_mutation = method in @mutation_methods
 
       path_param_set = MapSet.new(path_params)
 
@@ -351,22 +368,30 @@ defmodule AshTypescript.TypedController.Codegen do
       path_name = build_export_function_name(route.name, scope_prefix, :path)
       exports = [{path_name, :value}]
 
-      # The named input type belongs to the mutation fetch function, so it only
-      # exists for mutation routes in :full mode. Validation schemas are
-      # rendered for *any* route with non-path arguments (a GET route's query
-      # params are exactly what its path helper takes), so they are exported on
-      # the same terms — see `RouteRenderer.render_validation_schema/3`.
+      # Fetch functions exist per `fetch_function?/1`. The named input type
+      # belongs to the mutation fetch function only — a GET fetch function takes
+      # the path helper's inline `query` object. Validation schemas are rendered
+      # for *any* route with non-path arguments (a GET route's query params are
+      # exactly what its path helper takes), so they are exported on the same
+      # terms — see `RouteRenderer.render_validation_schema/3`.
       exports =
-        if is_mutation and is_full_mode do
+        if fetch_function?(info) do
           action_name = build_export_function_name(route.name, scope_prefix, :action)
           exports = exports ++ [{action_name, :value}]
 
-          if input_args != [] do
-            input_type_name = build_export_input_type_name(route.name, scope_prefix)
+          if is_mutation and input_args != [] do
+            input_type_name = route_input_type_name(route, scope_prefix)
             exports ++ [{input_type_name, :type}]
           else
             exports
           end
+        else
+          exports
+        end
+
+      exports =
+        if route.returns do
+          exports ++ [{route_result_type_name(route, scope_prefix), :type}]
         else
           exports
         end
@@ -412,6 +437,39 @@ defmodule AshTypescript.TypedController.Codegen do
     route.valibot_schema_name ||
       build_route_schema_name(route, scope_prefix, AshTypescript.Rpc.valibot_schema_suffix())
   end
+
+  @doc """
+  Returns the route's primary exported function name: its fetch function when it
+  has one (see `fetch_function?/1`), otherwise its path helper. Used by both
+  manifest generators.
+  """
+  def route_function_name(route_info) do
+    kind = if fetch_function?(route_info), do: :action, else: :path
+    build_export_function_name(route_info.route.name, route_info.scope_prefix, kind)
+  end
+
+  @doc """
+  Returns the exported input type name of a mutation route's fetch function.
+
+  Single source of truth for the name — used by `RouteRenderer`,
+  `collect_route_exports/1`, and both manifest generators.
+  """
+  def route_input_type_name(route, nil), do: Macro.camelize("#{route.name}_input")
+
+  def route_input_type_name(route, scope_prefix),
+    do: Macro.camelize("#{scope_prefix}_#{route.name}_input")
+
+  @doc """
+  Returns the exported result type name for a route that declares `returns`.
+
+  Single source of truth for the name — used by `RouteRenderer` (the export and
+  the action function's return type), `collect_route_exports/1`, and both
+  manifest generators.
+  """
+  def route_result_type_name(route, nil), do: Macro.camelize("#{route.name}_result")
+
+  def route_result_type_name(route, scope_prefix),
+    do: Macro.camelize("#{scope_prefix}_#{route.name}_result")
 
   defp build_route_schema_name(route, scope_prefix, suffix) do
     case scope_prefix do
@@ -465,14 +523,6 @@ defmodule AshTypescript.TypedController.Codegen do
 
   defp build_export_function_name(action_name, scope_prefix, :action) do
     AshTypescript.Helpers.format_output_field(:"#{scope_prefix}_#{action_name}")
-  end
-
-  defp build_export_input_type_name(action_name, nil) do
-    Macro.camelize("#{action_name}_input")
-  end
-
-  defp build_export_input_type_name(action_name, scope_prefix) do
-    Macro.camelize("#{scope_prefix}_#{action_name}_input")
   end
 
   defp is_embedded_resource?(module) when is_atom(module) and not is_nil(module) do

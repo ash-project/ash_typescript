@@ -539,13 +539,13 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
   end
 
   defp build_tc_headers(show_zod, show_valibot) do
-    "| Method | Path | Function | Input Type |"
+    "| Method | Path | Function | Input Type | Result Type |"
     |> maybe_append(" Zod Schema |", show_zod)
     |> maybe_append(" Valibot Schema |", show_valibot)
   end
 
   defp build_tc_separator(show_zod, show_valibot) do
-    "|--------|------|----------|------------|"
+    "|--------|------|----------|------------|-------------|"
     |> maybe_append("------------|", show_zod)
     |> maybe_append("----------------|", show_valibot)
   end
@@ -554,19 +554,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     method = info.method |> to_string() |> String.upcase()
     path = info.path || ""
 
-    function_name =
-      if info.method in @tc_mutation_methods and
-           AshTypescript.typed_controller_mode() == :full do
-        case info.scope_prefix do
-          nil -> Helpers.format_output_field(info.route.name)
-          prefix -> Helpers.format_output_field(:"#{prefix}_#{info.route.name}")
-        end
-      else
-        case info.scope_prefix do
-          nil -> Helpers.format_output_field(:"#{info.route.name}_path")
-          prefix -> Helpers.format_output_field(:"#{prefix}_#{info.route.name}_path")
-        end
-      end
+    function_name = AshTypescript.TypedController.Codegen.route_function_name(info)
 
     path_param_set = MapSet.new(info.path_params)
 
@@ -574,14 +562,26 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
       info.route.arguments
       |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
 
-    # The named input type only exists for mutation fetch functions; validation
-    # schemas are rendered for any route with non-path arguments, GET included.
+    # The named input type only exists for mutation fetch functions (so not in
+    # :paths_only mode); validation schemas are rendered for any route with
+    # non-path arguments, GET included.
     input_type =
-      if info.method in @tc_mutation_methods and input_args != [] do
-        case info.scope_prefix do
-          nil -> Macro.camelize("#{info.route.name}_input")
-          prefix -> Macro.camelize("#{prefix}_#{info.route.name}_input")
-        end
+      if info.method in @tc_mutation_methods and input_args != [] and
+           AshTypescript.TypedController.Codegen.fetch_function?(info) do
+        AshTypescript.TypedController.Codegen.route_input_type_name(
+          info.route,
+          info.scope_prefix
+        )
+      else
+        "-"
+      end
+
+    result_type =
+      if info.route.returns do
+        AshTypescript.TypedController.Codegen.route_result_type_name(
+          info.route,
+          info.scope_prefix
+        )
       else
         "-"
       end
@@ -590,7 +590,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
       if input_args == [], do: "-", else: "`#{name_fun.(info.route, info.scope_prefix)}`"
     end
 
-    "| #{method} | #{path} | `#{function_name}` | #{input_type} |"
+    "| #{method} | #{path} | `#{function_name}` | #{input_type} | #{result_type} |"
     |> maybe_append(
       " #{schema_cell.(&AshTypescript.TypedController.Codegen.route_zod_schema_name/2)} |",
       show_zod

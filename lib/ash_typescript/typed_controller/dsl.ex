@@ -72,6 +72,8 @@ defmodule AshTypescript.TypedController.Dsl do
       :zod_schema_name,
       :valibot_schema_name,
       :namespace,
+      :returns,
+      constraints: [],
       see: [],
       arguments: [],
       __spark_metadata__: nil
@@ -163,6 +165,23 @@ defmodule AshTypescript.TypedController.Dsl do
       required: false,
       doc:
         "Namespace for organizing this route into a separate file (becomes the filename). Overrides controller-level namespace."
+    ],
+    returns: [
+      # Same spec Ash uses for generic action `returns`.
+      type: Ash.OptionsHelpers.ash_type(),
+      required: false,
+      doc: """
+      The Ash type of the JSON response body, used to generate a TypeScript result
+      type (and a fetch function for GET routes). Plain data only — no resources or
+      unions. The handler still sends the body; use `AshTypescript.TypedController.json/2`
+      to format it to match.
+      """
+    ],
+    constraints: [
+      type: :keyword_list,
+      required: false,
+      default: [],
+      doc: "Constraints for the `returns` type."
     ]
   ]
 

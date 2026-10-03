@@ -33,6 +33,17 @@ defmodule AshTypescript.Test.Session do
       # Array argument — pins `{:array, inner}` support end-to-end: query-string
       # serialization, constraint folding, validation schemas and runtime cast
       argument :tags, {:array, :string}, constraints: [items: [min_length: 2]]
+
+      # GET route returns — result type is exported alongside the path helper
+      returns {:array, :map}
+
+      constraints items: [
+                    fields: [
+                      id: [type: :uuid, allow_nil?: false],
+                      title: [type: :string],
+                      tag_names: [type: {:array, :string}, allow_nil?: false]
+                    ]
+                  ]
     end
 
     # Verb shortcut for POST
@@ -41,6 +52,18 @@ defmodule AshTypescript.Test.Session do
       see [:auth, :logout]
       argument :code, :string, allow_nil?: false
       argument :remember_me, :boolean
+
+      returns :map
+
+      constraints fields: [
+                    user_id: [type: :uuid, allow_nil?: false],
+                    remember_me: [type: :boolean],
+                    session: [
+                      type: :map,
+                      allow_nil?: false,
+                      constraints: [fields: [expires_at: [type: :utc_datetime]]]
+                    ]
+                  ]
     end
 
     # Positional method arg for POST
@@ -54,6 +77,9 @@ defmodule AshTypescript.Test.Session do
       argument :provider, :string, allow_nil?: false
       argument :enabled, :boolean, allow_nil?: false
       argument :display_name, :string
+
+      # NewType with typescript_field_names — exercises field name mapping
+      returns AshTypescript.Test.CustomMetadata
     end
 
     # Default method (omitted = :get) with namespace override
@@ -62,6 +88,9 @@ defmodule AshTypescript.Test.Session do
       run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "Profile") end
       argument :user_id, :string
       argument :bio, :string
+
+      # A map without `fields` constraints is untyped
+      returns :map
     end
 
     route :raise_error, :post do
@@ -105,6 +134,9 @@ defmodule AshTypescript.Test.Session do
       argument :bio, :string, constraints: [max_length: 500]
 
       argument :invite_code, :string, constraints: [min_length: 8, max_length: 8]
+
+      # NewType reachable only from this route, not from RPC
+      returns AshTypescript.Test.RouteResultSummary
     end
 
     route :create_task, :post do
@@ -115,6 +147,8 @@ defmodule AshTypescript.Test.Session do
       argument :title, :string, allow_nil?: false, constraints: [min_length: 1, max_length: 200]
       argument :metadata, AshTypescript.Test.TaskMetadata, allow_nil?: false
       argument :priority, :integer, constraints: [min: 1, max: 5]
+
+      returns :integer
     end
   end
 end

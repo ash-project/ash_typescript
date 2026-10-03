@@ -19,7 +19,8 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
   # later test modules.
   setup_all do
     AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
-      :json_manifest_filename_format
+      :json_manifest_filename_format,
+      :typed_controller_mode
     ])
   end
 
@@ -469,6 +470,17 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
       end
     end
 
+    test "GET routes declaring returns advertise their fetch function", %{manifest: manifest} do
+      routes = manifest["typedControllerRoutes"]
+      search = Enum.find(routes, &(&1["path"] == "/search"))
+
+      assert search["functionName"] == "search"
+      assert search["mutation"] == false
+
+      # GET routes without returns only have a path helper
+      assert Enum.find(routes, &(&1["path"] == "/auth"))["functionName"] == "authPath"
+    end
+
     test "GET routes are not mutations", %{manifest: manifest} do
       get_routes =
         Enum.filter(manifest["typedControllerRoutes"], &(&1["method"] == "GET"))
@@ -484,6 +496,22 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
 
       assert login["mutation"] == true
       assert login["types"]["input"] == "LoginInput"
+    end
+
+    test "routes declaring returns advertise their result type", %{manifest: manifest} do
+      routes = manifest["typedControllerRoutes"]
+
+      assert Enum.find(routes, &(&1["functionName"] == "login"))["types"]["result"] ==
+               "LoginResult"
+
+      # GET routes export a result type too, even without an input type
+      assert Enum.find(routes, &(&1["functionName"] == "search"))["types"]["result"] ==
+               "SearchResult"
+
+      refute Map.has_key?(
+               Enum.find(routes, &(&1["functionName"] == "echoParams"))["types"],
+               "result"
+             )
     end
 
     test "route zod name honors the zod_schema_name override", %{manifest: manifest} do
@@ -518,15 +546,16 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
     end
 
     test "GET routes with query args advertise their validation schemas", %{manifest: manifest} do
-      search = Enum.find(manifest["typedControllerRoutes"], &(&1["functionName"] == "searchPath"))
+      provider_page =
+        Enum.find(manifest["typedControllerRoutes"], &(&1["functionName"] == "providerPagePath"))
 
       # Schemas are rendered for any route with non-path arguments, so the
       # manifest must advertise them for GET routes too
-      assert search["types"]["zod"] == "searchZodSchema"
-      assert search["types"]["valibot"] == "searchValibotSchema"
+      assert provider_page["types"]["zod"] == "providerPageZodSchema"
+      assert provider_page["types"]["valibot"] == "providerPageValibotSchema"
 
       # ...but a GET route has no named input type
-      refute Map.has_key?(search["types"], "input")
+      refute Map.has_key?(provider_page["types"], "input")
     end
 
     test "routes without arguments carry no types at all", %{manifest: manifest} do
@@ -572,6 +601,28 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
       # to-one and non-RPC destinations don't appear
       refute Map.has_key?(rels, "user")
       refute Map.has_key?(rels, "notExposedItems")
+    end
+  end
+
+  describe "typed controller routes - :paths_only mode" do
+    setup do
+      Application.put_env(:ash_typescript, :typed_controller_mode, :paths_only)
+      on_exit(fn -> Application.delete_env(:ash_typescript, :typed_controller_mode) end)
+      %{routes: generate_manifest()["typedControllerRoutes"]}
+    end
+
+    test "advertises path helpers and no input types, since no fetch functions exist", %{
+      routes: routes
+    } do
+      login = Enum.find(routes, &(&1["path"] == "/auth/login"))
+
+      assert login["functionName"] == "loginPath"
+      assert login["mutation"] == true
+      refute Map.has_key?(login["types"], "input")
+
+      # Result types and validation schemas are generated in every mode
+      assert login["types"]["result"] == "LoginResult"
+      assert login["types"]["zod"] == "loginZodSchema"
     end
   end
 

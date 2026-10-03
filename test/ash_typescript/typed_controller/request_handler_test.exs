@@ -11,6 +11,7 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
   # later test modules.
   setup_all do
     AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
+      :input_field_formatter,
       :output_field_formatter,
       :typed_controller_error_handler,
       :typed_controller_show_raised_errors
@@ -79,6 +80,65 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
         argument :action, :string, allow_nil?: true
       end
     end
+  end
+
+  # Arguments and results whose client-facing names depend on the configured
+  # formatters and on `typescript_field_names` mappings. Kept out of the shared
+  # Session so the generated snapshots are unaffected.
+  defmodule FormattingSession do
+    use AshTypescript.TypedController
+
+    typed_controller do
+      module_name(AshTypescript.TypedController.RequestHandlerTest.FormattingController)
+
+      post :echo do
+        # The exact Elixir terms the handler received, for exact assertions
+        run fn conn, params -> Plug.Conn.send_resp(conn, 200, :erlang.term_to_binary(params)) end
+
+        argument :user_id, :string
+        argument :display_name, :string
+        argument :metadata, AshTypescript.Test.CustomMetadata
+        argument :summary, AshTypescript.Test.RouteResultSummary
+        argument :notes, :map
+        argument :settings, AshTypescript.Test.RouteSettings
+      end
+
+      post :reply do
+        returns :map
+
+        constraints fields: [
+                      user_id: [type: :string, allow_nil?: false],
+                      metadata: [type: AshTypescript.Test.CustomMetadata],
+                      items: [
+                        type: {:array, :map},
+                        constraints: [items: [fields: [tag_name: [type: :string]]]]
+                      ]
+                    ]
+
+        run fn conn, _params ->
+          AshTypescript.TypedController.json(conn, %{
+            user_id: "u1",
+            metadata: %{field_1: "a", is_active?: true, line_2: nil},
+            items: [%{tag_name: "x"}]
+          })
+        end
+      end
+
+      post :reply_without_returns do
+        run fn conn, _params -> AshTypescript.TypedController.json(conn, %{a: 1}) end
+      end
+    end
+  end
+
+  defp echoed(conn) do
+    assert conn.status == 200, "expected 200, got #{conn.status}: #{conn.resp_body}"
+    :erlang.binary_to_term(conn.resp_body)
+  end
+
+  defp put_env(key, value) do
+    prev = Application.get_env(:ash_typescript, key)
+    Application.put_env(:ash_typescript, key, value)
+    on_exit(fn -> reset_env(key, prev) end)
   end
 
   defp call(action, params) do
@@ -299,6 +359,125 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       body = json_body(conn)
       refute Map.has_key?(body["params"], "display_name")
       refute Map.has_key?(body["params"], "displayName")
+    end
+  end
+
+  describe "input field formatting" do
+    test "nested keys of an argument type with typescript_field_names are mapped back" do
+      params =
+        call(FormattingSession, :echo, %{
+          "metadata" => %{"field1" => "a", "isActive" => true, "line2" => "b"}
+        })
+        |> echoed()
+
+      assert params.metadata == %{field_1: "a", is_active?: true, line_2: "b"}
+    end
+
+    test "mappings of a named type referenced only by routes are reversed" do
+      # RouteSettings is not reachable from RPC, so it is absent from the manifest
+      params =
+        call(FormattingSession, :echo, %{"settings" => %{"enabled" => true, "level1" => 2}})
+        |> echoed()
+
+      assert params.settings == %{enabled?: true, level_1: 2}
+    end
+
+    test "nested typed map keys are parsed with the input formatter" do
+      params =
+        call(FormattingSession, :echo, %{"summary" => %{"totalCount" => 3, "status" => "ok"}})
+        |> echoed()
+
+      assert params.summary.total_count == 3
+      assert params.summary.status == :ok
+    end
+
+    test "arguments match both their generated client name and the raw path param name" do
+      # Router path params arrive under the segment name (`:user_id`), while
+      # body/query keys use the generated client name (`userId`)
+      assert %{user_id: "from-body"} =
+               call(FormattingSession, :echo, %{"userId" => "from-body"}) |> echoed()
+
+      assert %{user_id: "from-path"} =
+               call(FormattingSession, :echo, %{"user_id" => "from-path"}) |> echoed()
+    end
+
+    test "untyped map arguments are passed through as sent" do
+      params = call(FormattingSession, :echo, %{"notes" => %{"someKey" => 1}}) |> echoed()
+
+      assert params.notes == %{"someKey" => 1}
+    end
+
+    test "a custom input_field_formatter parses top-level and nested keys" do
+      put_env(:input_field_formatter, {AshTypescript.Test.Formatters, :parse_input_with_prefix})
+
+      params =
+        call(FormattingSession, :echo, %{
+          "input_display_name" => "Alice",
+          "summary" => %{"input_total_count" => 1, "input_status" => "pending"}
+        })
+        |> echoed()
+
+      assert params.display_name == "Alice"
+      assert params.summary.total_count == 1
+      assert params.summary.status == :pending
+    end
+
+    test "top-level keys match the client names generated by a custom output_field_formatter" do
+      put_env(:output_field_formatter, {AshTypescript.Test.Formatters, :uppercase_format})
+
+      params = call(FormattingSession, :echo, %{"DISPLAY_NAME" => "Alice"}) |> echoed()
+
+      assert params.display_name == "Alice"
+    end
+
+    test "pascal_case formatters are honored end to end" do
+      put_env(:input_field_formatter, :pascal_case)
+      put_env(:output_field_formatter, :pascal_case)
+
+      params =
+        call(FormattingSession, :echo, %{
+          "DisplayName" => "Alice",
+          "Summary" => %{"TotalCount" => 2, "Status" => "ok"}
+        })
+        |> echoed()
+
+      assert params.display_name == "Alice"
+      assert params.summary.total_count == 2
+    end
+  end
+
+  describe "AshTypescript.TypedController.json/2" do
+    test "formats the result against the route's returns type with the output formatter" do
+      conn = call(FormattingSession, :reply, %{})
+
+      assert conn.status == 200
+      assert ["application/json" <> _] = Plug.Conn.get_resp_header(conn, "content-type")
+
+      assert json_body(conn) == %{
+               "userId" => "u1",
+               "metadata" => %{"field1" => "a", "isActive" => true, "line2" => nil},
+               "items" => [%{"tagName" => "x"}]
+             }
+    end
+
+    test "honors a non-default output formatter" do
+      put_env(:output_field_formatter, :pascal_case)
+
+      body = call(FormattingSession, :reply, %{}) |> json_body()
+
+      assert body["UserId"] == "u1"
+      assert body["Items"] == [%{"TagName" => "x"}]
+      # ValueFormatter emits typescript_field_names mappings as-is, unformatted
+      assert body["Metadata"]["isActive"] == true
+    end
+
+    test "raises (and so fails the request) on a route without returns" do
+      put_env(:typed_controller_show_raised_errors, true)
+
+      conn = call(FormattingSession, :reply_without_returns, %{})
+
+      assert conn.status == 500
+      assert conn.resp_body =~ "does not declare `returns`"
     end
   end
 

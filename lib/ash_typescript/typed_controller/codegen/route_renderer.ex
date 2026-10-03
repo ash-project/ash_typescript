@@ -9,6 +9,9 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   - GET routes generate path helper functions.
   - Mutation routes (POST/PATCH/PUT/DELETE) generate typed action functions
     with input types derived from route arguments.
+  - Routes declaring `returns` get an exported result type; their action
+    functions resolve to a `TypedControllerResponse` typed by it. GET routes
+    declaring `returns` also get a fetch function (see `Codegen.fetch_function?/1`).
   """
 
   import AshTypescript.Helpers, only: [format_output_field: 1]
@@ -16,8 +19,10 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
 
   alias Ash.Info.Manifest.Generator.TypeResolver
   alias AshTypescript.Codegen.SchemaCore
+  alias AshTypescript.Codegen.TypeMapper
   alias AshTypescript.Codegen.ValibotSchemaGenerator
   alias AshTypescript.Codegen.ZodSchemaGenerator
+  alias AshTypescript.TypedController.Codegen
 
   @mutation_methods [:post, :patch, :put, :delete]
 
@@ -32,13 +37,32 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     * `:has_base_path` - When true, prefixes all URL expressions with `${_basePath}`
   """
   def render_no_zod(route_info, opts \\ []) do
-    if route_info.method in @mutation_methods and AshTypescript.typed_controller_mode() == :full do
-      [render_path_helper(route_info, opts), render_action_function(route_info, opts)]
-      |> Enum.reject(&(&1 == ""))
-      |> Enum.join("\n")
-    else
-      render_path_helper(route_info, opts)
-    end
+    fetch_function =
+      cond do
+        not Codegen.fetch_function?(route_info) -> ""
+        route_info.method in @mutation_methods -> render_action_function(route_info, opts)
+        true -> render_get_fetch_function(route_info)
+      end
+
+    [render_result_type(route_info), render_path_helper(route_info, opts), fetch_function]
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n")
+  end
+
+  # Rendered for every route that declares `returns` — GET routes included, so
+  # callers fetching a path helper's URL themselves can type the body too.
+  defp render_result_type(%{route: %{returns: nil}}), do: ""
+
+  defp render_result_type(%{route: route, scope_prefix: scope_prefix}) do
+    type_name = Codegen.route_result_type_name(route, scope_prefix)
+    ts_type = TypeMapper.map_route_result_type(route.returns, route.constraints)
+
+    """
+    /**
+     * Response body of #{format_output_field(route.name)}
+     */
+    export type #{type_name} = #{ts_type};
+    """
   end
 
   defp render_path_helper(route_info, opts) do
@@ -175,7 +199,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
 
     input_type_def =
       if has_input do
-        type_name = build_input_type_name(route.name, scope_prefix)
+        type_name = Codegen.route_input_type_name(route, scope_prefix)
         build_input_type_definition(type_name, input_fields) <> "\n"
       else
         ""
@@ -185,7 +209,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
 
     input_param =
       if has_input do
-        type_name = build_input_type_name(route.name, scope_prefix)
+        type_name = Codegen.route_input_type_name(route, scope_prefix)
         [format_output_field(:input) <> ": " <> type_name]
       else
         []
@@ -212,13 +236,64 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     config_var = format_output_field(:config)
     action_name_str = format_output_field(route.name)
 
+    {return_type, default_headers_arg} = response_typing(route, scope_prefix)
+
     input_type_def <>
       """
       #{jsdoc}
-      export async function #{function_name}(#{params}): Promise<Response> {
-        return executeTypedControllerRequest(#{url_expr}, "#{method_upper}", "#{action_name_str}", #{body_arg}, #{config_var});
+      export async function #{function_name}(#{params}): Promise<#{return_type}> {
+        return executeTypedControllerRequest(#{url_expr}, "#{method_upper}", "#{action_name_str}", #{body_arg}, #{config_var}#{default_headers_arg});
       }
       """
+  end
+
+  # GET routes declaring `returns` are JSON endpoints, so they get a fetch
+  # function too. It takes the path helper's parameters and calls the helper
+  # for the URL, keeping path/query serialization and the base path in one place.
+  defp render_get_fetch_function(route_info) do
+    %{route: route, path: path, path_params: path_params, scope_prefix: scope_prefix} =
+      route_info
+
+    style = AshTypescript.typed_controller_path_params_style()
+    path_param_args = build_path_param_args(route, path_params, style)
+    {query_param, _body_lines} = build_query_param_and_body(non_path_args(route, path_params))
+
+    path_helper_args =
+      case {style, path_params} do
+        {_, []} -> []
+        {:object, _} -> [format_output_field(:path)]
+        {:args, _} -> Enum.map(path_params, &format_output_field/1)
+      end ++ if(query_param, do: ["query"], else: [])
+
+    config_var = format_output_field(:config)
+
+    params =
+      Enum.join(
+        path_param_args ++ List.wrap(query_param) ++ ["#{config_var}?: TypedControllerConfig"],
+        ", "
+      )
+
+    function_name = build_function_name(route.name, scope_prefix, :action)
+    path_helper_name = build_function_name(route.name, scope_prefix, :path)
+    url_expr = "#{path_helper_name}(#{Enum.join(path_helper_args, ", ")})"
+    {return_type, default_headers_arg} = response_typing(route, scope_prefix)
+
+    """
+    #{build_action_jsdoc(route, "GET", path)}
+    export async function #{function_name}(#{params}): Promise<#{return_type}> {
+      return executeTypedControllerRequest(#{url_expr}, "GET", "#{format_output_field(route.name)}", undefined, #{config_var}#{default_headers_arg});
+    }
+    """
+  end
+
+  # Fetch function return type and trailing `defaultHeaders` argument. A declared
+  # `returns` means the route responds with JSON, so ask for it — as default
+  # headers, so `config.headers` can still override it.
+  defp response_typing(%{returns: nil}, _scope_prefix), do: {"Response", ""}
+
+  defp response_typing(route, scope_prefix) do
+    {"TypedControllerResponse<#{Codegen.route_result_type_name(route, scope_prefix)}>",
+     ~s[, { Accept: "application/json" }]}
   end
 
   @doc """
@@ -305,14 +380,6 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
       ts_type = if arg.allow_nil?, do: "#{base_type} | null", else: base_type
       {format_output_field(arg.name), ts_type, optional}
     end)
-  end
-
-  defp build_input_type_name(action_name, nil) do
-    Macro.camelize("#{action_name}_input")
-  end
-
-  defp build_input_type_name(action_name, scope_prefix) do
-    Macro.camelize("#{scope_prefix}_#{action_name}_input")
   end
 
   defp build_input_type_definition(type_name, fields) do
