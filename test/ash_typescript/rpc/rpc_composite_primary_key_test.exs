@@ -14,7 +14,6 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
     AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:enable_namespace_files])
   end
 
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   setup do
@@ -72,7 +71,7 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
       tenant_id = Ash.UUID.generate()
 
       %{"success" => true, "data" => setting} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_tenant_setting",
           "input" => %{
             "tenantId" => tenant_id,
@@ -91,7 +90,7 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
       tenant_id: tenant_id
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_tenant_setting",
           "identity" => %{
             "tenantId" => tenant_id,
@@ -111,7 +110,7 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
       new_tenant_id = Ash.UUID.generate()
 
       %{"success" => true} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_tenant_setting",
           "input" => %{
             "tenantId" => new_tenant_id,
@@ -122,7 +121,7 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
         })
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "destroy_tenant_setting",
           "identity" => %{
             "tenantId" => new_tenant_id,
@@ -135,7 +134,7 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
 
     test "returns error when composite identity fields are missing", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_tenant_setting",
           "identity" => %{
             "tenantId" => Ash.UUID.generate()
@@ -151,7 +150,7 @@ defmodule AshTypescript.Rpc.CompositePrimaryKeyTest do
 
     test "returns not found error when composite identity doesn't match", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_tenant_setting",
           "identity" => %{
             "tenantId" => Ash.UUID.generate(),

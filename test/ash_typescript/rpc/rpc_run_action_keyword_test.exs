@@ -6,8 +6,6 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
   use ExUnit.Case, async: false
 
   require Ash.Query
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "keyword field selection" do
@@ -16,7 +14,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
 
       # Create a user for testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Keyword User",
@@ -28,7 +26,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
       # Create todos with keyword options using the specific syntax - fail hard if creation doesn't work
       # Todo 1: Work priority todo
       work_todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Work Todo with Options",
@@ -46,7 +44,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
 
       # Todo 2: Personal priority todo
       personal_todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Personal Todo with Options",
@@ -66,7 +64,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
 
       # Todo 3: Urgent todo with minimal options
       urgent_todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Urgent Todo with Options",
@@ -84,7 +82,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
 
       # Todo 4: Low priority with different options
       low_priority_todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Low Priority Todo with Options",
@@ -104,7 +102,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
 
       # Create a basic todo without options for comparison
       %{"success" => true, "data" => basic_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Basic Todo",
@@ -130,7 +128,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
       personal_todo: personal_todo
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -182,7 +180,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
     } do
       # Verify urgent todo with all fields requested
       urgent_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo_by_id",
           "input" => %{"id" => urgent_todo["id"]},
           "fields" => ["id", "title", %{"options" => ["priority", "category", "notify"]}]
@@ -204,7 +202,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
 
       # Verify low priority todo with partial fields requested
       low_priority_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo_by_id",
           "input" => %{"id" => low_priority_todo["id"]},
           "fields" => ["id", "title", %{"options" => ["priority", "notify"]}]
@@ -230,7 +228,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
       personal_todo: personal_todo
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -282,7 +280,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
     } do
       # Test requesting only single field from keyword
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -333,7 +331,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
 
       # Test 1: Request all fields
       all_fields_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo_by_id",
           "input" => %{"id" => todo_id},
           "fields" => ["id", "title", %{"options" => ["priority", "category", "notify"]}]
@@ -341,7 +339,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
 
       # Test 2: Request subset of fields
       subset_fields_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo_by_id",
           "input" => %{"id" => todo_id},
           "fields" => ["id", "title", %{"options" => ["priority", "notify"]}]
@@ -349,7 +347,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
 
       # Test 3: Request single field
       single_field_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo_by_id",
           "input" => %{"id" => todo_id},
           "fields" => ["id", "title", %{"options" => ["category"]}]
@@ -402,7 +400,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
       personal_todo: personal_todo
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -619,7 +617,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
     test "runs get_keyword_options_todo action and processes field selection", %{conn: conn} do
       # Test the generic action that returns a keyword type
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_keyword_options_todo",
           "fields" => ["priority", "category", "notify", "theme"]
         })
@@ -638,7 +636,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
     test "runs get_keyword_options_todo action with partial field selection", %{conn: conn} do
       # Test partial field selection on keyword action result
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_keyword_options_todo",
           "fields" => ["priority", "notify"]
         })
@@ -657,7 +655,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
     test "runs get_keyword_options_todo action with single field selection", %{conn: conn} do
       # Test single field selection on keyword action result
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_keyword_options_todo",
           "fields" => ["theme"]
         })
@@ -680,7 +678,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
 
       # Create a user for testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Edge Case User",
@@ -691,7 +689,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
 
       # Create a basic todo without options
       %{"success" => true, "data" => basic_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Basic Todo for Edge Cases",
@@ -706,7 +704,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
     test "handles todos without keyword fields set", %{conn: conn} do
       # Test that the system handles todos that don't have options set
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -728,7 +726,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
 
     test "handles partial keyword fields correctly", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -751,7 +749,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
     test "handles only valid keyword fields", %{conn: conn} do
       # Test with only valid fields (priority, category, notify exist in the keyword definition)
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -774,7 +772,7 @@ defmodule AshTypescript.Rpc.RpcRunActionKeywordTest do
     test "processes keyword fields with mixed data types", %{conn: conn} do
       # Test that different data types in keyword fields work correctly
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",

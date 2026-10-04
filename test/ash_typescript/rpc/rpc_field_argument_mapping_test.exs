@@ -12,8 +12,6 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
   3. The mapping works for both fields (attributes) and action arguments
   """
   use ExUnit.Case, async: true
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.User
 
   setup do
@@ -34,7 +32,7 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
 
       # Test with mapped argument name (from TypeScript client perspective)
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "read_with_invalid_arg",
           "resource" => "User",
           "input" => %{
@@ -50,7 +48,7 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
     test "validation with mapped argument names", %{conn: conn} do
       # Test validation endpoint also works with mapped names
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "read_with_invalid_arg",
           "resource" => "User",
           "input" => %{
@@ -69,7 +67,7 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
       # So the TypeScript client will send "addressLine1" but Elixir expects "address_line_1"
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "resource" => "User",
           "input" => %{
@@ -103,7 +101,7 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
 
       # Now update using mapped field names
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user",
           "resource" => "User",
           "identity" => user.id,
@@ -136,7 +134,7 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
 
       # Read the user and verify output uses mapped names
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_users",
           "resource" => "User",
           # Request mapped field name
@@ -164,7 +162,7 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
 
       # Get the specific user
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_by_id",
           "resource" => "User",
           "input" => %{"id" => user.id},
@@ -194,7 +192,7 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
 
       # Use read_with_invalid_arg (which has mapped argument) and request mapped field names
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "read_with_invalid_arg",
           "resource" => "User",
           "input" => %{
@@ -219,7 +217,7 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
     test "unmapped field names still work", %{conn: conn} do
       # Test that normal field names without mapping still work
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "resource" => "User",
           "input" => %{
@@ -238,7 +236,7 @@ defmodule AshTypescript.Rpc.FieldArgumentMappingTest do
     test "validation errors use mapped field names", %{conn: conn} do
       # Test that validation errors also respect field mapping
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "resource" => "User",
           "input" => %{

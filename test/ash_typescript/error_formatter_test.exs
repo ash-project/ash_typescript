@@ -7,9 +7,9 @@ defmodule AshTypescript.ErrorFormatterTest do
 
   @moduletag :ash_typescript
 
-  alias AshTypescript.ErrorFormatter
+  alias AshRpc.ErrorFormatter
 
-  doctest AshTypescript.ErrorFormatter
+  doctest AshRpc.ErrorFormatter
 
   describe "placeholder rewriting" do
     test "renames placeholders to match renamed vars keys" do

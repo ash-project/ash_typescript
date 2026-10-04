@@ -14,44 +14,27 @@ defmodule AshTypescript.RelationshipFieldFormattingTest do
   :helpful_comment_count are formatted according to the configured formatter.
   """
 
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
-  # Snapshot the global config this module mutates so it cannot leak into
-  # later test modules.
   setup_all do
-    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
-      :enable_namespace_files,
-      :output_field_formatter
-    ])
-  end
+    base = AshTypescript.manifest()
 
-  setup do
-    Application.put_env(:ash_typescript, :enable_namespace_files, false)
-
-    original_output_field_formatter =
-      Application.get_env(:ash_typescript, :output_field_formatter)
-
-    on_exit(fn ->
-      if original_output_field_formatter do
-        Application.put_env(
-          :ash_typescript,
-          :output_field_formatter,
-          original_output_field_formatter
-        )
-      else
-        Application.delete_env(:ash_typescript, :output_field_formatter)
-      end
-    end)
-
-    :ok
+    %{
+      manifests: %{
+        pascal_out: AshRpc.Manifest.redecorate(base, output_formatter: :pascal_case),
+        snake_out: AshRpc.Manifest.redecorate(base, output_formatter: :snake_case)
+      }
+    }
   end
 
   describe "Relationship field formatting with configured formatters" do
-    test "generates PascalCase relationship field names with :pascal_case formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "generates PascalCase relationship field names with :pascal_case formatter", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "IsSuperAdmin?: boolean")
 
@@ -71,11 +54,13 @@ defmodule AshTypescript.RelationshipFieldFormattingTest do
       refute String.contains?(typescript_output, "userId: UUID")
     end
 
-    test "generates snake_case relationship field names with :snake_case formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
-
+    test "generates snake_case relationship field names with :snake_case formatter", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.snake_out
+        )
 
       assert String.contains?(typescript_output, "is_super_admin?: boolean")
 
@@ -94,11 +79,13 @@ defmodule AshTypescript.RelationshipFieldFormattingTest do
       refute String.contains?(typescript_output, "UserId?: string")
     end
 
-    test "generates relationship calculation field names with configured formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "generates relationship calculation field names with configured formatter", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "Self")
 
@@ -110,11 +97,11 @@ defmodule AshTypescript.RelationshipFieldFormattingTest do
       end
     end
 
-    test "relationship field formatting works in nested field selection" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "relationship field formatting works in nested field selection", %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       field_occurrences =
         typescript_output
@@ -126,11 +113,11 @@ defmodule AshTypescript.RelationshipFieldFormattingTest do
              "CommentCount should appear in relationship field schemas when :pascal_case formatter is configured"
     end
 
-    test "relationship field formatting works in filter types" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "relationship field formatting works in filter types", %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "FilterConfig") ||
                String.contains?(typescript_output, "Filter")
@@ -144,11 +131,13 @@ defmodule AshTypescript.RelationshipFieldFormattingTest do
       assert filter_field_found
     end
 
-    test "relationship field formatting regression test - ensures no hardcoded camelCase" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
-
+    test "relationship field formatting regression test - ensures no hardcoded camelCase", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.snake_out
+        )
 
       assert String.contains?(typescript_output, "is_super_admin?: boolean"),
              "is_super_admin should be in snake_case when :snake_case formatter is configured"

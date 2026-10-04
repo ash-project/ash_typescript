@@ -520,7 +520,7 @@ defmodule AshTypescript.Codegen.UtilityTypes do
     /**
      * Represents an error from an unsuccessful RPC call.
      *
-     * This type matches the error structure defined in the AshTypescript.Rpc.Error protocol.
+     * This type matches the error structure defined in the AshRpc.Error protocol.
      *
      * @example
      * const error: AshRpcError = {

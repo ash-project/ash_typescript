@@ -98,7 +98,7 @@ defmodule AshTypescript.RpcFunctionGenerationMappedFieldsTest do
     test "AshRpcError declares every key the runtime can emit", %{generated: generated} do
       assert generated =~ "export type AshRpcError"
 
-      # Each of these is produced by AshTypescript.Rpc.Errors / ErrorBuilder;
+      # Each of these is produced by AshRpc.Errors / ErrorBuilder;
       # an undeclared key is unreachable from a --strict client.
       for field <- ~w(type: message: shortMessage: vars: fields: path: details?: errorId?:) do
         assert generated =~ field

@@ -17,7 +17,6 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     ])
   end
 
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   setup do
@@ -30,7 +29,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       conn = TestHelpers.build_rpc_conn()
 
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Test User",
@@ -40,7 +39,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
         })
 
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Test Todo for Get",
@@ -59,7 +58,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       todo: _todo
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_single_todo",
           "fields" => ["id", "title", "description"]
         })
@@ -78,7 +77,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       conn: conn
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_single_todo",
           "input" => %{
             "filterCompleted" => false
@@ -93,7 +92,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "retrieves todo with relationship fields", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_single_todo",
           "fields" => ["id", "title", %{"user" => ["id", "name", "email"]}]
         })
@@ -106,7 +105,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "retrieves todo with calculation fields", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_single_todo",
           "fields" => ["id", "title", "isOverdue", "daysUntilDue"]
         })
@@ -119,7 +118,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "retrieves todo with aggregate fields", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_single_todo",
           "fields" => ["id", "title", "commentCount", "hasComments"]
         })
@@ -131,13 +130,13 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     end
 
     test "retrieves todo with embedded resource fields", %{conn: conn, user: user, todo: todo} do
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "destroy_todo",
         "identity" => todo["id"]
       })
 
       %{"success" => true, "data" => _todo_with_metadata} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Todo with Metadata",
@@ -151,7 +150,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
         })
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_single_todo",
           "fields" => ["id", "title", %{"metadata" => ["category", "priorityScore"]}]
         })
@@ -165,7 +164,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "retrieves todo with self calculation", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_single_todo",
           "fields" => [
             "id",
@@ -188,20 +187,20 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "returns null with not_found_error?: false when no records exist", %{conn: conn} do
       %{"success" => true, "data" => todos} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id"]
         })
 
       Enum.each(todos, fn todo ->
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "destroy_todo",
           "identity" => todo["id"]
         })
       end)
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_single_todo_nullable",
           "fields" => ["id", "title"]
         })
@@ -212,7 +211,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "returns record with not_found_error?: false when found", %{conn: conn, todo: _todo} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_single_todo_nullable",
           "fields" => ["id", "title"]
         })
@@ -225,7 +224,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "rejects invalid field names", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_single_todo",
           "fields" => ["id", "nonExistentField"]
         })
@@ -241,7 +240,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       conn = TestHelpers.build_rpc_conn()
 
       %{"success" => true, "data" => user1} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Alice Smith",
@@ -251,7 +250,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
         })
 
       %{"success" => true, "data" => user2} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Bob Jones",
@@ -268,7 +267,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       user1: user1
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email",
           "getBy" => %{
             "email" => "alice@example.com"
@@ -285,7 +284,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "retrieves different user by different email", %{conn: conn, user2: user2} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email",
           "getBy" => %{
             "email" => "bob@example.com"
@@ -302,7 +301,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "retrieves user with relationship fields", %{conn: conn, user1: user1} do
       %{"success" => true} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Alice's Todo",
@@ -312,7 +311,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
         })
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email",
           "getBy" => %{
             "email" => "alice@example.com"
@@ -330,7 +329,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "retrieves user with calculation fields", %{conn: conn, user1: _user1} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email",
           "getBy" => %{
             "email" => "alice@example.com"
@@ -346,7 +345,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "retrieves user with self calculation", %{conn: conn, user1: _user1} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email",
           "getBy" => %{
             "email" => "alice@example.com"
@@ -372,7 +371,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "returns error for non-existent email (default behavior)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email",
           "getBy" => %{
             "email" => "nonexistent@example.com"
@@ -388,7 +387,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "requires email in getBy", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email",
           "getBy" => %{},
           "fields" => ["id", "name"]
@@ -400,7 +399,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "rejects invalid field names", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email",
           "getBy" => %{
             "email" => "alice@example.com"
@@ -419,7 +418,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       # turning the exact-key lookup into an arbitrary filter that selects a
       # record the caller never named.
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email",
           "getBy" => %{
             "email" => %{"less_than" => "b"}
@@ -434,7 +433,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "rejects list value in getBy value (filter injection, CVE 3212)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email",
           "getBy" => %{
             "email" => ["alice@example.com", "bob@example.com"]
@@ -453,7 +452,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       conn = TestHelpers.build_rpc_conn()
 
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Composite Test User",
@@ -463,7 +462,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
         })
 
       %{"success" => true, "data" => pending_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Pending Todo",
@@ -474,7 +473,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
         })
 
       %{"success" => true, "data" => ongoing_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Ongoing Todo",
@@ -485,7 +484,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
         })
 
       %{"success" => true, "data" => finished_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Finished Todo",
@@ -510,7 +509,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       pending_todo: pending_todo
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo_by_user_and_status",
           "getBy" => %{
             "userId" => user["id"],
@@ -531,7 +530,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       ongoing_todo: ongoing_todo
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo_by_user_and_status",
           "getBy" => %{
             "userId" => user["id"],
@@ -552,7 +551,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       finished_todo: finished_todo
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo_by_user_and_status",
           "getBy" => %{
             "userId" => user["id"],
@@ -573,7 +572,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       user: user
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo_by_user_and_status",
           "getBy" => %{
             "userId" => user["id"],
@@ -590,7 +589,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "requires all get_by fields in getBy", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo_by_user_and_status",
           "getBy" => %{
             "userId" => user["id"]
@@ -604,7 +603,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "requires user_id in getBy", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo_by_user_and_status",
           "getBy" => %{
             "status" => "pending"
@@ -622,7 +621,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       pending_todo: _pending_todo
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo_by_user_and_status",
           "getBy" => %{
             "userId" => user["id"],
@@ -645,7 +644,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       user: user
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo_by_user_and_status",
           "getBy" => %{
             "userId" => user["id"],
@@ -724,7 +723,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "validates get_single_todo action with valid input", %{conn: conn} do
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_single_todo",
           "input" => %{
             "filterCompleted" => true
@@ -736,7 +735,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "validates get_single_todo action without input", %{conn: conn} do
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_single_todo"
         })
 
@@ -745,7 +744,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "validates get_user_by_email action with valid getBy", %{conn: conn} do
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email",
           "getBy" => %{
             "email" => "test@example.com"
@@ -757,7 +756,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "validates get_user_by_email fails without getBy", %{conn: conn} do
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email"
         })
 
@@ -792,7 +791,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       conn = TestHelpers.build_rpc_conn()
 
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Not Found Test User",
@@ -806,7 +805,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "get_by with not_found_error?: false returns null when not found", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email_nullable",
           "getBy" => %{
             "email" => "nonexistent_email@example.com"
@@ -823,7 +822,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       user: user
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email_nullable",
           "getBy" => %{
             "email" => "notfound_test@example.com"
@@ -839,7 +838,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "get_by with explicit not_found_error?: true returns error when not found", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email_error",
           "getBy" => %{
             "email" => "nonexistent_email@example.com"
@@ -858,7 +857,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       user: user
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email_error",
           "getBy" => %{
             "email" => "notfound_test@example.com"
@@ -873,20 +872,20 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
 
     test "get? with not_found_error?: false returns null when no records exist", %{conn: conn} do
       %{"success" => true, "data" => todos} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id"]
         })
 
       Enum.each(todos, fn todo ->
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "destroy_todo",
           "identity" => todo["id"]
         })
       end)
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_single_todo_nullable",
           "fields" => ["id", "title"]
         })
@@ -899,7 +898,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       conn: conn
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email",
           "getBy" => %{
             "email" => "nonexistent_default@example.com"
@@ -926,14 +925,22 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     test "global config false makes default behavior return null", %{conn: conn} do
       Application.put_env(:ash_typescript, :not_found_error?, false)
 
+      # not_found_error? is resolved when the manifest is decorated.
+      manifest = AshRpc.Manifest.redecorate(AshTypescript.manifest(), [])
+
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
-          "action" => "get_user_by_email",
-          "getBy" => %{
-            "email" => "nonexistent_global_false@example.com"
+        AshRpc.run_action(
+          AshTypescript.RpcProfile,
+          conn,
+          %{
+            "action" => "get_user_by_email",
+            "getBy" => %{
+              "email" => "nonexistent_global_false@example.com"
+            },
+            "fields" => ["id", "name"]
           },
-          "fields" => ["id", "name"]
-        })
+          manifest: manifest
+        )
 
       assert result["success"] == true
       assert result["data"] == nil
@@ -942,14 +949,22 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     test "explicit action config overrides global config false", %{conn: conn} do
       Application.put_env(:ash_typescript, :not_found_error?, false)
 
+      # not_found_error? is resolved when the manifest is decorated.
+      manifest = AshRpc.Manifest.redecorate(AshTypescript.manifest(), [])
+
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
-          "action" => "get_user_by_email_error",
-          "getBy" => %{
-            "email" => "nonexistent_override@example.com"
+        AshRpc.run_action(
+          AshTypescript.RpcProfile,
+          conn,
+          %{
+            "action" => "get_user_by_email_error",
+            "getBy" => %{
+              "email" => "nonexistent_override@example.com"
+            },
+            "fields" => ["id", "name"]
           },
-          "fields" => ["id", "name"]
-        })
+          manifest: manifest
+        )
 
       assert result["success"] == false
       assert is_list(result["errors"])
@@ -960,14 +975,22 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
     test "explicit action config false overrides global config true", %{conn: conn} do
       Application.put_env(:ash_typescript, :not_found_error?, true)
 
+      # not_found_error? is resolved when the manifest is decorated.
+      manifest = AshRpc.Manifest.redecorate(AshTypescript.manifest(), [])
+
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
-          "action" => "get_user_by_email_nullable",
-          "getBy" => %{
-            "email" => "nonexistent_override_false@example.com"
+        AshRpc.run_action(
+          AshTypescript.RpcProfile,
+          conn,
+          %{
+            "action" => "get_user_by_email_nullable",
+            "getBy" => %{
+              "email" => "nonexistent_override_false@example.com"
+            },
+            "fields" => ["id", "name"]
           },
-          "fields" => ["id", "name"]
-        })
+          manifest: manifest
+        )
 
       assert result["success"] == true
       assert result["data"] == nil

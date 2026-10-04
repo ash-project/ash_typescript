@@ -14,44 +14,27 @@ defmodule AshTypescript.CalculationFieldFormattingTest do
   :adjusted_priority are formatted according to the configured formatter.
   """
 
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
-  # Snapshot the global config this module mutates so it cannot leak into
-  # later test modules.
   setup_all do
-    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
-      :enable_namespace_files,
-      :output_field_formatter
-    ])
-  end
+    base = AshTypescript.manifest()
 
-  setup do
-    Application.put_env(:ash_typescript, :enable_namespace_files, false)
-
-    original_output_field_formatter =
-      Application.get_env(:ash_typescript, :output_field_formatter)
-
-    on_exit(fn ->
-      if original_output_field_formatter do
-        Application.put_env(
-          :ash_typescript,
-          :output_field_formatter,
-          original_output_field_formatter
-        )
-      else
-        Application.delete_env(:ash_typescript, :output_field_formatter)
-      end
-    end)
-
-    :ok
+    %{
+      manifests: %{
+        pascal_out: AshRpc.Manifest.redecorate(base, output_formatter: :pascal_case),
+        snake_out: AshRpc.Manifest.redecorate(base, output_formatter: :snake_case)
+      }
+    }
   end
 
   describe "Calculation field formatting with configured formatters" do
-    test "generates PascalCase calculation field names with :pascal_case formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "generates PascalCase calculation field names with :pascal_case formatter", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "IsOverdue")
       assert String.contains?(typescript_output, "DaysUntilDue")
@@ -85,11 +68,13 @@ defmodule AshTypescript.CalculationFieldFormattingTest do
              "Should use PascalCase 'AdjustedPriority' instead of camelCase 'adjustedPriority'"
     end
 
-    test "generates snake_case calculation field names with :snake_case formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
-
+    test "generates snake_case calculation field names with :snake_case formatter", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.snake_out
+        )
 
       assert String.contains?(typescript_output, "is_overdue")
       assert String.contains?(typescript_output, "days_until_due")
@@ -122,11 +107,13 @@ defmodule AshTypescript.CalculationFieldFormattingTest do
              "Should use snake_case 'display_category' instead of camelCase 'displayCategory'"
     end
 
-    test "generates calculation argument field names with configured formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "generates calculation argument field names with configured formatter", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "UrgencyMultiplier")
       assert String.contains?(typescript_output, "DeadlineFactor")
@@ -144,32 +131,34 @@ defmodule AshTypescript.CalculationFieldFormattingTest do
              "Should use PascalCase 'IncludeMetadata' instead of snake_case 'include_metadata'"
     end
 
-    test "calculation return type field names use configured formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "calculation return type field names use configured formatter", %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "Self"),
              "Self calculation should be formatted according to configured formatter in calculation schemas"
     end
 
-    test "calculation field formatting works in RPC function generation" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "calculation field formatting works in RPC function generation", %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "IsOverdue") ||
                String.contains?(typescript_output, "DaysUntilDue"),
              "Calculation fields should be formatted according to configured formatter in RPC function schemas"
     end
 
-    test "calculation field formatting regression test - ensures no hardcoded camelCase" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
-
+    test "calculation field formatting regression test - ensures no hardcoded camelCase", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.snake_out
+        )
 
       assert String.contains?(typescript_output, "is_overdue"),
              "is_overdue should be in snake_case when :snake_case formatter is configured"

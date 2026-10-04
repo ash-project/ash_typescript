@@ -7,11 +7,9 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
   Comprehensive tests for RPC validation error structure.
 
   These tests ensure that validation errors returned from validate_action
-  match the structure defined in AshTypescript.Rpc.Error protocol.
+  match the structure defined in AshRpc.Error protocol.
   """
   use ExUnit.Case, async: true
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   @moduletag :ash_typescript
@@ -21,7 +19,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "autoComplete" => false,
@@ -38,9 +36,9 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       title_error = Enum.find(result["errors"], &("title" in &1["fields"]))
       assert title_error != nil
 
-      # Assert on error structure - missing required fields show as invalid_attribute
-      assert title_error["type"] == "invalid_attribute"
-      assert title_error["message"] == "is required"
+      # Assert on error structure - missing required fields are native "required" errors
+      assert title_error["type"] == "required"
+      assert title_error["message"] == "attribute title is required"
       assert is_map(title_error["vars"])
       assert title_error["vars"]["field"] == "title"
       assert "title" in title_error["fields"]
@@ -52,7 +50,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Test Todo",
@@ -68,9 +66,9 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       user_id_error = Enum.find(result["errors"], &("userId" in &1["fields"]))
       assert user_id_error != nil
 
-      # Assert on error structure - missing required fields show as invalid_attribute
-      assert user_id_error["type"] == "invalid_attribute"
-      assert user_id_error["message"] == "is required"
+      # Assert on error structure - missing required fields are native "required" errors
+      assert user_id_error["type"] == "required"
+      assert user_id_error["message"] == "argument user_id is required"
       assert is_map(user_id_error["vars"])
       assert user_id_error["vars"]["field"] == "userId"
       assert "userId" in user_id_error["fields"]
@@ -82,7 +80,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "autoComplete" => false
@@ -101,11 +99,11 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       assert title_error != nil
       assert user_id_error != nil
 
-      # Both should be "invalid_attribute" type errors with "is required" message
-      assert title_error["type"] == "invalid_attribute"
-      assert title_error["message"] == "is required"
-      assert user_id_error["type"] == "invalid_attribute"
-      assert user_id_error["message"] == "is required"
+      # Both should be "required" type errors naming the missing input
+      assert title_error["type"] == "required"
+      assert title_error["message"] == "attribute title is required"
+      assert user_id_error["type"] == "required"
+      assert user_id_error["message"] == "argument user_id is required"
     end
   end
 
@@ -114,7 +112,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             # Should be string, not integer
@@ -145,7 +143,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Test Todo",
@@ -162,8 +160,9 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       user_id_error = Enum.find(result["errors"], &("userId" in &1["fields"]))
       assert user_id_error != nil
 
-      # Assert on error structure
-      assert user_id_error["type"] == "invalid_attribute"
+      # Assert on error structure - userId is an action argument, so Ash
+      # reports a bad cast natively as invalid_argument
+      assert user_id_error["type"] == "invalid_argument"
       assert user_id_error["message"] == "is invalid"
       assert is_map(user_id_error["vars"])
       assert user_id_error["vars"]["field"] == "userId"
@@ -178,7 +177,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Test Todo",
@@ -210,7 +209,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "input" => %{
             # Not a valid priority value
@@ -242,7 +241,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
 
       # Create a validation with multiple errors
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             # Invalid type for title
@@ -260,7 +259,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
 
       # Every error should have the required structure
       for error <- result["errors"] do
-        # Required fields from AshTypescript.Rpc.Error protocol
+        # Required fields from AshRpc.Error protocol
         assert Map.has_key?(error, "type"), "Error missing 'type' field: #{inspect(error)}"
 
         assert Map.has_key?(error, "message"),
@@ -292,7 +291,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "autoComplete" => false,
@@ -315,7 +314,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => 123,
@@ -340,7 +339,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Valid Todo",
@@ -361,7 +360,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           # Wrong type - should be map
           "page" => "invalid_pagination"
@@ -391,7 +390,7 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "non_existent_action"
         })
 
@@ -423,11 +422,11 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
         }
       }
 
-      validate_result = Rpc.validate_action(:ash_typescript, conn, validate_input)
+      validate_result = AshRpc.validate_action(AshTypescript.RpcProfile, conn, validate_input)
 
       run_result =
-        Rpc.run_action(
-          :ash_typescript,
+        AshRpc.run_action(
+          AshTypescript.RpcProfile,
           conn,
           Map.put(validate_input, "fields", ["id"])
         )

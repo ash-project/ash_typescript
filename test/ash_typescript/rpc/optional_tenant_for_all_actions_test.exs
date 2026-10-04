@@ -10,6 +10,7 @@ defmodule AshTypescript.Rpc.OptionalTenantForAllActionsTest do
   regardless of action type (read, create, update, destroy).
   """
   use ExUnit.Case
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
   @moduletag :ash_typescript
 
@@ -127,7 +128,7 @@ defmodule AshTypescript.Rpc.OptionalTenantForAllActionsTest do
   end
 
   describe "optional tenant - pipeline behavior" do
-    alias AshTypescript.Rpc.Pipeline
+    alias AshRpc.Pipeline
 
     test "tenant from params is used when provided for non-multitenancy resource" do
       params = %{
@@ -138,7 +139,8 @@ defmodule AshTypescript.Rpc.OptionalTenantForAllActionsTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.tenant == "org_123"
     end
@@ -151,7 +153,8 @@ defmodule AshTypescript.Rpc.OptionalTenantForAllActionsTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.tenant == nil
     end

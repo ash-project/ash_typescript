@@ -4,14 +4,15 @@
 
 defmodule AshTypescript.Rpc.ResultProcessorKeywordTest do
   use ExUnit.Case, async: true
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.ResultProcessor
+  alias AshRpc.ResultProcessor
 
   describe "keyword list handling" do
     test "converts keyword list to JSON object" do
       keyword_list = [priority: 8, category: "work", notify: true]
 
-      result = ResultProcessor.normalize_value_for_json(keyword_list)
+      result = ResultProcessor.normalize_value_for_json(keyword_list, rpc_runtime())
 
       expected = %{
         "priority" => 8,
@@ -24,7 +25,7 @@ defmodule AshTypescript.Rpc.ResultProcessorKeywordTest do
 
     test "handles empty list - preserves as array" do
       empty_list = []
-      result = ResultProcessor.normalize_value_for_json(empty_list)
+      result = ResultProcessor.normalize_value_for_json(empty_list, rpc_runtime())
       assert result == []
     end
 
@@ -35,7 +36,7 @@ defmodule AshTypescript.Rpc.ResultProcessorKeywordTest do
         flags: [active: true, visible: false]
       ]
 
-      result = ResultProcessor.normalize_value_for_json(keyword_list)
+      result = ResultProcessor.normalize_value_for_json(keyword_list, rpc_runtime())
 
       expected = %{
         "priority" => 5,
@@ -49,24 +50,24 @@ defmodule AshTypescript.Rpc.ResultProcessorKeywordTest do
     test "distinguishes keyword lists from regular lists" do
       # Regular list (not keyword)
       regular_list = [1, 2, 3, "test"]
-      result1 = ResultProcessor.normalize_value_for_json(regular_list)
+      result1 = ResultProcessor.normalize_value_for_json(regular_list, rpc_runtime())
       assert result1 == [1, 2, 3, "test"]
 
       # Mixed list (not keyword) - tuples inside regular lists are preserved as tuples
       mixed_list = [{:key, "value"}, "not_tuple", 42]
-      result2 = ResultProcessor.normalize_value_for_json(mixed_list)
+      result2 = ResultProcessor.normalize_value_for_json(mixed_list, rpc_runtime())
       assert result2 == [{:key, "value"}, "not_tuple", 42]
 
       # Keyword list
       keyword_list = [key1: "value1", key2: "value2"]
-      result3 = ResultProcessor.normalize_value_for_json(keyword_list)
+      result3 = ResultProcessor.normalize_value_for_json(keyword_list, rpc_runtime())
       assert result3 == %{"key1" => "value1", "key2" => "value2"}
     end
 
     test "handles single-item keyword list" do
       keyword_list = [priority: 10]
 
-      result = ResultProcessor.normalize_value_for_json(keyword_list)
+      result = ResultProcessor.normalize_value_for_json(keyword_list, rpc_runtime())
 
       expected = %{"priority" => 10}
 
@@ -83,7 +84,7 @@ defmodule AshTypescript.Rpc.ResultProcessorKeywordTest do
 
       extraction_template = [:id, :title, :options]
 
-      result = ResultProcessor.process(data, extraction_template)
+      result = ResultProcessor.process(data, extraction_template, nil, rpc_runtime())
 
       expected = %{
         id: "123",
@@ -108,7 +109,7 @@ defmodule AshTypescript.Rpc.ResultProcessorKeywordTest do
         metadata: %{items: [], config: %{flags: []}}
       }
 
-      result = ResultProcessor.normalize_value_for_json(data)
+      result = ResultProcessor.normalize_value_for_json(data, rpc_runtime())
 
       # Empty arrays must remain as [] not become {}
       assert result.tags == []
@@ -120,7 +121,7 @@ defmodule AshTypescript.Rpc.ResultProcessorKeywordTest do
       # Nested empty arrays should also be preserved
       data = [[], [1, 2], [], [3]]
 
-      result = ResultProcessor.normalize_value_for_json(data)
+      result = ResultProcessor.normalize_value_for_json(data, rpc_runtime())
 
       assert result == [[], [1, 2], [], [3]]
     end
@@ -134,7 +135,7 @@ defmodule AshTypescript.Rpc.ResultProcessorKeywordTest do
 
       extraction_template = [:id, :items]
 
-      result = ResultProcessor.process(data, extraction_template)
+      result = ResultProcessor.process(data, extraction_template, nil, rpc_runtime())
 
       assert result == %{id: "123", items: []}
     end

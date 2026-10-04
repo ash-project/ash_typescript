@@ -4,7 +4,6 @@
 
 defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "AshPostgres.Ltree support" do
@@ -13,7 +12,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
 
       # Create a user for relationship testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "John Doe",
@@ -27,7 +26,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
 
     test "creates todo with Ltree hierarchy field", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Todo with Hierarchy",
@@ -48,7 +47,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
 
     test "creates todo with null Ltree hierarchy field", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Todo without Hierarchy",
@@ -69,7 +68,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
     test "updates todo hierarchy field", %{conn: conn, user: user} do
       # First create a todo
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Todo to Update",
@@ -82,7 +81,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
 
       # Then update its hierarchy
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo",
           "identity" => todo["id"],
           "input" => %{
@@ -110,7 +109,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
     test "updates todo hierarchy field to null", %{conn: conn, user: user} do
       # First create a todo with hierarchy
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Todo to Clear",
@@ -123,7 +122,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
 
       # Then clear its hierarchy
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo",
           "identity" => todo["id"],
           "input" => %{
@@ -152,7 +151,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
       _todos =
         Enum.map(hierarchy_values, fn hierarchy ->
           %{"success" => true, "data" => todo} =
-            Rpc.run_action(:ash_typescript, conn, %{
+            AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
               "action" => "create_todo",
               "input" => %{
                 "title" => "Todo #{inspect(hierarchy)}",
@@ -168,7 +167,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
 
       # Read todos with hierarchy field
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "hierarchy"]
         })
@@ -221,7 +220,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
     } do
       # Create a todo with hierarchy
       %{"success" => true, "data" => _todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Complex Todo",
@@ -234,7 +233,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
 
       # Read with mixed field selection including hierarchy, attributes, and relationships
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "hierarchy", "completed", %{"user" => ["id", "name"]}]
         })
@@ -267,7 +266,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
     test "hierarchy field excluded when not requested", %{conn: conn, user: user} do
       # Create a todo with hierarchy
       %{"success" => true, "data" => _todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Todo with Hidden Hierarchy",
@@ -280,7 +279,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
 
       # Read without hierarchy field
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "completed"]
         })
@@ -308,7 +307,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
 
       # Create a user for relationship testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Jane Doe",
@@ -322,7 +321,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
 
     test "flexible hierarchy accepts string input", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Flexible Hierarchy String",
@@ -343,7 +342,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
 
     test "flexible hierarchy accepts array input", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Flexible Hierarchy Array",
@@ -364,7 +363,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
 
     test "strict hierarchy accepts array input", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Strict Hierarchy Array",
@@ -385,7 +384,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
 
     test "strict hierarchy rejects string input", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Strict Hierarchy String",
@@ -410,7 +409,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
 
     test "both hierarchy fields work together", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Both Hierarchies",
@@ -434,7 +433,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
     test "update both hierarchy types", %{conn: conn, user: user} do
       # First create a todo with both hierarchies
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Update Both Test",
@@ -448,7 +447,7 @@ defmodule AshTypescript.Rpc.RpcRunActionLtreeTest do
 
       # Then update both hierarchies
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo",
           "identity" => todo["id"],
           "input" => %{

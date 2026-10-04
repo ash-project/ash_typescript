@@ -56,19 +56,16 @@ defmodule AshTypescript.Manifest.DecoratorTest do
                :is_active?
     end
 
-    test "formatted_field_names contains entries for every public field × built-in formatter",
+    test "custom.ash_rpc field_names cover every public field for the configured formatter",
          %{resource_lookup: lookup} do
       user = lookup[AshTypescript.Test.User]
 
       # field with explicit mapping wins over formatter
-      assert Custom.formatted_field_name(user, :is_active?, :camel_case) == "isActive"
-      assert Custom.formatted_field_name(user, :address_line_1, :camel_case) == "addressLine1"
+      assert AshRpc.Manifest.Custom.field_names(user)[:is_active?] == "isActive"
+      assert AshRpc.Manifest.Custom.field_names(user)[:address_line_1] == "addressLine1"
 
       # field without mapping uses the formatter
-      assert Custom.formatted_field_name(user, :name, :camel_case) == "name"
-
-      # unknown formatter returns nil
-      assert Custom.formatted_field_name(user, :name, :weird_format) == nil
+      assert AshRpc.Manifest.Custom.field_names(user)[:name] == "name"
     end
 
     test "resources without AshTypescript.Resource extension are not decorated",

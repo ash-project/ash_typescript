@@ -10,8 +10,6 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
   RPC pipeline to ensure TypeScript type-checking guarantees match runtime behavior.
   """
   use ExUnit.Case, async: false
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
   alias AshTypescript.Test.TsActionCallExtractor
 
@@ -51,7 +49,7 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
 
       # Create test user for relationship testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Test User",
@@ -61,7 +59,7 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
         })
 
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Test Todo",
@@ -75,7 +73,7 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
 
       # Create test task for metadata tests
       %{"success" => true, "data" => task} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_task",
           "input" => %{
             "title" => "Test Task"
@@ -86,7 +84,7 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
       # Create test content with article for union calculation tests
       # Note: nested item fields use snake_case as manage_relationship doesn't go through RPC input mapping
       %{"success" => true, "data" => content} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_content",
           "input" => %{
             "title" => "Test Content",
@@ -106,7 +104,7 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
 
       # Create test subscription for identity with mapped field names tests
       %{"success" => true, "data" => subscription} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_subscription",
           "input" => %{
             "userId" => user["id"],
@@ -121,7 +119,7 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
       tenant_id = Ash.UUID.generate()
 
       %{"success" => true, "data" => tenant_setting} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_tenant_setting",
           "input" => %{
             "tenantId" => tenant_id,
@@ -133,7 +131,7 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
 
       # Create a second setting for destroy tests (uses different key)
       %{"success" => true, "data" => tenant_setting_to_destroy} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_tenant_setting",
           "input" => %{
             "tenantId" => tenant_id,
@@ -292,7 +290,7 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
             end
 
           # Execute RPC call
-          result = Rpc.run_action(:ash_typescript, conn, request)
+          result = AshRpc.run_action(AshTypescript.RpcProfile, conn, request)
 
           # Assert success
           assert result["success"] == true,

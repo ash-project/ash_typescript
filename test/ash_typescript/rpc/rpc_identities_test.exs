@@ -14,7 +14,6 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
     AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:enable_namespace_files])
   end
 
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   setup do
@@ -34,7 +33,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
       conn = TestHelpers.build_rpc_conn()
 
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Identity Test User",
@@ -48,7 +47,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
 
     test "update_user uses primary key identity directly", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user",
           "identity" => user["id"],
           "input" => %{"name" => "Updated via PK"},
@@ -62,7 +61,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
 
     test "update_user_by_identity can use primary key", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user_by_identity",
           "identity" => user["id"],
           "input" => %{"name" => "Updated via PK in multi-identity"},
@@ -76,7 +75,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
 
     test "update_user_by_identity can use email identity", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user_by_identity",
           "identity" => %{"email" => user["email"]},
           "input" => %{"name" => "Updated via Email"},
@@ -90,7 +89,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
 
     test "update_user_by_email only accepts email identity", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user_by_email",
           "identity" => %{"email" => user["email"]},
           "input" => %{"name" => "Updated by Email Only"},
@@ -104,7 +103,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
 
     test "update_user_by_email with non-matching email returns not found", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user_by_email",
           "identity" => %{"email" => "nonexistent@example.com"},
           "input" => %{"name" => "Should Fail"},
@@ -118,7 +117,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
       conn: conn
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user_by_email",
           "identity" => %{"emai" => "test@example.com"},
           "input" => %{"name" => "Should Fail"},
@@ -135,7 +134,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
       user: user
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user_by_email",
           "identity" => %{"email" => user["email"], "extraField" => "value"},
           "input" => %{"name" => "Updated with extra fields"},
@@ -150,7 +149,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
       conn: conn
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user_by_identity",
           "identity" => %{"wrongField" => "value"},
           "input" => %{"name" => "Should Fail"},
@@ -164,7 +163,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
 
     test "invalid_identity error message uses client-facing field names", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user_by_email",
           "identity" => %{"emai" => "test@example.com"},
           "input" => %{"name" => "Should Fail"},
@@ -191,7 +190,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
            conn: conn
          } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user",
           "input" => %{"name" => "Should Fail Without Identity"},
           "fields" => ["id", "name"]
@@ -209,7 +208,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
 
     test "update action with empty map identity returns missing_identity error", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user_by_email",
           "identity" => %{},
           "input" => %{"name" => "Should Fail"},
@@ -225,7 +224,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
            conn: conn
          } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "destroy_user",
           "fields" => ["id"]
         })
@@ -240,7 +239,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
       user: user
     } do
       %{"success" => true, "data" => _subscription} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_subscription",
           "input" => %{
             "userId" => user["id"],
@@ -252,7 +251,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
         })
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_subscription_by_user_status",
           "identity" => %{
             "userId" => user["id"],
@@ -283,7 +282,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
       # `email > ""` instead of an equality match, mutating a record the caller
       # never named. It must be rejected as a non-scalar identity value.
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user_by_email",
           "identity" => %{"email" => %{"greater_than" => ""}},
           "input" => %{"name" => "Injected"},
@@ -295,7 +294,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
 
       # The named user must be untouched — the injected predicate never ran.
       reloaded =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_user_by_email",
           "getBy" => %{"email" => user["email"]},
           "fields" => ["id", "name"]
@@ -307,7 +306,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
 
     test "update rejects a non-scalar primary key identity value", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user",
           "identity" => [user["id"]],
           "input" => %{"name" => "Injected PK"},
@@ -341,7 +340,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
 
     test "update_me works without identity when actor is set", %{conn: conn, actor: actor} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_me",
           "input" => %{"name" => "Updated My Name"},
           "fields" => ["id", "name"]
@@ -354,7 +353,7 @@ defmodule AshTypescript.Rpc.RpcIdentitiesTest do
 
     test "destroy_me works without identity when actor is set", %{conn: conn, actor: actor} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "destroy_me",
           "fields" => ["id"]
         })

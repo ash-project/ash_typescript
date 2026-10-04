@@ -4,7 +4,6 @@
 
 defmodule AshTypescript.Rpc.RpcRunActionVectorTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "Ash.Type.Vector support" do
@@ -12,7 +11,7 @@ defmodule AshTypescript.Rpc.RpcRunActionVectorTest do
       conn = TestHelpers.build_rpc_conn()
 
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Vector User",
@@ -29,7 +28,7 @@ defmodule AshTypescript.Rpc.RpcRunActionVectorTest do
       user: user
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Todo with Embedding",
@@ -52,7 +51,7 @@ defmodule AshTypescript.Rpc.RpcRunActionVectorTest do
       # the struct made responses fail to encode with
       # `Jason.EncodeError: invalid byte 0x80`, so selecting the field 500'd.
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Encodable Embedding",
@@ -70,7 +69,7 @@ defmodule AshTypescript.Rpc.RpcRunActionVectorTest do
 
     test "creates todo with a null vector field", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Todo without Embedding",
@@ -86,7 +85,7 @@ defmodule AshTypescript.Rpc.RpcRunActionVectorTest do
 
     test "reads vector fields back through a list action", %{conn: conn, user: user} do
       %{"success" => true} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Listed Embedding",
@@ -98,7 +97,7 @@ defmodule AshTypescript.Rpc.RpcRunActionVectorTest do
         })
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["title", "embedding"]
         })
@@ -112,7 +111,7 @@ defmodule AshTypescript.Rpc.RpcRunActionVectorTest do
 
     test "rejects a vector that violates the dimensions constraint", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Wrong Dimensions",

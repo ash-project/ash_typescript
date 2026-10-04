@@ -4,8 +4,6 @@
 
 defmodule AshTypescript.Rpc.MetadataTest do
   use ExUnit.Case
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.Task
 
   describe "READ actions - show_metadata: nil (all fields)" do
@@ -19,7 +17,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -41,7 +39,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -62,7 +60,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -86,7 +84,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -109,7 +107,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -133,7 +131,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -159,7 +157,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -181,7 +179,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -205,7 +203,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -227,7 +225,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -249,7 +247,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -271,7 +269,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"]["title"] == "New Task"
@@ -292,7 +290,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"]["title"] == "New Task"
@@ -311,7 +309,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"]["title"] == "New Task"
@@ -330,7 +328,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"]["title"] == "New Task"
@@ -351,7 +349,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"]["title"] == "New Task"
@@ -375,7 +373,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"]["title"] == "Updated"
@@ -399,7 +397,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"]["title"] == "Updated"
@@ -421,7 +419,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"]["title"] == "Updated"
@@ -443,7 +441,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"]["title"] == "Updated"
@@ -467,7 +465,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"]["title"] == "Updated"
@@ -489,7 +487,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"] == %{}
@@ -511,7 +509,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"] == %{}
@@ -531,7 +529,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"] == %{}
@@ -551,7 +549,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"] == %{}
@@ -573,7 +571,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"] == %{}
@@ -597,7 +595,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -620,7 +618,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -643,7 +641,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -667,7 +665,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -691,7 +689,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -712,7 +710,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -740,7 +738,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       tasks = result["data"]
@@ -772,7 +770,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       task_result = Enum.find(result["data"], &(&1["id"] == task.id))
@@ -801,7 +799,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
       }
 
       conn = %Plug.Conn{}
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       raw = result["metadata"]["rawResult"]

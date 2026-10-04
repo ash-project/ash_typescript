@@ -14,7 +14,6 @@ defmodule AshTypescript.Rpc.StructArgumentIntegrationTest do
     AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:enable_namespace_files])
   end
 
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   setup do
@@ -32,7 +31,7 @@ defmodule AshTypescript.Rpc.StructArgumentIntegrationTest do
       user = TestHelpers.create_test_user(conn, name: "Test Assignee", email: "assignee@test.com")
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "assign_to_user_todo",
           "input" => %{
             "assignee" => %{
@@ -62,7 +61,7 @@ defmodule AshTypescript.Rpc.StructArgumentIntegrationTest do
         )
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "assign_to_user_todo",
           "input" => %{
             "assignee" => %{
@@ -84,7 +83,7 @@ defmodule AshTypescript.Rpc.StructArgumentIntegrationTest do
 
     test "fails when assignee struct is missing required fields", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "assign_to_user_todo",
           "input" => %{
             "assignee" => %{}
@@ -108,7 +107,7 @@ defmodule AshTypescript.Rpc.StructArgumentIntegrationTest do
       user2 = TestHelpers.create_test_user(conn, name: "User Two", email: "user2@test.com")
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "assign_to_users_todo",
           "input" => %{
             "assignees" => [
@@ -142,7 +141,7 @@ defmodule AshTypescript.Rpc.StructArgumentIntegrationTest do
 
     test "accepts empty array of assignees", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "assign_to_users_todo",
           "input" => %{
             "assignees" => []

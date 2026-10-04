@@ -14,8 +14,6 @@ defmodule AshTypescript.Rpc.RpcValidateActionReadActionTest do
   both run_action and validate_action.
   """
   use ExUnit.Case, async: true
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.{Domain, Todo, User}
 
   setup do
@@ -50,14 +48,14 @@ defmodule AshTypescript.Rpc.RpcValidateActionReadActionTest do
     completed_todo: completed_todo
   } do
     validate =
-      Rpc.validate_action(:ash_typescript, conn, %{
+      AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
         "action" => "update_todo_scoped",
         "identity" => completed_todo.id,
         "input" => %{"title" => "probe"}
       })
 
     run =
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "update_todo_scoped",
         "identity" => completed_todo.id,
         "input" => %{"title" => "probe"},
@@ -76,7 +74,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionReadActionTest do
     incomplete_todo: incomplete_todo
   } do
     validate =
-      Rpc.validate_action(:ash_typescript, conn, %{
+      AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
         "action" => "update_todo_scoped",
         "identity" => incomplete_todo.id,
         "input" => %{"title" => "new title"}

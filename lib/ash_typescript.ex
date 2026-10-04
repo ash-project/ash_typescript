@@ -656,29 +656,30 @@ defmodule AshTypescript do
   end
 
   @doc """
-  Gets the output field formatter configuration for TypeScript generation.
+  Gets the output field formatter for TypeScript generation and API responses.
 
   This determines how internal Elixir field names are converted for client
-  consumption in generated TypeScript types and API responses.
+  consumption. It is fixed when the manifest compiles, from
+  `config :ash_typescript, :output_field_formatter` (default `:camel_case`), and
+  read here from the manifest's `custom.ash_rpc` decoration.
   Can be:
   - Built-in: :camel_case, :pascal_case, :snake_case
   - Custom: {Module, :function} or {Module, :function, [extra_args]}
   """
-  def output_field_formatter do
-    Application.get_env(:ash_typescript, :output_field_formatter, :camel_case)
-  end
+  def output_field_formatter, do: AshRpc.Manifest.output_formatter(manifest())
 
   @doc """
-  Gets the input field formatter configuration for parsing input parameters.
+  Gets the input field formatter for parsing input parameters.
 
-  This determines how client field names are converted to internal Elixir field names.
+  This determines how client field names are converted to internal Elixir field
+  names. It is fixed when the manifest compiles, from
+  `config :ash_typescript, :input_field_formatter` (default `:camel_case`), and
+  read here from the manifest's `custom.ash_rpc` decoration.
   Can be:
   - Built-in: :camel_case, :pascal_case, :snake_case
   - Custom: {Module, :function} or {Module, :function, [extra_args]}
   """
-  def input_field_formatter do
-    Application.get_env(:ash_typescript, :input_field_formatter, :camel_case)
-  end
+  def input_field_formatter, do: AshRpc.Manifest.input_formatter(manifest())
 
   @doc """
   Gets the output file path for shared TypeScript type definitions.
@@ -824,27 +825,69 @@ defmodule AshTypescript do
     end
   end
 
+  @override_key {__MODULE__, :manifest_override}
+
   @doc """
-  Returns the full `%Ash.Info.Manifest{}` from `manifest_module` (defaults to
-  the configured manifest module).
+  Runs `fun` with `manifest` as this process's manifest: `manifest/0`,
+  `resource_lookup/1`, `action_lookup/1`, `type_lookup/1` and the formatter
+  accessors return it (or derive from it); `entrypoints/1`,
+  `rpc_action_lookup/1` and `typed_query_lookup/1` still read the configured
+  manifest module unless given a source explicitly. Used by
+  tests to vary formatters without mutating global config; safe under
+  `async: true`.
   """
-  def manifest(manifest_module \\ manifest_module()),
-    do: Spark.Dsl.Extension.get_persisted(manifest_module, :manifest)
+  @spec with_manifest(Ash.Info.Manifest.t(), (-> result)) :: result when result: term()
+  def with_manifest(%Ash.Info.Manifest{} = manifest, fun) when is_function(fun, 0) do
+    previous = Process.get(@override_key)
+    Process.put(@override_key, manifest)
+
+    try do
+      fun.()
+    after
+      if previous, do: Process.put(@override_key, previous), else: Process.delete(@override_key)
+    end
+  end
+
+  @doc """
+  Returns the full `%Ash.Info.Manifest{}`. With no argument, returns the
+  process's `with_manifest/2` override, or the configured manifest module's
+  manifest. Accepts a manifest module or an `%Ash.Info.Manifest{}`.
+  """
+  def manifest(source \\ nil)
+  def manifest(nil), do: Process.get(@override_key) || manifest(manifest_module())
+  def manifest(%Ash.Info.Manifest{} = m), do: m
+
+  def manifest(module) when is_atom(module),
+    do: Spark.Dsl.Extension.get_persisted(module, :manifest)
 
   @doc "Returns the entrypoints from `manifest_module` (defaults to the configured manifest module)."
   def entrypoints(manifest_module \\ manifest_module()), do: manifest(manifest_module).entrypoints
 
-  @doc "Returns the resource lookup map from `manifest` (defaults to the configured manifest module)."
-  def resource_lookup(manifest \\ manifest_module()),
-    do: Spark.Dsl.Extension.get_persisted(manifest, :resource_lookup) || %{}
+  @doc """
+  Returns the resource lookup map for `source` (a manifest module or
+  `%Ash.Info.Manifest{}`; defaults to `manifest/0`, override included).
+  """
+  def resource_lookup(source \\ nil),
+    do: lookup(source, :resource_lookup, &AshRpc.Manifest.resource_lookup/1)
 
-  @doc "Returns the action lookup map from `manifest` (defaults to the configured manifest module)."
-  def action_lookup(manifest \\ manifest_module()),
-    do: Spark.Dsl.Extension.get_persisted(manifest, :action_lookup) || %{}
+  @doc "Returns the action lookup map for `source` (see `resource_lookup/1`)."
+  def action_lookup(source \\ nil),
+    do: lookup(source, :action_lookup, &AshRpc.Manifest.action_lookup/1)
 
-  @doc "Returns the named-type lookup map from `manifest` (defaults to the configured manifest module)."
-  def type_lookup(manifest \\ manifest_module()),
-    do: Spark.Dsl.Extension.get_persisted(manifest, :type_lookup) || %{}
+  @doc "Returns the named-type lookup map for `source` (see `resource_lookup/1`)."
+  def type_lookup(source \\ nil), do: lookup(source, :type_lookup, &AshRpc.Manifest.type_lookup/1)
+
+  defp lookup(nil, key, from_struct) do
+    case Process.get(@override_key) do
+      nil -> lookup(manifest_module(), key, from_struct)
+      manifest -> from_struct.(manifest)
+    end
+  end
+
+  defp lookup(%Ash.Info.Manifest{} = m, _key, from_struct), do: from_struct.(m)
+
+  defp lookup(module, key, _from_struct) when is_atom(module),
+    do: Spark.Dsl.Extension.get_persisted(module, key) || %{}
 
   @doc """
   Returns the `%{action_name_string => %Ash.Info.Manifest.Entrypoint{}}` lookup
@@ -859,4 +902,56 @@ defmodule AshTypescript do
   """
   def typed_query_lookup(manifest \\ manifest_module()),
     do: Spark.Dsl.Extension.get_persisted(manifest, :typed_query_lookup) || %{}
+
+  @doc """
+  Runs a typed query (server-side rendering, controllers).
+
+  Looks the query up in the manifest's `custom.ash_typescript`, presets its
+  `fields`, and runs it through `AshRpc.run_action/4` with the `entrypoint:`
+  option, so it isn't reachable from wire params. `params` may contain
+  `:input`, `:page`, `:filter`, `:sort`. `opts` accepts `manifest:`.
+  """
+  @spec run_typed_query(atom(), map(), Plug.Conn.t(), keyword()) :: map()
+  def run_typed_query(typed_query_name, params, conn, opts \\ []) do
+    manifest = Keyword.get_lazy(opts, :manifest, &manifest/0)
+
+    case AshTypescript.Manifest.Custom.typed_query_entrypoint(manifest, typed_query_name) do
+      nil ->
+        AshRpc.failure_response(
+          AshTypescript.RpcProfile,
+          [typed_query_not_found(typed_query_name)],
+          manifest: manifest
+        )
+
+      entrypoint ->
+        wire_params =
+          [input: "input", page: "page", filter: "filter", sort: "sort"]
+          |> Enum.reduce(%{"fields" => entrypoint.preset_fields}, fn {key, wire}, acc ->
+            case params[key] do
+              nil -> acc
+              value -> Map.put(acc, wire, value)
+            end
+          end)
+
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, wire_params,
+          manifest: manifest,
+          entrypoint: entrypoint
+        )
+    end
+  end
+
+  defp typed_query_not_found(name) do
+    %{
+      type: "typed_query_not_found",
+      message: "Typed query %{typed_query_name} not found",
+      short_message: "Typed query not found",
+      vars: %{typed_query_name: to_string(name)},
+      path: [],
+      fields: [],
+      details: %{
+        suggestion:
+          "Check that the typed query is defined in a typed_queries block in your domain's typescript_rpc configuration"
+      }
+    }
+  end
 end

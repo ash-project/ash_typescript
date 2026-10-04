@@ -14,44 +14,27 @@ defmodule AshTypescript.AggregateFieldFormattingTest do
   :latest_comment_content are formatted according to the configured formatter.
   """
 
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
-  # Snapshot the global config this module mutates so it cannot leak into
-  # later test modules.
   setup_all do
-    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
-      :enable_namespace_files,
-      :output_field_formatter
-    ])
-  end
+    base = AshTypescript.manifest()
 
-  setup do
-    Application.put_env(:ash_typescript, :enable_namespace_files, false)
-
-    original_output_field_formatter =
-      Application.get_env(:ash_typescript, :output_field_formatter)
-
-    on_exit(fn ->
-      if original_output_field_formatter do
-        Application.put_env(
-          :ash_typescript,
-          :output_field_formatter,
-          original_output_field_formatter
-        )
-      else
-        Application.delete_env(:ash_typescript, :output_field_formatter)
-      end
-    end)
-
-    :ok
+    %{
+      manifests: %{
+        pascal_out: AshRpc.Manifest.redecorate(base, output_formatter: :pascal_case),
+        snake_out: AshRpc.Manifest.redecorate(base, output_formatter: :snake_case)
+      }
+    }
   end
 
   describe "Aggregate field formatting with configured formatters" do
-    test "generates PascalCase aggregate field names with :pascal_case formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "generates PascalCase aggregate field names with :pascal_case formatter", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "CommentCount: number")
       assert String.contains?(typescript_output, "HelpfulCommentCount: number")
@@ -60,11 +43,13 @@ defmodule AshTypescript.AggregateFieldFormattingTest do
       refute String.contains?(typescript_output, "helpfulCommentCount: number")
     end
 
-    test "generates snake_case aggregate field names with :snake_case formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
-
+    test "generates snake_case aggregate field names with :snake_case formatter", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.snake_out
+        )
 
       assert String.contains?(typescript_output, "comment_count: number")
       assert String.contains?(typescript_output, "helpful_comment_count: number")
@@ -75,11 +60,11 @@ defmodule AshTypescript.AggregateFieldFormattingTest do
       refute String.contains?(typescript_output, "HelpfulCommentCount: number")
     end
 
-    test "aggregate field formatting works in filter types" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "aggregate field formatting works in filter types", %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "FilterConfig") ||
                String.contains?(typescript_output, "Filter")
@@ -93,11 +78,11 @@ defmodule AshTypescript.AggregateFieldFormattingTest do
       assert filter_field_found
     end
 
-    test "aggregate field formatting works in input types" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "aggregate field formatting works in input types", %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "InputSchema")
 
@@ -111,22 +96,24 @@ defmodule AshTypescript.AggregateFieldFormattingTest do
              "CommentCount should appear in input type definitions when :pascal_case formatter is configured"
     end
 
-    test "aggregate field formatting works in RPC function generation" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "aggregate field formatting works in RPC function generation", %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "CommentCount") ||
                String.contains?(typescript_output, "HelpfulCommentCount"),
              "Aggregate fields should be formatted according to configured formatter in RPC function schemas"
     end
 
-    test "aggregate field formatting regression test - ensures no hardcoded camelCase" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
-
+    test "aggregate field formatting regression test - ensures no hardcoded camelCase", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.snake_out
+        )
 
       assert String.contains?(typescript_output, "comment_count: number"),
              "comment_count should be in snake_case when :snake_case formatter is configured"

@@ -4,8 +4,9 @@
 
 defmodule AshTypescript.Rpc.EnableFilterTest do
   use ExUnit.Case
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.Pipeline
+  alias AshRpc.Pipeline
 
   @moduletag :ash_typescript
 
@@ -31,7 +32,7 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:filter_not_supported, :top_level, :disabled}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
     end
 
     test "filter is preserved when enable_filter? is true (default)" do
@@ -43,7 +44,8 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.filter == %{status: %{eq: "active"}}
     end
@@ -57,7 +59,8 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.filter == nil
       assert request.sort == "-created_at"
@@ -114,7 +117,8 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.pagination == %{limit: 10, offset: 0}
       assert request.filter == nil
@@ -130,7 +134,9 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.filter == nil
     end
 
@@ -149,7 +155,7 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:filter_not_supported, :top_level, :disabled}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
     end
 
     test "empty map filter errors when enable_filter?: false" do
@@ -162,7 +168,7 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:filter_not_supported, :top_level, :disabled}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
     end
   end
 
@@ -241,7 +247,8 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.input == %{filter_completed: true}
       assert request.filter == nil
@@ -259,7 +266,8 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.filter == nil
       assert request.sort == "-created_at"
@@ -277,7 +285,8 @@ defmodule AshTypescript.Rpc.EnableFilterTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.filter == %{status: %{eq: "active"}}
       assert request.sort == "-created_at"

@@ -15,7 +15,6 @@ defmodule AshTypescript.Rpc.RpcMappedIdentityFieldsTest do
     AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:enable_namespace_files])
   end
 
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   setup do
@@ -54,7 +53,7 @@ defmodule AshTypescript.Rpc.RpcMappedIdentityFieldsTest do
       user_id: user_id
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_subscription_by_user_status",
           "identity" => %{
             "userId" => user_id,
@@ -81,7 +80,7 @@ defmodule AshTypescript.Rpc.RpcMappedIdentityFieldsTest do
         |> Ash.create!()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "destroy_subscription_by_user_status",
           "identity" => %{
             "userId" => user_id,

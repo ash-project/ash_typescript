@@ -21,7 +21,6 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
   end
 
   alias AshTypescript.Codegen.ZodSchemaGenerator
-  alias AshTypescript.Rpc.ValidationErrorSchemas
   alias AshTypescript.Test.OrgTodo
 
   setup do
@@ -163,51 +162,6 @@ defmodule AshTypescript.Rpc.PrivateArgumentsTest do
 
       assert zod_schema =~ "query",
              "Public argument 'query' should be in Zod schema"
-    end
-  end
-
-  describe "private arguments are excluded from validation error schemas" do
-    test "create action private argument is excluded from validation error schema" do
-      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :create)
-
-      error_schema =
-        ValidationErrorSchemas.generate_validation_error_type(OrgTodo, action, "create_org_todo")
-
-      refute error_schema =~ "internalTrackingId",
-             "Private argument 'internalTrackingId' should NOT be in validation error schema"
-
-      assert error_schema =~ "autoComplete",
-             "Public argument 'autoComplete' should be in validation error schema"
-    end
-
-    test "read action private argument is excluded from validation error schema" do
-      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :read)
-
-      error_schema =
-        ValidationErrorSchemas.generate_validation_error_type(OrgTodo, action, "list_org_todos")
-
-      refute error_schema =~ "internalAuditMode",
-             "Private argument 'internalAuditMode' should NOT be in validation error schema"
-
-      assert error_schema =~ "filterCompleted",
-             "Public argument 'filterCompleted' should be in validation error schema"
-    end
-
-    test "generic action private argument is excluded from validation error schema" do
-      action = AshTypescript.Test.SpecHelpers.spec_action(OrgTodo, :search)
-
-      error_schema =
-        ValidationErrorSchemas.generate_validation_error_type(
-          OrgTodo,
-          action,
-          "search_org_todos"
-        )
-
-      refute error_schema =~ "debugMode",
-             "Private argument 'debugMode' should NOT be in validation error schema"
-
-      assert error_schema =~ "query",
-             "Public argument 'query' should be in validation error schema"
     end
   end
 

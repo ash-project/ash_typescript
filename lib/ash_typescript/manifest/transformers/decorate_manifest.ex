@@ -12,7 +12,10 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
   *decorated* spec. Downstream readers (verifiers, runtime, codegen) should
   pull the manifest and lookups from here.
 
-  See `AshTypescript.Manifest.Decorator` for what gets decorated.
+  The manifest is decorated twice: `AshRpc.Manifest.Decorator` (driven by
+  `AshTypescript.RpcMappingSource`) writes `custom.ash_rpc`, then
+  `AshTypescript.Manifest.Decorator` writes `custom.ash_typescript`. The
+  embedded `custom.ash_rpc.lookups` are rebuilt last so they carry both.
   """
 
   use Spark.Dsl.Transformer
@@ -32,14 +35,18 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
         {:ok, dsl_state}
 
       manifest ->
-        decorated = Decorator.decorate(manifest)
+        decorated =
+          manifest
+          |> AshRpc.Manifest.Decorator.decorate(AshTypescript.RpcMappingSource)
+          |> Decorator.decorate()
+          |> AshRpc.Manifest.put_lookups()
 
         dsl_state =
           dsl_state
           |> Transformer.persist(:manifest, decorated)
-          |> Transformer.persist(:resource_lookup, build_resource_lookup(decorated))
-          |> Transformer.persist(:action_lookup, Ash.Info.Manifest.action_lookup(decorated))
-          |> Transformer.persist(:type_lookup, Ash.Info.Manifest.type_lookup(decorated))
+          |> Transformer.persist(:resource_lookup, AshRpc.Manifest.resource_lookup(decorated))
+          |> Transformer.persist(:action_lookup, AshRpc.Manifest.action_lookup(decorated))
+          |> Transformer.persist(:type_lookup, AshRpc.Manifest.type_lookup(decorated))
           |> Transformer.persist(:rpc_action_lookup, build_rpc_action_lookup(decorated))
           |> Transformer.persist(:typed_query_lookup, build_typed_query_lookup(decorated))
 
@@ -66,22 +73,5 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
         typed_query -> Map.put(acc, to_string(typed_query.name), entrypoint)
       end
     end)
-  end
-
-  # Ash 3.25.2+ moved embedded resources from `manifest.resources` into
-  # `manifest.types` (as `kind: :embedded_resource` entries with the definition
-  # in `type.resource`). ash_typescript treats them uniformly with domain
-  # resources for schema generation, so this merges them back into the lookup.
-  defp build_resource_lookup(manifest) do
-    base = Ash.Info.Manifest.resource_lookup(manifest)
-
-    embedded =
-      manifest.types
-      |> Enum.filter(fn type ->
-        match?(%Ash.Info.Manifest.Type{kind: :embedded_resource, resource: %_{}}, type)
-      end)
-      |> Map.new(fn %{module: mod, resource: resource} -> {mod, resource} end)
-
-    Map.merge(embedded, base)
   end
 end

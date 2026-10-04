@@ -4,7 +4,6 @@
 
 defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "simple embedded resource fields" do
@@ -13,7 +12,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
       # Create a user for testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Embedded User",
@@ -24,7 +23,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
       # Create a todo with embedded metadata
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Todo with Metadata",
@@ -44,7 +43,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "processes embedded resource attribute fields correctly", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -82,7 +81,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "processes embedded resource calculations", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -119,7 +118,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "processes embedded resource calculation with arguments", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -161,7 +160,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "processes mixed embedded attributes and calculations", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -213,7 +212,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "stress test: embedded resource with only attributes should be selected", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -246,7 +245,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "stress test: embedded resource mixing attributes and calculations", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -287,7 +286,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
       # Create a user for testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Array User",
@@ -298,7 +297,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
       # Create a todo with array of embedded metadata history
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Todo with History",
@@ -325,7 +324,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "processes array embedded resource fields correctly", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -372,7 +371,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "processes array embedded resource with calculations", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -415,7 +414,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
       # Create a user for testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Union User",
@@ -426,7 +425,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
       # Create todos with different content types (union embedded resources)
       %{"success" => true, "data" => text_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Text Content Todo",
@@ -442,7 +441,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
         })
 
       %{"success" => true, "data" => checklist_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Checklist Content Todo",
@@ -462,7 +461,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
         })
 
       %{"success" => true, "data" => link_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Link Content Todo",
@@ -488,7 +487,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "processes union field selection for text content", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -526,7 +525,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "processes union field selection for checklist content", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -564,7 +563,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "processes union field selection for link content", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -602,7 +601,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "processes union field selection with calculations", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -649,7 +648,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "returns error for invalid embedded resource field", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{"metadata" => ["invalidField"]}
@@ -665,7 +664,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "returns error for invalid nested embedded resource field", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{"metadataHistory" => ["category", "invalidField"]}
@@ -681,7 +680,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "returns error for invalid union member field", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{"content" => %{"text" => ["invalidField"]}}
@@ -697,7 +696,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "returns error for accessing private embedded resource field", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{"metadata" => ["internalNotes"]}
@@ -713,7 +712,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "returns error for calculation requiring args without providing them", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{"metadata" => ["adjustedPriority"]}
@@ -729,7 +728,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "returns error for providing args to calculation that doesn't accept them", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -753,7 +752,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "returns error when embedded resource is requested as simple atom", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "metadata"
@@ -770,7 +769,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       conn: conn
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -799,7 +798,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
       # Create a user for testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Create User",
@@ -816,7 +815,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       user: user
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Create Todo with Metadata",
@@ -851,7 +850,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
     test "processes union embedded resources in create actions", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Create Todo with Text Content",
@@ -897,7 +896,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
       # Create a user for testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Update User",
@@ -908,7 +907,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
 
       # Create a todo to update
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Original Todo",
@@ -930,7 +929,7 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
       todo: todo
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo",
           "identity" => todo["id"],
           "input" => %{

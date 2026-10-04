@@ -11,8 +11,6 @@ defmodule AshTypescript.Rpc.TypedMapEmbeddedRowsTest do
   so pre-0.18 clients keep working against a 0.18 server.
   """
   use ExUnit.Case, async: false
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "generated types" do
@@ -39,7 +37,7 @@ defmodule AshTypescript.Rpc.TypedMapEmbeddedRowsTest do
 
     test "nested selection on embedded rows returns only requested fields", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -59,7 +57,7 @@ defmodule AshTypescript.Rpc.TypedMapEmbeddedRowsTest do
 
     test "plain string selection of embedded rows is still accepted at runtime", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", %{"metadataReport" => ["total", "rows"]}]
         })

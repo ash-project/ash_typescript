@@ -4,8 +4,7 @@
 
 defmodule AshTypescript.Rpc.IntegrationTest do
   use ExUnit.Case
-
-  alias AshTypescript.Rpc
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
   alias AshTypescript.Test.Todo
 
   @moduletag :ash_typescript
@@ -21,7 +20,11 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Valid requests should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
+               AshRpc.Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(conn),
+                 params
+               )
 
       # Verify parsed structure
       assert request.resource == Todo
@@ -53,7 +56,11 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Valid complex requests should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
+               AshRpc.Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(conn),
+                 params
+               )
 
       # Verify correct field classification
       assert :id in request.select
@@ -80,7 +87,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       conn = %Plug.Conn{}
 
-      error_response = Rpc.run_action(:ash_typescript, conn, params)
+      error_response = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       # Should fail with validation error, not execution error
       assert error_response["success"] == false
@@ -101,7 +108,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       conn = %Plug.Conn{}
 
       # Valid request should pass validation
-      response = Rpc.validate_action(:ash_typescript, conn, valid_params)
+      response = AshRpc.validate_action(AshTypescript.RpcProfile, conn, valid_params)
       assert response["success"] == true
 
       # Invalid request should fail validation
@@ -110,7 +117,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
         "fields" => ["id", "unknown_field"]
       }
 
-      error_response = Rpc.validate_action(:ash_typescript, conn, invalid_params)
+      error_response = AshRpc.validate_action(AshTypescript.RpcProfile, conn, invalid_params)
       assert error_response["success"] == false
 
       error = List.first(error_response["errors"])
@@ -132,7 +139,11 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Valid camelCase requests should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
+               AshRpc.Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(conn),
+                 params
+               )
 
       # Field names should be converted to snake_case internally
       # Converted from createdAt
@@ -154,10 +165,12 @@ defmodule AshTypescript.Rpc.IntegrationTest do
         %{id: 2, title: "Another", created_at: ~U[2024-01-02 00:00:00Z], user_id: "456"}
       ]
 
-      _request = %AshTypescript.Rpc.Request{}
-
       # Test the output formatting stage
-      formatted_result = AshTypescript.Rpc.Pipeline.format_output(internal_data)
+      formatted_result =
+        AshRpc.FieldFormatter.format_output_field_names(
+          internal_data,
+          rpc_runtime().output_formatter
+        )
 
       # Should convert snake_case back to camelCase for client consumption
       first_item = List.first(formatted_result)
@@ -188,7 +201,11 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Valid pagination should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
+               AshRpc.Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(conn),
+                 params
+               )
 
       # Pagination should be parsed and included
       assert request.pagination[:limit] == 10
@@ -206,7 +223,11 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:invalid_pagination, "invalid_pagination"}} =
-               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
+               AshRpc.Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(conn),
+                 params
+               )
     end
   end
 
@@ -219,7 +240,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       conn = %Plug.Conn{}
 
-      error_response = Rpc.run_action(:ash_typescript, conn, params)
+      error_response = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       # Should get properly formatted error response
       assert error_response["success"] == false
@@ -239,7 +260,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       conn = %Plug.Conn{}
 
-      error_response = Rpc.run_action(:ash_typescript, conn, params)
+      error_response = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       # Error should be clear and actionable
       assert error_response["success"] == false
@@ -258,7 +279,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       conn = %Plug.Conn{}
 
-      error_response = Rpc.run_action(:ash_typescript, conn, params)
+      error_response = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       # Should show it's an unknown field error with relationship context
       assert error_response["success"] == false
@@ -281,7 +302,11 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Simple list requests should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
+               AshRpc.Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(conn),
+                 params
+               )
 
       assert request.resource == Todo
       assert :id in request.select
@@ -305,7 +330,11 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Relationship requests should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
+               AshRpc.Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(conn),
+                 params
+               )
 
       assert request.resource == Todo
       assert :id in request.select
@@ -339,7 +368,11 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Complex detailed requests should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
+               AshRpc.Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(conn),
+                 params
+               )
 
       assert request.resource == Todo
       # Verify calculations are in load
@@ -360,7 +393,11 @@ defmodule AshTypescript.Rpc.IntegrationTest do
 
       # Requests with pagination should always parse successfully
       assert {:ok, request} =
-               AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, conn, params)
+               AshRpc.Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(conn),
+                 params
+               )
 
       assert request.resource == Todo
       assert request.pagination[:limit] == 20
@@ -373,7 +410,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       conn = %Plug.Conn{}
 
       # Invalid field names should always fail
-      error_response = Rpc.run_action(:ash_typescript, conn, params)
+      error_response = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
       assert error_response["success"] == false
 
       error = List.first(error_response["errors"])
@@ -387,7 +424,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       conn = %Plug.Conn{}
 
       # Invalid action names should always fail
-      error_response = Rpc.run_action(:ash_typescript, conn, params)
+      error_response = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
       assert error_response["success"] == false
 
       error = List.first(error_response["errors"])
@@ -399,7 +436,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       conn = %Plug.Conn{}
 
       # Invalid nested structures should always fail
-      error_response = Rpc.run_action(:ash_typescript, conn, params)
+      error_response = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
       assert error_response["success"] == false
 
       error = List.first(error_response["errors"])
@@ -412,7 +449,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       conn = %Plug.Conn{}
 
       # Invalid pagination should always fail
-      error_response = Rpc.run_action(:ash_typescript, conn, params)
+      error_response = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
       assert error_response["success"] == false
 
       error = List.first(error_response["errors"])

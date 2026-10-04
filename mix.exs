@@ -34,11 +34,19 @@ defmodule AshTypescript.MixProject do
   end
 
   # Read by `mix usage_rules.sync` (and its `--check` run in `mix check`):
-  # link every dependency's usage rules into AGENTS.md as `@deps/...` references.
+  # link the usage rules relevant to developing this library into AGENTS.md as
+  # `@deps/...` references. App-building rules (phoenix, ash_postgres,
+  # ash_authentication, Ash migrations/generators) are left out on purpose.
   defp usage_rules do
     [
       file: "AGENTS.md",
-      usage_rules: {:all, link: :at}
+      usage_rules: [
+        {:ash, link: :at, except: [:migrations, :generating_code]},
+        {:spark, link: :at},
+        {:igniter, link: :at},
+        {:ex_check, link: :at},
+        {:usage_rules, link: :at, except: [:otp]}
+      ]
     ]
   end
 
@@ -146,6 +154,9 @@ defmodule AshTypescript.MixProject do
         "documentation/reference/mix-tasks.md",
         "documentation/reference/troubleshooting.md",
 
+        # Upgrading
+        "documentation/upgrading/ash-rpc.md",
+
         # DSLs
         {"documentation/dsls/DSL-AshTypescript.Rpc.md",
          search_data: Spark.Docs.search_data_for(AshTypescript.Rpc)},
@@ -165,6 +176,7 @@ defmodule AshTypescript.MixProject do
         Features: ~r'documentation/features',
         Advanced: ~r'documentation/advanced',
         Reference: ~r'documentation/reference',
+        Upgrading: ~r'documentation/upgrading',
         DSLs: ~r'documentation/dsls',
         "About AshTypescript": [
           "CHANGELOG.md"
@@ -192,8 +204,9 @@ defmodule AshTypescript.MixProject do
   defp deps do
     [
       {:ash, ash_version("~> 3.27")},
+      {:ash_rpc, path: "../ash_rpc"},
       {:ash_authentication, "~> 4.0", optional: true},
-      {:ash_phoenix, "~> 2.0"},
+      {:phoenix, "~> 1.7"},
       {:ash_postgres, "~> 2.0", only: [:dev, :test]},
       {:git_ops, "~> 2.0", only: [:dev], runtime: false},
       {:spark, "~> 2.0"},

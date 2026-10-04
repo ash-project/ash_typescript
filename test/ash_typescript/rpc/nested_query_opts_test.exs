@@ -4,8 +4,9 @@
 
 defmodule AshTypescript.Rpc.NestedQueryOptsTest do
   use ExUnit.Case, async: true
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.RequestedFieldsProcessor
+  alias AshRpc.RequestedFieldsProcessor
 
   # Envelope maps may keep string keys after atomization (the FieldSelector
   # handles both); fetch tolerantly.
@@ -30,7 +31,11 @@ defmodule AshTypescript.Rpc.NestedQueryOptsTest do
       ]
 
       [_, envelope_map] =
-        RequestedFieldsProcessor.atomize_requested_fields(input, AshTypescript.Test.Todo)
+        RequestedFieldsProcessor.atomize_requested_fields(
+          input,
+          AshTypescript.Test.Todo,
+          rpc_runtime()
+        )
 
       [{_comments_key, envelope}] = Map.to_list(envelope_map)
 
@@ -58,7 +63,11 @@ defmodule AshTypescript.Rpc.NestedQueryOptsTest do
       ]
 
       [envelope_map] =
-        RequestedFieldsProcessor.atomize_requested_fields(input, AshTypescript.Test.User)
+        RequestedFieldsProcessor.atomize_requested_fields(
+          input,
+          AshTypescript.Test.User,
+          rpc_runtime()
+        )
 
       [{_todos_key, envelope}] = Map.to_list(envelope_map)
 
@@ -69,9 +78,13 @@ defmodule AshTypescript.Rpc.NestedQueryOptsTest do
 
   defp process_fields(action, raw_fields, opts \\ []) do
     fields =
-      RequestedFieldsProcessor.atomize_requested_fields(raw_fields, AshTypescript.Test.Todo)
+      RequestedFieldsProcessor.atomize_requested_fields(
+        raw_fields,
+        AshTypescript.Test.Todo,
+        rpc_runtime()
+      )
 
-    RequestedFieldsProcessor.process(AshTypescript.Test.Todo, action, fields, nil, opts)
+    RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, action, fields, opts)
   end
 
   describe "envelope classification and query build" do
@@ -128,7 +141,12 @@ defmodule AshTypescript.Rpc.NestedQueryOptsTest do
       fields = [%{comments: %{page: %{limit: 1}, fields: [:id]}}]
 
       assert {:ok, {_s, [{:comments, %Ash.Query{} = query}], _t}} =
-               RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, fields)
+               RequestedFieldsProcessor.process(
+                 rpc_runtime(),
+                 AshTypescript.Test.Todo,
+                 :read,
+                 fields
+               )
 
       assert query.page[:limit] == 1
     end
@@ -418,7 +436,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsTest do
       ]
 
       for {throw_tuple, expected_type} <- cases do
-        response = AshTypescript.Rpc.ErrorBuilder.build_error_response(throw_tuple)
+        response = AshRpc.ErrorBuilder.build_error_response(rpc_runtime(), throw_tuple)
 
         assert response.type == expected_type,
                "#{inspect(throw_tuple)} mapped to #{response.type}, expected #{expected_type}"
@@ -431,7 +449,8 @@ defmodule AshTypescript.Rpc.NestedQueryOptsTest do
 
     test "reason lands in details for gated errors" do
       response =
-        AshTypescript.Rpc.ErrorBuilder.build_error_response(
+        AshRpc.ErrorBuilder.build_error_response(
+          rpc_runtime(),
           {:filter_not_supported, :comments, :disabled, []}
         )
 

@@ -17,7 +17,7 @@ defmodule AshTypescript.TypedChannel.PayloadFormatter do
   `ValueFormatter` the RPC pipeline uses before pushing to the client.
   """
 
-  alias AshTypescript.Rpc.ValueFormatter
+  alias AshRpc.ValueFormatter
   alias AshTypescript.TypedChannel.Info
 
   @doc """
@@ -44,9 +44,8 @@ defmodule AshTypescript.TypedChannel.PayloadFormatter do
           payload,
           returns,
           constraints || [],
-          AshTypescript.Rpc.output_field_formatter(),
           :output,
-          AshTypescript.resource_lookup()
+          AshRpc.Runtime.from_manifest(AshTypescript.manifest())
         )
 
       _ ->

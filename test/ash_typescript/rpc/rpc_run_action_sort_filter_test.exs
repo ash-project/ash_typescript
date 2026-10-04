@@ -4,8 +4,6 @@
 
 defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
   use ExUnit.Case, async: false
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   # ──────────────────────────────────────────────────
@@ -16,7 +14,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
     conn = TestHelpers.build_rpc_conn()
 
     %{"success" => true, "data" => user} =
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "create_user",
         "input" => %{"name" => "Sort Test User", "email" => "sort@test.com"},
         "fields" => ["id"]
@@ -39,7 +37,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
         input = if desc, do: Map.put(input, "description", desc), else: input
 
         %{"success" => true, "data" => todo} =
-          Rpc.run_action(:ash_typescript, conn, %{
+          AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
             "action" => "create_todo",
             "input" => input,
             "fields" => ["id", "title", "completed", "description"]
@@ -58,7 +56,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
   describe "sort with string format" do
     test "ascending sort by title", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           "sort" => "title"
@@ -71,7 +69,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "descending sort by title", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           "sort" => "-title"
@@ -84,7 +82,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "ascending with explicit + prefix", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           "sort" => "+title"
@@ -97,7 +95,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "comma-separated multi-field sort string", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "completed"],
           "sort" => "completed,-title"
@@ -122,7 +120,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
   describe "sort with list format" do
     test "single-element list ascending", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           "sort" => ["title"]
@@ -135,7 +133,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "single-element list descending", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           "sort" => ["-title"]
@@ -148,7 +146,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "multi-element list sort", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "completed"],
           "sort" => ["completed", "-title"]
@@ -167,7 +165,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
     test "list sort with ++ prefix (asc_nils_first)", %{conn: conn} do
       # description is nil for "Charlie Todo", non-nil for others
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "description"],
           "sort" => ["++description"]
@@ -183,7 +181,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "list sort with -- prefix (desc_nils_last)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "description"],
           "sort" => ["--description"]
@@ -199,7 +197,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "list sort with camelCase field names", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "createdAt"],
           "sort" => ["-createdAt"]
@@ -218,13 +216,13 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
   describe "sort with enable_sort?: false" do
     test "string sort errors as disabled", %{conn: conn} do
       result_without_sort =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_no_sort",
           "fields" => ["id", "title"]
         })
 
       result_with_sort =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_no_sort",
           "fields" => ["id", "title"],
           "sort" => "-title"
@@ -241,7 +239,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "list sort errors as disabled", %{conn: conn} do
       result_with_list_sort =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_no_sort",
           "fields" => ["id", "title"],
           "sort" => ["-title", "+completed"]
@@ -262,7 +260,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
   describe "filter with isNil operator" do
     test "isNil: true returns records with nil field", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "description"],
           "filter" => %{"description" => %{"isNil" => true}}
@@ -279,7 +277,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "isNil: false returns records with non-nil field", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "description"],
           "filter" => %{"description" => %{"isNil" => false}}
@@ -296,7 +294,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "isNil combined with eq in AND", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "description", "completed"],
           "filter" => %{
@@ -317,7 +315,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "isNil combined with eq in OR", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "description", "completed"],
           "filter" => %{
@@ -340,7 +338,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
     test "isNil on boolean field", %{conn: conn} do
       # completed is non-nil for all our test todos
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "completed"],
           "filter" => %{"completed" => %{"isNil" => false}}
@@ -362,13 +360,13 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
   describe "filter with enable_filter?: false" do
     test "isNil filter errors when filtering disabled", %{conn: conn} do
       result_all =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_no_filter",
           "fields" => ["id", "title"]
         })
 
       result_with_filter =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_no_filter",
           "fields" => ["id", "title"],
           "filter" => %{"description" => %{"isNil" => true}}
@@ -391,7 +389,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
   describe "combined sort, filter, and pagination" do
     test "filter + string sort", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "completed"],
           "filter" => %{"completed" => %{"eq" => false}},
@@ -410,7 +408,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "filter + list sort", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "completed"],
           "filter" => %{"completed" => %{"eq" => false}},
@@ -429,7 +427,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "isNil filter + list sort + offset pagination", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "description"],
           "filter" => %{"description" => %{"isNil" => false}},
@@ -450,7 +448,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "isNil filter + list sort + offset pagination page 2", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "description"],
           "filter" => %{"description" => %{"isNil" => false}},
@@ -467,7 +465,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
       conn: conn
     } do
       result_with_filter =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_no_filter",
           "fields" => ["id", "title"],
           "filter" => %{"completed" => %{"eq" => false}},
@@ -481,7 +479,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
              end)
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_no_filter",
           "fields" => ["id", "title"],
           "sort" => ["title"]
@@ -498,7 +496,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
       conn: conn
     } do
       result_sorted =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_no_sort",
           "fields" => ["id", "title", "description"],
           "filter" => %{"description" => %{"isNil" => true}},
@@ -512,7 +510,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
              end)
 
       result_filtered =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_no_sort",
           "fields" => ["id", "title", "description"],
           "filter" => %{"description" => %{"isNil" => true}}
@@ -527,13 +525,13 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "combined with both disabled errors on filter first", %{conn: conn} do
       result_all =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_no_filter_no_sort",
           "fields" => ["id", "title"]
         })
 
       result_with_both =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_no_filter_no_sort",
           "fields" => ["id", "title"],
           "filter" => %{"completed" => %{"eq" => false}},
@@ -561,7 +559,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
       # Alpha gets 2 comments
       for content <- ["Comment 1", "Comment 2"] do
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => content,
@@ -576,7 +574,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
       end
 
       # Charlie gets 1 comment
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "create_todo_comment",
         "input" => %{
           "content" => "Single comment",
@@ -596,7 +594,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "sort by commentCount ascending", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "commentCount"],
           "sort" => ["commentCount"]
@@ -609,7 +607,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "sort by commentCount descending", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "commentCount"],
           "sort" => ["-commentCount"]
@@ -622,7 +620,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "sort by aggregate in list format with secondary sort", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "commentCount"],
           "sort" => ["-commentCount", "title"]
@@ -650,7 +648,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
             {"OK", 3, false}
           ] do
         %{"success" => true} =
-          Rpc.run_action(:ash_typescript, conn, %{
+          AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
             "action" => "create_todo_comment",
             "input" => %{
               "content" => content,
@@ -666,7 +664,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
       # Charlie gets 1 comment with rating 4
       %{"success" => true} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Nice",
@@ -686,7 +684,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "filter by :count aggregate (commentCount > 1)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "commentCount"],
           "filter" => %{"commentCount" => %{"greaterThan" => 1}}
@@ -701,7 +699,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "filter by :exists aggregate (hasComments)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "hasComments"],
           "filter" => %{"hasComments" => %{"eq" => true}}
@@ -718,7 +716,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "filter by :exists aggregate (hasComments = false)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "hasComments"],
           "filter" => %{"hasComments" => %{"eq" => false}}
@@ -732,7 +730,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "filter by :max aggregate (highestRating >= 5)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "highestRating"],
           "filter" => %{"highestRating" => %{"greaterThanOrEqual" => 5}}
@@ -748,7 +746,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "filter by :avg aggregate (averageRating > 3)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "averageRating"],
           "filter" => %{"averageRating" => %{"greaterThan" => 3}}
@@ -763,7 +761,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "filter by :first aggregate (latestCommentContent)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "latestCommentContent"],
           "filter" => %{"latestCommentContent" => %{"eq" => "Nice"}}
@@ -778,7 +776,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "filter by :first aggregate with isNil (no comments)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "latestCommentContent"],
           "filter" => %{"latestCommentContent" => %{"isNil" => true}}
@@ -792,7 +790,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "combined aggregate filter + sort", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "hasComments", "highestRating"],
           "filter" => %{"hasComments" => %{"eq" => true}},
@@ -816,7 +814,7 @@ defmodule AshTypescript.Rpc.RpcRunActionSortFilterTest do
 
     test "combined aggregate filter + isNil + pagination", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "commentCount", "highestRating"],
           "filter" => %{

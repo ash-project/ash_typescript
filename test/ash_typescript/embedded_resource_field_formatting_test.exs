@@ -14,44 +14,27 @@ defmodule AshTypescript.EmbeddedResourceFieldFormattingTest do
   :external_reference are formatted according to the configured formatter.
   """
 
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
-  # Snapshot the global config this module mutates so it cannot leak into
-  # later test modules.
   setup_all do
-    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
-      :enable_namespace_files,
-      :output_field_formatter
-    ])
-  end
+    base = AshTypescript.manifest()
 
-  setup do
-    Application.put_env(:ash_typescript, :enable_namespace_files, false)
-
-    original_output_field_formatter =
-      Application.get_env(:ash_typescript, :output_field_formatter)
-
-    on_exit(fn ->
-      if original_output_field_formatter do
-        Application.put_env(
-          :ash_typescript,
-          :output_field_formatter,
-          original_output_field_formatter
-        )
-      else
-        Application.delete_env(:ash_typescript, :output_field_formatter)
-      end
-    end)
-
-    :ok
+    %{
+      manifests: %{
+        pascal_out: AshRpc.Manifest.redecorate(base, output_formatter: :pascal_case),
+        snake_out: AshRpc.Manifest.redecorate(base, output_formatter: :snake_case)
+      }
+    }
   end
 
   describe "Embedded resource field formatting with configured formatters" do
-    test "generates PascalCase embedded resource field names with :pascal_case formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "generates PascalCase embedded resource field names with :pascal_case formatter", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "PriorityScore?: number")
       assert String.contains?(typescript_output, "ExternalReference?: string")
@@ -82,11 +65,13 @@ defmodule AshTypescript.EmbeddedResourceFieldFormattingTest do
       refute String.contains?(typescript_output, "lastCheckedAt?: UtcDateTime")
     end
 
-    test "generates snake_case embedded resource field names with :snake_case formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
-
+    test "generates snake_case embedded resource field names with :snake_case formatter", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.snake_out
+        )
 
       assert String.contains?(typescript_output, "priority_score?: number")
       assert String.contains?(typescript_output, "external_reference?: string")
@@ -115,11 +100,13 @@ defmodule AshTypescript.EmbeddedResourceFieldFormattingTest do
       refute String.contains?(typescript_output, "ContentType?: string")
     end
 
-    test "generates embedded resource calculation field names with configured formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "generates embedded resource calculation field names with configured formatter", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "DisplayCategory")
       assert String.contains?(typescript_output, "AdjustedPriority")
@@ -141,11 +128,11 @@ defmodule AshTypescript.EmbeddedResourceFieldFormattingTest do
       refute String.contains?(typescript_output, "isAccessible")
     end
 
-    test "embedded resource field formatting works in input types" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "embedded resource field formatting works in input types", %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "InputSchema")
 
@@ -159,11 +146,13 @@ defmodule AshTypescript.EmbeddedResourceFieldFormattingTest do
              "PriorityScore should appear in multiple type definitions (output and input), but found #{field_occurrences} occurrences"
     end
 
-    test "embedded resource field formatting regression test - ensures no hardcoded camelCase" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
-
+    test "embedded resource field formatting regression test - ensures no hardcoded camelCase", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.snake_out
+        )
 
       assert String.contains?(typescript_output, "priority_score?: number"),
              "priority_score should be in snake_case when :snake_case formatter is configured"

@@ -12,9 +12,10 @@ defmodule AshTypescript.Rpc.StructArgumentTest do
   metadata fields), and the InputFormatter should cast the map to the actual struct.
   """
   use ExUnit.Case, async: true
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
+  alias AshRpc.InputFormatter
   alias AshTypescript.Codegen.TypeMapper
-  alias AshTypescript.Rpc.InputFormatter
 
   describe "TypeScript type generation for struct arguments" do
     test "get_ts_input_type generates InputSchema for struct with instance_of pointing to Ash resource" do
@@ -68,12 +69,7 @@ defmodule AshTypescript.Rpc.StructArgumentTest do
   end
 
   describe "InputFormatter struct argument casting" do
-    setup do
-      formatter = AshTypescript.Rpc.input_field_formatter()
-      %{formatter: formatter}
-    end
-
-    test "format processes input data for User resource", %{formatter: formatter} do
+    test "format processes input data for User resource" do
       # Test that InputFormatter correctly processes input data for the User resource
       # The :create action accepts [:email, :name, :is_super_admin, :address_line_1]
       input_data = %{
@@ -81,16 +77,8 @@ defmodule AshTypescript.Rpc.StructArgumentTest do
         "email" => "test@example.com"
       }
 
-      resource_lookups = AshTypescript.resource_lookup()
-
       result =
-        InputFormatter.format(
-          input_data,
-          AshTypescript.Test.User,
-          :create,
-          formatter,
-          resource_lookups
-        )
+        InputFormatter.format(input_data, AshTypescript.Test.User, :create, rpc_runtime())
 
       assert {:ok, formatted} = result
       assert is_map(formatted)

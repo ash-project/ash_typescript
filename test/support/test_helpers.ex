@@ -16,7 +16,6 @@ defmodule AshTypescript.Test.TestHelpers do
   import Phoenix.ConnTest
   import Plug.Conn
   import ExUnit.Assertions
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.{Content, Domain, Todo, User}
 
   @doc """
@@ -32,6 +31,13 @@ defmodule AshTypescript.Test.TestHelpers do
     |> Ash.PlugHelpers.set_tenant(nil)
     |> assign(:context, %{})
   end
+
+  @doc """
+  The `AshRpc.Runtime` for `AshTypescript.RpcProfile` against the configured
+  test manifest - what the RPC pipeline stages (`AshRpc.Pipeline`,
+  `AshRpc.RequestedFieldsProcessor`, `AshRpc.ResultProcessor`, ...) receive.
+  """
+  def rpc_runtime, do: AshRpc.Runtime.new(AshTypescript.RpcProfile)
 
   @doc """
   Creates a test user with standard test data.
@@ -432,7 +438,7 @@ defmodule AshTypescript.Test.TestHelpers do
       }
     }
 
-    result = Rpc.run_action(:ash_typescript, conn, user_params)
+    result = AshRpc.run_action(AshTypescript.RpcProfile, conn, user_params)
     assert_rpc_success(result)
   end
 
@@ -463,7 +469,7 @@ defmodule AshTypescript.Test.TestHelpers do
       "input" => input
     }
 
-    result = Rpc.run_action(:ash_typescript, conn, todo_params)
+    result = AshRpc.run_action(AshTypescript.RpcProfile, conn, todo_params)
     assert_rpc_success(result)
   end
 
@@ -508,7 +514,7 @@ defmodule AshTypescript.Test.TestHelpers do
       "input" => input
     }
 
-    result = Rpc.run_action(:ash_typescript, conn, content_params)
+    result = AshRpc.run_action(AshTypescript.RpcProfile, conn, content_params)
     assert_rpc_success(result)
   end
 

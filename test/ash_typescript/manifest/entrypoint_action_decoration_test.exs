@@ -23,37 +23,25 @@ defmodule AshTypescript.Manifest.EntrypointActionDecorationTest do
     assert length(decorated) == map_size(action_lookup),
            "expected all #{map_size(action_lookup)} entrypoint actions decorated, got #{length(decorated)}"
 
-    # input maps present per built-in formatter + field types
+    # input map (for the configured formatter) + field types
     Enum.each(action_lookup, fn {_key, action} ->
-      assert is_map(Custom.action_input_expected_keys(action, :camel_case))
-      assert is_map(Custom.action_input_expected_keys(action, :pascal_case))
-      assert is_map(Custom.action_input_expected_keys(action, :snake_case))
-      assert Custom.action_input_expected_keys(action, {SomeMod, :fun}) == nil
+      assert is_map(AshRpc.Manifest.Custom.action_expected_input_keys(action))
       assert is_map(Custom.action_input_field_types(action))
     end)
   end
 
-  test "custom field-name mappings take precedence over the formatter in every cached formatter map" do
+  test "custom field-name mappings take precedence over the formatter in the cached input map" do
     action = Map.get(AshTypescript.action_lookup(@manifest), {AshTypescript.Test.User, :create})
     assert action, "expected {User, :create} to be an entrypoint action"
 
-    # `:address_line_1` is mapped to "addressLine1" via the field_names DSL. The
-    # mapping must win regardless of formatter, so the client key is identical
-    # across all three built-in formatter maps (never "address_line_1"/"AddressLine1").
-    for formatter <- [:camel_case, :snake_case, :pascal_case] do
-      keys = Custom.action_input_expected_keys(action, formatter)
-      assert Map.get(keys, "addressLine1") == :address_line_1
-      refute Map.has_key?(keys, "address_line_1")
-      refute Map.has_key?(keys, "AddressLine1")
-    end
+    # `:address_line_1` is mapped to "addressLine1" via the field_names DSL; the
+    # mapping wins over the formatter.
+    keys = AshRpc.Manifest.Custom.action_expected_input_keys(action)
+    assert Map.get(keys, "addressLine1") == :address_line_1
+    refute Map.has_key?(keys, "address_line_1")
 
-    # An unmapped attribute (`:is_super_admin`) still follows the formatter.
-    camel = Custom.action_input_expected_keys(action, :camel_case)
-    snake = Custom.action_input_expected_keys(action, :snake_case)
-    pascal = Custom.action_input_expected_keys(action, :pascal_case)
-    assert Map.get(camel, "isSuperAdmin") == :is_super_admin
-    assert Map.get(snake, "is_super_admin") == :is_super_admin
-    assert Map.get(pascal, "IsSuperAdmin") == :is_super_admin
+    # An unmapped attribute (`:is_super_admin`) follows the configured formatter.
+    assert Map.get(keys, "isSuperAdmin") == :is_super_admin
   end
 
   test "cached classification equals a live recompute" do

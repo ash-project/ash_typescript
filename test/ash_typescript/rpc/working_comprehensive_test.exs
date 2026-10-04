@@ -4,7 +4,7 @@
 
 defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
   @moduledoc """
-  Comprehensive integration tests for the refactored AshTypescript.Rpc module.
+  Comprehensive integration tests for the AshRpc runtime via `AshTypescript.RpcProfile`.
 
   This test suite validates all working RPC features through end-to-end testing:
   - Basic CRUD operations with precise return value assertions
@@ -21,8 +21,6 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
   """
 
   use ExUnit.Case, async: false
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   @moduletag :ash_typescript
@@ -33,7 +31,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       # Step 1: Create a user first (required for todo relationship)
       user_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "John Doe",
@@ -51,7 +49,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       # Step 2: Create a todo with comprehensive field data
       todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Test Todo",
@@ -106,7 +104,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       # Step 3: Get the todo with relationship and calculation fields
       get_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo_id},
           "fields" => [
@@ -154,7 +152,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       # Step 4: List todos with filtering and field selection
       list_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "input" => %{
             "priorityFilter" => "high"
@@ -185,7 +183,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       # Step 5: Update the todo
       update_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo",
           "identity" => todo_id,
           "input" => %{
@@ -211,7 +209,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       # Destroy the todo
       destroy_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "destroy_todo",
           "identity" => todo["id"]
         })
@@ -223,7 +221,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       # Verify todo is actually deleted - get operations return not found error
       # For read actions with get_by :id, the id is passed via input, not identity
       get_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo["id"]},
           "fields" => ["id"]
@@ -245,7 +243,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       future_date = Date.add(Date.utc_today(), 7) |> Date.to_string()
 
       todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Future Todo",
@@ -260,7 +258,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       # Get todo with calculations
       get_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo_id},
           "fields" => [
@@ -307,7 +305,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       # Create comments to test aggregates
       comment1_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "First comment",
@@ -323,7 +321,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       assert comment1_result["success"] == true
 
       comment2_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Second comment",
@@ -340,7 +338,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       # Get todo with aggregates
       get_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo_id},
           "fields" => [
@@ -409,7 +407,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
         )
 
       # Create comments from each user on both todos
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "create_todo_comment",
         "input" => %{
           "content" => "User 1 comment on Todo 1",
@@ -422,7 +420,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
         "fields" => ["id"]
       })
 
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "create_todo_comment",
         "input" => %{
           "content" => "User 2 comment on Todo 1",
@@ -437,7 +435,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       # Test complex relationship query with nested field selection
       get_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo1["id"]},
           "fields" => [
@@ -521,7 +519,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       # Test note content (untagged union member - string)
       note_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Note Content Todo",
@@ -540,7 +538,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       # Test priority_value content (untagged integer union member)
       priority_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Priority Content Todo",
@@ -564,7 +562,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "nonexistent_action",
           "fields" => ["id"]
         })
@@ -581,7 +579,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "nonexistent_field", "title"]
         })
@@ -600,7 +598,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -619,7 +617,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Missing User ID Todo"
@@ -639,7 +637,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           # Should be a map
@@ -677,7 +675,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       # Test first page
       page1_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -696,7 +694,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
 
       # Test second page
       page2_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",

@@ -24,8 +24,10 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMetadataFieldNames do
   defp do_verify(nil, _resource_lookup), do: :ok
 
   defp do_verify(%Ash.Info.Manifest{} = manifest, _resource_lookup) do
+    formatter = AshRpc.Manifest.output_formatter(manifest)
+
     errors =
-      Enum.flat_map(manifest.entrypoints, &validate_entrypoint/1)
+      Enum.flat_map(manifest.entrypoints, &validate_entrypoint(&1, formatter))
 
     case errors do
       [] -> :ok
@@ -33,11 +35,11 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMetadataFieldNames do
     end
   end
 
-  defp validate_entrypoint(entrypoint) do
+  defp validate_entrypoint(entrypoint, formatter) do
     case get_in(entrypoint.config, [:ash_typescript, :rpc_action]) do
       %{show_metadata: metadata} = rpc_action when is_list(metadata) and metadata != [] ->
         Enum.flat_map(metadata, fn field ->
-          validate_metadata_field(entrypoint.resource, rpc_action, field)
+          validate_metadata_field(entrypoint.resource, rpc_action, field, formatter)
         end)
 
       _ ->
@@ -45,7 +47,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMetadataFieldNames do
     end
   end
 
-  defp validate_metadata_field(resource, rpc_action, metadata_field) do
+  defp validate_metadata_field(resource, rpc_action, metadata_field, formatter) do
     mapped = AshTypescript.Rpc.Info.get_mapped_metadata_field_name(rpc_action, metadata_field)
 
     name_errors =
@@ -58,7 +60,6 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyMetadataFieldNames do
         []
       end
 
-    formatter = AshTypescript.Rpc.output_field_formatter()
     metadata_client_name = to_client_name(mapped, formatter)
     field_client_names = public_field_client_names(resource, formatter)
 

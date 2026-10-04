@@ -3,51 +3,44 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.FieldFormattingComprehensiveTest do
+  # async: false — the "TypeScript codegen config option formatting" describe
+  # still mutates Application env for the RPC hook keys
+  # (TestHelpers.rpc_hook_config_keys/0).
   use ExUnit.Case, async: false
+
   import Phoenix.ConnTest
   import Plug.Conn
-  alias AshTypescript.FieldFormatter
-  alias AshTypescript.Rpc
+  alias AshRpc.FieldFormatter
   alias AshTypescript.Test.Formatters
   alias AshTypescript.Test.TestHelpers
 
-  doctest AshTypescript.FieldFormatter
+  doctest AshRpc.FieldFormatter
+
+  setup_all do
+    base = AshTypescript.manifest()
+
+    %{
+      manifests: %{
+        camel: base,
+        pascal_out: AshRpc.Manifest.redecorate(base, output_formatter: :pascal_case),
+        snake_out: AshRpc.Manifest.redecorate(base, output_formatter: :snake_case),
+        snake_in: AshRpc.Manifest.redecorate(base, input_formatter: :snake_case),
+        custom_out:
+          AshRpc.Manifest.redecorate(base, output_formatter: {Formatters, :custom_format}),
+        custom_suffix_out:
+          AshRpc.Manifest.redecorate(base,
+            output_formatter: {Formatters, :custom_format_with_suffix, ["gen"]}
+          )
+      }
+    }
+  end
 
   setup do
-    Application.put_env(:ash_typescript, :enable_namespace_files, false)
-
-    original_input_field_formatter = Application.get_env(:ash_typescript, :input_field_formatter)
-
-    original_output_field_formatter =
-      Application.get_env(:ash_typescript, :output_field_formatter)
-
     conn =
       build_conn()
       |> put_private(:ash, %{actor: nil})
       |> Ash.PlugHelpers.set_tenant(nil)
       |> assign(:context, %{})
-
-    on_exit(fn ->
-      if original_input_field_formatter do
-        Application.put_env(
-          :ash_typescript,
-          :input_field_formatter,
-          original_input_field_formatter
-        )
-      else
-        Application.delete_env(:ash_typescript, :input_field_formatter)
-      end
-
-      if original_output_field_formatter do
-        Application.put_env(
-          :ash_typescript,
-          :output_field_formatter,
-          original_output_field_formatter
-        )
-      else
-        Application.delete_env(:ash_typescript, :output_field_formatter)
-      end
-    end)
 
     {:ok, conn: conn}
   end
@@ -322,9 +315,10 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
   end
 
   describe "RPC runtime field formatting - input field formatting with built-in formatters" do
-    test "formats camelCase input fields to snake_case for internal processing", %{conn: conn} do
-      Application.put_env(:ash_typescript, :input_field_formatter, :camel_case)
-
+    test "formats camelCase input fields to snake_case for internal processing", %{
+      conn: conn,
+      manifests: manifests
+    } do
       user_params = %{
         "action" => "create_user",
         "fields" => ["id"],
@@ -334,7 +328,9 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         }
       }
 
-      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
+      user_result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, user_params, manifest: manifests.camel)
+
       assert %{"success" => true, "data" => user} = user_result
 
       todo_params = %{
@@ -346,15 +342,18 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         }
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, todo_params)
+      result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, todo_params, manifest: manifests.camel)
+
       assert %{"success" => true, "data" => todo} = result
       assert todo["title"] == "Test Todo"
       assert todo["id"]
     end
 
-    test "formats PascalCase input fields when output formatter is PascalCase", %{conn: conn} do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "formats PascalCase input fields when output formatter is PascalCase", %{
+      conn: conn,
+      manifests: manifests
+    } do
       user_params = %{
         "action" => "create_user",
         "fields" => ["Id"],
@@ -364,7 +363,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         }
       }
 
-      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
+      user_result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, user_params,
+          manifest: manifests.pascal_out
+        )
+
       assert %{"Success" => true, "Data" => user} = user_result
 
       todo_params = %{
@@ -376,15 +379,17 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         }
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, todo_params)
+      result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, todo_params,
+          manifest: manifests.pascal_out
+        )
+
       assert %{"Success" => true, "Data" => todo} = result
       assert todo["Title"] == "Test Todo"
       assert todo["Id"]
     end
 
-    test "handles snake_case input fields as-is", %{conn: conn} do
-      Application.put_env(:ash_typescript, :input_field_formatter, :snake_case)
-
+    test "handles snake_case input fields as-is", %{conn: conn, manifests: manifests} do
       user_params = %{
         "action" => "create_user",
         "fields" => ["id"],
@@ -394,7 +399,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         }
       }
 
-      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
+      user_result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, user_params,
+          manifest: manifests.snake_in
+        )
+
       assert %{"success" => true, "data" => user} = user_result
 
       todo_params = %{
@@ -406,7 +415,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         }
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, todo_params)
+      result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, todo_params,
+          manifest: manifests.snake_in
+        )
+
       assert %{"success" => true, "data" => todo} = result
       assert todo["title"] == "Test Todo"
       assert todo["id"]
@@ -414,22 +427,20 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
   end
 
   describe "RPC runtime field formatting - output field formatting with built-in formatters" do
-    test "formats snake_case output fields to camelCase", %{conn: conn} do
-      Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
-
+    test "formats snake_case output fields to camelCase", %{conn: conn, manifests: manifests} do
       read_params = %{
         "action" => "list_todos",
         "fields" => ["id", "title", "user_id", "completed"]
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, read_params)
+      result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, read_params, manifest: manifests.camel)
+
       assert %{"success" => true, "data" => formatted_todos} = result
       assert is_list(formatted_todos)
     end
 
-    test "formats snake_case output fields to PascalCase", %{conn: conn} do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "formats snake_case output fields to PascalCase", %{conn: conn, manifests: manifests} do
       user_params = %{
         "action" => "create_user",
         "fields" => ["Id"],
@@ -439,7 +450,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         }
       }
 
-      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
+      user_result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, user_params,
+          manifest: manifests.pascal_out
+        )
+
       assert %{"Success" => true, "Data" => user} = user_result
 
       todo_params = %{
@@ -451,7 +466,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         }
       }
 
-      create_result = Rpc.run_action(:ash_typescript, conn, todo_params)
+      create_result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, todo_params,
+          manifest: manifests.pascal_out
+        )
+
       assert %{"Success" => true, "Data" => _todo} = create_result
 
       read_params = %{
@@ -459,7 +478,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         "fields" => ["Id", "Title", "UserId"]
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, read_params)
+      result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, read_params,
+          manifest: manifests.pascal_out
+        )
+
       assert %{"Success" => true, "Data" => formatted_todos} = result
 
       if formatted_todos != [] do
@@ -471,9 +494,7 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       end
     end
 
-    test "leaves snake_case output fields as-is", %{conn: conn} do
-      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
-
+    test "leaves snake_case output fields as-is", %{conn: conn, manifests: manifests} do
       user_params = %{
         "action" => "create_user",
         "fields" => ["id"],
@@ -483,7 +504,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         }
       }
 
-      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
+      user_result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, user_params,
+          manifest: manifests.snake_out
+        )
+
       assert %{"success" => true, "data" => user} = user_result
 
       todo_params = %{
@@ -495,7 +520,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         }
       }
 
-      create_result = Rpc.run_action(:ash_typescript, conn, todo_params)
+      create_result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, todo_params,
+          manifest: manifests.snake_out
+        )
+
       assert %{"success" => true, "data" => _todo} = create_result
 
       read_params = %{
@@ -503,7 +532,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         "fields" => ["id", "title", "user_id"]
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, read_params)
+      result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, read_params,
+          manifest: manifests.snake_out
+        )
+
       assert %{"success" => true, "data" => formatted_todos} = result
 
       if formatted_todos != [] do
@@ -526,7 +559,7 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         }
       }
 
-      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
+      user_result = AshRpc.run_action(AshTypescript.RpcProfile, conn, user_params)
       assert %{"success" => true, "data" => user} = user_result
 
       todo_params = %{
@@ -538,16 +571,14 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         }
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, todo_params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, todo_params)
       assert %{"success" => true, "data" => todo} = result
       assert todo["title"] == "Test Todo"
       assert todo["id"]
     end
 
     @tag :skip
-    test "formats output fields with custom formatters", %{conn: conn} do
-      Application.put_env(:ash_typescript, :output_field_formatter, {Formatters, :custom_format})
-
+    test "formats output fields with custom formatters", %{conn: conn, manifests: manifests} do
       user_params = %{
         "action" => "create_user",
         "fields" => ["custom_id"],
@@ -557,7 +588,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         }
       }
 
-      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
+      user_result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, user_params,
+          manifest: manifests.custom_out
+        )
+
       assert %{"custom_success" => true, "custom_data" => user} = user_result
 
       todo_params = %{
@@ -569,7 +604,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         }
       }
 
-      create_result = Rpc.run_action(:ash_typescript, conn, todo_params)
+      create_result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, todo_params,
+          manifest: manifests.custom_out
+        )
+
       assert %{"custom_success" => true, "custom_data" => _todo} = create_result
 
       read_params = %{
@@ -577,7 +616,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         "fields" => ["custom_id", "custom_title", "custom_user_id"]
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, read_params)
+      result =
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, read_params,
+          manifest: manifests.custom_out
+        )
+
       assert %{"custom_success" => true, "custom_data" => formatted_todos} = result
 
       if formatted_todos != [] do
@@ -590,11 +633,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
   end
 
   describe "TypeScript codegen field formatting - built-in formatters" do
-    test "generates camelCase field names with :camel_case formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
-
+    test "generates camelCase field names with :camel_case formatter", %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.camel
+        )
 
       assert String.contains?(typescript_output, "name: string")
       assert String.contains?(typescript_output, "email: string")
@@ -610,11 +653,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       refute String.contains?(typescript_output, "created_at: UtcDateTime")
     end
 
-    test "generates PascalCase field names with :pascal_case formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "generates PascalCase field names with :pascal_case formatter", %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "Name: string")
       assert String.contains?(typescript_output, "Email: string")
@@ -627,11 +670,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       refute String.contains?(typescript_output, "is_super_admin: boolean | null")
     end
 
-    test "generates snake_case field names with :snake_case formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
-
+    test "generates snake_case field names with :snake_case formatter", %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.snake_out
+        )
 
       assert String.contains?(typescript_output, "name: string")
       assert String.contains?(typescript_output, "email: string")
@@ -646,11 +689,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
   end
 
   describe "TypeScript codegen field formatting - custom formatters" do
-    test "generates field names with custom formatters" do
-      Application.put_env(:ash_typescript, :output_field_formatter, {Formatters, :custom_format})
-
+    test "generates field names with custom formatters", %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.custom_out
+        )
 
       assert String.contains?(typescript_output, "custom_name: string")
       assert String.contains?(typescript_output, "custom_email: string")
@@ -672,15 +715,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       assert custom_title_count > 0
     end
 
-    test "generates field names with custom formatters with arguments" do
-      Application.put_env(
-        :ash_typescript,
-        :output_field_formatter,
-        {Formatters, :custom_format_with_suffix, ["gen"]}
-      )
-
+    test "generates field names with custom formatters with arguments", %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.custom_suffix_out
+        )
 
       assert String.contains?(typescript_output, "name_gen: string")
       assert String.contains?(typescript_output, "email_gen: string")
@@ -730,11 +769,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
     # *types* declared `fetchOptions`/`customFetch`/`hookCtx` while the static
     # fetch helpers read `fetch_options`/`custom_fetch`/`hook_ctx` off the same
     # config object - making both options impossible to pass.
-    test "formats RPC config option names with :snake_case formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
-
+    test "formats RPC config option names with :snake_case formatter", %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.snake_out
+        )
 
       assert String.contains?(typescript_output, "fetch_options?: RequestInit;")
       assert String.contains?(typescript_output, "custom_fetch?: (input: RequestInfo")
@@ -754,11 +793,11 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       refute String.contains?(typescript_output, "hookCtx?:")
     end
 
-    test "formats RPC config option names with a custom formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, {Formatters, :custom_format})
-
+    test "formats RPC config option names with a custom formatter", %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.custom_out
+        )
 
       assert String.contains?(typescript_output, "custom_fetch_options?: RequestInit;")
       assert String.contains?(typescript_output, "custom_custom_fetch?: (input: RequestInfo")

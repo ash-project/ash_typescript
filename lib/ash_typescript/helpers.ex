@@ -6,48 +6,10 @@ defmodule AshTypescript.Helpers do
   @moduledoc """
   Utility functions for string manipulation and transformations.
   """
-  def snake_to_pascal_case(snake) when is_atom(snake) do
-    snake
-    |> Atom.to_string()
-    |> snake_to_pascal_case()
-  end
-
-  def snake_to_pascal_case(snake) when is_binary(snake) do
-    Macro.camelize(snake)
-  end
-
-  def snake_to_camel_case(snake) when is_atom(snake) do
-    snake
-    |> Atom.to_string()
-    |> snake_to_camel_case()
-  end
-
-  def snake_to_camel_case(snake) when is_binary(snake) do
-    case Macro.camelize(snake) do
-      <<first::utf8, rest::binary>> -> String.downcase(<<first::utf8>>) <> rest
-      "" -> ""
-    end
-  end
-
-  def camel_to_snake_case(camel) when is_binary(camel) do
-    Macro.underscore(camel)
-  end
-
-  def camel_to_snake_case(camel) when is_atom(camel) do
-    camel
-    |> Atom.to_string()
-    |> camel_to_snake_case()
-  end
-
-  def pascal_to_snake_case(pascal) when is_atom(pascal) do
-    pascal
-    |> Atom.to_string()
-    |> pascal_to_snake_case()
-  end
-
-  def pascal_to_snake_case(pascal) when is_binary(pascal) do
-    Macro.underscore(pascal)
-  end
+  @doc false
+  defdelegate snake_to_pascal_case(value), to: AshRpc.Case
+  @doc false
+  defdelegate camel_to_snake_case(value), to: AshRpc.Case
 
   @doc """
   Formats a value for embedding in generated TypeScript code.
@@ -107,7 +69,7 @@ defmodule AshTypescript.Helpers do
   Helper functions for commonly used error field names.
   These ensure consistency across all error-related type generation.
 
-  Matches the error structure defined in AshTypescript.Rpc.Error protocol.
+  Matches the error structure defined in AshRpc.Error protocol.
   """
   def formatted_error_type_field, do: format_output_field(:type)
   def formatted_error_message_field, do: format_output_field(:message)
@@ -162,14 +124,6 @@ defmodule AshTypescript.Helpers do
   # ─────────────────────────────────────────────────────────────────
   # Type Introspection Helpers
   # ─────────────────────────────────────────────────────────────────
-
-  @doc "Returns true if the module is an Ash resource."
-  @spec ash_resource?(atom()) :: boolean()
-  def ash_resource?(module) when is_atom(module) and not is_nil(module) do
-    Code.ensure_loaded?(module) == true and Ash.Resource.Info.resource?(module)
-  end
-
-  def ash_resource?(_), do: false
 
   @doc "Returns true if the module has a `typescript_field_names/0` callback."
   @spec has_typescript_field_names?(atom()) :: boolean()

@@ -4,8 +4,6 @@
 
 defmodule AshTypescript.Rpc.RpcRunActionTupleTest do
   use ExUnit.Case, async: false
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "tuple field selection" do
@@ -14,7 +12,7 @@ defmodule AshTypescript.Rpc.RpcRunActionTupleTest do
 
       # Create a user for testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Tuple User",
@@ -25,7 +23,7 @@ defmodule AshTypescript.Rpc.RpcRunActionTupleTest do
 
       # Create a todo with tuple coordinates field
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Todo with Coordinates",
@@ -43,7 +41,7 @@ defmodule AshTypescript.Rpc.RpcRunActionTupleTest do
 
     test "processes tuple field selection correctly", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -76,7 +74,7 @@ defmodule AshTypescript.Rpc.RpcRunActionTupleTest do
 
     test "processes partial tuple field selection", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -104,7 +102,7 @@ defmodule AshTypescript.Rpc.RpcRunActionTupleTest do
 
     test "processes tuple fields with relationships", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -150,7 +148,7 @@ defmodule AshTypescript.Rpc.RpcRunActionTupleTest do
     test "runs get_coordinates_info_todo action and processes field selection", %{conn: conn} do
       # Test the generic action that returns a tuple type
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_coordinates_info_todo",
           "fields" => ["latitude", "longitude", "altitude"]
         })
@@ -168,7 +166,7 @@ defmodule AshTypescript.Rpc.RpcRunActionTupleTest do
     test "runs get_coordinates_info_todo action with partial field selection", %{conn: conn} do
       # Test partial field selection on tuple action result
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_coordinates_info_todo",
           "fields" => ["latitude", "longitude"]
         })
@@ -186,7 +184,7 @@ defmodule AshTypescript.Rpc.RpcRunActionTupleTest do
     test "runs get_coordinates_info_todo action with single field selection", %{conn: conn} do
       # Test single field selection on tuple action result
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_coordinates_info_todo",
           "fields" => ["altitude"]
         })
@@ -203,7 +201,7 @@ defmodule AshTypescript.Rpc.RpcRunActionTupleTest do
 
     test "validates get_coordinates_info_todo action returns correct data types", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_coordinates_info_todo",
           "fields" => ["latitude", "longitude", "altitude"]
         })
@@ -226,7 +224,7 @@ defmodule AshTypescript.Rpc.RpcRunActionTupleTest do
     test "handles todos without tuple fields set", %{conn: conn} do
       # Test that the system handles todos that don't have coordinates set
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -255,7 +253,7 @@ defmodule AshTypescript.Rpc.RpcRunActionTupleTest do
     test "handles only valid tuple fields", %{conn: conn} do
       # Test with only valid fields (latitude and longitude exist in the tuple definition)
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",

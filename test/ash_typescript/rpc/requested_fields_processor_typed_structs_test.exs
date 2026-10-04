@@ -4,20 +4,17 @@
 
 defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
   use ExUnit.Case
-  alias AshTypescript.Rpc.RequestedFieldsProcessor
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
+  alias AshRpc.RequestedFieldsProcessor
 
   describe "simple typed struct fields" do
     test "processes typed struct attribute fields correctly" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            :title,
-            %{timestamp_info: [:created_by, :created_at, :updated_by]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          :title,
+          %{timestamp_info: [:created_by, :created_at, :updated_by]}
+        ])
 
       assert select == [:id, :title, :timestamp_info]
       assert load == []
@@ -31,14 +28,10 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
     test "processes all typed struct fields" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            %{timestamp_info: [:created_by, :created_at, :updated_by, :updated_at]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          %{timestamp_info: [:created_by, :created_at, :updated_by, :updated_at]}
+        ])
 
       assert select == [:id, :timestamp_info]
       assert load == []
@@ -51,14 +44,10 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
     test "processes statistics typed struct with numeric fields" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            %{statistics: [:view_count, :edit_count, :completion_time_seconds]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          %{statistics: [:view_count, :edit_count, :completion_time_seconds]}
+        ])
 
       assert select == [:id, :statistics]
       assert load == []
@@ -71,14 +60,10 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
     test "processes statistics typed struct with composite fields" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            %{statistics: [:view_count, :performance_metrics]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          %{statistics: [:view_count, :performance_metrics]}
+        ])
 
       assert select == [:id, :statistics]
       assert load == []
@@ -87,16 +72,12 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
     test "processes mixed typed struct fields with regular attributes" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            :title,
-            %{timestamp_info: [:created_by, :created_at]},
-            %{statistics: [:view_count, :edit_count]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          :title,
+          %{timestamp_info: [:created_by, :created_at]},
+          %{statistics: [:view_count, :edit_count]}
+        ])
 
       assert select == [:id, :title, :timestamp_info, :statistics]
       assert load == []
@@ -113,15 +94,11 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
   describe "typed struct fields with other field types" do
     test "processes typed struct with relationships" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            %{timestamp_info: [:created_by, :created_at]},
-            %{user: [:id, :name]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          %{timestamp_info: [:created_by, :created_at]},
+          %{user: [:id, :name]}
+        ])
 
       assert select == [:id, :timestamp_info]
       assert load == [{:user, [:id, :name]}]
@@ -135,15 +112,11 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
     test "processes typed struct with aggregates" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            %{statistics: [:view_count, :edit_count]},
-            :comment_count
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          %{statistics: [:view_count, :edit_count]},
+          :comment_count
+        ])
 
       assert select == [:id, :statistics]
       assert load == [:comment_count]
@@ -157,15 +130,11 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
     test "processes typed struct with calculations" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            %{timestamp_info: [:created_by, :updated_by]},
-            :is_overdue
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          %{timestamp_info: [:created_by, :updated_by]},
+          :is_overdue
+        ])
 
       assert select == [:id, :timestamp_info]
       assert load == [:is_overdue]
@@ -181,13 +150,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
   describe "error handling for typed structs" do
     test "returns error for invalid typed struct field" do
       {:error, error} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            %{timestamp_info: [:invalid_field]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          %{timestamp_info: [:invalid_field]}
+        ])
 
       assert error ==
                {:unknown_field, :invalid_field, "field_constrained_type", [:timestamp_info]}
@@ -195,52 +160,36 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
     test "returns error for invalid nested typed struct field" do
       {:error, error} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            %{statistics: [:view_count, :invalid_field]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          %{statistics: [:view_count, :invalid_field]}
+        ])
 
       assert error == {:unknown_field, :invalid_field, "field_constrained_type", [:statistics]}
     end
 
     test "returns error for duplicate typed struct fields" do
       {:error, error} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            %{timestamp_info: [:created_by, :created_at, :created_by]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          %{timestamp_info: [:created_by, :created_at, :created_by]}
+        ])
 
       assert error == {:duplicate_field, :created_by, [:timestamp_info]}
     end
 
     test "returns error when typed struct is requested as simple atom" do
       {:error, error} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :timestamp_info
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :timestamp_info
+        ])
 
       assert error == {:requires_field_selection, :field_constrained_type, :timestamp_info, []}
     end
 
     test "returns error when typed struct is requested as empty map" do
       {:error, error} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            %{statistics: []}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          %{statistics: []}
+        ])
 
       assert error == {:requires_field_selection, :field_constrained_type, :statistics, []}
     end
@@ -249,15 +198,11 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
   describe "create actions with typed structs" do
     test "processes typed struct fields correctly in create actions" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :create,
-          [
-            :id,
-            :title,
-            %{timestamp_info: [:created_by, :created_at]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :create, [
+          :id,
+          :title,
+          %{timestamp_info: [:created_by, :created_at]}
+        ])
 
       assert select == [:id, :title, :timestamp_info]
       assert load == []
@@ -266,14 +211,10 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
     test "processes statistics typed struct in create actions" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :create,
-          [
-            :id,
-            %{statistics: [:view_count, :performance_metrics]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :create, [
+          :id,
+          %{statistics: [:view_count, :performance_metrics]}
+        ])
 
       assert select == [:id, :statistics]
       assert load == []
@@ -284,16 +225,12 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
   describe "update actions with typed structs" do
     test "processes typed struct fields correctly in update actions" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :update,
-          [
-            :id,
-            :title,
-            %{timestamp_info: [:updated_by, :updated_at]},
-            %{statistics: [:edit_count]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :update, [
+          :id,
+          :title,
+          %{timestamp_info: [:updated_by, :updated_at]},
+          %{statistics: [:edit_count]}
+        ])
 
       assert select == [:id, :title, :timestamp_info, :statistics]
       assert load == []
@@ -321,6 +258,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
       result =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :read,
           requested_fields
@@ -348,6 +286,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
       result =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :read,
           requested_fields
@@ -375,6 +314,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
       result =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :read,
           requested_fields
@@ -402,6 +342,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
       result =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :read,
           requested_fields
@@ -438,6 +379,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTypedStructsTest do
 
       result =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :read,
           requested_fields

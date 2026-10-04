@@ -4,8 +4,9 @@
 
 defmodule AshTypescript.Rpc.PipelineTest do
   use ExUnit.Case
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.Pipeline
+  alias AshRpc.{FieldFormatter, Pipeline}
   alias AshTypescript.Test.Todo
 
   @moduletag :ash_typescript
@@ -19,7 +20,9 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:error, error} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert {:unknown_field, :unknown_field, Todo, []} = error
     end
 
@@ -32,7 +35,9 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:error, error} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert {:invalid_field_type, 123, []} = error
     end
 
@@ -45,7 +50,9 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:error, error} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       # Should fail when trying to process relationship with invalid spec
       assert {:unsupported_field_combination, :relationship, :user, "invalid_spec", []} =
                error
@@ -60,7 +67,9 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:error, error} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:error, error} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert {:field_does_not_support_nesting, :title, []} = error
     end
 
@@ -72,7 +81,9 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.resource == Todo
       assert :id in request.select
       assert :title in request.select
@@ -92,7 +103,8 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       # Verify structured request contains all parsed data
       assert request.resource == Todo
@@ -116,12 +128,13 @@ defmodule AshTypescript.Rpc.PipelineTest do
       extraction_template = [:id, :title]
 
       # Need to provide an action for unconstrained_map_action? check
-      action = Ash.Resource.Info.action(Todo, :read)
+      action = AshRpc.Introspection.get_action!(rpc_runtime(), Todo, :read)
 
-      request = %AshTypescript.Rpc.Request{
+      request = %AshRpc.Request{
         extraction_template: extraction_template,
         action: action,
-        resource: Todo
+        resource: Todo,
+        runtime: rpc_runtime()
       }
 
       assert {:ok, filtered_result} = Pipeline.process_result(ash_result, request)
@@ -142,9 +155,8 @@ defmodule AshTypescript.Rpc.PipelineTest do
         %{id: 2, title: "Another Todo"}
       ]
 
-      _request = %AshTypescript.Rpc.Request{}
-
-      formatted_result = Pipeline.format_output(filtered_result)
+      formatted_result =
+        FieldFormatter.format_output_field_names(filtered_result, rpc_runtime().output_formatter)
 
       # Verify field names are formatted for client consumption (camelCase by default)
       assert is_list(formatted_result)
@@ -167,7 +179,8 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       # All simple attributes should go to select
       assert :id in request.select
@@ -186,7 +199,8 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       # Simple attributes go to select, calculations go to load
       assert :id in request.select
@@ -206,7 +220,8 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       # Verify complex calculation load statement
       assert :id in request.select
@@ -233,7 +248,8 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       # Simple field goes to select
       assert :id in request.select
@@ -266,7 +282,8 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       # Simple field goes to select
       assert :id in request.select
@@ -286,45 +303,45 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
   describe "format_sort_string/2 function" do
     test "formats nil sort string" do
-      assert Pipeline.format_sort_string(nil, :camel_case) == nil
+      assert FieldFormatter.format_sort_string(nil, :camel_case) == nil
     end
 
     test "formats single field without modifier" do
-      assert Pipeline.format_sort_string("userName", :camel_case) == "user_name"
+      assert FieldFormatter.format_sort_string("userName", :camel_case) == "user_name"
     end
 
     test "formats single field with + modifier" do
-      assert Pipeline.format_sort_string("+userName", :camel_case) == "+user_name"
+      assert FieldFormatter.format_sort_string("+userName", :camel_case) == "+user_name"
     end
 
     test "formats single field with ++ modifier" do
-      assert Pipeline.format_sort_string("++startDate", :camel_case) == "++start_date"
+      assert FieldFormatter.format_sort_string("++startDate", :camel_case) == "++start_date"
     end
 
     test "formats single field with - modifier" do
-      assert Pipeline.format_sort_string("-endDate", :camel_case) == "-end_date"
+      assert FieldFormatter.format_sort_string("-endDate", :camel_case) == "-end_date"
     end
 
     test "formats single field with -- modifier" do
-      assert Pipeline.format_sort_string("--dueDate", :camel_case) == "--due_date"
+      assert FieldFormatter.format_sort_string("--dueDate", :camel_case) == "--due_date"
     end
 
     test "formats multiple fields with mixed modifiers" do
       input = "userName,-createdAt,++priority,--dueDate,+status"
       expected = "user_name,-created_at,++priority,--due_date,+status"
-      assert Pipeline.format_sort_string(input, :camel_case) == expected
+      assert FieldFormatter.format_sort_string(input, :camel_case) == expected
     end
 
     test "handles empty field names correctly" do
       # Edge case: empty string should be handled gracefully
-      assert Pipeline.format_sort_string("", :camel_case) == ""
+      assert FieldFormatter.format_sort_string("", :camel_case) == ""
     end
 
     test "preserves whitespace-free formatting" do
       # No spaces should be added or removed
       input = "-userName,+createdAt"
       expected = "-user_name,+created_at"
-      assert Pipeline.format_sort_string(input, :camel_case) == expected
+      assert FieldFormatter.format_sort_string(input, :camel_case) == expected
     end
   end
 
@@ -338,7 +355,9 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.sort == "created_at"
     end
 
@@ -351,7 +370,9 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.sort == "-updated_at"
     end
 
@@ -364,7 +385,9 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.sort == "--due_date"
     end
 
@@ -377,7 +400,9 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.sort == "++start_date"
     end
 
@@ -390,7 +415,9 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.sort == "+inserted_at"
     end
 
@@ -403,7 +430,9 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.sort == "--due_date,+inserted_at,-user_name"
     end
 
@@ -416,7 +445,9 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.sort == "status,++priority,--due_date,-updated_at,+created_at"
     end
 
@@ -429,7 +460,9 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.sort == nil
     end
 
@@ -442,7 +475,9 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       # Should preserve snake_case fields as-is
       assert request.sort == "-user_id,++is_active"
     end
@@ -458,7 +493,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:action_not_found, "nonexistent_action"}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
     end
 
     test "provides clear error for tenant requirement" do
@@ -473,7 +508,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       # This test would need a multitenant resource to be meaningful
       # For now, just verify the error structure is expected
-      case Pipeline.parse_request(:ash_typescript, conn, params) do
+      case Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params) do
         {:error, {:tenant_required, _resource}} ->
           # Expected error format
           assert true
@@ -499,7 +534,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:invalid_pagination, "invalid"}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
     end
 
     test "handles valid pagination correctly" do
@@ -511,7 +546,9 @@ defmodule AshTypescript.Rpc.PipelineTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.pagination == %{limit: 10, offset: 0}
     end
   end

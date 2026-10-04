@@ -4,8 +4,9 @@
 
 defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
   use ExUnit.Case, async: false
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.Pipeline
+  alias AshRpc.Pipeline
 
   describe "load restrictions cover envelope loads (PR #75 bypass regression)" do
     test "denied nested path inside an envelope is rejected" do
@@ -18,7 +19,11 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
       }
 
       assert {:error, {:load_denied, denied}} =
-               Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+               Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(%Plug.Conn{}),
+                 params
+               )
 
       assert Enum.any?(denied, &(&1 =~ "todo"))
     end
@@ -32,7 +37,13 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
         ]
       }
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(%Plug.Conn{}),
+                 params
+               )
+
       assert [{:comments, %Ash.Query{}}] = request.load
     end
 
@@ -43,7 +54,11 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
       }
 
       assert {:error, {:load_not_allowed, disallowed}} =
-               Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+               Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(%Plug.Conn{}),
+                 params
+               )
 
       assert "comments" in disallowed
     end
@@ -60,7 +75,11 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
       }
 
       assert {:error, {:filter_not_supported, :comments, :disabled, []}} =
-               Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+               Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(%Plug.Conn{}),
+                 params
+               )
     end
 
     test "nested sort under an enable_sort?: false action errors as disabled" do
@@ -70,7 +89,11 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
       }
 
       assert {:error, {:sort_not_supported, :comments, :disabled, []}} =
-               Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+               Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(%Plug.Conn{}),
+                 params
+               )
     end
 
     test "nested filter under a default action passes" do
@@ -82,25 +105,29 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
         ]
       }
 
-      assert {:ok, _request} = Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+      assert {:ok, _request} =
+               Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(%Plug.Conn{}),
+                 params
+               )
     end
   end
 
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   defp create_fixtures(comment_count) do
     conn = TestHelpers.build_rpc_conn()
 
     %{"success" => true, "data" => user} =
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "create_user",
         "input" => %{"name" => "Nested QO User", "email" => "nested-qo@test.com"},
         "fields" => ["id"]
       })
 
     %{"success" => true, "data" => todo} =
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "create_todo",
         "input" => %{"title" => "Nested QO Todo", "userId" => user["id"]},
         "fields" => ["id"]
@@ -108,7 +135,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
 
     for i <- 1..comment_count//1 do
       %{"success" => true} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "comment-#{i}",
@@ -129,7 +156,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
       {conn, todo_id} = create_fixtures(5)
 
       assert %{"success" => true, "data" => data} =
-               Rpc.run_action(:ash_typescript, conn, %{
+               AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
                  "action" => "get_todo",
                  "input" => %{"id" => todo_id},
                  "fields" => [
@@ -157,7 +184,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
       {conn, todo_id} = create_fixtures(2)
 
       assert %{"success" => true, "data" => data} =
-               Rpc.run_action(:ash_typescript, conn, %{
+               AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
                  "action" => "get_todo",
                  "input" => %{"id" => todo_id},
                  "fields" => [
@@ -180,7 +207,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
 
       # Empty page (cursor past the end): nil cursors — PR #75 regression
       assert %{"success" => true, "data" => empty_data} =
-               Rpc.run_action(:ash_typescript, conn, %{
+               AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
                  "action" => "get_todo",
                  "input" => %{"id" => todo_id},
                  "fields" => [
@@ -205,7 +232,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
       {conn, todo_id} = create_fixtures(5)
 
       assert %{"success" => true, "data" => data} =
-               Rpc.run_action(:ash_typescript, conn, %{
+               AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
                  "action" => "get_todo",
                  "input" => %{"id" => todo_id},
                  "fields" => [
@@ -233,14 +260,14 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
       {conn, _todo_id} = create_fixtures(0)
 
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{"name" => "U2", "email" => "u2-nested@test.com"},
           "fields" => ["id"]
         })
 
       assert %{"success" => true, "data" => data} =
-               Rpc.run_action(:ash_typescript, conn, %{
+               AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
                  "action" => "create_todo",
                  "input" => %{"title" => "With comments", "userId" => user["id"]},
                  "fields" => [
@@ -256,7 +283,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
       {conn, _} = create_fixtures(1)
 
       assert %{"success" => false, "errors" => errors} =
-               Rpc.run_action(:ash_typescript, conn, %{
+               AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
                  "action" => "list_todos_deny_nested",
                  "fields" => [
                    "id",
@@ -278,7 +305,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
       {conn, todo_id} = create_fixtures(3)
 
       assert %{"success" => true, "data" => offset_data} =
-               Rpc.run_action(:ash_typescript, conn, %{
+               AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
                  "action" => "get_todo",
                  "input" => %{"id" => todo_id},
                  "fields" => [
@@ -299,7 +326,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
       assert length(offset_page["results"]) == 2
 
       assert %{"success" => true, "data" => keyset_data} =
-               Rpc.run_action(:ash_typescript, conn, %{
+               AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
                  "action" => "get_todo",
                  "input" => %{"id" => todo_id},
                  "fields" => [
@@ -323,7 +350,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
       {conn, todo_id} = create_fixtures(2)
 
       assert %{"success" => true, "data" => data} =
-               Rpc.run_action(:ash_typescript, conn, %{
+               AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
                  "action" => "get_todo",
                  "input" => %{"id" => todo_id},
                  "fields" => [
@@ -345,7 +372,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
 
       # Paged m2m returns the page shape
       assert %{"success" => true, "data" => paged_data} =
-               Rpc.run_action(:ash_typescript, conn, %{
+               AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
                  "action" => "get_todo",
                  "input" => %{"id" => todo_id},
                  "fields" => [
@@ -368,7 +395,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
       other_conn = TestHelpers.build_rpc_conn() |> Ash.PlugHelpers.set_tenant("org-nested-qo-2")
 
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{"name" => "MT User", "email" => "mt-nested-qo@test.com"},
           "fields" => ["id"]
@@ -390,7 +417,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
 
       for i <- 1..3 do
         %{"success" => true} =
-          Rpc.run_action(:ash_typescript, conn, %{
+          AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
             "action" => "create_org_comment",
             "input" => %{
               "content" => "mt-comment-#{i}",
@@ -403,7 +430,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
       end
 
       %{"success" => true} =
-        Rpc.run_action(:ash_typescript, other_conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, other_conn, %{
           "action" => "create_org_comment",
           "input" => %{
             "content" => "other-tenant-comment",
@@ -415,7 +442,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsPipelineTest do
         })
 
       assert %{"success" => true, "data" => data} =
-               Rpc.run_action(:ash_typescript, conn, %{
+               AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
                  "action" => "get_org_todo",
                  "input" => %{"id" => org_todo.id},
                  "fields" => [

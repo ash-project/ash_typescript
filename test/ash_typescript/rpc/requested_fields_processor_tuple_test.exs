@@ -4,8 +4,9 @@
 
 defmodule AshTypescript.Rpc.RequestedFieldsProcessorTupleTest do
   use ExUnit.Case, async: true
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.RequestedFieldsProcessor
+  alias AshRpc.RequestedFieldsProcessor
 
   alias AshTypescript.Test.Todo
 
@@ -15,7 +16,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTupleTest do
       # Tuple fields require field selection syntax
       fields = ["id", "title", %{"coordinates" => ["latitude", "longitude"]}]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields)
+      result = RequestedFieldsProcessor.process(rpc_runtime(), Todo, :read, fields)
 
       assert match?({:ok, _}, result)
       {:ok, {select, _load, template}} = result
@@ -42,7 +43,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTupleTest do
         %{"user" => ["id", "name"]}
       ]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields)
+      result = RequestedFieldsProcessor.process(rpc_runtime(), Todo, :read, fields)
 
       assert match?({:ok, _}, result)
       {:ok, {select, load, template}} = result
@@ -78,7 +79,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorTupleTest do
       fields = [%{"coordinates" => ["latitude", "longitude"]}]
 
       {:ok, {select, load, template}} =
-        RequestedFieldsProcessor.process(Todo, :read, fields)
+        RequestedFieldsProcessor.process(rpc_runtime(), Todo, :read, fields)
 
       assert select == [:coordinates]
       assert load == []

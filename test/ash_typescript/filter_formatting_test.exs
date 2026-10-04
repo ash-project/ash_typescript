@@ -3,39 +3,30 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.FilterFormattingTest do
-  # async: false because we're modifying application config
-  use ExUnit.Case, async: false
-
-  # Snapshot the global config this module mutates so it cannot leak into
-  # later test modules.
-  setup_all do
-    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:output_field_formatter])
-  end
+  use ExUnit.Case, async: true
 
   alias AshTypescript.Codegen.FilterTypes
   alias AshTypescript.Test.{Post, User}
 
-  setup do
-    # Store original configuration
-    original_output_formatter = Application.get_env(:ash_typescript, :output_field_formatter)
+  setup_all do
+    base = AshTypescript.manifest()
 
-    on_exit(fn ->
-      # Restore original configuration
-      if original_output_formatter do
-        Application.put_env(:ash_typescript, :output_field_formatter, original_output_formatter)
-      else
-        Application.delete_env(:ash_typescript, :output_field_formatter)
-      end
-    end)
-
-    :ok
+    %{
+      manifests: %{
+        camel: base,
+        pascal_out: AshRpc.Manifest.redecorate(base, output_formatter: :pascal_case),
+        snake_out: AshRpc.Manifest.redecorate(base, output_formatter: :snake_case)
+      }
+    }
   end
 
   describe "FilterInput field formatting" do
-    test "generates FilterInput with camelCase field names when output formatter is :camel_case" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
-
-      result = FilterTypes.generate_filter_type(Post)
+    test "generates FilterInput with camelCase field names when output formatter is :camel_case",
+         %{manifests: manifests} do
+      result =
+        AshTypescript.with_manifest(manifests.camel, fn ->
+          FilterTypes.generate_filter_type(Post)
+        end)
 
       # Check that attribute field names are formatted to camelCase
       # view_count -> viewCount
@@ -63,10 +54,12 @@ defmodule AshTypescript.FilterFormattingTest do
       refute String.contains?(result, "    less_than_or_equal?: ")
     end
 
-    test "generates FilterInput with snake_case field names when output formatter is :snake_case" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
-
-      result = FilterTypes.generate_filter_type(Post)
+    test "generates FilterInput with snake_case field names when output formatter is :snake_case",
+         %{manifests: manifests} do
+      result =
+        AshTypescript.with_manifest(manifests.snake_out, fn ->
+          FilterTypes.generate_filter_type(Post)
+        end)
 
       # Check that attribute field names remain in snake_case
       assert String.contains?(result, "view_count?: {")
@@ -86,10 +79,12 @@ defmodule AshTypescript.FilterFormattingTest do
       refute String.contains?(result, "    greaterThan?: ")
     end
 
-    test "generates FilterInput with PascalCase field names when output formatter is :pascal_case" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
-      result = FilterTypes.generate_filter_type(Post)
+    test "generates FilterInput with PascalCase field names when output formatter is :pascal_case",
+         %{manifests: manifests} do
+      result =
+        AshTypescript.with_manifest(manifests.pascal_out, fn ->
+          FilterTypes.generate_filter_type(Post)
+        end)
 
       # Check that attribute field names are converted to PascalCase
       # view_count -> ViewCount
@@ -116,10 +111,11 @@ defmodule AshTypescript.FilterFormattingTest do
       refute String.contains?(result, "    greater_than?: ")
     end
 
-    test "relationship filters use formatted field names" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
-
-      result = FilterTypes.generate_filter_type(Post)
+    test "relationship filters use formatted field names", %{manifests: manifests} do
+      result =
+        AshTypescript.with_manifest(manifests.camel, fn ->
+          FilterTypes.generate_filter_type(Post)
+        end)
 
       # Check relationships are formatted (if any multi-word relationships exist)
       # For now, check that relationships are present and properly typed
@@ -127,11 +123,12 @@ defmodule AshTypescript.FilterFormattingTest do
       assert String.contains?(result, "comments?: PostCommentFilterInput")
     end
 
-    test "aggregate filters use formatted field names" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
-
+    test "aggregate filters use formatted field names", %{manifests: manifests} do
       # Test with a resource that has aggregates (using User resource which may have aggregates)
-      result = FilterTypes.generate_filter_type(User)
+      result =
+        AshTypescript.with_manifest(manifests.camel, fn ->
+          FilterTypes.generate_filter_type(User)
+        end)
 
       # Check that the result contains FilterInput structure
       assert String.contains?(result, "export type UserFilterInput")
@@ -144,10 +141,11 @@ defmodule AshTypescript.FilterFormattingTest do
       assert String.contains?(result, "isSuperAdmin?: {")
     end
 
-    test "mixed formatting scenarios work correctly" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
-
-      result = FilterTypes.generate_filter_type(Post)
+    test "mixed formatting scenarios work correctly", %{manifests: manifests} do
+      result =
+        AshTypescript.with_manifest(manifests.camel, fn ->
+          FilterTypes.generate_filter_type(Post)
+        end)
 
       # Verify various field types are all formatted consistently
       # string field
@@ -189,13 +187,13 @@ defmodule AshTypescript.FilterFormattingTest do
         end
       end
 
-      Application.put_env(
-        :ash_typescript,
-        :output_field_formatter,
-        {TestFormatter, :prefix_field}
-      )
+      manifest =
+        AshRpc.Manifest.redecorate(AshTypescript.manifest(),
+          output_formatter: {TestFormatter, :prefix_field}
+        )
 
-      result = FilterTypes.generate_filter_type(Post)
+      result =
+        AshTypescript.with_manifest(manifest, fn -> FilterTypes.generate_filter_type(Post) end)
 
       # Check that the custom formatter is applied to attribute field names
       assert String.contains?(result, "prefix_title?: {")

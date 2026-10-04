@@ -76,13 +76,12 @@ defmodule AshTypescript.TypedController do
                 "result type to format against"
 
       {:ok, route} ->
-        AshTypescript.Rpc.ValueFormatter.format(
+        AshRpc.ValueFormatter.format(
           data,
           route.returns,
           route.constraints,
-          AshTypescript.output_field_formatter(),
           :output,
-          AshTypescript.resource_lookup()
+          AshRpc.Runtime.from_manifest(AshTypescript.manifest())
         )
 
       :error ->

@@ -4,7 +4,6 @@
 
 defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "content union type - embedded resource members" do
@@ -13,7 +12,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
       # Create a user for relationship testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Test User",
@@ -24,7 +23,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
       # Create todos with different content types
       %{"success" => true, "data" => text_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Text Todo",
@@ -40,7 +39,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       %{"success" => true, "data" => checklist_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Checklist Todo",
@@ -61,7 +60,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       %{"success" => true, "data" => link_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Link Todo",
@@ -88,7 +87,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes TextContent union member with field selection", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -132,7 +131,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes ChecklistContent union member with field selection", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -180,7 +179,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes LinkContent union member with field selection and calculations", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -234,7 +233,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes multiple embedded resource union members in single map", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -295,7 +294,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes multiple embedded resource union members in separate maps", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -338,7 +337,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
       # Create a user for relationship testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Test User",
@@ -349,7 +348,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
       # Create todos with simple content types
       %{"success" => true, "data" => note_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Note Todo",
@@ -360,7 +359,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       %{"success" => true, "data" => priority_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Priority Todo",
@@ -375,7 +374,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes note (string) union member", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -412,7 +411,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes priorityValue (integer) union member", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -448,7 +447,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes mixed simple and embedded resource union members", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -496,7 +495,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
       # is called during cleanup_field_auth/3, but this function doesn't exist in Ash 3.5.33.
       # Bug affects any tests that process union content with certain data patterns.
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -547,7 +546,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
       # Create a user for relationship testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Test User",
@@ -558,7 +557,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
       # Create todos with different attachment types
       %{"success" => true, "data" => file_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "File Todo",
@@ -577,7 +576,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       %{"success" => true, "data" => image_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Image Todo",
@@ -597,7 +596,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       %{"success" => true, "data" => url_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "URL Todo",
@@ -614,7 +613,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes file attachment union member with field selection", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -659,7 +658,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes image attachment union member with field selection", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -705,7 +704,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes url attachment union member (simple type)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -746,7 +745,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes mixed attachment union members in separate maps", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -794,7 +793,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes mixed attachment union members in single map", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -842,7 +841,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
       # Create a user for relationship testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Test User",
@@ -853,7 +852,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
       # Create todos with different status info types
       %{"success" => true, "data" => simple_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Simple Status Todo",
@@ -868,7 +867,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       %{"success" => true, "data" => detailed_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Detailed Status Todo",
@@ -887,7 +886,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes simple statusInfo union member", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -922,7 +921,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes detailed statusInfo union member", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -958,7 +957,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
     test "processes automated statusInfo union member", %{conn: conn} do
       # Create a todo with automated status
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Automated User",
@@ -968,7 +967,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       %{"success" => true, "data" => _automated_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Automated Status Todo",
@@ -983,7 +982,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1018,7 +1017,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes multiple statusInfo union members", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1063,7 +1062,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
       # Create comprehensive test setup
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Mixed Test User",
@@ -1073,7 +1072,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Complex Todo",
@@ -1108,7 +1107,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes union types with attributes and relationships", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1177,7 +1176,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes union types with calculations and aggregates", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1236,7 +1235,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes all union types together", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1335,7 +1334,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
       # Create a user for input validation tests
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Validation User",
@@ -1349,7 +1348,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "returns error for non-map union input", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Invalid Union Input",
@@ -1368,7 +1367,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "returns error for empty union input map", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Empty Union Map",
@@ -1389,7 +1388,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "returns error for multiple union member keys", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Multiple Union Members",
@@ -1418,7 +1417,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "returns error for invalid union member key", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Invalid Member Key",
@@ -1439,7 +1438,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "returns error for invalid union member in attachment", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Invalid Attachment",
@@ -1461,7 +1460,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "returns error for invalid union member", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -1481,7 +1480,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "returns error for invalid field in embedded resource union member", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -1505,7 +1504,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
       conn: conn
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -1527,7 +1526,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "returns error for invalid union member in attachments array", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -1547,7 +1546,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "returns error for invalid union member in statusInfo", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -1567,7 +1566,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "returns error for empty union field selection", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -1584,7 +1583,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "returns error for union attribute requested as simple atom", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "content"
@@ -1600,7 +1599,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
     test "returns error for file attachment requested as simple atom (requires field selection)",
          %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -1620,7 +1619,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
     test "returns error for image attachment requested as simple atom (requires field selection)",
          %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -1644,7 +1643,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
       # Create a user for relationship testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Complex User",
@@ -1655,7 +1654,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
       # Create a todo with complex text content that has calculations
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Complex Calculations Todo",
@@ -1675,7 +1674,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "processes nested calculations within embedded resource union members", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1729,7 +1728,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
     test "processes union field selection with deep nesting", %{conn: conn} do
       # Create a checklist todo for this test
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Checklist User",
@@ -1739,7 +1738,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       %{"success" => true, "data" => _checklist_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Deep Checklist Todo",
@@ -1760,7 +1759,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1816,7 +1815,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "handles union members with no field selection needed (simple types only)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1910,7 +1909,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
       # Create minimal test data
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Edge Case User",
@@ -1920,7 +1919,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Edge Case Todo",
@@ -1939,7 +1938,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "handles single union member selection", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1980,7 +1979,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
 
     test "handles union member with minimal field selection", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -2021,7 +2020,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
     test "processes union attribute with only simple members", %{conn: conn} do
       # Create todos with simple content types
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Simple User",
@@ -2031,7 +2030,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       %{"success" => true, "data" => _note_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Simple Note Todo",
@@ -2042,7 +2041,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -2079,7 +2078,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
     test "processes map union member with field selection", %{conn: conn} do
       # Create todo with file attachment
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "File User",
@@ -2089,7 +2088,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       %{"success" => true, "data" => _file_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "File Todo",
@@ -2108,7 +2107,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
         })
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",

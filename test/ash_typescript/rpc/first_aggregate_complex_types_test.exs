@@ -7,8 +7,6 @@ defmodule AshTypescript.Rpc.FirstAggregateComplexTypesTest do
   Tests for first aggregates that return complex types (embedded resources, unions).
   """
   use ExUnit.Case, async: false
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   @moduletag :ash_typescript
@@ -18,7 +16,7 @@ defmodule AshTypescript.Rpc.FirstAggregateComplexTypesTest do
       conn = TestHelpers.build_rpc_conn()
 
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Aggregate Test User",
@@ -28,7 +26,7 @@ defmodule AshTypescript.Rpc.FirstAggregateComplexTypesTest do
         })
 
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Aggregate Test Todo",
@@ -38,7 +36,7 @@ defmodule AshTypescript.Rpc.FirstAggregateComplexTypesTest do
         })
 
       %{"success" => true, "data" => comment} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Test comment with metadata",
@@ -66,7 +64,7 @@ defmodule AshTypescript.Rpc.FirstAggregateComplexTypesTest do
 
     test "can load first aggregate returning embedded resource type", %{conn: conn, todo: todo} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo["id"]},
           "fields" => [
@@ -89,7 +87,7 @@ defmodule AshTypescript.Rpc.FirstAggregateComplexTypesTest do
 
     test "can load first aggregate returning union type", %{conn: conn, todo: todo} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo["id"]},
           "fields" => [
@@ -118,7 +116,7 @@ defmodule AshTypescript.Rpc.FirstAggregateComplexTypesTest do
 
     test "can load both complex first aggregates together", %{conn: conn, todo: todo} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo["id"]},
           "fields" => [

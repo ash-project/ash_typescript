@@ -4,7 +4,6 @@
 
 defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "primitive aggregates (no nested field selection)" do
@@ -13,7 +12,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       # Create a user
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "John Doe",
@@ -24,7 +23,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       # Create a todo
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Test Todo",
@@ -36,7 +35,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       # Create some comments for aggregates
       %{"success" => true} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "First comment",
@@ -50,7 +49,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
         })
 
       %{"success" => true} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Second comment",
@@ -68,7 +67,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "processes simple count aggregate", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "commentCount"]
         })
@@ -87,7 +86,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "processes filtered count aggregate", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "helpfulCommentCount"]
         })
@@ -105,7 +104,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "processes exists aggregate", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "hasComments"]
         })
@@ -122,7 +121,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "processes avg and max aggregates", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "averageRating", "highestRating"]
         })
@@ -147,7 +146,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "processes first aggregate of primitive field", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "latestCommentContent"]
         })
@@ -168,7 +167,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "processes list aggregate of primitive field", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "commentAuthors"]
         })
@@ -185,7 +184,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "rejects nested field selection on primitive aggregates", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [%{"commentCount" => ["id"]}]
         })
@@ -198,7 +197,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "rejects nested field selection on exists aggregate", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [%{"hasComments" => ["id"]}]
         })
@@ -211,7 +210,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "rejects nested field selection on primitive list aggregate", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [%{"commentAuthors" => ["id"]}]
         })
@@ -231,7 +230,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "rejects non-existent complex aggregate (latest_comment)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", %{"latestComment" => ["id", "content", "authorName"]}]
         })
@@ -245,7 +244,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "rejects non-existent complex aggregate (recent_comments)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", %{"recentComments" => ["id", "content", "rating"]}]
         })
@@ -259,7 +258,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "rejects non-existent complex aggregate with nested relationships", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -282,7 +281,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "rejects non-existent complex aggregate with empty field selection", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [%{"latestComment" => []}]
         })
@@ -296,7 +295,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "rejects non-existent complex aggregate as simple string", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           # Non-existent aggregate requested as simple string
           "fields" => ["latestComment"]
@@ -316,7 +315,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       # Create a user
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Mixed User",
@@ -327,7 +326,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       # Create a todo
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Mixed Aggregates Todo",
@@ -339,7 +338,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       # Create comments for mixed testing
       %{"success" => true} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Test comment",
@@ -356,7 +355,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "processes multiple primitive aggregates together", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -401,7 +400,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "processes primitive aggregates with calculations", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -447,7 +446,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "rejects non-existent aggregate", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "nonExistentAggregate"]
         })
@@ -461,7 +460,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "rejects duplicate aggregate fields", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["commentCount", "commentCount"]
         })
@@ -474,7 +473,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "rejects mixed atom and map for same aggregate", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["commentCount", %{"commentCount" => []}]
         })
@@ -492,7 +491,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       # Create a user
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Action User",
@@ -506,7 +505,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
     test "processes aggregates in create actions", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "New Todo with Aggregates",
@@ -538,7 +537,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
     test "processes aggregates in update actions", %{conn: conn, user: user} do
       # First create a todo
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Original Title",
@@ -550,7 +549,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       # Create a comment
       %{"success" => true} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Update test comment",
@@ -564,7 +563,7 @@ defmodule AshTypescript.Rpc.RpcRunActionAggregatesTest do
 
       # Now update the todo and request aggregates
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo",
           "identity" => todo["id"],
           "input" => %{

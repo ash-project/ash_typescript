@@ -4,7 +4,6 @@
 
 defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "read actions" do
@@ -13,7 +12,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
       # Create a user for relationship testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "John Doe",
@@ -24,7 +23,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
       # Create a todo for testing
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Test Todo",
@@ -39,7 +38,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
     test "processes valid fields correctly", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "completed"]
         })
@@ -58,7 +57,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
     test "processes mixed attributes and loadable fields", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "commentCount"]
         })
@@ -75,7 +74,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
     test "processes simple relationship fields", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", %{"user" => ["id", "email"]}]
         })
@@ -105,7 +104,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
       # Create a user for relationship testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Jane Doe",
@@ -119,7 +118,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
     test "processes fields correctly", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "New Todo",
@@ -142,7 +141,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
     test "processes relationships in create actions", %{conn: conn, user: user} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Todo with User",
@@ -172,7 +171,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
       # Create a user first
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Test User",
@@ -183,7 +182,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
       # Create a todo for updating
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Original Title",
@@ -198,7 +197,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
     test "processes fields correctly", %{conn: conn, todo: todo} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo",
           "identity" => todo["id"],
           "input" => %{
@@ -224,7 +223,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
     test "updates non-nil attribute to nil", %{conn: conn, user: user} do
       # Create a todo with a description (non-nil)
       %{"success" => true, "data" => todo_with_desc} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Todo with Description",
@@ -238,7 +237,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
       # Update the todo setting description to nil
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo",
           "identity" => todo_with_desc["id"],
           "input" => %{
@@ -265,7 +264,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
     test "returns error for invalid attribute", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["invalidField"]
         })
@@ -279,7 +278,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
     test "returns error for invalid nested field", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [%{"user" => ["invalidField"]}]
         })
@@ -293,7 +292,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCrudTest do
 
     test "returns error for invalid relationship", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [%{"invalidRelationship" => ["id"]}]
         })

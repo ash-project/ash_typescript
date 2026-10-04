@@ -4,7 +4,6 @@
 
 defmodule AshTypescript.Rpc.RpcRunActionUntypedMapsTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "untyped map attribute and argument support" do
@@ -57,7 +56,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUntypedMapsTest do
 
       # Execute the action via RPC
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo_with_untyped_data",
           "identity" => todo["id"],
           "input" => %{
@@ -101,7 +100,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUntypedMapsTest do
       }
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo_with_untyped_data",
           "identity" => todo["id"],
           "input" => %{
@@ -136,7 +135,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUntypedMapsTest do
       }
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo_with_untyped_data",
           "identity" => todo_without_data["id"],
           "input" => %{
@@ -178,7 +177,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUntypedMapsTest do
       }
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo_with_untyped_data",
           "identity" => todo["id"],
           "input" => %{
@@ -211,7 +210,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUntypedMapsTest do
       }
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo",
           "identity" => todo["id"],
           "input" => %{
@@ -241,7 +240,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUntypedMapsTest do
       }
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "New Todo with Custom Data",

@@ -4,8 +4,9 @@
 
 defmodule AshTypescript.Rpc.NestedQueryOptsResultTest do
   use ExUnit.Case, async: true
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.ResultProcessor
+  alias AshRpc.ResultProcessor
 
   defp comment(attrs, keyset \\ nil) do
     base = struct(AshTypescript.Test.TodoComment, attrs)
@@ -34,7 +35,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsResultTest do
         todo,
         [:id, {:comments, [:id, :content]}],
         AshTypescript.Test.Todo,
-        AshTypescript.resource_lookup()
+        rpc_runtime()
       )
 
     assert %{
@@ -71,7 +72,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsResultTest do
         todo,
         [:id, {:comments, [:id]}],
         AshTypescript.Test.Todo,
-        AshTypescript.resource_lookup()
+        rpc_runtime()
       )
 
     assert %{comments: comments} = result
@@ -99,7 +100,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsResultTest do
         todo,
         [:id, {:comments, [:id]}],
         AshTypescript.Test.Todo,
-        AshTypescript.resource_lookup()
+        rpc_runtime()
       )
 
     assert result.comments.previous_page == nil
@@ -117,7 +118,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsResultTest do
         todo,
         [:id, {:comments, [:id]}],
         AshTypescript.Test.Todo,
-        AshTypescript.resource_lookup()
+        rpc_runtime()
       )
 
     assert result.comments == [%{id: "c1"}]
@@ -142,14 +143,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsResultTest do
       }
 
       formatted =
-        AshTypescript.Rpc.ValueFormatter.format(
-          page_map,
-          rel,
-          [],
-          :camel_case,
-          :output,
-          AshTypescript.resource_lookup()
-        )
+        AshRpc.ValueFormatter.format(page_map, rel, [], :output, rpc_runtime())
 
       assert formatted["hasMore"] == false
       assert formatted["limit"] == 2
@@ -169,13 +163,12 @@ defmodule AshTypescript.Rpc.NestedQueryOptsResultTest do
         )
 
       formatted =
-        AshTypescript.Rpc.ValueFormatter.format(
+        AshRpc.ValueFormatter.format(
           [%{id: "c1", author_name: "Bob"}],
           rel,
           [],
-          :camel_case,
           :output,
-          AshTypescript.resource_lookup()
+          rpc_runtime()
         )
 
       assert [%{"authorName" => "Bob"}] = formatted

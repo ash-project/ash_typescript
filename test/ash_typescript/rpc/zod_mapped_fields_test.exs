@@ -330,24 +330,6 @@ defmodule AshTypescript.Rpc.ZodMappedFieldsTest do
       refute zod_schema =~ "created_by?"
       refute zod_schema =~ "is_public?"
     end
-
-    test "validation error schemas use mapped field names" do
-      # TaskMetadata validation errors should also use mapped names
-      alias AshTypescript.Rpc.ValidationErrorSchemas
-
-      embedded_resource = AshTypescript.Test.TaskMetadata
-
-      error_schema =
-        ValidationErrorSchemas.generate_input_validation_errors_schema(embedded_resource)
-
-      # Should contain mapped field names
-      assert error_schema =~ "createdBy?"
-      assert error_schema =~ "isPublic?"
-
-      # Should NOT contain unmapped field names with question marks
-      refute error_schema =~ "created_by??"
-      refute error_schema =~ "is_public??"
-    end
   end
 
   describe "Zod schemas for typed structs with mapped field names" do

@@ -12,7 +12,6 @@ defmodule AshTypescript.Rpc.MapFieldNameRpcTest do
   3. The output is always camelCase (for TypeScript consistency)
   """
   use ExUnit.Case, async: false
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   setup do
@@ -23,7 +22,7 @@ defmodule AshTypescript.Rpc.MapFieldNameRpcTest do
   describe "RPC should accept camelCase field names for map return types" do
     test "get_metrics action accepts camelCase field names", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_metrics",
           "fields" => ["total", "lastWeek", "lastMonth", "lastYear"]
         })
@@ -43,7 +42,7 @@ defmodule AshTypescript.Rpc.MapFieldNameRpcTest do
       conn: conn
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_metrics",
           "fields" => ["total", "last_week", "last_month", "last_year"]
         })
@@ -63,7 +62,7 @@ defmodule AshTypescript.Rpc.MapFieldNameRpcTest do
       conn: conn
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_nested_stats",
           "fields" => [
             %{
@@ -104,7 +103,7 @@ defmodule AshTypescript.Rpc.MapFieldNameRpcTest do
       conn: conn
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_users_map",
           "fields" => [
             "totalCount",
@@ -132,7 +131,7 @@ defmodule AshTypescript.Rpc.MapFieldNameRpcTest do
 
     test "applies the nested selection to each item of the array", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_users_map",
           "fields" => [%{"results" => ["id", "email"]}]
         })
@@ -146,7 +145,7 @@ defmodule AshTypescript.Rpc.MapFieldNameRpcTest do
 
     test "formats nested primitive values when selecting array items", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_users_map",
           "fields" => ["totalCount", %{"results" => ["insertedAt"]}]
         })
@@ -163,7 +162,7 @@ defmodule AshTypescript.Rpc.MapFieldNameRpcTest do
   describe "get_metadata_report array of embedded resources in a typed map" do
     test "applies the nested selection to each embedded resource", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_metadata_report",
           "fields" => ["total", %{"rows" => ["category", "priorityScore"]}]
         })
@@ -183,7 +182,7 @@ defmodule AshTypescript.Rpc.MapFieldNameRpcTest do
   describe "get_nested_stats nested typed map selection" do
     test "only returns the selected nested fields", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_nested_stats",
           "fields" => [%{"userStats" => ["activeUsers"]}]
         })
@@ -196,7 +195,7 @@ defmodule AshTypescript.Rpc.MapFieldNameRpcTest do
   describe "output field formatting consistency" do
     test "output fields are always camelCase regardless of input format", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_metrics",
           "fields" => ["total", "last_week", "last_month", "last_year"]
         })

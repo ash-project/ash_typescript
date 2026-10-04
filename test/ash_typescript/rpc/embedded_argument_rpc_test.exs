@@ -11,8 +11,6 @@ defmodule AshTypescript.Rpc.EmbeddedArgumentRpcTest do
   client sends plain maps which must be correctly processed by the pipeline.
   """
   use ExUnit.Case, async: false
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   @process_metadata_fields ["processed", "priority", "source"]
@@ -34,7 +32,7 @@ defmodule AshTypescript.Rpc.EmbeddedArgumentRpcTest do
         "fields" => @process_metadata_fields
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"]["processed"] == true
@@ -54,7 +52,7 @@ defmodule AshTypescript.Rpc.EmbeddedArgumentRpcTest do
         "fields" => @process_metadata_fields
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"]["processed"] == true
@@ -70,7 +68,7 @@ defmodule AshTypescript.Rpc.EmbeddedArgumentRpcTest do
         "fields" => @process_metadata_fields
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == false
       assert is_list(result["errors"])
@@ -95,7 +93,7 @@ defmodule AshTypescript.Rpc.EmbeddedArgumentRpcTest do
         "fields" => @process_metadata_batch_fields
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert is_list(result["data"])
@@ -117,7 +115,7 @@ defmodule AshTypescript.Rpc.EmbeddedArgumentRpcTest do
         "fields" => @process_metadata_batch_fields
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert result["data"] == []
@@ -136,7 +134,7 @@ defmodule AshTypescript.Rpc.EmbeddedArgumentRpcTest do
         "fields" => @process_metadata_batch_fields
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == true
       assert length(result["data"]) == 1
@@ -152,7 +150,7 @@ defmodule AshTypescript.Rpc.EmbeddedArgumentRpcTest do
         "fields" => @process_metadata_batch_fields
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
       assert result["success"] == false
       assert is_list(result["errors"])

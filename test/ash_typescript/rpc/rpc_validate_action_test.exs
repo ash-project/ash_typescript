@@ -5,8 +5,6 @@
 defmodule AshTypescript.Rpc.RpcValidateActionTest do
   use ExUnit.Case, async: true
 
-  alias AshTypescript.Rpc
-
   describe "validate_action functionality" do
     setup do
       conn = %Plug.Conn{}
@@ -16,7 +14,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
     test "validates CRUD action parameters", %{conn: conn} do
       # Read action validation
       read_result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos"
         })
 
@@ -24,7 +22,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
 
       # Create action validation
       create_result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Test Todo",
@@ -39,7 +37,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
     test "validates field-selectable action parameters", %{conn: conn} do
       # Map-returning action validation
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_statistics_todo"
         })
 
@@ -49,7 +47,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
     test "validates primitive return action parameters", %{conn: conn} do
       # Array-returning action validation
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "bulk_complete_todo",
           "input" => %{"todoIds" => ["550e8400-e29b-41d4-a716-446655440000"]}
         })
@@ -67,7 +65,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
     test "validates create action input", %{conn: conn} do
       # Valid input passes validation
       valid_result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Valid Todo Title",
@@ -81,7 +79,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
 
       # Invalid input fails validation
       invalid_result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Valid Title",
@@ -98,7 +96,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
     test "validates update action input", %{conn: conn} do
       # Update actions validate input format
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo",
           "identity" => "550e8400-e29b-41d4-a716-446655440000",
           "input" => %{
@@ -121,7 +119,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
     test "validates read action arguments", %{conn: conn} do
       # Valid read arguments
       valid_result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "input" => %{
             "filterCompleted" => true,
@@ -133,7 +131,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
 
       # Invalid enum value
       invalid_result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "input" => %{
             "priorityFilter" => "invalid_priority"
@@ -146,7 +144,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
     test "validates pagination parameters", %{conn: conn} do
       # Valid pagination
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "page" => %{
             "limit" => 50,
@@ -158,7 +156,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
 
       # Invalid pagination format
       invalid_result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "page" => "invalid_pagination_format"
         })
@@ -185,7 +183,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
         }
       }
 
-      result = Rpc.validate_action(:ash_typescript, conn, form_data)
+      result = AshRpc.validate_action(AshTypescript.RpcProfile, conn, form_data)
 
       # Works without field specification
       assert is_map(result)
@@ -195,7 +193,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
     test "validates action existence", %{conn: conn} do
       # Non-existent action should fail
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "non_existent_action"
         })
 
@@ -214,7 +212,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
     test "validate_action vs run_action for CRUD actions", %{conn: conn} do
       # run_action requires fields for data selection
       run_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos"
         })
 
@@ -224,7 +222,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
 
       # validate_action works without fields
       validate_result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos"
         })
 
@@ -234,7 +232,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
     test "validate_action vs run_action for field-selectable actions", %{conn: conn} do
       # run_action requires fields for data processing
       run_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_statistics_todo"
         })
 
@@ -242,7 +240,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
 
       # validate_action works without fields
       validate_result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_statistics_todo"
         })
 
@@ -252,7 +250,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
     test "field requirements still enforced in run_action", %{conn: conn} do
       # Demonstrates that field validation is context-aware, not eliminated
       run_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_statistics_todo",
           # Empty fields should fail
           "fields" => []
@@ -264,7 +262,7 @@ defmodule AshTypescript.Rpc.RpcValidateActionTest do
 
       # But works with proper fields
       run_result_with_fields =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_statistics_todo",
           "fields" => ["total", "completed"]
         })

@@ -4,14 +4,15 @@
 
 defmodule AshTypescript.Rpc.ForbiddenFieldRedactionTest do
   use ExUnit.Case, async: false
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.ResultProcessor
+  alias AshRpc.ResultProcessor
 
   @secret "123-45-6789"
 
   test "normalize_value_for_json redacts a ForbiddenField" do
     forbidden = %Ash.ForbiddenField{field: :ssn, type: :attribute, original_value: @secret}
-    result = ResultProcessor.normalize_value_for_json(forbidden)
+    result = ResultProcessor.normalize_value_for_json(forbidden, rpc_runtime())
     refute String.contains?(Jason.encode!(result), @secret)
     refute String.contains?(Jason.encode!(result), "original_value")
   end
@@ -27,12 +28,7 @@ defmodule AshTypescript.Rpc.ForbiddenFieldRedactionTest do
       })
 
     result =
-      ResultProcessor.process(
-        struct,
-        [],
-        AshTypescript.Test.TodoMetadata,
-        AshTypescript.resource_lookup()
-      )
+      ResultProcessor.process(struct, [], AshTypescript.Test.TodoMetadata, rpc_runtime())
 
     encoded = Jason.encode!(result)
     refute String.contains?(encoded, @secret)

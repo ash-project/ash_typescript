@@ -4,8 +4,9 @@
 
 defmodule AshTypescript.Rpc.LoadRestrictionsTest do
   use ExUnit.Case
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.Pipeline
+  alias AshRpc.Pipeline
 
   @moduletag :ash_typescript
 
@@ -18,7 +19,9 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       # Should succeed - user is allowed
       assert request.load == [{:user, [:id, :email]}]
     end
@@ -32,7 +35,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:load_not_allowed, disallowed}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert "comments" in disallowed
     end
@@ -45,7 +48,9 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       # Should succeed - comments and comments.todo are allowed
       assert request.load != []
     end
@@ -60,7 +65,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
       # user is allowed, but user.todos is not
       assert {:error, {:load_not_allowed, disallowed}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert Enum.any?(disallowed, &String.contains?(&1, "todos"))
     end
@@ -73,7 +78,9 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.load == []
     end
   end
@@ -87,7 +94,9 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       # Should succeed - comments is not denied
       assert request.load == [{:comments, [:id, :content]}]
     end
@@ -101,7 +110,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:load_denied, denied}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert "user" in denied
     end
@@ -116,7 +125,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
       # user is denied, so user.todos should also be denied
       assert {:error, {:load_denied, denied}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert Enum.any?(denied, &String.contains?(&1, "user"))
     end
@@ -130,7 +139,9 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       conn = %Plug.Conn{}
 
       # comments is allowed, only comments.todo is denied
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.load != []
     end
 
@@ -144,7 +155,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
       # comments.todo is explicitly denied
       assert {:error, {:load_denied, denied}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert Enum.any?(denied, &String.contains?(&1, "todo"))
     end
@@ -157,7 +168,9 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.load == []
     end
   end
@@ -172,7 +185,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:load_not_allowed, disallowed}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert Enum.any?(disallowed, &String.contains?(&1, "is_active?"))
     end
@@ -185,7 +198,9 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.load == [{:comments, [:id, :weighted_score]}]
     end
 
@@ -198,7 +213,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:load_denied, denied}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert Enum.any?(denied, &String.contains?(&1, "weighted_score"))
     end
@@ -211,7 +226,9 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.load == [{:comments, [:id, :content]}]
     end
 
@@ -223,7 +240,9 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.load == [{:comments, [:id, :weighted_score]}]
     end
 
@@ -248,10 +267,10 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:load_not_allowed, plain_disallowed}} =
-               Pipeline.parse_request(:ash_typescript, conn, plain)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), plain)
 
       assert {:error, {:load_not_allowed, envelope_disallowed}} =
-               Pipeline.parse_request(:ash_typescript, conn, envelope)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), envelope)
 
       assert Enum.any?(plain_disallowed, &String.contains?(&1, "comment_metadata"))
       assert Enum.any?(envelope_disallowed, &String.contains?(&1, "comment_metadata"))
@@ -273,7 +292,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:load_not_allowed, disallowed}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert Enum.any?(disallowed, &String.contains?(&1, "author_info"))
     end
@@ -287,7 +306,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:load_not_allowed, disallowed}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert Enum.any?(disallowed, &String.contains?(&1, "weighted_score"))
     end
@@ -302,7 +321,9 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       # Should allow both user and comments
       assert length(request.load) == 2
     end
@@ -337,7 +358,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:load_not_allowed, paths}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert is_list(paths)
       assert Enum.all?(paths, &is_binary/1)
@@ -352,7 +373,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:load_denied, paths}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert is_list(paths)
       assert Enum.all?(paths, &is_binary/1)
@@ -365,7 +386,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
       # Create test data
       %{"success" => true, "data" => user} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Restriction Test User",
@@ -375,7 +396,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
         })
 
       %{"success" => true, "data" => todo} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Restriction Test Todo",
@@ -387,7 +408,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
         })
 
       %{"success" => true, "data" => _comment} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Test comment for restrictions",
@@ -403,7 +424,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "allows loading user when in allowed_loads list", %{conn: conn, user: user} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_allow_only_user",
           "fields" => ["id", "title", %{"user" => ["id", "email"]}]
         })
@@ -425,7 +446,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "rejects loading comments when not in allowed_loads list", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_allow_only_user",
           "fields" => ["id", "title", %{"comments" => ["id", "content"]}]
         })
@@ -439,7 +460,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "allows primitive fields without loads", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_allow_only_user",
           "fields" => ["id", "title", "description"]
         })
@@ -460,7 +481,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "rejects nested loads on allowed relationship (user.todos)", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_allow_only_user",
           "fields" => ["id", "title", %{"user" => ["id", "email", %{"todos" => ["id", "title"]}]}]
         })
@@ -479,7 +500,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
       # Create test data
       %{"success" => true, "data" => user} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Deny Test User",
@@ -489,7 +510,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
         })
 
       %{"success" => true, "data" => todo} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Deny Test Todo",
@@ -501,7 +522,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
         })
 
       %{"success" => true, "data" => _comment} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Deny test comment",
@@ -517,7 +538,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "allows loading comments when not in denied_loads list", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_deny_user",
           "fields" => ["id", "title", %{"comments" => ["id", "content"]}]
         })
@@ -543,7 +564,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "rejects loading user when in denied_loads list", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_deny_user",
           "fields" => ["id", "title", %{"user" => ["id", "email"]}]
         })
@@ -557,7 +578,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "allows primitive fields without loads", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_deny_user",
           "fields" => ["id", "title", "status"]
         })
@@ -582,7 +603,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
       # Create test data for nested restrictions
       %{"success" => true, "data" => user} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Nested Allow User",
@@ -592,7 +613,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
         })
 
       %{"success" => true, "data" => todo} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Nested Allow Todo",
@@ -602,7 +623,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
         })
 
       %{"success" => true, "data" => _comment} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Nested allow comment",
@@ -623,7 +644,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
     } do
       # allowed_loads: [:user, comments: [:todo]]
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_allow_nested",
           "fields" => [
             "id",
@@ -654,7 +675,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "rejects comments.user because only comments.todo is allowed", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_allow_nested",
           "fields" => [
             "id",
@@ -674,7 +695,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       conn = AshTypescript.Test.TestHelpers.build_rpc_conn()
 
       %{"success" => true, "data" => user} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Nested Deny User",
@@ -684,7 +705,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
         })
 
       %{"success" => true, "data" => todo} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Nested Deny Todo",
@@ -694,7 +715,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
         })
 
       %{"success" => true, "data" => _comment} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Nested deny comment",
@@ -710,7 +731,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "allows comments without loading todo (denied_loads: [comments: [:todo]])", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_deny_nested",
           "fields" => ["id", "title", %{"comments" => ["id", "content"]}]
         })
@@ -736,7 +757,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "rejects comments.todo which is in nested denied_loads", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_deny_nested",
           "fields" => ["id", %{"comments" => ["id", %{"todo" => ["id"]}]}]
         })
@@ -748,7 +769,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "allows user because it's not in denied_loads", %{conn: conn, user: user} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_deny_nested",
           "fields" => ["id", "title", %{"user" => ["id", "email"]}]
         })
@@ -774,7 +795,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       conn = AshTypescript.Test.TestHelpers.build_rpc_conn()
 
       %{"success" => true, "data" => user} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Pagination Allow User",
@@ -784,7 +805,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
         })
 
       %{"success" => true, "data" => todo} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Pagination Allow Todo",
@@ -798,7 +819,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "allows loading user with offset pagination", %{conn: conn, user: user} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_allow_only_user",
           "fields" => ["id", "title", %{"user" => ["id", "email"]}],
           "page" => %{"offset" => 0, "limit" => 10}
@@ -819,7 +840,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "rejects loading comments with offset pagination", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_allow_only_user",
           "fields" => ["id", "title", %{"comments" => ["id"]}],
           "page" => %{"offset" => 0, "limit" => 10}
@@ -832,7 +853,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "returns paginated structure with count when requested", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_allow_only_user",
           "fields" => ["id", "title", %{"user" => ["id"]}],
           "page" => %{"offset" => 0, "limit" => 5, "count" => true}
@@ -849,7 +870,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       conn = AshTypescript.Test.TestHelpers.build_rpc_conn()
 
       %{"success" => true, "data" => user} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Keyset Deny User",
@@ -859,7 +880,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
         })
 
       %{"success" => true, "data" => todo} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Keyset Deny Todo",
@@ -869,7 +890,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
         })
 
       %{"success" => true, "data" => _comment} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Keyset comment",
@@ -885,7 +906,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "allows loading comments with limit-based pagination (keyset first page)", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_deny_user",
           "fields" => ["id", "title", %{"comments" => ["id", "content"]}],
           "page" => %{"limit" => 20}
@@ -904,7 +925,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "rejects loading user with keyset pagination", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_deny_user",
           "fields" => ["id", "title", %{"user" => ["id"]}],
           "page" => %{"limit" => 10}
@@ -921,7 +942,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
       conn = AshTypescript.Test.TestHelpers.build_rpc_conn()
 
       %{"success" => true, "data" => user} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Nested Paginated User",
@@ -931,7 +952,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
         })
 
       %{"success" => true, "data" => todo} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Nested Paginated Todo",
@@ -941,7 +962,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
         })
 
       %{"success" => true, "data" => _comment} =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Nested paginated comment",
@@ -957,7 +978,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "nested allowed_loads works with offset pagination", %{conn: conn, todo: todo} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_allow_nested",
           "fields" => [
             "id",
@@ -982,7 +1003,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "nested denied_loads works with offset pagination", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_deny_nested",
           "fields" => [
             "id",
@@ -1004,7 +1025,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "nested denied_loads rejects denied nested field with pagination", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_deny_nested",
           "fields" => ["id", %{"comments" => ["id", %{"todo" => ["id"]}]}],
           "page" => %{"offset" => 0, "limit" => 5}
@@ -1017,7 +1038,7 @@ defmodule AshTypescript.Rpc.LoadRestrictionsTest do
 
     test "nested allowed_loads rejects disallowed nested field with pagination", %{conn: conn} do
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos_allow_nested",
           "fields" => ["id", %{"comments" => ["id", %{"user" => ["id"]}]}],
           "page" => %{"offset" => 0, "limit" => 5}

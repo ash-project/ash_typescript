@@ -4,7 +4,7 @@
 
 defmodule AshTypescript.Rpc.CalculationsTest do
   @moduledoc """
-  Tests for calculations through the refactored AshTypescript.Rpc module.
+  Tests for calculations through the AshRpc runtime (`AshTypescript.RpcProfile`).
 
   This module focuses on testing:
   - Simple calculations (boolean, integer, string types)
@@ -15,12 +15,10 @@ defmodule AshTypescript.Rpc.CalculationsTest do
   Note: Complex calculations that return structs (like self calculations) are
   currently limited by output formatting pipeline and excluded from this test suite.
 
-  All operations are tested end-to-end through AshTypescript.Rpc.run_action/3.
+  All operations are tested end-to-end through `AshRpc.run_action/4`.
   """
 
   use ExUnit.Case, async: false
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   @moduletag :ash_typescript
@@ -36,7 +34,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       past_date = Date.add(Date.utc_today(), -7) |> Date.to_string()
 
       past_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Past Due Todo",
@@ -53,7 +51,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       future_date = Date.add(Date.utc_today(), 7) |> Date.to_string()
 
       future_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Future Due Todo",
@@ -68,7 +66,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
 
       # Test overdue todo
       past_get_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => past_todo_id},
           "fields" => ["id", "title", "dueDate", "isOverdue"]
@@ -83,7 +81,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
 
       # Test future todo
       future_get_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => future_todo_id},
           "fields" => ["id", "title", "dueDate", "isOverdue"]
@@ -104,7 +102,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
 
       # Create todo without due date
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "No Due Date Todo",
@@ -119,7 +117,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
 
       # Get with calculation
       get_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo_id},
           "fields" => ["id", "title", "dueDate", "isOverdue"]
@@ -146,7 +144,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       future_date = Date.add(Date.utc_today(), target_days) |> Date.to_string()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Days Calculation Todo",
@@ -161,7 +159,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
 
       # Get with calculation
       get_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo_id},
           "fields" => ["id", "title", "dueDate", "daysUntilDue"]
@@ -187,7 +185,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       past_date = Date.add(Date.utc_today(), past_days) |> Date.to_string()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Past Days Todo",
@@ -202,7 +200,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
 
       # Get with calculation
       get_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo_id},
           "fields" => ["id", "title", "dueDate", "daysUntilDue"]
@@ -225,7 +223,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
 
       # Create todo without due date
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "No Due Date Days Todo",
@@ -239,7 +237,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
 
       # Get with calculation
       get_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo_id},
           "fields" => ["id", "title", "dueDate", "daysUntilDue"]
@@ -268,7 +266,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       past_date = Date.add(Date.utc_today(), -2) |> Date.to_string()
       future_date = Date.add(Date.utc_today(), 3) |> Date.to_string()
 
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "create_todo",
         "input" => %{
           "title" => "Past Todo",
@@ -278,7 +276,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
         "fields" => ["id"]
       })
 
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "create_todo",
         "input" => %{
           "title" => "Future Todo",
@@ -288,7 +286,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
         "fields" => ["id"]
       })
 
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "create_todo",
         "input" => %{
           "title" => "No Date Todo",
@@ -299,7 +297,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
 
       # List todos with calculations
       list_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "dueDate", "isOverdue", "daysUntilDue"]
         })
@@ -345,7 +343,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
 
       # Test selecting only isOverdue calculation
       result1 =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo["id"]},
           "fields" => ["id", "title", "isOverdue"]
@@ -358,7 +356,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
 
       # Test selecting only daysUntilDue calculation
       result2 =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo["id"]},
           "fields" => ["id", "title", "daysUntilDue"]
@@ -371,7 +369,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
 
       # Test selecting both calculations
       result3 =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo["id"]},
           "fields" => ["id", "title", "isOverdue", "daysUntilDue"]
@@ -397,7 +395,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
 
       # Select only calculation fields (no base attributes except id)
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo["id"]},
           "fields" => ["id", "isOverdue", "daysUntilDue"]
@@ -434,7 +432,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       created_todos =
         for todo_data <- todos do
           result =
-            Rpc.run_action(:ash_typescript, conn, %{
+            AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
               "action" => "create_todo",
               "input" => Map.put(todo_data, "userId", user["id"]),
               "fields" => ["id"]
@@ -447,7 +445,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       # Get all todos with calculations
       for todo <- created_todos do
         result =
-          Rpc.run_action(:ash_typescript, conn, %{
+          AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
             "action" => "get_todo",
             "input" => %{"id" => todo["id"]},
             "fields" => ["id", "isOverdue", "daysUntilDue"]
@@ -476,7 +474,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
         due_date = Date.add(Date.utc_today(), i - 5) |> Date.to_string()
 
         result =
-          Rpc.run_action(:ash_typescript, conn, %{
+          AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
             "action" => "create_todo",
             "input" => %{
               "title" => "Perf Todo #{i}",
@@ -493,7 +491,7 @@ defmodule AshTypescript.Rpc.CalculationsTest do
       start_time = System.monotonic_time(:millisecond)
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "isOverdue", "daysUntilDue"]
         })

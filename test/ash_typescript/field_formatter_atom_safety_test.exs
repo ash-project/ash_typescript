@@ -13,8 +13,9 @@ defmodule AshTypescript.FieldFormatterAtomSafetyTest do
   global atom count, which concurrent test modules would perturb.
   """
   use ExUnit.Case, async: true
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.FieldFormatter
+  alias AshRpc.FieldFormatter
 
   defp atom_exists?(name) when is_binary(name) do
     _ = String.to_existing_atom(name)
@@ -71,11 +72,9 @@ defmodule AshTypescript.FieldFormatterAtomSafetyTest do
     # FieldSelector.select_typed_struct_fields/4 - a distinct call site from the
     # one CVE-3192 covered, which minted an atom per unknown name.
     defp select_statistics_fields(fields) do
-      AshTypescript.Rpc.RequestedFieldsProcessor.process(
-        AshTypescript.Test.Todo,
-        :read,
-        [%{"statistics" => fields}]
-      )
+      AshRpc.RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+        %{"statistics" => fields}
+      ])
     end
 
     test "an unknown field name is rejected without minting an atom" do

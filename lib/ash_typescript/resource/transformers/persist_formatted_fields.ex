@@ -32,7 +32,7 @@ defmodule AshTypescript.Resource.Transformers.PersistFormattedFields do
   defp formatted_name(field, formatter, overrides) do
     case Keyword.fetch(overrides, field) do
       {:ok, override} when is_binary(override) -> override
-      _ -> AshTypescript.FieldFormatter.compute_field_name(field, formatter)
+      _ -> AshTypescript.FieldFormatter.format_field_name(field, formatter)
     end
   end
 

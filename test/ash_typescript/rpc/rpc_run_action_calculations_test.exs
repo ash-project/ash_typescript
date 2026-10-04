@@ -4,7 +4,6 @@
 
 defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "simple calculations without arguments" do
@@ -13,7 +12,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
       # Create a user for relationship testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Calculation User",
@@ -30,7 +29,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       future_date = DateTime.add(now, 86_400, :second)
 
       %{"success" => true, "data" => overdue_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Overdue Todo",
@@ -41,7 +40,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
         })
 
       %{"success" => true, "data" => future_todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Future Todo",
@@ -61,7 +60,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes boolean calculations", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "isOverdue"]
         })
@@ -104,7 +103,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes integer calculations", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "daysUntilDue"]
         })
@@ -129,7 +128,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes multiple simple calculations", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "isOverdue", "daysUntilDue"]
         })
@@ -162,7 +161,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
       # Create a user for relationship testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Self Calc User",
@@ -173,7 +172,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
       # Create a todo for testing the self calculation
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Self Calculation Todo",
@@ -189,7 +188,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes struct calculation with arguments and basic field selection", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -233,7 +232,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes calculation with nested relationship field selection", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -282,7 +281,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
     test "processes calculation with complex nested relationships", %{conn: conn} do
       # First create some comments for testing deep nesting
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Complex User",
@@ -292,7 +291,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
         })
 
       %{"success" => true, "data" => _todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Complex Nested Todo",
@@ -304,7 +303,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       # Create some comments for the user (assuming comments relationship exists)
       # Note: This might need adjustment based on actual test schema
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -367,7 +366,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
       # Create test data
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Args User",
@@ -377,7 +376,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
         })
 
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Args Todo",
@@ -392,7 +391,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes calculation with empty arguments", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -426,7 +425,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes calculation with nil argument values", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -459,7 +458,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes calculation with multiple argument types", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -501,7 +500,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
       # Create comprehensive test data
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Mixed User",
@@ -511,7 +510,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
         })
 
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Mixed Fields Todo",
@@ -527,7 +526,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes simple calculations with regular fields", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             # attribute
@@ -566,7 +565,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes calculations with arguments alongside other field types", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             # attribute
@@ -629,7 +628,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       conn: conn
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -648,7 +647,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
     test "returns error for calculation that doesn't take arguments when requested with nested structure",
          %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -667,7 +666,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "returns error for aggregate when requested with nested structure", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -686,7 +685,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "returns error for attribute when requested with nested structure", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -705,7 +704,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "returns error for invalid fields in calculation field selection", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -726,7 +725,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "returns error for invalid nested relationship fields in calculations", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -747,7 +746,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "returns error for calculations with missing fields key", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -765,7 +764,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "returns error for calculations with missing args key", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -783,7 +782,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "returns error for non-existent calculations", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -804,7 +803,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "handles malformed calculation request structure", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -827,7 +826,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
       # Create test data with embedded resources for testing calculations
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Embedded User",
@@ -837,7 +836,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
         })
 
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Calculation Validation Todo",
@@ -857,7 +856,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "returns error for primitive calculation with fields parameter", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -887,7 +886,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "returns error for complex calculation without fields parameter", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -904,7 +903,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "returns error for complex calculation with empty fields", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -924,7 +923,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes calculation with basic field selection", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -955,7 +954,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes calculation selecting only relationships", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -989,7 +988,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes calculation selecting only other calculations", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -1035,7 +1034,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
       # Create a user for relationship testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Summary User",
@@ -1046,7 +1045,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
       # Create a todo for testing the summary calculation
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Summary Calculation Todo",
@@ -1061,7 +1060,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes no-argument calculation with basic field selection", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1099,7 +1098,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes no-argument calculation with nested map field selection", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1143,7 +1142,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes no-argument calculation selecting all available fields", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1196,7 +1195,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       conn: conn
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1216,7 +1215,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       conn: conn
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{"summary" => ["viewCount", "nonExistentField"]}
@@ -1232,7 +1231,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "returns error for invalid nested field in no-argument calculation", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -1253,7 +1252,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "processes no-argument calculation alongside with-argument calculation", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1296,7 +1295,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
       conn = TestHelpers.build_rpc_conn()
 
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Creator User",
@@ -1306,7 +1305,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
         })
 
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Load Through Todo",
@@ -1321,7 +1320,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "loads basic fields from resource-returning calculation", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "title",
@@ -1345,7 +1344,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "loads nested relationships through resource-returning calculation", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1369,7 +1368,7 @@ defmodule AshTypescript.Rpc.RpcRunActionCalculationsTest do
 
     test "rejects simple atom selection for resource-returning calculation", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "creator"]
         })

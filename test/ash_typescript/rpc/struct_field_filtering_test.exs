@@ -4,8 +4,9 @@
 
 defmodule AshTypescript.Rpc.StructFieldFilteringTest do
   use ExUnit.Case, async: true
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.ResultProcessor
+  alias AshRpc.ResultProcessor
   alias AshTypescript.Test.StructFilterUser, as: User
 
   describe "struct field filtering" do
@@ -19,7 +20,7 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
           internal_notes: "internal_notes"
         })
 
-      result = ResultProcessor.normalize_value_for_json(user_struct)
+      result = ResultProcessor.normalize_value_for_json(user_struct, rpc_runtime())
 
       assert Map.has_key?(result, :id)
       assert Map.has_key?(result, :name)
@@ -39,7 +40,7 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
         })
 
       extraction_template = [:name]
-      result = ResultProcessor.process(user_struct, extraction_template, User)
+      result = ResultProcessor.process(user_struct, extraction_template, User, rpc_runtime())
 
       assert Map.has_key?(result, :name)
       refute Map.has_key?(result, :id)
@@ -63,7 +64,9 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
       }
 
       extraction_template = [:id, :name, :email, :self_struct]
-      result = ResultProcessor.process(record_with_struct, extraction_template, User)
+
+      result =
+        ResultProcessor.process(record_with_struct, extraction_template, User, rpc_runtime())
 
       assert Map.has_key?(result, :id)
       assert Map.has_key?(result, :name)
@@ -92,7 +95,9 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
       }
 
       extraction_template = [:id, :name, {:self_struct, [:name]}]
-      result = ResultProcessor.process(record_with_struct, extraction_template, User)
+
+      result =
+        ResultProcessor.process(record_with_struct, extraction_template, User, rpc_runtime())
 
       assert Map.has_key?(result, :id)
       assert Map.has_key?(result, :name)
@@ -122,7 +127,7 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
         })
       ]
 
-      result = ResultProcessor.process(action_result, [], User)
+      result = ResultProcessor.process(action_result, [], User, rpc_runtime())
 
       assert length(result) == 2
 
@@ -147,7 +152,7 @@ defmodule AshTypescript.Rpc.StructFieldFilteringTest do
       ]
 
       extraction_template = [:name]
-      result = ResultProcessor.process(action_result, extraction_template, User)
+      result = ResultProcessor.process(action_result, extraction_template, User, rpc_runtime())
 
       assert length(result) == 1
       [user] = result

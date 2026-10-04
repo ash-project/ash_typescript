@@ -19,7 +19,7 @@ defmodule AshTypescript.TypedController.RequestHandler do
 
   ## Error Shape
 
-  Errors use the same shape as RPC errors (`AshTypescript.Rpc.Error`), so a
+  Errors use the same shape as RPC errors (`AshRpc.Error`), so a
   client can handle both with one code path:
 
       %{
@@ -43,8 +43,9 @@ defmodule AshTypescript.TypedController.RequestHandler do
 
   import AshTypescript.Helpers, only: [format_output_field: 1]
 
-  alias AshTypescript.{ErrorFormatter, FieldFormatter}
-  alias AshTypescript.Rpc.ValueFormatter
+  alias AshRpc.ErrorFormatter
+  alias AshRpc.ValueFormatter
+  alias AshTypescript.FieldFormatter
 
   @doc """
   Handles a route request by extracting, casting, and validating arguments,
@@ -158,9 +159,8 @@ defmodule AshTypescript.TypedController.RequestHandler do
        value,
        arg.type,
        arg.constraints || [],
-       AshTypescript.input_field_formatter(),
        :input,
-       AshTypescript.resource_lookup()
+       AshRpc.Runtime.from_manifest(AshTypescript.manifest())
      )}
   catch
     :throw, _error -> {:error, "is invalid"}

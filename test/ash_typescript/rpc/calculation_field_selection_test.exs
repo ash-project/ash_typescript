@@ -4,17 +4,14 @@
 
 defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
   use ExUnit.Case
-  alias AshTypescript.Rpc.RequestedFieldsProcessor
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
+  alias AshRpc.RequestedFieldsProcessor
 
   describe "calculation field selection" do
     test "rejects simple atom selection for calculation without arguments that returns complex type" do
       # This should be rejected - complex types require field selection
       result =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [:summary]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [:summary])
 
       assert {:error, {:requires_field_selection, :calculation_complex, :summary, []}} = result
     end
@@ -24,6 +21,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
 
       result =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :read,
           requested_fields
@@ -41,6 +39,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
 
       result =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :read,
           requested_fields
@@ -59,6 +58,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
 
       result =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :read,
           requested_fields
@@ -91,6 +91,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
       # For now, this serves as a documentation of the expected behavior
       result =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :read,
           requested_fields
@@ -118,6 +119,7 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
 
       result =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :read,
           requested_fields
@@ -136,7 +138,13 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
     test "uses load-through format for calculation returning a resource" do
       requested_fields = [%{creator: [:name, :email]}]
 
-      result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
+      result =
+        RequestedFieldsProcessor.process(
+          rpc_runtime(),
+          AshTypescript.Test.Todo,
+          :read,
+          requested_fields
+        )
 
       # Resource-returning calculations need {calc, {%{}, load_fields}} format
       assert {:ok, {[], [{:creator, {%{}, [:name, :email]}}], [{:creator, [:name, :email]}]}} =
@@ -146,7 +154,13 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
     test "uses load-through format with nested relationship loading" do
       requested_fields = [%{creator: [:name, %{todos: [:id, :title]}]}]
 
-      result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, requested_fields)
+      result =
+        RequestedFieldsProcessor.process(
+          rpc_runtime(),
+          AshTypescript.Test.Todo,
+          :read,
+          requested_fields
+        )
 
       assert {:ok,
               {[], [{:creator, {%{}, [:name, {:todos, [:id, :title]}]}}],
@@ -154,7 +168,8 @@ defmodule AshTypescript.Rpc.CalculationFieldSelectionTest do
     end
 
     test "rejects simple atom selection for resource-returning calculation" do
-      result = RequestedFieldsProcessor.process(AshTypescript.Test.Todo, :read, [:creator])
+      result =
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [:creator])
 
       assert {:error, {:requires_field_selection, :calculation_complex, :creator, []}} = result
     end

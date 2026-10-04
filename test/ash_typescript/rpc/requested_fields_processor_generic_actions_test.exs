@@ -4,12 +4,14 @@
 
 defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
   use ExUnit.Case
-  alias AshTypescript.Rpc.RequestedFieldsProcessor
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
+  alias AshRpc.RequestedFieldsProcessor
 
   describe "map return type actions" do
     test "processes valid fields correctly" do
       {:ok, {select, load, extraction_template}} =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :get_statistics,
           [
@@ -28,6 +30,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "processes all valid map fields" do
       {:ok, {select, load, extraction_template}} =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :get_statistics,
           [
@@ -46,6 +49,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "rejects invalid fields for map return types" do
       {:error, error} =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :get_statistics,
           [
@@ -59,6 +63,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "rejects nested field selection for map types" do
       {:error, error} =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :get_statistics,
           [
@@ -74,6 +79,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "processes empty field list for primitive arrays" do
       {:ok, {select, load, extraction_template}} =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :bulk_complete,
           []
@@ -87,11 +93,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
 
     test "rejects field selection for primitive array types" do
       {:error, error} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :bulk_complete,
-          [:id]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :bulk_complete, [
+          :id
+        ])
 
       assert {:invalid_field_selection, :primitive_type, %Ash.Info.Manifest.Type{kind: :uuid},
               [:id], []} =
@@ -100,15 +104,11 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
 
     test "processes fields for array of structs" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :search,
-          [
-            :id,
-            :title,
-            :completed
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :search, [
+          :id,
+          :title,
+          :completed
+        ])
 
       # Array of Todo structs - processes like regular resource fields
       assert select == [:id, :title, :completed]
@@ -118,15 +118,11 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
 
     test "processes relationships in struct arrays" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :search,
-          [
-            :id,
-            :title,
-            %{user: [:id, :name]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :search, [
+          :id,
+          :title,
+          %{user: [:id, :name]}
+        ])
 
       assert select == [:id, :title]
       assert load == [{:user, [:id, :name]}]
@@ -138,6 +134,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "returns error for non-existent action" do
       {:error, error} =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :non_existent_action,
           []
@@ -149,9 +146,13 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "validates action exists before processing fields" do
       {:error, error} =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Todo,
           :missing_action,
-          [:id, :title]
+          [
+            :id,
+            :title
+          ]
         )
 
       assert error == {:action_not_found, :missing_action}
@@ -167,14 +168,10 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "handles nested array constraints correctly" do
       # The search action returns {:array, Ash.Type.Struct} with instance_of constraint
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :search,
-          [
-            :id,
-            :title
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :search, [
+          :id,
+          :title
+        ])
 
       assert select == [:id, :title]
       assert load == []
@@ -186,6 +183,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "processes valid fields for typed struct return type" do
       {:ok, {select, load, extraction_template}} =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Task,
           :get_task_stats,
           [
@@ -204,6 +202,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "processes all valid typed struct fields" do
       {:ok, {select, load, extraction_template}} =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Task,
           :get_task_stats,
           [
@@ -228,6 +227,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "rejects invalid fields for typed struct return types" do
       {:error, error} =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Task,
           :get_task_stats,
           [
@@ -241,12 +241,13 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "requires field selection for typed struct return types" do
       {:error, error} =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Task,
           :get_task_stats,
           []
         )
 
-      assert error == {:requires_field_selection, :field_constrained_type, nil}
+      assert error == {:requires_field_selection, :field_constrained_type, []}
     end
   end
 
@@ -254,6 +255,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "processes valid fields for array of typed struct return type" do
       {:ok, {select, load, extraction_template}} =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Task,
           :list_task_stats,
           [
@@ -271,6 +273,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "processes all valid typed struct fields for array" do
       {:ok, {select, load, extraction_template}} =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Task,
           :list_task_stats,
           [
@@ -295,6 +298,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "rejects invalid fields for array of typed struct return types" do
       {:error, error} =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Task,
           :list_task_stats,
           [
@@ -308,12 +312,13 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorGenericActionsTest do
     test "requires field selection for array of typed struct return types" do
       {:error, error} =
         RequestedFieldsProcessor.process(
+          rpc_runtime(),
           AshTypescript.Test.Task,
           :list_task_stats,
           []
         )
 
-      assert error == {:requires_field_selection, :field_constrained_type, nil}
+      assert error == {:requires_field_selection, :field_constrained_type, []}
     end
   end
 end

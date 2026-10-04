@@ -8,7 +8,7 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyTypedQueryFields do
   on its resource.
 
   Reads typed_queries from the persisted `rpc_configs` and routes each one through
-  `RequestedFieldsProcessor.process/3` — the same machinery that handles field
+  `RequestedFieldsProcessor.process/5` — the same machinery that handles field
   selection at runtime. The result is that compile-time validation and runtime
   parsing share one source of truth: if the verifier passes, the typed query is
   callable; if it fails, the field selection is structurally wrong.
@@ -18,26 +18,27 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyTypedQueryFields do
   duplicating that diagnostic against the same root cause.
   """
   use Spark.Dsl.Verifier
-  alias AshTypescript.Rpc.RequestedFieldsProcessor
+  alias AshRpc.RequestedFieldsProcessor
   alias Spark.Dsl.Verifier
 
   @impl true
   def verify(dsl) do
-    manifest_module = Verifier.get_persisted(dsl, :module)
     manifest = Verifier.get_persisted(dsl, :manifest)
     rpc_configs = Verifier.get_persisted(dsl, :rpc_configs) || []
-    do_verify(manifest, manifest_module, rpc_configs)
+    do_verify(manifest, rpc_configs)
   end
 
-  defp do_verify(nil, _manifest_module, _rpc_configs), do: :ok
+  defp do_verify(nil, _rpc_configs), do: :ok
 
-  defp do_verify(%Ash.Info.Manifest{}, manifest_module, rpc_configs) do
+  defp do_verify(%Ash.Info.Manifest{} = manifest, rpc_configs) do
+    runtime = AshRpc.Runtime.from_manifest(manifest)
+
     errors =
       Enum.flat_map(rpc_configs, fn {_domain, resource_config} ->
         validate_resource_typed_queries(
           resource_config.resource,
           resource_config.typed_queries,
-          manifest_module
+          runtime
         )
       end)
 
@@ -47,13 +48,13 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyTypedQueryFields do
     end
   end
 
-  defp validate_resource_typed_queries(resource, typed_queries, manifest_module) do
+  defp validate_resource_typed_queries(resource, typed_queries, runtime) do
     Enum.flat_map(typed_queries, fn typed_query ->
-      validate_typed_query(resource, typed_query, manifest_module)
+      validate_typed_query(resource, typed_query, runtime)
     end)
   end
 
-  defp validate_typed_query(resource, typed_query, manifest_module) do
+  defp validate_typed_query(resource, typed_query, runtime) do
     action = Ash.Resource.Info.action(resource, typed_query.action)
 
     cond do
@@ -72,14 +73,14 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyTypedQueryFields do
             RequestedFieldsProcessor.atomize_requested_fields(
               typed_query.fields,
               resource,
-              manifest_module
+              runtime
             )
 
           case RequestedFieldsProcessor.process(
+                 runtime,
                  resource,
                  typed_query.action,
-                 atomized_fields,
-                 manifest_module
+                 atomized_fields
                ) do
             {:ok, _result} ->
               []

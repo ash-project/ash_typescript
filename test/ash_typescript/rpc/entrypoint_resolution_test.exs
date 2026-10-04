@@ -10,7 +10,7 @@ defmodule AshTypescript.Rpc.EntrypointResolutionTest do
   test "an rpc read still runs end-to-end after discovery searches entrypoints" do
     conn = %Plug.Conn{private: %{}}
     params = %{"action" => "list_todos", "fields" => ["id", "title"]}
-    result = AshTypescript.Rpc.run_action(:ash_typescript, conn, params)
+    result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
     assert %{"success" => true} = result
   end
 

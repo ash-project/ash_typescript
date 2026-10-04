@@ -14,44 +14,28 @@ defmodule AshTypescript.UnionFieldFormattingTest do
   are formatted according to the configured :output_field_formatter setting.
   """
 
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
-  # Snapshot the global config this module mutates so it cannot leak into
-  # later test modules.
   setup_all do
-    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
-      :enable_namespace_files,
-      :output_field_formatter
-    ])
-  end
+    base = AshTypescript.manifest()
 
-  setup do
-    Application.put_env(:ash_typescript, :enable_namespace_files, false)
-
-    original_output_field_formatter =
-      Application.get_env(:ash_typescript, :output_field_formatter)
-
-    on_exit(fn ->
-      if original_output_field_formatter do
-        Application.put_env(
-          :ash_typescript,
-          :output_field_formatter,
-          original_output_field_formatter
-        )
-      else
-        Application.delete_env(:ash_typescript, :output_field_formatter)
-      end
-    end)
-
-    :ok
+    %{
+      manifests: %{
+        camel: base,
+        pascal_out: AshRpc.Manifest.redecorate(base, output_formatter: :pascal_case),
+        snake_out: AshRpc.Manifest.redecorate(base, output_formatter: :snake_case)
+      }
+    }
   end
 
   describe "Union field formatting with configured formatters" do
-    test "generates PascalCase union member names with :pascal_case formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "generates PascalCase union member names with :pascal_case formatter", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "PriorityValue?: number")
       assert String.contains?(typescript_output, "Note?: string")
@@ -80,11 +64,13 @@ defmodule AshTypescript.UnionFieldFormattingTest do
       refute String.contains?(typescript_output, "statusInfo: { __type: \"Union\"")
     end
 
-    test "generates camelCase union member names with :camel_case formatter (default)" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
-
+    test "generates camelCase union member names with :camel_case formatter (default)", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.camel
+        )
 
       assert String.contains?(typescript_output, "priorityValue?: number")
       assert String.contains?(typescript_output, "note?: string")
@@ -118,11 +104,13 @@ defmodule AshTypescript.UnionFieldFormattingTest do
       refute String.contains?(typescript_output, "StatusInfo: { __type: \"Union\"")
     end
 
-    test "generates snake_case union member names with :snake_case formatter" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
-
+    test "generates snake_case union member names with :snake_case formatter", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.snake_out
+        )
 
       assert String.contains?(typescript_output, "priority_value?: number")
       assert String.contains?(typescript_output, "note?: string")
@@ -151,11 +139,12 @@ defmodule AshTypescript.UnionFieldFormattingTest do
       refute String.contains?(typescript_output, "StatusInfo: { __type: \"Union\"")
     end
 
-    test "union member formatting works for both build_union_type_from_members and build_union_input_type_from_members" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-
+    test "union member formatting works for both build_union_type_from_members and build_union_input_type_from_members",
+         %{manifests: manifests} do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.pascal_out
+        )
 
       assert String.contains?(typescript_output, "PriorityValue?: number")
       assert String.contains?(typescript_output, "Note?: string")
@@ -172,11 +161,13 @@ defmodule AshTypescript.UnionFieldFormattingTest do
              "PriorityValue should appear in multiple type definitions (output and input), but found #{content_input_occurrences} occurrences"
     end
 
-    test "union field formatting regression test - ensures no hardcoded snake_to_camel_case" do
-      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
-
+    test "union field formatting regression test - ensures no hardcoded snake_to_camel_case", %{
+      manifests: manifests
+    } do
       {:ok, typescript_output} =
-        AshTypescript.Test.CodegenTestHelper.generate_all_content()
+        AshTypescript.Test.CodegenTestHelper.generate_all_content(:ash_typescript,
+          manifest: manifests.snake_out
+        )
 
       assert String.contains?(typescript_output, "priority_value?: number"),
              "priority_value should be in snake_case when :snake_case formatter is configured"

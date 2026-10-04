@@ -13,8 +13,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
   import AshTypescript.Codegen
   import AshTypescript.Helpers
 
+  alias AshRpc.RequestedFieldsProcessor
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.JsdocGenerator
-  alias AshTypescript.Rpc.RequestedFieldsProcessor
 
   @doc """
   Generates the typed queries section for TypeScript output.
@@ -82,10 +82,12 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
       ) do
     resource_name = build_resource_type_name(resource)
 
-    atomized_fields =
-      RequestedFieldsProcessor.atomize_requested_fields(typed_query.fields, resource)
+    runtime = AshRpc.Runtime.from_manifest(AshTypescript.manifest())
 
-    case RequestedFieldsProcessor.process(resource, action.name, atomized_fields) do
+    atomized_fields =
+      RequestedFieldsProcessor.atomize_requested_fields(typed_query.fields, resource, runtime)
+
+    case RequestedFieldsProcessor.process(runtime, resource, action.name, atomized_fields) do
       {:ok, {_select, _load, _template}} ->
         # Both type and const need to use mapped field names since UserResourceSchema has mapped names
         type_fields = format_typed_query_fields_type_for_typescript(atomized_fields, resource)

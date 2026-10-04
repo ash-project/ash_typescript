@@ -13,10 +13,12 @@ defmodule AshTypescript.Test.CodegenTestHelper do
   @doc """
   Generates all files and concatenates their contents into a single string.
 
-  Files are sorted by path to ensure deterministic ordering.
+  Files are sorted by path to ensure deterministic ordering. Pass
+  `manifest: %Ash.Info.Manifest{}` to generate against that manifest (via
+  `AshTypescript.with_manifest/2`), e.g. one from `AshRpc.Manifest.redecorate/2`.
   """
   def generate_all_content(otp_app \\ :ash_typescript, opts \\ []) do
-    case with_rpc_warnings_disabled(fn -> Orchestrator.generate(otp_app, opts) end) do
+    case generate_files(otp_app, opts) do
       {:ok, files} ->
         content =
           files
@@ -36,7 +38,17 @@ defmodule AshTypescript.Test.CodegenTestHelper do
   Use when tests need to inspect specific files.
   """
   def generate_files(otp_app \\ :ash_typescript, opts \\ []) do
-    with_rpc_warnings_disabled(fn -> Orchestrator.generate(otp_app, opts) end)
+    {manifest, opts} = Keyword.pop(opts, :manifest)
+
+    with_rpc_warnings_disabled(fn ->
+      case manifest do
+        nil ->
+          Orchestrator.generate(otp_app, opts)
+
+        manifest ->
+          AshTypescript.with_manifest(manifest, fn -> Orchestrator.generate(otp_app, opts) end)
+      end
+    end)
   end
 
   @doc """

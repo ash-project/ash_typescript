@@ -5,7 +5,6 @@
 defmodule AshTypescript.Rpc.RunTypedQueryTest do
   use ExUnit.Case, async: false
 
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.{Todo, User}
 
   setup do
@@ -47,24 +46,17 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
       conn = %Plug.Conn{}
 
       assert %{"success" => false, "errors" => [error]} =
-               Rpc.run_typed_query(:ash_typescript, :non_existent, %{}, conn)
+               AshTypescript.run_typed_query(:non_existent, %{}, conn)
 
       assert error["type"] == "typed_query_not_found"
       assert error["vars"]["typedQueryName"] == "non_existent"
-    end
-
-    test "typed query lookup is manifest-based, so otp_app does not affect discovery" do
-      conn = %Plug.Conn{}
-
-      assert %{"success" => true} =
-               Rpc.run_typed_query(:non_existent_app, :list_todos_user_page, %{}, conn)
     end
 
     test "successfully finds typed query and executes RPC pipeline", %{todos: _todos} do
       conn = %Plug.Conn{}
 
       # Should successfully find the typed query and execute, returning test data
-      result = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, %{}, conn)
+      result = AshTypescript.run_typed_query(:list_todos_user_page, %{}, conn)
 
       case result do
         %{"success" => true, "data" => data} ->
@@ -95,7 +87,7 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
       params = %{input: %{priority_filter: :high}}
 
       # The input should be passed to the RPC action (using a valid read action input)
-      result = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, params, conn)
+      result = AshTypescript.run_typed_query(:list_todos_user_page, params, conn)
 
       # Should succeed and return filtered data
       assert %{"success" => true, "data" => data} = result
@@ -109,7 +101,7 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
       params = %{page: %{limit: 1, offset: 0}}
 
       # The page parameter should be passed to the RPC action
-      result = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, params, conn)
+      result = AshTypescript.run_typed_query(:list_todos_user_page, params, conn)
 
       # Should succeed and return pagination metadata with limited results
       assert %{
@@ -127,22 +119,18 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
     test "handles empty params correctly", %{todos: _todos} do
       conn = %Plug.Conn{}
 
-      # Should work the same as passing %{}
-      result1 = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, %{}, conn)
-      result2 = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, conn)
+      # Empty params run the typed query with only its preset fields
+      result = AshTypescript.run_typed_query(:list_todos_user_page, %{}, conn)
 
-      # Both should succeed with the same data
-      assert %{"success" => true, "data" => data1} = result1
-      assert %{"success" => true, "data" => data2} = result2
-      assert data1 == data2
-      assert length(data1) == 2
+      assert %{"success" => true, "data" => data} = result
+      assert length(data) == 2
     end
 
     test "returns data with exact field structure from typed query", %{todos: _todos} do
       conn = %Plug.Conn{}
 
       %{"success" => true, "data" => data} =
-        Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, %{}, conn)
+        AshTypescript.run_typed_query(:list_todos_user_page, %{}, conn)
 
       first_todo = List.first(data)
 
@@ -160,7 +148,7 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
 
       # Test filtering by priority
       params = %{filter: %{priority: :high}}
-      result = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, params, conn)
+      result = AshTypescript.run_typed_query(:list_todos_user_page, params, conn)
 
       assert %{"success" => true, "data" => data} = result
       assert is_list(data)
@@ -177,7 +165,7 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
 
       # Test filtering by multiple conditions
       params = %{filter: %{and: [%{priority: :medium}, %{completed: false}]}}
-      result = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, params, conn)
+      result = AshTypescript.run_typed_query(:list_todos_user_page, params, conn)
 
       assert %{"success" => true, "data" => data} = result
       assert is_list(data)
@@ -194,7 +182,7 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
 
       # Test sorting by priority (descending - medium comes before high alphabetically when desc)
       params = %{sort: "-priority"}
-      result = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, params, conn)
+      result = AshTypescript.run_typed_query(:list_todos_user_page, params, conn)
 
       assert %{"success" => true, "data" => data} = result
       assert is_list(data)
@@ -213,7 +201,7 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
 
       # Test sorting by title (ascending)
       params = %{sort: "title"}
-      result = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, params, conn)
+      result = AshTypescript.run_typed_query(:list_todos_user_page, params, conn)
 
       assert %{"success" => true, "data" => data} = result
       assert is_list(data)
@@ -234,7 +222,7 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
         page: %{limit: 1, offset: 0}
       }
 
-      result = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, params, conn)
+      result = AshTypescript.run_typed_query(:list_todos_user_page, params, conn)
 
       assert %{
                "success" => true,
@@ -260,7 +248,7 @@ defmodule AshTypescript.Rpc.RunTypedQueryTest do
 
       # Test with empty filter and nil sort
       params = %{filter: %{}, sort: nil}
-      result = Rpc.run_typed_query(:ash_typescript, :list_todos_user_page, params, conn)
+      result = AshTypescript.run_typed_query(:list_todos_user_page, params, conn)
 
       assert %{"success" => true, "data" => data} = result
       assert is_list(data)

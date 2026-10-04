@@ -4,8 +4,9 @@
 
 defmodule AshTypescript.Rpc.EnableSortTest do
   use ExUnit.Case
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.Pipeline
+  alias AshRpc.Pipeline
 
   @moduletag :ash_typescript
 
@@ -31,7 +32,7 @@ defmodule AshTypescript.Rpc.EnableSortTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:sort_not_supported, :top_level, :disabled}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
     end
 
     test "sort is preserved when enable_sort? is true (default)" do
@@ -43,7 +44,8 @@ defmodule AshTypescript.Rpc.EnableSortTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.sort == "-created_at"
     end
@@ -57,7 +59,8 @@ defmodule AshTypescript.Rpc.EnableSortTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.sort == nil
       assert request.filter == %{status: %{eq: "active"}}
@@ -74,7 +77,7 @@ defmodule AshTypescript.Rpc.EnableSortTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:filter_not_supported, :top_level, :disabled}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
     end
   end
 
@@ -129,7 +132,8 @@ defmodule AshTypescript.Rpc.EnableSortTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.pagination == %{limit: 10, offset: 0}
       assert request.sort == nil
@@ -144,7 +148,8 @@ defmodule AshTypescript.Rpc.EnableSortTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.pagination == %{limit: 20, offset: 10}
       assert request.filter == nil
@@ -161,7 +166,9 @@ defmodule AshTypescript.Rpc.EnableSortTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
+
       assert request.sort == nil
     end
 
@@ -175,7 +182,7 @@ defmodule AshTypescript.Rpc.EnableSortTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:sort_not_supported, :top_level, :disabled}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
     end
 
     test "empty string sort counts as present and errors when enable_sort?: false" do
@@ -188,7 +195,7 @@ defmodule AshTypescript.Rpc.EnableSortTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:sort_not_supported, :top_level, :disabled}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
     end
   end
 
@@ -286,7 +293,8 @@ defmodule AshTypescript.Rpc.EnableSortTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.input == %{filter_completed: true}
       assert request.sort == nil
@@ -304,7 +312,8 @@ defmodule AshTypescript.Rpc.EnableSortTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.filter == %{status: %{eq: "active"}}
       assert request.sort == nil
@@ -320,7 +329,8 @@ defmodule AshTypescript.Rpc.EnableSortTest do
 
       conn = %Plug.Conn{}
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.filter == nil
       assert request.sort == nil

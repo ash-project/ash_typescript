@@ -39,4 +39,17 @@ defmodule Mix.Tasks.AshTypescript.InstallTest do
     assert config =~ ~s(run_endpoint: "/rpc/run")
     assert config =~ ~s(validate_endpoint: "/rpc/validate")
   end
+
+  test "the generated RPC controller uses AshRpc.Plug with AshTypescript.RpcProfile" do
+    igniter =
+      test_project()
+      |> Igniter.compose_task("ash_typescript.install", ["--yes"])
+
+    path = "lib/test_web/controllers/ash_typescript_rpc_controller.ex"
+    source = igniter.rewrite |> Rewrite.source!(path) |> Rewrite.Source.get(:content)
+
+    assert source =~ "AshRpc.Plug.run(conn, AshTypescript.RpcProfile)"
+    assert source =~ "AshRpc.Plug.validate(conn, AshTypescript.RpcProfile)"
+    refute source =~ "AshTypescript.Rpc.run_action"
+  end
 end

@@ -5,8 +5,6 @@
 defmodule AshTypescript.Rpc.NewErrorTest do
   @moduledoc false
   use ExUnit.Case, async: false
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "actual error behavior" do
@@ -14,7 +12,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "invalid_field"]
         })
@@ -33,7 +31,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       user = TestHelpers.create_test_user(conn, fields: ["id"])
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             # Should be string
@@ -57,7 +55,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       user = TestHelpers.create_test_user(conn, fields: ["id"])
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "user_id" => user["id"]
@@ -78,7 +76,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "non_existent_action",
           "fields" => ["id"]
         })
@@ -105,7 +103,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       user = TestHelpers.create_test_user(conn, fields: ["id"])
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Test",
@@ -128,7 +126,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos"
           # Missing fields
         })
@@ -145,7 +143,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id"],
           # Negative limit
@@ -163,7 +161,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -186,7 +184,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo",
           "identity" => "550e8400-e29b-41d4-a716-446655440000",
           "input" => %{"title" => "Updated"}

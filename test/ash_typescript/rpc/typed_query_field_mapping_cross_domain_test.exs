@@ -93,7 +93,7 @@ defmodule AshTypescript.Rpc.TypedQueryFieldMappingCrossDomainTest do
       }
 
       result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_users",
           "resource" => "User",
           "input" => %{},

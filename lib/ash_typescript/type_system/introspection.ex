@@ -14,22 +14,34 @@ defmodule AshTypescript.TypeSystem.Introspection do
   processing.
   """
 
+  defdelegate is_embedded_resource?(module), to: AshRpc.Introspection, as: :embedded_resource?
+
   @doc """
-  Checks if a module is an embedded Ash resource.
+  Unwraps one `Ash.Type.NewType` layer into its subtype and full constraints.
+
+  If the NewType defines `typescript_field_names/0` and the constraints carry
+  no `instance_of` yet, the NewType is added as `instance_of` so its field
+  name mapping stays reachable (the outermost such NewType wins).
 
   ## Examples
 
-      iex> AshTypescript.TypeSystem.Introspection.is_embedded_resource?(MyApp.Accounts.Address)
-      true
-
-      iex> AshTypescript.TypeSystem.Introspection.is_embedded_resource?(MyApp.Accounts.User)
-      false
+      iex> AshTypescript.TypeSystem.Introspection.unwrap_new_type(Ash.Type.String, max_length: 50)
+      {Ash.Type.String, [max_length: 50]}
   """
-  def is_embedded_resource?(module) when is_atom(module) do
-    Ash.Resource.Info.resource?(module) and Ash.Resource.Info.embedded?(module)
+  @spec unwrap_new_type(term(), keyword()) :: {term(), keyword()}
+  def unwrap_new_type(type, constraints) when is_atom(type) do
+    {subtype, constraints} =
+      Ash.Info.Manifest.Generator.TypeResolver.unwrap_new_type(type, constraints)
+
+    if subtype != type and AshTypescript.Helpers.has_typescript_field_names?(type) and
+         not Keyword.has_key?(constraints, :instance_of) do
+      {subtype, Keyword.put(constraints, :instance_of, type)}
+    else
+      {subtype, constraints}
+    end
   end
 
-  def is_embedded_resource?(_), do: false
+  def unwrap_new_type(type, constraints), do: {type, constraints}
 
   @doc """
   Checks if a type is a primitive Ash type (not a complex or composite type).
@@ -97,72 +109,6 @@ defmodule AshTypescript.TypeSystem.Introspection do
   end
 
   def is_ash_type?(_), do: false
-
-  @doc """
-  Recursively unwraps Ash.Type.NewType to get the underlying type and constraints.
-
-  When a type is wrapped in one or more NewType wrappers, this function
-  recursively unwraps them until it reaches the base type. If the NewType
-  has a `typescript_field_names/0` callback and the constraints don't already
-  have an `instance_of` key, it will add the NewType module as `instance_of`
-  to preserve the reference for field name mapping.
-
-  ## Parameters
-  - `type` - The type to unwrap (e.g., MyApp.CustomType)
-  - `constraints` - The constraints for the type
-
-  ## Returns
-  A tuple `{unwrapped_type, unwrapped_constraints}` where:
-  - `unwrapped_type` is the final underlying type after all NewType unwrapping
-  - `unwrapped_constraints` are the final constraints, potentially augmented with `instance_of`
-
-  ## Examples
-
-      iex> # Simple NewType with typescript_field_names
-      iex> unwrap_new_type(MyApp.TaskStats, [])
-      {Ash.Type.Struct, [fields: [...], instance_of: MyApp.TaskStats]}
-
-      iex> # Nested NewTypes (outermost with callback wins)
-      iex> unwrap_new_type(MyApp.Wrapper, [])
-      {Ash.Type.String, [max_length: 100, instance_of: MyApp.Wrapper]}
-
-      iex> # Non-NewType (returns unchanged)
-      iex> unwrap_new_type(Ash.Type.String, [max_length: 50])
-      {Ash.Type.String, [max_length: 50]}
-  """
-  def unwrap_new_type(type, constraints) when is_atom(type) do
-    if Ash.Type.NewType.new_type?(type) do
-      subtype = Ash.Type.NewType.subtype_of(type)
-
-      # Get constraints from the NewType
-      # Ash.Type.NewType.constraints/2 only returns passed constraints when lazy_init? is false,
-      # but do_init/1 returns the full merged constraints including subtype_constraints
-      constraints =
-        case type.do_init(constraints) do
-          {:ok, merged_constraints} -> merged_constraints
-          {:error, _} -> constraints
-        end
-
-      # Preserve reference to outermost NewType with typescript_field_names
-      # Only add instance_of if:
-      # 1. This NewType has typescript_field_names callback
-      # 2. Constraints don't already have instance_of (preserves outermost)
-      augmented_constraints =
-        if Code.ensure_loaded?(type) and
-             function_exported?(type, :typescript_field_names, 0) and
-             not Keyword.has_key?(constraints, :instance_of) do
-          Keyword.put(constraints, :instance_of, type)
-        else
-          constraints
-        end
-
-      {subtype, augmented_constraints}
-    else
-      {type, constraints}
-    end
-  end
-
-  def unwrap_new_type(type, constraints), do: {type, constraints}
 
   @doc """
   Checks if a type is a custom Ash type with a typescript_type_name callback.
@@ -272,26 +218,6 @@ defmodule AshTypescript.TypeSystem.Introspection do
   # ---------------------------------------------------------------------------
   # Type Constraint Helpers
   # ---------------------------------------------------------------------------
-
-  @doc """
-  Checks if constraints specify an instance_of that is an Ash resource.
-
-  ## Examples
-
-      iex> AshTypescript.TypeSystem.Introspection.is_resource_instance_of?([instance_of: MyApp.Todo])
-      true
-
-      iex> AshTypescript.TypeSystem.Introspection.is_resource_instance_of?([])
-      false
-  """
-  def is_resource_instance_of?(constraints) when is_list(constraints) do
-    case Keyword.get(constraints, :instance_of) do
-      nil -> false
-      module -> is_atom(module) && Ash.Resource.Info.resource?(module)
-    end
-  end
-
-  def is_resource_instance_of?(_), do: false
 
   @doc """
   Checks if constraints include non-empty field definitions.

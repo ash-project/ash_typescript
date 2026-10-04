@@ -4,14 +4,15 @@
 
 defmodule AshTypescript.Rpc.ResultProcessorDurationTest do
   use ExUnit.Case, async: true
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.ResultProcessor
+  alias AshRpc.ResultProcessor
 
   describe "Duration struct handling" do
     test "converts Duration to ISO 8601 string" do
       duration = %Duration{hour: 1, minute: 30, second: 45}
 
-      result = ResultProcessor.normalize_value_for_json(duration)
+      result = ResultProcessor.normalize_value_for_json(duration, rpc_runtime())
 
       assert result == "PT1H30M45S"
     end
@@ -19,7 +20,7 @@ defmodule AshTypescript.Rpc.ResultProcessorDurationTest do
     test "converts Duration with days to ISO 8601 string" do
       duration = %Duration{day: 2, hour: 5}
 
-      result = ResultProcessor.normalize_value_for_json(duration)
+      result = ResultProcessor.normalize_value_for_json(duration, rpc_runtime())
 
       # ISO 8601 duration format: P[n]D T[n]H[n]M[n]S
       assert result == "P2DT5H"
@@ -28,7 +29,7 @@ defmodule AshTypescript.Rpc.ResultProcessorDurationTest do
     test "converts zero Duration to ISO 8601 string" do
       duration = %Duration{}
 
-      result = ResultProcessor.normalize_value_for_json(duration)
+      result = ResultProcessor.normalize_value_for_json(duration, rpc_runtime())
 
       assert result == "PT0S"
     end
@@ -36,13 +37,13 @@ defmodule AshTypescript.Rpc.ResultProcessorDurationTest do
     test "converts Duration with microseconds to ISO 8601 string" do
       duration = %Duration{second: 30, microsecond: {500_000, 6}}
 
-      result = ResultProcessor.normalize_value_for_json(duration)
+      result = ResultProcessor.normalize_value_for_json(duration, rpc_runtime())
 
       assert result == "PT30.500000S"
     end
 
     test "handles nil Duration" do
-      result = ResultProcessor.normalize_value_for_json(nil)
+      result = ResultProcessor.normalize_value_for_json(nil, rpc_runtime())
       assert result == nil
     end
 
@@ -55,7 +56,7 @@ defmodule AshTypescript.Rpc.ResultProcessorDurationTest do
 
       extraction_template = [:id, :title, :estimated_duration]
 
-      result = ResultProcessor.process(data, extraction_template)
+      result = ResultProcessor.process(data, extraction_template, nil, rpc_runtime())
 
       expected = %{
         id: "123",
@@ -78,7 +79,7 @@ defmodule AshTypescript.Rpc.ResultProcessorDurationTest do
         ]
       }
 
-      result = ResultProcessor.normalize_value_for_json(data)
+      result = ResultProcessor.normalize_value_for_json(data, rpc_runtime())
 
       assert result.task.duration == "P1DT4H"
       assert result.breaks == ["PT15M", "PT30M"]

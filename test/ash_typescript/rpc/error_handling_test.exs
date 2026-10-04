@@ -4,8 +4,9 @@
 
 defmodule AshTypescript.Rpc.ErrorHandlingTest do
   use ExUnit.Case
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.{ErrorBuilder, Pipeline}
+  alias AshRpc.{ErrorBuilder, Pipeline}
   alias AshTypescript.Test.{Todo, User}
 
   @moduletag :ash_typescript
@@ -14,7 +15,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     test "action not found error provides clear guidance" do
       error = {:action_not_found, "nonexistent_action"}
 
-      response = ErrorBuilder.build_error_response(error)
+      response = ErrorBuilder.build_error_response(rpc_runtime(), error)
 
       assert response.type == "action_not_found"
       assert response.message == "RPC action %{action_name} not found"
@@ -23,25 +24,10 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       assert String.contains?(response.details.suggestion, "rpc block")
     end
 
-    test "tenant required error includes resource context" do
-      error = {:tenant_required, Todo}
-
-      response = ErrorBuilder.build_error_response(error)
-
-      assert response.type == "tenant_required"
-
-      assert response.message ==
-               "Tenant parameter is required for multitenant resource %{resource}"
-
-      assert response.short_message == "Tenant required"
-      assert String.contains?(response.vars.resource, "Todo")
-      assert String.contains?(response.details.suggestion, "tenant")
-    end
-
     test "invalid pagination error shows expected format" do
       error = {:invalid_pagination, "invalid_value"}
 
-      response = ErrorBuilder.build_error_response(error)
+      response = ErrorBuilder.build_error_response(rpc_runtime(), error)
 
       assert response.type == "invalid_pagination"
       assert response.message == "Invalid pagination parameter format"
@@ -53,9 +39,9 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
 
   describe "field validation error messages" do
     test "unknown field error provides debugging context" do
-      error = {:invalid_fields, {:unknown_field, :nonexistent, Todo, []}}
+      error = {:unknown_field, :nonexistent, Todo, []}
 
-      response = ErrorBuilder.build_error_response(error)
+      response = ErrorBuilder.build_error_response(rpc_runtime(), error)
 
       assert response.type == "unknown_field"
       assert response.message == "Unknown field %{field} for resource %{resource}"
@@ -67,11 +53,9 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     end
 
     test "unsupported field combination error shows all context" do
-      error =
-        {:invalid_fields,
-         {:unsupported_field_combination, :relationship, :user, "invalid_spec", []}}
+      error = {:unsupported_field_combination, :relationship, :user, "invalid_spec", []}
 
-      response = ErrorBuilder.build_error_response(error)
+      response = ErrorBuilder.build_error_response(rpc_runtime(), error)
 
       assert response.type == "unsupported_field_combination"
 
@@ -101,7 +85,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
         path: [:data, :attributes]
       }
 
-      result = ErrorBuilder.build_error_response(ash_error)
+      result = ErrorBuilder.build_error_response(rpc_runtime(), ash_error)
 
       # Ash errors always return a list
       assert is_list(result)
@@ -120,7 +104,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     test "generic ash error fallback" do
       ash_error = %{unexpected: "error format"}
 
-      result = ErrorBuilder.build_error_response(ash_error)
+      result = ErrorBuilder.build_error_response(rpc_runtime(), ash_error)
 
       # Ash errors always return a list
       assert is_list(result)
@@ -137,15 +121,14 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     test "all errors have required fields" do
       test_errors = [
         {:action_not_found, "test"},
-        {:tenant_required, Todo},
         {:invalid_pagination, "invalid"},
-        {:invalid_fields, {:unknown_field, :test, Todo, []}},
-        {:invalid_fields, {:invalid_field_format, "invalid"}},
+        {:unknown_field, :test, Todo, []},
+        {:invalid_field_format, "invalid"},
         "unknown error"
       ]
 
       for error <- test_errors do
-        response = ErrorBuilder.build_error_response(error)
+        response = ErrorBuilder.build_error_response(rpc_runtime(), error)
 
         # Every error response should have these fields
         assert Map.has_key?(response, :type)
@@ -162,8 +145,8 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     end
 
     test "error messages are user-friendly" do
-      error = {:invalid_fields, {:unknown_field, :nonexistent, Todo, []}}
-      response = ErrorBuilder.build_error_response(error)
+      error = {:unknown_field, :nonexistent, Todo, []}
+      response = ErrorBuilder.build_error_response(rpc_runtime(), error)
 
       # Message template should be clear and not contain internal terms
       refute String.contains?(response.message, "atom")
@@ -182,12 +165,11 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     test "suggestions are actionable" do
       errors_with_suggestions = [
         {:action_not_found, "test"},
-        {:tenant_required, Todo},
-        {:invalid_fields, {:unknown_field, :test, Todo, []}}
+        {:unknown_field, :test, Todo, []}
       ]
 
       for error <- errors_with_suggestions do
-        response = ErrorBuilder.build_error_response(error)
+        response = ErrorBuilder.build_error_response(rpc_runtime(), error)
 
         case response.details do
           %{suggestion: suggestion} ->
@@ -226,7 +208,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
         }
       ]
 
-      result = ErrorBuilder.build_error_response(errors)
+      result = ErrorBuilder.build_error_response(rpc_runtime(), errors)
 
       assert is_list(result)
       assert length(result) == 2
@@ -245,7 +227,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
         }
       ]
 
-      result = ErrorBuilder.build_error_response(errors)
+      result = ErrorBuilder.build_error_response(rpc_runtime(), errors)
 
       assert is_list(result)
       assert length(result) == 1
@@ -265,7 +247,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
         }
       ]
 
-      result = ErrorBuilder.build_error_response(errors)
+      result = ErrorBuilder.build_error_response(rpc_runtime(), errors)
 
       assert is_list(result)
       assert length(result) == 2
@@ -275,7 +257,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     end
 
     test "handles empty list" do
-      result = ErrorBuilder.build_error_response([])
+      result = ErrorBuilder.build_error_response(rpc_runtime(), [])
 
       assert result == []
     end
@@ -289,7 +271,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
         %Ash.Error.Query.NotFound{}
       ]
 
-      result = ErrorBuilder.build_error_response(errors)
+      result = ErrorBuilder.build_error_response(rpc_runtime(), errors)
 
       assert is_list(result)
       assert length(result) == 2
@@ -309,7 +291,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       conn = %Plug.Conn{}
 
       assert {:error, error_response} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       # Error should be the raw error tuple, not yet formatted
       assert {:action_not_found, "nonexistent_action"} = error_response
@@ -324,7 +306,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       conn = %Plug.Conn{}
 
       assert {:error, error_response} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       # Should be a field validation error
       assert {:unknown_field, :unknown_field, Todo, []} = error_response
@@ -339,7 +321,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       conn = %Plug.Conn{}
 
       assert {:error, error_response} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       # Should be a relationship field error with nested context
       assert {:unknown_field, :unknown_user_field, User, [:user]} = error_response
@@ -350,22 +332,12 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     test "invalid_field_format with path builds a proper client error" do
       error = {:invalid_field_format, %{"self" => %{"args" => %{}}}, [:user]}
 
-      response = ErrorBuilder.build_error_response(error)
+      response = ErrorBuilder.build_error_response(rpc_runtime(), error)
 
       assert response.type == "invalid_field_format"
       assert is_binary(response.message)
       assert response.path == ["user"]
       assert Map.has_key?(response.details, :hint)
-    end
-  end
-
-  describe "typed_query_not_found error" do
-    test "builds a proper client error" do
-      response = ErrorBuilder.build_error_response({:typed_query_not_found, "missing_query"})
-
-      assert response.type == "typed_query_not_found"
-      assert response.vars.typed_query_name == "missing_query"
-      assert String.contains?(response.details.suggestion, "typed_queries")
     end
   end
 
@@ -388,7 +360,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     test "errors without a protocol implementation surface a `type` key" do
       error = NoImplError.exception(foo: :bar)
 
-      [response] = AshTypescript.Rpc.Errors.to_errors(error)
+      [response] = AshRpc.Errors.to_errors(rpc_runtime(), error)
 
       assert response.type == "internal_error"
       assert response.short_message == "Internal error"
@@ -400,10 +372,10 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     test "error_id reaches the client under the key AshRpcError declares" do
       error = NoImplError.exception(foo: :bar)
 
-      [response] = AshTypescript.Rpc.Errors.to_errors(error)
+      [response] = AshRpc.Errors.to_errors(rpc_runtime(), error)
 
       formatted =
-        AshTypescript.ErrorFormatter.format(response, AshTypescript.output_field_formatter())
+        AshRpc.ErrorFormatter.format(response, AshTypescript.output_field_formatter())
 
       assert formatted["errorId"] == response.error_id
       assert String.contains?(formatted["message"], response.error_id)
@@ -412,7 +384,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     test "show_raised_errors? exposes the exception with a `type` key" do
       error = NoImplError.exception(foo: :bar)
 
-      [response] = AshTypescript.Rpc.Errors.to_errors(error, ShowRaisedErrorsDomain)
+      [response] = AshRpc.Errors.to_errors(rpc_runtime(), error, ShowRaisedErrorsDomain)
 
       assert response.type == "no_impl_error"
       assert response.message == "no protocol implementation for this one"
@@ -422,7 +394,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     test "missing tenant surfaces as tenant_required, not internal_error" do
       error = Ash.Error.Invalid.TenantRequired.exception(resource: Todo)
 
-      [response] = AshTypescript.Rpc.Errors.to_errors(error)
+      [response] = AshRpc.Errors.to_errors(rpc_runtime(), error)
 
       assert response.type == "tenant_required"
       assert response.short_message == "Tenant required"
@@ -443,7 +415,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
           vars: vars
         )
 
-      [response] = AshTypescript.Rpc.Errors.to_errors(error)
+      [response] = AshRpc.Errors.to_errors(rpc_runtime(), error)
       response.vars
     end
 
@@ -528,7 +500,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     test "an error class the handler matches is redacted" do
       error = Ash.Error.Changes.InvalidAttribute.exception(field: :email, message: @secret)
 
-      [response] = AshTypescript.Rpc.Errors.to_errors(error, RedactingDomain)
+      [response] = AshRpc.Errors.to_errors(rpc_runtime(), error, RedactingDomain)
 
       assert response.message == "Invalid value."
       refute String.contains?(response.message, "S3cr3t-Pr0d-Pw")
@@ -538,7 +510,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     test "an error class the handler raises on returns a generic error, not the raw one" do
       error = Ash.Error.Query.InvalidArgument.exception(field: :filter, message: @secret)
 
-      [response] = AshTypescript.Rpc.Errors.to_errors(error, RedactingDomain)
+      [response] = AshRpc.Errors.to_errors(rpc_runtime(), error, RedactingDomain)
 
       assert response.type == "internal_error"
       assert response.short_message == "Internal error"
@@ -553,7 +525,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     test "a handler that throws is treated the same as one that raises" do
       error = Ash.Error.Query.InvalidArgument.exception(field: :filter, message: @secret)
 
-      [response] = AshTypescript.Rpc.Errors.to_errors(error, ThrowingHandlerDomain)
+      [response] = AshRpc.Errors.to_errors(rpc_runtime(), error, ThrowingHandlerDomain)
 
       assert response.type == "internal_error"
       refute String.contains?(response.message, "S3cr3t-Pr0d-Pw")
@@ -570,7 +542,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
           step: %Reactor.Step{name: :test_step}
         )
 
-      result = ErrorBuilder.build_error_response(run_step_error)
+      result = ErrorBuilder.build_error_response(rpc_runtime(), run_step_error)
 
       assert is_list(result)
       assert [error] = result
@@ -589,7 +561,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
           step: %Reactor.Step{name: :test_step}
         )
 
-      result = ErrorBuilder.build_error_response(run_step_error)
+      result = ErrorBuilder.build_error_response(rpc_runtime(), run_step_error)
 
       assert is_list(result)
       assert [error] = result
@@ -607,7 +579,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
           step: %Reactor.Step{name: :test_step}
         )
 
-      result = ErrorBuilder.build_error_response(run_step_error)
+      result = ErrorBuilder.build_error_response(rpc_runtime(), run_step_error)
 
       assert is_list(result)
       assert [error] = result

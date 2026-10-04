@@ -4,18 +4,31 @@
 
 defmodule AshTypescript.Rpc.ResultProcessorPlainMapTest do
   use ExUnit.Case, async: true
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.ResultProcessor
+  alias AshRpc.ResultProcessor
 
   describe "plain map extraction (untyped maps with a field template)" do
     test "preserves false values under atom keys" do
       assert %{enabled: false} =
-               ResultProcessor.extract_value(%{enabled: false}, nil, [], [:enabled])
+               ResultProcessor.extract_value(
+                 %{enabled: false},
+                 nil,
+                 [],
+                 [:enabled],
+                 rpc_runtime()
+               )
     end
 
     test "preserves false values under string keys" do
       assert %{enabled: false} =
-               ResultProcessor.extract_value(%{"enabled" => false}, nil, [], [:enabled])
+               ResultProcessor.extract_value(
+                 %{"enabled" => false},
+                 nil,
+                 [],
+                 [:enabled],
+                 rpc_runtime()
+               )
     end
 
     test "preserves false values in nested templates" do
@@ -24,13 +37,14 @@ defmodule AshTypescript.Rpc.ResultProcessorPlainMapTest do
                  %{settings: %{enabled: false}},
                  nil,
                  [],
-                 [{:settings, [:enabled]}]
+                 [{:settings, [:enabled]}],
+                 rpc_runtime()
                )
     end
 
     test "missing atom key still falls back to the string key" do
       assert %{count: 3} =
-               ResultProcessor.extract_value(%{"count" => 3}, nil, [], [:count])
+               ResultProcessor.extract_value(%{"count" => 3}, nil, [], [:count], rpc_runtime())
     end
   end
 end

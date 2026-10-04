@@ -6,7 +6,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
   @moduledoc """
   Comprehensive stress tests for input parsing functionality.
 
-  This test module verifies the InputFormatter's build_expected_keys_map logic
+  This test module verifies `AshRpc.InputFormatter`'s expected-keys mapping
   which ensures client field names are correctly mapped to internal Elixir field names.
 
   Scenarios covered:
@@ -19,57 +19,12 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
   7. Union types with various member formats
   8. Typed maps with field constraints
   """
-  use ExUnit.Case, async: false
-
-  # Snapshot the global config this module mutates so it cannot leak into
-  # later test modules.
-  setup_all do
-    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
-      :input_field_formatter,
-      :output_field_formatter
-    ])
-  end
-
-  alias AshTypescript.Rpc
+  use ExUnit.Case, async: true
 
   import Phoenix.ConnTest
   import Plug.Conn
 
   setup do
-    # Store original configuration to restore after test
-    original_input_field_formatter =
-      Application.get_env(:ash_typescript, :input_field_formatter)
-
-    original_output_field_formatter =
-      Application.get_env(:ash_typescript, :output_field_formatter)
-
-    # Ensure default camelCase formatters are set for these tests
-    Application.put_env(:ash_typescript, :input_field_formatter, :camel_case)
-    Application.put_env(:ash_typescript, :output_field_formatter, :camel_case)
-
-    on_exit(fn ->
-      # Restore original configuration
-      if original_input_field_formatter do
-        Application.put_env(
-          :ash_typescript,
-          :input_field_formatter,
-          original_input_field_formatter
-        )
-      else
-        Application.delete_env(:ash_typescript, :input_field_formatter)
-      end
-
-      if original_output_field_formatter do
-        Application.put_env(
-          :ash_typescript,
-          :output_field_formatter,
-          original_output_field_formatter
-        )
-      else
-        Application.delete_env(:ash_typescript, :output_field_formatter)
-      end
-    end)
-
     conn =
       build_conn()
       |> put_private(:ash, %{actor: nil})
@@ -82,7 +37,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
   describe "standard snake_case field input parsing" do
     test "creates resource with snake_case fields formatted as camelCase", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -101,7 +56,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
     test "updates resource with snake_case fields formatted as camelCase", %{conn: conn} do
       # First create
       create_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -115,7 +70,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
 
       # Then update
       update_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_input_parsing",
           "resource" => "InputParsingResource",
           "identity" => id,
@@ -136,7 +91,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
     test "creates resource with mapped field names (? suffix)", %{conn: conn} do
       # is_active? → isActive, has_data? → hasData via field_names DSL
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -157,7 +112,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
     test "creates resource with mapped field names (numeric suffix)", %{conn: conn} do
       # version_1 → version1 via field_names DSL
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -177,7 +132,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
   describe "DSL argument_names mapping input parsing" do
     test "search action with mapped argument names", %{conn: conn} do
       # First create a record to search
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "create_input_parsing",
         "resource" => "InputParsingResource",
         "input" => %{
@@ -190,7 +145,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
       # Search with mapped argument names
       # include_deleted? → includeDeleted, filter_by_1? → filterBy1 via argument_names DSL
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "search_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -209,7 +164,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
     test "create_with_args action with mapped argument names", %{conn: conn} do
       # is_urgent? → isUrgent, priority_1 → priority1 via argument_names DSL
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing_with_args",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -231,7 +186,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
     test "creates resource with typed map (snake_case constraint fields)", %{conn: conn} do
       # Typed map with snake_case field constraints
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -259,7 +214,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
     test "creates resource with NewType stats (mapped fields)", %{conn: conn} do
       # Stats NewType has typescript_field_names: total_count_1 → totalCount1, is_complete? → isComplete
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -285,7 +240,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
     test "generic action with NewType argument (InputDataMap)", %{conn: conn} do
       # InputDataMap NewType has typescript_field_names: is_valid? → isValid
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "process_data_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -306,7 +261,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
     test "generic action with NewType options argument", %{conn: conn} do
       # Options NewType has typescript_field_names: cache_enabled_1? → cacheEnabled1
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "process_data_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -331,7 +286,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
     test "creates resource with embedded resource (Profile)", %{conn: conn} do
       # Profile embedded resource has field_names: bio_text_1 → bioText1, is_public? → isPublic
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -364,7 +319,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
     test "creates resource with array of embedded resources (HistoryEntry)", %{conn: conn} do
       # HistoryEntry has field_names: change_count_1 → changeCount1, was_reverted? → wasReverted
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -410,7 +365,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
     test "creates resource with union type - embedded resource member (text)", %{conn: conn} do
       # TextContent has field_names: word_count_1 → wordCount1, is_formatted? → isFormatted
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -444,7 +399,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
       # DataContentMap has typescript_field_names: is_cached? → is_cached (via snake_case)
       # Note: DataContentMap doesn't have content_type - that's only for embedded resource members
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -473,7 +428,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
 
     test "creates resource with union type - simple type member (simpleValue)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -496,7 +451,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
   describe "comprehensive input parsing" do
     test "creates resource with all field types combined", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -579,7 +534,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
   describe "input validation" do
     test "validates action with mapped argument names", %{conn: conn} do
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "search_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -594,7 +549,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
 
     test "validates resource creation with all mapped fields", %{conn: conn} do
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -618,7 +573,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
     test "creates resource with tuple (LocationTuple) having mapped fields", %{conn: conn} do
       # LocationTuple has: lat_1 → lat1, lng_1 → lng1, is_verified? → isVerified
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -645,7 +600,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
     test "creates resource with keyword (PreferencesKeyword) having mapped fields", %{conn: conn} do
       # PreferencesKeyword has: theme_1 → theme1, is_dark_mode? → isDarkMode
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -673,7 +628,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
       # DeepNestedSettings has: is_enabled_1? → isEnabled1
       # InnerConfig (nested) has: max_retries_1 → maxRetries1, is_cached? → isCached
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -717,7 +672,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
       # NestedProfile has: level_1? → level1, has_details? → hasDetails
       # Profile (nested) has: bio_text_1 → bioText1, is_public? → isPublic
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -782,7 +737,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
     test "creates resource with map_with_tag union - active member", %{conn: conn} do
       # TaggedStatus has: is_final? → isFinal, priority_1 → priority1
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -815,7 +770,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
 
     test "creates resource with map_with_tag union - inactive member", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -853,7 +808,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
       # AttachmentFile has: is_public_1? → isPublic1, size_bytes_1 → sizeBytes1
       # AttachmentLink has: is_external_1? → isExternal1, click_count_1 → clickCount1
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -924,7 +879,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
     test "processes embedded resource argument (Profile)", %{conn: conn} do
       # Profile has: bio_text_1 → bioText1, is_public? → isPublic
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "process_profile_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -946,7 +901,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
 
     test "processes nested embedded resource argument (NestedProfile)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "process_profile_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{
@@ -980,7 +935,7 @@ defmodule AshTypescript.Rpc.InputParsingStressTest do
   describe "comprehensive exhaustive input test" do
     test "creates resource with ALL new field types combined", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_input_parsing",
           "resource" => "InputParsingResource",
           "input" => %{

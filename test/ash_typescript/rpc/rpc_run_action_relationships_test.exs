@@ -4,7 +4,6 @@
 
 defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "single level relationships" do
@@ -13,7 +12,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
       # Create a user for testing belongs_to relationships
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Relationship User",
@@ -24,7 +23,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
       # Create a todo that belongs to the user
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Todo with User",
@@ -37,7 +36,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
       # Create some comments for testing has_many relationships
       %{"success" => true, "data" => comment1} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "First comment",
@@ -50,7 +49,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
         })
 
       %{"success" => true, "data" => comment2} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Second comment",
@@ -73,7 +72,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
     test "processes belongs_to relationships", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -111,7 +110,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
     test "processes has_many relationships", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -161,7 +160,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
     test "processes multiple relationships at same level", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -214,7 +213,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
       # Create users and nested relationship structure
       %{"success" => true, "data" => user1} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Nested User 1",
@@ -224,7 +223,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
         })
 
       %{"success" => true, "data" => user2} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Nested User 2",
@@ -235,7 +234,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
       # Create a todo
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Nested Todo",
@@ -246,7 +245,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
       # Create comments from different users
       %{"success" => true, "data" => _comment1} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "User1 comment on todo",
@@ -258,7 +257,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
         })
 
       %{"success" => true, "data" => _comment2} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "User2 comment on todo",
@@ -271,7 +270,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
       # Create comments from user1 on user profiles (if such relationship exists)
       %{"success" => true, "data" => _user_comment} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "User comment from user1",
@@ -292,7 +291,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
     test "handles deeply nested relationships correctly", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -343,7 +342,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
     test "handles three-level nested relationships", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_users",
           "fields" => [
             "id",
@@ -414,7 +413,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
     test "handles multiple nested relationships in different branches", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -482,7 +481,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
       # Create test data
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Mixed User",
@@ -492,7 +491,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
         })
 
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Mixed Fields Todo",
@@ -505,7 +504,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
       # Create some comments
       %{"success" => true, "data" => _comment} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Mixed comment",
@@ -522,7 +521,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
     test "handles mixed simple fields and nested relationships", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -583,7 +582,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
     test "handles loadable fields mixed with relationships", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -648,7 +647,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
     test "returns error for invalid relationship field", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{"user" => ["invalidField"]}
@@ -664,7 +663,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
     test "returns error for invalid nested relationship", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{"user" => [%{"invalidRelationship" => ["id"]}]}
@@ -680,7 +679,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
     test "returns error for invalid deeply nested field", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{
@@ -703,7 +702,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
     test "validates relationship existence before processing nested fields", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             %{"nonexistentRelation" => ["id", "name"]}
@@ -720,7 +719,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
     test "returns error for relationships requested as simple atoms without field specification",
          %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -743,7 +742,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
       # Create test data for edge cases
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Edge User",
@@ -753,7 +752,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
         })
 
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Edge Todo",
@@ -764,7 +763,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
       # Create comments for nested testing
       %{"success" => true, "data" => _comment} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Edge comment",
@@ -780,7 +779,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
     test "returns error for empty relationship field lists", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -796,7 +795,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
     test "handles relationship with only nested relationships (no direct fields)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -848,7 +847,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
       # Create a user for testing
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Security Test User",
@@ -859,7 +858,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
 
       # Create a todo
       %{"success" => true, "data" => todo} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Security Test Todo",
@@ -879,7 +878,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
     } do
       # Try to access :not_exposed_items relationship through RPC
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo["id"]},
           "fields" => [
@@ -901,7 +900,7 @@ defmodule AshTypescript.Rpc.RpcRunActionRelationshipsTest do
     } do
       # Verify that normal relationships still work
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo["id"]},
           "fields" => [

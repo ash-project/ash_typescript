@@ -4,7 +4,6 @@
 
 defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "map return type actions (get_statistics)" do
@@ -38,7 +37,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "processes valid map fields correctly", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_statistics_todo",
           "fields" => ["total", "completed", "pending"]
         })
@@ -68,7 +67,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "processes all valid map fields", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_statistics_todo",
           "fields" => ["total", "completed", "pending", "overdue"]
         })
@@ -91,7 +90,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "rejects invalid fields for map return types", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_statistics_todo",
           "fields" => ["invalidField"]
         })
@@ -108,7 +107,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "rejects nested field selection for map types", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_statistics_todo",
           "fields" => [%{"nested" => ["field"]}]
         })
@@ -124,7 +123,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
     test "requires fields for field-selectable map types", %{conn: conn} do
       # Empty fields should now be rejected for field-selectable actions
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_statistics_todo",
           "fields" => []
         })
@@ -135,7 +134,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
       # But valid fields should work
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_statistics_todo",
           "fields" => ["total", "completed"]
         })
@@ -182,7 +181,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "processes empty field list for primitive arrays", %{conn: conn, todo_ids: todo_ids} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "bulk_complete_todo",
           "input" => %{"todoIds" => todo_ids},
           "fields" => []
@@ -204,7 +203,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "rejects field selection for primitive array types", %{conn: conn, todo_ids: todo_ids} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "bulk_complete_todo",
           "input" => %{"todoIds" => todo_ids},
           "fields" => ["id"]
@@ -222,7 +221,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "handles bulk_complete with valid input", %{conn: conn, todo_ids: todo_ids} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "bulk_complete_todo",
           "input" => %{"todoIds" => todo_ids},
           "fields" => []
@@ -264,7 +263,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "processes fields for array of structs", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "search_todos",
           "input" => %{
             "query" => "Search Test",
@@ -293,7 +292,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "processes relationships in struct arrays", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "search_todos",
           "input" => %{
             "query" => "Test",
@@ -326,7 +325,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "handles search with empty results", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "search_todos",
           "input" => %{
             "query" => "NonExistentSearchTerm",
@@ -344,7 +343,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "processes calculations in struct arrays", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "search_todos",
           "input" => %{
             "query" => "Test",
@@ -372,7 +371,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "processes aggregates in struct arrays", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "commentCount"]
         })
@@ -397,7 +396,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "returns error for non-existent action", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "non_existent_action",
           "fields" => []
         })
@@ -412,7 +411,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "validates action exists before processing fields", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "missing_action",
           "fields" => ["id", "title"]
         })
@@ -434,7 +433,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "returns hardcoded map data without field constraints", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_custom_data_todo",
           "fields" => []
         })
@@ -462,7 +461,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "returns full map data when no fields specified", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_custom_data_todo"
         })
 
@@ -479,7 +478,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "works with empty fields array (legacy compatibility)", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_custom_data_todo",
           "fields" => []
         })
@@ -500,7 +499,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "preserves underscore-prefixed keys verbatim", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_underscored_document_todo"
         })
 
@@ -523,7 +522,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "returns array of maps", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_custom_data_list_todo"
         })
 
@@ -569,7 +568,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
     test "handles nested array constraints correctly", %{conn: conn} do
       # The search action returns {:array, Ash.Type.Struct} with instance_of constraint
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "search_todos",
           "input" => %{
             "query" => "Test",
@@ -597,7 +596,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "handles complex nested field selection in arrays", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "search_todos",
           "input" => %{
             "query" => "Test",
@@ -646,7 +645,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
       task_id = Ash.UUID.generate()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_task_stats",
           "input" => %{"taskId" => task_id},
           "fields" => ["totalCount", "completed", "isUrgent"]
@@ -670,7 +669,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
       task_id = Ash.UUID.generate()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_task_stats",
           "input" => %{"taskId" => task_id},
           "fields" => ["totalCount", "completed", "isUrgent", "averageDuration"]
@@ -694,7 +693,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
       task_id = Ash.UUID.generate()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_task_stats",
           "input" => %{"taskId" => task_id},
           "fields" => ["invalidField"]
@@ -713,7 +712,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
       task_id = Ash.UUID.generate()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_task_stats",
           "input" => %{"taskId" => task_id},
           "fields" => []
@@ -726,7 +725,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
                error_message =~ "empty"
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_task_stats",
           "input" => %{"taskId" => task_id},
           "fields" => ["totalCount", "completed"]
@@ -748,7 +747,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "processes valid typed struct fields correctly for arrays", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_task_stats",
           "fields" => ["totalCount", "completed", "isUrgent"]
         })
@@ -783,7 +782,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "processes all valid typed struct fields for arrays", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_task_stats",
           "fields" => ["totalCount", "completed", "isUrgent", "averageDuration"]
         })
@@ -820,7 +819,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "rejects invalid fields for array of typed struct return types", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_task_stats",
           "fields" => ["invalidField"]
         })
@@ -836,7 +835,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "requires fields for array of typed struct return types", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_task_stats",
           "fields" => []
         })
@@ -848,7 +847,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
                error_message =~ "empty"
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_task_stats",
           "fields" => ["totalCount", "completed"]
         })
@@ -874,7 +873,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "processes valid fields correctly for NewType map", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_suggestion",
           "input" => %{"query" => "test"},
           "fields" => ["name", "score"]
@@ -894,7 +893,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "processes all fields for NewType map", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_suggestion",
           "input" => %{"query" => "test"},
           "fields" => ["name", "category", "score"]
@@ -924,7 +923,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "processes valid fields correctly for array of NewType maps", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_suggestions",
           "input" => %{"query" => "test"},
           "fields" => ["name", "score"]
@@ -958,7 +957,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "returns dates as ISO strings", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_important_dates",
           "fields" => []
         })
@@ -983,7 +982,7 @@ defmodule AshTypescript.Rpc.RpcRunActionGenericActionsTest do
 
     test "returns date as ISO string", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_publication_date",
           "fields" => []
         })

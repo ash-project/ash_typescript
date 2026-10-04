@@ -14,8 +14,6 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
   4. Inline change logic that uses the original argument name internally
   """
   use ExUnit.Case, async: true
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.Task
 
   setup do
@@ -39,7 +37,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
 
       # Read and verify output uses mapped field name (isArchived)
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_tasks",
           "resource" => "Task",
           "fields" => ["id", "title", "completed", "isArchived"]
@@ -64,7 +62,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
 
       # Read and verify mapped field name
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_tasks",
           "resource" => "Task",
           "fields" => ["id", "title", "isArchived"]
@@ -87,7 +85,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
 
       # Update using mapped argument name (isCompleted instead of completed?)
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "mark_completed_task",
           "resource" => "Task",
           "identity" => task.id,
@@ -115,7 +113,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
 
       # Update using mapped argument name to set completed to false
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "mark_completed_task",
           "resource" => "Task",
           "identity" => task.id,
@@ -138,7 +136,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
 
       # Test that validation also works with mapped argument names
       result =
-        Rpc.validate_action(:ash_typescript, conn, %{
+        AshRpc.validate_action(AshTypescript.RpcProfile, conn, %{
           "action" => "mark_completed_task",
           "resource" => "Task",
           "identity" => task.id,
@@ -162,7 +160,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
 
       # Update using mapped argument name and request mapped field names
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "mark_completed_task",
           "resource" => "Task",
           "identity" => task.id,
@@ -186,7 +184,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
   describe "create action with mapped field output" do
     test "create action returns mapped field names", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_task",
           "resource" => "Task",
           "input" => %{
@@ -213,7 +211,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
 
       # Select only the mapped field
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_tasks",
           "resource" => "Task",
           "fields" => ["isArchived"]
@@ -232,7 +230,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
         |> Ash.create!()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_tasks",
           "resource" => "Task",
           "fields" => ["id", "title", "isArchived"]
@@ -261,7 +259,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
       # The inline change uses: Ash.Changeset.get_argument(changeset, :completed?)
       # But the TypeScript client sends: "isCompleted"
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "mark_completed_task",
           "resource" => "Task",
           "identity" => task.id,
@@ -281,7 +279,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
     test "unmapped fields still work normally", %{conn: conn} do
       # Test that non-mapped fields like 'title' and 'completed' work as expected
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_task",
           "resource" => "Task",
           "input" => %{
@@ -303,7 +301,7 @@ defmodule AshTypescript.Rpc.RpcRunActionFieldMappingTest do
 
       # Try to update without providing the required isCompleted argument
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "mark_completed_task",
           "resource" => "Task",
           "primary_key" => task.id,

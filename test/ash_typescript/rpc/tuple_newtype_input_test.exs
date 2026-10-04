@@ -10,9 +10,10 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
   where the validation failure occurs.
   """
   use ExUnit.Case, async: true
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.InputFormatter
-  alias AshTypescript.Rpc.ValueFormatter
+  alias AshRpc.InputFormatter
+  alias AshRpc.ValueFormatter
   alias AshTypescript.TypeSystem.Introspection
 
   describe "LocationTuple NewType introspection" do
@@ -61,22 +62,20 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
   describe "ValueFormatter with LocationTuple" do
     test "formats tuple input correctly (TypeScript names to Elixir names)" do
       type = AshTypescript.Test.InputParsing.LocationTuple
-      formatter = :camel_case
 
       ts_input = %{"lat1" => 37.7749, "lng1" => -122.4194, "isVerified" => true}
 
-      result = ValueFormatter.format(ts_input, type, [], formatter, :input)
+      result = ValueFormatter.format(ts_input, type, [], :input, rpc_runtime())
 
       assert result == %{lat_1: 37.7749, lng_1: -122.4194, is_verified?: true}
     end
 
     test "formats tuple output correctly (Elixir names to TypeScript names)" do
       type = AshTypescript.Test.InputParsing.LocationTuple
-      formatter = :camel_case
 
       elixir_value = %{lat_1: 37.7749, lng_1: -122.4194, is_verified?: true}
 
-      result = ValueFormatter.format(elixir_value, type, [], formatter, :output)
+      result = ValueFormatter.format(elixir_value, type, [], :output, rpc_runtime())
 
       assert result == %{"lat1" => 37.7749, "lng1" => -122.4194, "isVerified" => true}
     end
@@ -86,7 +85,6 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
     test "formats input with tuple attribute" do
       resource = AshTypescript.Test.InputParsing.Resource
       action = :create
-      formatter = :camel_case
 
       raw_input = %{
         "userName" => "tuple_user",
@@ -98,10 +96,8 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
         }
       }
 
-      resource_lookups = AshTypescript.resource_lookup()
-
       {:ok, formatted} =
-        InputFormatter.format(raw_input, resource, action, formatter, resource_lookups)
+        InputFormatter.format(raw_input, resource, action, rpc_runtime())
 
       # Check that tuple field names are converted correctly
       assert formatted.user_name == "tuple_user"

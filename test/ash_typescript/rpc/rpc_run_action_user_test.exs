@@ -3,18 +3,27 @@
 # SPDX-License-Identifier: MIT
 
 defmodule AshTypescript.Rpc.RpcRunActionUserTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
-  # Snapshot the global config this module mutates so it cannot leak into
-  # later test modules.
   setup_all do
-    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
-      :input_field_formatter,
-      :output_field_formatter
-    ])
+    base = AshTypescript.manifest()
+
+    %{
+      manifests: %{
+        pascal:
+          AshRpc.Manifest.redecorate(base,
+            input_formatter: :pascal_case,
+            output_formatter: :pascal_case
+          ),
+        snake:
+          AshRpc.Manifest.redecorate(base,
+            input_formatter: :snake_case,
+            output_formatter: :snake_case
+          )
+      }
+    }
   end
 
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "list_users action" do
@@ -23,7 +32,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUserTest do
 
       # Create a user with address_line_1 for testing formatting
       %{"success" => true, "data" => user} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "John Doe",
@@ -37,7 +46,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUserTest do
 
     test "processes address_line_1 field correctly", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_users",
           "fields" => ["id", "name", "email", "addressLine1"]
         })
@@ -57,88 +66,72 @@ defmodule AshTypescript.Rpc.RpcRunActionUserTest do
       end)
     end
 
-    test "processes address_line_1 field correctly with pascal_case formatter", %{conn: conn} do
-      # Temporarily set the output formatter to pascal_case
-      original_output_formatter =
-        Application.get_env(:ash_typescript, :output_field_formatter)
-
-      original_input_formatter =
-        Application.get_env(:ash_typescript, :input_field_formatter)
-
-      Application.put_env(:ash_typescript, :output_field_formatter, :pascal_case)
-      Application.put_env(:ash_typescript, :input_field_formatter, :pascal_case)
-
-      try do
-        # Note: field_names mapping (address_line_1: "addressLine1") takes precedence over formatter
-        # So the client must still use "addressLine1" (the exact mapped name)
-        result =
-          Rpc.run_action(:ash_typescript, conn, %{
+    test "processes address_line_1 field correctly with pascal_case formatter", %{
+      conn: conn,
+      manifests: m
+    } do
+      # Note: field_names mapping (address_line_1: "addressLine1") takes precedence over formatter
+      # So the client must still use "addressLine1" (the exact mapped name)
+      result =
+        AshRpc.run_action(
+          AshTypescript.RpcProfile,
+          conn,
+          %{
             "action" => "list_users",
             "fields" => ["Id", "Name", "Email", "addressLine1"]
-          })
+          },
+          manifest: m.pascal
+        )
 
-        assert result["Success"] == true
-        assert is_list(result["Data"])
+      assert result["Success"] == true
+      assert is_list(result["Data"])
 
-        # Verify each user has the requested fields with pascal case formatting
-        # BUT addressLine1 uses the explicit field_names mapping (camelCase)
-        Enum.each(result["Data"], fn user ->
-          assert Map.has_key?(user, "Id")
-          assert Map.has_key?(user, "Name")
-          assert Map.has_key?(user, "Email")
-          # The output uses the explicit mapping, not the formatter
-          assert Map.has_key?(user, "addressLine1")
-          # Should not have other fields like "Active" or "IsSuperAdmin"
-          refute Map.has_key?(user, "Active")
-          refute Map.has_key?(user, "IsSuperAdmin")
-        end)
-      after
-        # Restore original formatter
-        Application.put_env(:ash_typescript, :output_field_formatter, original_output_formatter)
-        Application.put_env(:ash_typescript, :input_field_formatter, original_input_formatter)
-      end
+      # Verify each user has the requested fields with pascal case formatting
+      # BUT addressLine1 uses the explicit field_names mapping (camelCase)
+      Enum.each(result["Data"], fn user ->
+        assert Map.has_key?(user, "Id")
+        assert Map.has_key?(user, "Name")
+        assert Map.has_key?(user, "Email")
+        # The output uses the explicit mapping, not the formatter
+        assert Map.has_key?(user, "addressLine1")
+        # Should not have other fields like "Active" or "IsSuperAdmin"
+        refute Map.has_key?(user, "Active")
+        refute Map.has_key?(user, "IsSuperAdmin")
+      end)
     end
 
-    test "processes address_line_1 field correctly with snake_case formatter", %{conn: conn} do
-      # Temporarily set the output formatter to snake_case
-      original_output_formatter =
-        Application.get_env(:ash_typescript, :output_field_formatter)
-
-      original_input_formatter =
-        Application.get_env(:ash_typescript, :input_field_formatter)
-
-      Application.put_env(:ash_typescript, :output_field_formatter, :snake_case)
-      Application.put_env(:ash_typescript, :input_field_formatter, :snake_case)
-
-      try do
-        # Note: field_names mapping (address_line_1: "addressLine1") takes precedence over formatter
-        # So the client must still use "addressLine1" (the exact mapped name)
-        result =
-          Rpc.run_action(:ash_typescript, conn, %{
+    test "processes address_line_1 field correctly with snake_case formatter", %{
+      conn: conn,
+      manifests: m
+    } do
+      # Note: field_names mapping (address_line_1: "addressLine1") takes precedence over formatter
+      # So the client must still use "addressLine1" (the exact mapped name)
+      result =
+        AshRpc.run_action(
+          AshTypescript.RpcProfile,
+          conn,
+          %{
             "action" => "list_users",
             "fields" => ["id", "name", "email", "addressLine1"]
-          })
+          },
+          manifest: m.snake
+        )
 
-        assert result["success"] == true
-        assert is_list(result["data"])
+      assert result["success"] == true
+      assert is_list(result["data"])
 
-        # Verify each user has the requested fields with snake_case formatting
-        # BUT addressLine1 uses the explicit field_names mapping (camelCase)
-        Enum.each(result["data"], fn user ->
-          assert Map.has_key?(user, "id")
-          assert Map.has_key?(user, "name")
-          assert Map.has_key?(user, "email")
-          # The output uses the explicit mapping, not the formatter
-          assert Map.has_key?(user, "addressLine1")
-          # Should not have other fields like "active" or "is_super_admin"
-          refute Map.has_key?(user, "active")
-          refute Map.has_key?(user, "is_super_admin")
-        end)
-      after
-        # Restore original formatter
-        Application.put_env(:ash_typescript, :output_field_formatter, original_output_formatter)
-        Application.put_env(:ash_typescript, :input_field_formatter, original_input_formatter)
-      end
+      # Verify each user has the requested fields with snake_case formatting
+      # BUT addressLine1 uses the explicit field_names mapping (camelCase)
+      Enum.each(result["data"], fn user ->
+        assert Map.has_key?(user, "id")
+        assert Map.has_key?(user, "name")
+        assert Map.has_key?(user, "email")
+        # The output uses the explicit mapping, not the formatter
+        assert Map.has_key?(user, "addressLine1")
+        # Should not have other fields like "active" or "is_super_admin"
+        refute Map.has_key?(user, "active")
+        refute Map.has_key?(user, "is_super_admin")
+      end)
     end
   end
 end

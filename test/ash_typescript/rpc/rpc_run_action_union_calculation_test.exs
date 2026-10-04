@@ -12,7 +12,6 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionCalculationTest do
   - Field selection works through the union calculation to fetch Article fields
   """
   use ExUnit.Case, async: false
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "union calculation with resource members - get_content" do
@@ -50,7 +49,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionCalculationTest do
       content: content
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_content",
           "input" => %{"id" => content["id"]},
           "fields" => [
@@ -81,7 +80,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionCalculationTest do
       content: content
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_content",
           "input" => %{"id" => content["id"]},
           "fields" => [
@@ -127,7 +126,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionCalculationTest do
       content: content
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_content",
           "input" => %{"id" => content["id"]},
           "fields" => [
@@ -163,7 +162,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionCalculationTest do
       content: content
     } do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_content",
           "input" => %{"id" => content["id"]},
           "fields" => [
@@ -266,7 +265,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionCalculationTest do
 
     test "lists content with article fields through item calculation", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_content",
           "fields" => [
             "id",
@@ -325,7 +324,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionCalculationTest do
 
     test "lists content with multiple article fields", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_content",
           "fields" => [
             "id",
@@ -357,7 +356,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionCalculationTest do
 
     test "lists content without item calculation when not requested", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_content",
           "fields" => [
             "id",

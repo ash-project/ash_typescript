@@ -244,7 +244,7 @@ defmodule AshTypescript.Rpc do
     The error handler will be called with (error, context) and should return a modified error map.
     If a module is provided, it must export a handle_error/2 function.
 
-    Default error handler: {AshTypescript.Rpc.DefaultErrorHandler, :handle_error, []}
+    Default error handler: {AshRpc.DefaultErrorHandler, :handle_error, []}
 
     Example:
     ```elixir
@@ -261,7 +261,7 @@ defmodule AshTypescript.Rpc do
       error_handler: [
         type: {:or, [:mfa, :module]},
         doc: "An MFA or module that implements error handling for RPC operations.",
-        default: {AshTypescript.Rpc.DefaultErrorHandler, :handle_error, []}
+        default: {AshRpc.DefaultErrorHandler, :handle_error, []}
       ],
       show_raised_errors?: [
         type: :boolean,
@@ -280,8 +280,6 @@ defmodule AshTypescript.Rpc do
   }
 
   use Spark.Dsl.Extension, sections: [@rpc]
-
-  alias AshTypescript.Rpc.{ErrorBuilder, Errors, Pipeline}
 
   def codegen(args) do
     Mix.Task.reenable("ash_typescript.codegen")
@@ -659,227 +657,4 @@ defmodule AshTypescript.Rpc do
   def requires_tenant_parameter?(resource) do
     requires_tenant?(resource) and require_tenant_parameters?()
   end
-
-  @doc """
-  Main entry point for the new RPC processing pipeline.
-
-  ## Parameters
-  - `otp_app` - The OTP application atom. Retained for API compatibility; it does
-    **not** scope action discovery. Actions are resolved from the single manifest
-    in `config :ash_typescript, manifest:`, so passing a different `otp_app` does
-    not restrict — or widen — the set of reachable actions.
-  - `conn` - The Plug connection
-  - `params` - Request parameters map
-
-  ## Returns
-  A client-formatted response map (never an ok/error tuple):
-  - `%{"success" => true, "data" => data}` on success
-  - `%{"success" => false, "errors" => [error, ...]}` on failure
-
-  Key casing follows the configured `output_field_formatter`.
-
-  ## Error Handling
-  This implementation uses strict validation and fails fast on any invalid input.
-  No permissive modes - all errors are reported immediately.
-  """
-  @spec run_action(atom(), Plug.Conn.t(), map()) :: map()
-  def run_action(otp_app, conn, params) do
-    with {:ok, parsed_request} <- Pipeline.parse_request(otp_app, conn, params),
-         {:ok, ash_result} <- Pipeline.execute_ash_action(parsed_request),
-         {:ok, processed_result} <- Pipeline.process_result(ash_result, parsed_request) do
-      Pipeline.format_output(%{success: true, data: processed_result}, parsed_request)
-    else
-      {:error, reason} -> error_response(reason)
-    end
-  end
-
-  @doc """
-  Validates action parameters without execution.
-  Used for form validation in the client.
-
-  Returns the same client-formatted response map shape as `run_action/3`, and
-  treats `otp_app` the same way — it does not scope action discovery.
-  """
-  @spec validate_action(atom(), Plug.Conn.t(), map()) :: map()
-  def validate_action(otp_app, conn, params) do
-    case Pipeline.parse_request(otp_app, conn, params, validation_mode?: true) do
-      {:ok, parsed_request} ->
-        validate_form_input(parsed_request)
-        |> Pipeline.format_output(parsed_request)
-
-      {:error, reason} ->
-        error_response(reason)
-    end
-  end
-
-  defp validate_form_input(%{action: action, resource: resource, input: input} = request) do
-    opts = [
-      actor: request.actor,
-      tenant: request.tenant,
-      context: request.context
-    ]
-
-    case action.type do
-      :read ->
-        # For read actions, validate by building a query
-        validate_read_action(request, input, opts)
-
-      action_type when action_type in [:update, :destroy] ->
-        # Load the target with the RPC action's configured read_action so
-        # validation resolves the same record set as execution. Without :action,
-        # Ash falls back to the primary read action, turning this into an
-        # existence/field oracle for records read_action is meant to hide.
-        get_opts =
-          case request.rpc_action.read_action do
-            nil -> opts
-            read_action -> Keyword.put(opts, :action, read_action)
-          end
-
-        case Ash.get(resource, request.identity, get_opts) do
-          {:ok, record} ->
-            perform_form_validation(record, action.name, input, opts, request)
-
-          {:error, error} ->
-            errors =
-              Errors.to_errors(error, request.domain, resource, action.name, request.context)
-
-            %{success: false, errors: errors}
-        end
-
-      _ ->
-        perform_form_validation(resource, action.name, input, opts, request)
-    end
-  end
-
-  defp validate_read_action(
-         %{resource: resource, action: action, domain: domain, context: context},
-         input,
-         opts
-       ) do
-    # For read actions, just validate the input against the action definition
-    # get_by validation is handled in parse_get_by during request parsing
-    query =
-      resource
-      |> Ash.Query.for_read(action.name, input, opts)
-
-    case query do
-      %Ash.Query{errors: []} ->
-        %{success: true}
-
-      %Ash.Query{errors: errors} when errors != [] ->
-        formatted_errors = Errors.to_errors(errors, domain, resource, action.name, context)
-        %{success: false, errors: formatted_errors}
-
-      _ ->
-        %{success: true}
-    end
-  rescue
-    e ->
-      formatted_errors = Errors.to_errors(e, domain, resource, action.name, context)
-      %{success: false, errors: formatted_errors}
-  end
-
-  defp perform_form_validation(record_or_resource, action_name, input, opts, %{
-         domain: domain,
-         resource: resource,
-         context: context
-       }) do
-    form =
-      record_or_resource
-      |> AshPhoenix.Form.for_action(action_name, opts)
-      |> AshPhoenix.Form.validate(input)
-
-    form_errors = AshPhoenix.Form.errors(form)
-
-    if Enum.empty?(form_errors) do
-      %{success: true}
-    else
-      # Convert form errors to exceptions/error classes for proper handling
-      errors =
-        form_errors
-        |> Enum.map(fn {field, messages} ->
-          messages
-          |> List.wrap()
-          |> Enum.map(fn message ->
-            # Create a validation error structure
-            %Ash.Error.Changes.InvalidAttribute{
-              field: field,
-              message: to_string(message),
-              path: [field]
-            }
-          end)
-        end)
-        |> List.flatten()
-
-      formatted_errors = Errors.to_errors(errors, domain, resource, action_name, context)
-      %{success: false, errors: formatted_errors}
-    end
-  end
-
-  @doc """
-  Runs a typed query for server-side rendering and data fetching.
-
-  This function looks up a typed query by name and executes it with the configured fields,
-  returning the data in the exact shape defined by the typed query. This is ideal for
-  SSR controllers that need to pre-fetch data with type safety.
-
-  ## Parameters
-  - `otp_app` - The OTP application name. Retained for API compatibility; it does
-    **not** scope typed-query discovery (see `run_action/3`). Queries are resolved
-    from the configured manifest.
-  - `typed_query_name` - The atom name of the typed query to execute
-  - `params` - Map with optional `:input` and `:page` keys
-  - `conn` - The Plug connection (for tenant context, etc.)
-
-  ## Returns
-  A client-formatted response map (same shape as `run_action/3`):
-  - `%{"success" => true, "data" => data}` on success
-  - `%{"success" => false, "errors" => [error, ...]}` on failure (including
-    when the typed query name is not found)
-
-  Key casing follows the configured `output_field_formatter`.
-
-  ## Example
-      # In a Phoenix controller
-      def index(conn, _params) do
-        case AshTypescript.Rpc.run_typed_query(:my_app, :list_todos_user_page, %{}, conn) do
-          %{"success" => true, "data" => todos} ->
-            render(conn, "index.html", initial_todos: todos)
-          %{"success" => false, "errors" => errors} ->
-            # Handle errors appropriately
-            send_resp(conn, 500, "Error loading data")
-        end
-      end
-  """
-  @spec run_typed_query(atom(), atom(), map(), Plug.Conn.t()) :: map()
-  def run_typed_query(otp_app, typed_query_name, params \\ %{}, conn) do
-    case Pipeline.find_typed_query(typed_query_name) do
-      nil ->
-        error_response({:typed_query_not_found, typed_query_name})
-
-      entrypoint ->
-        typed_query = AshTypescript.Manifest.Custom.typed_query(entrypoint)
-
-        %{
-          "typed_query_action" => Atom.to_string(typed_query_name),
-          "fields" => typed_query.fields
-        }
-        |> maybe_add_param("input", params[:input])
-        |> maybe_add_param("page", params[:page])
-        |> maybe_add_param("filter", params[:filter])
-        |> maybe_add_param("sort", params[:sort])
-        |> then(&run_action(otp_app, conn, &1))
-    end
-  end
-
-  # Builds the client-formatted failure response for a pipeline error reason.
-  # ErrorBuilder returns either a single error or a list of them.
-  defp error_response(reason) do
-    errors = reason |> ErrorBuilder.build_error_response() |> List.wrap()
-
-    Pipeline.format_output(%{success: false, errors: errors})
-  end
-
-  defp maybe_add_param(params, _key, nil), do: params
-  defp maybe_add_param(params, key, value), do: Map.put(params, key, value)
 end

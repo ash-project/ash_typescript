@@ -12,13 +12,15 @@ defmodule AshTypescript.Rpc.RuntimeSourceOfTruthGuardTest do
   """
   use ExUnit.Case, async: true
 
+  # The runtime lives in the ash_rpc dependency; paths are relative to its root.
+  @ash_rpc_root Mix.Project.deps_paths() |> Map.fetch!(:ash_rpc)
+
   @runtime_files [
-    "lib/ash_typescript/rpc/pipeline.ex",
-    "lib/ash_typescript/rpc/field_processing/atomizer.ex",
-    "lib/ash_typescript/rpc/field_processing/field_selector.ex",
-    "lib/ash_typescript/rpc/value_formatter.ex",
-    "lib/ash_typescript/rpc/output_formatter.ex",
-    "lib/ash_typescript/rpc/input_formatter.ex"
+    "lib/ash_rpc/pipeline.ex",
+    "lib/ash_rpc/field_processing/atomizer.ex",
+    "lib/ash_rpc/field_processing/field_selector.ex",
+    "lib/ash_rpc/value_formatter.ex",
+    "lib/ash_rpc/input_formatter.ex"
   ]
 
   @forbidden_modules ["AshTypescript.Resource.Info", "AshTypescript.Rpc.Info"]
@@ -33,7 +35,7 @@ defmodule AshTypescript.Rpc.RuntimeSourceOfTruthGuardTest do
 
   for file <- @runtime_files do
     test "#{file} has no retired source-of-truth reads" do
-      source = File.read!(unquote(file))
+      source = File.read!(Path.join(@ash_rpc_root, unquote(file)))
 
       for needle <- @forbidden_modules ++ @forbidden_rpc_action_reads do
         refute String.contains?(source, needle),

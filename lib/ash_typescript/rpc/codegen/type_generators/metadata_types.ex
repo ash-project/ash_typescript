@@ -12,57 +12,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes do
 
   import AshTypescript.Codegen
 
-  @doc """
-  Gets the list of metadata fields that should be exposed for an RPC action.
-
-  ## Parameters
-
-    * `rpc_action` - The RPC action configuration
-    * `ash_action` - The underlying Ash action
-
-  ## Returns
-
-  A list of metadata field names (atoms) that should be exposed.
-
-  ## Examples
-
-      # No metadata override - expose all metadata fields
-      iex> get_exposed_metadata_fields(%{}, %{metadata: [%{name: :total_count}]})
-      [:total_count]
-
-      # Empty list - expose no metadata fields
-      iex> get_exposed_metadata_fields(%{show_metadata: []}, %{metadata: [%{name: :total_count}]})
-      []
-
-      # Specific fields - expose only listed fields
-      iex> get_exposed_metadata_fields(%{show_metadata: [:total_count]}, %{metadata: [...]})
-      [:total_count]
-  """
-  def get_exposed_metadata_fields(rpc_action, ash_action) do
-    show_metadata = Map.get(rpc_action, :show_metadata, nil)
-
-    case show_metadata do
-      nil -> Enum.map(Map.get(ash_action, :metadata, []), & &1.name)
-      false -> []
-      [] -> []
-      field_list when is_list(field_list) -> field_list
-    end
-  end
-
-  @doc """
-  Checks if metadata is enabled for an action based on exposed fields.
-
-  ## Parameters
-
-    * `exposed_fields` - List of metadata fields that are exposed
-
-  ## Returns
-
-  Boolean indicating if metadata is enabled (has at least one exposed field).
-  """
-  def metadata_enabled?(exposed_fields) do
-    not Enum.empty?(exposed_fields)
-  end
+  defdelegate get_exposed_metadata_fields(rpc_action, ash_action), to: AshRpc.Introspection
+  defdelegate metadata_enabled?(exposed_fields), to: AshRpc.Introspection
 
   @doc """
   Reads the precomputed exposed metadata fields off the decorated entrypoint for

@@ -4,8 +4,9 @@
 
 defmodule AshTypescript.Rpc.TopLevelStrictnessTest do
   use ExUnit.Case, async: false
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.Pipeline
+  alias AshRpc.Pipeline
 
   describe "top-level filter strictness" do
     test "filter on an enable_filter?: false action errors as disabled" do
@@ -16,7 +17,11 @@ defmodule AshTypescript.Rpc.TopLevelStrictnessTest do
       }
 
       assert {:error, {:filter_not_supported, :top_level, :disabled}} =
-               Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+               Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(%Plug.Conn{}),
+                 params
+               )
     end
 
     test "filter on a get? read errors as unsupported" do
@@ -27,7 +32,11 @@ defmodule AshTypescript.Rpc.TopLevelStrictnessTest do
       }
 
       assert {:error, {:filter_not_supported, :top_level, :unsupported}} =
-               Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+               Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(%Plug.Conn{}),
+                 params
+               )
     end
 
     test "filter on a mutation errors as unsupported" do
@@ -39,12 +48,22 @@ defmodule AshTypescript.Rpc.TopLevelStrictnessTest do
       }
 
       assert {:error, {:filter_not_supported, :top_level, :unsupported}} =
-               Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+               Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(%Plug.Conn{}),
+                 params
+               )
     end
 
     test "absent filter never errors" do
       params = %{"action" => "list_todos_no_filter", "fields" => ["id"]}
-      assert {:ok, _} = Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+
+      assert {:ok, _} =
+               Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(%Plug.Conn{}),
+                 params
+               )
     end
   end
 
@@ -57,7 +76,11 @@ defmodule AshTypescript.Rpc.TopLevelStrictnessTest do
       }
 
       assert {:error, {:sort_not_supported, :top_level, :disabled}} =
-               Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+               Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(%Plug.Conn{}),
+                 params
+               )
     end
 
     test "sort on a get_by action errors as unsupported" do
@@ -72,7 +95,11 @@ defmodule AshTypescript.Rpc.TopLevelStrictnessTest do
       }
 
       assert {:error, {:sort_not_supported, :top_level, :unsupported}} =
-               Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+               Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(%Plug.Conn{}),
+                 params
+               )
     end
   end
 
@@ -85,7 +112,11 @@ defmodule AshTypescript.Rpc.TopLevelStrictnessTest do
       }
 
       assert {:error, {:pagination_not_supported, :top_level, :unsupported}} =
-               Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+               Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(%Plug.Conn{}),
+                 params
+               )
     end
 
     test "empty page map counts as present" do
@@ -96,7 +127,11 @@ defmodule AshTypescript.Rpc.TopLevelStrictnessTest do
       }
 
       assert {:error, {:pagination_not_supported, :top_level, :unsupported}} =
-               Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+               Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(%Plug.Conn{}),
+                 params
+               )
     end
 
     test "page on a paginatable read still works" do
@@ -106,7 +141,13 @@ defmodule AshTypescript.Rpc.TopLevelStrictnessTest do
         "page" => %{"limit" => 5}
       }
 
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+      assert {:ok, request} =
+               Pipeline.parse_request(
+                 rpc_runtime(),
+                 AshRpc.Context.from_source(%Plug.Conn{}),
+                 params
+               )
+
       assert request.pagination == %{limit: 5}
     end
   end

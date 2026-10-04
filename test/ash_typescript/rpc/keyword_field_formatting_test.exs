@@ -16,7 +16,7 @@ defmodule AshTypescript.Rpc.KeywordFieldFormattingTest do
     test "keyword field keys are formatted to client format in output", %{conn: conn, user: user} do
       # Create todo with keyword options
       create_result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Keyword Test Todo",
@@ -56,7 +56,7 @@ defmodule AshTypescript.Rpc.KeywordFieldFormattingTest do
     } do
       # Create todo first
       create_result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Fetch Test Todo",
@@ -74,7 +74,7 @@ defmodule AshTypescript.Rpc.KeywordFieldFormattingTest do
 
       # Fetch it back with options
       fetch_result =
-        AshTypescript.Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => todo_id},
           "fields" => ["id", "title", %{"options" => ["priority", "category", "notify"]}]

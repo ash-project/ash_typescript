@@ -4,9 +4,9 @@
 
 defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
   @moduledoc """
-  Comprehensive integration tests for the refactored AshTypescript.Rpc module.
+  Comprehensive integration tests for the AshRpc runtime via `AshTypescript.RpcProfile`.
 
-  These tests use AshTypescript.Rpc.run_action/3 to perform end-to-end testing of:
+  These tests use `AshRpc.run_action/4` to perform end-to-end testing of:
   - Basic CRUD operations with precise return value assertions
   - Simple and complex calculations with field selection
   - Aggregates and typed structs (embedded resources, custom types)
@@ -20,8 +20,6 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
   """
 
   use ExUnit.Case, async: false
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   @moduletag :ash_typescript
@@ -40,7 +38,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         "fields" => ["id", "name", "email"]
       }
 
-      user_result = Rpc.run_action(:ash_typescript, conn, user_params)
+      user_result = AshRpc.run_action(AshTypescript.RpcProfile, conn, user_params)
       assert user_result["success"] == true
       assert Map.has_key?(user_result["data"], "id")
       assert user_result["data"]["name"] == "John Doe"
@@ -113,7 +111,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         ]
       }
 
-      create_result = Rpc.run_action(:ash_typescript, conn, todo_params)
+      create_result = AshRpc.run_action(AshTypescript.RpcProfile, conn, todo_params)
       assert create_result["success"] == true
 
       # Assert all created fields are returned correctly
@@ -178,7 +176,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         ]
       }
 
-      get_result = Rpc.run_action(:ash_typescript, conn, get_params)
+      get_result = AshRpc.run_action(AshTypescript.RpcProfile, conn, get_params)
       assert get_result["success"] == true
 
       get_data = get_result["data"]
@@ -220,7 +218,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         "page" => %{"limit" => 10, "offset" => 0}
       }
 
-      list_result = Rpc.run_action(:ash_typescript, conn, list_params)
+      list_result = AshRpc.run_action(AshTypescript.RpcProfile, conn, list_params)
       assert list_result["success"] == true
       assert is_list(list_result["data"]["results"])
       assert length(list_result["data"]["results"]) == 1
@@ -245,7 +243,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         "fields" => ["id", "title", "status", "description"]
       }
 
-      update_result = Rpc.run_action(:ash_typescript, conn, update_params)
+      update_result = AshRpc.run_action(AshTypescript.RpcProfile, conn, update_params)
       assert update_result["success"] == true
       assert update_result["data"]["id"] == todo_id
       assert update_result["data"]["title"] == "Test Todo"
@@ -258,7 +256,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       # Create user and todo first
       user_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{"name" => "Test User", "email" => "test@example.com"},
           "fields" => ["id"]
@@ -268,7 +266,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       user_id = user_result["data"]["id"]
 
       todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Todo to Delete",
@@ -287,7 +285,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         "fields" => ["id"]
       }
 
-      destroy_result = Rpc.run_action(:ash_typescript, conn, destroy_params)
+      destroy_result = AshRpc.run_action(AshTypescript.RpcProfile, conn, destroy_params)
       assert destroy_result["success"] == true
       # Destroy now returns data with the requested fields (id is nil after destruction)
       assert destroy_result["data"] == %{"id" => todo_id}
@@ -299,7 +297,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         "fields" => ["id"]
       }
 
-      get_result = Rpc.run_action(:ash_typescript, conn, get_params)
+      get_result = AshRpc.run_action(AshTypescript.RpcProfile, conn, get_params)
       assert get_result["success"] == false
       first_error = List.first(get_result["errors"])
       assert first_error["type"] == "not_found"
@@ -312,7 +310,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       # Create user
       user_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{"name" => "Test User", "email" => "test@example.com"},
           "fields" => ["id"]
@@ -324,7 +322,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       future_date = Date.add(Date.utc_today(), 7) |> Date.to_string()
 
       todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Future Todo",
@@ -351,7 +349,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         ]
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, get_params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, get_params)
       assert result["success"] == true
 
       data = result["data"]
@@ -372,7 +370,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       # Create user and todo
       user_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{"name" => "Self Test User", "email" => "self@example.com"},
           "fields" => ["id"]
@@ -381,7 +379,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       user_id = user_result["data"]["id"]
 
       todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Self Calculation Test",
@@ -410,7 +408,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         ]
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, get_params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, get_params)
       assert result["success"] == true
 
       data = result["data"]
@@ -432,7 +430,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       # Create user with self calculation
       user_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{"name" => "Relationship User", "email" => "rel@example.com"},
           "fields" => ["id"]
@@ -441,7 +439,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       user_id = user_result["data"]["id"]
 
       todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Relationship Test Todo",
@@ -475,7 +473,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         ]
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, get_params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, get_params)
       assert result["success"] == true
 
       data = result["data"]
@@ -515,7 +513,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       # Create comments to test aggregates
       comment1_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "First comment",
@@ -531,7 +529,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       assert comment1_result["success"] == true
 
       comment2_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Second comment",
@@ -570,7 +568,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         ]
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, get_params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, get_params)
       assert result["success"] == true
 
       data = result["data"]
@@ -652,7 +650,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         ]
       }
 
-      create_result = Rpc.run_action(:ash_typescript, conn, create_params)
+      create_result = AshRpc.run_action(AshTypescript.RpcProfile, conn, create_params)
       assert create_result["success"] == true
 
       data = create_result["data"]
@@ -728,7 +726,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         )
 
       # Create comments from each user on both todos
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "create_todo_comment",
         "input" => %{
           "content" => "User 1 comment on Todo 1",
@@ -741,7 +739,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         "fields" => ["id"]
       })
 
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "create_todo_comment",
         "input" => %{
           "content" => "User 2 comment on Todo 1",
@@ -796,7 +794,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         ]
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, get_params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, get_params)
       assert result["success"] == true
 
       data = result["data"]
@@ -885,7 +883,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         "page" => %{"limit" => 10, "offset" => 0}
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, list_params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, list_params)
       assert result["success"] == true
       assert is_list(result["data"]["results"])
       assert length(result["data"]["results"]) == 3
@@ -911,7 +909,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       # Test text content (tagged union member)
       text_todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Text Content Todo",
@@ -939,7 +937,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       # Test note content (untagged union member)
       note_todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Note Content Todo",
@@ -958,7 +956,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       # Test priority_value content (untagged integer union member)
       priority_todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Priority Content Todo",
@@ -985,7 +983,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       # Test map_with_tag storage mode
       todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Status Info Todo",
@@ -1033,7 +1031,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       # Test array union with mixed member types
       todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Attachments Todo",
@@ -1119,7 +1117,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       future_date = Date.add(current_date, 7)
 
       todo_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Date Format Test Todo",
@@ -1169,7 +1167,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       # Test with embedded resource containing various struct types
       metadata_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_todo",
           "identity" => data["id"],
           "input" => %{
@@ -1215,7 +1213,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "nonexistent_action",
           "fields" => ["id"]
         })
@@ -1231,7 +1229,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "nonexistent_field", "title"]
         })
@@ -1249,7 +1247,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1268,7 +1266,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
             "title" => "Missing User ID Todo"
@@ -1290,7 +1288,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       fake_uuid = "00000000-0000-0000-0000-000000000000"
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "get_todo",
           "input" => %{"id" => fake_uuid},
           "fields" => ["id", "title"]
@@ -1306,7 +1304,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           # Should be a map
@@ -1325,7 +1323,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -1356,7 +1354,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       todo_id = todo["id"]
 
       # Add metadata and complex data to the todo
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "update_todo",
         "identity" => todo_id,
         "input" => %{
@@ -1375,7 +1373,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
 
       # Create comments for aggregates
       for i <- 1..3 do
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo_comment",
           "input" => %{
             "content" => "Comment #{i}",
@@ -1458,7 +1456,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         ]
       }
 
-      result = Rpc.run_action(:ash_typescript, conn, complex_params)
+      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, complex_params)
       assert result["success"] == true
 
       data = result["data"]
@@ -1550,7 +1548,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         "page" => %{"limit" => 2, "offset" => 0}
       }
 
-      page1_result = Rpc.run_action(:ash_typescript, conn, page1_params)
+      page1_result = AshRpc.run_action(AshTypescript.RpcProfile, conn, page1_params)
       assert page1_result["success"] == true
 
       # Pagination returns object with metadata and results
@@ -1575,7 +1573,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         "page" => %{"limit" => 2, "offset" => 2}
       }
 
-      page2_result = Rpc.run_action(:ash_typescript, conn, page2_params)
+      page2_result = AshRpc.run_action(AshTypescript.RpcProfile, conn, page2_params)
       assert page2_result["success"] == true
 
       # Second page pagination structure

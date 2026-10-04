@@ -4,8 +4,9 @@
 
 defmodule AshTypescript.Rpc.ErrorProtocolTest do
   use ExUnit.Case
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.{DefaultErrorHandler, Error, Errors}
+  alias AshRpc.{DefaultErrorHandler, Error, Errors}
 
   @moduletag :ash_typescript
 
@@ -109,7 +110,7 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
           must_pass_strict_check?: false
         )
 
-      result = Error.to_error(error)
+      [result] = AshRpc.Errors.to_errors(rpc_runtime(), error)
 
       # Message contains the formatted policy report
       assert result.message =~ "Only admins can read"
@@ -241,7 +242,7 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
         field: :email
       }
 
-      [result] = Errors.to_errors(error)
+      [result] = Errors.to_errors(rpc_runtime(), error)
 
       # Should have a message from Exception.message/1
       assert is_binary(result.message)
@@ -256,7 +257,7 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
         %Ash.Error.Changes.InvalidAttribute{field: :age}
       ]
 
-      results = Errors.to_errors(errors)
+      results = Errors.to_errors(rpc_runtime(), errors)
 
       assert length(results) == 2
       codes = Enum.map(results, & &1.type)
@@ -269,7 +270,7 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
       error = %RuntimeError{message: "Something went wrong"}
 
       # This should convert to an Ash error class first
-      results = Errors.to_errors(error)
+      results = Errors.to_errors(rpc_runtime(), error)
 
       assert is_list(results)
       assert results != []
@@ -323,7 +324,7 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
     test "ErrorBuilder uses protocol for Ash errors" do
       ash_error = %Ash.Error.Query.NotFound{}
 
-      result = AshTypescript.Rpc.ErrorBuilder.build_error_response(ash_error)
+      result = AshRpc.ErrorBuilder.build_error_response(rpc_runtime(), ash_error)
 
       # Ash errors always return a list, even for single errors
       assert is_list(result)
@@ -345,7 +346,7 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
         errors: [inner_error]
       }
 
-      result = AshTypescript.Rpc.ErrorBuilder.build_error_response(wrapped)
+      result = AshRpc.ErrorBuilder.build_error_response(rpc_runtime(), wrapped)
 
       # Ash errors always return a list
       assert is_list(result)
@@ -366,7 +367,7 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
         ]
       }
 
-      result = AshTypescript.Rpc.ErrorBuilder.build_error_response(errors)
+      result = AshRpc.ErrorBuilder.build_error_response(rpc_runtime(), errors)
 
       # Should return a list of errors directly, not wrapped in multiple_errors
       assert is_list(result)
@@ -458,7 +459,7 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
           strategy: :password
         )
 
-      [result] = Errors.to_errors(error)
+      [result] = Errors.to_errors(rpc_runtime(), error)
 
       assert result.type == "authentication_failed"
       assert result.short_message == "Authentication failed"
@@ -471,7 +472,7 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
       error =
         AshAuthentication.Errors.InvalidToken.exception(type: :confirmation, field: :token)
 
-      [result] = Errors.to_errors(error)
+      [result] = Errors.to_errors(rpc_runtime(), error)
 
       assert result.type == "invalid_token"
       assert result.fields == ["token"]
@@ -485,7 +486,7 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
       ]
 
       for error <- errors do
-        [result] = Errors.to_errors(error)
+        [result] = Errors.to_errors(rpc_runtime(), error)
         assert {:ok, _json} = Jason.encode(result)
       end
     end
@@ -495,7 +496,7 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
     test "message is static when config not set" do
       error = %Ash.Error.Forbidden.Policy{vars: []}
 
-      [result] = Errors.to_errors(error)
+      [result] = Errors.to_errors(rpc_runtime(), error)
 
       assert result.message == "forbidden"
     end
@@ -530,7 +531,7 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
           must_pass_strict_check?: false
         )
 
-      [result] = Errors.to_errors(error)
+      [result] = Errors.to_errors(rpc_runtime(), error)
 
       assert result.message =~ "Only admins can read"
       assert result.message =~ "Policy Breakdown"
@@ -550,7 +551,7 @@ defmodule AshTypescript.Rpc.ErrorProtocolTest do
           must_pass_strict_check?: false
         )
 
-      [result] = Errors.to_errors(error)
+      [result] = Errors.to_errors(rpc_runtime(), error)
 
       assert {:ok, _json} = Jason.encode(result)
     after

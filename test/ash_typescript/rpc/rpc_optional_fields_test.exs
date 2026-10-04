@@ -4,7 +4,6 @@
 
 defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
   use ExUnit.Case, async: false
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   describe "optional fields parameter" do
@@ -15,7 +14,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
 
     test "create action with nil fields returns empty data", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Jane Doe",
@@ -29,7 +28,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
 
     test "create action with empty fields list returns empty data", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Jane Doe",
@@ -44,7 +43,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
 
     test "create action with fields returns requested data", %{conn: conn} do
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Jane Doe",
@@ -63,7 +62,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
     test "update action with nil fields returns empty data", %{conn: conn} do
       # First create a user
       %{"success" => true, "data" => %{"id" => user_id}} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Original Name",
@@ -74,7 +73,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
 
       # Update without fields parameter
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user",
           "identity" => user_id,
           "input" => %{
@@ -89,7 +88,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
     test "update action with empty fields list returns empty data", %{conn: conn} do
       # First create a user
       %{"success" => true, "data" => %{"id" => user_id}} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Original Name",
@@ -100,7 +99,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
 
       # Update with empty fields
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user",
           "identity" => user_id,
           "input" => %{
@@ -116,7 +115,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
     test "update action with fields returns requested data", %{conn: conn} do
       # First create a user
       %{"success" => true, "data" => %{"id" => user_id}} =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_user",
           "input" => %{
             "name" => "Original Name",
@@ -127,7 +126,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
 
       # Update with fields
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "update_user",
           "identity" => user_id,
           "input" => %{
@@ -145,7 +144,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
 
     test "read action still requires fields parameter", %{conn: conn} do
       # Create a user first
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "create_user",
         "input" => %{
           "name" => "Test User",
@@ -155,7 +154,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
 
       # Read action without fields should fail
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_users"
         })
 
@@ -165,7 +164,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
 
     test "read action with empty fields should fail", %{conn: conn} do
       # Create a user first
-      Rpc.run_action(:ash_typescript, conn, %{
+      AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
         "action" => "create_user",
         "input" => %{
           "name" => "Test User",
@@ -175,7 +174,7 @@ defmodule AshTypescript.Rpc.RpcOptionalFieldsTest do
 
       # Read action with empty fields should fail
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_users",
           "fields" => []
         })

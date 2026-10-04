@@ -4,9 +4,10 @@
 
 defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
   use ExUnit.Case
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
+  alias AshRpc.{FieldFormatter, Pipeline}
   alias AshTypescript.Codegen.{FilterTypes, SortTypes}
-  alias AshTypescript.Rpc.Pipeline
 
   @moduletag :ash_typescript
 
@@ -176,17 +177,17 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
 
   describe "pipeline format_sort_string with list input" do
     test "formats single-element list" do
-      assert Pipeline.format_sort_string(["-createdAt"], :camel_case) == "-created_at"
+      assert FieldFormatter.format_sort_string(["-createdAt"], :camel_case) == "-created_at"
     end
 
     test "formats multi-element list" do
-      result = Pipeline.format_sort_string(["-createdAt", "+title", "id"], :camel_case)
+      result = FieldFormatter.format_sort_string(["-createdAt", "+title", "id"], :camel_case)
       assert result == "-created_at,+title,id"
     end
 
     test "formats list with all four prefix variants" do
       result =
-        Pipeline.format_sort_string(
+        FieldFormatter.format_sort_string(
           ["title", "+title", "-title", "++title", "--title"],
           :camel_case
         )
@@ -196,7 +197,7 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
 
     test "formats list with camelCase field names" do
       result =
-        Pipeline.format_sort_string(
+        FieldFormatter.format_sort_string(
           ["--dueDate", "++priorityScore", "-createdAt"],
           :camel_case
         )
@@ -205,7 +206,7 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
     end
 
     test "formats empty list" do
-      assert Pipeline.format_sort_string([], :camel_case) == ""
+      assert FieldFormatter.format_sort_string([], :camel_case) == ""
     end
   end
 
@@ -218,7 +219,9 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       }
 
       conn = %Plug.Conn{}
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.sort == "-created_at,+title"
     end
@@ -231,7 +234,9 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       }
 
       conn = %Plug.Conn{}
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.sort == "--due_date"
     end
@@ -246,7 +251,7 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       conn = %Plug.Conn{}
 
       assert {:error, {:sort_not_supported, :top_level, :disabled}} =
-               Pipeline.parse_request(:ash_typescript, conn, params)
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
     end
 
     test "string sort still works" do
@@ -257,7 +262,9 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       }
 
       conn = %Plug.Conn{}
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.sort == "-created_at,+title"
     end
@@ -363,7 +370,9 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       }
 
       conn = %Plug.Conn{}
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.filter == %{due_date: %{is_nil: true}}
     end
@@ -376,7 +385,9 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       }
 
       conn = %Plug.Conn{}
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.filter == %{due_date: %{is_nil: false}}
     end
@@ -394,7 +405,9 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       }
 
       conn = %Plug.Conn{}
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.filter == %{
                and: [
@@ -460,7 +473,9 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       }
 
       conn = %Plug.Conn{}
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.filter == %{
                completed: %{eq: false},
@@ -481,7 +496,9 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       }
 
       conn = %Plug.Conn{}
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.filter == %{description: %{is_nil: true}}
       assert request.sort == "-created_at"
@@ -496,7 +513,9 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
       }
 
       conn = %Plug.Conn{}
-      assert {:ok, request} = Pipeline.parse_request(:ash_typescript, conn, params)
+
+      assert {:ok, request} =
+               Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
       assert request.filter == nil
       assert request.sort == "++priority,-created_at"

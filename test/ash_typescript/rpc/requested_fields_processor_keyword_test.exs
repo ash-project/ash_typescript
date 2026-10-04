@@ -4,8 +4,9 @@
 
 defmodule AshTypescript.Rpc.RequestedFieldsProcessorKeywordTest do
   use ExUnit.Case, async: true
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshTypescript.Rpc.RequestedFieldsProcessor
+  alias AshRpc.RequestedFieldsProcessor
 
   alias AshTypescript.Test.Todo
 
@@ -15,7 +16,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorKeywordTest do
       # Keyword fields require field selection syntax
       fields = ["id", "title", %{"options" => ["priority", "category", "notify"]}]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields)
+      result = RequestedFieldsProcessor.process(rpc_runtime(), Todo, :read, fields)
 
       # Verify that the options field is included and properly structured
       assert match?({:ok, _}, result)
@@ -39,7 +40,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorKeywordTest do
         %{"user" => ["id", "name"]}
       ]
 
-      result = RequestedFieldsProcessor.process(Todo, :read, fields)
+      result = RequestedFieldsProcessor.process(rpc_runtime(), Todo, :read, fields)
 
       assert match?({:ok, _}, result)
       {:ok, {select, load, template}} = result
@@ -70,7 +71,7 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorKeywordTest do
       fields = [%{"options" => ["priority", "category", "notify"]}]
 
       {:ok, {select, load, template}} =
-        RequestedFieldsProcessor.process(Todo, :read, fields)
+        RequestedFieldsProcessor.process(rpc_runtime(), Todo, :read, fields)
 
       assert select == [:options]
       assert load == []

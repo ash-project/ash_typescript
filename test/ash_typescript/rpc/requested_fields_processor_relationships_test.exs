@@ -4,20 +4,17 @@
 
 defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
   use ExUnit.Case
-  alias AshTypescript.Rpc.RequestedFieldsProcessor
+  import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
+  alias AshRpc.RequestedFieldsProcessor
 
   describe "single level relationships" do
     test "processes belongs_to relationships" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            :title,
-            %{user: [:id, :name, :email]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          :title,
+          %{user: [:id, :name, :email]}
+        ])
 
       assert select == [:id, :title]
       assert load == [{:user, [:id, :name, :email]}]
@@ -26,15 +23,11 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
 
     test "processes has_many relationships" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            :title,
-            %{comments: [:id, :content, :rating]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          :title,
+          %{comments: [:id, :content, :rating]}
+        ])
 
       assert select == [:id, :title]
       assert load == [{:comments, [:id, :content, :rating]}]
@@ -43,18 +36,14 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
 
     test "processes multiple relationships at same level" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            :title,
-            %{
-              user: [:id, :name],
-              comments: [:id, :content]
-            }
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          :title,
+          %{
+            user: [:id, :name],
+            comments: [:id, :content]
+          }
+        ])
 
       assert select == [:id, :title]
       # Multiple relationships at the same level
@@ -72,22 +61,18 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
   describe "nested relationships" do
     test "handles deeply nested relationships correctly" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            %{
-              user: [
-                :id,
-                :name,
-                %{
-                  comments: [:id, :content]
-                }
-              ]
-            }
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          %{
+            user: [
+              :id,
+              :name,
+              %{
+                comments: [:id, :content]
+              }
+            ]
+          }
+        ])
 
       assert select == [:id]
       # Now properly includes nested relationship loads
@@ -97,29 +82,25 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
 
     test "handles three-level nested relationships" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.User,
-          :read,
-          [
-            :id,
-            :name,
-            %{
-              todos: [
-                :id,
-                :title,
-                %{
-                  comments: [
-                    :id,
-                    :content,
-                    %{
-                      user: [:id, :name]
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.User, :read, [
+          :id,
+          :name,
+          %{
+            todos: [
+              :id,
+              :title,
+              %{
+                comments: [
+                  :id,
+                  :content,
+                  %{
+                    user: [:id, :name]
+                  }
+                ]
+              }
+            ]
+          }
+        ])
 
       assert select == [:id, :name]
 
@@ -136,26 +117,22 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
 
     test "handles multiple nested relationships in different branches" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            :title,
-            %{
-              user: [
-                :id,
-                :name,
-                %{comments: [:id, :content]}
-              ],
-              comments: [
-                :id,
-                :rating,
-                %{user: [:id, :email]}
-              ]
-            }
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          :title,
+          %{
+            user: [
+              :id,
+              :name,
+              %{comments: [:id, :content]}
+            ],
+            comments: [
+              :id,
+              :rating,
+              %{user: [:id, :email]}
+            ]
+          }
+        ])
 
       assert select == [:id, :title]
 
@@ -176,25 +153,21 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
   describe "mixed simple fields and relationships" do
     test "handles mixed simple fields and nested relationships" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            :title,
-            :completed,
-            %{
-              user: [
-                :id,
-                :email,
-                %{
-                  comments: [:id, :content, :rating]
-                }
-              ]
-            },
-            :created_at
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          :title,
+          :completed,
+          %{
+            user: [
+              :id,
+              :email,
+              %{
+                comments: [:id, :content, :rating]
+              }
+            ]
+          },
+          :created_at
+        ])
 
       assert select == [:id, :title, :completed, :created_at]
       assert load == [{:user, [:id, :email, {:comments, [:id, :content, :rating]}]}]
@@ -210,20 +183,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
 
     test "handles loadable fields mixed with relationships" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            :title,
-            # aggregate
-            :comment_count,
-            %{user: [:id, :name]},
-            # calculation
-            :is_overdue,
-            %{comments: [:id, :content]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          :title,
+          # aggregate
+          :comment_count,
+          %{user: [:id, :name]},
+          # calculation
+          :is_overdue,
+          %{comments: [:id, :content]}
+        ])
 
       assert select == [:id, :title]
 
@@ -248,13 +217,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
   describe "relationship validation" do
     test "returns error for invalid relationship field" do
       {:error, error} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            %{user: [:invalid_field]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          %{user: [:invalid_field]}
+        ])
 
       assert error ==
                {:unknown_field, :invalid_field, AshTypescript.Test.User, [:user]}
@@ -262,13 +227,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
 
     test "returns error for invalid nested relationship" do
       {:error, error} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            %{user: [%{invalid_relationship: [:id]}]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          %{user: [%{invalid_relationship: [:id]}]}
+        ])
 
       assert error ==
                {:unknown_field, :invalid_relationship, AshTypescript.Test.User, [:user]}
@@ -276,20 +237,16 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
 
     test "returns error for invalid deeply nested field" do
       {:error, error} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            %{
-              user: [
-                :id,
-                %{
-                  comments: [:id, :invalid_field]
-                }
-              ]
-            }
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          %{
+            user: [
+              :id,
+              %{
+                comments: [:id, :invalid_field]
+              }
+            ]
+          }
+        ])
 
       assert error ==
                {:unknown_field, :invalid_field, AshTypescript.Test.TodoComment,
@@ -298,13 +255,9 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
 
     test "validates relationship existence before processing nested fields" do
       {:error, error} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            %{nonexistent_relation: [:id, :name]}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          %{nonexistent_relation: [:id, :name]}
+        ])
 
       assert error ==
                {:unknown_field, :nonexistent_relation, AshTypescript.Test.Todo, []}
@@ -312,15 +265,11 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
 
     test "rejects relationships requested as simple atoms without field specification" do
       {:error, error} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            # This should be rejected - relationships must specify fields
-            :user
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          # This should be rejected - relationships must specify fields
+          :user
+        ])
 
       assert error == {:requires_field_selection, :relationship, :user, []}
     end
@@ -329,32 +278,24 @@ defmodule AshTypescript.Rpc.RequestedFieldsProcessorRelationshipsTest do
   describe "edge cases" do
     test "rejects empty relationship field lists" do
       {:error, error} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            %{user: []}
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          %{user: []}
+        ])
 
       assert error == {:requires_field_selection, :relationship, :user, []}
     end
 
     test "handles relationship with only nested relationships (no direct fields)" do
       {:ok, {select, load, extraction_template}} =
-        RequestedFieldsProcessor.process(
-          AshTypescript.Test.Todo,
-          :read,
-          [
-            :id,
-            %{
-              user: [
-                %{comments: [:id, :content]}
-              ]
-            }
-          ]
-        )
+        RequestedFieldsProcessor.process(rpc_runtime(), AshTypescript.Test.Todo, :read, [
+          :id,
+          %{
+            user: [
+              %{comments: [:id, :content]}
+            ]
+          }
+        ])
 
       assert select == [:id]
       assert load == [{:user, [{:comments, [:id, :content]}]}]

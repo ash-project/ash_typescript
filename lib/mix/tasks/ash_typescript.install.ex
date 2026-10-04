@@ -80,7 +80,7 @@ if Code.ensure_loaded?(Igniter) do
         |> Igniter.Project.Formatter.import_dep(:ash_typescript)
         |> add_ash_typescript_config()
         |> create_manifest_module(app_name)
-        |> create_rpc_controller(app_name, web_module)
+        |> create_rpc_controller(web_module)
         |> add_rpc_routes(web_module)
         |> Vite.maybe_fix_runtime_manifest_cache(bundler, app_name)
 
@@ -367,22 +367,16 @@ if Code.ensure_loaded?(Igniter) do
       end
     end
 
-    defp create_rpc_controller(igniter, app_name, web_module) do
+    defp create_rpc_controller(igniter, web_module) do
       clean_web_module = web_module |> to_string() |> String.replace_prefix("Elixir.", "")
 
       controller_content = """
       defmodule #{clean_web_module}.AshTypescriptRpcController do
         use #{clean_web_module}, :controller
 
-        def run(conn, params) do
-          result = AshTypescript.Rpc.run_action(:#{app_name}, conn, params)
-          json(conn, result)
-        end
+        def run(conn, _params), do: AshRpc.Plug.run(conn, AshTypescript.RpcProfile)
 
-        def validate(conn, params) do
-          result = AshTypescript.Rpc.validate_action(:#{app_name}, conn, params)
-          json(conn, result)
-        end
+        def validate(conn, _params), do: AshRpc.Plug.validate(conn, AshTypescript.RpcProfile)
       end
       """
 

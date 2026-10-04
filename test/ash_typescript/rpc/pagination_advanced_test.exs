@@ -4,7 +4,7 @@
 
 defmodule AshTypescript.Rpc.PaginationAdvancedTest do
   @moduledoc """
-  Tests for advanced pagination scenarios through the refactored AshTypescript.Rpc module.
+  Tests for advanced pagination scenarios through the AshRpc runtime (`AshTypescript.RpcProfile`).
 
   This module focuses on testing:
   - Basic pagination with limit and offset parameters
@@ -15,13 +15,11 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
   - Pagination consistency and data integrity
   - Advanced pagination scenarios with nested relationships
 
-  All operations are tested end-to-end through AshTypescript.Rpc.run_action/3.
+  All operations are tested end-to-end through `AshRpc.run_action/4`.
   Tests verify both pagination functionality and data quality in paginated results.
   """
 
   use ExUnit.Case, async: false
-
-  alias AshTypescript.Rpc
   alias AshTypescript.Test.TestHelpers
 
   @moduletag :ash_typescript
@@ -53,7 +51,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
         }
 
         response =
-          Rpc.run_action(:ash_typescript, conn, %{
+          AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
             "action" => "create_todo",
             "input" => %{
               "title" => "Pagination Test Todo #{String.pad_leading("#{i}", 3, "0")}",
@@ -78,7 +76,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
       # Test with limit of 5
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           "page" => %{
@@ -110,7 +108,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
       # Get first 5 results
       first_page =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           "page" => %{
@@ -121,7 +119,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
       # Get next 5 results (offset 5)
       second_page =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           "page" => %{
@@ -160,7 +158,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
           offset = page * page_size
 
           result =
-            Rpc.run_action(:ash_typescript, conn, %{
+            AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
               "action" => "list_todos",
               "fields" => ["id", "title"],
               "page" => %{
@@ -178,7 +176,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
       # Get all results without pagination for comparison
       all_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"]
         })
@@ -205,7 +203,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
       {_user, _todos} = create_test_dataset(conn, 12)
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -226,12 +224,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
           }
         })
 
-      if result["success"] == false do
-        IO.puts("DEBUG: Pagination test failure:")
-        inspect(result)
-      end
-
-      assert result["success"] == true
+      assert result["success"] == true, inspect(result)
       page_result = result["data"]
       todo_list = page_result["results"]
       assert length(todo_list) == 4
@@ -268,7 +261,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
       for todo <- comment_todos do
         _comment_response =
-          Rpc.run_action(:ash_typescript, conn, %{
+          AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
             "action" => "create_todo_comment",
             "input" => %{
               "todo_id" => todo["id"],
@@ -283,7 +276,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
       # Test pagination with relationship loading
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -349,7 +342,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
       {_user, _todos} = create_test_dataset(conn, 10)
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => [
             "id",
@@ -392,7 +385,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
       # Test paginated results with priority filter
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "priority"],
           "page" => %{
@@ -419,7 +412,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
       # Test second page of filtered results
       second_page =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "priority"],
           "page" => %{
@@ -449,7 +442,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
       # Get first page with sorting
       first_page =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "priority"],
           "page" => %{
@@ -461,7 +454,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
       # Get second page with same sorting
       second_page =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title", "priority"],
           "page" => %{
@@ -501,7 +494,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
       conn = TestHelpers.build_rpc_conn()
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id"],
           "page" => %{"limit" => 10, "notAPageOptionXyz" => 1}
@@ -520,7 +513,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
       # Don't create any test data
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           "limit" => 10,
@@ -539,7 +532,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
       # Request with offset beyond available data
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           "page" => %{
@@ -561,7 +554,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
       {_user, _todos} = create_test_dataset(conn, 3)
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           "page" => %{
@@ -583,7 +576,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
       {_user, _todos} = create_test_dataset(conn, 10)
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           "page" => %{
@@ -608,7 +601,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
       # Test accessing tail of large dataset
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           "page" => %{
@@ -658,7 +651,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
         start_time = System.monotonic_time(:millisecond)
 
         result =
-          Rpc.run_action(:ash_typescript, conn, %{
+          AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
             "action" => "list_todos",
             "fields" => [
               "id",
@@ -714,7 +707,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
       # Make multiple requests for the same page
       results =
         for _i <- 1..3 do
-          result = Rpc.run_action(:ash_typescript, conn, page_params)
+          result = AshRpc.run_action(AshTypescript.RpcProfile, conn, page_params)
           assert result["success"] == true
           result["data"]
         end
@@ -741,7 +734,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
       for todo <- comment_todos do
         _comment =
-          Rpc.run_action(:ash_typescript, conn, %{
+          AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
             "action" => "create_todo_comment",
             "input" => %{
               "todo_id" => todo["id"],
@@ -791,7 +784,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
       start_time = System.monotonic_time(:millisecond)
 
       result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => complex_fields,
           "page" => %{
@@ -844,7 +837,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
           offset = page * page_size
 
           result =
-            Rpc.run_action(:ash_typescript, conn, %{
+            AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
               "action" => "list_todos",
               "fields" => ["id", "title"],
               "page" => %{
@@ -863,7 +856,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
       # Test one page beyond (should be empty)
       beyond_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           "page" => %{
@@ -895,7 +888,7 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
 
       # Get the last page (should have 3 results)
       last_page_result =
-        Rpc.run_action(:ash_typescript, conn, %{
+        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
           "fields" => ["id", "title"],
           "page" => %{
