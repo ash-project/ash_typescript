@@ -47,6 +47,10 @@ defmodule AshTypescript.RpcProfile do
     )
   end
 
+  @doc """
+  The `details.hint` added to request errors a stale generated client can cause:
+  regenerate the TypeScript file.
+  """
   @impl AshRpc.Profile
   def stale_client_hint do
     "This error is most likely happening because the generated typescript file used is not up to date with the running backend. Check that you are using the latest generated file, and/or that a new file has been generated after the last backend changes."
