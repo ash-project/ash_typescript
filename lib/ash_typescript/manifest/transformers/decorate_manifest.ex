@@ -54,9 +54,10 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
     end
   end
 
-  # O(1) entrypoint lookups keyed by the client-facing action / typed-query name
-  # (as a string). Replaces per-request linear scans over `manifest.entrypoints`
-  # in the runtime pipeline's `discover_action`.
+  # Entrypoint lookups keyed by the client-facing action / typed-query name (as a
+  # string), read through `AshTypescript.rpc_action_lookup/1` and
+  # `typed_query_lookup/1`. The runtime doesn't use them: ash_rpc resolves wire
+  # entrypoints from its own `custom.ash_rpc` lookups.
   defp build_rpc_action_lookup(%Ash.Info.Manifest{entrypoints: entrypoints}) do
     Enum.reduce(entrypoints, %{}, fn entrypoint, acc ->
       case Custom.rpc_action(entrypoint) do
