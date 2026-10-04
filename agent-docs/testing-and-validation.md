@@ -162,24 +162,10 @@ Note `mix test.codegen --dry-run` only prints files whose content **differs**
 from disk — it is silent when generated output is already current, so it is not
 a usable inspection tool on a clean tree.
 
-### Runtime Logic Changes
-When modifying RPC pipeline modules:
-
-```bash
-# Field selection validation
-mix test test/ash_typescript/rpc/calculation_field_selection_test.exs
-
-# Core RPC functionality (critical)
-mix test test/ash_typescript/rpc/rpc_run_action_*_test.exs
-```
-
-### Calculation System Changes
-When modifying calculation parsing or field selection:
-
-```bash
-# Test all calculation scenarios
-mix test test/ash_typescript/rpc/calculations_test.exs
-```
+### Runtime Changes
+Runtime behaviour is tested in ash_rpc.
+After an ash_rpc bump, run `mix test test/ash_typescript/rpc/` here; the integration subset is
+listed in [rpc-integration.md](features/rpc-integration.md).
 
 ## Breaking Change Detection
 
@@ -227,10 +213,8 @@ defmodule MyTest.InlineManifest do
 end
 ```
 
-Pass it explicitly where an API accepts one — e.g. build a runtime with
-`AshRpc.Runtime.from_manifest(AshTypescript.manifest(MyTest.InlineManifest))` for
-`AshRpc.RequestedFieldsProcessor.process/5`, pass `manifest:` to
-`AshRpc.run_action/4`, or use `AshTypescript.Manifest.verify_for_domains/1`.
+Pass it explicitly where an API accepts one: `manifest: AshTypescript.manifest(MyTest.InlineManifest)`
+to `AshRpc.run_action/4`, or `AshTypescript.Manifest.verify_for_domains/1`.
 See `test/ash_typescript/manifest/` for worked examples.
 
 ## Asserting on Generated TypeScript in Elixir Tests
@@ -369,8 +353,8 @@ if (result.success) {
 
 Two things to get right in RPC-level tests:
 
-- **There is no `"resource"` param.** `AshRpc.Pipeline.parse_request/4` resolves
-  the `AshRpc.Entrypoint` from `params["action"]` alone — RPC action names are
+- **There is no `"resource"` param.** The `AshRpc.Entrypoint` is resolved
+  from `params["action"]` alone — RPC action names are
   globally unique entrypoints in `manifest.custom.ash_rpc.entrypoints`. There is no
   separate typed-query wire param (a request without `action` gets
   `missing_required_parameter` for `action`); typed queries run server-side via
@@ -394,11 +378,6 @@ test "runs an action through the full pipeline" do
   assert result["success"] == true
   assert is_list(result["data"])
 end
-
-# Inspecting a single stage instead of the whole pipeline
-runtime = AshRpc.Runtime.new(AshTypescript.RpcProfile)
-ctx = AshRpc.Context.from_conn(conn)
-{:ok, request} = AshRpc.Pipeline.parse_request(runtime, ctx, params)
 ```
 
 ### Varying formatters and `not_found_error?` in tests

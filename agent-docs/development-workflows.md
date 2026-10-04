@@ -31,24 +31,18 @@ runtime RPC pipeline both read all action/resource/type shape from it.
 
 ```elixir
 # Explore module exports
-mcp__tidewave__project_eval("AshRpc.Pipeline.__info__(:functions)")
+mcp__tidewave__project_eval("AshTypescript.RpcMappingSource.__info__(:functions)")
 
-# Test functions in context
+# Check what an rpc_action resolved to
 mcp__tidewave__project_eval("""
 runtime = AshRpc.Runtime.from_manifest(AshTypescript.manifest())
-fields = [:id, %{user: [:name]}]
-AshRpc.RequestedFieldsProcessor.process(
-  runtime, AshTypescript.Test.Todo, :read, fields
-)
+runtime.entrypoints["list_todos"]
+# => %AshRpc.Entrypoint{name: "list_todos", enable_filter?: true, load_restrictions: :none, ...}
 """)
 
 # Check configuration
 mcp__tidewave__project_eval("Application.get_all_env(:ash_typescript)")
 ```
-
-Note the `%{...}` map literal — `{"user" => ["name"]}` (no `%`) is a syntax error.
-`process/3` still works: its optional 4th argument defaults to the configured
-manifest module.
 
 ## Development Patterns
 
@@ -65,29 +59,21 @@ manifest module.
 4. Validate generated TypeScript compiles
 5. Run full test suite
 
-### RPC Pipeline Changes
-1. Test field processing with Tidewave
-2. Write integration tests
-3. Modify pipeline modules
-4. Validate with real data
+### RPC Integration Changes
+Runtime changes go in ash_rpc, not here.
+Here you change `RpcMappingSource`, `RpcProfile` or the `typescript_rpc` DSL, then run the
+integration tests listed in [rpc-integration.md](features/rpc-integration.md) (Integration Tests).
 
 ## Critical Anti-Patterns
 
 - **Don't** use dev environment for AshTypescript commands
 - **Don't** skip TypeScript compilation validation
-- **Don't** modify multiple stages simultaneously without testing
 - **Don't** ignore failing tests in unrelated areas
 
 ## Debugging Patterns
 
-### Field Selection Issues
-Use Tidewave to test field processing step by step
-
 ### Type Generation Issues
 Check schema generation with Tidewave before running full codegen
-
-### Performance Issues
-Profile specific pipeline stages, not entire system
 
 ## Testing Strategies
 
