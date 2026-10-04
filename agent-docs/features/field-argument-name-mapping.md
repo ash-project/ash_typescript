@@ -88,9 +88,8 @@ end
 
 ```elixir
 # Input mapping (TypeScript → Elixir)
-Rpc.run_action(:domain, conn, %{
+AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
   "action" => "create_user",
-  "resource" => "User",
   "input" => %{
     "addressLine1" => "123 Main St"  # Mapped to :address_line_1
   }
@@ -155,9 +154,8 @@ searchUsers({
 **Input-only mapping** (arguments are only sent to server):
 
 ```elixir
-Rpc.run_action(:domain, conn, %{
+AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
   "action" => "read_with_filter",
-  "resource" => "User",
   "input" => %{
     "isActive" => true  # Mapped to :is_active?
   }
@@ -375,34 +373,38 @@ Field/argument mapping affects:
    - Function signatures use mapped argument names
    - Field selection syntax uses mapped field names
 
-4. **Validation Error Schemas** (`lib/ash_typescript/rpc/validation_error_schemas.ex`)
-   - Generates the TypeScript validation-error types using mapped field names
-   - This is a *codegen* module, not a runtime pipeline stage
-
 ### RPC Pipeline
 
 Mapping is handled in the RPC pipeline via the unified `ValueFormatter`:
 
-1. **Input Formatting** (`lib/ash_typescript/rpc/input_formatter.ex`)
-   - `InputFormatter.format/6` delegates to `ValueFormatter.format/7` with direction `:input`
+1. **Input Formatting** (`AshRpc.InputFormatter`)
+   - `InputFormatter.format/4` (`data, resource, action, runtime`) delegates to `ValueFormatter.format/5` with direction `:input`
    - Maps TypeScript field/argument names → Elixir names
    - Applies before Ash action execution
 
-2. **Output Formatting** (`lib/ash_typescript/rpc/output_formatter.ex`)
-   - `OutputFormatter.format/6` delegates to `ValueFormatter.format/7` with direction `:output`
+2. **Output Formatting** (`AshRpc.Pipeline`, `format_output/2`)
+   - Calls `ValueFormatter.format/5` with direction `:output` directly (there is no `OutputFormatter` module)
    - Maps Elixir field names → TypeScript names
    - Applies after result processing
 
-**Where the mappings come from (0.18)**: all lookups read *precomputed decoration*
-off the manifest via `AshTypescript.Manifest.Custom` — never live resource
-introspection:
+**Where the mappings come from**: all lookups read *precomputed decoration* off
+the manifest — never live resource introspection. Client names are supplied at
+decoration time by `AshTypescript.RpcMappingSource` (the `AshRpc.MappingSource`
+implementation reading the `typescript` resource DSL `field_names` /
+`argument_names` and types' `typescript_field_names/0`), and
+`AshRpc.Manifest.Decorator` writes them under `custom.ash_rpc`. The runtime reads
+them through `AshRpc.Manifest.Custom` off the `AshRpc.Runtime` lookups:
 
 | Direction | Call |
 |-----------|------|
-| Client name → internal atom (resource field) | `Custom.original_field_name/2` |
-| Internal atom → client name (resource field) | `FieldFormatter.format_field_for_client/3` → `Custom.formatted_field_name/3` |
-| Action argument names | `Custom.original_argument_name/3` / `Custom.mapped_argument_name/3` |
-| `typescript_field_names/0` types | `Custom.type_field_name_mappings_pair/1`, falling back to `Helpers.typescript_field_names/1` |
+| Client name → internal atom (resource field) | `AshRpc.Manifest.Custom.original_field_name/2` |
+| Internal atom → client name (resource field) | `AshRpc.FieldFormatter.format_field_for_client/3` → `Custom.field_names/1` / `field_name_override/2` |
+| Action argument names | `Custom.original_argument_name/3` / `Custom.argument_name_override/3` |
+| `typescript_field_names/0` types | `AshRpc.Introspection.type_field_name_overrides/2` (`type_lookup` decoration, falling back to `runtime.mapping_source.type_field_names/1` for undecorated types) |
+
+Codegen still reads the `custom.ash_typescript` decoration through
+`AshTypescript.Manifest.Custom` (`formatted_field_name/3`, `mapped_argument_name/3`,
+`type_field_name_mappings_pair/1`, …).
 
 The pre-0.18 helpers `AshTypescript.Resource.Info.get_original_field_name/2` and
 `get_original_argument_name/3` were **deleted** — do not reintroduce them.
@@ -437,7 +439,7 @@ end
 ```elixir
 # test/ash_typescript/rpc/rpc_field_argument_mapping_test.exs
 test "create action with mapped field names" do
-  result = Rpc.run_action(:domain, conn, %{
+  result = AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
     "action" => "create_user",
     "input" => %{"addressLine1" => "123 Main St"},
     "fields" => ["addressLine1"]
@@ -529,11 +531,12 @@ end
 | `lib/ash_typescript/resource/verifiers/verify_map_field_names.ex` | Composite type constraint verification |
 | `lib/ash_typescript/codegen/resource_schemas.ex` | Resource schema generation with mapped names |
 | `lib/ash_typescript/codegen/type_mapper.ex` | TypeScript type mapping |
-| `lib/ash_typescript/manifest/custom.ex` | **Manifest decoration accessors** — `field_name_mappings/1`, `reverse_field_name_mappings/1`, `mapped_field_name/2`, `original_field_name/2`, `formatted_field_name/3`, `argument_name_mappings_for_action/2`, `mapped_argument_name/3`, `original_argument_name/3`, `type_field_name_mappings_pair/1` |
-| `lib/ash_typescript/field_formatter.ex` | `format_field_for_client/3` — output-side name resolution |
-| `lib/ash_typescript/rpc/value_formatter.ex` | Unified type-aware formatting (input/output) |
-| `lib/ash_typescript/rpc/input_formatter.ex` | Input formatting (TS → Elixir, delegates to ValueFormatter) |
-| `lib/ash_typescript/rpc/output_formatter.ex` | Output formatting (Elixir → TS, delegates to ValueFormatter) |
+| `lib/ash_typescript/rpc_mapping_source.ex` | `AshRpc.MappingSource` impl — supplies client names to the `custom.ash_rpc` decoration |
+| `AshRpc.Manifest.Custom` | Runtime accessors for the `custom.ash_rpc` decoration (`field_names/1`, `original_field_name/2`, `argument_name_override/3`, `original_argument_name/3`, …) |
+| `lib/ash_typescript/manifest/custom.ex` | **Codegen-side decoration accessors** (`custom.ash_typescript`) — `field_name_mappings/1`, `mapped_field_name/2`, `original_field_name/2`, `formatted_field_name/3`, `mapped_argument_name/3`, `original_argument_name/3`, `type_field_name_mappings_pair/1` |
+| `AshRpc.FieldFormatter` | `format_field_for_client/3` — output-side name resolution |
+| `AshRpc.ValueFormatter` | Unified type-aware formatting (input/output) |
+| `AshRpc.InputFormatter` | Input formatting (TS → Elixir, delegates to ValueFormatter) |
 | `lib/ash_typescript/codegen/zod_schema_generator.ex` | Zod schema with mapped names |
 | `test/ash_typescript/rpc/rpc_field_argument_mapping_test.exs` | End-to-end mapping tests |
 | `test/support/resources/user.ex` | Example resource with mappings |

@@ -204,7 +204,7 @@ if (created.success) {
 
 ```elixir
 # Input mapping (TypeScript → Elixir)
-Rpc.run_action(:domain, conn, %{
+AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
   "action" => "read_data",
   "fields" => ["id", "title"],
   "metadataFields" => ["field1", "isCached"]  # Mapped to [:field_1, :is_cached?]
@@ -318,7 +318,7 @@ Metadata mapping affects:
 
 ### RPC Pipeline
 
-All metadata handling lives in `lib/ash_typescript/rpc/pipeline.ex`. Note that
+All metadata handling lives in `AshRpc.Pipeline`. Note that
 `request.ex` is a bare struct (no metadata logic) and `result_processor.ex` touches
 metadata only for keyset pagination (`__metadata__.keyset`).
 
@@ -370,7 +370,7 @@ end
 ```elixir
 # test/ash_typescript/rpc/rpc_metadata_test.exs
 test "read action with metadata - all fields" do
-  result = Rpc.run_action(:domain, conn, %{
+  result = AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
     "action" => "read_with_metadata",
     "fields" => ["id", "title"],
     "metadataFields" => ["someString", "someNumber"]
@@ -383,7 +383,7 @@ test "read action with metadata - all fields" do
 end
 
 test "create action with metadata - separate field" do
-  result = Rpc.run_action(:domain, conn, %{
+  result = AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
     "action" => "create_task",
     "input" => %{"title" => "New"},
     "fields" => ["id", "title"]
@@ -478,7 +478,7 @@ end
 | `lib/ash_typescript/rpc/codegen/type_generators/metadata_types.ex` | `get_exposed_metadata_fields/2`, `metadata_enabled?/1`, metadata TS types |
 | `lib/ash_typescript/rpc/info.ex` | `get_mapped_metadata_field_name/2` / `get_original_metadata_field_name/2` |
 | `lib/ash_typescript/rpc/codegen.ex` | RPC client generation with metadata support |
-| `lib/ash_typescript/rpc/pipeline.ex` | metadataFields parsing, merging (`add_metadata/3`), envelope formatting |
+| `AshRpc.Pipeline` | metadataFields parsing, merging (`add_metadata/3`), envelope formatting |
 | `test/ash_typescript/rpc/verify_metadata_field_names_test.exs` | Verifier tests |
 | `test/ash_typescript/rpc/rpc_metadata_test.exs` | End-to-end metadata tests |
 | `test/ts/shouldPass/metadata.ts` | TypeScript compilation tests |
@@ -672,5 +672,5 @@ rpc_action :read_data, :read_with_metadata,
 **Solution**:
 1. Verify resource has `AshTypescript.Resource` extension
 2. Check metadata field exists in action metadata definitions
-3. Ensure using RPC pipeline (`Rpc.run_action/3`)
+3. Ensure using RPC pipeline (`AshRpc.run_action/4` with `AshTypescript.RpcProfile`)
 4. Verify mapping is correctly configured in rpc_action

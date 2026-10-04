@@ -67,7 +67,7 @@ All union input values must be wrapped in a map with exactly one member key:
 **Note**: member identification tries tag matching first
 (`ValueFormatter.identify_tagged_union_member_spec/3`); the "exactly one member key" check
 runs only on the untagged/key-based path
-(`ValueFormatter.identify_key_based_union_member_spec/3`). A wrapper map that also carries a
+(`ValueFormatter.identify_key_based_union_member_spec/4`). A wrapper map that also carries a
 matching tag at the top level bypasses the multi-key check.
 
 ### Error Messages
@@ -85,14 +85,14 @@ Union field selection uses selective member fetching:
 - Array unions: apply selection to each element
 
 ## Key Files
-- `lib/ash_typescript/rpc/value_formatter.ex` - Union input identification/validation
-  (`format_union_input/4`, `identify_union_member_spec/3`) and output transformation
-  (`format_union_output/5`, `extract_union_member_data_spec/4`). `input_formatter.ex` and
-  `output_formatter.ex` are thin delegators to this module.
-- `lib/ash_typescript/rpc/error_builder.ex` - The three `invalid_union_input` messages
-- `lib/ash_typescript/rpc/field_processing/field_selector.ex` - `select_union_fields/5`
+- `AshRpc.ValueFormatter` - Union input identification/validation
+  (`format_union_input/4`, `identify_union_member_spec/4`) and output transformation
+  (`format_union_output/5`, `extract_union_member_data_spec/4`). `input_formatter.ex`
+  delegates to this module; output formatting calls it directly from `pipeline.ex`.
+- `AshRpc.ErrorBuilder` - The three `invalid_union_input` messages
+- `AshRpc.FieldProcessing.FieldSelector` - `select_union_fields/5`
   (union field selection); `requested_fields_processor.ex` is the delegating entry point
-- `lib/ash_typescript/rpc/result_processor.ex` - `extract_union_value/4` (`%Ash.Union{}`
+- `AshRpc.ResultProcessor` - `extract_union_value/4` (`%Ash.Union{}`
   extraction against the template)
 - `lib/ash_typescript/codegen/type_mapper.ex` - `build_union_type_from_members/1`,
   `build_union_input_type_from_members/1`, `is_primitive_union_member?/1`

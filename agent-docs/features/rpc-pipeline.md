@@ -10,18 +10,60 @@ SPDX-License-Identifier: MIT
 
 The RPC system uses a clean four-stage pipeline architecture focused on performance, strict validation, and clear separation of concerns.
 
+The runtime lives in the separate `ash_rpc` package; `AshRpc.*` modules below
+belong to it (look them up with `mix usage_rules.docs AshRpc.<Module>`). It is client-agnostic: ash_typescript
+plugs in through `AshTypescript.RpcProfile` (an `AshRpc.Profile` — manifest, domain
+error handlers, policy breakdowns) and `AshTypescript.RpcMappingSource` (an
+`AshRpc.MappingSource` — client names, formatters, entrypoints, read at decoration time).
+
+Public entry points (all return client-formatted maps, never tuples):
+
+| Function | Purpose |
+|----------|---------|
+| `AshRpc.run_action(profile, conn \| socket \| %AshRpc.Context{}, params, opts \\ [])` | Full four-stage run |
+| `AshRpc.validate_action(profile, source, params, opts \\ [])` | Native validation (no execution) |
+| `AshRpc.error_response/3`, `AshRpc.failure_response/3` | Wire error envelopes for a reason / prebuilt error maps |
+| `AshRpc.Plug.run/2`, `AshRpc.Plug.validate/2` | Controller helpers that send the JSON (always 200) |
+| `use AshRpc.Channel, profile: P` / `AshRpc.Channel.run/3`, `validate/3` | Channel `handle_in` injection / manual helpers |
+| `AshTypescript.run_typed_query(name, params, conn, opts \\ [])` | Server-side typed query (ash_typescript; uses `entrypoint:`) |
+
+`opts` accepts `manifest:` (a decorated `%Ash.Info.Manifest{}`, e.g. from
+`AshRpc.Manifest.redecorate/2`) and `entrypoint:` (an `%AshRpc.Entrypoint{}` that
+bypasses wire `action` lookup — how typed queries run).
+
+### `AshRpc.Runtime` and `AshRpc.Entrypoint`
+
+`AshRpc.Runtime.new(profile, opts)` resolves once per request and is threaded through
+every stage (`Request.runtime`) instead of reading globals: `profile`, `manifest`,
+`mapping_source`, `input_formatter`, `output_formatter`, `resource_lookup`,
+`type_lookup`, `action_lookup`, `entrypoints`. Lookups come from
+`manifest.custom.ash_rpc.lookups`. `AshRpc.Runtime.from_manifest/2` builds one
+without a profile (tests, typed controllers).
+
+`AshRpc.Entrypoint` is the per-action contract built at decoration time by
+`c:AshRpc.MappingSource.entrypoint/1` and stored in `manifest.custom.ash_rpc.entrypoints`
+(keyed by wire action name): `domain`, `resource`, `action`, `read_action`, `get?`,
+`get_by`, `identities`, `not_found_error?`, `enable_filter?`/`enable_sort?`,
+`load_restrictions`, `exposed_metadata_fields`, `metadata_field_names`,
+`preset_fields` (typed queries).
+
 ## Four-Stage Pipeline
 
 ### Stage 1: Parse Request (`Pipeline.parse_request/4`)
 
 **Purpose**: Parse and validate input with fail-fast approach
 
-The 4th argument is `opts \\ []`, currently only `validation_mode?: true` (used by
-`Rpc.validate_action/3`). `parse_request/3` remains valid.
+Signature: `parse_request(runtime, %AshRpc.Context{}, params, opts \\ [])`. `opts`
+carries `validation_mode?: true` (set by `AshRpc.validate_action/4`) and
+`entrypoint:`.
 
 **Key Operations**:
-- Discover the entrypoint from the manifest's `rpc_action_lookup`/`typed_query_lookup`
-  (`discover_action/2` ignores `otp_app` — everything comes from the manifest)
+- Apply a `tenant` param over the transport tenant (`AshRpc.Context.put_tenant_param/2`;
+  same on HTTP and channels)
+- Resolve the `AshRpc.Entrypoint`: the `entrypoint:` option if given, else
+  `runtime.entrypoints[params["action"]]` (`missing_required_parameter` /
+  `action_not_found` otherwise). Typed queries have no wire param
+- Read the action with `AshRpc.Introspection.get_action!(runtime, resource, action)`
 - Validate required parameters based on action type
 - Process requested fields through `RequestedFieldsProcessor`
 - Parse action input, pagination, and other parameters
@@ -68,7 +110,7 @@ The 4th argument is `opts \\ []`, currently only `validation_mode?: true` (used 
 
 **Returns**: `{:ok, filtered_result}` or `{:error, reason}`
 
-### Stage 4: Format Output (`Pipeline.format_output/1`)
+### Stage 4: Format Output (`Pipeline.format_output/2`)
 
 **Purpose**: Format for client consumption
 
@@ -81,10 +123,12 @@ The 4th argument is `opts \\ []`, currently only `validation_mode?: true` (used 
 **Returns**: Formatted response ready for JSON serialization
 
 **Formatting Flow**:
-1. `OutputFormatter.format/6` handles top-level data (4 required args + `resource_lookups`, `type_index`)
-2. For each field, delegates to `ValueFormatter.format/7` for type-aware recursive formatting
-3. Field names are converted according to formatter configuration and manifest decoration
-   (`Custom.formatted_field_name/3` for `field_names` DSL mappings)
+1. `Pipeline.format_output/2` picks the top-level type (the resource, or the generic
+   action's resolved `returns`)
+2. Delegates to `ValueFormatter.format(value, type, constraints, :output, runtime)`
+   for type-aware recursive formatting
+3. Field names are converted with `runtime.output_formatter` and the `custom.ash_rpc`
+   decoration (`AshRpc.Manifest.Custom` — `field_names`/`field_name_overrides`)
 
 ## Request Data Structure
 
@@ -92,11 +136,9 @@ The `Request` struct flows through the pipeline containing:
 
 ```elixir
 defstruct [
-  :domain,              # The Ash domain module
   :resource,            # The Ash resource module
   :action,              # %Ash.Info.Manifest.Action{} being executed
-  :rpc_action,          # The rpc_action / typed_query config
-  :entrypoint,          # %Ash.Info.Manifest.Entrypoint{} (carries decoration)
+  :entrypoint,          # %AshRpc.Entrypoint{} (per-action contract)
   :tenant,              # Tenant from connection
   :actor,               # Actor from connection
   :context,             # Context map
@@ -109,16 +151,15 @@ defstruct [
   :filter,              # For read actions
   :sort,                # For read actions
   :pagination,          # For read actions
-  show_metadata: [],    # Resolved exposed metadata fields
-  resource_lookups: nil,# Manifest resource lookup map
-  type_index: %{}       # Manifest type lookup
+  :runtime,             # %AshRpc.Runtime{} (profile, manifest, formatters, lookups)
+  show_metadata: []     # Resolved exposed metadata fields
 ]
 ```
 
-`:entrypoint` is the `%Ash.Info.Manifest.Entrypoint{}` whose `custom.ash_typescript`
-decoration supplies load restrictions, metadata config and filter/sort toggles.
-`:resource_lookups` / `:type_index` carry the manifest lookups threaded through
-field processing and value formatting. There is no `:primary_key` field — update
+`:entrypoint` is the `%AshRpc.Entrypoint{}` that supplies load restrictions, metadata
+config, filter/sort toggles, `get?`/`get_by`, `not_found_error?` and `read_action`.
+`:runtime` carries the manifest lookups and formatters threaded through field
+processing and value formatting. There is no `:primary_key` field — update
 and destroy lookups use `:identity`, and get-style reads use `:get_by`.
 
 ## Field Processing Integration
@@ -127,7 +168,7 @@ Field processing is handled by the `RequestedFieldsProcessor` module (entry poin
 
 ```elixir
 {:ok, {select, load, template}} = RequestedFieldsProcessor.process(
-  resource, action.name, requested_fields
+  runtime, resource, action.name, requested_fields, opts
 )
 # select: Attributes to select
 # load: Calculations/relationships to load
@@ -138,8 +179,9 @@ Field processing is handled by the `RequestedFieldsProcessor` module (entry poin
 1. **Atomizer** - Converts map keys to atoms and applies the resource's `field_names`
    DSL mapping; unmapped strings are *preserved* for downstream reverse-mapping lookup
 2. **FieldSelector** - Type-driven dispatch on the `%Ash.Info.Manifest.Type{}` `kind`
-   (every handler takes a trailing `manifest` argument):
-   - Ash Resources → `select_resource_fields/4`
+   (handlers take a trailing context carrying the `AshRpc.Runtime`):
+   - Ash Resources → `select_resource_fields/4` (destination must be exposed —
+     a resource without the `AshTypescript.Resource` extension yields `unknown_field`)
    - TypedStruct/NewType → `select_typed_struct_fields/4`
    - Typed Map/Struct → `select_typed_map_fields/4` (optional 5th `error_type` arg)
    - Tuple → `select_tuple_fields/4`
@@ -250,10 +292,10 @@ Processing flow:
   bare `%{fields: [...]}` map targeted at a relationship is rerouted through
   the same processor (`process_args_or_relationship_envelope/7`).
 - **Context map**: the trailing argument threaded through `FieldSelector` is a
-  `ctx` map (`%{manifest, enable_filter?, enable_sort?}`). `Pipeline` passes the
-  entrypoint's `enable_filter?`/`enable_sort?` via
-  `RequestedFieldsProcessor.process/5` opts; bare manifest atoms are still
-  accepted and normalized by `to_ctx/1`.
+  `ctx` map (`%{runtime, enable_filter?, enable_sort?, load_restrictions}`). `Pipeline`
+  passes the entrypoint's `enable_filter?`/`enable_sort?`/`load_restrictions` via
+  `RequestedFieldsProcessor.process/5` opts; `FieldSelector.process/5` merges them
+  over the defaults and adds the `runtime`.
 - **Validation** (`validate_query_opts!/7`, ordered): relationship → `:many`
   cardinality → RPC destination → no `args` → `page` vs pagination capability
   (decorated on the manifest relationship by `Manifest.Decorator`, read via
@@ -302,7 +344,21 @@ dual-nature encoding (the old `{:select, _}` / `{:both, _, _}` tuples are gone).
 
 ## Error Handling
 
-The `ErrorBuilder` module provides comprehensive error responses for all failure modes:
+`AshRpc.ErrorBuilder` maps pipeline reasons to error maps; Ash errors go through
+`AshRpc.Errors` (the `AshRpc.Error` protocol, then the profile's per-domain
+`error_handler` — `AshTypescript.RpcProfile` reads the domain's `typescript_rpc`
+`error_handler`/`show_raised_errors?`). Execution errors from `run_action` carry the
+resolved `domain/resource/action/context` scope, so domain handlers apply to them
+too (not only to validation). Policy breakdowns are added by `AshRpc.Errors` when
+`profile.show_policy_breakdowns?/0` is true.
+
+Validation (`AshRpc.Validation`) builds the query/changeset/action input natively —
+no AshPhoenix. Missing required inputs are `required` (`"attribute title is
+required"`), bad argument casts `invalid_argument`. Update/destroy targets are loaded
+with the entrypoint's `read_action`; atomic validations on update/destroy only run
+during `run_action`.
+
+Failure modes covered:
 
 - Field validation errors with exact paths
 - Missing required parameters
@@ -335,10 +391,13 @@ they previously carried raw Ash types. Elixir code pattern-matching on those tup
 
 ```elixir
 # In your Phoenix controller or LiveView
-# NOTE: run_action/3 returns a formatted map (@spec ... :: map()), never an
+# NOTE: run_action/4 returns a formatted map (@spec ... :: map()), never an
 # {:ok, _} / {:error, _} tuple. Match on the "success" key.
+# A LiveView socket isn't a %Phoenix.Socket{}; build the context explicitly.
 def handle_event("fetch_todos", params, socket) do
-  case AshTypescript.Rpc.run_action(:my_app, socket, params) do
+  ctx = %AshRpc.Context{actor: socket.assigns[:current_user]}
+
+  case AshRpc.run_action(AshTypescript.RpcProfile, ctx, params) do
     %{"success" => true, "data" => data} ->
       {:noreply, assign(socket, todos: data)}
 
@@ -352,13 +411,15 @@ end
 
 ```elixir
 # For custom processing needs
-with {:ok, request} <- Pipeline.parse_request(:my_app, conn, params),
-     {:ok, result} <- Pipeline.execute_ash_action(request),
-     {:ok, filtered} <- Pipeline.process_result(result, request) do
-  # Pass the request to format_output/2 for type-aware formatting.
-  # format_output/1 exists but is the non-type-aware variant (used only for
-  # error envelopes, which carry no resource types).
-  formatted = Pipeline.format_output(%{success: true, data: filtered}, request)
+runtime = AshRpc.Runtime.new(AshTypescript.RpcProfile)
+
+with {:ok, request} <-
+       AshRpc.Pipeline.parse_request(runtime, AshRpc.Context.from_conn(conn), params),
+     {:ok, result} <- AshRpc.Pipeline.execute_ash_action(request),
+     {:ok, filtered} <- AshRpc.Pipeline.process_result(result, request) do
+  # format_output/2 is type-aware; error envelopes go through
+  # AshRpc.error_response/3 / Pipeline.error_response/3 instead.
+  formatted = AshRpc.Pipeline.format_output(%{success: true, data: filtered}, request)
   json(conn, formatted)
 end
 ```
@@ -379,7 +440,8 @@ rpc_action :list_todos_no_filter, :read, enable_filter?: false  # Filter disable
 **When `enable_filter?: false`**:
 - **Codegen**: `supports_filtering` is set to `false` in action context
 - **TypeScript**: No `filter` field in generated config type
-- **Pipeline**: Filter dropped in Stage 1 (parse_request) - client filter ignored
+- **Pipeline**: A client `filter` is rejected in Stage 1 (parse_request) with
+  `filter_not_supported` (`details.reason: "disabled"`)
 - **Sorting**: Still available (`supports_sorting` is independent)
 
 #### `enable_sort?` Option
@@ -395,16 +457,18 @@ rpc_action :list_todos_minimal, :read, enable_filter?: false, enable_sort?: fals
 **When `enable_sort?: false`**:
 - **Codegen**: `supports_sorting` is set to `false` in action context
 - **TypeScript**: No `sort` field in generated config type
-- **Pipeline**: Sort dropped in Stage 1 (parse_request) - client sort ignored
+- **Pipeline**: A client `sort` is rejected in Stage 1 (parse_request) with
+  `sort_not_supported` (`details.reason: "disabled"`)
 - **Filtering**: Still available (`supports_filtering` is independent)
 
 **Implementation locations for both options**:
 - DSL schema: `lib/ash_typescript/rpc.ex` (RpcAction struct + schema)
 - Action context: `lib/ash_typescript/rpc/codegen/helpers/config_builder.ex:60-81`
 - Config generation: `lib/ash_typescript/rpc/codegen/function_generators/function_core.ex:175-181`
-- Pipeline drop: `lib/ash_typescript/rpc/pipeline.ex:181-185` — the flags are read at
-  runtime from the entrypoint decoration via `Custom.filtering_enabled?/1` and
-  `Custom.sorting_enabled?/1`, not from the `RpcAction` struct
+- Pipeline rejection: `AshRpc.Pipeline` (`validate_top_level_query_params/3`) —
+  the flags are read at runtime from `entrypoint.enable_filter?` / `entrypoint.enable_sort?`
+  (`%AshRpc.Entrypoint{}` built by `AshTypescript.RpcMappingSource.entrypoint/1`), not
+  from the `RpcAction` struct
 
 #### `allowed_loads` Option
 
@@ -504,9 +568,11 @@ mechanism. Ash policies apply to every load regardless of these options.
 
 **Implementation locations**:
 - DSL schema: `lib/ash_typescript/rpc.ex` (RpcAction struct + schema)
-- Decoration: `lib/ash_typescript/manifest/decorator.ex` (`load_restrictions/1`), read at
-  runtime via `AshTypescript.Manifest.Custom.load_restrictions/1`
-- Load validation: `lib/ash_typescript/rpc/load_restrictions.ex` (`normalize/1`,
+- Entrypoint: `lib/ash_typescript/rpc_mapping_source.ex` puts the spec on
+  `%AshRpc.Entrypoint{load_restrictions: …}`, read at runtime as
+  `entrypoint.load_restrictions` (codegen reads the `custom.ash_typescript` copy via
+  `AshTypescript.Manifest.Custom.load_restrictions/1`)
+- Load validation: `AshRpc.LoadRestrictions` (`normalize/1`,
   `check!/2`), called from `field_selector.ex` (`check_load_allowed!/3`) at each
   load-append site. `pipeline.ex` only normalizes the spec and passes it into
   field processing as the `:load_restrictions` opt.
@@ -526,6 +592,13 @@ config :ash_typescript,
 ```
 
 **Note**: Unconstrained map inputs and outputs bypass these formatters entirely.
+
+Formatters (and the global `not_found_error?`) are read once, when the manifest
+compiles — `AshTypescript.RpcMappingSource` returns them to the decorator and
+`AshTypescript.Manifest` tracks them with `Application.compile_env/3`. Runtime
+`put_env` has no effect; tests use `AshRpc.Manifest.redecorate(manifest,
+output_formatter: …)` plus the `manifest:` option (or `AshTypescript.with_manifest/2`
+for codegen/typed controllers).
 
 ### Multitenancy
 
@@ -575,9 +648,9 @@ def unconstrained_map_input?(action, arg_name) do
   end
 end
 
-# Output: classify the action's resolved returns type via ActionIntrospection.
-def unconstrained_map_output?(action) do
-  case ActionIntrospection.action_returns_field_selectable_type?(action) do
+# Output: classify the action's resolved returns type via AshRpc.Introspection.
+def unconstrained_map_output?(action, runtime) do
+  case AshRpc.Introspection.return_classification(action, runtime.type_lookup) do
     {:ok, type, _} when type in [:unconstrained_map, :array_of_unconstrained_map] -> true
     _ -> false
   end
@@ -595,7 +668,6 @@ end
 # Test unconstrained input processing
 mcp__tidewave__project_eval("""
 params = %{
-  "resource" => "DataProcessor",
   "action" => "process_raw_data",
   "input" => %{
     "raw_data" => %{
@@ -606,7 +678,8 @@ params = %{
   }
 }
 
-AshTypescript.Rpc.Pipeline.parse_request(:my_app, %{}, params)
+runtime = AshRpc.Runtime.new(AshTypescript.RpcProfile)
+AshRpc.Pipeline.parse_request(runtime, %AshRpc.Context{}, params)
 """)
 ```
 
@@ -635,21 +708,20 @@ Use Tidewave for step-by-step field processing debugging:
 ```elixir
 mcp__tidewave__project_eval("""
 fields = ["id", %{"user" => ["name"]}]
-AshTypescript.Rpc.RequestedFieldsProcessor.process(
-  AshTypescript.Test.Todo, :read, fields
-)
+runtime = AshRpc.Runtime.from_manifest(AshTypescript.manifest())
+atomized = AshRpc.RequestedFieldsProcessor.atomize_requested_fields(fields, AshTypescript.Test.Todo, runtime)
+AshRpc.RequestedFieldsProcessor.process(runtime, AshTypescript.Test.Todo, :read, atomized)
 # => {:ok, {[:id], [user: [:name]], [:id, {:user, [:name]}]}}
 """)
 ```
 
-`process/4` takes an optional 4th argument, the **manifest module** — it defaults to
-`AshTypescript.manifest_module()`. Pass an inline manifest module when debugging a
-scoped/test manifest.
+The first argument is an `AshRpc.Runtime`. For a scoped/test manifest, build it with
+`AshRpc.Runtime.from_manifest(AshTypescript.manifest(MyTest.InlineManifest))`.
 
 
 ## ValueFormatter: Unified Value Formatting
 
-The `ValueFormatter` module (`lib/ash_typescript/rpc/value_formatter.ex`) provides unified type-aware formatting for both input and output data. It is the core engine that handles recursive field name conversion throughout nested data structures.
+The `ValueFormatter` module (`AshRpc.ValueFormatter`) provides unified type-aware formatting for both input and output data. It is the core engine that handles recursive field name conversion throughout nested data structures.
 
 ### Design Principles
 
@@ -662,31 +734,28 @@ fallback clauses.
 
 | When `type` is... | Field types come from... | Field mappings come from... |
 |-------------------|--------------------------|----------------------------|
-| Ash Resource | `Ash.Info.Manifest.get_field_or_relationship/3` | `Custom.original_field_name/2` (input) / `FieldFormatter.format_field_for_client/3` → `Custom.formatted_field_name/3` (output) |
-| NewType/TypedStruct | `Type.find_field_type/2` | `Custom.type_field_name_mappings_pair/1`, falling back to `Helpers.typescript_field_names/1` |
+| Ash Resource | `Ash.Info.Manifest.get_field_or_relationship/3` | `AshRpc.Manifest.Custom.original_field_name/2` (input) / `AshRpc.FieldFormatter.format_field_for_client/3` (output) |
+| NewType/TypedStruct | `Type.find_field_type/2` | `AshRpc.Manifest.Custom.type_field_name_overrides_pair/1`, falling back to `AshRpc.Introspection.type_field_name_overrides/2` (→ `runtime.mapping_source.type_field_names/1`) |
 | `kind: :map` / `:struct` with fields | `Type.get_fields/1` + `Type.find_field_type/2` | Formatter only (no explicit mappings) |
 | `kind: :union` | `type_info.members` | Member-specific |
 
 ### API
 
 ```elixir
-@spec format(value, type, constraints, formatter, direction, resource_lookups, type_index) ::
-        formatted_value
+@spec format(value, type, constraints, direction, runtime) :: formatted_value
       when direction: :input | :output
 
 # `type`        - %Ash.Info.Manifest.Type{} | %...Field{} | %...Relationship{} | nil
-# `constraints` - UNUSED (kept for backward compatibility at call sites; pass [])
-# `resource_lookups` - the manifest resource lookup map (defaults to nil)
-# `type_index`  - reserved (defaults to %{})
+# `constraints` - UNUSED (kept for call-site compatibility; pass [])
+# `runtime`     - %AshRpc.Runtime{}: formatter for the direction + manifest lookups
 
-# Example usage — arity 5 still works via the defaults, and a bare resource
-# module resolves through the raw-atom fallback clause:
-ValueFormatter.format(
+# A bare resource module resolves through the raw-atom fallback clause:
+AshRpc.ValueFormatter.format(
   %{user_id: "123", color_palette: %{primary: "#fff"}},
   MyApp.Todo,
   [],
-  :camel_case,
-  :output
+  :output,
+  runtime
 )
 # => %{"userId" => "123", "colorPalette" => %{"primary" => "#fff"}}
 ```
@@ -695,10 +764,10 @@ ValueFormatter.format(
 
 | Category | Detection | Processing |
 |----------|-----------|------------|
-| **Named type reference** | `kind: :type_ref` | Resolves via `AshTypescript.type_lookup/0`, re-dispatches |
+| **Named type reference** | `kind: :type_ref` | Resolves via `runtime.type_lookup`, re-dispatches |
 | **Ash Resource / embedded** | `kind in [:resource, :embedded_resource]` | Formats each field using the manifest resource, respects `field_names` DSL |
 | **Struct/Map wrapping a resource** | `kind in [:struct, :map]` and `Type.effective_module/1` is an Ash resource | Same as Ash Resource |
-| **TypedStruct/NewType** | `Helpers.has_typescript_field_names?/1` | Uses decoration (or the `typescript_field_names/0` callback) for field mappings |
+| **TypedStruct/NewType** | `AshRpc.Introspection.type_field_name_overrides/2` non-nil | Uses decoration (or `runtime.mapping_source.type_field_names/1`) for field mappings |
 | **Map/Struct with fields** | `kind in [:struct, :map]` and `Type.has_fields?/1` | Formats using `Type.get_fields/1` |
 | **Tuple / Keyword** | `kind in [:tuple, :keyword]` | Formats using field specs |
 | **Union** | `kind: :union` | Identifies member from `type_info.members`, formats recursively |
@@ -713,19 +782,19 @@ ValueFormatter.format(
 │                        RPC Pipeline                             │
 ├─────────────────────────────────────────────────────────────────┤
 │  Stage 1: Parse Request                                         │
-│     └─> InputFormatter.format/6                                 │
-│            └─> ValueFormatter.format(value, type, [], formatter,│
-│                                      :input, resource_lookups)  │
+│     └─> InputFormatter.format/4                                 │
+│            └─> ValueFormatter.format(value, type, [], :input,   │
+│                                      runtime)                   │
 ├─────────────────────────────────────────────────────────────────┤
 │  Stage 4: Format Output                                         │
-│     └─> OutputFormatter.format/6                                │
-│            └─> ValueFormatter.format(value, type, [], formatter,│
-│                                      :output, resource_lookups) │
+│     └─> Pipeline.format_output/2 (no OutputFormatter module)    │
+│            └─> ValueFormatter.format(value, type, [], :output,  │
+│                                      runtime)                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-`InputFormatter.format/6` and `OutputFormatter.format/6` each take 4 required args
-plus 2 defaults (`resource_lookups`, `type_index`), so `/4` remains callable.
+`InputFormatter.format/4` takes `(data, resource, action, runtime)`; output formatting
+calls `ValueFormatter.format/5` directly from `Pipeline.format_output/2`.
 
 ### Recursive Type Resolution
 
@@ -735,9 +804,9 @@ type context. For a resource it looks each key up in the manifest:
 ```elixir
 # In format_resource/5:
 field_or_rel =
-  Ash.Info.Manifest.get_field_or_relationship(resource_lookups, resource, internal_key)
+  Ash.Info.Manifest.get_field_or_relationship(runtime.resource_lookup, resource, internal_key)
 
-# The result is passed straight back into format/7, which has dedicated clauses for
+# The result is passed straight back into format/5, which has dedicated clauses for
 # %Ash.Info.Manifest.Field{} (unwraps :type) and %Ash.Info.Manifest.Relationship{}.
 # Relationship cardinality is handled by clause matching, not by synthesizing a type:
 # - cardinality: :many -> Enum.map over the list, formatting each as `destination`
@@ -773,18 +842,26 @@ input = %{
 
 ## Key Files
 
-- `lib/ash_typescript/rpc/pipeline.ex` - Four-stage orchestration
-- `lib/ash_typescript/rpc/requested_fields_processor.ex` - Field processing entry point (delegator)
-- `lib/ash_typescript/rpc/field_processing/` - Type-driven field processing:
+- `AshRpc` - Public entry points (`run_action/4`, `validate_action/4`, `error_response/3`, `failure_response/3`)
+- `AshRpc.Runtime` / `AshRpc.Entrypoint` / `AshRpc.Context` - Threaded runtime, per-action contract, transport context
+- `AshRpc.Profile` / `AshRpc.MappingSource` - Extension behaviours (impls: `lib/ash_typescript/rpc_profile.ex`, `lib/ash_typescript/rpc_mapping_source.ex`)
+- `AshRpc.Plug` / `AshRpc.Channel` - Transport helpers
+- `AshRpc.Validation` - Native `validate_action`
+- `AshRpc.Introspection` - Runtime action/type introspection (`get_action!/3`)
+- `AshRpc.Manifest`, `AshRpc.Manifest.*` - `custom.ash_rpc` decoration, lookups, `redecorate/2`
+- `AshRpc.Pipeline` - Four-stage orchestration
+- `AshRpc.RequestedFieldsProcessor` - Field processing entry point (delegator)
+- `AshRpc.FieldProcessing.*` - Type-driven field processing:
   - `atomizer.ex` - Client→internal field name conversion
   - `field_selector.ex` - **Unified type-driven field selection** (mirrors `ValueFormatter` pattern)
   - `field_selector/validation.ex` - Field validation helpers
-- `lib/ash_typescript/rpc/result_processor.ex` - Template-based result extraction
-- `lib/ash_typescript/rpc/value_formatter.ex` - **Unified type-aware value formatting**
-- `lib/ash_typescript/rpc/input_formatter.ex` - Input formatting (delegates to ValueFormatter)
-- `lib/ash_typescript/rpc/output_formatter.ex` - Output formatting (delegates to ValueFormatter)
-- `lib/ash_typescript/rpc/request.ex` - Request data structure
-- `lib/ash_typescript/rpc/error_builder.ex` - Comprehensive error handling
+- `AshRpc.ResultProcessor` - Template-based result extraction
+- `AshRpc.ValueFormatter` - **Unified type-aware value formatting**
+- `AshRpc.InputFormatter` - Input formatting (delegates to ValueFormatter); output
+  formatting calls ValueFormatter directly from `pipeline.ex`
+- `AshRpc.Request` - Request data structure
+- `AshRpc.ErrorBuilder` - Pipeline-reason error maps
+- `AshRpc.Errors`, `AshRpc.Error` - Ash error → wire map (protocol, handlers, policy breakdowns)
 
 ## Testing
 

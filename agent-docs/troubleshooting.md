@@ -94,9 +94,10 @@ iex -S mix                   # One-off debugging
 ### Field Selection Issues
 ```elixir
 mcp__tidewave__project_eval("""
-fields = ["id", %{"user" => ["name"]}]
-AshTypescript.Rpc.RequestedFieldsProcessor.process(
-  AshTypescript.Test.Todo, :read, fields
+runtime = AshRpc.Runtime.from_manifest(AshTypescript.manifest())
+fields = [:id, %{user: [:name]}]
+AshRpc.RequestedFieldsProcessor.process(
+  runtime, AshTypescript.Test.Todo, :read, fields
 )
 """)
 # => {:ok, {[:id], [user: [:name]], [:id, {:user, [:name]}]}}
@@ -122,7 +123,7 @@ AshTypescript.Codegen.generate_all_schemas_for_resources(resources, resources, [
 mcp__tidewave__project_eval("""
 conn = %Plug.Conn{} |> Plug.Conn.put_private(:ash, %{actor: nil, tenant: nil})
 params = %{"action" => "list_todos", "fields" => ["id", "title"]}
-AshTypescript.Rpc.run_action(:ash_typescript, conn, params)
+AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 """)
 ```
 

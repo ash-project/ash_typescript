@@ -110,8 +110,8 @@ Key architectural decisions and their reasoning for AI assistant context.
 **Key Modules Created**:
 - `lib/ash_typescript/type_system/introspection.ex` - Centralized type introspection
 - `lib/ash_typescript/codegen/` - focused modules (type_discovery, type_aliases, type_mapper, resource_schemas, helpers, schema_core, schema_formatter, filter_types); reachability in `Ash.Info.Manifest.Generator.Reachability` (ash core)
-- `lib/ash_typescript/rpc/value_formatter.ex` - Unified type-aware value formatting
-- `lib/ash_typescript/rpc/field_processing/` - 3 specialized modules (atomizer, field_selector, field_selector/validation)
+- `AshRpc.ValueFormatter` - Unified type-aware value formatting
+- `AshRpc.FieldProcessing.*` - 3 specialized modules (atomizer, field_selector, field_selector/validation)
 - `lib/ash_typescript/resource/verifiers/` - Organized verifier modules
 **Benefits**: Single source of truth, better separation of concerns, improved maintainability, zero breaking changes
 
@@ -137,7 +137,7 @@ Key architectural decisions and their reasoning for AI assistant context.
 **Why**: Performance issues, unclear separation of concerns, difficult debugging
 **Impact**: 50%+ performance improvement, clean separation, fail-fast validation
 **Pipeline Stages**: parse_request → execute_ash_action → process_result → format_output
-**Key Files**: `lib/ash_typescript/rpc/pipeline.ex`, `lib/ash_typescript/rpc/requested_fields_processor.ex`
+**Key Files**: `AshRpc.Pipeline`, `AshRpc.RequestedFieldsProcessor`
 
 ## 2025-08-01: Tidewave MCP Integration
 

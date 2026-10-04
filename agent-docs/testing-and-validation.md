@@ -227,9 +227,10 @@ defmodule MyTest.InlineManifest do
 end
 ```
 
-Pass it explicitly where an API accepts one — e.g.
-`RequestedFieldsProcessor.process/4`'s 4th argument (defaults to the configured
-production manifest module) or `AshTypescript.Manifest.verify_for_domains/1`.
+Pass it explicitly where an API accepts one — e.g. build a runtime with
+`AshRpc.Runtime.from_manifest(AshTypescript.manifest(MyTest.InlineManifest))` for
+`AshRpc.RequestedFieldsProcessor.process/5`, pass `manifest:` to
+`AshRpc.run_action/4`, or use `AshTypescript.Manifest.verify_for_domains/1`.
 See `test/ash_typescript/manifest/` for worked examples.
 
 ## Asserting on Generated TypeScript in Elixir Tests
@@ -368,12 +369,16 @@ if (result.success) {
 
 Two things to get right in RPC-level tests:
 
-- **There is no `"resource"` param.** `Pipeline.discover_action/2` dispatches on
-  `params["action"]` (or `params["typed_query_action"]`) alone — RPC action
-  names are globally unique entrypoints resolved through
-  `AshTypescript.rpc_action_lookup/0`.
-- **The second argument must be a `%Plug.Conn{}` or `%Phoenix.Socket{}.`**
-  Passing a bare `%{}` raises `CaseClauseError`.
+- **There is no `"resource"` param.** `AshRpc.Pipeline.parse_request/4` resolves
+  the `AshRpc.Entrypoint` from `params["action"]` alone — RPC action names are
+  globally unique entrypoints in `manifest.custom.ash_rpc.entrypoints`. There is no
+  separate typed-query wire param (a request without `action` gets
+  `missing_required_parameter` for `action`); typed queries run server-side via
+  `AshTypescript.run_typed_query/4`, which passes the entrypoint with the
+  `entrypoint:` option.
+- **The source must be a `%Plug.Conn{}`, `%Phoenix.Socket{}` or
+  `%AshRpc.Context{}`.** `AshRpc.Context.from_source/1` has no clause for a bare
+  `%{}`.
 
 ```elixir
 test "runs an action through the full pipeline" do
@@ -384,15 +389,34 @@ test "runs an action through the full pipeline" do
     "fields" => ["id", "title"]
   }
 
-  result = AshTypescript.Rpc.run_action(:ash_typescript, conn, params)
+  result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
   assert result["success"] == true
   assert is_list(result["data"])
 end
 
 # Inspecting a single stage instead of the whole pipeline
-{:ok, request} =
-  AshTypescript.Rpc.Pipeline.parse_request(:ash_typescript, %Plug.Conn{}, params)
+runtime = AshRpc.Runtime.new(AshTypescript.RpcProfile)
+ctx = AshRpc.Context.from_conn(conn)
+{:ok, request} = AshRpc.Pipeline.parse_request(runtime, ctx, params)
+```
+
+### Varying formatters and `not_found_error?` in tests
+
+Formatters and the global `not_found_error?` are baked into the manifest at
+compile time — `Application.put_env/3` in a test has **no effect**. Instead,
+build a re-decorated manifest and pass it explicitly (both are `async: true`
+safe):
+
+```elixir
+manifest = AshRpc.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :pascal_case)
+
+# Runtime (run_action / validate_action / run_typed_query)
+AshRpc.run_action(AshTypescript.RpcProfile, conn, params, manifest: manifest)
+
+# Codegen, typed controllers, typed channels: process-scoped override
+AshTypescript.with_manifest(manifest, fn -> ... end)
+CodegenTestHelper.generate_all_content(:ash_typescript, manifest: manifest)
 ```
 
 For unconstrained/untyped map coverage, follow the existing suites rather than

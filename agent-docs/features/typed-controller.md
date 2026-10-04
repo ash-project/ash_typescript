@@ -78,8 +78,8 @@ end
 4. **Extract** only declared arguments — undeclared params are dropped
 5. **Fill** missing params from the argument's `default` (or `nil`) — a missing required
    argument (`allow_nil?: false`) is a 422 error
-6. **Format + cast** values. `ValueFormatter.format(value, arg.type, arg.constraints,
-   input_field_formatter, :input, resource_lookup)` maps nested client keys back, the
+6. **Format + cast** values. `AshRpc.ValueFormatter.format(value, arg.type, arg.constraints,
+   :input, AshRpc.Runtime.from_manifest(AshTypescript.manifest()))` maps nested client keys back, the
    same type-driven path RPC inputs use: typed maps, `typescript_field_names`, embedded
    resources, union unwrapping (a thrown union error → "is invalid"). Untyped maps pass
    through unchanged. Then `Ash.Type.cast_input/3` runs; invalid → 422 error
@@ -91,13 +91,21 @@ end
 9. **Dispatch** to handler with atom-keyed params map: `fn.(conn, params)` or `module.run(conn, params)`.
    The route struct is stored in `conn.private[:ash_typescript_route]` for
    `AshTypescript.TypedController.json/2` / `format_result/2`, which format a result with
-   `ValueFormatter` (`:output`, `output_field_formatter`) against `route.returns`
+   `AshRpc.ValueFormatter` (`:output`, the manifest's output formatter) against `route.returns`
 10. **Return** the `%Plug.Conn{}` directly — no `{:ok, conn}` wrapping needed
 
 Steps 6–8 mirror Ash's action-argument semantics exactly — the same cast → constrain →
 nil-check sequence Ash runs for resource action arguments.
 
 All validation errors are collected in a single pass so the client receives every issue at once.
+
+Formatters come from the manifest (`AshTypescript.input_field_formatter/0` /
+`output_field_formatter/0` read it, honouring `AshTypescript.with_manifest/2`), so they
+are fixed at compile time. Tests vary them with
+`AshTypescript.with_manifest(AshRpc.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :pascal_case), fn -> ... end)`
+rather than `Application.put_env/3`. Errors are formatted with `AshRpc.ErrorFormatter`.
+Undecorated types (route-only NewTypes) get their `typescript_field_names/0` mappings via
+`runtime.mapping_source.type_field_names/1` (`AshRpc.Introspection.type_field_name_overrides/2`).
 
 Handlers **must** return `%Plug.Conn{}` — the request handler returns a 500 JSON error if they return anything else.
 
@@ -414,8 +422,9 @@ routes return `Promise<TypedControllerResponse<{Route}Result>>` instead of
   `Orchestrator.generate/2` re-runs them through `VerifierChecker` for every configured
   typed controller and typed channel (independent of RPC output), so codegen fails.
 - **Route-only named types.** A NewType referenced only by routes isn't in the manifest
-  type lookup. `Introspection.named_type_definition/1` (used by `TypeMapper`, `SchemaCore`,
-  `ValueFormatter`) falls back to `TypeResolver.resolve_definition/1` for such types.
+  type lookup. `AshTypescript.TypeSystem.Introspection.named_type_definition/1` (used by
+  `TypeMapper`, `SchemaCore`) and `AshRpc.Introspection.named_type_definition/2` (used by
+  `AshRpc.ValueFormatter`) fall back to `TypeResolver.resolve_definition/1` for such types.
 - The type comes from `TypeMapper.map_route_result_type/2`: plain wire types (no
   `__type`/`__primitiveFields` field-selection metadata). It recurses through arrays
   and typed maps/structs, applying `typescript_field_names` and the output field
@@ -430,7 +439,7 @@ routes return `Promise<TypedControllerResponse<{Route}Result>>` instead of
   `returns`, as Ash does for action arguments. This merges a NewType's own constraints
   (its `fields`) and resolves nested field types (`:uuid` → `Ash.Type.UUID`). Without it,
   casting silently skips nested values of NewType arguments.
-- `ValueFormatter`'s `:type_ref` dispatch falls back to
+- `AshRpc.ValueFormatter`'s `:type_ref` dispatch falls back to
   `TypeResolver.resolve_definition/1` for named types missing from the manifest (types
   used only by typed controllers).
 - Result types are listed in namespace re-exports (`:type`), the JSON manifest

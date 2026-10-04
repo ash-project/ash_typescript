@@ -31,13 +31,14 @@ runtime RPC pipeline both read all action/resource/type shape from it.
 
 ```elixir
 # Explore module exports
-mcp__tidewave__project_eval("AshTypescript.Rpc.Pipeline.__info__(:functions)")
+mcp__tidewave__project_eval("AshRpc.Pipeline.__info__(:functions)")
 
 # Test functions in context
 mcp__tidewave__project_eval("""
-fields = ["id", %{"user" => ["name"]}]
-AshTypescript.Rpc.RequestedFieldsProcessor.process(
-  AshTypescript.Test.Todo, :read, fields
+runtime = AshRpc.Runtime.from_manifest(AshTypescript.manifest())
+fields = [:id, %{user: [:name]}]
+AshRpc.RequestedFieldsProcessor.process(
+  runtime, AshTypescript.Test.Todo, :read, fields
 )
 """)
 

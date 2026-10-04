@@ -128,7 +128,7 @@ Aliases are emitted by `codegen/type_aliases.ex`. Zod/Valibot have parallel
 - `lib/ash_typescript/manifest/verifiers/verify_mappable_types.ex` - Compile-time unmappable-type check
 - `lib/ash_typescript/type_system/introspection.ex` - Type introspection and classification
 - `lib/ash_typescript/rpc/codegen.ex` - RPC client generation
-- `lib/ash_typescript/rpc/value_formatter.ex` - Unified type-aware value formatting
+- `AshRpc.ValueFormatter` - Unified type-aware value formatting
 - Generated schemas use metadata patterns for efficient inference
 
 Reachability is **not** in this repo — it lives in `Ash.Info.Manifest.Generator.Reachability`
@@ -180,8 +180,7 @@ end
 def is_custom_type?(_), do: false
 ```
 
-Callers: `codegen/type_aliases.ex`, `codegen/type_mapper.ex`, `codegen/schema_core.ex`,
-`rpc/validation_error_schemas.ex`.
+Callers: `codegen/type_aliases.ex`, `codegen/type_mapper.ex`, `codegen/schema_core.ex`.
 
 ### Type Name Resolution
 

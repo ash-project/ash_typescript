@@ -134,9 +134,9 @@ Fixture: `Todo.metadata_report` calculation (`test/support/resources/todo.ex`). 
 - `lib/ash_typescript/codegen/resource_schemas.ex` - Schema generation & field classification
 - `lib/ash_typescript/codegen/type_mapper.ex` - TypedMap member wrappers, `__primitiveFields`
 - `lib/ash_typescript/type_system/introspection.ex` - Type introspection (`is_embedded_resource?/1`)
-- `lib/ash_typescript/rpc/requested_fields_processor.ex` - Entry point (delegator)
-- `lib/ash_typescript/rpc/field_processing/field_selector.ex` - Field selection parsing and validation
-- `lib/ash_typescript/rpc/result_processor.ex` - Result processing
+- `AshRpc.RequestedFieldsProcessor` - Entry point (delegator)
+- `AshRpc.FieldProcessing.FieldSelector` - Field selection parsing and validation
+- `AshRpc.ResultProcessor` - Result processing
 - `test/support/resources/embedded/` - Fixtures (`TodoMetadata`, `TaskMetadata`, `TodoContent.*`)
 
 ## Critical Implementation Details
