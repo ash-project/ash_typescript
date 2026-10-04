@@ -204,7 +204,7 @@ defmodule AshTypescript.MixProject do
   defp deps do
     [
       {:ash, ash_version("~> 3.27")},
-      {:ash_rpc, path: "../ash_rpc"},
+      {:ash_rpc, github: "ash-project/ash_rpc", branch: "main"},
       {:ash_authentication, "~> 4.0", optional: true},
       {:phoenix, "~> 1.7"},
       {:ash_postgres, "~> 2.0", only: [:dev, :test]},
