@@ -128,7 +128,6 @@ Aliases are emitted by `codegen/type_aliases.ex`. Zod/Valibot have parallel
 - `lib/ash_typescript/manifest/verifiers/verify_mappable_types.ex` - Compile-time unmappable-type check
 - `lib/ash_typescript/type_system/introspection.ex` - Type introspection and classification
 - `lib/ash_typescript/rpc/codegen.ex` - RPC client generation
-- `AshRpc.ValueFormatter` - Unified type-aware value formatting
 - Generated schemas use metadata patterns for efficient inference
 
 Reachability is **not** in this repo — it lives in `Ash.Info.Manifest.Generator.Reachability`
@@ -277,23 +276,14 @@ Custom types integrate at multiple levels:
 **Critical**: Actions that accept or return unconstrained maps (`:map` type without specific constraints) bypass standard type processing and field formatting systems.
 
 ### Input Map Behavior
-When an action input is an unconstrained map:
-- **No type constraints applied**: Any arbitrary map structure is accepted
-- **No field name formatting**: Input field names are passed through as-is without applying `input_field_formatter`
-- **No validation**: Standard input validation is bypassed
 
-```elixir
-# Action with unconstrained map input
-action :process_data, :map do
-  argument :raw_data, :map  # Unconstrained map - no field formatting
-end
-```
+> **Runtime:** keys pass through as-is.
 
 ### Output Map Behavior
 When an action returns an unconstrained map:
 - **No fields parameter**: The `fields` parameter is removed from generated function signature
-- **No field selection**: Entire map is returned without field selection processing
-- **No field name formatting**: Output field names are returned as-is without applying `output_field_formatter`
+
+> **Runtime:** the whole map comes back with its keys unchanged.
 
 ```typescript
 // Generated function for unconstrained map output
@@ -314,9 +304,6 @@ type ProcessDataResult = {
 
 ### Type Generation Implications
 - **Schema Generation**: Unconstrained maps generate `Record<string, any>` (the default of `AshTypescript.untyped_map_type/0` — configurable via `config :ash_typescript, untyped_map_type:`)
-- **Field Classification**: Skipped during field processing
-- **Template Building**: No extraction template created for unconstrained outputs
-- **Performance**: Minimal overhead as field processing is bypassed
 
 ### Testing Considerations
 When testing actions with unconstrained maps:

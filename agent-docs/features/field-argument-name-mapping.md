@@ -82,27 +82,7 @@ typescript do
 end
 ```
 
-### Runtime Behavior
-
-**Bidirectional mapping** is applied automatically:
-
-```elixir
-# Input mapping (TypeScript → Elixir)
-AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
-  "action" => "create_user",
-  "input" => %{
-    "addressLine1" => "123 Main St"  # Mapped to :address_line_1
-  }
-})
-
-# Output mapping (Elixir → TypeScript)
-result = %{
-  "success" => true,
-  "data" => %{
-    "addressLine1" => "123 Main St"  # Original :address_line_1 mapped
-  }
-}
-```
+> **Runtime:** input and output both use the mapped name.
 
 ## Action Argument Mapping with `argument_names`
 
@@ -149,18 +129,7 @@ searchUsers({
 })
 ```
 
-### Runtime Behavior
-
-**Input-only mapping** (arguments are only sent to server):
-
-```elixir
-AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
-  "action" => "read_with_filter",
-  "input" => %{
-    "isActive" => true  # Mapped to :is_active?
-  }
-})
-```
+> **Runtime:** clients send the mapped name (`isActive`); the action receives `:is_active?`.
 
 ## Custom Type Field Mapping with `typescript_field_names/0`
 
@@ -373,34 +342,11 @@ Field/argument mapping affects:
    - Function signatures use mapped argument names
    - Field selection syntax uses mapped field names
 
-### RPC Pipeline
+### Runtime
 
-Mapping is handled in the RPC pipeline via the unified `ValueFormatter`:
-
-1. **Input Formatting** (`AshRpc.InputFormatter`)
-   - `InputFormatter.format/4` (`data, resource, action, runtime`) delegates to `ValueFormatter.format/5` with direction `:input`
-   - Maps TypeScript field/argument names → Elixir names
-   - Applies before Ash action execution
-
-2. **Output Formatting** (`AshRpc.Pipeline`, `format_output/2`)
-   - Calls `ValueFormatter.format/5` with direction `:output` directly (there is no `OutputFormatter` module)
-   - Maps Elixir field names → TypeScript names
-   - Applies after result processing
-
-**Where the mappings come from**: all lookups read *precomputed decoration* off
-the manifest — never live resource introspection. Client names are supplied at
-decoration time by `AshTypescript.RpcMappingSource` (the `AshRpc.MappingSource`
-implementation reading the `typescript` resource DSL `field_names` /
-`argument_names` and types' `typescript_field_names/0`), and
-`AshRpc.Manifest.Decorator` writes them under `custom.ash_rpc`. The runtime reads
-them through `AshRpc.Manifest.Custom` off the `AshRpc.Runtime` lookups:
-
-| Direction | Call |
-|-----------|------|
-| Client name → internal atom (resource field) | `AshRpc.Manifest.Custom.original_field_name/2` |
-| Internal atom → client name (resource field) | `AshRpc.FieldFormatter.format_field_for_client/3` → `Custom.field_names/1` / `field_name_override/2` |
-| Action argument names | `Custom.original_argument_name/3` / `Custom.argument_name_override/3` |
-| `typescript_field_names/0` types | `AshRpc.Introspection.type_field_name_overrides/2` (`type_lookup` decoration, falling back to `runtime.mapping_source.type_field_names/1` for undecorated types) |
+The mappings reach the runtime through `AshTypescript.RpcMappingSource`: `field_names/1`,
+`argument_names/2` and `type_field_names/1` supply client names when the manifest is decorated
+(see [rpc-integration.md](rpc-integration.md)).
 
 Codegen still reads the `custom.ash_typescript` decoration through
 `AshTypescript.Manifest.Custom` (`formatted_field_name/3`, `mapped_argument_name/3`,
@@ -532,11 +478,7 @@ end
 | `lib/ash_typescript/codegen/resource_schemas.ex` | Resource schema generation with mapped names |
 | `lib/ash_typescript/codegen/type_mapper.ex` | TypeScript type mapping |
 | `lib/ash_typescript/rpc_mapping_source.ex` | `AshRpc.MappingSource` impl — supplies client names to the `custom.ash_rpc` decoration |
-| `AshRpc.Manifest.Custom` | Runtime accessors for the `custom.ash_rpc` decoration (`field_names/1`, `original_field_name/2`, `argument_name_override/3`, `original_argument_name/3`, …) |
 | `lib/ash_typescript/manifest/custom.ex` | **Codegen-side decoration accessors** (`custom.ash_typescript`) — `field_name_mappings/1`, `mapped_field_name/2`, `original_field_name/2`, `formatted_field_name/3`, `mapped_argument_name/3`, `original_argument_name/3`, `type_field_name_mappings_pair/1` |
-| `AshRpc.FieldFormatter` | `format_field_for_client/3` — output-side name resolution |
-| `AshRpc.ValueFormatter` | Unified type-aware formatting (input/output) |
-| `AshRpc.InputFormatter` | Input formatting (TS → Elixir, delegates to ValueFormatter) |
 | `lib/ash_typescript/codegen/zod_schema_generator.ex` | Zod schema with mapped names |
 | `test/ash_typescript/rpc/rpc_field_argument_mapping_test.exs` | End-to-end mapping tests |
 | `test/support/resources/user.ex` | Example resource with mappings |
@@ -634,6 +576,8 @@ field_names address_line_1: :address_line1
 field_names address_line_1: "addressLine1"
 ```
 
+A stale manifest serves stale mappings to both codegen and the runtime. If the manifest module didn't recompile, force it with `mix compile --force`.
+
 ### Mapped Names Still Invalid
 
 **Problem**: Replacement name is also invalid
@@ -658,17 +602,14 @@ field_names address_line_1: "addressLine1"
 
 ### Runtime Mapping Not Working
 
-**Problem**: Input/output uses original names instead of mapped names
+**Problem**: Requests or responses use the original names instead of the mapped names
 
 **Solution**:
-1. Verify resource has `AshTypescript.Resource` extension
-2. Inspect the *manifest* decoration, not live resource info — the runtime reads only
-   the manifest:
+1. Verify the resource has the `AshTypescript.Resource` extension
+2. Inspect the manifest decoration, not live resource info. The runtime reads client names
+   only from the manifest:
    ```elixir
    AshTypescript.Manifest.Custom.resolve_resource(MyApp.User)
    |> AshTypescript.Manifest.Custom.field_name_mappings()
    ```
-   (`Ash.Resource.Info` will happily show a field the pipeline cannot see.)
-3. Confirm the manifest module actually recompiled — a stale manifest serves stale
-   mappings. Force it with `mix compile --force` if in doubt.
-4. Ensure RPC pipeline is used (not direct Ash.Query)
+3. If the mapping is missing there, the manifest is stale: force a recompile with `mix compile --force`

@@ -198,31 +198,7 @@ if (created.success) {
 }
 ```
 
-### Runtime Behavior
-
-**Bidirectional mapping** is applied automatically:
-
-```elixir
-# Input mapping (TypeScript → Elixir)
-AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
-  "action" => "read_data",
-  "fields" => ["id", "title"],
-  "metadataFields" => ["field1", "isCached"]  # Mapped to [:field_1, :is_cached?]
-})
-
-# Output mapping (Elixir → TypeScript)
-result = %{
-  "success" => true,
-  "data" => [
-    %{
-      "id" => "123",
-      "title" => "Task",
-      "field1" => "value",      # Mapped from :field_1
-      "isCached" => true        # Mapped from :is_cached?
-    }
-  ]
-}
-```
+> **Runtime:** clients send and receive the mapped names (`isCached`).
 
 ## Verification System
 
@@ -316,35 +292,9 @@ Metadata mapping affects:
    - Type inference based on selected metadata fields
    - Entry point: `lib/ash_typescript/codegen.ex` (delegator)
 
-### RPC Pipeline
+### Runtime
 
-All metadata handling lives in `AshRpc.Pipeline`. Note that
-`request.ex` is a bare struct (no metadata logic) and `result_processor.ex` touches
-metadata only for keyset pagination (`__metadata__.keyset`).
-
-1. **Request Parsing** (`pipeline.ex:115-175`)
-   - Reads the `metadataFields` param (normalized to `:metadata_fields`)
-   - Maps TypeScript names → Elixir names via
-     `AshTypescript.Manifest.Custom.reverse_metadata_field_mappings/1`
-   - Filters against `Custom.exposed_metadata_fields/1` (the decorated
-     `show_metadata` resolution); result is stored on `request.show_metadata`
-   - Read actions default to `[]` when the param is absent; mutations default to all
-     exposed fields
-
-2. **Metadata Attachment** (`pipeline.ex` `add_metadata/3`, ~L1374)
-   - `:read` → `add_read_metadata/5` merges fields into each record (handles bare
-     lists, single maps, and paginated `%{results: [...]}`)
-   - `:create` / `:update` / `:destroy` → `add_mutation_metadata/5` builds the
-     separate `metadata` map
-
-3. **Name Lookup** (`lib/ash_typescript/rpc/info.ex`)
-   - `get_mapped_metadata_field_name/2` (Elixir → client) and
-     `get_original_metadata_field_name/2` (client → Elixir)
-   - Also used by the verifier
-
-4. **Output Formatting** (`pipeline.ex:982-997`)
-   - Applies the output formatter to the top-level metadata envelope keys; values were
-     already formatted by `ValueFormatter` during attachment
+`show_metadata` → `entrypoint.exposed_metadata_fields`, `metadata_field_names` → `entrypoint.metadata_field_names` ([rpc-integration.md](rpc-integration.md)).
 
 ## Testing Strategy
 
@@ -474,11 +424,10 @@ end
 |------|---------|
 | `lib/ash_typescript/rpc.ex` | DSL definition for show_metadata and metadata_field_names |
 | `lib/ash_typescript/manifest/verifiers/verify_metadata_field_names.ex` | Metadata name **and** conflict verification (runs at manifest-module compile) |
-| `lib/ash_typescript/manifest/custom.ex` | `exposed_metadata_fields/1`, `metadata_field_mappings/1`, `reverse_metadata_field_mappings/1` |
+| `lib/ash_typescript/manifest/custom.ex` | Codegen-side accessors: `exposed_metadata_fields/1`, `metadata_field_mappings/1`, `reverse_metadata_field_mappings/1` |
 | `lib/ash_typescript/rpc/codegen/type_generators/metadata_types.ex` | `get_exposed_metadata_fields/2`, `metadata_enabled?/1`, metadata TS types |
 | `lib/ash_typescript/rpc/info.ex` | `get_mapped_metadata_field_name/2` / `get_original_metadata_field_name/2` |
 | `lib/ash_typescript/rpc/codegen.ex` | RPC client generation with metadata support |
-| `AshRpc.Pipeline` | metadataFields parsing, merging (`add_metadata/3`), envelope formatting |
 | `test/ash_typescript/rpc/verify_metadata_field_names_test.exs` | Verifier tests |
 | `test/ash_typescript/rpc/rpc_metadata_test.exs` | End-to-end metadata tests |
 | `test/ts/shouldPass/metadata.ts` | TypeScript compilation tests |
@@ -637,9 +586,10 @@ Also check the value type: mapped names must be **strings**, not atoms.
 
 **Solution**:
 1. Verify `show_metadata` is configured (not `false` or `[]`)
-2. For read actions: ensure `metadataFields` parameter is provided
-3. Check action actually sets metadata values
-4. Verify metadata field names match action definition
+2. Verify metadata field names match action definition
+3. Verify `metadata_field_names` is correctly configured in the `rpc_action`
+
+> **Runtime:** read actions return metadata only for names listed in `metadataFields`, and only values the action actually sets.
 
 ### Metadata Conflicts with Resource Fields
 
@@ -664,13 +614,3 @@ rpc_action :read_data, :read_with_metadata,
 2. Check `show_metadata` is not `false` or `[]`
 3. Ensure TypeScript project imports latest generated code
 4. Verify metadata fields are in exposed list
-
-### Runtime Mapping Not Working
-
-**Problem**: Response uses Elixir names instead of mapped names
-
-**Solution**:
-1. Verify resource has `AshTypescript.Resource` extension
-2. Check metadata field exists in action metadata definitions
-3. Ensure using RPC pipeline (`AshRpc.run_action/4` with `AshTypescript.RpcProfile`)
-4. Verify mapping is correctly configured in rpc_action

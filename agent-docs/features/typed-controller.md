@@ -78,8 +78,8 @@ end
 4. **Extract** only declared arguments — undeclared params are dropped
 5. **Fill** missing params from the argument's `default` (or `nil`) — a missing required
    argument (`allow_nil?: false`) is a 422 error
-6. **Format + cast** values. `AshRpc.ValueFormatter.format(value, arg.type, arg.constraints,
-   :input, AshRpc.Runtime.from_manifest(AshTypescript.manifest()))` maps nested client keys back, the
+6. **Format + cast** values. `AshRpc.ValueFormatter` (`:input`, a runtime built from
+   `AshTypescript.manifest()`) maps nested client keys back, the
    same type-driven path RPC inputs use: typed maps, `typescript_field_names`, embedded
    resources, union unwrapping (a thrown union error → "is invalid"). Untyped maps pass
    through unchanged. Then `Ash.Type.cast_input/3` runs; invalid → 422 error

@@ -52,9 +52,6 @@ def classify_by_type(%Ash.Info.Manifest.Type{kind: :struct} = type_info) do
 end
 ```
 
-The runtime equivalent is `FieldSelector.classify_attribute_category_from_type/2`, which
-returns `:embedded_resource` for the same kinds.
-
 ### Integration Pattern
 
 Embedded resources are **not** merged into a relationship schema — no `*RelationshipSchema`
@@ -80,21 +77,7 @@ Aggregates over embedded types reference `AttributesOnlySchema` instead of
 
 ## Field Selection Support
 
-Embedded resources use the same syntax as relationships:
-
-- Direct field selection: `{"metadata": ["category", "priorityScore"]}`
-- Argumentless calculations select as plain names: `{"metadata": ["displayCategory", "isOverdue"]}`
-- Calculations with arguments use the args/fields map:
-  `{"metadata": [{"adjustedPriority": {"args": {"urgencyMultiplier": 2}}}]}`
-- Nested selection: full relationship-like field selection capabilities
-
-Only `args` and `fields` are recognized as map keys (`FieldSelector.get_args_and_fields/1`);
-`{"someCalc": {}}` is **not** a valid selection form.
-
-At runtime the embedded attribute goes to `select` while its calculations go to `load` —
-see `test/ash_typescript/rpc/requested_fields_processor_embedded_test.exs`, which asserts
-`load == [{:metadata, [:display_category, :is_overdue]}]` for
-`%{metadata: [:category, :display_category, :is_overdue]}`.
+> **Runtime:** embedded resources are selected like relationships (`{"metadata": ["category"]}`).
 
 ## Embedded resources inside TypedMaps (0.18)
 
@@ -115,17 +98,15 @@ metadataReport: {rows: { __type: "Relationship"; __array: true; __resource: Todo
 
 Selection: `{metadataReport: ["total", {rows: ["category", "priorityScore"]}]}`.
 
-This is a **type-level change only** — the runtime still accepts the plain string.
 Fixture: `Todo.metadata_report` calculation (`test/support/resources/todo.ex`). Pinned by
 `test/ts/shouldPass/typedMaps.ts` (nested selection) and
 `test/ts/shouldFail/invalidFields.ts` (string selection rejected).
 
 ## Implementation Architecture
 
-### Three-Stage Pipeline
+### Codegen Stages
 1. **Discovery**: `TypeDiscovery.find_embedded_resources/1` over the manifest's reachable resources
 2. **Schema Generation**: emit the embedded resource's own schemas + relationship metadata on the parent
-3. **Processing**: handle field selection and calculations like relationships
 
 ### Key Files
 - `lib/ash_typescript/codegen.ex` - Main entrypoint (delegator)
@@ -134,9 +115,6 @@ Fixture: `Todo.metadata_report` calculation (`test/support/resources/todo.ex`). 
 - `lib/ash_typescript/codegen/resource_schemas.ex` - Schema generation & field classification
 - `lib/ash_typescript/codegen/type_mapper.ex` - TypedMap member wrappers, `__primitiveFields`
 - `lib/ash_typescript/type_system/introspection.ex` - Type introspection (`is_embedded_resource?/1`)
-- `AshRpc.RequestedFieldsProcessor` - Entry point (delegator)
-- `AshRpc.FieldProcessing.FieldSelector` - Field selection parsing and validation
-- `AshRpc.ResultProcessor` - Result processing
 - `test/support/resources/embedded/` - Fixtures (`TodoMetadata`, `TaskMetadata`, `TodoContent.*`)
 
 ## Critical Implementation Details
@@ -144,7 +122,6 @@ Fixture: `Todo.metadata_report` calculation (`test/support/resources/todo.ex`). 
 ### Dual-Nature Processing
 Embedded resources have both attribute and relationship characteristics:
 - Declared as attributes, resolved through the manifest during schema generation
-- Relationship-like processing during runtime (attribute selected, calculations loaded)
 
 ### Detecting an embedded resource
 ```elixir
@@ -176,5 +153,5 @@ Test embedded resource support at multiple levels:
 1. **Discovery**: verify embedded resources are found via reachability
 2. **Schema Generation**: check the parent emits `__type: "Relationship"` metadata and the
    embedded resource gets its own Resource/AttributesOnly/Input schemas
-3. **Field Selection**: test unified syntax works (select/load split)
+3. **Field Selection**: test embedded selection end to end through `AshRpc.run_action/4`
 4. **TypeScript Generation**: validate generated types are correct
