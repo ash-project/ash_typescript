@@ -108,45 +108,47 @@ end
 # In your my_app_web/channels/ash_typescript_rpc_channel.ex
 defmodule MyAppWeb.AshTypescriptRpcChannel do
   use Phoenix.Channel
+  use AshRpc.Channel, profile: AshTypescript.RpcProfile
 
   @impl true
   def join("ash_typescript_rpc:" <> _user_id, _payload, socket) do
     {:ok, socket}
   end
+end
+```
 
-  def handle_in("run", params, socket) do
-    result =
-      AshTypescript.Rpc.run_action(
-        :my_app,
-        socket,
-        params
-      )
+`use AshRpc.Channel` injects `handle_in/3` clauses for the `"run"` and
+`"validate"` events (replying `{:ok, result}`, with success or failure in the
+result body) plus a catch-all that replies
+`{:error, %{reason: "Unknown event: ...", payload: ...}}` to any other event.
+Your module owns `join/3`, topics and socket authentication.
 
-    {:reply, {:ok, result}, socket}
-  end
+Because the injected clauses include a catch-all, don't define further
+`handle_in/3` clauses in the same module. If your channel needs extra events,
+skip the macro and call `AshRpc.Channel.run/3` / `AshRpc.Channel.validate/3`
+from your own `handle_in/3`:
 
-  def handle_in("validate", params, socket) do
-    result =
-      AshTypescript.Rpc.validate_action(
-        :my_app,
-        socket,
-        params
-      )
+```elixir
+defmodule MyAppWeb.AshTypescriptRpcChannel do
+  use Phoenix.Channel
 
-    {:reply, {:ok, result}, socket}
-  end
-
-  # Catch-all for unhandled messages
   @impl true
-  def handle_in(event, payload, socket) do
-    {:reply, {:error, %{reason: "Unknown event: #{event}", payload: payload}}, socket}
-  end
+  def join("ash_typescript_rpc:" <> _user_id, _payload, socket), do: {:ok, socket}
+
+  @impl true
+  def handle_in("run", params, socket),
+    do: {:reply, {:ok, AshRpc.Channel.run(AshTypescript.RpcProfile, socket, params)}, socket}
+
+  def handle_in("validate", params, socket),
+    do: {:reply, {:ok, AshRpc.Channel.validate(AshTypescript.RpcProfile, socket, params)}, socket}
+
+  def handle_in("ping", _payload, socket), do: {:reply, {:ok, %{pong: true}}, socket}
 end
 ```
 
 **Important Notes:**
-- Replace `:my_app` with your actual app's OTP application name (the first argument to `run_action`)
-- The socket connection should set `socket.assigns.ash_actor` and `socket.assigns.ash_tenant` if your app uses authentication or multitenancy
+- Actor, tenant and context are read from `socket.assigns.ash_actor`, `socket.assigns.ash_tenant` and `socket.assigns.ash_context`. Set them during socket connection if your app uses authentication or multitenancy
+- A `tenant` parameter sent with the request overrides `socket.assigns.ash_tenant`, exactly as it does over HTTP. The value is passed to Ash unvalidated, so invalid or unauthorized tenants surface as normal Ash/policy errors
 
 ## Channel Function Features
 

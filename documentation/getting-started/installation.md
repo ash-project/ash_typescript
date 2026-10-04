@@ -173,17 +173,19 @@ end
 defmodule MyAppWeb.AshTypescriptRpcController do
   use MyAppWeb, :controller
 
-  def run(conn, params) do
-    result = AshTypescript.Rpc.run_action(:my_app, conn, params)
-    json(conn, result)
-  end
+  def run(conn, _params), do: AshRpc.Plug.run(conn, AshTypescript.RpcProfile)
 
-  def validate(conn, params) do
-    result = AshTypescript.Rpc.validate_action(:my_app, conn, params)
-    json(conn, result)
-  end
+  def validate(conn, _params), do: AshRpc.Plug.validate(conn, AshTypescript.RpcProfile)
 end
 ```
+
+`AshRpc.Plug.run/2` and `AshRpc.Plug.validate/2` run the request against
+AshTypescript's RPC profile and send the JSON response themselves (always HTTP
+200 — success or failure is in the body). They read actor, tenant and context
+from the conn (`Ash.PlugHelpers`). If you need the response map instead — to
+post-process it or render it yourself — call
+`AshRpc.run_action(AshTypescript.RpcProfile, conn, params)` /
+`AshRpc.validate_action(AshTypescript.RpcProfile, conn, params)`.
 
 ### 4. Add Routes
 
@@ -229,7 +231,7 @@ mix ash.codegen
 mix ash_typescript.codegen
 ```
 
-Types can also be regenerated automatically in development: add `AshPhoenix.Plug.CheckCodegenStatus` to your endpoint (it shows an error page when generated files are stale), and optionally set `config :ash_typescript, always_regenerate: true` in `config/dev.exs` to have it silently rewrite the files instead.
+Types can also be regenerated automatically in development: add `AshPhoenix.Plug.CheckCodegenStatus` (from the `ash_phoenix` package, which AshTypescript no longer depends on) to your endpoint (it shows an error page when generated files are stale), and optionally set `config :ash_typescript, always_regenerate: true` in `config/dev.exs` to have it silently rewrite the files instead.
 
 ## Verify Installation
 

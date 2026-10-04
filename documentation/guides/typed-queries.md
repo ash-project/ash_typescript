@@ -132,11 +132,10 @@ defmodule MyAppWeb.TodoController do
   def index(conn, _params) do
     # Use typed query - returns plain maps safe for JSON
     todos =
-      case AshTypescript.Rpc.run_typed_query(
-             :my_app,              # OTP app name (atom)
+      case AshTypescript.run_typed_query(
              :dashboard_todo,      # Typed query name
-             %{},                  # Arguments (if any)
-             conn                  # Connection (for actor/authorization)
+             %{},                  # Params: :input, :page, :filter, :sort (required, may be empty)
+             conn                  # Connection (for actor/tenant/authorization)
            ) do
         %{"success" => true, "data" => data} -> data
         _ -> []
@@ -248,8 +247,7 @@ Use **atom keys** for arguments (you're in Elixir), wrapped in `:input`:
 ```elixir
 def show(conn, %{"id" => id}) do
   todo =
-    case AshTypescript.Rpc.run_typed_query(
-           :my_app,
+    case AshTypescript.run_typed_query(
            :todo_detail,
            %{input: %{id: id}},  # ✅ Atom keys, wrapped in :input
            conn
@@ -280,8 +278,7 @@ def index(conn, params) do
   page_opts = if params["after"], do: Map.put(page_opts, :after, params["after"]), else: page_opts
 
   todos =
-    case AshTypescript.Rpc.run_typed_query(
-           :my_app,
+    case AshTypescript.run_typed_query(
            :todo_list,
            %{page: page_opts},
            conn
@@ -411,13 +408,13 @@ end
 
 ```elixir
 # WRONG - Response is a map, not a tuple
-case AshTypescript.Rpc.run_typed_query(:my_app, :todos, %{}, conn) do
+case AshTypescript.run_typed_query(:todos, %{}, conn) do
   {:ok, data} -> data        # Will never match!
   {:error, _} -> []
 end
 
 # CORRECT
-case AshTypescript.Rpc.run_typed_query(:my_app, :todos, %{}, conn) do
+case AshTypescript.run_typed_query(:todos, %{}, conn) do
   %{"success" => true, "data" => data} -> data
   _ -> []
 end
@@ -427,10 +424,10 @@ end
 
 ```elixir
 # WRONG - String keys for input
-run_typed_query(:my_app, :todo_detail, %{"id" => id}, conn)
+AshTypescript.run_typed_query(:todo_detail, %{"id" => id}, conn)
 
 # CORRECT - Atom keys wrapped in :input
-run_typed_query(:my_app, :todo_detail, %{input: %{id: id}}, conn)
+AshTypescript.run_typed_query(:todo_detail, %{input: %{id: id}}, conn)
 ```
 
 ### Keyword Lists for Pagination

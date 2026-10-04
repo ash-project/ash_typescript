@@ -155,8 +155,8 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `valibot_output_file` | `string \| nil` | `nil` | Path for shared Valibot schemas file (auto-derives from `output_file` dir as `ash_valibot.ts`) |
 | `run_endpoint` | `string \| {:runtime_expr, string}` | `"/rpc/run"` | Endpoint for executing RPC actions |
 | `validate_endpoint` | `string \| {:runtime_expr, string}` | `"/rpc/validate"` | Endpoint for validating RPC requests |
-| `input_field_formatter` | `:camel_case \| :pascal_case \| :snake_case \| {module, function} \| {module, function, args}` | `:camel_case` | How to format field names in request inputs |
-| `output_field_formatter` | `:camel_case \| :pascal_case \| :snake_case \| {module, function} \| {module, function, args}` | `:camel_case` | How to format field names in response outputs |
+| `input_field_formatter` | `:camel_case \| :pascal_case \| :snake_case \| {module, function} \| {module, function, args}` | `:camel_case` | How to format field names in request inputs (compile-time, see [Manifest Module](#manifest-module-required)) |
+| `output_field_formatter` | `:camel_case \| :pascal_case \| :snake_case \| {module, function} \| {module, function, args}` | `:camel_case` | How to format field names in response outputs (compile-time, see [Manifest Module](#manifest-module-required)) |
 | `require_tenant_parameters` | `boolean` | `false` | Whether to require tenant parameters in RPC calls |
 | `generate_zod_schemas` | `boolean` | `false` | Whether to generate Zod validation schemas |
 | `zod_import_path` | `string` | `"zod"` | Import path for Zod library |
@@ -197,7 +197,7 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `typed_controller_error_handler` | `mfa \| module \| nil` | `nil` | Custom error transformation handler |
 | `typed_controller_show_raised_errors` | `boolean` | `false` | Show exception messages and unexpected handler return values in 500 responses |
 | `always_regenerate` | `boolean` | `false` | With `--dev --check` (dev plug), write files directly instead of raising `PendingCodegen` |
-| `not_found_error?` | `boolean` | `true` | Global default: `true` returns error on not found, `false` returns null |
+| `not_found_error?` | `boolean` | `true` | Global default: `true` returns error on not found, `false` returns null (compile-time) |
 | `add_ash_internals_to_jsdoc` | `boolean` | `false` | Show Ash resource/action details in JSDoc |
 | `source_path_prefix` | `string \| nil` | `nil` | Prefix for source file paths (monorepos) |
 | `manifest_file` | `string \| nil` | `nil` | Path to generate Markdown manifest |
@@ -243,6 +243,10 @@ config :ash_typescript, manifest: MyApp.AshTypescriptManifest
 ```
 
 By default the module walks `Ash.Info.domains(otp_app)` to find every domain with a `typescript_rpc` block, merges them into one spec, and verifies the RPC configuration at compile time. Editing a resource or domain recompiles the manifest automatically, so incremental codegen never goes stale.
+
+`input_field_formatter`, `output_field_formatter` and the global `not_found_error?` are baked into the manifest when it compiles. The manifest tracks them with `Application.compile_env/3`, so editing them in `config/*.exs` recompiles it, but changing them at runtime (`Application.put_env/3`, `config/runtime.exs`) has no effect on the RPC runtime or codegen.
+
+The runtime RPC endpoint is served by `AshTypescript.RpcProfile`, the `AshRpc.Profile` that points the `AshRpc` runtime at this manifest. Use it with `AshRpc.Plug.run/2` / `AshRpc.Plug.validate/2` in your controller, `use AshRpc.Channel, profile: AshTypescript.RpcProfile` in a channel, or `AshRpc.run_action/4` / `AshRpc.validate_action/4` directly.
 
 For scoped manifests — e.g. building from a freshly-defined domain in a test — pass an explicit `domains:` list instead of `otp_app:`:
 

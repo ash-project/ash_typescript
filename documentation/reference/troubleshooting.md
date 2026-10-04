@@ -42,11 +42,23 @@ This guide covers common issues you may encounter when using AshTypescript and h
     post "/validate", RpcController, :validate
   end
   ```
-- Ensure RPC controller exists and calls the `run_action` function from the Rpc module
+- Ensure the RPC controller exists and calls `AshRpc.Plug.run(conn, AshTypescript.RpcProfile)` / `AshRpc.Plug.validate(conn, AshTypescript.RpcProfile)` (or `AshRpc.run_action/4` / `AshRpc.validate_action/4`)
 - Check that actions are properly exposed in domain RPC configuration
 - Ensure the domain is properly configured with the Rpc extension
 - Verify action names match between domain configuration and TypeScript calls
 - Check that endpoint paths in config match your router (default: `/rpc/run`, `/rpc/validate`)
+
+#### `UndefinedFunctionError` for the old AshTypescript.Rpc run/validate/typed-query functions
+
+**Cause:** The RPC runtime moved to `AshRpc`. These functions were removed.
+
+**Solution:** Use `AshRpc.Plug.run(conn, AshTypescript.RpcProfile)` / `AshRpc.Plug.validate(conn, AshTypescript.RpcProfile)` in controllers, `use AshRpc.Channel, profile: AshTypescript.RpcProfile` in channels, and `AshTypescript.run_typed_query(name, params, conn)` for typed queries. See [Upgrading to the AshRpc runtime](../upgrading/ash-rpc.md).
+
+#### Changing a field formatter has no effect
+
+**Cause:** `input_field_formatter`, `output_field_formatter` and `not_found_error?` are read when the manifest module compiles. Runtime changes (`Application.put_env/3`, `config/runtime.exs`) are ignored.
+
+**Solution:** Set them in `config/config.exs` (or an environment config file). The manifest tracks them with `Application.compile_env/3` and recompiles when they change.
 
 ### Type Inference Issues
 
@@ -266,6 +278,7 @@ See [Custom Types](../advanced/custom-types.md#validation-schemas-for-custom-typ
 - Verify calculation is properly configured and public
 - Debug with RequestedFieldsProcessor if needed
 - Check for invalid field format or pipeline issues
+- `unknown_field` for a field reached through a relationship: the destination resource must use the `AshTypescript.Resource` extension — fields of resources without it are not exposed over RPC
 
 ### Embedded Resources
 

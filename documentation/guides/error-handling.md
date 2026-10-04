@@ -56,7 +56,7 @@ export type AshRpcError = {
 
 ### Correlation IDs
 
-When an error has no `AshTypescript.Rpc.Error` implementation, the details are
+When an error has no `AshRpc.Error` implementation, the details are
 withheld from the client — the full exception and stacktrace go to the server
 log instead, keyed by a generated UUID. That UUID is sent as `errorId` (and also
 appears in `message`), so you can show it to the user and match their report to
@@ -80,9 +80,9 @@ implement the protocol for your own error types and set one yourself.
 | Type | Description |
 |------|-------------|
 | `not_found` | Resource or record not found |
-| `required` | Required field missing |
+| `required` | Required attribute or argument missing (from both `run_action` and validation) |
 | `invalid_attribute` | Invalid attribute value |
-| `invalid_argument` | Invalid action argument |
+| `invalid_argument` | Invalid action argument (e.g. a value that fails to cast) |
 | `forbidden` | Authorization failure |
 | `forbidden_field` | Field-level authorization failure |
 | `invalid_changes` | Invalid changeset |
@@ -353,7 +353,7 @@ This approach centralizes error handling without needing wrapper functions aroun
 
 ## Custom Error Protocol
 
-For custom Ash errors, implement the `AshTypescript.Rpc.Error` protocol:
+For custom Ash errors, implement the `AshRpc.Error` protocol:
 
 ```elixir
 defmodule MyApp.CustomError do
@@ -364,7 +364,7 @@ defmodule MyApp.CustomError do
   end
 end
 
-defimpl AshTypescript.Rpc.Error, for: MyApp.CustomError do
+defimpl AshRpc.Error, for: MyApp.CustomError do
   def to_error(error) do
     %{
       message: "Field %{field} failed validation: %{reason}",
@@ -377,6 +377,44 @@ defimpl AshTypescript.Rpc.Error, for: MyApp.CustomError do
   end
 end
 ```
+
+## Custom Error Handlers
+
+Each domain's `typescript_rpc` section can set an `error_handler` that
+post-processes every error map (after the `AshRpc.Error` protocol has run)
+before it is sent to the client. Return a modified map, or `nil` to drop the
+error:
+
+```elixir
+defmodule MyApp.CustomErrorHandler do
+  @behaviour AshRpc.ErrorHandler
+
+  @impl true
+  def handle_error(error, context) do
+    # context contains :domain, :resource, :action, :actor, ...
+    Map.put(error, :short_message, translate(error.short_message))
+  end
+
+  defp translate(message), do: message
+end
+
+defmodule MyApp.Domain do
+  use Ash.Domain, extensions: [AshTypescript.Rpc]
+
+  typescript_rpc do
+    error_handler MyApp.CustomErrorHandler
+    # or: error_handler {MyApp.CustomErrorHandler, :handle_error, []}
+    show_raised_errors? false  # true in development to see raised exception details
+  end
+end
+```
+
+The handler is applied to errors from both `validate_action` and `run_action`
+— including errors raised while executing the Ash action. The default is
+`AshRpc.DefaultErrorHandler`, which returns errors unchanged.
+
+To include Ash's policy breakdown in `forbidden` error messages (useful in
+development), set `config :ash_typescript, policies: [show_policy_breakdowns?: true]`.
 
 ## Phoenix Channel Errors
 

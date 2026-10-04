@@ -11,6 +11,32 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## Unreleased
+
+### Breaking Changes:
+
+* rpc: the server-side RPC runtime moved to the `AshRpc` namespace in the new `ash_rpc` dependency, with `AshTypescript.RpcProfile` as ash_typescript's profile. See the [AshRpc upgrade guide](documentation/upgrading/ash-rpc.md) for before/after examples:
+
+  * `AshTypescript.Rpc.run_action/3` / `validate_action/3` → `AshRpc.run_action(AshTypescript.RpcProfile, conn, params)` / `AshRpc.validate_action/4`, or `AshRpc.Plug.run/2` / `AshRpc.Plug.validate/2` in controllers (the installer now generates these)
+
+  * `AshTypescript.Rpc.run_typed_query(:my_app, name, params, conn)` → `AshTypescript.run_typed_query(name, params, conn)` (`params` is now required)
+
+  * `AshTypescript.Rpc.Error` → `AshRpc.Error`, `AshTypescript.Rpc.ErrorHandler` → `AshRpc.ErrorHandler`, `AshTypescript.Rpc.DefaultErrorHandler` → `AshRpc.DefaultErrorHandler`; `AshTypescript.Rpc.ValidationErrorSchemas` removed
+
+  * hand-written channel `handle_in("run" | "validate", …)` → `use AshRpc.Channel, profile: AshTypescript.RpcProfile` (or `AshRpc.Channel.run/3` / `validate/3`)
+
+  * `input_field_formatter`, `output_field_formatter` and global `not_found_error?` are read when the manifest compiles; runtime changes have no effect
+
+  * validation is native (no AshPhoenix; the `ash_phoenix` dependency is replaced by `phoenix`): missing required inputs report `required` instead of `invalid_attribute`, bad argument casts report `invalid_argument`, and atomic validations on update/destroy only run during `run_action`
+
+  * the `typed_query_action` wire param is removed
+
+  * a `tenant` request param now overrides the transport tenant on channels as well as HTTP
+
+  * a domain's `error_handler` / `show_raised_errors?` now also apply to execution errors in `run_action`
+
+  * request errors a generated client never produces no longer carry `details.hint` (the "generated typescript file is not up to date" hint): `invalid_input_format`, `invalid_fields_type`, `invalid_pagination` (page not a map, unknown page keys), `duplicate_field`, `empty_fields_array`, `invalid_union_input` with several member keys, non-scalar `invalid_identity` / `invalid_get_by` values, `invalid_query_opts` for args combined with query options or `page` combined with `limit`/`offset`, and `unknown_error`. The hint text is set by `AshTypescript.RpcProfile.stale_client_hint/0`
+
 ## [v0.19.0](https://github.com/ash-project/ash_typescript/compare/v0.18.4...v0.19.0) (2026-10-03)
 
 

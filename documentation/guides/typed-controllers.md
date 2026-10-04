@@ -317,6 +317,8 @@ When a request hits a typed controller route, AshTypescript automatically:
 6. **Applies constraints** using `Ash.Type.apply_constraints/3` — violations (e.g. `min_length`, `match`, `min`/`max`) produce 422 errors. This follows Ash string semantics: strings are trimmed by default (`trim?: true`), and `""` on a nilable string is normalized to `nil` (on a required string it produces a 422 "is required")
 7. **Dispatches** to the handler with atom-keyed params
 
+The `input_field_formatter` and `output_field_formatter` used here are the ones baked into your AshTypescript manifest at compile time (the same ones the RPC runtime uses); changing them at runtime has no effect. See [Configuration — Manifest Module](../reference/configuration.md#manifest-module-required).
+
 ### Error Responses
 
 Route errors use the same shape as RPC errors — the `AshRpcError` type described

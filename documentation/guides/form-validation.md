@@ -194,6 +194,17 @@ async function handleSubmit(formData) {
 }
 ```
 
+Server-side validation builds the action's query or changeset natively (no
+AshPhoenix dependency) and reports errors with the same types as running the
+action: missing required inputs are `required` (e.g. `"attribute title is
+required"`), bad values are `invalid_attribute` / `invalid_argument`. For update
+and destroy actions, the target record is loaded with the RPC action's
+`read_action`.
+
+> Atomic validations on update/destroy actions only run when the action is
+> executed, so a validation call can succeed where the real call then fails.
+> Always handle errors from the action call itself too.
+
 ### Validation Response
 
 ```typescript
