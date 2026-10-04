@@ -13,64 +13,24 @@ SPDX-License-Identifier: MIT
 | ``No `:manifest` module configured for AshTypescript.`` | Ran codegen in dev env (this repo only sets `manifest:` inside the `:test` block of `config/config.exs`) | Use `mix test.codegen`, never `mix ash_typescript.codegen` |
 | "unsupported type ... AshTypescript cannot map it to a TypeScript type." | Type has no TS mapping | Implement `typescript_type_name/0`, add a `type_mapping_overrides` entry, or use a supported type |
 | Generated types contain `any` | Deliberate (`:term`, File/Function, module-less unknowns) — unmappable types now raise instead | See "Manifest & Verifier Issues" below |
-| Field selection not working | Invalid field format/pipeline issue | Use unified field format, debug with Tidewave |
+| Field selection not working | Invalid field format/pipeline issue | Use unified field format; see Runtime errors below |
 | TypeScript compilation errors | Schema generation problems | Check resource schema structure |
 | "Unknown type" for embedded resources | Missing resource configuration | Verify embedded resource is properly defined |
 | Tests failing randomly | Environment/compilation issues | Clean rebuild: `mix clean && mix deps.compile && mix compile` |
-| "Union input must be a map" | Direct value for union input | Use wrapped format: `{member_name: value}` |
-| "Multiple member keys" | Multiple union members provided | Provide exactly one member key |
-| "No valid member key" | Wrong member name | Check union definition for valid member names |
 | "load_not_allowed" | Requested field not in `allowed_loads` | Add the field to `allowed_loads` or drop the option |
 | "load_denied" | Requested field listed in `denied_loads` | Remove the field from `denied_loads` |
 
-## Union Input Format Errors
+## Runtime errors
 
-### Error: "Union input must be a map with exactly one member key"
+These wire errors come from ash_rpc. What the client sent, and how to fix it:
 
-**Cause**: Providing a direct value instead of wrapped discriminated union format
-
-**Wrong**:
-```elixir
-%{"content" => "direct string value"}
-```
-
-**Correct**:
-```elixir
-%{"content" => %{"note" => "string value"}}
-```
-
-### Error: "Union input map contains multiple member keys"
-
-**Cause**: Providing more than one union member in input
-
-**Wrong**:
-```elixir
-%{"content" => %{"note" => "text", "priorityValue" => 5}}
-```
-
-**Correct**:
-```elixir
-%{"content" => %{"note" => "text"}}
-# OR
-%{"content" => %{"priorityValue" => 5}}
-```
-
-### Error: "Union input map does not contain any valid member key"
-
-**Cause**: Using invalid member name or empty map
-
-**Wrong**:
-```elixir
-%{"content" => %{}}
-# OR
-%{"content" => %{"invalidMember" => "value"}}
-```
-
-**Correct**:
-```elixir
-%{"content" => %{"note" => "value"}}
-# Check union definition for valid member names
-```
+| Error `type` | Cause | Fix |
+|---|---|---|
+| `invalid_union_input` | A union input that isn't a map, has no valid member key, or has more than one member key | Send the wrapped format with exactly one member key: `{note: "text"}` (see [union-systems-core.md](features/union-systems-core.md)) |
+| `unknown_field` | A selected field doesn't exist, or sits behind a relationship to a resource without the `AshTypescript.Resource` extension (strict exposure) | Fix the field name, or add the extension to the destination resource |
+| `invalid_query_opts` | A query-options envelope on a non-relationship or to-one field, `args` combined with query options, or `page` combined with bare `limit`/`offset` | Use the envelope only on has_many/many_to_many; pick `page` or `limit`/`offset` |
+| `pagination_not_supported` | Nested `page` on a relationship whose read action has no pagination, or top-level `page` on a non-paginatable action | Add pagination to the read action, or use bare `limit`/`offset` |
+| `filter_not_supported` / `sort_not_supported` | `details.reason: "disabled"` (`enable_filter?`/`enable_sort?: false`) or `"unsupported"` (get-style or non-read action) | Remove the param, or enable the option |
 
 ## Critical Environment Rules
 
@@ -91,21 +51,15 @@ iex -S mix                   # One-off debugging
 
 **Recompile after editing `lib/`** — `project_eval` runs against loaded beams.
 
-### Field Selection Issues
+### Entrypoint Issues
+Check what an `rpc_action` resolved to on the runtime side:
 ```elixir
 mcp__tidewave__project_eval("""
 runtime = AshRpc.Runtime.from_manifest(AshTypescript.manifest())
-fields = [:id, %{user: [:name]}]
-AshRpc.RequestedFieldsProcessor.process(
-  runtime, AshTypescript.Test.Todo, :read, fields
-)
+runtime.entrypoints["list_todos"]
+# => %AshRpc.Entrypoint{name: "list_todos", enable_filter?: true, load_restrictions: :none, ...}
 """)
-# => {:ok, {[:id], [user: [:name]], [:id, {:user, [:name]}]}}
 ```
-
-Note `%{"user" => ["name"]}` — a brace without `%` is a syntax error.
-`process/3` works: its optional 4th arg defaults to the configured manifest
-module (pass a scoped manifest module explicitly for inline test domains).
 
 ### Type Generation Issues
 ```elixir
@@ -115,15 +69,6 @@ resources = Map.keys(AshTypescript.resource_lookup())
 
 # Third argument: resources that also need Input schemas ([] for none)
 AshTypescript.Codegen.generate_all_schemas_for_resources(resources, resources, [])
-""")
-```
-
-### Runtime Processing Issues
-```elixir
-mcp__tidewave__project_eval("""
-conn = %Plug.Conn{} |> Plug.Conn.put_private(:ash, %{actor: nil, tenant: nil})
-params = %{"action" => "list_todos", "fields" => ["id", "title"]}
-AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 """)
 ```
 
@@ -183,7 +128,6 @@ and then the manifest. If you still suspect staleness, `mix compile --force`.
 
 ### Field Selection
 - Invalid format: Use unified field format `["field", {"relation": ["field"]}]`
-- Pipeline failure: Debug with RequestedFieldsProcessor
 - Missing calculations: Verify calculation is properly configured
 
 ### Embedded Resources
