@@ -30,8 +30,8 @@ manifest
 ```
 
 The lookups are rebuilt last so they carry both decorations. The transformer then
-persists `:manifest`, `:resource_lookup`, `:action_lookup`, `:type_lookup`,
-`:rpc_action_lookup` and `:typed_query_lookup`, which `AshTypescript.manifest/0` and
+persists `:manifest`, `:resource_lookup`, `:action_lookup`, `:type_lookup`
+and `:typed_query_lookup`, which `AshTypescript.manifest/0` and
 `AshTypescript.*_lookup/0,1` read.
 
 - **Codegen** reads `custom.ash_typescript` through `AshTypescript.Manifest.Custom`

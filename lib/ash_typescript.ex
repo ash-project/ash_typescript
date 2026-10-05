@@ -830,9 +830,9 @@ defmodule AshTypescript do
   @doc """
   Runs `fun` with `manifest` as this process's manifest: `manifest/0`,
   `resource_lookup/1`, `action_lookup/1`, `type_lookup/1` and the formatter
-  accessors return it (or derive from it); `entrypoints/1`,
-  `rpc_action_lookup/1` and `typed_query_lookup/1` still read the configured
-  manifest module unless given a source explicitly. Used by
+  accessors return it (or derive from it); `entrypoints/1` and
+  `typed_query_lookup/1` still read the configured manifest module unless
+  given a source explicitly. Used by
   tests to vary formatters without mutating global config; safe under
   `async: true`.
   """
@@ -888,13 +888,6 @@ defmodule AshTypescript do
 
   defp lookup(module, key, _from_struct) when is_atom(module),
     do: Spark.Dsl.Extension.get_persisted(module, key) || %{}
-
-  @doc """
-  Returns the `%{action_name_string => %Ash.Info.Manifest.Entrypoint{}}` lookup
-  for RPC-action entrypoints (defaults to the configured manifest module).
-  """
-  def rpc_action_lookup(manifest \\ manifest_module()),
-    do: Spark.Dsl.Extension.get_persisted(manifest, :rpc_action_lookup) || %{}
 
   @doc """
   Returns the `%{typed_query_name_string => %Ash.Info.Manifest.Entrypoint{}}`

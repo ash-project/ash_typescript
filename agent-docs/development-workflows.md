@@ -19,7 +19,7 @@ runtime RPC pipeline both read all action/resource/type shape from it.
 - Tests that define an inline domain need their own scoped manifest:
   `use AshTypescript.Manifest, domains: [MyTest.InlineDomain]`.
 - Lookups: `AshTypescript.action_lookup/0`, `resource_lookup/0`, `type_lookup/0`,
-  `rpc_action_lookup/0`, `typed_query_lookup/0`. ash_typescript-owned decoration
+  `typed_query_lookup/0`. ash_typescript-owned decoration
   lives under `custom.ash_typescript`, read via `AshTypescript.Manifest.Custom`.
 
 ## Runtime Introspection with Tidewave MCP

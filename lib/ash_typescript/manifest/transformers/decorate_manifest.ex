@@ -47,26 +47,15 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
           |> Transformer.persist(:resource_lookup, AshRpc.Manifest.resource_lookup(decorated))
           |> Transformer.persist(:action_lookup, AshRpc.Manifest.action_lookup(decorated))
           |> Transformer.persist(:type_lookup, AshRpc.Manifest.type_lookup(decorated))
-          |> Transformer.persist(:rpc_action_lookup, build_rpc_action_lookup(decorated))
           |> Transformer.persist(:typed_query_lookup, build_typed_query_lookup(decorated))
 
         {:ok, dsl_state}
     end
   end
 
-  # Entrypoint lookups keyed by the client-facing action / typed-query name (as a
-  # string), read through `AshTypescript.rpc_action_lookup/1` and
-  # `typed_query_lookup/1`. The runtime doesn't use them: ash_rpc resolves wire
-  # entrypoints from its own `custom.ash_rpc` lookups.
-  defp build_rpc_action_lookup(%Ash.Info.Manifest{entrypoints: entrypoints}) do
-    Enum.reduce(entrypoints, %{}, fn entrypoint, acc ->
-      case Custom.rpc_action(entrypoint) do
-        nil -> acc
-        rpc_action -> Map.put(acc, to_string(rpc_action.name), entrypoint)
-      end
-    end)
-  end
-
+  # Typed-query entrypoints keyed by name (as a string), read through
+  # `AshTypescript.typed_query_lookup/1`. The runtime doesn't use it: ash_rpc
+  # resolves wire entrypoints from its own `custom.ash_rpc` lookups.
   defp build_typed_query_lookup(%Ash.Info.Manifest{entrypoints: entrypoints}) do
     Enum.reduce(entrypoints, %{}, fn entrypoint, acc ->
       case Custom.typed_query(entrypoint) do
