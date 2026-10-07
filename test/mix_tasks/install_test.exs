@@ -54,7 +54,8 @@ defmodule Mix.Tasks.AshTypescript.InstallTest do
   defp installed_router(router \\ @router) do
     test_project(files: %{"lib/test_web/router.ex" => router})
     |> Igniter.compose_task("ash_typescript.install", ["--yes"])
-    |> then(fn igniter -> igniter.rewrite
+    |> then(fn igniter ->
+      igniter.rewrite
       |> Rewrite.source!("lib/test_web/router.ex")
       |> Rewrite.Source.get(:content)
     end)
