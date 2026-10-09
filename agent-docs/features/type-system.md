@@ -234,10 +234,13 @@ TypeScript type or it is a **compile-time error**. Three layers:
    walks every reachable type (resource fields, entrypoint action inputs/returns/
    metadata, `manifest.types` incl. embedded resources, recursing through arrays,
    unions, and typed-container fields) and raises **one aggregated**
-   `Spark.Error.DslError` listing all offenders with locations:
+   `Spark.Error.DslError` listing all offenders with locations. It also flags
+   custom types that define both `typescript_type_name/0` and `fields`
+   constraints (`TypeMapper.custom_type_with_fields?/1`), since the name would
+   be silently ignored. Other constraints are fine:
 
    ```
-   Unsupported types found — AshTypescript cannot map them to TypeScript:
+   Some types cannot be mapped to TypeScript:
    ```
 
 3. **Backstop raise** — `TypeMapper.raise_unsupported_type!/1` for paths that
@@ -266,7 +269,7 @@ Custom types integrate at multiple levels:
 - **Calculation detection failures**: Resource vs primitive calculation misclassification
 
 ### Custom Type Issues
-- **`Unsupported types found — AshTypescript cannot map them to TypeScript:`**: `VerifyMappableTypes` at manifest compile. Add `typescript_type_name/0` or a `type_mapping_overrides` entry for each listed module
+- **`Some types cannot be mapped to TypeScript:`**: `VerifyMappableTypes` at manifest compile. For `(has no TypeScript mapping)` entries, add `typescript_type_name/0` or a `type_mapping_overrides` entry; for `(defines both typescript_type_name/0 and fields constraints)` entries, remove one of the two
 - **`unsupported type <Module> — AshTypescript cannot map it to a TypeScript type.`**: same cause, hit via the `TypeMapper` backstop instead of the verifier
 - **Type not detected**: Ensure `typescript_type_name/0` callback implemented
 - **Import not working**: Check `config :ash_typescript, import_into_generated:` (not your own OTP app)

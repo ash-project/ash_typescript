@@ -237,10 +237,6 @@ defmodule AshTypescript.Codegen.TypeMapper do
   def unknown_module_mapping(%Type{module: module} = type_info) do
     cond do
       is_atom(module) and not is_nil(module) and Introspection.is_custom_type?(module) ->
-        if custom_type_with_constraints?(type_info) do
-          raise ArgumentError, custom_type_constraints_error(module)
-        end
-
         {:ok, AshTypescript.Manifest.Custom.type_name(type_info) || module.typescript_type_name()}
 
       (override = get_type_mapping_override(module)) != nil ->
@@ -263,33 +259,17 @@ defmodule AshTypescript.Codegen.TypeMapper do
     end
   end
 
-  @doc false
-  def custom_type_with_constraints?(%Type{module: module, constraints: constraints}) do
-    if is_atom(module) and Introspection.is_custom_type?(module) do
-      constraints = if Ash.Type.NewType.new_type?(module), do: [], else: constraints
-
-      constraints not in [nil, []] or module_constraints(module) not in [nil, []]
-    else
-      false
-    end
+  @doc """
+  Returns true when a custom type implements `typescript_type_name/0` and also
+  has `fields` constraints. Such a type maps to a typed map built from its
+  fields, so the declared TypeScript name would be silently ignored.
+  """
+  @spec custom_type_with_fields?(Type.t()) :: boolean()
+  def custom_type_with_fields?(%Type{module: module} = type) do
+    is_atom(module) and Introspection.is_custom_type?(module) and Type.get_fields(type) != []
   end
 
-  def custom_type_with_constraints?(_), do: false
-
-  defp module_constraints(module) do
-    cond do
-      function_exported?(module, :subtype_constraints, 0) -> module.subtype_constraints()
-      true -> []
-    end
-  end
-
-  def custom_type_constraints_error(module) do
-    """
-    custom type #{inspect(module)} defines both `typescript_type_name/0` and constraints.
-
-    Remove either `typescript_type_name/0` or the constraints so AshTypescript can determine the TypeScript shape.
-    """
-  end
+  def custom_type_with_fields?(_), do: false
 
   @doc """
   Raises the canonical "unsupported type" error for a type AshTypescript
@@ -411,19 +391,29 @@ defmodule AshTypescript.Codegen.TypeMapper do
   defp map_typed_container(%Type{} = type_info, direction) do
     fields = Type.get_fields(type_info)
 
-    if fields == [] do
-      case unknown_module_mapping(type_info) do
-        {:ok, ts} -> ts
-        :unsupported -> AshTypescript.untyped_map_type()
-      end
-    else
-      inst = Type.effective_module(type_info)
-      field_name_mappings = get_field_name_mappings_from_module(inst)
+    cond do
+      fields == [] ->
+        case unknown_module_mapping(type_info) do
+          {:ok, ts} -> ts
+          :unsupported -> AshTypescript.untyped_map_type()
+        end
 
-      case direction do
-        :input -> build_field_input_type(fields, field_name_mappings)
-        :output -> build_map_type(fields, nil, field_name_mappings)
-      end
+      # Backstop for paths that bypass the `VerifyMappableTypes` verifier.
+      custom_type_with_fields?(type_info) ->
+        raise ArgumentError, """
+        Custom type #{inspect(type_info.module)} defines both `typescript_type_name/0` and `fields` constraints.
+
+        These are mutually exclusive. Remove one or the other.
+        """
+
+      true ->
+        inst = Type.effective_module(type_info)
+        field_name_mappings = get_field_name_mappings_from_module(inst)
+
+        case direction do
+          :input -> build_field_input_type(fields, field_name_mappings)
+          :output -> build_map_type(fields, nil, field_name_mappings)
+        end
     end
   end
 

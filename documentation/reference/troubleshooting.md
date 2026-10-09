@@ -200,11 +200,13 @@ New projects get this automatically from `mix igniter.install ash_typescript`. S
 
 **Solution:** Read the error body — it names the offending domain/resource/action. Fix it there; the manifest module itself rarely needs changes.
 
-#### Error: "Unsupported types found — AshTypescript cannot map them to TypeScript"
+#### Error: "Some types cannot be mapped to TypeScript"
 
-**Cause:** A type module reachable from your RPC configuration (resource attribute, action input/return, metadata, embedded resource field) has no TypeScript mapping. The error lists every offending type with its location.
+**Cause:** A type module reachable from your RPC configuration (resource attribute, action input/return, metadata, embedded resource field) has no TypeScript mapping (`has no TypeScript mapping`), or defines both `typescript_type_name/0` and `fields` constraints (`defines both ...`). The error lists every offending type with its location.
 
-**Solution:** Either implement `typescript_type_name/0` on the type module, or add a mapping override:
+**Solution (conflict):** Remove either `typescript_type_name/0` or the `fields` constraints. They are mutually exclusive.
+
+**Solution (no mapping):** Either implement `typescript_type_name/0` on the type module, or add a mapping override:
 
 ```elixir
 config :ash_typescript, type_mapping_overrides: [{MyApp.CustomType, "string"}]
