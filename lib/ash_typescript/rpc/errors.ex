@@ -42,6 +42,15 @@ defmodule AshTypescript.Rpc.Errors do
   end
 
   @doc """
+  Builds a generic client-facing error for a term no handler recognises.
+
+  The term is logged server-side under a fresh error id and the client only
+  receives that id, so internal state never reaches the response.
+  """
+  @spec unhandled_error(term()) :: map()
+  def unhandled_error(error), do: handle_unimplemented_error(error, false)
+
+  @doc """
   Unwraps nested error structures from Ash error classes.
   """
   @spec unwrap_errors(term()) :: list(term())

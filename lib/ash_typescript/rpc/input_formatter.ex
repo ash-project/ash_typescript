@@ -214,8 +214,10 @@ defmodule AshTypescript.Rpc.InputFormatter do
            Ash.Type.apply_constraints(Ash.Type.Struct, casted, instance_of: struct_module) do
       constrained
     else
-      {:error, error} -> throw(error)
-      :error -> throw("is invalid")
+      # Leave the map for Ash to cast during action input, which reports the
+      # failure as a proper argument error naming the input. Throwing the raw
+      # cast error here would bypass that and leak internal error terms.
+      _ -> map
     end
   end
 

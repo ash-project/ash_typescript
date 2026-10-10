@@ -180,6 +180,19 @@ defimpl AshTypescript.Rpc.Error, for: Ash.Error.Query.InvalidArgument do
   end
 end
 
+defimpl AshTypescript.Rpc.Error, for: Ash.Error.Action.InvalidArgument do
+  def to_error(error) do
+    %{
+      message: Map.get(error, :message) || Exception.message(error),
+      short_message: "Invalid argument",
+      vars: Map.new(error.vars || []) |> Map.put(:field, Map.get(error, :field)),
+      type: "invalid_argument",
+      fields: List.wrap(Map.get(error, :field)),
+      path: error.path || []
+    }
+  end
+end
+
 defimpl AshTypescript.Rpc.Error, for: Ash.Error.Page.InvalidKeyset do
   def to_error(error) do
     %{
