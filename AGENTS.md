@@ -655,6 +655,10 @@ _A declarative, extensible framework for building Elixir applications._
 ## ash:relationships usage
 @deps/ash/usage-rules/relationships.md
 <!-- ash:relationships-end -->
+<!-- ash:temporal-start -->
+## ash:temporal usage
+@deps/ash/usage-rules/temporal.md
+<!-- ash:temporal-end -->
 <!-- ash:testing-start -->
 ## ash:testing usage
 @deps/ash/usage-rules/testing.md
