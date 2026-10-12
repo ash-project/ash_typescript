@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.19.1](https://github.com/ash-project/ash_typescript/compare/v0.19.0...v0.19.1) (2026-10-12)
+
+
+
+
+### Bug Fixes:
+
+* rpc: stop inspecting internal error terms into error responses (CVE-2026-105283) by [@Torkan](https://github.com/Torkan)
+
 ## [v0.19.0](https://github.com/ash-project/ash_typescript/compare/v0.18.4...v0.19.0) (2026-10-03)
 
 
