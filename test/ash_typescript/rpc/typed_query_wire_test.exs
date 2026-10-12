@@ -31,7 +31,9 @@ defmodule AshTypescript.Rpc.TypedQueryWireTest do
   end
 
   test "unknown typed query" do
-    assert %{"success" => false, "errors" => [%{"type" => "typed_query_not_found"}]} =
+    assert %{"success" => false, "errors" => [%{"type" => "typed_query_not_found"} = error]} =
              AshTypescript.run_typed_query(:does_not_exist, %{}, TestHelpers.build_rpc_conn())
+
+    assert error["details"]["hint"] == AshTypescript.RpcProfile.stale_client_hint()
   end
 end

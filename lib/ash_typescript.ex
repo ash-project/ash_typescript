@@ -943,7 +943,8 @@ defmodule AshTypescript do
       fields: [],
       details: %{
         suggestion:
-          "Check that the typed query is defined in a typed_queries block in your domain's typescript_rpc configuration"
+          "Check that the typed query is defined in a typed_queries block in your domain's typescript_rpc configuration",
+        hint: AshTypescript.RpcProfile.stale_client_hint()
       }
     }
   end
