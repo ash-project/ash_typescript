@@ -58,21 +58,6 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
-      # Tenant resolution errors
-      {:tenant_required, resource} ->
-        %{
-          type: "tenant_required",
-          message: "Tenant parameter is required for multitenant resource %{resource}",
-          short_message: "Tenant required",
-          vars: %{resource: inspect(resource)},
-          path: [],
-          fields: [],
-          details: %{
-            suggestion: "Add a 'tenant' parameter to your request",
-            hint: @stale_generated_file_hint
-          }
-        }
-
       # Field validation errors (nested tuple format)
       {:invalid_fields, field_error} ->
         build_error_response(field_error)
@@ -876,39 +861,18 @@ defmodule AshTypescript.Rpc.ErrorBuilder do
           }
         }
 
-      {field_error_type, _} when is_atom(field_error_type) ->
-        %{
-          type: "field_validation_error",
-          message: "Field validation error: %{error_type}",
-          short_message: "Field validation error",
-          vars: %{error_type: to_string(field_error_type)},
-          path: [],
-          fields: [],
-          details: %{
-            error: inspect(error),
-            hint: @stale_generated_file_hint
-          }
-        }
-
+      # Anything else is an internal term: log it server-side and send the
+      # client only a generic error with an id, never the term itself.
       other ->
-        %{
-          type: "unknown_error",
-          message: "An unexpected error occurred",
-          short_message: "Unknown error",
-          vars: %{},
-          path: [],
-          fields: [],
-          details: %{
-            error: inspect(other),
-            hint: @stale_generated_file_hint
-          }
-        }
+        Errors.unhandled_error(other)
     end
   end
 
   defp format_field_type(:primitive_type), do: "primitive type"
-  defp format_field_type({:ash_type, type, _}), do: "#{inspect(type)}"
-  defp format_field_type(other), do: "#{inspect(other)}"
+  defp format_field_type(%Ash.Info.Manifest.Type{name: name}) when is_binary(name), do: name
+  defp format_field_type({:ash_type, type, _}) when is_atom(type), do: inspect(type)
+  defp format_field_type(other) when is_atom(other) or is_binary(other), do: inspect(other)
+  defp format_field_type(_), do: "unknown"
 
   defp format_path(path) when is_list(path) do
     formatter = AshTypescript.Rpc.output_field_formatter()

@@ -23,21 +23,6 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       assert String.contains?(response.details.suggestion, "rpc block")
     end
 
-    test "tenant required error includes resource context" do
-      error = {:tenant_required, Todo}
-
-      response = ErrorBuilder.build_error_response(error)
-
-      assert response.type == "tenant_required"
-
-      assert response.message ==
-               "Tenant parameter is required for multitenant resource %{resource}"
-
-      assert response.short_message == "Tenant required"
-      assert String.contains?(response.vars.resource, "Todo")
-      assert String.contains?(response.details.suggestion, "tenant")
-    end
-
     test "invalid pagination error shows expected format" do
       error = {:invalid_pagination, "invalid_value"}
 
@@ -137,11 +122,8 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     test "all errors have required fields" do
       test_errors = [
         {:action_not_found, "test"},
-        {:tenant_required, Todo},
         {:invalid_pagination, "invalid"},
-        {:invalid_fields, {:unknown_field, :test, Todo, []}},
-        {:invalid_fields, {:invalid_field_format, "invalid"}},
-        "unknown error"
+        {:invalid_fields, {:unknown_field, :test, Todo, []}}
       ]
 
       for error <- test_errors do
@@ -182,7 +164,6 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
     test "suggestions are actionable" do
       errors_with_suggestions = [
         {:action_not_found, "test"},
-        {:tenant_required, Todo},
         {:invalid_fields, {:unknown_field, :test, Todo, []}}
       ]
 
