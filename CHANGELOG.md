@@ -27,13 +27,27 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
   * `input_field_formatter`, `output_field_formatter` and global `not_found_error?` are read when the manifest compiles; runtime changes have no effect
 
-  * validation is native (no AshPhoenix; the `ash_phoenix` dependency is replaced by `phoenix`): missing required inputs report `required` instead of `invalid_attribute`, bad argument casts report `invalid_argument`, and atomic validations on update/destroy only run during `run_action`
+  * validation is native (no AshPhoenix; the `ash_phoenix` dependency is replaced by `phoenix`): missing required inputs report `required` instead of `invalid_attribute` with the message `attribute title is required` / `argument user_id is required` instead of `is required`, bad argument casts report `invalid_argument`, and atomic validations on update/destroy only run during `run_action`
 
   * the `typed_query_action` wire param is removed
 
   * a `tenant` request param now overrides the transport tenant on channels as well as HTTP
 
-  * a domain's `error_handler` / `show_raised_errors?` now also apply to execution errors in `run_action`
+  * a domain's `error_handler` / `show_raised_errors?` now apply to every error raised for a resolved action, including execution errors in `run_action` and Ash errors that previously skipped them. A handler may now receive error types it never saw before
+
+  * exceptions raised while handling a request no longer propagate to the caller. They are logged with their stacktrace and returned as an `unknown_error` failure response
+
+  * removed public functions:
+
+    * `AshTypescript.rpc_action_lookup/1`
+
+    * `AshTypescript.FieldFormatter.format_fields/2`, `parse_input_fields/2`, `parse_input_value/2`, `format_output_field_names/2`, `format_sort_string/2` and `resolve_field_name/2` (same signatures in `AshRpc.FieldFormatter`), and `compute_field_name/2`
+
+    * `AshTypescript.Manifest.Custom.authorize_bulk_strategy/1` (now `AshRpc.Manifest.Custom.authorize_bulk_strategy/1`), `reverse_field_name_mappings/1`, `argument_name_mappings_for_action/2` and `action_input_expected_keys/2`
+
+    * `AshTypescript.Helpers.snake_to_camel_case/1`, `pascal_to_snake_case/1` and `ash_resource?/1`
+
+    * `AshTypescript.TypeSystem.Introspection.is_resource_instance_of?/1`
 
   * request errors a generated client never produces no longer carry `details.hint` (the "generated typescript file is not up to date" hint): `invalid_input_format`, `invalid_fields_type`, `invalid_pagination` (page not a map, unknown page keys), `duplicate_field`, `empty_fields_array`, `invalid_union_input` with several member keys, non-scalar `invalid_identity` / `invalid_get_by` values, `invalid_query_opts` for args combined with query options or `page` combined with `limit`/`offset`, and `unknown_error`. The hint text is set by `AshTypescript.RpcProfile.stale_client_hint/0`
 
