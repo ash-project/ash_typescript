@@ -11,7 +11,8 @@ defmodule AshTypescript.RpcProfile do
   (`error_handler`, `show_raised_errors?`); policy breakdowns from
   `config :ash_typescript, policies: [show_policy_breakdowns?: true]`.
   Request errors a stale client can cause point at regenerating the
-  TypeScript file (`stale_client_hint/0`).
+  TypeScript file (`stale_client_hint/0`), and `action_not_found` points at
+  the domain's rpc block (`action_not_found_suggestion/0`).
   """
 
   use AshRpc.Profile
@@ -55,4 +56,9 @@ defmodule AshTypescript.RpcProfile do
   def stale_client_hint do
     "This error is most likely happening because the generated typescript file used is not up to date with the running backend. Check that you are using the latest generated file, and/or that a new file has been generated after the last backend changes."
   end
+
+  @doc "The `details.suggestion` on `action_not_found`: check the domain's rpc block."
+  @impl AshRpc.Profile
+  def action_not_found_suggestion,
+    do: "Check that the action is properly configured in your domain's rpc block"
 end

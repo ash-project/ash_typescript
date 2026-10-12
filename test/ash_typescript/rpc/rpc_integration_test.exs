@@ -249,7 +249,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
       assert error["type"] == "action_not_found"
       assert error["message"] == "RPC action %{actionName} not found"
       assert error["vars"]["actionName"] == "nonexistent_action"
-      assert String.contains?(error["details"]["suggestion"], "configured entrypoint")
+      assert String.contains?(error["details"]["suggestion"], "rpc block")
     end
 
     test "field validation errors are user-friendly" do

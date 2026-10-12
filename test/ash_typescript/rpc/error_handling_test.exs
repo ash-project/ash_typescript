@@ -21,7 +21,7 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       assert response.message == "RPC action %{action_name} not found"
       assert response.short_message == "Action not found"
       assert response.vars.action_name == "nonexistent_action"
-      assert String.contains?(response.details.suggestion, "configured entrypoint")
+      assert String.contains?(response.details.suggestion, "rpc block")
     end
 
     test "invalid pagination error shows expected format" do
