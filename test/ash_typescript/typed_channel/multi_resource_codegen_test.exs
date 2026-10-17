@@ -67,7 +67,7 @@ defmodule AshTypescript.Test.TypedChannel.ConflictChannelA do
     topic "conflict_a:*"
 
     resource AshTypescript.Test.TypedChannel.ConflictItemA do
-      publish(:item_created)
+      publish :item_created
     end
   end
 end
@@ -83,7 +83,7 @@ defmodule AshTypescript.Test.TypedChannel.ConflictChannelB do
     topic "conflict_b:*"
 
     resource AshTypescript.Test.TypedChannel.ConflictItemB do
-      publish(:item_created)
+      publish :item_created
     end
   end
 end

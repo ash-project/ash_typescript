@@ -13,14 +13,14 @@ defmodule AshTypescript.Test.TodoStatistics do
   end
 
   typed_struct do
-    field(:view_count, :integer, default: 0)
-    field(:edit_count, :integer, default: 0)
-    field(:completion_time_seconds, :integer)
-    field(:difficulty_rating, :float)
-    field(:all_completed?, :boolean)
+    field :view_count, :integer, default: 0
+    field :edit_count, :integer, default: 0
+    field :completion_time_seconds, :integer
+    field :difficulty_rating, :float
+    field :all_completed?, :boolean
 
     # Composite type field - map with constrained fields for performance metrics
-    field(:performance_metrics, :map,
+    field :performance_metrics, :map,
       constraints: [
         fields: [
           focus_time_seconds: [type: :integer, allow_nil?: false],
@@ -29,6 +29,5 @@ defmodule AshTypescript.Test.TodoStatistics do
           task_complexity: [type: :string, allow_nil?: true]
         ]
       ]
-    )
   end
 end

@@ -54,11 +54,11 @@ defmodule AshTypescript.Test.TypedChannel.WireChannel do
   use AshTypescript.TypedChannel
 
   typed_channel do
-    topic("wire:*")
+    topic "wire:*"
 
     resource AshTypescript.Test.TypedChannel.WireItem do
-      publish(:wire_item_created)
-      publish(:wire_item_touched)
+      publish :wire_item_created
+      publish :wire_item_touched
     end
   end
 
@@ -74,10 +74,10 @@ defmodule AshTypescript.Test.TypedChannel.TypedChannelFirstChannel do
   use Phoenix.Channel
 
   typed_channel do
-    topic("wire_first:*")
+    topic "wire_first:*"
 
     resource AshTypescript.Test.TypedChannel.WireItem do
-      publish(:wire_item_created)
+      publish :wire_item_created
     end
   end
 
@@ -94,10 +94,10 @@ defmodule AshTypescript.Test.TypedChannel.CustomInterceptChannel do
   intercept(["custom_event"])
 
   typed_channel do
-    topic("wire_custom:*")
+    topic "wire_custom:*"
 
     resource AshTypescript.Test.TypedChannel.WireItem do
-      publish(:wire_item_created)
+      publish :wire_item_created
     end
   end
 
@@ -125,11 +125,11 @@ defmodule AshTypescript.Test.TypedChannel.OwnHandleOutChannel do
   intercept(["wire_item_created"])
 
   typed_channel do
-    topic("wire_own:*")
+    topic "wire_own:*"
 
     resource AshTypescript.Test.TypedChannel.WireItem do
-      publish(:wire_item_created)
-      publish(:wire_item_touched)
+      publish :wire_item_created
+      publish :wire_item_touched
     end
   end
 
@@ -280,10 +280,10 @@ defmodule AshTypescript.TypedChannel.InterceptionTest do
             use AshTypescript.TypedChannel
 
             typed_channel do
-              topic("not_a_channel:*")
+              topic "not_a_channel:*"
 
               resource AshTypescript.Test.TypedChannel.WireItem do
-                publish(:wire_item_created)
+                publish :wire_item_created
               end
             end
           end

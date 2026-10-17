@@ -105,44 +105,44 @@ defmodule AshTypescript.Test.ChannelTracker do
   calculations do
     # Explicitly typed string calculation used as transform
     calculate :summary, :string, expr(name <> " [" <> status <> "]") do
-      public?(true)
+      public? true
     end
 
     # :auto typed string concat — type inferred from expression
     calculate :label, :auto, expr(name <> " tracker") do
-      public?(true)
+      public? true
     end
 
     # Explicitly typed string — used without returns on publication
     calculate :status_display, :string, expr("Status: " <> status) do
-      public?(true)
+      public? true
     end
 
     # :auto typed map calc with local attribute fields
     calculate :snapshot, :auto, expr(%{id: id, name: name, status: status}) do
-      public?(true)
+      public? true
     end
 
     # :auto map calc with relationship traversal (first aggregate)
     calculate :detail,
               :auto,
               expr(%{id: id, name: name, latest_entry_body: first(entries, field: :body)}) do
-      public?(true)
+      public? true
     end
 
     # :auto count aggregate — should resolve to integer
     calculate :entry_count, :auto, expr(count(entries)) do
-      public?(true)
+      public? true
     end
 
     # :auto boolean expression — type inferred as boolean
     calculate :is_active, :auto, expr(status == "active" and priority > 0) do
-      public?(true)
+      public? true
     end
 
     # :auto max aggregate on related field — should resolve to integer
     calculate :top_entry_score, :auto, expr(max(entries, field: :score)) do
-      public?(true)
+      public? true
     end
 
     # :auto map with nested relationship traversal — entries -> author -> username
@@ -155,7 +155,7 @@ defmodule AshTypescript.Test.ChannelTracker do
                 latest_body: first(entries, field: :body),
                 latest_score: first(entries, field: :score)
               }) do
-      public?(true)
+      public? true
     end
 
     # :auto map mixing different expression types in a single map
@@ -169,7 +169,7 @@ defmodule AshTypescript.Test.ChannelTracker do
                 top_score: max(entries, field: :score),
                 latest_body: first(entries, field: :body)
               }) do
-      public?(true)
+      public? true
     end
   end
 

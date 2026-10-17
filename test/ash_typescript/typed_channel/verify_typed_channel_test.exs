@@ -42,8 +42,8 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
               topic "missing:*"
 
               resource AshTypescript.Test.ChannelItem do
-                publish(:item_created)
-                publish(:nonexistent_event)
+                publish :item_created
+                publish :nonexistent_event
               end
             end
           end
@@ -96,11 +96,11 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
               topic "dup:*"
 
               resource AshTypescript.Test.ChannelItem do
-                publish(:item_created)
+                publish :item_created
               end
 
               resource DuplicateEventItem do
-                publish(:item_created)
+                publish :item_created
               end
             end
           end
@@ -154,7 +154,7 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
               topic "verifier_things:*"
 
               resource NoReturnsItem do
-                publish(:thing_gone)
+                publish :thing_gone
               end
             end
           end
@@ -205,7 +205,7 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
               topic "verifier_secret:*"
 
               resource NotPublicItem do
-                publish(:secret_removed)
+                publish :secret_removed
               end
             end
           end
@@ -253,7 +253,7 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
               topic "quiet_things:*"
 
               resource QuietNoReturnsItem do
-                publish(:quiet_gone)
+                publish :quiet_gone
               end
             end
           end
@@ -303,7 +303,7 @@ defmodule AshTypescript.TypedChannel.VerifyTypedChannelTest do
               topic "quiet_secret:*"
 
               resource QuietNotPublicItem do
-                publish(:quiet_secret)
+                publish :quiet_secret
               end
             end
           end

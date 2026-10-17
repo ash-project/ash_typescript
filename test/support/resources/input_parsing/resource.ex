@@ -32,18 +32,14 @@ defmodule AshTypescript.Test.InputParsing.Resource do
 
     # DSL field_names mappings - maps problematic Elixir names to exact TypeScript names
     # String values are used directly without additional formatting
-    field_names(
-      is_active?: "isActive",
-      has_data?: "hasData",
-      version_1: "version1"
-    )
+    field_names is_active?: "isActive",
+                has_data?: "hasData",
+                version_1: "version1"
 
     # DSL argument_names mappings for actions
     # String values are used directly without additional formatting
-    argument_names(
-      search: [include_deleted?: "includeDeleted", filter_by_1?: "filterBy1"],
-      create_with_args: [is_urgent?: "isUrgent", priority_1: "priority1"]
-    )
+    argument_names search: [include_deleted?: "includeDeleted", filter_by_1?: "filterBy1"],
+                   create_with_args: [is_urgent?: "isUrgent", priority_1: "priority1"]
   end
 
   ets do

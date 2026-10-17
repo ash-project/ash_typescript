@@ -19,22 +19,22 @@ defmodule AshTypescript.Test.FullActivityChannel do
   use AshTypescript.TypedChannel
 
   typed_channel do
-    topic("activity:*")
+    topic "activity:*"
 
     resource AshTypescript.Test.ChannelArticle do
-      publish(:article_published)
-      publish(:article_updated)
-      publish(:article_archived)
+      publish :article_published
+      publish :article_updated
+      publish :article_archived
     end
 
     resource AshTypescript.Test.ChannelReview do
-      publish(:review_submitted)
-      publish(:review_approved)
+      publish :review_submitted
+      publish :review_approved
     end
 
     resource AshTypescript.Test.ChannelAlert do
-      publish(:alert_sent)
-      publish(:alert_cleared)
+      publish :alert_sent
+      publish :alert_cleared
     end
   end
 

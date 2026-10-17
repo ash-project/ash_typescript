@@ -48,7 +48,7 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     use AshTypescript.TypedController
 
     typed_controller do
-      module_name(AshTypescript.TypedController.RequestHandlerTest.AllowlistController)
+      module_name AshTypescript.TypedController.RequestHandlerTest.AllowlistController
 
       post :grant do
         run fn conn, params ->
@@ -71,7 +71,7 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     use AshTypescript.TypedController
 
     typed_controller do
-      module_name(AshTypescript.TypedController.RequestHandlerTest.BadReturnController)
+      module_name AshTypescript.TypedController.RequestHandlerTest.BadReturnController
 
       get :bad_return do
         run fn _conn, _params ->
@@ -91,7 +91,7 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     use AshTypescript.TypedController
 
     typed_controller do
-      module_name(AshTypescript.TypedController.RequestHandlerTest.ReservedController)
+      module_name AshTypescript.TypedController.RequestHandlerTest.ReservedController
 
       get :reserved_echo do
         run fn conn, params ->
@@ -110,7 +110,7 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     use AshTypescript.TypedController
 
     typed_controller do
-      module_name(AshTypescript.TypedController.RequestHandlerTest.FormattingController)
+      module_name AshTypescript.TypedController.RequestHandlerTest.FormattingController
 
       post :echo do
         # The exact Elixir terms the handler received, for exact assertions

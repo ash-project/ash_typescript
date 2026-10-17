@@ -12,18 +12,18 @@ defmodule AshTypescript.Test.ModerationChannel do
   use AshTypescript.TypedChannel
 
   typed_channel do
-    topic("moderation:*")
+    topic "moderation:*"
 
     resource AshTypescript.Test.ChannelArticle do
-      publish(:article_archived)
+      publish :article_archived
     end
 
     resource AshTypescript.Test.ChannelReview do
-      publish(:review_approved)
+      publish :review_approved
     end
 
     resource AshTypescript.Test.ChannelAlert do
-      publish(:alert_sent)
+      publish :alert_sent
     end
   end
 

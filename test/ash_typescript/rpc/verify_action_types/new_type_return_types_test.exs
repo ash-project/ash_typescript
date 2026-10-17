@@ -12,9 +12,9 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
         use Ash.TypedStruct
 
         typed_struct do
-          field(:total_count, :integer, default: 0)
-          field(:completed?, :boolean)
-          field(:is_urgent?, :boolean, default: false)
+          field :total_count, :integer, default: 0
+          field :completed?, :boolean
+          field :is_urgent?, :boolean, default: false
         end
       end
 

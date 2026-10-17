@@ -172,7 +172,7 @@ defmodule AshTypescript.Test.Domain do
 
     # Test resource-level namespace (all actions inherit this unless overridden)
     resource AshTypescript.Test.UserSettings do
-      namespace("settings")
+      namespace "settings"
 
       rpc_action :list_user_settings, :read
       rpc_action :get_user_settings, :get_by_user

@@ -17,9 +17,9 @@ defmodule AshTypescript.Test.TaskStats do
   end
 
   typed_struct do
-    field(:total_count, :integer, default: 0)
-    field(:completed?, :boolean)
-    field(:is_urgent?, :boolean, default: false)
-    field(:average_duration, :float)
+    field :total_count, :integer, default: 0
+    field :completed?, :boolean
+    field :is_urgent?, :boolean, default: false
+    field :average_duration, :float
   end
 end

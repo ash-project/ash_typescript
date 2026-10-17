@@ -374,7 +374,7 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
             typed_query :my_query, :private_read do
               ts_result_type_name "MyQueryResult"
               ts_fields_const_name "myQuery"
-              fields([:id, :name])
+              fields [:id, :name]
             end
           end
         end
@@ -421,7 +421,7 @@ defmodule AshTypescript.Rpc.VerifyRpcPublicActionsTest do
             typed_query :my_query, :public_read do
               ts_result_type_name "MyQueryResult"
               ts_fields_const_name "myQuery"
-              fields([:id, :name])
+              fields [:id, :name]
             end
           end
         end

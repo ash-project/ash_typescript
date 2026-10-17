@@ -107,7 +107,7 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
             use AshTypescript.TypedController
 
             typed_controller do
-              module_name(AshTypescript.Test.DuplicateRoutesController)
+              module_name AshTypescript.Test.DuplicateRoutesController
 
               route :login do
                 method(:post)
@@ -200,7 +200,7 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
             use AshTypescript.TypedController
 
             typed_controller do
-              module_name(AshTypescript.Test.UnderscoreArgController)
+              module_name AshTypescript.Test.UnderscoreArgController
 
               route :test do
                 method(:post)
@@ -225,7 +225,7 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
             use AshTypescript.TypedController
 
             typed_controller do
-              module_name(AshTypescript.Test.UnderscoreRouteController)
+              module_name AshTypescript.Test.UnderscoreRouteController
 
               route :step_1 do
                 method(:get)
@@ -249,7 +249,7 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
             use AshTypescript.TypedController
 
             typed_controller do
-              module_name(AshTypescript.Test.QuestionMarkArgController)
+              module_name AshTypescript.Test.QuestionMarkArgController
 
               route :test do
                 method(:post)
@@ -274,7 +274,7 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
             use AshTypescript.TypedController
 
             typed_controller do
-              module_name(AshTypescript.Test.SuggestionController)
+              module_name AshTypescript.Test.SuggestionController
 
               route :test do
                 method(:post)
@@ -299,7 +299,7 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
             use AshTypescript.TypedController
 
             typed_controller do
-              module_name(AshTypescript.Test.QuestionMarkReturnFieldController)
+              module_name AshTypescript.Test.QuestionMarkReturnFieldController
 
               get :status do
                 run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
@@ -328,7 +328,7 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
             use AshTypescript.TypedController
 
             typed_controller do
-              module_name(AshTypescript.Test.NestedInvalidReturnFieldController)
+              module_name AshTypescript.Test.NestedInvalidReturnFieldController
 
               get :items do
                 run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
@@ -362,7 +362,7 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
             use AshTypescript.TypedController
 
             typed_controller do
-              module_name(AshTypescript.Test.InvalidArgumentFieldController)
+              module_name AshTypescript.Test.InvalidArgumentFieldController
 
               post :save do
                 run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
@@ -391,7 +391,7 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
             use AshTypescript.TypedController
 
             typed_controller do
-              module_name(AshTypescript.Test.ReturningUnmappedNewTypeController)
+              module_name AshTypescript.Test.ReturningUnmappedNewTypeController
 
               get :stats do
                 run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
@@ -429,7 +429,7 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
             use AshTypescript.TypedController
 
             typed_controller do
-              module_name(AshTypescript.Test.ReturningBadlyMappedTypeController)
+              module_name AshTypescript.Test.ReturningBadlyMappedTypeController
 
               get :flags do
                 run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
@@ -458,7 +458,7 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
             use AshTypescript.TypedController
 
             typed_controller do
-              module_name(AshTypescript.Test.NonIdentifierFieldsController)
+              module_name AshTypescript.Test.NonIdentifierFieldsController
 
               get :odd do
                 run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
@@ -494,7 +494,7 @@ defmodule AshTypescript.TypedController.VerifyTypedControllerTest do
             use AshTypescript.TypedController
 
             typed_controller do
-              module_name(AshTypescript.Test.NonIdentifierArgumentController)
+              module_name AshTypescript.Test.NonIdentifierArgumentController
 
               post :save do
                 run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end

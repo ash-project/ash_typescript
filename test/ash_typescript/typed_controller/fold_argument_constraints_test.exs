@@ -20,7 +20,7 @@ defmodule AshTypescript.TypedController.FoldArgumentConstraintsTest do
           use AshTypescript.TypedController
 
           typed_controller do
-            module_name(AshTypescript.Test.InvalidConstraintsController)
+            module_name AshTypescript.Test.InvalidConstraintsController
 
             route :login do
               method(:post)
@@ -40,7 +40,7 @@ defmodule AshTypescript.TypedController.FoldArgumentConstraintsTest do
       use AshTypescript.TypedController
 
       typed_controller do
-        module_name(AshTypescript.Test.FoldedConstraintsController)
+        module_name AshTypescript.Test.FoldedConstraintsController
 
         route :rename do
           method(:post)
@@ -100,7 +100,7 @@ defmodule AshTypescript.TypedController.FoldArgumentConstraintsTest do
           use AshTypescript.TypedController
 
           typed_controller do
-            module_name(AshTypescript.Test.InvalidReturnConstraintsController)
+            module_name AshTypescript.Test.InvalidReturnConstraintsController
 
             post :login do
               run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
@@ -122,7 +122,7 @@ defmodule AshTypescript.TypedController.FoldArgumentConstraintsTest do
           use AshTypescript.TypedController
 
           typed_controller do
-            module_name(AshTypescript.Test.InvalidReturnTypeController)
+            module_name AshTypescript.Test.InvalidReturnTypeController
 
             post :login do
               run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
@@ -143,7 +143,7 @@ defmodule AshTypescript.TypedController.FoldArgumentConstraintsTest do
           use AshTypescript.TypedController
 
           typed_controller do
-            module_name(AshTypescript.Test.InvalidArgumentTypeController)
+            module_name AshTypescript.Test.InvalidArgumentTypeController
 
             post :login do
               run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
@@ -168,7 +168,7 @@ defmodule AshTypescript.TypedController.FoldArgumentConstraintsTest do
             use AshTypescript.TypedController
 
             typed_controller do
-              module_name(AshTypescript.Test.ReturningResourceController)
+              module_name AshTypescript.Test.ReturningResourceController
 
               get :todo do
                 run fn conn, _params -> conn end
@@ -190,7 +190,7 @@ defmodule AshTypescript.TypedController.FoldArgumentConstraintsTest do
             use AshTypescript.TypedController
 
             typed_controller do
-              module_name(AshTypescript.Test.ReturningNestedEmbeddedController)
+              module_name AshTypescript.Test.ReturningNestedEmbeddedController
 
               get :tasks do
                 run fn conn, _params -> conn end
@@ -215,7 +215,7 @@ defmodule AshTypescript.TypedController.FoldArgumentConstraintsTest do
             use AshTypescript.TypedController
 
             typed_controller do
-              module_name(AshTypescript.Test.ReturningUnionController)
+              module_name AshTypescript.Test.ReturningUnionController
 
               get :value do
                 run fn conn, _params -> conn end

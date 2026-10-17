@@ -12,12 +12,12 @@ defmodule AshTypescript.Test.OrgChannel do
   use AshTypescript.TypedChannel
 
   typed_channel do
-    topic("org:*")
+    topic "org:*"
 
     resource AshTypescript.Test.ChannelItem do
-      publish(:item_created)
-      publish(:item_updated)
-      publish(:item_deleted)
+      publish :item_created
+      publish :item_updated
+      publish :item_deleted
     end
   end
 

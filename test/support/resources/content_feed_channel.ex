@@ -12,15 +12,15 @@ defmodule AshTypescript.Test.ContentFeedChannel do
   use AshTypescript.TypedChannel
 
   typed_channel do
-    topic("content_feed:*")
+    topic "content_feed:*"
 
     resource AshTypescript.Test.ChannelArticle do
-      publish(:article_published)
-      publish(:article_updated)
+      publish :article_published
+      publish :article_updated
     end
 
     resource AshTypescript.Test.ChannelReview do
-      publish(:review_submitted)
+      publish :review_submitted
     end
   end
 

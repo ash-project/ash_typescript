@@ -25,9 +25,7 @@ defmodule AshTypescript.TypedController.CodegenEnforcementTest do
         use AshTypescript.TypedController
 
         typed_controller do
-          module_name(
-            AshTypescript.TypedController.CodegenEnforcementTest.InvalidFieldNamesController
-          )
+          module_name AshTypescript.TypedController.CodegenEnforcementTest.InvalidFieldNamesController
 
           get :status do
             run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
@@ -51,7 +49,7 @@ defmodule AshTypescript.TypedController.CodegenEnforcementTest do
     use AshTypescript.TypedController
 
     typed_controller do
-      module_name(AshTypescript.TypedController.CodegenEnforcementTest.RouteOnlyTypesController)
+      module_name AshTypescript.TypedController.CodegenEnforcementTest.RouteOnlyTypesController
 
       post :save_settings do
         run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
