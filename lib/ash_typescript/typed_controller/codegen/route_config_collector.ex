@@ -4,25 +4,35 @@
 
 defmodule AshTypescript.TypedController.Codegen.RouteConfigCollector do
   @moduledoc """
-  Discovers all TypedController modules from application configuration.
+  Reads the typed controller routes codegen renders. The route set comes from
+  the manifest; the DSL supplies rendering-only options.
   """
 
   @doc """
-  Gets all typed controllers from configuration.
-
-  Returns a list of tuples: `{source_module, controller_module, routes}`
-  where routes is a list of Route structs.
+  The typed controller routes stored in the manifest, as
+  `{source_module, controller_module, [dsl_route]}` tuples sorted by source
+  module. The manifest decides which routes exist (`source` `nil` reads the
+  configured manifest and honours `AshTypescript.with_manifest/2`). Each DSL
+  route is fetched by name from `TypedController.Info` for rendering-only
+  options: method, namespace, description, schema names and `see`.
   """
-  def get_typed_controllers do
-    AshTypescript.typed_controllers()
-    |> Enum.filter(&AshTypescript.TypedController.Info.typed_controller?/1)
-    |> Enum.map(fn module ->
-      controller_module =
-        AshTypescript.TypedController.Info.typed_controller_module_name!(module)
+  @spec manifest_routes_config(module() | Ash.Info.Manifest.t() | nil) ::
+          [{module(), module(), [struct()]}]
+  def manifest_routes_config(source \\ nil) do
+    source
+    |> AshTypescript.Manifest.Custom.routes()
+    |> Enum.group_by(&{&1.source_module, &1.controller_module}, & &1.name)
+    |> Enum.sort_by(fn {{source_module, _}, _} -> inspect(source_module) end)
+    |> Enum.map(fn {{source_module, controller_module}, names} ->
+      Code.ensure_loaded!(source_module)
 
-      routes = AshTypescript.TypedController.Info.typed_controller(module)
+      dsl_routes =
+        Map.new(
+          AshTypescript.TypedController.Info.typed_controller(source_module),
+          &{&1.name, &1}
+        )
 
-      {module, controller_module, routes}
+      {source_module, controller_module, Enum.map(names, &Map.fetch!(dsl_routes, &1))}
     end)
   end
 

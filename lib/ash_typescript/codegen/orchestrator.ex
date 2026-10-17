@@ -60,15 +60,19 @@ defmodule AshTypescript.Codegen.Orchestrator do
     valibot_enabled? = AshTypescript.Rpc.generate_valibot_schemas?()
 
     rpc_resources = TypeDiscovery.get_rpc_resources(otp_app)
-    channel_entries = collect_typed_channel_entries()
+    channel_entries = channel_entries()
 
     # Spark only reports per-module verifier failures as compile warnings, so
     # re-run them here to fail codegen. Typed controllers and channels are
     # checked whether or not RPC output is configured.
     rpc_modules = if rpc_output_file, do: rpc_resources ++ Ash.Info.domains(otp_app), else: []
 
+    # The typed controller route set comes from the manifest
+    routes_config = ControllerCodegen.RouteConfigCollector.manifest_routes_config()
+    typed_controller_modules = Enum.map(routes_config, &elem(&1, 0))
+
     verifier_modules =
-      rpc_modules ++ AshTypescript.typed_controllers() ++ AshTypescript.typed_channels()
+      rpc_modules ++ typed_controller_modules ++ Enum.map(channel_entries, &elem(&1, 0))
 
     with :ok <- AshTypescript.VerifierChecker.check_all_verifiers(verifier_modules),
          :ok <- run_manifest_verifiers(rpc_output_file) do
@@ -79,7 +83,15 @@ defmodule AshTypescript.Codegen.Orchestrator do
 
     embedded_resources = TypeDiscovery.find_embedded_resources(otp_app)
     struct_argument_resources = TypeDiscovery.find_struct_argument_resources(otp_app)
-    controller_resources = collect_typed_controller_resources()
+
+    controller_resources =
+      if routes_config == [] do
+        []
+      else
+        AshTypescript.router()
+        |> ControllerCodegen.resolve_route_infos(routes_config)
+        |> ControllerCodegen.referenced_embedded_resources()
+      end
 
     all_resources =
       (rpc_resources ++ embedded_resources ++ struct_argument_resources ++ controller_resources)
@@ -376,14 +388,17 @@ defmodule AshTypescript.Codegen.Orchestrator do
     |> Enum.sort()
   end
 
-  defp collect_typed_channel_entries do
-    AshTypescript.typed_channels()
+  @doc false
+  # Typed channels with at least one stored publication, with their DSL topic.
+  # The set comes from the manifest (`nil` source honours `with_manifest/2`).
+  def channel_entries do
+    AshTypescript.Manifest.Custom.publications()
+    |> Enum.map(& &1.channel_module)
+    |> Enum.uniq()
     |> Enum.map(fn mod ->
-      Code.ensure_loaded(mod)
-      topic = AshTypescript.TypedChannel.Info.typed_channel_topic!(mod)
-      {mod, topic}
+      Code.ensure_loaded!(mod)
+      {mod, AshTypescript.TypedChannel.Info.typed_channel_topic!(mod)}
     end)
-    |> Enum.uniq_by(fn {mod, _topic} -> mod end)
     |> Enum.sort_by(fn {mod, _topic} -> inspect(mod) end)
   end
 
@@ -392,18 +407,6 @@ defmodule AshTypescript.Codegen.Orchestrator do
       ""
     else
       ChannelCodegen.generate_all_channel_types(channel_entries)
-    end
-  end
-
-  defp collect_typed_controller_resources do
-    router = AshTypescript.router()
-    routes_config = ControllerCodegen.RouteConfigCollector.get_typed_controllers()
-
-    if routes_config == [] do
-      []
-    else
-      route_infos = ControllerCodegen.resolve_route_infos(router, routes_config)
-      ControllerCodegen.collect_referenced_resources(route_infos)
     end
   end
 

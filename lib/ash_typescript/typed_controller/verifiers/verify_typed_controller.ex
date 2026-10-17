@@ -198,7 +198,7 @@ defmodule AshTypescript.TypedController.Verifiers.VerifyTypedController do
       Enum.map(route.arguments, &{"argument #{inspect(&1.name)}", &1.type, &1.constraints || []})
   end
 
-  # Walks the same shape `TypeMapper.map_route_result_type/2` renders, so the
+  # Walks the same shape `TypeMapper.map_route_result_type/1` renders, so the
   # names checked are exactly the client names generated. `seen` guards against
   # recursive named types on the current branch.
   defp invalid_fields(%Type{kind: :type_ref, module: module}, path, seen) do

@@ -37,17 +37,30 @@ defmodule AshTypescript.TypedController.Codegen do
 
   @doc false
   def resolve_route_infos(router, routes_config) do
-    if router do
-      Code.ensure_loaded(router)
+    infos =
+      if router do
+        Code.ensure_loaded(router)
 
-      if function_exported?(router, :__routes__, 0) do
-        RouterIntrospector.introspect(router, routes_config)
+        if function_exported?(router, :__routes__, 0) do
+          RouterIntrospector.introspect(router, routes_config)
+        else
+          build_route_infos_without_router(routes_config)
+        end
       else
         build_route_infos_without_router(routes_config)
       end
-    else
-      build_route_infos_without_router(routes_config)
-    end
+
+    Enum.map(infos, &attach_manifest_route/1)
+  end
+
+  # The route set came from the manifest, so the lookup always hits. The
+  # manifest route supplies argument names and decorated types; the DSL route
+  # (`info.route`) keeps supplying rendering-only options.
+  defp attach_manifest_route(%{source_module: module, route: route} = info) do
+    %AshTypescript.Manifest.Route{} =
+      manifest_route = AshTypescript.Manifest.Custom.route(nil, module, route.name)
+
+    Map.put(info, :manifest_route, manifest_route)
   end
 
   @doc false
@@ -193,7 +206,7 @@ defmodule AshTypescript.TypedController.Codegen do
     base_path = Keyword.get(opts, :base_path) || AshTypescript.typed_controller_base_path()
     output_file = Keyword.get(opts, :output_file) || AshTypescript.routes_output_file()
 
-    routes_config = RouteConfigCollector.get_typed_controllers()
+    routes_config = RouteConfigCollector.manifest_routes_config()
 
     if routes_config == [] do
       ""
@@ -234,7 +247,7 @@ defmodule AshTypescript.TypedController.Codegen do
 
   defp collect_route_schemas(opts, render_fun) do
     router = Keyword.get(opts, :router) || AshTypescript.router()
-    routes_config = RouteConfigCollector.get_typed_controllers()
+    routes_config = RouteConfigCollector.manifest_routes_config()
 
     if routes_config == [] do
       []
@@ -253,15 +266,17 @@ defmodule AshTypescript.TypedController.Codegen do
   end
 
   @doc false
-  def collect_referenced_resources(route_infos) do
+  # Embedded resources used directly as non-path route arguments, read from the
+  # manifest route types. Their input schemas go to the shared schema output.
+  def referenced_embedded_resources(route_infos) do
     route_infos
     |> Enum.flat_map(fn info ->
-      path_param_set = MapSet.new(info.path_params)
+      path_params = MapSet.new(info.path_params)
 
-      info.route.arguments
-      |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
-      |> Enum.map(fn arg -> Ash.Type.get_type(arg.type) end)
-      |> Enum.filter(&is_embedded_resource?/1)
+      for %{type: %Ash.Info.Manifest.Type{kind: :embedded_resource} = type, name: name} <-
+            info.manifest_route.inputs,
+          not MapSet.member?(path_params, name),
+          do: Ash.Info.Manifest.Type.effective_resource(type)
     end)
     |> Enum.uniq()
     |> Enum.sort_by(&AshTypescript.Codegen.Helpers.build_resource_type_name/1)
@@ -330,7 +345,7 @@ defmodule AshTypescript.TypedController.Codegen do
   """
   def get_routes_by_namespace(opts \\ []) do
     router = Keyword.get(opts, :router) || AshTypescript.router()
-    routes_config = RouteConfigCollector.get_typed_controllers()
+    routes_config = RouteConfigCollector.manifest_routes_config()
 
     if routes_config == [] do
       %{}
@@ -362,8 +377,7 @@ defmodule AshTypescript.TypedController.Codegen do
       path_param_set = MapSet.new(path_params)
 
       input_args =
-        route.arguments
-        |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
+        Enum.reject(info.manifest_route.inputs, &MapSet.member?(path_param_set, &1.name))
 
       path_name = build_export_function_name(route.name, scope_prefix, :path)
       exports = [{path_name, :value}]
@@ -524,10 +538,4 @@ defmodule AshTypescript.TypedController.Codegen do
   defp build_export_function_name(action_name, scope_prefix, :action) do
     AshTypescript.Helpers.format_output_field(:"#{scope_prefix}_#{action_name}")
   end
-
-  defp is_embedded_resource?(module) when is_atom(module) and not is_nil(module) do
-    Ash.Resource.Info.resource?(module) and Ash.Resource.Info.embedded?(module)
-  end
-
-  defp is_embedded_resource?(_), do: false
 end

@@ -12,12 +12,17 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   - Routes declaring `returns` get an exported result type; their action
     functions resolve to a `TypedControllerResponse` typed by it. GET routes
     declaring `returns` also get a fetch function (see `Codegen.fetch_function?/1`).
+
+  Argument names and types come from the manifest route
+  (`route_info.manifest_route`): each `RouteArgument`'s `client_name` and
+  decorated `type`, so generated names match what the runtime resolves. The
+  router supplies paths, methods and path params; the DSL route
+  (`route_info.route`) supplies rendering-only options.
   """
 
   import AshTypescript.Helpers, only: [format_output_field: 1]
   import AshTypescript.Codegen.TypeMapper, only: [get_ts_input_type: 1]
 
-  alias Ash.Info.Manifest.Generator.TypeResolver
   alias AshTypescript.Codegen.SchemaCore
   alias AshTypescript.Codegen.TypeMapper
   alias AshTypescript.Codegen.ValibotSchemaGenerator
@@ -51,11 +56,15 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
 
   # Rendered for every route that declares `returns` — GET routes included, so
   # callers fetching a path helper's URL themselves can type the body too.
-  defp render_result_type(%{route: %{returns: nil}}), do: ""
+  defp render_result_type(%{manifest_route: %{returns: nil}}), do: ""
 
-  defp render_result_type(%{route: route, scope_prefix: scope_prefix}) do
+  defp render_result_type(%{
+         route: route,
+         manifest_route: manifest_route,
+         scope_prefix: scope_prefix
+       }) do
     type_name = Codegen.route_result_type_name(route, scope_prefix)
-    ts_type = TypeMapper.map_route_result_type(route.returns, route.constraints)
+    ts_type = TypeMapper.map_route_result_type(manifest_route.returns)
 
     """
     /**
@@ -78,10 +87,10 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     function_name = build_function_name(route.name, scope_prefix, :path)
     style = AshTypescript.typed_controller_path_params_style()
 
-    path_param_args = build_path_param_args(route, path_params, style)
+    path_param_args = build_path_param_args(route_info, path_params, style)
 
     is_mutation = method in @mutation_methods
-    query_args = if is_mutation, do: [], else: non_path_args(route, path_params)
+    query_args = if is_mutation, do: [], else: non_path_inputs(route_info)
 
     {query_param, query_body_lines} = build_query_param_and_body(query_args)
 
@@ -119,47 +128,51 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     end
   end
 
-  defp get_path_param_type(route, param) do
-    case Enum.find(route.arguments, &(&1.name == param)) do
+  defp get_path_param_type(route_info, param) do
+    case manifest_input(route_info, param) do
       nil -> "string"
-      arg -> get_ts_input_type(%{type: arg.type, constraints: arg.constraints || []})
+      input -> input_ts_type(input)
     end
   end
 
-  defp non_path_args(route, path_params) do
-    path_param_set = MapSet.new(path_params)
+  defp manifest_input(route_info, name),
+    do: Enum.find(route_info.manifest_route.inputs, &(&1.name == name))
 
-    route.arguments
-    |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
+  # The manifest route's arguments that are not router path params
+  defp non_path_inputs(%{manifest_route: manifest_route, path_params: path_params}) do
+    path_param_set = MapSet.new(path_params)
+    Enum.reject(manifest_route.inputs, &MapSet.member?(path_param_set, &1.name))
   end
+
+  defp input_ts_type(input), do: get_ts_input_type(%{type: input.type, constraints: []})
 
   defp build_query_param_and_body([]), do: {nil, []}
 
-  defp build_query_param_and_body(query_args) do
-    any_required = Enum.any?(query_args, fn arg -> !arg.allow_nil? && arg.default == nil end)
+  defp build_query_param_and_body(query_inputs) do
+    any_required = Enum.any?(query_inputs, &(not &1.allow_nil? and not &1.has_default?))
     optional_marker = if any_required, do: "", else: "?"
 
     fields =
-      Enum.map_join(query_args, "; ", fn arg ->
-        base_type = get_ts_input_type(%{type: arg.type, constraints: arg.constraints || []})
-        ts_type = if arg.allow_nil?, do: "#{base_type} | null", else: base_type
-        opt = if arg.allow_nil? || arg.default != nil, do: "?", else: ""
-        "#{format_output_field(arg.name)}#{opt}: #{ts_type}"
+      Enum.map_join(query_inputs, "; ", fn input ->
+        base_type = input_ts_type(input)
+        ts_type = if input.allow_nil?, do: "#{base_type} | null", else: base_type
+        opt = if input.allow_nil? or input.has_default?, do: "?", else: ""
+        "#{input.client_name}#{opt}: #{ts_type}"
       end)
 
     param = "query#{optional_marker}: { #{fields} }"
 
     body_lines =
       ["  const searchParams = new URLSearchParams();"] ++
-        Enum.map(query_args, fn arg ->
-          field = format_output_field(arg.name)
-          required = !arg.allow_nil? && arg.default == nil
+        Enum.map(query_inputs, fn input ->
+          field = input.client_name
+          required = not input.allow_nil? and not input.has_default?
 
           # Array arguments append one `name[]=` pair per element — Plug's query
           # parser needs that to rebuild a list. `String(array)` would collapse
           # the whole thing into one comma-joined value.
           set =
-            if array_type?(arg.type) do
+            if input.type.kind == :array do
               "query.#{field}.forEach((v) => searchParams.append(\"#{field}[]\", String(v)));"
             else
               "searchParams.set(\"#{field}\", String(query.#{field}));"
@@ -175,11 +188,6 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     {param, body_lines}
   end
 
-  # Matches both the DSL form (`{:array, :string}`) and the resolved form
-  # (`{:array, Ash.Type.String}`) that `Ash.Type.get_type/1` produces.
-  defp array_type?({:array, _inner}), do: true
-  defp array_type?(_type), do: false
-
   defp render_action_function(route_info, opts) do
     %{
       route: route,
@@ -193,7 +201,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     function_name = build_function_name(route.name, scope_prefix, :action)
     method_upper = method |> to_string() |> String.upcase()
 
-    input_fields = build_input_fields(route, path_params)
+    input_fields = build_input_fields(route_info)
     has_input = input_fields != []
     style = AshTypescript.typed_controller_path_params_style()
 
@@ -205,7 +213,7 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
         ""
       end
 
-    path_param = build_path_param_args(route, path_params, style)
+    path_param = build_path_param_args(route_info, path_params, style)
 
     input_param =
       if has_input do
@@ -255,8 +263,8 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
       route_info
 
     style = AshTypescript.typed_controller_path_params_style()
-    path_param_args = build_path_param_args(route, path_params, style)
-    {query_param, _body_lines} = build_query_param_and_body(non_path_args(route, path_params))
+    path_param_args = build_path_param_args(route_info, path_params, style)
+    {query_param, _body_lines} = build_query_param_and_body(non_path_inputs(route_info))
 
     path_helper_args =
       case {style, path_params} do
@@ -337,27 +345,22 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
   end
 
   defp render_validation_schema(route_info, formatter, schema_name) do
-    %{route: route, path_params: path_params} = route_info
+    inputs = non_path_inputs(route_info)
 
-    input_args = non_path_args(route, path_params)
-
-    if input_args == [] do
+    if inputs == [] do
       ""
     else
       field_lines =
-        Enum.map_join(input_args, "\n", fn arg ->
-          # Constraints arrive pre-folded by the FoldArgumentConstraints
-          # transformer, so this resolves to the same shape manifest inputs
-          # have — and composes through the same shared path.
-          spec_type = TypeResolver.resolve(Ash.Type.get_type(arg.type), arg.constraints || [])
-
+        Enum.map_join(inputs, "\n", fn input ->
+          # The manifest type carries the constraints FoldArgumentConstraints
+          # folded in, so this composes through the same path as RPC inputs.
           {name, schema_type} =
             SchemaCore.compose_input_field(
               formatter,
-              format_output_field(arg.name),
-              %{type: spec_type},
-              arg.allow_nil?,
-              arg.allow_nil? || arg.default != nil
+              input.client_name,
+              %{type: input.type},
+              input.allow_nil?,
+              input.allow_nil? or input.has_default?
             )
 
           "  #{name}: #{schema_type},"
@@ -371,14 +374,14 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     end
   end
 
-  defp build_input_fields(route, path_params) do
-    route
-    |> non_path_args(path_params)
-    |> Enum.map(fn arg ->
-      optional = arg.allow_nil? || arg.default != nil
-      base_type = get_ts_input_type(%{type: arg.type, constraints: arg.constraints || []})
-      ts_type = if arg.allow_nil?, do: "#{base_type} | null", else: base_type
-      {format_output_field(arg.name), ts_type, optional}
+  defp build_input_fields(route_info) do
+    route_info
+    |> non_path_inputs()
+    |> Enum.map(fn input ->
+      optional = input.allow_nil? or input.has_default?
+      base_type = input_ts_type(input)
+      ts_type = if input.allow_nil?, do: "#{base_type} | null", else: base_type
+      {input.client_name, ts_type, optional}
     end)
   end
 
@@ -408,21 +411,21 @@ defmodule AshTypescript.TypedController.Codegen.RouteRenderer do
     format_output_field(:"#{scope_prefix}_#{action_name}")
   end
 
-  defp build_path_param_args(_route, [], _style), do: []
+  defp build_path_param_args(_route_info, [], _style), do: []
 
-  defp build_path_param_args(route, path_params, :object) do
+  defp build_path_param_args(route_info, path_params, :object) do
     path_fields =
       Enum.map_join(path_params, ", ", fn param ->
-        ts_type = get_path_param_type(route, param)
+        ts_type = get_path_param_type(route_info, param)
         "#{format_output_field(param)}: #{ts_type}"
       end)
 
     [format_output_field(:path) <> ": { " <> path_fields <> " }"]
   end
 
-  defp build_path_param_args(route, path_params, :args) do
+  defp build_path_param_args(route_info, path_params, :args) do
     Enum.map(path_params, fn param ->
-      ts_type = get_path_param_type(route, param)
+      ts_type = get_path_param_type(route_info, param)
       "#{format_output_field(param)}: #{ts_type}"
     end)
   end

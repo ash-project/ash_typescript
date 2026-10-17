@@ -524,22 +524,41 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
   # ─────────────────────────────────────────────────────────────────
 
   describe "generate_all_channel_types/1 — payload type conflict" do
+    # The Conflict* channels are in no manifest module option (that would change
+    # the generated snapshots), so their payload types come from an inline manifest.
+    defp with_conflict_manifest(fun) do
+      AshTypescript.with_manifest(
+        AshTypescript.Test.InlineManifest.build!(
+          typed_controllers: [],
+          typed_channels: [
+            AshTypescript.Test.TypedChannel.ConflictChannelA,
+            AshTypescript.Test.TypedChannel.ConflictChannelB
+          ]
+        ),
+        fun
+      )
+    end
+
     test "raises when same event name maps to different TypeScript types across channels" do
       assert_raise RuntimeError, ~r/Payload type name conflict/, fn ->
-        Codegen.generate_all_channel_types([
-          {AshTypescript.Test.TypedChannel.ConflictChannelA, "conflict_a:*"},
-          {AshTypescript.Test.TypedChannel.ConflictChannelB, "conflict_b:*"}
-        ])
+        with_conflict_manifest(fn ->
+          Codegen.generate_all_channel_types([
+            {AshTypescript.Test.TypedChannel.ConflictChannelA, "conflict_a:*"},
+            {AshTypescript.Test.TypedChannel.ConflictChannelB, "conflict_b:*"}
+          ])
+        end)
       end
     end
 
     test "error message includes conflicting type name and details" do
       error =
         assert_raise RuntimeError, fn ->
-          Codegen.generate_all_channel_types([
-            {AshTypescript.Test.TypedChannel.ConflictChannelA, "conflict_a:*"},
-            {AshTypescript.Test.TypedChannel.ConflictChannelB, "conflict_b:*"}
-          ])
+          with_conflict_manifest(fn ->
+            Codegen.generate_all_channel_types([
+              {AshTypescript.Test.TypedChannel.ConflictChannelA, "conflict_a:*"},
+              {AshTypescript.Test.TypedChannel.ConflictChannelB, "conflict_b:*"}
+            ])
+          end)
         end
 
       assert error.message =~ "ItemCreatedPayload"

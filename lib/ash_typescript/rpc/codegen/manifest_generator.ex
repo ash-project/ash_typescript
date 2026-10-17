@@ -501,7 +501,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
 
   defp generate_typed_controller_manifest_section do
     routes_config =
-      AshTypescript.TypedController.Codegen.RouteConfigCollector.get_typed_controllers()
+      AshTypescript.TypedController.Codegen.RouteConfigCollector.manifest_routes_config()
 
     if routes_config == [] do
       ""
@@ -559,8 +559,7 @@ defmodule AshTypescript.Rpc.Codegen.ManifestGenerator do
     path_param_set = MapSet.new(info.path_params)
 
     input_args =
-      info.route.arguments
-      |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
+      Enum.reject(info.manifest_route.inputs, &MapSet.member?(path_param_set, &1.name))
 
     # The named input type only exists for mutation fetch functions (so not in
     # :paths_only mode); validation schemas are rendered for any route with

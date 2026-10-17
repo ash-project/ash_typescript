@@ -141,7 +141,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
           files
 
         path ->
-          if AshTypescript.TypedController.Codegen.RouteConfigCollector.get_typed_controllers() !=
+          if AshTypescript.TypedController.Codegen.RouteConfigCollector.manifest_routes_config() !=
                [] do
             Map.put(files, "routes", file_entry(manifest_path, path))
           else
@@ -446,7 +446,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
   defp build_typed_controller_routes do
     routes_config =
-      AshTypescript.TypedController.Codegen.RouteConfigCollector.get_typed_controllers()
+      AshTypescript.TypedController.Codegen.RouteConfigCollector.manifest_routes_config()
 
     if routes_config == [] do
       []
@@ -470,9 +470,10 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
     path_param_set = MapSet.new(info.path_params)
 
+    # Argument set from the manifest route; method, path, path params, function
+    # and schema names keep coming from the route info (router plus DSL route).
     input_args =
-      info.route.arguments
-      |> Enum.reject(fn arg -> MapSet.member?(path_param_set, arg.name) end)
+      Enum.reject(info.manifest_route.inputs, &MapSet.member?(path_param_set, &1.name))
 
     # A named input type exists only for the mutation fetch functions (so not
     # in :paths_only mode), whereas validation schemas are rendered for any

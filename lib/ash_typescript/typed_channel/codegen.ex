@@ -150,7 +150,7 @@ defmodule AshTypescript.TypedChannel.Codegen do
       ""
     else
       channel_name = module_to_channel_name(channel_module)
-      event_data = collect_event_data(channel_resources)
+      event_data = collect_event_data(channel_module, channel_resources)
 
       if Enum.empty?(event_data) do
         ""
@@ -190,7 +190,7 @@ defmodule AshTypescript.TypedChannel.Codegen do
       ""
     else
       channel_name = module_to_channel_name(channel_module)
-      event_data = collect_event_data(channel_resources)
+      event_data = collect_event_data(channel_module, channel_resources)
 
       if Enum.empty?(event_data) do
         ""
@@ -213,24 +213,23 @@ defmodule AshTypescript.TypedChannel.Codegen do
     channel_entries
     |> Enum.map(fn {mod, topic} ->
       resources = Info.typed_channel(mod)
-      {mod, topic, collect_event_data(resources)}
+      {mod, topic, collect_event_data(mod, resources)}
     end)
     |> Enum.reject(fn {_, _, events} -> Enum.empty?(events) end)
   end
 
-  defp collect_event_data(channel_resources) do
+  # The declared events and their order come from the channel's DSL; each
+  # payload type comes from the channel's publication in the manifest.
+  defp collect_event_data(channel_module, channel_resources) do
     channel_resources
     |> Enum.sort_by(fn cr -> inspect(cr.module) end)
     |> Enum.flat_map(fn channel_resource ->
       resource_module = channel_resource.module
-      publications = Ash.Notifier.PubSub.Info.publications(resource_module)
 
       channel_resource.publications
       |> Enum.map(fn pub ->
         event_str = to_string(pub.event)
-        matching_pub = Info.find_publication(publications, event_str)
-
-        ts_type = resolve_payload_type(matching_pub, resource_module)
+        ts_type = payload_type(channel_module, resource_module, event_str)
 
         %{
           event: event_str,
@@ -242,12 +241,25 @@ defmodule AshTypescript.TypedChannel.Codegen do
     end)
   end
 
-  defp resolve_payload_type(%{returns: returns} = pub, _resource_module)
-       when not is_nil(returns) do
-    TypeMapper.map_channel_payload_type(returns, pub.constraints || [])
-  end
+  # `nil` returns (the publication declares none) and a channel missing from
+  # the manifest both give `unknown`.
+  defp payload_type(channel_module, resource_module, event_str) do
+    case AshTypescript.Manifest.Custom.publication(
+           nil,
+           channel_module,
+           resource_module,
+           event_str
+         ) do
+      %AshTypescript.Manifest.Publication{returns: nil} ->
+        "unknown"
 
-  defp resolve_payload_type(_, _), do: "unknown"
+      %AshTypescript.Manifest.Publication{returns: returns} ->
+        TypeMapper.map_channel_payload_type(returns)
+
+      nil ->
+        "unknown"
+    end
+  end
 
   defp build_channel_brand_type(channel_name) do
     """

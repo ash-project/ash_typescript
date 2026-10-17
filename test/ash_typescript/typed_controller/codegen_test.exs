@@ -1306,6 +1306,66 @@ defmodule AshTypescript.TypedController.CodegenTest do
     end
   end
 
+  describe "route set and names come from the manifest" do
+    alias AshTypescript.TypedController.Codegen
+    alias AshTypescript.TypedController.Codegen.RouteConfigCollector
+
+    test "every non-path argument is emitted under its RouteArgument.client_name", %{
+      typescript: ts
+    } do
+      for route <- AshTypescript.Manifest.Custom.routes(),
+          route.source_module == AshTypescript.Test.Session,
+          input <- route.inputs do
+        assert ts =~ input.client_name
+      end
+    end
+
+    test "manifest_routes_config/1 groups manifest routes with their DSL routes" do
+      assert [{AshTypescript.Test.Session, controller, dsl_routes}] =
+               RouteConfigCollector.manifest_routes_config()
+
+      assert controller ==
+               AshTypescript.TypedController.Info.typed_controller_module_name!(
+                 AshTypescript.Test.Session
+               )
+
+      assert Enum.all?(dsl_routes, &match?(%AshTypescript.TypedController.Dsl.Route{}, &1))
+
+      assert Enum.map(dsl_routes, & &1.name) |> Enum.sort() ==
+               for(r <- AshTypescript.Manifest.Custom.routes(), do: r.name) |> Enum.sort()
+    end
+
+    test "route_infos carry the manifest route" do
+      [info | _] =
+        Codegen.resolve_route_infos(
+          AshTypescript.router(),
+          RouteConfigCollector.manifest_routes_config()
+        )
+
+      assert %AshTypescript.Manifest.Route{source_module: AshTypescript.Test.Session} =
+               info.manifest_route
+    end
+
+    test "referenced_embedded_resources/1 lists top-level embedded non-path arguments from the manifest" do
+      infos =
+        Codegen.resolve_route_infos(
+          AshTypescript.router(),
+          RouteConfigCollector.manifest_routes_config()
+        )
+
+      assert Codegen.referenced_embedded_resources(infos) == [AshTypescript.Test.TaskMetadata]
+    end
+
+    test "the route set follows with_manifest/2, not config" do
+      empty = AshTypescript.Test.InlineManifest.build!(typed_controllers: [], typed_channels: [])
+
+      AshTypescript.with_manifest(empty, fn ->
+        assert RouteConfigCollector.manifest_routes_config() == []
+        assert Codegen.generate_controller_content(router: AshTypescript.router()) == ""
+      end)
+    end
+  end
+
   defp reset_env(key, nil), do: Application.delete_env(:ash_typescript, key)
   defp reset_env(key, value), do: Application.put_env(:ash_typescript, key, value)
 end

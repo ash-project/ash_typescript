@@ -10,7 +10,7 @@ defmodule AshTypescript.TypedController.RouterIntrospectionTest do
   @moduletag :ash_typescript
 
   defp routes_config do
-    RouteConfigCollector.get_typed_controllers()
+    RouteConfigCollector.manifest_routes_config()
   end
 
   describe "single mount router introspection" do
