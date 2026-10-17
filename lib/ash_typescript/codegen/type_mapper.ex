@@ -467,8 +467,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
   map to the untyped map type. Unlike `map_channel_payload_type/2`, this
   recurses through arrays and nested typed containers.
 
-  Field names come from each type's decoration (the output formatter plus
-  `typescript_field_names` overrides), so they are the names the runtime sends.
+  Field names come from each type's decoration (read through
+  `Codegen.ClientNames`), so they are the names the runtime sends.
   Named types (NewTypes, enums) are expanded from the manifest: route-only
   named types are in it. Resources and unions are rejected at compile time by
   `AshTypescript.TypedController.Transformers.FoldArgumentConstraints`.
@@ -493,8 +493,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
   defp map_plain_output_type(type_info), do: map_type(type_info, [], :output)
 
   # A typed container as a plain object type, with field names taken from the
-  # type's decoration (output formatter plus typescript_field_names overrides),
-  # so the generated names are the names the runtime sends.
+  # type's decoration (read through `Codegen.ClientNames`), so the generated
+  # names are the names the runtime sends.
   defp plain_object_type(%Type{} = type_info, fields, map_field) do
     field_types =
       Enum.map_join(fields, ", ", fn %{name: name, type: field_type, allow_nil?: allow_nil} ->

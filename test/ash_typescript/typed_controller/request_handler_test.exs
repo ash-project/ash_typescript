@@ -423,7 +423,7 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     end
 
     test "mappings of a named type referenced only by routes are reversed" do
-      # RouteSettings is not reachable from RPC, so it is absent from the manifest
+      # RouteSettings is reachable only from routes; the manifest carries it as a route-only type
       params =
         call(FormattingSession, :echo, %{"settings" => %{"enabled" => true, "level1" => 2}})
         |> echoed()
