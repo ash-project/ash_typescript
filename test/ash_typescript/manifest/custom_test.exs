@@ -12,7 +12,7 @@ defmodule AshTypescript.Manifest.CustomTest do
     test "resolves a domain resource module to its decorated struct" do
       res = Custom.resolve_resource(AshTypescript.Test.User)
       assert %Manifest.Resource{module: AshTypescript.Test.User} = res
-      assert Custom.typescript_resource?(res)
+      assert AshRpc.Manifest.Custom.exposed?(res)
     end
 
     test "resolves an embedded resource module via type_lookup" do
@@ -26,6 +26,16 @@ defmodule AshTypescript.Manifest.CustomTest do
                  %Manifest.Resource{},
                  Custom.resolve_resource(AshTypescript.Test.CustomMetadata)
                )
+    end
+
+    test "resolves against the with_manifest/2 manifest" do
+      snake =
+        AshTypescript.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :snake_case)
+
+      AshTypescript.with_manifest(snake, fn ->
+        assert Custom.resolve_resource(AshTypescript.Test.User) ==
+                 AshTypescript.resource_lookup(snake)[AshTypescript.Test.User]
+      end)
     end
 
     test "returns nil for nil / non-atoms" do

@@ -602,6 +602,19 @@ defmodule AshTypescript.Rpc.JsonManifestGeneratorTest do
       refute Map.has_key?(rels, "user")
       refute Map.has_key?(rels, "notExposedItems")
     end
+
+    test "relationship keys follow the with_manifest/2 manifest" do
+      snake =
+        AshTypescript.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :snake_case)
+
+      rels =
+        AshTypescript.with_manifest(snake, &generate_manifest/0)["resources"]["Todo"][
+          "relationships"
+        ]
+
+      assert Map.has_key?(rels, "unfilterable_comments")
+      refute Map.has_key?(rels, "unfilterableComments")
+    end
   end
 
   describe "typed controller routes - :paths_only mode" do

@@ -68,15 +68,13 @@ defmodule AshTypescript.Manifest.Custom do
   Accepts an optional manifest module so callers operating on a scoped
   manifest (e.g. verifiers running against inline domains via
   `AshTypescript.Manifest.verify_for_domains/1`) resolve against that
-  manifest instead of the globally configured one. `nil` uses the
-  configured manifest.
+  manifest instead of the globally configured one. `nil` uses
+  `AshTypescript.manifest/0`, `AshTypescript.with_manifest/2` override included.
   """
   @spec resolve_resource(atom() | term(), module() | nil) :: Manifest.Resource.t() | nil
   def resolve_resource(module, manifest \\ nil)
 
   def resolve_resource(module, manifest) when is_atom(module) and not is_nil(module) do
-    manifest = manifest || AshTypescript.manifest_module()
-
     case Ash.Info.Manifest.get_resource(AshTypescript.resource_lookup(manifest), module) do
       %Manifest.Resource{} = resource ->
         resource
@@ -98,13 +96,6 @@ defmodule AshTypescript.Manifest.Custom do
   @spec ash_typescript(struct() | nil) :: map() | nil
   def ash_typescript(%{custom: %{ash_typescript: data}}), do: data
   def ash_typescript(_), do: nil
-
-  @doc """
-  Returns `true` if the resource struct is exposed to clients (i.e., the
-  underlying module has the `AshTypescript.Resource` extension).
-  """
-  @spec typescript_resource?(Manifest.Resource.t() | nil) :: boolean()
-  def typescript_resource?(resource), do: AshRpc.Manifest.Custom.exposed?(resource)
 
   @doc """
   Returns the precomputed TypeScript type name for a decorated resource or
@@ -143,20 +134,6 @@ defmodule AshTypescript.Manifest.Custom do
   @spec original_field_name(Manifest.Resource.t() | nil, String.t() | atom()) :: atom() | nil
   def original_field_name(resource, client_name),
     do: AshRpc.Manifest.Custom.original_field_name(resource, client_name)
-
-  @doc """
-  Returns the pre-formatted client name for a field under a built-in formatter,
-  or `nil` if the resource isn't decorated, the field isn't tracked, or the
-  formatter isn't one of `:camel_case` / `:snake_case` / `:pascal_case`.
-  """
-  @spec formatted_field_name(Manifest.Resource.t() | nil, atom(), atom()) :: String.t() | nil
-  def formatted_field_name(resource, field, formatter)
-      when is_atom(field) and is_atom(formatter) do
-    if AshRpc.Manifest.Custom.exposed?(resource),
-      do: AshRpc.FieldFormatter.format_field_for_client(field, resource, formatter)
-  end
-
-  def formatted_field_name(_, _, _), do: nil
 
   @doc """
   Looks up the mapped client name for an action argument atom. Returns `nil`
