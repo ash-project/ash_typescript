@@ -280,12 +280,6 @@ if Code.ensure_loaded?(Igniter) do
       |> Igniter.Project.Config.configure_new(
         "config.exs",
         :ash_typescript,
-        [:input_field_formatter],
-        :camel_case
-      )
-      |> Igniter.Project.Config.configure_new(
-        "config.exs",
-        :ash_typescript,
         [:output_field_formatter],
         :camel_case
       )

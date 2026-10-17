@@ -309,15 +309,15 @@ Handlers **must** return a `%Plug.Conn{}` struct. Returning anything else result
 
 When a request hits a typed controller route, AshTypescript automatically:
 
-1. **Resolves** param keys to argument names. A key matching an argument's generated client name (from your `output_field_formatter`) maps to that argument; any other key is parsed with your `input_field_formatter`. That also covers router path params, which arrive under their segment name (`:user_id`). Two keys resolving to the same name are rejected with a 422
+1. **Resolves** param keys to argument names, per source. Query and body keys must be an argument's generated client name (from your `output_field_formatter`); router path params resolve by their segment name (`:user_id`). Keys matching no argument (another casing, an undeclared name) are dropped. An argument reached by more than one key or source is rejected with a 422
 2. **Strips** Phoenix internal params (`_format`, `action`, `controller`, params starting with `_`)
 3. **Extracts** only declared arguments (undeclared params are dropped)
 4. **Validates** required arguments (`allow_nil?: false`) — missing args produce 422 errors
-5. **Formats and casts** values. Nested keys are converted per the argument's type, as for RPC action inputs: typed maps use the `input_field_formatter`, `typescript_field_names` mappings and embedded resource field names are reversed, wrapped union input is unwrapped, and untyped maps are passed through as sent. Values are then cast with `Ash.Type.cast_input/3`, and invalid values produce 422 errors
+5. **Formats and casts** values. Nested keys are converted per the argument's type, as for RPC action inputs: nested keys must be the client names of their type (`typescript_field_names` mappings and embedded resource field names included; any other key is an `unknown_input` 422), wrapped union input is unwrapped, and untyped maps are passed through as sent. Values are then cast with `Ash.Type.cast_input/3`, and invalid values produce 422 errors
 6. **Applies constraints** using `Ash.Type.apply_constraints/3` — violations (e.g. `min_length`, `match`, `min`/`max`) produce 422 errors. This follows Ash string semantics: strings are trimmed by default (`trim?: true`), and `""` on a nilable string is normalized to `nil` (on a required string it produces a 422 "is required")
 7. **Dispatches** to the handler with atom-keyed params
 
-The `input_field_formatter` and `output_field_formatter` used here are the ones baked into your AshTypescript manifest at compile time (the same ones the RPC runtime uses); changing them at runtime has no effect. See [Configuration — Manifest Module](../reference/configuration.md#manifest-module-required).
+The `output_field_formatter` used here is the one baked into your AshTypescript manifest at compile time (the same one the RPC runtime uses); changing it at runtime has no effect. See [Configuration — Manifest Module](../reference/configuration.md#manifest-module-required).
 
 ### Error Responses
 

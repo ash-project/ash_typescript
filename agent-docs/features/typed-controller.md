@@ -67,20 +67,21 @@ end
 
 `RequestHandler.handle/4` provides the bridge between Phoenix and the route handler:
 
-1. **Look up** route definition from the source module's DSL
-2. **Resolve** top-level keys (`extract_input/2`). An exact match on an argument's
-   generated client name (`Helpers.format_output_field/1`, same as codegen) wins.
-   Otherwise the key goes through `FieldFormatter.parse_input_field/2` with
-   `input_field_formatter`, which also covers router path params under their segment
-   name (`user_id`). Collisions across **all** keys → 422 `ambiguous_param` (CVE-3217).
+1. **Look up** the route in the decorated manifest (`AshTypescript.Manifest.Custom.route/3`);
+   casting data (type, constraints, `default`) comes from the DSL route
+2. **Resolve** top-level keys per source (`resolve_inputs/2`), never from merged params:
+   path params by router segment name (`path_input_names`), query and body keys by
+   exact client name (`client_input_names`). Keys matching nothing are dropped. An
+   argument hit by more than one key or source → 422 `ambiguous_param` (CVE-3217).
 3. **Strip** Phoenix-internal params (`_format`, `action`, `controller`, `_*` prefixed)
    after resolution, so a style variant (`Action`) can't re-inject them
 4. **Extract** only declared arguments — undeclared params are dropped
 5. **Fill** missing params from the argument's `default` (or `nil`) — a missing required
    argument (`allow_nil?: false`) is a 422 error
 6. **Format + cast** values. `AshRpc.ValueFormatter` (`:input`, a runtime built from
-   `AshTypescript.manifest()`) maps nested client keys back, the
-   same type-driven path RPC inputs use: typed maps, `typescript_field_names`, embedded
+   `AshTypescript.manifest()`, via `format_input/3`) maps nested client keys back by
+   exact lookup (a miss → `unknown_input` with the argument's client name first in
+   `path`), the same type-driven path RPC inputs use: typed maps, `typescript_field_names`, embedded
    resources, union unwrapping (a thrown union error → "is invalid"). Untyped maps pass
    through unchanged. Then `Ash.Type.cast_input/3` runs; invalid → 422 error
 7. **Apply constraints** via `Ash.Type.apply_constraints/3` — trims strings per `trim?`,
@@ -99,10 +100,10 @@ nil-check sequence Ash runs for resource action arguments.
 
 All validation errors are collected in a single pass so the client receives every issue at once.
 
-Formatters come from the manifest (`AshTypescript.input_field_formatter/0` /
-`output_field_formatter/0` read it, honouring `AshTypescript.with_manifest/2`), so they
-are fixed at compile time. Tests vary them with
-`AshTypescript.with_manifest(AshRpc.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :pascal_case), fn -> ... end)`
+The output formatter comes from the manifest (`AshTypescript.output_field_formatter/0`
+reads it, honouring `AshTypescript.with_manifest/2`), so it is fixed at compile time.
+Tests vary it with
+`AshTypescript.with_manifest(AshTypescript.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :pascal_case), fn -> ... end)`
 rather than `Application.put_env/3`. Errors are formatted with `AshRpc.ErrorFormatter`.
 Undecorated types (route-only NewTypes) get their `typescript_field_names/0` mappings via
 `runtime.mapping_source.type_field_names/1` (`AshRpc.Introspection.type_field_name_overrides/2`).

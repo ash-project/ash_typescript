@@ -8,7 +8,7 @@ defmodule AshTypescript.RpcMappingSource do
   `typescript` resource DSL (`field_names`, `argument_names`), types'
   `typescript_field_names/0`, and the `typescript_rpc` domain DSL.
 
-  Formatters and `not_found_error?` are read while the manifest compiles;
+  The output formatter and `not_found_error?` are read while the manifest compiles;
   `AshTypescript.Manifest` tracks them with `Application.compile_env/3`.
   """
 
@@ -16,10 +16,6 @@ defmodule AshTypescript.RpcMappingSource do
 
   alias AshTypescript.Helpers
   alias AshTypescript.Rpc.RpcAction
-
-  @impl true
-  def input_formatter,
-    do: Application.get_env(:ash_typescript, :input_field_formatter, :camel_case)
 
   @impl true
   def output_formatter,

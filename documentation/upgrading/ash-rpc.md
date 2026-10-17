@@ -213,7 +213,8 @@ Before, `input_field_formatter`, `output_field_formatter` and the global
 so changing them at runtime (for example with `Application.put_env/3` in a test)
 took effect immediately.
 
-After, they are read once, when your manifest module compiles. The manifest
+After, `output_field_formatter` and `not_found_error?` are read once, when your
+manifest module compiles (`input_field_formatter` is removed, see below). The manifest
 tracks them with `Application.compile_env/3`, so editing them in `config/*.exs`
 recompiles it automatically. Changing them at runtime, including in
 `config/runtime.exs`, has no effect.
@@ -222,13 +223,27 @@ For tests that need a different formatter, build a re-decorated manifest and
 pass it explicitly instead of calling `put_env`:
 
 ```elixir
-manifest = AshRpc.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :pascal_case)
+manifest = AshTypescript.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :pascal_case)
 
 AshRpc.run_action(AshTypescript.RpcProfile, conn, params, manifest: manifest)
 
 # typed controllers / codegen
 AshTypescript.with_manifest(manifest, fn -> ... end)
 ```
+
+## `input_field_formatter` is removed
+
+Before, request keys were parsed back to internal names with
+`input_field_formatter`, so a client could send `user_name` or `userName`
+depending on that setting.
+
+After, request keys (params, `input`, nested map keys, filter and sort names)
+must be the client names the `output_field_formatter` produces, matched
+exactly. A key in another casing is rejected with `unknown_input` (or
+`unknown_field` for field selection). The `input_field_formatter` config key is
+no longer read; remove it from `config/*.exs`. If you set it to something other
+than your `output_field_formatter`, update your clients to send the generated
+names.
 
 ## Missing required inputs are reported as `required`
 

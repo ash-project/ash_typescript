@@ -30,7 +30,6 @@ config :ash_typescript,
   validate_endpoint: "/rpc/validate",
 
   # Field formatting
-  input_field_formatter: :camel_case,
   output_field_formatter: :camel_case,
 
   # Multitenancy
@@ -155,8 +154,7 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `valibot_output_file` | `string \| nil` | `nil` | Path for shared Valibot schemas file (auto-derives from `output_file` dir as `ash_valibot.ts`) |
 | `run_endpoint` | `string \| {:runtime_expr, string}` | `"/rpc/run"` | Endpoint for executing RPC actions |
 | `validate_endpoint` | `string \| {:runtime_expr, string}` | `"/rpc/validate"` | Endpoint for validating RPC requests |
-| `input_field_formatter` | `:camel_case \| :pascal_case \| :snake_case \| {module, function} \| {module, function, args}` | `:camel_case` | How to format field names in request inputs (compile-time, see [Manifest Module](#manifest-module-required)) |
-| `output_field_formatter` | `:camel_case \| :pascal_case \| :snake_case \| {module, function} \| {module, function, args}` | `:camel_case` | How to format field names in response outputs (compile-time, see [Manifest Module](#manifest-module-required)) |
+| `output_field_formatter` | `:camel_case \| :pascal_case \| :snake_case \| {module, function} \| {module, function, args}` | `:camel_case` | How field names are formatted for the client, in responses and generated types. Request keys must match these names exactly (compile-time, see [Manifest Module](#manifest-module-required)) |
 | `require_tenant_parameters` | `boolean` | `false` | Whether to require tenant parameters in RPC calls |
 | `generate_zod_schemas` | `boolean` | `false` | Whether to generate Zod validation schemas |
 | `zod_import_path` | `string` | `"zod"` | Import path for Zod library |
@@ -244,7 +242,7 @@ config :ash_typescript, manifest: MyApp.AshTypescriptManifest
 
 By default the module walks `Ash.Info.domains(otp_app)` to find every domain with a `typescript_rpc` block, merges them into one spec, and verifies the RPC configuration at compile time. Editing a resource or domain recompiles the manifest automatically, so incremental codegen never goes stale.
 
-`input_field_formatter`, `output_field_formatter` and the global `not_found_error?` are baked into the manifest when it compiles. The manifest tracks them with `Application.compile_env/3`, so editing them in `config/*.exs` recompiles it, but changing them at runtime (`Application.put_env/3`, `config/runtime.exs`) has no effect on the RPC runtime or codegen.
+`output_field_formatter` and the global `not_found_error?` are baked into the manifest when it compiles. The manifest tracks them with `Application.compile_env/3`, so editing them in `config/*.exs` recompiles it, but changing them at runtime (`Application.put_env/3`, `config/runtime.exs`) has no effect on the RPC runtime or codegen.
 
 The runtime RPC endpoint is served by `AshTypescript.RpcProfile`, the `AshRpc.Profile` that points the `AshRpc` runtime at this manifest. Use it with `AshRpc.Plug.run/2` / `AshRpc.Plug.validate/2` in your controller, `use AshRpc.Channel, profile: AshTypescript.RpcProfile` in a channel, or `AshRpc.run_action/4` / `AshRpc.validate_action/4` directly.
 

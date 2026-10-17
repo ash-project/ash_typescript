@@ -158,7 +158,6 @@ config :ash_typescript,
   types_output_file: "sveltekit/src/lib/generated/ashTypes.ts",
   run_endpoint: "/api/rpc/run",
   validate_endpoint: "/api/rpc/validate",
-  input_field_formatter: :camel_case,
   output_field_formatter: :camel_case
 ```
 

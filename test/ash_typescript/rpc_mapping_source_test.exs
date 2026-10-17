@@ -14,7 +14,6 @@ defmodule AshTypescript.RpcMappingSourceTest do
   test "the configured manifest carries custom.ash_rpc from RpcMappingSource", %{manifest: m} do
     assert AshRpc.Manifest.mapping_source(m) == AshTypescript.RpcMappingSource
     assert AshRpc.Manifest.output_formatter(m) == :camel_case
-    assert AshRpc.Manifest.input_formatter(m) == :camel_case
   end
 
   test "wire entrypoints mirror rpc_action DSL", %{manifest: m} do

@@ -26,7 +26,6 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
         camel: base,
         pascal_out: AshTypescript.Manifest.redecorate(base, output_formatter: :pascal_case),
         snake_out: AshTypescript.Manifest.redecorate(base, output_formatter: :snake_case),
-        snake_in: AshRpc.Manifest.redecorate(base, input_formatter: :snake_case),
         custom_out:
           AshTypescript.Manifest.redecorate(base, output_formatter: {Formatters, :custom_format}),
         custom_suffix_out:
@@ -119,62 +118,6 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
     end
   end
 
-  describe "Core FieldFormatter functionality - parse_input_field/2 with built-in formatters" do
-    test "parses input fields with :camel_case" do
-      assert FieldFormatter.parse_input_field("userName", :camel_case) == :user_name
-      assert FieldFormatter.parse_input_field("emailAddress", :camel_case) == :email_address
-      assert FieldFormatter.parse_input_field("createdAt", :camel_case) == :created_at
-    end
-
-    test "parses input fields with :pascal_case" do
-      assert FieldFormatter.parse_input_field("UserName", :pascal_case) == :user_name
-      assert FieldFormatter.parse_input_field("EmailAddress", :pascal_case) == :email_address
-      assert FieldFormatter.parse_input_field("CreatedAt", :pascal_case) == :created_at
-    end
-
-    test "parses input fields with :snake_case" do
-      assert FieldFormatter.parse_input_field("user_name", :snake_case) == :user_name
-      assert FieldFormatter.parse_input_field("email_address", :snake_case) == :email_address
-      assert FieldFormatter.parse_input_field("created_at", :snake_case) == :created_at
-    end
-
-    test "handles single word input fields" do
-      assert FieldFormatter.parse_input_field("name", :camel_case) == :name
-      assert FieldFormatter.parse_input_field("Email", :pascal_case) == :email
-      assert FieldFormatter.parse_input_field("title", :snake_case) == :title
-    end
-
-    test "handles empty input fields" do
-      assert FieldFormatter.parse_input_field("", :camel_case) == :""
-      assert FieldFormatter.parse_input_field("", :pascal_case) == :""
-      assert FieldFormatter.parse_input_field("", :snake_case) == :""
-    end
-  end
-
-  describe "Core FieldFormatter functionality - parse_input_field/2 with custom formatters" do
-    test "parses input fields with custom parser" do
-      assert FieldFormatter.parse_input_field(
-               "input_user_name",
-               {Formatters, :parse_input_with_prefix}
-             ) == :user_name
-
-      assert FieldFormatter.parse_input_field(
-               "input_email",
-               {Formatters, :parse_input_with_prefix}
-             ) == :email
-    end
-
-    test "raises error for unsupported input formatter" do
-      # Built via String.to_atom/1 so the type checker sees `atom()` rather than
-      # the invalid literal — the point of the test is the runtime raise.
-      invalid_formatter = String.to_atom("invalid_formatter")
-
-      assert_raise ArgumentError, "Unsupported formatter: :invalid_formatter", fn ->
-        FieldFormatter.parse_input_field("userName", invalid_formatter)
-      end
-    end
-  end
-
   describe "Core FieldFormatter functionality - format_fields/2" do
     test "formats all keys in a map with built-in formatters" do
       input_map = %{
@@ -231,54 +174,6 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       input_map = %{"user_name" => "John", "email_address" => "john@example.com"}
       expected = %{"userName" => "John", "emailAddress" => "john@example.com"}
       assert FieldFormatter.format_fields(input_map, :camel_case) == expected
-    end
-  end
-
-  describe "Core FieldFormatter functionality - parse_input_fields/2" do
-    test "parses all keys in a map with built-in formatters" do
-      input_map = %{
-        "userName" => "John",
-        "emailAddress" => "john@example.com",
-        "createdAt" => "2023-01-01"
-      }
-
-      expected = %{user_name: "John", email_address: "john@example.com", created_at: "2023-01-01"}
-      assert FieldFormatter.parse_input_fields(input_map, :camel_case) == expected
-
-      pascal_input = %{
-        "UserName" => "John",
-        "EmailAddress" => "john@example.com",
-        "CreatedAt" => "2023-01-01"
-      }
-
-      assert FieldFormatter.parse_input_fields(pascal_input, :pascal_case) == expected
-
-      snake_input = %{
-        "user_name" => "John",
-        "email_address" => "john@example.com",
-        "created_at" => "2023-01-01"
-      }
-
-      assert FieldFormatter.parse_input_fields(snake_input, :snake_case) == expected
-    end
-
-    test "parses all keys in a map with custom formatters" do
-      input_map = %{"input_user_name" => "John", "input_email" => "john@example.com"}
-      expected = %{user_name: "John", email: "john@example.com"}
-
-      assert FieldFormatter.parse_input_fields(input_map, {Formatters, :parse_input_with_prefix}) ==
-               expected
-    end
-
-    test "handles empty map" do
-      assert FieldFormatter.parse_input_fields(%{}, :camel_case) == %{}
-      assert FieldFormatter.parse_input_fields(%{}, {Formatters, :parse_input_with_prefix}) == %{}
-    end
-
-    test "preserves values when converting keys" do
-      input_map = %{"userName" => %{"nested" => "value"}, "emailAddress" => [1, 2, 3]}
-      expected = %{user_name: %{nested: "value"}, email_address: [1, 2, 3]}
-      assert FieldFormatter.parse_input_fields(input_map, :camel_case) == expected
     end
   end
 
@@ -357,8 +252,8 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       manifests: manifests
     } do
       user_params = %{
-        "action" => "create_user",
-        "fields" => ["Id"],
+        "Action" => "create_user",
+        "Fields" => ["Id"],
         "input" => %{
           "Name" => "Test User",
           "Email" => "test@example.com"
@@ -373,8 +268,8 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       assert %{"Success" => true, "Data" => user} = user_result
 
       todo_params = %{
-        "action" => "create_todo",
-        "fields" => ["Id", "Title"],
+        "Action" => "create_todo",
+        "Fields" => ["Id", "Title"],
         "input" => %{
           "Title" => "Test Todo",
           "UserId" => user["Id"]
@@ -390,49 +285,13 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       assert todo["Title"] == "Test Todo"
       assert todo["Id"]
     end
-
-    test "handles snake_case input fields as-is", %{conn: conn, manifests: manifests} do
-      user_params = %{
-        "action" => "create_user",
-        "fields" => ["id"],
-        "input" => %{
-          "name" => "Test User",
-          "email" => "test@example.com"
-        }
-      }
-
-      user_result =
-        AshRpc.run_action(AshTypescript.RpcProfile, conn, user_params,
-          manifest: manifests.snake_in
-        )
-
-      assert %{"success" => true, "data" => user} = user_result
-
-      todo_params = %{
-        "action" => "create_todo",
-        "fields" => ["id", "title"],
-        "input" => %{
-          "title" => "Test Todo",
-          "user_id" => user["id"]
-        }
-      }
-
-      result =
-        AshRpc.run_action(AshTypescript.RpcProfile, conn, todo_params,
-          manifest: manifests.snake_in
-        )
-
-      assert %{"success" => true, "data" => todo} = result
-      assert todo["title"] == "Test Todo"
-      assert todo["id"]
-    end
   end
 
   describe "RPC runtime field formatting - output field formatting with built-in formatters" do
     test "formats snake_case output fields to camelCase", %{conn: conn, manifests: manifests} do
       read_params = %{
         "action" => "list_todos",
-        "fields" => ["id", "title", "user_id", "completed"]
+        "fields" => ["id", "title", "userId", "completed"]
       }
 
       result =
@@ -444,8 +303,8 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
 
     test "formats snake_case output fields to PascalCase", %{conn: conn, manifests: manifests} do
       user_params = %{
-        "action" => "create_user",
-        "fields" => ["Id"],
+        "Action" => "create_user",
+        "Fields" => ["Id"],
         "input" => %{
           "Name" => "Test User",
           "Email" => "test@example.com"
@@ -460,8 +319,8 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       assert %{"Success" => true, "Data" => user} = user_result
 
       todo_params = %{
-        "action" => "create_todo",
-        "fields" => ["Id"],
+        "Action" => "create_todo",
+        "Fields" => ["Id"],
         "input" => %{
           "Title" => "Test Todo",
           "UserId" => user["Id"]
@@ -476,8 +335,8 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
       assert %{"Success" => true, "Data" => _todo} = create_result
 
       read_params = %{
-        "action" => "list_todos",
-        "fields" => ["Id", "Title", "UserId"]
+        "Action" => "list_todos",
+        "Fields" => ["Id", "Title", "UserId"]
       }
 
       result =

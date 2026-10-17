@@ -300,13 +300,6 @@ defmodule AshTypescript.Rpc do
   end
 
   @doc """
-  Gets the input field formatter configuration for parsing input parameters from the client.
-
-  Delegates to `AshTypescript.input_field_formatter/0`.
-  """
-  defdelegate input_field_formatter, to: AshTypescript
-
-  @doc """
   Gets the output field formatter configuration for TypeScript generation and responses to the client.
 
   Delegates to `AshTypescript.output_field_formatter/0`.

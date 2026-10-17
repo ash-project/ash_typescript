@@ -64,7 +64,6 @@ defmodule AshTypescript.Manifest do
       @persist {:typed_channels, unquote(typed_channels)}
       # AshTypescript.RpcMappingSource reads these while the manifest compiles;
       # tracking them recompiles the manifest when the config changes.
-      _ = Application.compile_env(:ash_typescript, :input_field_formatter, :camel_case)
       _ = Application.compile_env(:ash_typescript, :output_field_formatter, :camel_case)
       _ = Application.compile_env(:ash_typescript, :not_found_error?, true)
       unquote_splicing(compile_dependency_asts(opts[:otp_app], opts[:domains]))

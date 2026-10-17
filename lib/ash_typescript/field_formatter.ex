@@ -14,7 +14,6 @@ defmodule AshTypescript.FieldFormatter do
   alias AshTypescript.Helpers
 
   defdelegate format_field_name(field, formatter), to: AshRpc.FieldFormatter
-  defdelegate parse_input_field(field, formatter), to: AshRpc.FieldFormatter
 
   def format_field_for_client(field, resource_or_type \\ nil, formatter)
 

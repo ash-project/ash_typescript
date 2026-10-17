@@ -56,7 +56,7 @@ This guide covers common issues you may encounter when using AshTypescript and h
 
 #### Changing a field formatter has no effect
 
-**Cause:** `input_field_formatter`, `output_field_formatter` and `not_found_error?` are read when the manifest module compiles. Runtime changes (`Application.put_env/3`, `config/runtime.exs`) are ignored.
+**Cause:** `output_field_formatter` and `not_found_error?` are read when the manifest module compiles. Runtime changes (`Application.put_env/3`, `config/runtime.exs`) are ignored.
 
 **Solution:** Set them in `config/config.exs` (or an environment config file). The manifest tracks them with `Application.compile_env/3` and recompiles when they change.
 

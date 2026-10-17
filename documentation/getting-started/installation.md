@@ -217,7 +217,6 @@ config :ash_typescript,
   output_file: "assets/js/ash_rpc.ts",
   run_endpoint: "/rpc/run",
   validate_endpoint: "/rpc/validate",
-  input_field_formatter: :camel_case,
   output_field_formatter: :camel_case
 ```
 

@@ -46,7 +46,7 @@ and `:typed_query_lookup`, which `AshTypescript.manifest/0` and
 
 | Callback | Reads | Effect |
 |---|---|---|
-| `input_formatter/0` / `output_formatter/0` | `Application.get_env(:ash_typescript, :input_field_formatter \| :output_field_formatter, :camel_case)` | Fixed into the manifest at compile time; see [Compile-Time Config](#compile-time-config) |
+| `output_formatter/0` | `Application.get_env(:ash_typescript, :output_field_formatter, :camel_case)` | Fixed into the manifest at compile time; client input is matched against its names exactly. See [Compile-Time Config](#compile-time-config) |
 | `exposed_resource?/1` | The module is an Ash resource with the `AshTypescript.Resource` extension | Strict exposure: selecting through a relationship to a non-extended resource is `unknown_field` |
 | `field_names/1` | The resource's `typescript` `field_names` | Client names for attributes, calculations, aggregates and relationships |
 | `argument_names/2` | The resource's `typescript` `argument_names` for that action (`%{}` if none) | Client names for action arguments |
@@ -246,22 +246,24 @@ mechanism: Ash policies apply to every load regardless of these options.
 
 ```elixir
 config :ash_typescript,
-  input_field_formatter: :camel_case,  # From client
-  output_field_formatter: :camel_case, # To client
+  output_field_formatter: :camel_case, # Client names, both directions
   not_found_error?: true               # Global default for get-style actions
 ```
 
-These three are read once, when the manifest compiles. `RpcMappingSource` returns them
+There is no input formatter: request keys must be the output formatter's client names
+exactly (another casing is `unknown_input` / `unknown_field`).
+
+These two are read once, when the manifest compiles. `RpcMappingSource` returns them
 to the decorator, and `AshTypescript.Manifest.handle_opts/1` tracks them with
 `Application.compile_env/3`, so changing the config recompiles the manifest. A runtime
 `put_env` has no effect. To vary them, tests use:
 
-- **Runtime calls**: `AshRpc.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :snake_case)`,
+- **Runtime calls**: `AshTypescript.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :snake_case)`,
   passed as the `manifest:` option to `AshRpc.run_action/4` / `validate_action/4` / `run_typed_query/4`.
 - **Codegen and typed controllers**: `AshTypescript.with_manifest(manifest, fn -> … end)`, or
   `CodegenTestHelper`'s `manifest:` option.
 
-Unconstrained map inputs and outputs bypass these formatters: their keys pass through as-is.
+Unconstrained map inputs and outputs bypass the formatter: their keys pass through as-is.
 
 ### Multitenancy
 

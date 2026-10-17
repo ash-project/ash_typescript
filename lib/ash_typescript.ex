@@ -654,19 +654,6 @@ defmodule AshTypescript do
   def output_field_formatter, do: AshRpc.Manifest.output_formatter(manifest())
 
   @doc """
-  Gets the input field formatter for parsing input parameters.
-
-  This determines how client field names are converted to internal Elixir field
-  names. It is fixed when the manifest compiles, from
-  `config :ash_typescript, :input_field_formatter` (default `:camel_case`), and
-  read here from the manifest's `custom.ash_rpc` decoration.
-  Can be:
-  - Built-in: :camel_case, :pascal_case, :snake_case
-  - Custom: {Module, :function} or {Module, :function, [extra_args]}
-  """
-  def input_field_formatter, do: AshRpc.Manifest.input_formatter(manifest())
-
-  @doc """
   Gets the output file path for shared TypeScript type definitions.
 
   Shared types (type aliases, resource schemas, filter types, utility types)

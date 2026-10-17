@@ -255,9 +255,12 @@ By default, AshTypescript converts field names between Elixir's `snake_case` and
 
 ```elixir
 config :ash_typescript,
-  input_field_formatter: :camel_case,   # How inputs are formatted
-  output_field_formatter: :camel_case   # How outputs are formatted
+  output_field_formatter: :camel_case
 ```
+
+The formatter produces the client names used in both directions. Request keys are
+matched against those names exactly; there is no separate input formatter, so a key
+in another casing (`user_name` under `:camel_case`) is rejected.
 
 Explicit string mappings (`field_names`, `argument_names`, `typescript_field_names/0`)
 always take precedence over the formatter: those names are used exactly as written and
