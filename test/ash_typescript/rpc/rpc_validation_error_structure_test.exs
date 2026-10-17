@@ -38,7 +38,9 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
 
       # Assert on error structure - missing required fields are native "required" errors
       assert title_error["type"] == "required"
-      assert title_error["message"] == "attribute title is required"
+      # The message is a template; filled from vars it names the field as the client sent it
+      assert title_error["message"] == "attribute %{field} is required"
+      assert interpolate(title_error) == "attribute title is required"
       assert is_map(title_error["vars"])
       assert title_error["vars"]["field"] == "title"
       assert "title" in title_error["fields"]
@@ -68,7 +70,8 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
 
       # Assert on error structure - missing required fields are native "required" errors
       assert user_id_error["type"] == "required"
-      assert user_id_error["message"] == "argument user_id is required"
+      assert user_id_error["message"] == "argument %{field} is required"
+      assert interpolate(user_id_error) == "argument userId is required"
       assert is_map(user_id_error["vars"])
       assert user_id_error["vars"]["field"] == "userId"
       assert "userId" in user_id_error["fields"]
@@ -101,9 +104,9 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
 
       # Both should be "required" type errors naming the missing input
       assert title_error["type"] == "required"
-      assert title_error["message"] == "attribute title is required"
+      assert interpolate(title_error) == "attribute title is required"
       assert user_id_error["type"] == "required"
-      assert user_id_error["message"] == "argument user_id is required"
+      assert interpolate(user_id_error) == "argument userId is required"
     end
   end
 
@@ -444,5 +447,12 @@ defmodule AshTypescript.Rpc.RpcValidationErrorStructureTest do
       assert is_binary(validate_error["message"])
       assert is_binary(run_error["message"])
     end
+  end
+
+  # Fills a message template's %{key} placeholders from its vars, as a client does
+  defp interpolate(%{"message" => message, "vars" => vars}) do
+    Regex.replace(~r/%\{(\w+)\}/, message, fn placeholder, key ->
+      vars |> Map.get(key, placeholder) |> to_string()
+    end)
   end
 end

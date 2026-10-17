@@ -454,7 +454,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsTest do
           {:filter_not_supported, :comments, :disabled, []}
         )
 
-      assert response.details.reason == :disabled
+      assert response.details.reason == "disabled"
     end
   end
 end
