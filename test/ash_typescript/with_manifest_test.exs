@@ -9,7 +9,10 @@ defmodule AshTypescript.WithManifestTest do
 
   setup_all do
     %{
-      pascal: AshRpc.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :pascal_case)
+      pascal:
+        AshTypescript.Manifest.redecorate(AshTypescript.manifest(),
+          output_formatter: :pascal_case
+        )
     }
   end
 

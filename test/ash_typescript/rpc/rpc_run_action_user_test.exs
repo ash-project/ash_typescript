@@ -11,13 +11,11 @@ defmodule AshTypescript.Rpc.RpcRunActionUserTest do
     %{
       manifests: %{
         pascal:
-          AshRpc.Manifest.redecorate(base,
-            input_formatter: :pascal_case,
+          AshTypescript.Manifest.redecorate(base,
             output_formatter: :pascal_case
           ),
         snake:
-          AshRpc.Manifest.redecorate(base,
-            input_formatter: :snake_case,
+          AshTypescript.Manifest.redecorate(base,
             output_formatter: :snake_case
           )
       }
@@ -76,9 +74,10 @@ defmodule AshTypescript.Rpc.RpcRunActionUserTest do
         AshRpc.run_action(
           AshTypescript.RpcProfile,
           conn,
+          # Top-level request keys (other than input/identity) are formatter names too
           %{
-            "action" => "list_users",
-            "fields" => ["Id", "Name", "Email", "addressLine1"]
+            "Action" => "list_users",
+            "Fields" => ["Id", "Name", "Email", "addressLine1"]
           },
           manifest: m.pascal
         )

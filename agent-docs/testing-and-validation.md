@@ -388,7 +388,7 @@ build a re-decorated manifest and pass it explicitly (both are `async: true`
 safe):
 
 ```elixir
-manifest = AshRpc.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :pascal_case)
+manifest = AshTypescript.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :pascal_case)
 
 # Runtime (run_action / validate_action / run_typed_query)
 AshRpc.run_action(AshTypescript.RpcProfile, conn, params, manifest: manifest)

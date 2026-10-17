@@ -14,8 +14,8 @@ defmodule AshTypescript.FilterFormattingTest do
     %{
       manifests: %{
         camel: base,
-        pascal_out: AshRpc.Manifest.redecorate(base, output_formatter: :pascal_case),
-        snake_out: AshRpc.Manifest.redecorate(base, output_formatter: :snake_case)
+        pascal_out: AshTypescript.Manifest.redecorate(base, output_formatter: :pascal_case),
+        snake_out: AshTypescript.Manifest.redecorate(base, output_formatter: :snake_case)
       }
     }
   end
@@ -188,7 +188,7 @@ defmodule AshTypescript.FilterFormattingTest do
       end
 
       manifest =
-        AshRpc.Manifest.redecorate(AshTypescript.manifest(),
+        AshTypescript.Manifest.redecorate(AshTypescript.manifest(),
           output_formatter: {TestFormatter, :prefix_field}
         )
 

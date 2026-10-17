@@ -926,7 +926,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       Application.put_env(:ash_typescript, :not_found_error?, false)
 
       # not_found_error? is resolved when the manifest is decorated.
-      manifest = AshRpc.Manifest.redecorate(AshTypescript.manifest(), [])
+      manifest = AshTypescript.Manifest.redecorate(AshTypescript.manifest(), [])
 
       result =
         AshRpc.run_action(
@@ -950,7 +950,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       Application.put_env(:ash_typescript, :not_found_error?, false)
 
       # not_found_error? is resolved when the manifest is decorated.
-      manifest = AshRpc.Manifest.redecorate(AshTypescript.manifest(), [])
+      manifest = AshTypescript.Manifest.redecorate(AshTypescript.manifest(), [])
 
       result =
         AshRpc.run_action(
@@ -976,7 +976,7 @@ defmodule AshTypescript.Rpc.RpcGetActionsTest do
       Application.put_env(:ash_typescript, :not_found_error?, true)
 
       # not_found_error? is resolved when the manifest is decorated.
-      manifest = AshRpc.Manifest.redecorate(AshTypescript.manifest(), [])
+      manifest = AshTypescript.Manifest.redecorate(AshTypescript.manifest(), [])
 
       result =
         AshRpc.run_action(

@@ -26,13 +26,11 @@ defmodule AshTypescript.TypescriptFieldNamesPrecedenceTest do
     %{
       manifests: %{
         pascal_case:
-          AshRpc.Manifest.redecorate(base,
-            input_formatter: :pascal_case,
+          AshTypescript.Manifest.redecorate(base,
             output_formatter: :pascal_case
           ),
         snake_case:
-          AshRpc.Manifest.redecorate(base,
-            input_formatter: :snake_case,
+          AshTypescript.Manifest.redecorate(base,
             output_formatter: :snake_case
           )
       }
@@ -101,8 +99,9 @@ defmodule AshTypescript.TypescriptFieldNamesPrecedenceTest do
       } do
         fmt = &AshTypescript.FieldFormatter.format_field_name(&1, unquote(formatter))
 
+        # Top-level request keys (other than input/identity) are formatter names too
         params = %{
-          "action" => "create_input_parsing",
+          fmt.(:action) => "create_input_parsing",
           "input" => %{
             fmt.(:user_name) => "user",
             fmt.(:email_address) => "user@example.com",
@@ -112,7 +111,7 @@ defmodule AshTypescript.TypescriptFieldNamesPrecedenceTest do
               unquote(last_updated_at) => "2024-01-01T00:00:00Z"
             }
           },
-          "fields" => [
+          fmt.(:fields) => [
             %{fmt.(:stats) => ["totalCount1", "isComplete", unquote(last_updated_at)]}
           ]
         }
@@ -129,13 +128,12 @@ defmodule AshTypescript.TypescriptFieldNamesPrecedenceTest do
       end
 
       test "RPC accepts and returns the generated names", %{manifest: manifest} do
+        fmt = &AshTypescript.FieldFormatter.format_field_name(&1, unquote(formatter))
+
         params = %{
-          "action" => "get_task_stats",
-          "input" => %{
-            AshTypescript.FieldFormatter.format_field_name(:task_id, unquote(formatter)) =>
-              Ash.UUID.generate()
-          },
-          "fields" => [unquote(total_count), "completed", "isUrgent"]
+          fmt.(:action) => "get_task_stats",
+          "input" => %{fmt.(:task_id) => Ash.UUID.generate()},
+          fmt.(:fields) => [unquote(total_count), "completed", "isUrgent"]
         }
 
         result =
