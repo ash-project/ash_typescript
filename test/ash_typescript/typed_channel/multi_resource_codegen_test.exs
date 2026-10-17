@@ -103,10 +103,9 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
     setup do
       %{
         content:
-          Codegen.generate_channel_types(
-            AshTypescript.Test.ContentFeedChannel,
-            "content_feed:*"
-          )
+          Codegen.generate_all_channel_types([
+            {AshTypescript.Test.ContentFeedChannel, "content_feed:*"}
+          ])
       }
     end
 
@@ -152,10 +151,9 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
     setup do
       %{
         content:
-          Codegen.generate_channel_functions(
-            AshTypescript.Test.ContentFeedChannel,
-            "content_feed:*"
-          )
+          Codegen.generate_all_channel_functions([
+            {AshTypescript.Test.ContentFeedChannel, "content_feed:*"}
+          ])
       }
     end
 
@@ -187,7 +185,9 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
     setup do
       %{
         content:
-          Codegen.generate_channel_types(AshTypescript.Test.ModerationChannel, "moderation:*")
+          Codegen.generate_all_channel_types([
+            {AshTypescript.Test.ModerationChannel, "moderation:*"}
+          ])
       }
     end
 
@@ -231,10 +231,9 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
     setup do
       %{
         content:
-          Codegen.generate_channel_functions(
-            AshTypescript.Test.ModerationChannel,
-            "moderation:*"
-          )
+          Codegen.generate_all_channel_functions([
+            {AshTypescript.Test.ModerationChannel, "moderation:*"}
+          ])
       }
     end
 
@@ -259,7 +258,9 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
     setup do
       %{
         content:
-          Codegen.generate_channel_types(AshTypescript.Test.FullActivityChannel, "activity:*")
+          Codegen.generate_all_channel_types([
+            {AshTypescript.Test.FullActivityChannel, "activity:*"}
+          ])
       }
     end
 
@@ -316,10 +317,9 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
     setup do
       %{
         content:
-          Codegen.generate_channel_functions(
-            AshTypescript.Test.FullActivityChannel,
-            "activity:*"
-          )
+          Codegen.generate_all_channel_functions([
+            {AshTypescript.Test.FullActivityChannel, "activity:*"}
+          ])
       }
     end
 
@@ -343,7 +343,9 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
   describe "channel isolation — each channel only contains its declared types" do
     test "ContentFeedChannel has exactly 3 payload types" do
       content =
-        Codegen.generate_channel_types(AshTypescript.Test.ContentFeedChannel, "content_feed:*")
+        Codegen.generate_all_channel_types([
+          {AshTypescript.Test.ContentFeedChannel, "content_feed:*"}
+        ])
 
       payload_type_count = content |> String.split("export type") |> length() |> Kernel.-(1)
       # 3 payload types + 1 brand type + 1 events map + 1 handlers + 1 refs = 7 export types total
@@ -352,7 +354,9 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
 
     test "ModerationChannel has exactly 3 payload types" do
       content =
-        Codegen.generate_channel_types(AshTypescript.Test.ModerationChannel, "moderation:*")
+        Codegen.generate_all_channel_types([
+          {AshTypescript.Test.ModerationChannel, "moderation:*"}
+        ])
 
       payload_type_count = content |> String.split("export type") |> length() |> Kernel.-(1)
       # 3 payload types + 1 brand type + 1 events map + 1 handlers + 1 refs = 7 export types total
@@ -361,7 +365,9 @@ defmodule AshTypescript.TypedChannel.MultiResourceCodegenTest do
 
     test "FullActivityChannel has exactly 7 payload types" do
       content =
-        Codegen.generate_channel_types(AshTypescript.Test.FullActivityChannel, "activity:*")
+        Codegen.generate_all_channel_types([
+          {AshTypescript.Test.FullActivityChannel, "activity:*"}
+        ])
 
       payload_type_count = content |> String.split("export type") |> length() |> Kernel.-(1)
 

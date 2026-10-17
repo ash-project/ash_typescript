@@ -80,14 +80,14 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
 
   @org_topic "org:*"
 
-  describe "generate_channel_types/2 — with topic" do
+  describe "generate_all_channel_types/1 — OrgChannel" do
     setup do
-      content = Codegen.generate_channel_types(AshTypescript.Test.OrgChannel, @org_topic)
+      content = Codegen.generate_all_channel_types([{AshTypescript.Test.OrgChannel, @org_topic}])
       %{content: content}
     end
 
     test "generates branded channel type", %{content: content} do
-      assert content =~ "export type OrgChannel = {"
+      assert content |> String.split("export type OrgChannel = {") |> length() == 2
       assert content =~ ~s[readonly __channelType: "OrgChannel";]
       assert content =~ "on(event: string, callback: (payload: unknown) => void): number;"
       assert content =~ "off(event: string, ref: number): void;"
@@ -137,9 +137,9 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
     end
   end
 
-  describe "generate_channel_types/2 — unknown payload type" do
+  describe "generate_all_channel_types/1 — unknown payload type" do
     setup do
-      %{content: Codegen.generate_channel_types(__MODULE__.NoReturnsChannel, "things:*")}
+      %{content: Codegen.generate_all_channel_types([{__MODULE__.NoReturnsChannel, "things:*"}])}
     end
 
     test "generates unknown payload type for event without returns", %{content: content} do
@@ -147,31 +147,16 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
     end
   end
 
-  describe "generate_channel_types/1 — without topic" do
+  describe "generate_all_channel_functions/1 — OrgChannel" do
     setup do
-      content = Codegen.generate_channel_types(AshTypescript.Test.OrgChannel)
-      %{content: content}
-    end
+      content =
+        Codegen.generate_all_channel_functions([{AshTypescript.Test.OrgChannel, @org_topic}])
 
-    test "does not generate branded channel type", %{content: content} do
-      refute content =~ "export type OrgChannel = {"
-    end
-
-    test "still generates events map and utility types", %{content: content} do
-      assert content =~ "export type OrgChannelEvents = {"
-      assert content =~ "export type OrgChannelHandlers = {"
-      assert content =~ "export type OrgChannelRefs = {"
-    end
-  end
-
-  describe "generate_channel_functions/2 — with topic" do
-    setup do
-      content = Codegen.generate_channel_functions(AshTypescript.Test.OrgChannel, @org_topic)
       %{content: content}
     end
 
     test "generates factory function using topic prefix", %{content: content} do
-      assert content =~ "export function createOrgChannel("
+      assert content |> String.split("export function createOrgChannel(") |> length() == 2
       assert content =~ "suffix: string"
       assert content =~ "socket.channel(`org:${suffix}`) as OrgChannel"
     end
@@ -204,30 +189,17 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
     end
   end
 
-  describe "generate_channel_functions/1 — without topic" do
-    setup do
-      content = Codegen.generate_channel_functions(AshTypescript.Test.OrgChannel)
-      %{content: content}
-    end
-
-    test "does not generate factory function", %{content: content} do
-      refute content =~ "export function createOrgChannel"
-    end
-
-    test "still generates subscription helpers", %{content: content} do
-      assert content =~ "export function onOrgChannelMessage"
-      assert content =~ "export function onOrgChannelMessages"
-      assert content =~ "export function unsubscribeOrgChannel"
-    end
-  end
-
   describe "generate_all_channel_types/1" do
     test "generates types for all given channel entries" do
       content =
-        Codegen.generate_all_channel_types([{AshTypescript.Test.OrgChannel, "org:*"}])
+        Codegen.generate_all_channel_types([
+          {AshTypescript.Test.OrgChannel, "org:*"},
+          {AshTypescript.Test.ContentFeedChannel, "content_feed:*"}
+        ])
 
       assert content =~ "export type OrgChannelEvents = {"
       assert content =~ "export type OrgChannel = {"
+      assert content =~ "export type ContentFeedChannelEvents = {"
     end
 
     test "returns empty string for empty list" do
@@ -238,10 +210,14 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
   describe "generate_all_channel_functions/1" do
     test "generates functions for all given channel entries" do
       content =
-        Codegen.generate_all_channel_functions([{AshTypescript.Test.OrgChannel, "org:*"}])
+        Codegen.generate_all_channel_functions([
+          {AshTypescript.Test.OrgChannel, "org:*"},
+          {AshTypescript.Test.ContentFeedChannel, "content_feed:*"}
+        ])
 
       assert content =~ "export function createOrgChannel("
       assert content =~ "export function onOrgChannelMessage"
+      assert content =~ "export function createContentFeedChannel("
     end
 
     test "returns empty string for empty list" do
@@ -249,13 +225,12 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
     end
   end
 
-  describe "generate_channel_functions/2 — static topic (no wildcard)" do
+  describe "generate_all_channel_functions/1 — static topic (no wildcard)" do
     setup do
       content =
-        Codegen.generate_channel_functions(
-          AshTypescript.Test.TypedChannel.StaticTopicChannel,
-          "notifications"
-        )
+        Codegen.generate_all_channel_functions([
+          {AshTypescript.Test.TypedChannel.StaticTopicChannel, "notifications"}
+        ])
 
       %{content: content}
     end
@@ -436,7 +411,7 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
 
       content =
         AshTypescript.with_manifest(fake, fn ->
-          Codegen.generate_channel_types(AshTypescript.Test.OrgChannel, "org:*")
+          Codegen.generate_all_channel_types([{AshTypescript.Test.OrgChannel, "org:*"}])
         end)
 
       assert content =~ "export type ItemCreatedPayload = boolean;"
