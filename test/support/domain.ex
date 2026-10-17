@@ -335,6 +335,7 @@ defmodule AshTypescript.Test.Domain do
       # New actions for exhaustive input parsing coverage
       rpc_action :process_profile_input_parsing, :process_profile
       rpc_action :echo_struct_no_instance, :echo_struct_no_instance
+      rpc_action :struct_no_instance_value, :struct_no_instance_value
     end
 
     # Test resource for `Rpc.StructFieldFilteringTest` — exercises public-field

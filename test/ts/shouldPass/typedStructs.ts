@@ -4,6 +4,7 @@
 
 import {
   getTodo,
+  structNoInstanceValue,
   EchoStructNoInstanceInput,
   InferEchoStructNoInstanceResult,
 } from "../generated";
@@ -30,13 +31,25 @@ if (todoWithStatistics.success) {
 
 // A :struct NewType without instance_of keeps its typescript_field_names
 // (is_done? -> isDone, count_1 -> countOne) in input and output types.
-// Type-level only: Ash casts a :struct without instance_of only from a struct.
+// The input is type-level only: Ash casts a :struct without instance_of only
+// from a struct. As a return it is field-selectable.
 export const structNoInstanceInput: EchoStructNoInstanceInput = {
   value: { isDone: true, countOne: 2 },
 };
 
-export function readStructNoInstance(result: InferEchoStructNoInstanceResult) {
+export function readStructNoInstance(
+  result: InferEchoStructNoInstanceResult<["isDone", "countOne"]>,
+) {
   const isDone: boolean = result.isDone;
   const countOne: number | null = result.countOne;
   return { isDone, countOne };
+}
+
+export const structNoInstanceResult = await structNoInstanceValue({
+  fields: ["isDone", "countOne"],
+});
+
+if (structNoInstanceResult.success) {
+  const isDone: boolean = structNoInstanceResult.data.isDone;
+  const countOne: number | null = structNoInstanceResult.data.countOne;
 }

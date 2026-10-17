@@ -380,5 +380,11 @@ defmodule AshTypescript.Test.InputParsing.Resource do
 
       run fn input, _context -> {:ok, input.arguments.value} end
     end
+
+    # The same type as a return only: Ash casts it from a struct value, so the
+    # echo action can't take a JSON map and this action covers the output side.
+    action :struct_no_instance_value, AshTypescript.Test.InputParsing.StructNoInstance do
+      run fn _input, _context -> {:ok, %{is_done?: true, count_1: 2}} end
+    end
   end
 end

@@ -174,9 +174,11 @@ defmodule AshTypescript.Codegen.ManifestNamesMismatchTest do
         assert snippet(rpc, "export type EchoStructNoInstanceInput = {", "\n};") =~
                  ~r/\b[Vv]alue: \{isDone: boolean, countOne\?: number \| null\}/
 
-        output = snippet(rpc, "export type InferEchoStructNoInstanceResult = ")
+        # A field-bearing `:struct` without instance_of is field-selectable
+        output = snippet(rpc, "export type EchoStructNoInstanceFields = ")
         assert output =~ "isDone: boolean"
         assert output =~ "countOne: number | null"
+        assert output =~ ~s[__primitiveFields: "isDone" | "countOne"]
         refute output =~ ~r/isDone\?|count1|count_1|IsDone|CountOne/
 
         for content <- [
@@ -232,6 +234,19 @@ defmodule AshTypescript.Codegen.ManifestNamesMismatchTest do
                })
 
       assert errors |> Enum.map(& &1["type"]) |> Enum.uniq() == ["unknown_input"]
+    end
+
+    test "the runtime returns the selected fields under the generated names" do
+      assert %{"success" => true, "data" => %{"countOne" => 2} = data} =
+               run(%{"action" => "struct_no_instance_value", "fields" => ["countOne"]})
+
+      assert map_size(data) == 1
+
+      assert %{"success" => true, "data" => %{"isDone" => true, "countOne" => 2}} =
+               run(%{
+                 "action" => "struct_no_instance_value",
+                 "fields" => ["isDone", "countOne"]
+               })
     end
   end
 
