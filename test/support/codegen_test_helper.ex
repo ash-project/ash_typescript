@@ -15,7 +15,8 @@ defmodule AshTypescript.Test.CodegenTestHelper do
 
   Files are sorted by path to ensure deterministic ordering. Pass
   `manifest: %Ash.Info.Manifest{}` to generate against that manifest (via
-  `AshTypescript.with_manifest/2`), e.g. one from `AshRpc.Manifest.redecorate/2`.
+  `AshTypescript.with_manifest/2`), e.g. one from `AshTypescript.Manifest.redecorate/2`
+  (which also rebuilds typed controller routes and channel publications).
   """
   def generate_all_content(otp_app \\ :ash_typescript, opts \\ []) do
     case generate_files(otp_app, opts) do

@@ -16,19 +16,21 @@ defmodule AshTypescript.FieldFormattingComprehensiveTest do
 
   doctest AshRpc.FieldFormatter
 
+  # Output formatter variants use AshTypescript.Manifest.redecorate/2 so typed
+  # controller route names and types follow the formatter too.
   setup_all do
     base = AshTypescript.manifest()
 
     %{
       manifests: %{
         camel: base,
-        pascal_out: AshRpc.Manifest.redecorate(base, output_formatter: :pascal_case),
-        snake_out: AshRpc.Manifest.redecorate(base, output_formatter: :snake_case),
+        pascal_out: AshTypescript.Manifest.redecorate(base, output_formatter: :pascal_case),
+        snake_out: AshTypescript.Manifest.redecorate(base, output_formatter: :snake_case),
         snake_in: AshRpc.Manifest.redecorate(base, input_formatter: :snake_case),
         custom_out:
-          AshRpc.Manifest.redecorate(base, output_formatter: {Formatters, :custom_format}),
+          AshTypescript.Manifest.redecorate(base, output_formatter: {Formatters, :custom_format}),
         custom_suffix_out:
-          AshRpc.Manifest.redecorate(base,
+          AshTypescript.Manifest.redecorate(base,
             output_formatter: {Formatters, :custom_format_with_suffix, ["gen"]}
           )
       }

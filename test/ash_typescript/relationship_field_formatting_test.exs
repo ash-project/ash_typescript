@@ -16,13 +16,15 @@ defmodule AshTypescript.RelationshipFieldFormattingTest do
 
   use ExUnit.Case, async: true
 
+  # AshTypescript.Manifest.redecorate/2 so typed controller route names and
+  # types follow the formatter too (the output includes the routes file).
   setup_all do
     base = AshTypescript.manifest()
 
     %{
       manifests: %{
-        pascal_out: AshRpc.Manifest.redecorate(base, output_formatter: :pascal_case),
-        snake_out: AshRpc.Manifest.redecorate(base, output_formatter: :snake_case)
+        pascal_out: AshTypescript.Manifest.redecorate(base, output_formatter: :pascal_case),
+        snake_out: AshTypescript.Manifest.redecorate(base, output_formatter: :snake_case)
       }
     }
   end
