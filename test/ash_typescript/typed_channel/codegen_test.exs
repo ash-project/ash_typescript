@@ -7,22 +7,8 @@
 # block's setup, with the `warn_on_missing_channel_returns` flag disabled there, so
 # the verifier's expected warning doesn't leak into `mix test` output.
 
-# Channel with a static topic (no wildcard) — exercises the no-suffix factory path.
-defmodule AshTypescript.Test.TypedChannel.StaticTopicChannel do
-  @moduledoc false
-  use Phoenix.Channel
-  use AshTypescript.TypedChannel
-
-  def join(_topic, _payload, socket), do: {:ok, socket}
-
-  typed_channel do
-    topic "notifications"
-
-    resource AshTypescript.Test.ChannelItem do
-      publish(:item_created)
-    end
-  end
-end
+# `AshTypescript.Test.TypedChannel.StaticTopicChannel` (static topic, no wildcard)
+# lives in test/support/resources/static_topic_channel.ex.
 
 defmodule AshTypescript.TypedChannel.CodegenTest do
   use ExUnit.Case
@@ -150,7 +136,7 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
           topic "things:*"
 
           resource NoReturnsItem do
-            publish(:thing_removed)
+            publish :thing_removed
           end
         end
       end
