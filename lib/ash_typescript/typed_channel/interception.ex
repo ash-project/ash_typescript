@@ -13,7 +13,9 @@ defmodule AshTypescript.TypedChannel.Interception do
   injected code registers every declared typed-channel event as an intercepted
   event and defines `handle_out/3` clauses that format the broadcast payload
   through `AshTypescript.TypedChannel.PayloadFormatter` before pushing — so
-  the wire format matches the generated TypeScript payload types.
+  the wire format matches the generated TypeScript payload types. Each clause
+  passes the channel module, so the payload is formatted against that
+  channel's publication in the manifest.
 
   Events the module already handles with its own `handle_out/3` clause are left
   alone — the developer's clause owns the push for those events.
@@ -66,6 +68,7 @@ defmodule AshTypescript.TypedChannel.Interception do
             def handle_out(unquote(event), payload, socket) do
               AshTypescript.TypedChannel.PayloadFormatter.push_formatted(
                 socket,
+                __MODULE__,
                 unquote(resource),
                 unquote(event),
                 payload

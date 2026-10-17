@@ -144,7 +144,8 @@ defmodule AshTypescript.Test.TypedChannel.OwnHandleOutChannel do
 end
 
 defmodule AshTypescript.TypedChannel.InterceptionTest do
-  use ExUnit.Case, async: true
+  # async: false — capture_log captures every process's log output
+  use ExUnit.Case, async: false
 
   @moduletag :ash_typescript
 
@@ -158,6 +159,21 @@ defmodule AshTypescript.TypedChannel.InterceptionTest do
   defmodule PassthroughSerializer do
     @moduledoc false
     def encode!(message), do: message
+  end
+
+  # The test-local channels are in no manifest module option (that would change
+  # the generated snapshots), so they are formatted through an inline manifest.
+  # handle_out/3 runs in the test process, so with_manifest/2 reaches it.
+  defp manifest do
+    AshTypescript.Test.InlineManifest.build!(
+      typed_controllers: [],
+      typed_channels: [
+        WireChannel,
+        TypedChannelFirstChannel,
+        OwnHandleOutChannel,
+        CustomInterceptChannel
+      ]
+    )
   end
 
   defp socket(topic) do
@@ -201,7 +217,9 @@ defmodule AshTypescript.TypedChannel.InterceptionTest do
       payload = %{id: "abc-123", display_name: "Some Item", created_at_ms: 17}
 
       assert {:noreply, _socket} =
-               WireChannel.handle_out("wire_item_created", payload, socket("wire:1"))
+               AshTypescript.with_manifest(manifest(), fn ->
+                 WireChannel.handle_out("wire_item_created", payload, socket("wire:1"))
+               end)
 
       assert_receive %Phoenix.Socket.Message{
         topic: "wire:1",
@@ -216,18 +234,22 @@ defmodule AshTypescript.TypedChannel.InterceptionTest do
 
     test "non-map payloads pass through unchanged" do
       assert {:noreply, _socket} =
-               WireChannel.handle_out("wire_item_touched", 42, socket("wire:1"))
+               AshTypescript.with_manifest(manifest(), fn ->
+                 WireChannel.handle_out("wire_item_touched", 42, socket("wire:1"))
+               end)
 
       assert_receive %Phoenix.Socket.Message{event: "wire_item_touched", payload: 42}
     end
 
     test "a developer clause for a typed event wins over the injected one" do
       assert {:noreply, _socket} =
-               OwnHandleOutChannel.handle_out(
-                 "wire_item_created",
-                 %{display_name: "mine"},
-                 socket("wire_own:1")
-               )
+               AshTypescript.with_manifest(manifest(), fn ->
+                 OwnHandleOutChannel.handle_out(
+                   "wire_item_created",
+                   %{display_name: "mine"},
+                   socket("wire_own:1")
+                 )
+               end)
 
       assert_receive %Phoenix.Socket.Message{
         event: "wire_item_created",
@@ -237,38 +259,127 @@ defmodule AshTypescript.TypedChannel.InterceptionTest do
 
     test "typed events the developer does not handle still get injected clauses" do
       assert {:noreply, _socket} =
-               OwnHandleOutChannel.handle_out("wire_item_touched", 7, socket("wire_own:1"))
+               AshTypescript.with_manifest(manifest(), fn ->
+                 OwnHandleOutChannel.handle_out("wire_item_touched", 7, socket("wire_own:1"))
+               end)
 
       assert_receive %Phoenix.Socket.Message{event: "wire_item_touched", payload: 7}
     end
 
     test "user-defined handle_out clauses still run for their own events" do
       assert {:noreply, _socket} =
-               CustomInterceptChannel.handle_out(
-                 "custom_event",
-                 %{some: "thing"},
-                 socket("wire_custom:1")
-               )
+               AshTypescript.with_manifest(manifest(), fn ->
+                 CustomInterceptChannel.handle_out(
+                   "custom_event",
+                   %{some: "thing"},
+                   socket("wire_custom:1")
+                 )
+               end)
 
       assert_receive %Phoenix.Socket.Message{
         event: "custom_event",
         payload: %{some: "thing", handled_by_user: true}
       }
     end
+
+    test "the injected handle_out of a channel absent from the manifest also warns" do
+      without_wire =
+        AshTypescript.Test.InlineManifest.build!(typed_controllers: [], typed_channels: [])
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          AshTypescript.with_manifest(without_wire, fn ->
+            WireChannel.handle_out("wire_item_created", %{display_name: "raw"}, socket("wire:1"))
+          end)
+        end)
+
+      assert_receive %Phoenix.Socket.Message{
+        event: "wire_item_created",
+        payload: %{display_name: "raw"}
+      }
+
+      assert log =~ "AshTypescript.Test.TypedChannel.WireChannel"
+    end
   end
 
-  describe "PayloadFormatter.format_payload/3" do
+  describe "PayloadFormatter.format_payload/4" do
     test "formats map payloads according to the publication returns type" do
-      assert PayloadFormatter.format_payload(WireItem, "wire_item_created", %{
-               id: "x",
-               display_name: "n",
-               created_at_ms: 1
-             }) == %{"id" => "x", "displayName" => "n", "createdAtMs" => 1}
+      AshTypescript.with_manifest(manifest(), fn ->
+        assert PayloadFormatter.format_payload(WireChannel, WireItem, "wire_item_created", %{
+                 id: "x",
+                 display_name: "n",
+                 created_at_ms: 1
+               }) == %{"id" => "x", "displayName" => "n", "createdAtMs" => 1}
+      end)
     end
 
-    test "passes payload through for events with no matching publication" do
-      payload = %{display_name: "untouched"}
-      assert PayloadFormatter.format_payload(WireItem, "unknown_event", payload) == payload
+    test "the publication is looked up per channel" do
+      payload = %{id: "x", display_name: "n", created_at_ms: 1}
+
+      AshTypescript.with_manifest(manifest(), fn ->
+        assert PayloadFormatter.format_payload(
+                 TypedChannelFirstChannel,
+                 WireItem,
+                 "wire_item_created",
+                 payload
+               ) == %{"id" => "x", "displayName" => "n", "createdAtMs" => 1}
+      end)
+    end
+
+    test "an event of a channel absent from the manifest is pushed unchanged with a warning" do
+      payload = %{display_name: "raw"}
+      # Scoped manifest that does not list WireChannel
+      without_wire =
+        AshTypescript.Test.InlineManifest.build!(typed_controllers: [], typed_channels: [])
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert AshTypescript.with_manifest(without_wire, fn ->
+                   PayloadFormatter.format_payload(
+                     WireChannel,
+                     WireItem,
+                     "wire_item_created",
+                     payload
+                   )
+                 end) == payload
+        end)
+
+      assert log =~ "AshTypescript.Test.TypedChannel.WireChannel"
+      assert log =~ ~s("wire_item_created")
+      assert log =~ "AshTypescript.Test.TypedChannel.WireItem"
+      assert log =~ "`typed_channels:` option"
+    end
+
+    test "an event stored with returns: nil is pushed unchanged without a warning" do
+      alias AshTypescript.Test.PublicationFixtures.{Feed, FeedChannel}
+
+      m =
+        AshTypescript.Test.InlineManifest.build!(
+          typed_controllers: [],
+          typed_channels: [FeedChannel]
+        )
+
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert AshTypescript.with_manifest(m, fn ->
+                   PayloadFormatter.format_payload(FeedChannel, Feed, "untyped_pushed", %{
+                     some_key: 1
+                   })
+                 end) == %{some_key: 1}
+        end)
+
+      assert log == ""
+    end
+
+    test "a direct call with an undeclared event is pushed unchanged and warns" do
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert AshTypescript.with_manifest(manifest(), fn ->
+                   PayloadFormatter.format_payload(WireChannel, WireItem, "unknown_event", %{a: 1})
+                 end) == %{a: 1}
+        end)
+
+      assert log =~ ~s("unknown_event")
     end
   end
 
