@@ -395,6 +395,30 @@ defmodule AshTypescript do
   end
 
   @doc """
+  Gets whether to warn about typed controllers and typed channels the manifest doesn't list.
+
+  When enabled, codegen warns about every module of the app that uses
+  `AshTypescript.TypedController` or `AshTypescript.TypedChannel` and declares
+  routes or publications, but isn't in the manifest module's
+  `typed_controllers:` / `typed_channels:` option. Codegen generates nothing
+  for such a module.
+
+  ## Configuration
+
+      # Disable warnings (silent)
+      config :ash_typescript, warn_on_unlisted_typed_modules: false
+
+      # Enable warnings (default)
+      config :ash_typescript, warn_on_unlisted_typed_modules: true
+
+  ## Returns
+  A boolean indicating whether to display warnings, defaulting to `true`.
+  """
+  def warn_on_unlisted_typed_modules? do
+    Application.get_env(:ash_typescript, :warn_on_unlisted_typed_modules, true)
+  end
+
+  @doc """
   Gets whether to always regenerate TypeScript files instead of raising on pending codegen.
 
   When enabled, `--check` will write changed files instead of raising

@@ -81,6 +81,8 @@ defmodule AshTypescript.Codegen.Orchestrator do
       {:error, error_message} -> throw({:error, error_message})
     end
 
+    emit_unlisted_typed_modules_warning(otp_app)
+
     embedded_resources = TypeDiscovery.find_embedded_resources(otp_app)
     struct_argument_resources = TypeDiscovery.find_struct_argument_resources(otp_app)
 
@@ -407,6 +409,18 @@ defmodule AshTypescript.Codegen.Orchestrator do
       ""
     else
       ChannelCodegen.generate_all_channel_types(channel_entries)
+    end
+  end
+
+  # Codegen takes typed controllers and channels only from the manifest, so a
+  # typed module left out of the manifest options would be skipped silently.
+  # Uses `IO.puts(:stderr, ...)` like the RPC warnings (see `VerifyRpcWarnings`):
+  # the warning is informational and must not register as a compiler
+  # diagnostic or carry a stacktrace.
+  defp emit_unlisted_typed_modules_warning(otp_app) do
+    case TypeDiscovery.build_unlisted_typed_modules_warning(otp_app) do
+      nil -> :ok
+      message -> IO.puts(:stderr, message)
     end
   end
 

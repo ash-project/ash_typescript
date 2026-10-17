@@ -12,7 +12,13 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
   - `get_rpc_resources/1` - Gets RPC-configured resources from domains
   - `build_rpc_warnings/3` - Builds formatted warning message for misconfigured resources
   - `find_resources_missing_from_rpc_config/1` - Finds resources with extension but not configured
+  - `build_unlisted_typed_modules_warning/3` - Builds the warning for typed controllers and
+    typed channels the manifest doesn't list
   """
+
+  alias AshTypescript.Manifest.Custom
+  alias AshTypescript.TypedChannel.Info, as: ChannelInfo
+  alias AshTypescript.TypedController.Info, as: ControllerInfo
 
   @doc """
   Gets all RPC resources configured in the given OTP application.
@@ -225,6 +231,62 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
     end
   end
 
+  @doc """
+  Builds the warning for typed controllers and typed channels that the manifest
+  doesn't list.
+
+  Reports every module in `modules` (defaults to `Application.spec(otp_app,
+  :modules)`) that uses `AshTypescript.TypedController` and declares routes,
+  or uses `AshTypescript.TypedChannel` and declares publications, but has no
+  routes or publications in the manifest. `source` is a manifest module or
+  `%Ash.Info.Manifest{}`; `nil` reads the configured manifest and honours
+  `AshTypescript.with_manifest/2`.
+
+  Returns a formatted warning string, or nil when every typed module is listed
+  or `warn_on_unlisted_typed_modules` is `false`.
+  """
+  @spec build_unlisted_typed_modules_warning(atom(), [module()] | nil, term()) ::
+          String.t() | nil
+  def build_unlisted_typed_modules_warning(otp_app, modules \\ nil, source \\ nil) do
+    if AshTypescript.warn_on_unlisted_typed_modules?() do
+      modules = modules || Application.spec(otp_app, :modules) || []
+
+      case find_unlisted_typed_modules(modules, source) do
+        {[], []} ->
+          nil
+
+        {controllers, channels} ->
+          build_unlisted_typed_modules_message(otp_app, controllers, channels)
+      end
+    end
+  end
+
+  # Returns `{unlisted_controllers, unlisted_channels}`, both sorted.
+  defp find_unlisted_typed_modules(modules, source) do
+    listed_controllers = source |> Custom.routes() |> MapSet.new(& &1.source_module)
+    listed_channels = source |> Custom.publications() |> MapSet.new(& &1.channel_module)
+
+    {unlisted(modules, &declares_routes?/1, listed_controllers),
+     unlisted(modules, &declares_publications?/1, listed_channels)}
+  end
+
+  defp unlisted(modules, typed?, listed) do
+    modules
+    |> Enum.filter(&(typed?.(&1) and not MapSet.member?(listed, &1)))
+    |> Enum.sort_by(&inspect/1)
+  end
+
+  # A typed module that declares nothing generates nothing, listed or not.
+  defp declares_routes?(module) do
+    Spark.Dsl.is?(module, AshTypescript.TypedController) and
+      ControllerInfo.typed_controller(module) != []
+  end
+
+  defp declares_publications?(module) do
+    Spark.Dsl.is?(module, AshTypescript.TypedChannel) and
+      Enum.any?(ChannelInfo.typed_channel(module), &(&1.publications != []))
+  end
+
   # Derives non-RPC referenced resources from the spec, with one-hop
   # attribution. Any non-embedded resource in the spec that isn't an RPC
   # resource was discovered through reachability (i.e., referenced by an RPC
@@ -397,5 +459,54 @@ defmodule AshTypescript.Codegen.TypeDiscovery do
 
     (lines ++ resource_lines ++ explanation_lines)
     |> Enum.join("\n")
+  end
+
+  defp build_unlisted_typed_modules_message(otp_app, controllers, channels) do
+    header = [
+      "⚠️  Found typed controllers or typed channels not listed in the manifest:",
+      ""
+    ]
+
+    module_lines =
+      Enum.map(controllers, &"   • #{inspect(&1)} (typed controller)") ++
+        Enum.map(channels, &"   • #{inspect(&1)} (typed channel)")
+
+    explanation_lines = [
+      "",
+      "   Codegen generates no TypeScript for these modules. At runtime an unlisted",
+      "   typed controller responds with a 500, and an unlisted typed channel pushes",
+      "   unformatted payloads. To fix this, add them to the manifest module's",
+      "   `typed_controllers:` / `typed_channels:` option and recompile:",
+      ""
+    ]
+
+    manifest_name =
+      case Application.get_env(:ash_typescript, :manifest) do
+        nil -> "MyApp.AshTypescriptManifest"
+        module -> inspect(module)
+      end
+
+    option_lines =
+      [typed_controllers: controllers, typed_channels: channels]
+      |> Enum.reject(fn {_key, modules} -> modules == [] end)
+      |> Enum.map(fn {key, modules} ->
+        "       #{key}: [#{Enum.map_join(modules, ", ", &inspect/1)}]"
+      end)
+
+    example_lines =
+      [
+        "   defmodule #{manifest_name} do",
+        "     use AshTypescript.Manifest,",
+        "       otp_app: #{inspect(otp_app)},"
+      ] ++
+        add_trailing_commas(option_lines) ++
+        ["   end"]
+
+    Enum.join(header ++ module_lines ++ explanation_lines ++ example_lines, "\n")
+  end
+
+  defp add_trailing_commas(lines) do
+    {last, rest} = List.pop_at(lines, -1)
+    Enum.map(rest, &(&1 <> ",")) ++ [last]
   end
 end
