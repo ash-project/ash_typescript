@@ -64,4 +64,85 @@ defmodule AshTypescript.Manifest.CustomTest do
       assert Custom.sorting_enabled?(nil) == true
     end
   end
+
+  describe "routes and publications" do
+    alias AshTypescript.Manifest.{Publication, Route}
+
+    defp typed_manifest do
+      %Ash.Info.Manifest{
+        custom: %{
+          ash_typescript: %{
+            routes: %{
+              {B, :a} => %Route{source_module: B, name: :a},
+              {A, :z} => %Route{source_module: A, controller_module: AController, name: :z},
+              {A, :b} => %Route{source_module: A, name: :b}
+            },
+            publications: %{
+              {C2, R, "y"} => %Publication{channel_module: C2, resource: R, event: "y"},
+              {C1, Q, "x"} => %Publication{channel_module: C1, resource: Q, event: "x"},
+              {C1, R, "y"} => %Publication{channel_module: C1, resource: R, event: "y"}
+            }
+          }
+        }
+      }
+    end
+
+    test "route/3 and publication/4 look up by key" do
+      m = typed_manifest()
+
+      assert %Route{source_module: A, controller_module: AController, name: :z} =
+               Custom.route(m, A, :z)
+
+      assert Custom.route(m, A, :missing) == nil
+      assert %Publication{channel_module: C1, event: "x"} = Custom.publication(m, C1, Q, "x")
+      assert %Publication{channel_module: C2} = Custom.publication(m, C2, R, "y")
+      assert Custom.publication(m, C2, Q, "x") == nil
+      assert Custom.publication(m, C1, Q, "nope") == nil
+    end
+
+    test "routes/1 and publications/1 sort deterministically" do
+      m = typed_manifest()
+
+      assert Enum.map(Custom.routes(m), &{&1.source_module, &1.name}) == [
+               {A, :b},
+               {A, :z},
+               {B, :a}
+             ]
+
+      assert Enum.map(Custom.publications(m), &{&1.channel_module, &1.resource, &1.event}) ==
+               [{C1, Q, "x"}, {C1, R, "y"}, {C2, R, "y"}]
+    end
+
+    test "a manifest without typed data reads as empty" do
+      assert Custom.routes(%Ash.Info.Manifest{}) == []
+      assert Custom.publications(%Ash.Info.Manifest{}) == []
+      assert Custom.route(%Ash.Info.Manifest{}, A, :a) == nil
+      assert Custom.publication(%Ash.Info.Manifest{}, C1, Q, "x") == nil
+    end
+
+    test "Publication returns may be nil" do
+      assert %Publication{returns: nil} = %Publication{
+               channel_module: C1,
+               resource: Q,
+               event: "x"
+             }
+    end
+
+    test "Route defaults" do
+      assert %Route{
+               controller_module: nil,
+               inputs: [],
+               client_input_names: %{},
+               path_input_names: %{}
+             } = %Route{}
+    end
+
+    test "nil reads the configured manifest and honours with_manifest/2" do
+      AshTypescript.with_manifest(typed_manifest(), fn ->
+        assert %Route{name: :b} = Custom.route(nil, A, :b)
+        assert [_, _, _] = Custom.routes()
+        assert [_, _, _] = Custom.publications()
+      end)
+    end
+  end
 end

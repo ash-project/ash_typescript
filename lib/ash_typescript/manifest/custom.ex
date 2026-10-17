@@ -20,6 +20,7 @@ defmodule AshTypescript.Manifest.Custom do
   """
 
   alias Ash.Info.Manifest
+  alias AshTypescript.Manifest.{Publication, Route}
 
   @typedoc """
   The decoration map persisted under `custom.ash_typescript` on a
@@ -358,5 +359,46 @@ defmodule AshTypescript.Manifest.Custom do
       _ ->
         nil
     end)
+  end
+
+  # ─────────────────────────────────────────────────────────────────
+  # Typed controller routes and typed channel publications
+  # (manifest-level custom.ash_typescript)
+  # ─────────────────────────────────────────────────────────────────
+
+  @doc "The `%Route{}` for `{source_module, name}`, or `nil`. `nil` source reads the configured manifest."
+  @spec route(module() | Manifest.t() | nil, module(), atom()) :: Route.t() | nil
+  def route(source, source_module, name),
+    do: source |> typed_data(:routes) |> Map.get({source_module, name})
+
+  @doc "Every stored route, sorted by `{source_module, name}`."
+  @spec routes(module() | Manifest.t() | nil) :: [Route.t()]
+  def routes(source \\ nil),
+    do:
+      source
+      |> typed_data(:routes)
+      |> Map.values()
+      |> Enum.sort_by(&{&1.source_module, &1.name})
+
+  @doc "The `%Publication{}` for `{channel_module, resource, event}`, or `nil`."
+  @spec publication(module() | Manifest.t() | nil, module(), module(), String.t()) ::
+          Publication.t() | nil
+  def publication(source, channel_module, resource, event),
+    do: source |> typed_data(:publications) |> Map.get({channel_module, resource, event})
+
+  @doc "Every stored publication, sorted by `{channel_module, resource, event}`."
+  @spec publications(module() | Manifest.t() | nil) :: [Publication.t()]
+  def publications(source \\ nil),
+    do:
+      source
+      |> typed_data(:publications)
+      |> Map.values()
+      |> Enum.sort_by(&{&1.channel_module, &1.resource, &1.event})
+
+  defp typed_data(source, key) do
+    case AshTypescript.manifest(source) do
+      %Manifest{custom: %{ash_typescript: data}} when is_map(data) -> Map.get(data, key, %{})
+      _ -> %{}
+    end
   end
 end
