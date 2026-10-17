@@ -9,7 +9,8 @@ defmodule AshTypescript.Test.InlineManifest do
   (typed controllers, channels, domains) that are defined in test files and
   kept out of the app config. The module name is derived from the options,
   so repeated calls reuse the compiled module. Compiler and verifier
-  output goes to a stderr capture.
+  output goes to a stderr capture, and is attached to the error when the
+  module fails to compile.
   """
 
   @spec build!(keyword()) :: Ash.Info.Manifest.t()
@@ -17,15 +18,34 @@ defmodule AshTypescript.Test.InlineManifest do
     module = module_for(opts)
     opts = Keyword.put_new(opts, :otp_app, :ash_typescript)
 
-    :global.trans({__MODULE__, module}, fn ->
+    # The lock id is `{resource, requester}`: a per-process requester, so
+    # concurrent async callers wait for each other instead of sharing the lock.
+    :global.trans({{__MODULE__, module}, self()}, fn ->
       unless Code.ensure_loaded?(module) do
-        ExUnit.CaptureIO.capture_io(:stderr, fn ->
-          Module.create(
-            module,
-            quote(do: use(AshTypescript.Manifest, unquote(opts))),
-            Macro.Env.location(__ENV__)
-          )
-        end)
+        {result, stderr} =
+          ExUnit.CaptureIO.with_io(:stderr, fn ->
+            try do
+              Module.create(
+                module,
+                quote(do: use(AshTypescript.Manifest, unquote(opts))),
+                Macro.Env.location(__ENV__)
+              )
+
+              :ok
+            rescue
+              error -> {:error, error, __STACKTRACE__}
+            end
+          end)
+
+        with {:error, error, stacktrace} <- result do
+          reraise RuntimeError,
+                  [
+                    message:
+                      "InlineManifest.build!(#{inspect(opts)}) failed: " <>
+                        Exception.message(error) <> "\n\nCompiler output:\n" <> stderr
+                  ],
+                  stacktrace
+        end
       end
     end)
 
