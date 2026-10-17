@@ -601,10 +601,10 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           "userId" => user_id,
           "metadata" => %{
             "category" => "development",
-            "priority_score" => 9,
+            "priorityScore" => 9,
             "tags" => ["backend", "urgent"],
             "deadline" => "2024-12-31",
-            "estimated_hours" => 2.0
+            "estimatedHours" => 2.0
           },
           "priorityScore" => 92,
           "colorPalette" => %{
@@ -613,38 +613,38 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
             "accent" => "#F39C12"
           },
           "timestampInfo" => %{
-            "created_by" => "test_user",
-            "created_at" => "2024-01-01T12:00:00Z",
-            "updated_by" => "test_user",
-            "updated_at" => "2024-01-01T12:00:00Z"
+            "createdBy" => "test_user",
+            "createdAt" => "2024-01-01T12:00:00Z",
+            "updatedBy" => "test_user",
+            "updatedAt" => "2024-01-01T12:00:00Z"
           },
           "statistics" => %{
-            "view_count" => 15,
-            "edit_count" => 3,
-            "completion_time_seconds" => 1800,
-            "difficulty_rating" => 4.5,
-            "performance_metrics" => %{
-              "focus_time_seconds" => 1200,
-              "interruption_count" => 3,
-              "efficiency_score" => 0.85,
-              "task_complexity" => "medium"
+            "viewCount" => 15,
+            "editCount" => 3,
+            "completionTimeSeconds" => 1800,
+            "difficultyRating" => 4.5,
+            "performanceMetrics" => %{
+              "focusTimeSeconds" => 1200,
+              "interruptionCount" => 3,
+              "efficiencyScore" => 0.85,
+              "taskComplexity" => "medium"
             }
           }
         },
         "fields" => [
           "id",
           "title",
-          %{"metadata" => ["category", "priority_score", "tags", "deadline", "estimated_hours"]},
+          %{"metadata" => ["category", "priorityScore", "tags", "deadline", "estimatedHours"]},
           "priorityScore",
           "colorPalette",
-          %{"timestampInfo" => ["created_by", "created_at", "updated_by", "updated_at"]},
+          %{"timestampInfo" => ["createdBy", "createdAt", "updatedBy", "updatedAt"]},
           %{
             "statistics" => [
-              "view_count",
-              "edit_count",
-              "completion_time_seconds",
-              "difficulty_rating",
-              "performance_metrics"
+              "viewCount",
+              "editCount",
+              "completionTimeSeconds",
+              "difficultyRating",
+              "performanceMetrics"
             ]
           }
         ]
@@ -879,7 +879,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           # Aggregate
           "commentCount"
         ],
-        "sort" => "created_at",
+        "sort" => "createdAt",
         "page" => %{"limit" => 10, "offset" => 0}
       }
 
@@ -1173,15 +1173,15 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           "input" => %{
             "metadata" => %{
               "category" => "testing",
-              "priority_score" => 85,
+              "priorityScore" => 85,
               "deadline" => Date.to_string(future_date),
               "tags" => ["test", "date_formatting"],
-              "estimated_hours" => 2.0
+              "estimatedHours" => 2.0
             }
           },
           "fields" => [
             "id",
-            %{"metadata" => ["category", "priority_score", "deadline", "tags", "estimated_hours"]}
+            %{"metadata" => ["category", "priorityScore", "deadline", "tags", "estimatedHours"]}
           ]
         })
 
@@ -1231,7 +1231,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
       result =
         AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
-          "fields" => ["id", "nonexistent_field", "title"]
+          "fields" => ["id", "nonexistentField", "title"]
         })
 
       assert result["success"] == false
@@ -1359,13 +1359,13 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
         "identity" => todo_id,
         "input" => %{
           "description" => "Complex scenario with all features",
-          "due_date" => Date.add(Date.utc_today(), 5) |> Date.to_string(),
+          "dueDate" => Date.add(Date.utc_today(), 5) |> Date.to_string(),
           "priority" => "urgent",
           "metadata" => %{
             "category" => "integration_test",
-            "priority_score" => 98,
+            "priorityScore" => 98,
             "tags" => ["complex", "comprehensive"],
-            "estimated_hours" => 4.0
+            "estimatedHours" => 4.0
           }
         },
         "fields" => ["id"]
@@ -1380,10 +1380,10 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
             # Ratings: 3, 4, 5
             "rating" => i + 2,
             # 1st and 3rd are helpful
-            "is_helpful" => rem(i, 2) == 1,
-            "author_name" => "Commenter #{i}",
-            "user_id" => user_id,
-            "todo_id" => todo_id
+            "isHelpful" => rem(i, 2) == 1,
+            "authorName" => "Commenter #{i}",
+            "userId" => user_id,
+            "todoId" => todo_id
           },
           "fields" => ["id"]
         })
@@ -1400,12 +1400,12 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           "description",
           "status",
           "priority",
-          "due_date",
-          "created_at",
+          "dueDate",
+          "createdAt",
 
           # Simple calculations
-          "is_overdue",
-          "days_until_due",
+          "isOverdue",
+          "daysUntilDue",
 
           # Complex calculation with arguments
           %{
@@ -1437,22 +1437,22 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
               "id",
               "content",
               "rating",
-              "is_helpful",
-              "author_name",
+              "isHelpful",
+              "authorName",
               %{"user" => ["id", "name", "email"]}
             ]
           },
 
           # Embedded resources
-          %{"metadata" => ["category", "priority_score", "tags", "estimated_hours"]},
+          %{"metadata" => ["category", "priorityScore", "tags", "estimatedHours"]},
 
           # Aggregates
-          "comment_count",
-          "helpful_comment_count",
-          "has_comments",
-          "average_rating",
-          "highest_rating",
-          "comment_authors"
+          "commentCount",
+          "helpfulCommentCount",
+          "hasComments",
+          "averageRating",
+          "highestRating",
+          "commentAuthors"
         ]
       }
 
@@ -1544,7 +1544,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           %{"user" => ["id", "name", "email"]},
           "commentCount"
         ],
-        "sort" => "created_at",
+        "sort" => "createdAt",
         "page" => %{"limit" => 2, "offset" => 0}
       }
 
@@ -1569,7 +1569,7 @@ defmodule AshTypescript.Rpc.ComprehensiveIntegrationTest do
           %{"user" => ["id", "name", "email"]},
           "commentCount"
         ],
-        "sort" => "created_at",
+        "sort" => "createdAt",
         "page" => %{"limit" => 2, "offset" => 2}
       }
 

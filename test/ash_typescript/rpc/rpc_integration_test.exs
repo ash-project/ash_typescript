@@ -82,7 +82,7 @@ defmodule AshTypescript.Rpc.IntegrationTest do
     test "end-to-end strict validation - fails fast on unknown fields" do
       params = %{
         "action" => "list_todos",
-        "fields" => ["id", "title", "unknown_field"]
+        "fields" => ["id", "title", "unknownField"]
       }
 
       conn = %Plug.Conn{}

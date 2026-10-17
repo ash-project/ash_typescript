@@ -75,7 +75,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
             "priority",
             "dueDate",
             "tags",
-            "created_at",
+            "createdAt",
             %{"metadata" => ["category", "priorityScore", "isUrgent", "tags"]}
           ]
         })
@@ -162,7 +162,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
             "title",
             "status",
             "priority",
-            "created_at",
+            "createdAt",
             %{"user" => ["id", "name"]}
           ],
           "page" => %{"limit" => 10, "offset" => 0}
@@ -581,7 +581,7 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
       result =
         AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "list_todos",
-          "fields" => ["id", "nonexistent_field", "title"]
+          "fields" => ["id", "nonexistentField", "title"]
         })
 
       assert result["success"] == false
@@ -680,11 +680,11 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
           "fields" => [
             "id",
             "title",
-            "created_at",
+            "createdAt",
             %{"user" => ["id", "name", "email"]},
             "commentCount"
           ],
-          "sort" => "created_at",
+          "sort" => "createdAt",
           "page" => %{"limit" => 2, "offset" => 0}
         })
 
@@ -699,11 +699,11 @@ defmodule AshTypescript.Rpc.WorkingComprehensiveTest do
           "fields" => [
             "id",
             "title",
-            "created_at",
+            "createdAt",
             %{"user" => ["id", "name", "email"]},
             "commentCount"
           ],
-          "sort" => "created_at",
+          "sort" => "createdAt",
           "page" => %{"limit" => 2, "offset" => 2}
         })
 

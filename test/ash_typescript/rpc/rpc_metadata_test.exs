@@ -74,7 +74,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
   end
 
   describe "READ actions - show_metadata: false (disabled)" do
-    test "does not allow selecting metadata fields" do
+    test "rejects requested metadata fields" do
       _task = create_task("Test Task")
 
       params = %{
@@ -86,16 +86,11 @@ defmodule AshTypescript.Rpc.MetadataTest do
       conn = %Plug.Conn{}
       result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
-      assert result["success"] == true
-      tasks = result["data"]
-
-      # Metadata fields should not be included even if requested
-      if tasks != [] do
-        task_result = List.first(tasks)
-        refute Map.has_key?(task_result, "someString")
-        refute Map.has_key?(task_result, "someNumber")
-        refute Map.has_key?(task_result, "someBoolean")
-      end
+      # Requested metadata the entrypoint doesn't expose is rejected, not dropped
+      assert %{"success" => false, "errors" => [error]} = result
+      assert error["type"] == "unknown_metadata_fields"
+      assert error["fields"] == ["someString"]
+      assert error["details"]["allowedFields"] == []
     end
 
     test "works without metadataFields parameter" do
@@ -121,7 +116,7 @@ defmodule AshTypescript.Rpc.MetadataTest do
   end
 
   describe "READ actions - show_metadata: [] (empty list)" do
-    test "does not allow selecting metadata fields" do
+    test "rejects requested metadata fields" do
       _task = create_task("Test Task")
 
       params = %{
@@ -133,16 +128,11 @@ defmodule AshTypescript.Rpc.MetadataTest do
       conn = %Plug.Conn{}
       result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
-      assert result["success"] == true
-      tasks = result["data"]
-
-      # Metadata fields should not be included even if requested
-      if tasks != [] do
-        task_result = List.first(tasks)
-        refute Map.has_key?(task_result, "someString")
-        refute Map.has_key?(task_result, "someNumber")
-        refute Map.has_key?(task_result, "someBoolean")
-      end
+      # Requested metadata the entrypoint doesn't expose is rejected, not dropped
+      assert %{"success" => false, "errors" => [error]} = result
+      assert error["type"] == "unknown_metadata_fields"
+      assert error["fields"] == ["someString"]
+      assert error["details"]["allowedFields"] == []
     end
   end
 
@@ -169,8 +159,8 @@ defmodule AshTypescript.Rpc.MetadataTest do
       refute Map.has_key?(task_result, "someBoolean")
     end
 
-    test "does not include non-exposed fields even if requested" do
-      task = create_task("Test Task")
+    test "rejects non-exposed fields" do
+      _task = create_task("Test Task")
 
       params = %{
         "action" => "read_tasks_with_metadata_one",
@@ -181,14 +171,11 @@ defmodule AshTypescript.Rpc.MetadataTest do
       conn = %Plug.Conn{}
       result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
-      assert result["success"] == true
-      tasks = result["data"]
-      task_result = Enum.find(tasks, &(&1["id"] == task.id))
-
-      # Only the exposed field (someNumber is filtered out)
-      assert task_result["someString"] == "default_value"
-      refute Map.has_key?(task_result, "someNumber")
-      refute Map.has_key?(task_result, "someBoolean")
+      # Requested metadata the entrypoint doesn't expose is rejected, not dropped
+      assert %{"success" => false, "errors" => [error]} = result
+      assert error["type"] == "unknown_metadata_fields"
+      assert error["fields"] == ["someNumber"]
+      assert error["details"]["allowedFields"] == ["someString"]
     end
   end
 
@@ -237,8 +224,8 @@ defmodule AshTypescript.Rpc.MetadataTest do
       refute Map.has_key?(task_result, "someBoolean")
     end
 
-    test "does not include non-exposed fields even if requested" do
-      task = create_task("Test Task")
+    test "rejects non-exposed fields" do
+      _task = create_task("Test Task")
 
       params = %{
         "action" => "read_tasks_with_metadata_two",
@@ -249,14 +236,11 @@ defmodule AshTypescript.Rpc.MetadataTest do
       conn = %Plug.Conn{}
       result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
 
-      assert result["success"] == true
-      tasks = result["data"]
-      task_result = Enum.find(tasks, &(&1["id"] == task.id))
-
-      # Only exposed fields (someBoolean is filtered out)
-      assert task_result["someString"] == "default_value"
-      assert task_result["someNumber"] == 123
-      refute Map.has_key?(task_result, "someBoolean")
+      # Requested metadata the entrypoint doesn't expose is rejected, not dropped
+      assert %{"success" => false, "errors" => [error]} = result
+      assert error["type"] == "unknown_metadata_fields"
+      assert error["fields"] == ["someBoolean"]
+      assert error["details"]["allowedFields"] == ["someString", "someNumber"]
     end
   end
 
@@ -628,32 +612,6 @@ defmodule AshTypescript.Rpc.MetadataTest do
       assert task_result["meta1"] == "metadata_value"
       assert task_result["field2"] == 999
       refute Map.has_key?(task_result, "isValid")
-    end
-
-    test "allows requesting using original field names but returns mapped names" do
-      task = create_task("Test Task")
-
-      params = %{
-        "action" => "read_tasks_with_mapped_metadata",
-        "fields" => ["id", "title"],
-        # Request using original snake_case names (still works)
-        "metadataFields" => ["meta_1", "field_2"]
-      }
-
-      conn = %Plug.Conn{}
-      result = AshRpc.run_action(AshTypescript.RpcProfile, conn, params)
-
-      assert result["success"] == true
-      tasks = result["data"]
-      task_result = Enum.find(tasks, &(&1["id"] == task.id))
-
-      # Output always uses mapped names regardless of how they were requested
-      assert task_result["meta1"] == "metadata_value"
-      assert task_result["field2"] == 999
-      refute Map.has_key?(task_result, "isValid")
-      # Original names are not in the output
-      refute Map.has_key?(task_result, "meta_1")
-      refute Map.has_key?(task_result, "field_2")
     end
 
     test "works when no metadata fields are requested" do

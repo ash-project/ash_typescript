@@ -335,7 +335,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsTest do
       # :comments is mixed, so both key families are allowed — but junk is not
       raw = [%{"comments" => %{"page" => %{"limit" => 1, "bogus" => true}, "fields" => ["id"]}}]
 
-      assert {:error, {:invalid_nested_page, :comments, {:unknown_keys, [:bogus]}, []}} =
+      assert {:error, {:invalid_nested_page, :comments, {:unknown_keys, ["bogus"]}, []}} =
                process_fields(:read, raw)
     end
 
@@ -349,7 +349,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsTest do
         }
       ]
 
-      assert {:error, {:invalid_nested_page, :offset_comments, {:unknown_keys, [:after]}, []}} =
+      assert {:error, {:invalid_nested_page, :offset_comments, {:unknown_keys, ["after"]}, []}} =
                process_fields(:read, raw)
     end
 
@@ -363,7 +363,7 @@ defmodule AshTypescript.Rpc.NestedQueryOptsTest do
         }
       ]
 
-      assert {:error, {:invalid_nested_page, :keyset_comments, {:unknown_keys, [:offset]}, []}} =
+      assert {:error, {:invalid_nested_page, :keyset_comments, {:unknown_keys, ["offset"]}, []}} =
                process_fields(:read, raw)
     end
 

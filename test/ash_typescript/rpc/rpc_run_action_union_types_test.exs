@@ -52,7 +52,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
                   %{"text" => "Bread", "completed" => false},
                   %{"text" => "Eggs", "completed" => false}
                 ],
-                "allow_reordering" => true
+                "allowReordering" => true
               }
             }
           },
@@ -142,7 +142,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
                     "id",
                     "title",
                     %{"items" => ["text", "completed"]},
-                    "allow_reordering"
+                    "allowReordering"
                   ]
                 }
               ]
@@ -567,7 +567,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
                 "file" => %{
                   "filename" => "document.pdf",
                   "size" => 1024,
-                  "mime_type" => "application/pdf"
+                  "mimeType" => "application/pdf"
                 }
               }
             ]
@@ -587,7 +587,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
                   "filename" => "photo.jpg",
                   "width" => 800,
                   "height" => 600,
-                  "alt_text" => "A photo"
+                  "altText" => "A photo"
                 }
               }
             ]
@@ -620,7 +620,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             %{
               "attachments" => [
                 %{
-                  "file" => ["filename", "size", "mime_type"]
+                  "file" => ["filename", "size", "mimeType"]
                 }
               ]
             }
@@ -665,7 +665,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             %{
               "attachments" => [
                 %{
-                  "image" => ["filename", "width", "height", "alt_text"]
+                  "image" => ["filename", "width", "height", "altText"]
                 }
               ]
             }
@@ -752,7 +752,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             %{
               "attachments" => [
                 %{
-                  "file" => ["filename", "size", "mime_type"]
+                  "file" => ["filename", "size", "mimeType"]
                 },
                 %{
                   "image" => ["filename", "width", "height"]
@@ -801,7 +801,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
               "attachments" => [
                 "url",
                 %{
-                  "file" => ["filename", "size", "mime_type"],
+                  "file" => ["filename", "size", "mimeType"],
                   "image" => ["filename", "width", "height"]
                 }
               ]
@@ -1093,7 +1093,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
                 "file" => %{
                   "filename" => "doc.pdf",
                   "size" => 2048,
-                  "mime_type" => "application/pdf"
+                  "mimeType" => "application/pdf"
                 }
               },
               %{"url" => "https://example.com"}
@@ -1751,7 +1751,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
                   %{"text" => "Item 2", "completed" => false},
                   %{"text" => "Item 3", "completed" => false}
                 ],
-                "allow_reordering" => true
+                "allowReordering" => true
               }
             }
           },
@@ -2098,7 +2098,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
                 "file" => %{
                   "filename" => "test.pdf",
                   "size" => 1024,
-                  "mime_type" => "application/pdf"
+                  "mimeType" => "application/pdf"
                 }
               }
             ]
@@ -2114,7 +2114,7 @@ defmodule AshTypescript.Rpc.RpcRunActionUnionTypesTest do
             %{
               "attachments" => [
                 %{
-                  "file" => ["filename", "size", "mime_type"]
+                  "file" => ["filename", "size", "mimeType"]
                 }
               ]
             }

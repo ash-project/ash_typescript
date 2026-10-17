@@ -308,8 +308,8 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       assert {:error, error_response} =
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
-      # Should be a field validation error
-      assert {:unknown_field, :unknown_field, Todo, []} = error_response
+      # Should be a field validation error naming the field as the client sent it
+      assert {:unknown_field, "unknown_field", Todo, []} = error_response
     end
 
     test "nested field validation errors are preserved" do
@@ -323,8 +323,9 @@ defmodule AshTypescript.Rpc.ErrorHandlingTest do
       assert {:error, error_response} =
                Pipeline.parse_request(rpc_runtime(), AshRpc.Context.from_source(conn), params)
 
-      # Should be a relationship field error with nested context
-      assert {:unknown_field, :unknown_user_field, User, [:user]} = error_response
+      # Should be a relationship field error with nested context, naming the
+      # field as the client sent it
+      assert {:unknown_field, "unknown_user_field", User, [:user]} = error_response
     end
   end
 

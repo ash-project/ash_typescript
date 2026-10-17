@@ -36,7 +36,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
           "input" => %{
             # Should be string
             "title" => 123,
-            "user_id" => user["id"]
+            "userId" => user["id"]
           },
           "fields" => ["id"]
         })
@@ -58,7 +58,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
         AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
           "action" => "create_todo",
           "input" => %{
-            "user_id" => user["id"]
+            "userId" => user["id"]
             # Missing required title
           },
           "fields" => ["id"]
@@ -107,7 +107,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
           "action" => "create_todo",
           "input" => %{
             "title" => "Test",
-            "user_id" => user["id"],
+            "userId" => user["id"],
             # Not in enum
             "priority" => "invalid_priority"
           },
@@ -165,7 +165,7 @@ defmodule AshTypescript.Rpc.NewErrorTest do
           "action" => "list_todos",
           "fields" => [
             "id",
-            %{"user" => ["id", "invalid_nested_field"]}
+            %{"user" => ["id", "invalidNestedField"]}
           ]
         })
 

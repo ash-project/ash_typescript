@@ -126,8 +126,8 @@ defmodule AshTypescript.Rpc.RpcRunActionEmbeddedTest do
               "metadata" => [
                 "category",
                 %{
-                  "adjusted_priority" => %{
-                    "args" => %{"urgency_multiplier" => 1.5, "deadline_factor" => true}
+                  "adjustedPriority" => %{
+                    "args" => %{"urgencyMultiplier" => 1.5, "deadlineFactor" => true}
                   }
                 }
               ]

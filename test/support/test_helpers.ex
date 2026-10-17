@@ -484,10 +484,11 @@ defmodule AshTypescript.Test.TestHelpers do
   end
 
   defp create_content_via_rpc(conn, opts) do
-    # Build article input - use snake_case as it's passed directly to manage_relationship
+    # Build article input - nested keys are the article's client names, which
+    # RPC maps back to attribute names before manage_relationship sees them
     article_input = %{
-      "hero_image_url" => opts[:article_hero_image_url],
-      "hero_image_alt" => opts[:article_hero_image_alt],
+      "heroImageUrl" => opts[:article_hero_image_url],
+      "heroImageAlt" => opts[:article_hero_image_alt],
       "summary" => opts[:article_summary],
       "body" => opts[:article_body]
     }

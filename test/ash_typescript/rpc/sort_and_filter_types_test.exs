@@ -6,7 +6,7 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
   use ExUnit.Case
   import AshTypescript.Test.TestHelpers, only: [rpc_runtime: 0]
 
-  alias AshRpc.{FieldFormatter, Pipeline}
+  alias AshRpc.Pipeline
   alias AshTypescript.Codegen.{FilterTypes, SortTypes}
 
   @moduletag :ash_typescript
@@ -174,41 +174,6 @@ defmodule AshTypescript.Rpc.SortAndFilterTypesTest do
   # ──────────────────────────────────────────────────
   # Pipeline — list sort input
   # ──────────────────────────────────────────────────
-
-  describe "pipeline format_sort_string with list input" do
-    test "formats single-element list" do
-      assert FieldFormatter.format_sort_string(["-createdAt"], :camel_case) == "-created_at"
-    end
-
-    test "formats multi-element list" do
-      result = FieldFormatter.format_sort_string(["-createdAt", "+title", "id"], :camel_case)
-      assert result == "-created_at,+title,id"
-    end
-
-    test "formats list with all four prefix variants" do
-      result =
-        FieldFormatter.format_sort_string(
-          ["title", "+title", "-title", "++title", "--title"],
-          :camel_case
-        )
-
-      assert result == "title,+title,-title,++title,--title"
-    end
-
-    test "formats list with camelCase field names" do
-      result =
-        FieldFormatter.format_sort_string(
-          ["--dueDate", "++priorityScore", "-createdAt"],
-          :camel_case
-        )
-
-      assert result == "--due_date,++priority_score,-created_at"
-    end
-
-    test "formats empty list" do
-      assert FieldFormatter.format_sort_string([], :camel_case) == ""
-    end
-  end
 
   describe "pipeline parse_request with list sort" do
     test "list sort is joined and formatted" do

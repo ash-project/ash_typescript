@@ -55,9 +55,9 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
             "action" => "create_todo",
             "input" => %{
               "title" => "Pagination Test Todo #{String.pad_leading("#{i}", 3, "0")}",
-              "user_id" => user["id"],
+              "userId" => user["id"],
               "priority" => priority,
-              "auto_complete" => auto_complete,
+              "autoComplete" => auto_complete,
               "metadata" => metadata
             },
             "fields" => ["id", "title"]
@@ -212,9 +212,9 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
             %{
               "metadata" => [
                 "category",
-                "priority_score",
-                "is_urgent",
-                "display_category"
+                "priorityScore",
+                "isUrgent",
+                "displayCategory"
               ]
             }
           ],
@@ -264,10 +264,10 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
           AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
             "action" => "create_todo_comment",
             "input" => %{
-              "todo_id" => todo["id"],
-              "user_id" => user["id"],
+              "todoId" => todo["id"],
+              "userId" => user["id"],
               "content" => "Test comment for #{todo["title"]}",
-              "author_name" => "Test Author",
+              "authorName" => "Test Author",
               "rating" => 4
             },
             "fields" => ["id"]
@@ -347,10 +347,10 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
           "fields" => [
             "id",
             "title",
-            "due_date",
+            "dueDate",
             "completed",
             "isOverdue",
-            "days_until_due"
+            "daysUntilDue"
           ],
           "page" => %{
             "limit" => 6,
@@ -737,10 +737,10 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
           AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
             "action" => "create_todo_comment",
             "input" => %{
-              "todo_id" => todo["id"],
-              "user_id" => user["id"],
+              "todoId" => todo["id"],
+              "userId" => user["id"],
               "content" => "Comment for #{todo["title"]}",
-              "author_name" => "Test Author",
+              "authorName" => "Test Author",
               "rating" => 3
             },
             "fields" => ["id"]
@@ -753,22 +753,22 @@ defmodule AshTypescript.Rpc.PaginationAdvancedTest do
         "title",
         "priority",
         "completed",
-        "due_date",
+        "dueDate",
         "isOverdue",
-        "days_until_due",
+        "daysUntilDue",
         %{
           "metadata" => [
             "category",
             "priorityScore",
-            "is_urgent",
-            "display_category"
+            "isUrgent",
+            "displayCategory"
           ]
         },
         %{
           "comments" => [
             "id",
             "content",
-            "author_name",
+            "authorName",
             "rating"
           ]
         },

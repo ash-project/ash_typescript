@@ -38,26 +38,6 @@ defmodule AshTypescript.Rpc.MapFieldNameRpcTest do
       assert Map.has_key?(data, "lastYear"), "Expected 'lastYear' in output"
     end
 
-    test "get_metrics action also accepts snake_case field names for backwards compatibility", %{
-      conn: conn
-    } do
-      result =
-        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
-          "action" => "get_metrics",
-          "fields" => ["total", "last_week", "last_month", "last_year"]
-        })
-
-      assert result["success"] == true,
-             "snake_case field names should work. Got: #{inspect(result)}"
-
-      data = result["data"]
-
-      assert Map.has_key?(data, "total"), "Expected 'total' in output"
-      assert Map.has_key?(data, "lastWeek"), "Expected 'lastWeek' in output"
-      assert Map.has_key?(data, "lastMonth"), "Expected 'lastMonth' in output"
-      assert Map.has_key?(data, "lastYear"), "Expected 'lastYear' in output"
-    end
-
     test "get_nested_stats action accepts camelCase for top-level and nested field selection", %{
       conn: conn
     } do
@@ -189,29 +169,6 @@ defmodule AshTypescript.Rpc.MapFieldNameRpcTest do
 
       assert result["success"] == true, inspect(result)
       assert result["data"] == %{"userStats" => %{"activeUsers" => 1000}}
-    end
-  end
-
-  describe "output field formatting consistency" do
-    test "output fields are always camelCase regardless of input format", %{conn: conn} do
-      result =
-        AshRpc.run_action(AshTypescript.RpcProfile, conn, %{
-          "action" => "get_metrics",
-          "fields" => ["total", "last_week", "last_month", "last_year"]
-        })
-
-      assert result["success"] == true
-
-      data = result["data"]
-
-      refute Map.has_key?(data, "last_week"),
-             "Output should use camelCase 'lastWeek', not snake_case 'last_week'"
-
-      refute Map.has_key?(data, "last_month"),
-             "Output should use camelCase 'lastMonth', not snake_case 'last_month'"
-
-      refute Map.has_key?(data, "last_year"),
-             "Output should use camelCase 'lastYear', not snake_case 'last_year'"
     end
   end
 end
