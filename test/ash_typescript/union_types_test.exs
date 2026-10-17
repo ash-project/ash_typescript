@@ -47,4 +47,34 @@ defmodule AshTypescript.UnionTypesTest do
       assert AshTypescript.Test.InputParsing.HistoryEntry in reachable_from_input_parsing
     end
   end
+
+  describe "union member that is a struct with instance_of and fields" do
+    defmodule StructMember do
+      @moduledoc false
+      defstruct [:is_done?, :count_1]
+    end
+
+    test "renders a TypedMap named from the member's decoration" do
+      union =
+        Ash.Type.Union
+        |> Ash.Info.Manifest.Generator.TypeResolver.resolve(
+          types: [
+            done: [
+              type: :struct,
+              constraints: [
+                instance_of: StructMember,
+                fields: [is_done?: [type: :boolean, allow_nil?: false], count_1: [type: :integer]]
+              ]
+            ],
+            note: [type: :string]
+          ]
+        )
+        |> AshRpc.Manifest.Decorator.decorate_type(:camel_case, AshTypescript.RpcMappingSource)
+
+      output = AshTypescript.Codegen.TypeMapper.map_type(union, [], :output)
+
+      refute output =~ "TypedStructFieldSelection"
+      assert output =~ ~s[done?: {isDone?: boolean, count1: number | null, __type: "TypedMap"]
+    end
+  end
 end

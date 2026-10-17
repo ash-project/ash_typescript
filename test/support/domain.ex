@@ -103,6 +103,7 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :get_underscored_document_todo, :get_underscored_document
       rpc_action :destroy_todo, :destroy
       rpc_action :assign_to_user_todo, :assign_to_user
+      rpc_action :assign_to_not_exposed_todo, :assign_to_not_exposed
       rpc_action :assign_to_users_todo, :assign_to_users
 
       rpc_action :process_metadata_todo, :process_metadata
@@ -122,6 +123,13 @@ defmodule AshTypescript.Test.Domain do
           %{comments: [:id, :content]},
           %{self: %{args: %{prefix: "some prefix"}, fields: [:id, :title, :is_overdue]}}
         ]
+      end
+
+      # Nested levels are named against their own resource (User's field_names)
+      typed_query :list_todos_with_user_flags, :read do
+        ts_fields_const_name "listTodosWithUserFlags"
+        ts_result_type_name "ListTodosWithUserFlagsResult"
+        fields [:id, %{user: [:id, :is_active?, :address_line_1]}]
       end
     end
 
@@ -220,6 +228,11 @@ defmodule AshTypescript.Test.Domain do
         show_metadata: [:meta_1, :is_valid?, :field_2],
         metadata_field_names: [meta_1: "meta1", is_valid?: "isValid", field_2: "field2"]
 
+      # A camelCase mapped metadata name that contains "_" is used as written
+      rpc_action :read_tasks_with_snake_mapped_metadata, :read_with_metadata,
+        show_metadata: [:some_string],
+        metadata_field_names: [some_string: "some_string_value"]
+
       rpc_action :read_tasks_with_metadata_all, :read_with_metadata, show_metadata: nil
       rpc_action :read_tasks_with_metadata_false, :read_with_metadata, show_metadata: false
       rpc_action :read_tasks_with_metadata_empty, :read_with_metadata, show_metadata: []
@@ -297,6 +310,9 @@ defmodule AshTypescript.Test.Domain do
         identities: [:_primary_key, :by_user_and_status]
 
       rpc_action :destroy_subscription_by_user_status, :destroy, identities: [:by_user_and_status]
+
+      # getBy on a field with a field_names mapping (is_active? -> isActive)
+      rpc_action :get_subscription_by_user_and_active, :read, get_by: [:user_id, :is_active?]
     end
 
     resource AshTypescript.Test.TenantSetting do
@@ -318,6 +334,7 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :process_data_input_parsing, :process_data
       # New actions for exhaustive input parsing coverage
       rpc_action :process_profile_input_parsing, :process_profile
+      rpc_action :echo_struct_no_instance, :echo_struct_no_instance
     end
 
     # Test resource for `Rpc.StructFieldFilteringTest` — exercises public-field

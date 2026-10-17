@@ -15,6 +15,16 @@ defmodule AshTypescript.CodegenTest do
 
   alias AshTypescript.Test.{Todo, TodoComment, TodoMetadata}
 
+  # A typed container as the manifest holds it: resolved and decorated, so its
+  # field names come from the decoration.
+  defp decorated(type, constraints) do
+    type
+    |> Ash.Info.Manifest.Generator.TypeResolver.resolve(constraints)
+    |> AshRpc.Manifest.Decorator.decorate_type(:camel_case, AshTypescript.RpcMappingSource)
+  end
+
+  defp typed_map(fields), do: decorated(:map, fields: fields)
+
   describe "get_ts_type/2 - basic types" do
     test "converts nil type" do
       assert Codegen.get_ts_type(%{type: nil}) == "null"
@@ -92,7 +102,7 @@ defmodule AshTypescript.CodegenTest do
         ]
       ]
 
-      result = Codegen.get_ts_type(%{type: Ash.Type.Map, constraints: constraints})
+      result = Codegen.get_ts_type(%{type: decorated(Ash.Type.Map, constraints)})
 
       assert result ==
                "{name: string, age: number | null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
@@ -106,7 +116,7 @@ defmodule AshTypescript.CodegenTest do
         ]
       ]
 
-      result = Codegen.get_ts_type(%{type: Ash.Type.Keyword, constraints: constraints})
+      result = Codegen.get_ts_type(%{type: decorated(Ash.Type.Keyword, constraints)})
 
       assert result ==
                "{key1: string, key2: boolean | null, __type: \"TypedMap\", __primitiveFields: \"key1\" | \"key2\"}"
@@ -120,7 +130,7 @@ defmodule AshTypescript.CodegenTest do
         ]
       ]
 
-      result = Codegen.get_ts_type(%{type: Ash.Type.Tuple, constraints: constraints})
+      result = Codegen.get_ts_type(%{type: decorated(Ash.Type.Tuple, constraints)})
 
       assert result ==
                "{first: string, second: number, __type: \"TypedMap\", __primitiveFields: \"first\" | \"second\"}"
@@ -185,7 +195,7 @@ defmodule AshTypescript.CodegenTest do
         ]
       ]
 
-      result = Codegen.get_ts_type(%{type: Ash.Type.Struct, constraints: constraints})
+      result = Codegen.get_ts_type(%{type: decorated(Ash.Type.Struct, constraints)})
 
       assert result ==
                "{name: string, active: boolean | null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"active\"}"
@@ -223,7 +233,7 @@ defmodule AshTypescript.CodegenTest do
         ]
       ]
 
-      result = Codegen.get_ts_type(%{type: Ash.Type.Map, constraints: constraints})
+      result = Codegen.get_ts_type(%{type: decorated(Ash.Type.Map, constraints)})
 
       assert result ==
                "{status: \"cancelled\" | \"finished\" | \"ongoing\" | \"pending\", __type: \"TypedMap\", __primitiveFields: \"status\"}"
@@ -250,7 +260,7 @@ defmodule AshTypescript.CodegenTest do
         ]
       ]
 
-      result = Codegen.get_ts_type(%{type: Ash.Type.Struct, constraints: constraints})
+      result = Codegen.get_ts_type(%{type: decorated(Ash.Type.Struct, constraints)})
       assert String.contains?(result, "pending")
       assert String.contains?(result, "name: string")
     end
@@ -258,127 +268,73 @@ defmodule AshTypescript.CodegenTest do
 
   describe "build_map_type/2" do
     test "builds map type with all fields" do
-      fields = [
-        %{
-          name: :name,
-          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.String, []),
-          allow_nil?: false
-        },
-        %{
-          name: :age,
-          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.Integer, []),
-          allow_nil?: true
-        }
-      ]
+      container = typed_map(name: [type: :string, allow_nil?: false], age: [type: :integer])
 
-      result = Codegen.build_map_type(fields)
+      result = Codegen.build_map_type(container)
 
       assert result ==
                "{name: string, age: number | null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
     end
 
     test "builds map type with selected fields only" do
-      fields = [
-        %{
-          name: :name,
-          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.String, []),
-          allow_nil?: false
-        },
-        %{
-          name: :age,
-          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.Integer, []),
-          allow_nil?: true
-        },
-        %{
-          name: :email,
-          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.String, []),
-          allow_nil?: false
-        }
-      ]
+      container =
+        typed_map(
+          name: [type: :string, allow_nil?: false],
+          age: [type: :integer],
+          email: [type: :string, allow_nil?: false]
+        )
 
-      result = Codegen.build_map_type(fields, ["name", "age"])
+      result = Codegen.build_map_type(container, ["name", "age"])
 
       assert result ==
                "{name: string, age: number | null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"age\"}"
     end
 
-    test "handles empty field list" do
-      result = Codegen.build_map_type([])
+    test "handles a map without fields" do
+      container = decorated(:map, [])
+
+      result = Codegen.build_map_type(container)
       assert result == "{, __type: \"TypedMap\", __primitiveFields: never}"
     end
 
     test "map field with no declared subfields is a selectable primitive" do
-      fields = [
-        %{
-          name: :name,
-          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.String, []),
-          allow_nil?: false
-        },
-        %{
-          name: :metadata,
-          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.Map, []),
-          allow_nil?: true
-        }
-      ]
+      container = typed_map(name: [type: :string, allow_nil?: false], metadata: [type: :map])
 
-      result = Codegen.build_map_type(fields)
+      result = Codegen.build_map_type(container)
 
       assert result ==
                "{name: string, metadata: Record<string, any> | null, __type: \"TypedMap\", __primitiveFields: \"name\" | \"metadata\"}"
     end
 
     test "typed map whose only field is a plain map does not collapse to never" do
-      fields = [
-        %{
-          name: :metadata,
-          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.Map, []),
-          allow_nil?: false
-        }
-      ]
+      container = typed_map(metadata: [type: :map, allow_nil?: false])
 
-      result = Codegen.build_map_type(fields)
+      result = Codegen.build_map_type(container)
 
       assert result =~ "__primitiveFields: \"metadata\""
       refute result =~ "__primitiveFields: never"
     end
 
     test "array of plain maps is a selectable primitive" do
-      fields = [
-        %{
-          name: :entries,
-          type:
-            Ash.Info.Manifest.Generator.TypeResolver.resolve(
-              {:array, Ash.Type.Map},
-              []
-            ),
-          allow_nil?: false
-        }
-      ]
+      container = typed_map(entries: [type: {:array, :map}, allow_nil?: false])
 
-      result = Codegen.build_map_type(fields)
+      result = Codegen.build_map_type(container)
 
       assert result =~ "__primitiveFields: \"entries\""
     end
 
     test "map field with declared subfields is still excluded from primitive fields" do
-      fields = [
-        %{
-          name: :name,
-          type: Ash.Info.Manifest.Generator.TypeResolver.resolve(Ash.Type.String, []),
-          allow_nil?: false
-        },
-        %{
-          name: :details,
-          type:
-            Ash.Info.Manifest.Generator.TypeResolver.resolve(
-              Ash.Type.Map,
-              fields: [count: [type: :integer, allow_nil?: false]]
-            ),
-          allow_nil?: false
-        }
-      ]
+      container =
+        typed_map(
+          name: [type: :string, allow_nil?: false],
+          details: [
+            type: :map,
+            allow_nil?: false,
+            constraints: [fields: [count: [type: :integer, allow_nil?: false]]]
+          ]
+        )
 
-      result = Codegen.build_map_type(fields)
+      result = Codegen.build_map_type(container)
 
       # Nested typed maps need `{ details: [...] }` selection, so they must not
       # appear in the primitive union.
@@ -536,7 +492,7 @@ defmodule AshTypescript.CodegenTest do
           ]
         ]
 
-        result = Codegen.get_ts_type(%{type: Ash.Type.Map, constraints: constraints})
+        result = Codegen.get_ts_type(%{type: decorated(Ash.Type.Map, constraints)})
 
         # Should still generate a typed object, not use the untyped_map_type
         assert result ==

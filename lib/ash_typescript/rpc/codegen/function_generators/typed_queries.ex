@@ -13,7 +13,9 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
   import AshTypescript.Codegen
   import AshTypescript.Helpers
 
+  alias Ash.Info.Manifest
   alias AshRpc.RequestedFieldsProcessor
+  alias AshTypescript.Codegen.ClientNames
   alias AshTypescript.Rpc.Codegen.FunctionGenerators.JsdocGenerator
 
   @doc """
@@ -89,8 +91,8 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
 
     case RequestedFieldsProcessor.process(runtime, resource, action.name, atomized_fields) do
       {:ok, {_select, _load, _template}} ->
-        # Both type and const need to use mapped field names since UserResourceSchema has mapped names
-        type_fields = format_typed_query_fields_type_for_typescript(atomized_fields, resource)
+        # The type and the const are the same selection, named with the decorated client names
+        selection = format_typed_query_fields(atomized_fields, resource)
 
         # Type names are always PascalCase in TypeScript
         type_name =
@@ -105,12 +107,10 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
 
         result_type =
           if is_array do
-            "Array<InferResult<#{resource_name}ResourceSchema, #{type_fields}>>"
+            "Array<InferResult<#{resource_name}ResourceSchema, #{selection}>>"
           else
-            "InferResult<#{resource_name}ResourceSchema, #{type_fields}>"
+            "InferResult<#{resource_name}ResourceSchema, #{selection}>"
           end
-
-        const_fields = format_typed_query_fields_const_for_typescript(atomized_fields, resource)
 
         fields_type = find_matching_rpc_fields_type(resource, action, rpc_resources_and_actions)
         jsdoc = JsdocGenerator.generate_typed_query_jsdoc(typed_query, resource)
@@ -120,7 +120,7 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
         export type #{type_name} = #{result_type};
 
         #{jsdoc}
-        export const #{const_name} = #{const_fields}#{satisfies_clause(fields_type)};
+        export const #{const_name} = #{selection}#{satisfies_clause(fields_type)};
         """
 
       {:error, error} ->
@@ -156,89 +156,141 @@ defmodule AshTypescript.Rpc.Codegen.FunctionGenerators.TypedQueries do
     end
   end
 
-  defp format_typed_query_fields_const_for_typescript(fields, resource) do
-    "[" <> format_fields_const_array(fields, resource) <> "]"
+  # Field items are named against a context: `{:resource, %Resource{}}`,
+  # `{:type, %Type{}}` (typed container) or `{:union, %Type{}}`. Nested selections
+  # descend into the field's own resource or type, so each level is named with
+  # its own decorated client names, as the runtime resolves them.
+  defp format_typed_query_fields(fields, resource) do
+    "[" <> format_fields_array(fields, resource_context(resource)) <> "]"
   end
 
-  defp format_typed_query_fields_type_for_typescript(fields, resource) do
-    "[" <> format_fields_type_array(fields, resource) <> "]"
+  defp format_fields_array(fields, ctx) do
+    Enum.map_join(fields, ", ", &format_field_item(&1, ctx))
   end
 
-  defp format_fields_const_array(fields, resource) do
-    fields
-    |> Enum.map_join(", ", &format_field_item(&1, resource))
+  defp format_field_item(field, ctx) when is_atom(field) do
+    ~s["#{name(ctx, field)}"]
   end
 
-  defp format_fields_type_array(fields, resource) do
-    fields
-    |> Enum.map_join(", ", &format_field_item(&1, resource))
-  end
-
-  defp format_field_item(field, resource) when is_atom(field) do
-    ~s["#{format_field_name(field, resource)}"]
-  end
-
-  defp format_field_item({field, nested_fields}, resource)
+  defp format_field_item({field, nested_fields}, ctx)
        when is_atom(field) and is_list(nested_fields) do
-    "{ #{format_field_name(field, resource)}: [#{format_fields_type_array(nested_fields, resource)}] }"
+    "{ #{name(ctx, field)}: [#{format_fields_array(nested_fields, descend(ctx, field))}] }"
   end
 
-  defp format_field_item({field, {args, nested_fields}}, resource)
+  defp format_field_item({field, {args, nested_fields}}, ctx)
        when is_atom(field) and is_map(args) and is_list(nested_fields) do
-    args_json = format_args_map(args, resource)
-
-    "{ #{format_field_name(field, resource)}: { #{formatted_args_field()}: #{args_json}, #{formatted_fields_field()}: [#{format_fields_type_array(nested_fields, resource)}] } }"
+    calculation_selection(ctx, field, format_args_map(args, ctx, field), nested_fields)
   end
 
-  defp format_field_item({field, nested_fields}, resource)
+  defp format_field_item({field, nested_fields}, ctx)
        when is_atom(field) and is_map(nested_fields) do
     case nested_fields do
       %{args: args, fields: fields} ->
-        args_json = format_args_map(args, resource)
-
-        "{ #{format_field_name(field, resource)}: { #{formatted_args_field()}: #{args_json}, #{formatted_fields_field()}: [#{format_fields_type_array(fields, resource)}] } }"
+        calculation_selection(ctx, field, format_args_map(args, ctx, field), fields)
 
       _ ->
         inspect(nested_fields)
     end
   end
 
-  defp format_field_item(%{} = field_map, resource) do
+  defp format_field_item(%{} = field_map, ctx) do
     formatted_pairs =
       field_map
       |> Enum.sort_by(fn {k, _v} -> to_string(k) end)
-      |> Enum.map_join(", ", fn {k, v} ->
-        key = format_field_name(k, resource)
-        value = format_field_item(v, resource)
-        "#{key}: #{value}"
+      |> Enum.map_join(", ", fn
+        {k, %{args: args, fields: fields}} when is_map(args) and is_list(fields) ->
+          "#{name(ctx, k)}: { #{formatted_args_field()}: #{format_args_map(args, ctx, k, false)}, " <>
+            "#{formatted_fields_field()}: [#{format_fields_array(fields, descend(ctx, k))}] }"
+
+        {k, v} ->
+          "#{name(ctx, k)}: #{format_field_item(v, descend(ctx, k))}"
       end)
 
     "{ #{formatted_pairs} }"
   end
 
-  defp format_field_item(list, resource) when is_list(list) do
-    formatted_items =
-      list
-      |> Enum.map_join(", ", &format_field_item(&1, resource))
-
-    "[#{formatted_items}]"
+  defp format_field_item(list, ctx) when is_list(list) do
+    "[#{format_fields_array(list, ctx)}]"
   end
 
-  defp format_field_item(field, _resource), do: inspect(field)
+  defp format_field_item(field, _ctx), do: inspect(field)
 
-  defp format_field_name(atom, resource) do
-    formatter = AshTypescript.Rpc.output_field_formatter()
-    AshTypescript.FieldFormatter.format_field_for_client(atom, resource, formatter)
+  defp calculation_selection(ctx, field, args_json, nested_fields) do
+    "{ #{name(ctx, field)}: { #{formatted_args_field()}: #{args_json}, " <>
+      "#{formatted_fields_field()}: [#{format_fields_array(nested_fields, descend(ctx, field))}] } }"
   end
 
-  defp format_args_map(args, resource) do
+  # Calculation arguments as an object literal; `quote_keys?` selects JSON-style
+  # quoted keys over the bare keys of the `%{args:, fields:}` form.
+  defp format_args_map(args, ctx, calc, quote_keys? \\ true)
+
+  defp format_args_map(args, {:resource, resource}, calc, quote_keys?) do
     formatted_args =
       args
       |> Enum.sort_by(fn {k, _v} -> to_string(k) end)
       |> Enum.map_join(", ", fn {k, v} ->
-        "\"#{format_field_name(k, resource)}\": #{Jason.encode!(v)}"
+        key = ClientNames.calculation_argument(resource, calc, k)
+        key = if quote_keys?, do: ~s["#{key}"], else: key
+        "#{key}: #{Jason.encode!(v)}"
       end)
 
     "{ #{formatted_args} }"
   end
+
+  defp name({:resource, resource}, field), do: ClientNames.resource_field(resource, field)
+  defp name({:type, type}, field), do: ClientNames.type_field(type, field)
+  defp name({:union, type}, member), do: ClientNames.union_member(type, member)
+
+  defp descend({:resource, resource} = ctx, field) do
+    case Manifest.Resource.get_relationship(resource, field) do
+      %Manifest.Relationship{destination: destination} ->
+        resource_context(destination)
+
+      nil ->
+        case Manifest.Resource.get_field(resource, field) do
+          %Manifest.Field{type: type} -> context_for(type)
+          nil -> raise ArgumentError, "no field #{inspect(field)} on #{describe(ctx)}"
+        end
+    end
+  end
+
+  defp descend({:type, type} = ctx, field) do
+    case Manifest.Type.find_field_type(type, field) do
+      %Manifest.Type{} = field_type -> context_for(field_type)
+      nil -> raise ArgumentError, "no field #{inspect(field)} on #{describe(ctx)}"
+    end
+  end
+
+  defp descend({:union, type} = ctx, member) do
+    case Manifest.Type.find_member(type, member) do
+      %{type: %Manifest.Type{} = member_type} -> context_for(member_type)
+      nil -> raise ArgumentError, "no member #{inspect(member)} on #{describe(ctx)}"
+    end
+  end
+
+  defp context_for(%Manifest.Type{} = type) do
+    case ClientNames.resolve_type!(type) do
+      %Manifest.Type{kind: :array, item_type: %Manifest.Type{} = item} ->
+        context_for(item)
+
+      %Manifest.Type{kind: kind} = t when kind in [:resource, :embedded_resource] ->
+        resource_context(Manifest.Type.effective_resource(t))
+
+      %Manifest.Type{kind: :union} = t ->
+        {:union, t}
+
+      t ->
+        {:type, t}
+    end
+  end
+
+  defp resource_context(module) do
+    case Map.fetch(AshTypescript.resource_lookup(), module) do
+      {:ok, resource} -> {:resource, resource}
+      :error -> raise ArgumentError, "resource #{inspect(module)} is not in the manifest"
+    end
+  end
+
+  defp describe({:resource, resource}), do: "resource #{inspect(resource.module)}"
+  defp describe({_kind, type}), do: "type #{inspect(Manifest.Type.effective_module(type))}"
 end

@@ -27,6 +27,10 @@ defmodule AshTypescript.Test.NotExposed do
       allow_nil? false
       public? true
     end
+
+    attribute :display_name, :string do
+      public? true
+    end
   end
 
   relationships do

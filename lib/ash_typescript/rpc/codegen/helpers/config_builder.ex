@@ -13,6 +13,7 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   import AshTypescript.Codegen
   import AshTypescript.Helpers
 
+  alias AshTypescript.Codegen.ClientNames
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
   @doc """
@@ -259,13 +260,8 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
   defp maybe_add_string_union("string"), do: "string"
   defp maybe_add_string_union(type), do: "#{type} | string"
 
-  defp get_formatted_field_name(resource, field_name) do
-    AshTypescript.FieldFormatter.format_field_for_client(
-      field_name,
-      resource,
-      AshTypescript.Rpc.output_field_formatter()
-    )
-  end
+  defp get_formatted_field_name(resource, field_name),
+    do: ClientNames.resource_field(resource, field_name)
 
   @doc """
   Builds common configuration fields shared across all RPC functions.
@@ -399,7 +395,10 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
       field_lines =
         Enum.map(get_by_fields, fn field_name ->
           attr = Ash.Info.Manifest.get_field(resource_lookup, resource, field_name)
-          formatted_field_name = format_output_field(field_name)
+
+          formatted_field_name =
+            ClientNames.resource_field(Map.fetch!(resource_lookup, resource), field_name)
+
           "    #{formatted_field_name}: #{get_ts_type(attr)};"
         end)
 

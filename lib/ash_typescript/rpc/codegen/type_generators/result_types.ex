@@ -16,6 +16,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
   import AshTypescript.Codegen
   import AshTypescript.Helpers
 
+  alias AshTypescript.Codegen.ClientNames
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes
   alias AshTypescript.Rpc.Codegen.TypeGenerators.PaginationTypes
@@ -275,8 +276,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
               """
             end
 
-          {:ok, type, value} when type in [:typed_map, :array_of_typed_map] ->
-            typed_map_schema = build_map_type(value)
+          {:ok, type, _fields} when type in [:typed_map, :array_of_typed_map] ->
+            typed_map_schema = action.returns |> return_container() |> build_map_type()
 
             if type == :array_of_typed_map do
               """
@@ -296,16 +297,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
               """
             end
 
-          {:ok, :typed_struct, {module, fields}} ->
-            field_name_mappings =
-              if Code.ensure_loaded?(module) and
-                   function_exported?(module, :typescript_field_names, 0) do
-                module.typescript_field_names()
-              else
-                nil
-              end
-
-            typed_map_schema = build_map_type(fields, nil, field_name_mappings)
+          {:ok, :typed_struct, _} ->
+            typed_map_schema = action.returns |> return_container() |> build_map_type()
 
             """
             export type #{rpc_action_name_pascal}Fields = #{unified_field_selection_ref(typed_map_schema, rpc_action)}[];
@@ -315,16 +308,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
             > = InferResult<#{typed_map_schema}, Fields>;
             """
 
-          {:ok, :array_of_typed_struct, {module, fields}} ->
-            field_name_mappings =
-              if Code.ensure_loaded?(module) and
-                   function_exported?(module, :typescript_field_names, 0) do
-                module.typescript_field_names()
-              else
-                nil
-              end
-
-            typed_map_schema = build_map_type(fields, nil, field_name_mappings)
+          {:ok, :array_of_typed_struct, _} ->
+            typed_map_schema = action.returns |> return_container() |> build_map_type()
 
             """
             export type #{rpc_action_name_pascal}Fields = #{unified_field_selection_ref(typed_map_schema, rpc_action)}[];
@@ -383,4 +368,12 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.ResultTypes do
       {f, s} -> "UnifiedFieldSelection<#{schema_ref}, #{f}, #{s}>"
     end
   end
+
+  # The decorated typed container an action returns (an array's item type), with
+  # `:type_ref`s resolved, so field names come from its decoration. The return
+  # classification only selects the code path.
+  defp return_container(%Ash.Info.Manifest.Type{kind: :array, item_type: item}),
+    do: ClientNames.resolve_type!(item)
+
+  defp return_container(%Ash.Info.Manifest.Type{} = type), do: ClientNames.resolve_type!(type)
 end

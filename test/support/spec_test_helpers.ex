@@ -14,10 +14,27 @@ defmodule AshTypescript.Test.SpecHelpers do
 
   @doc """
   Builds an `%Ash.Info.Manifest.Action{}` for `resource`'s `action_name` action.
+
+  Its input and return types are decorated as the manifest decorates them, so
+  codegen names their typed-container fields from the decoration.
   """
   @spec spec_action(module(), atom()) :: Ash.Info.Manifest.Action.t()
   def spec_action(resource, action_name) do
     raw = Ash.Resource.Info.action(resource, action_name)
-    Ash.Info.Manifest.Generator.ActionBuilder.build(resource, raw, [])
+    action = Ash.Info.Manifest.Generator.ActionBuilder.build(resource, raw, [])
+
+    %{
+      action
+      | inputs: Enum.map(action.inputs, &%{&1 | type: decorate(&1.type)}),
+        returns: action.returns && decorate(action.returns)
+    }
+  end
+
+  defp decorate(type) do
+    AshRpc.Manifest.Decorator.decorate_type(
+      type,
+      AshTypescript.output_field_formatter(),
+      AshTypescript.RpcMappingSource
+    )
   end
 end

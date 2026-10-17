@@ -11,10 +11,9 @@ defmodule AshTypescript.Codegen.TypeMapper do
   """
 
   alias Ash.Info.Manifest.Type
+  alias AshTypescript.Codegen.ClientNames
   alias AshTypescript.Codegen.Helpers
   alias AshTypescript.TypeSystem.Introspection
-
-  import AshTypescript.Helpers, only: [format_mapped_output_field: 2, format_output_field: 1]
 
   # ─────────────────────────────────────────────────────────────────
   # Type Constants
@@ -352,25 +351,19 @@ defmodule AshTypescript.Codegen.TypeMapper do
   defp type_suffix(:output), do: "ResourceSchema"
 
   defp map_struct(%Type{} = type_info, direction) do
-    fields = Type.get_fields(type_info)
-    # Use instance_of (not effective_module) — we only want the explicit
-    # TypedStruct/NewType backing module, not the generic Ash.Type.Struct module.
-    inst = type_info.instance_of
-    field_name_mappings = get_field_name_mappings_from_module(inst)
-
     cond do
       # Has fields - treat as typed container
-      fields != [] ->
+      Type.has_fields?(type_info) ->
         case direction do
-          :input -> build_field_input_type(fields, field_name_mappings)
-          :output -> build_map_type(fields, nil, field_name_mappings)
+          :input -> build_field_input_type(type_info)
+          :output -> build_map_type(type_info)
         end
 
       # instance_of pointing to TypedStruct (output only uses this)
       # Note: resource instance_of types are already handled as kind: :resource
       # by the TypeResolver, so they never reach this :struct branch
-      inst && direction == :output ->
-        build_map_type([], nil, field_name_mappings)
+      type_info.instance_of && direction == :output ->
+        build_map_type(type_info)
 
       # Fallback to untyped map
       true ->
@@ -379,17 +372,12 @@ defmodule AshTypescript.Codegen.TypeMapper do
   end
 
   defp map_typed_container(%Type{} = type_info, direction) do
-    fields = Type.get_fields(type_info)
-
-    if fields == [] do
+    if Type.get_fields(type_info) == [] do
       AshTypescript.untyped_map_type()
     else
-      inst = Type.effective_module(type_info)
-      field_name_mappings = get_field_name_mappings_from_module(inst)
-
       case direction do
-        :input -> build_field_input_type(fields, field_name_mappings)
-        :output -> build_map_type(fields, nil, field_name_mappings)
+        :input -> build_field_input_type(type_info)
+        :output -> build_map_type(type_info)
       end
     end
   end
@@ -404,40 +392,29 @@ defmodule AshTypescript.Codegen.TypeMapper do
   defp build_union_type_for_direction_from_members(members, :output),
     do: build_union_type_from_members(members)
 
-  defp map_union_member_from_spec(%Type{} = member_type, direction) do
-    cond do
-      # Struct with instance_of and fields (TypedStruct)
-      member_type.kind == :struct and member_type.instance_of != nil and
-          Type.has_fields?(member_type) ->
-        resource_name = Helpers.build_resource_type_name(member_type.instance_of)
-
-        case direction do
-          :input -> map_type(member_type, [], :input)
-          :output -> "#{resource_name}TypedStructFieldSelection"
-        end
-
-      # Resource / embedded resource
-      member_type.kind in [:resource, :embedded_resource] ->
-        resource = member_type.resource_module || member_type.module
-        map_resource(resource, direction)
-
-      # Other types - recurse
-      true ->
-        map_type(member_type, [], direction)
-    end
+  # Resource / embedded resource members reference their schema; other types
+  # (typed structs and maps included) recurse, so their fields are named from
+  # the member type's decoration.
+  defp map_union_member_from_spec(%Type{kind: kind} = member_type, direction)
+       when kind in [:resource, :embedded_resource] do
+    map_resource(member_type.resource_module || member_type.module, direction)
   end
+
+  defp map_union_member_from_spec(%Type{} = member_type, direction),
+    do: map_type(member_type, [], direction)
 
   # ─────────────────────────────────────────────────────────────────
   # Type Builders
   # ─────────────────────────────────────────────────────────────────
 
-  defp build_field_input_type(fields, field_name_mappings) do
+  defp build_field_input_type(%Type{} = container) do
     field_types =
-      fields
+      container
+      |> Type.get_fields()
       |> Enum.map_join(", ", fn field ->
         {field_name, field_type_str, allow_nil} = extract_field_info_for_input(field)
 
-        formatted_field_name = format_mapped_output_field(field_name, field_name_mappings)
+        formatted_field_name = ClientNames.type_field(container, field_name)
 
         optional_marker = if allow_nil, do: "?", else: ""
         null_type = if allow_nil, do: " | null", else: ""
@@ -455,16 +432,6 @@ defmodule AshTypescript.Codegen.TypeMapper do
        }) do
     field_type_str = map_type(type, [], :input)
     {field_name, field_type_str, allow_nil || false}
-  end
-
-  defp get_field_name_mappings_from_module(nil), do: nil
-
-  defp get_field_name_mappings_from_module(module) when is_atom(module) do
-    if Code.ensure_loaded?(module) and function_exported?(module, :typescript_field_names, 0) do
-      module.typescript_field_names()
-    else
-      nil
-    end
   end
 
   @doc """
@@ -536,28 +503,25 @@ defmodule AshTypescript.Codegen.TypeMapper do
   # type's decoration (output formatter plus typescript_field_names overrides),
   # so the generated names are the names the runtime sends.
   defp plain_object_type(%Type{} = type_info, fields, map_field) do
-    names = decorated_field_names(type_info)
-
     field_types =
       Enum.map_join(fields, ", ", fn %{name: name, type: field_type, allow_nil?: allow_nil} ->
         null_suffix = if allow_nil, do: " | null", else: ""
 
-        "#{Map.get(names, name) || format_output_field(name)}: #{map_field.(field_type)}#{null_suffix}"
+        "#{ClientNames.type_field(type_info, name)}: #{map_field.(field_type)}#{null_suffix}"
       end)
 
     "{#{field_types}}"
   end
 
-  defp decorated_field_names(%Type{} = type_info) do
-    type_info
-    |> AshRpc.Manifest.Custom.type_client_field_names()
-    |> Map.new(fn {client, field} -> {field, client} end)
-  end
-
   @doc """
-  Builds a TypeScript map type with optional field filtering and name mapping.
+  Builds a TypeScript TypedMap type from a decorated typed container (map, keyword,
+  tuple or struct type), optionally restricted to the field names in `select`.
+  Field names come from the container's decoration.
   """
-  def build_map_type(fields, select \\ nil, field_name_mappings \\ nil) do
+  @spec build_map_type(Type.t(), [String.t()] | nil) :: String.t()
+  def build_map_type(%Type{} = container, select \\ nil) do
+    fields = Type.get_fields(container)
+
     selected_fields =
       if select do
         Enum.filter(fields, fn
@@ -573,7 +537,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
       |> Enum.map_join(", ", fn field ->
         {field_name, field_type_str, allow_nil} = extract_field_info(field)
 
-        formatted_field_name = format_mapped_output_field(field_name, field_name_mappings)
+        formatted_field_name = ClientNames.type_field(container, field_name)
 
         optional = if allow_nil, do: " | null", else: ""
         "#{formatted_field_name}: #{field_type_str}#{optional}"
@@ -597,7 +561,7 @@ defmodule AshTypescript.Codegen.TypeMapper do
           |> Enum.map_join(" | ", fn field ->
             field_name = extract_field_name(field)
 
-            formatted_field_name = format_mapped_output_field(field_name, field_name_mappings)
+            formatted_field_name = ClientNames.type_field(container, field_name)
 
             "\"#{formatted_field_name}\""
           end)

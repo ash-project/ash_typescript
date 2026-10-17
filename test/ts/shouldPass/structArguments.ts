@@ -7,6 +7,7 @@
 // These test the InputSchema type generation (vs ResourceSchema)
 
 import {
+  assignToNotExposedTodo,
   assignToUserTodo,
   assignToUsersTodo,
   AssignToUserTodoInput,
@@ -140,3 +141,21 @@ const fullUserInput: UserInputSchema = {
   isSuperAdmin: false,
   addressLine1: "123 Main St",
 };
+
+// Struct argument on a domain resource not exposed over RPC: nested keys use
+// its decorated (formatter-only) names, e.g. display_name -> displayName
+export const assignNotExposed = await assignToNotExposedTodo({
+  input: {
+    target: {
+      id: "17b3279e-d1f1-11f0-993d-4ea1aae63366",
+      name: "n",
+      email: "e",
+      displayName: "D",
+    },
+  },
+  fields: ["targetName"],
+});
+
+if (assignNotExposed.success) {
+  const targetName: string | null = assignNotExposed.data.targetName;
+}

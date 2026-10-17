@@ -15,6 +15,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
   """
 
   alias Ash.Info.Manifest.Type, as: SpecType
+  alias AshTypescript.Codegen.ClientNames
   alias AshTypescript.Codegen.Helpers, as: CodegenHelpers
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
   alias AshTypescript.TypeSystem.Introspection
@@ -413,15 +414,10 @@ defmodule AshTypescript.Codegen.SchemaCore do
 
   defp map_typed_container(formatter, %SpecType{} = type_info) do
     fields = SpecType.get_fields(type_info)
-    # Prefer `instance_of` (set explicitly for typed structs); fall back to
-    # `module` (NewType subtype modules end up here after `resolve_definition`
-    # stamps the original module on the resolved type).
-    field_name_source = type_info.instance_of || type_info.module
 
     cond do
       fields != [] ->
-        field_name_mappings = field_name_mappings_for(field_name_source)
-        build_object_from_fields(formatter, fields, field_name_mappings)
+        build_object_from_fields(formatter, type_info, fields)
 
       type_info.kind == :struct and type_info.instance_of != nil and
           Spark.Dsl.is?(type_info.instance_of, Ash.Resource) ->
@@ -453,7 +449,8 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # Private — object / union builders (spec-typed)
   # ─────────────────────────────────────────────────────────────────
 
-  defp build_object_from_fields(formatter, fields, field_name_mappings) do
+  # Field names come from the container's decoration.
+  defp build_object_from_fields(formatter, %SpecType{} = container, fields) do
     field_schemas =
       Enum.map_join(fields, ", ", fn %{
                                        name: field_name,
@@ -463,7 +460,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
         schema_type = map_spec_type(formatter, field_type)
         schema_type = maybe_wrap_nullable_optional(formatter, schema_type, allow_nil, allow_nil)
 
-        "#{format_mapped_output_field(field_name, field_name_mappings)}: #{schema_type}"
+        "#{ClientNames.type_field(container, field_name)}: #{schema_type}"
       end)
 
     formatter.wrap_object(field_schemas)
@@ -525,19 +522,6 @@ defmodule AshTypescript.Codegen.SchemaCore do
       field_name,
       AshTypescript.Rpc.output_field_formatter()
     )
-  end
-
-  # Returns the keyword list of field-name mappings declared by a NewType /
-  # TypedStruct module via `typescript_field_names/0`, or nil if the module
-  # doesn't define one.
-  defp field_name_mappings_for(nil), do: nil
-
-  defp field_name_mappings_for(module) when is_atom(module) do
-    if Code.ensure_loaded?(module) and function_exported?(module, :typescript_field_names, 0) do
-      module.typescript_field_names()
-    else
-      nil
-    end
   end
 
   # ─────────────────────────────────────────────────────────────────

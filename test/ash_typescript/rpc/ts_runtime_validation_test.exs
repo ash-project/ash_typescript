@@ -215,6 +215,13 @@ defmodule AshTypescript.Rpc.TsRuntimeValidationTest do
                 |> put_in(["getBy", "userId"], user["id"])
                 |> put_in(["getBy", "status"], "pending")
 
+              # getBy on a mapped field (is_active? -> isActive)
+              action_name == "get_subscription_by_user_and_active" ->
+                request
+                |> Map.put_new("getBy", %{})
+                |> put_in(["getBy", "userId"], subscription["userId"])
+                |> put_in(["getBy", "isActive"], subscription["isActive"])
+
               action_name == "update_todo" ->
                 Map.put(request, "identity", todo["id"])
 

@@ -87,6 +87,28 @@ defmodule AshTypescript.TypescriptFieldNamesPrecedenceTest do
         end
       end
 
+      test "metadata names equal the runtime's client metadata names", %{
+        files: files,
+        manifest: manifest
+      } do
+        rpc = CodegenTestHelper.rpc_content(files)
+
+        metadata =
+          rpc
+          |> String.split("export type ReadTasksWithMappedMetadataMetadata = {", parts: 2)
+          |> List.last()
+          |> String.split("};", parts: 2)
+          |> hd()
+
+        wire = AshRpc.Manifest.entrypoint_lookup(manifest)["read_tasks_with_mapped_metadata"]
+        clients = Map.keys(wire.client_metadata_field_names)
+        assert Enum.sort(clients) == ["field2", "isValid", "meta1"]
+
+        for client <- clients, do: assert(metadata =~ ~r/\b#{client}\??: /)
+
+        refute metadata =~ ~r/\b(Meta1|IsValid|Field2|meta_1|is_valid|field_2)\??: /
+      end
+
       test "typed controller result types use mappings as-is", %{files: files} do
         routes = CodegenTestHelper.routes_content(files)
 

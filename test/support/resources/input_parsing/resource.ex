@@ -372,5 +372,13 @@ defmodule AshTypescript.Test.InputParsing.Resource do
          }}
       end
     end
+
+    # A :struct NewType without instance_of, as argument and return type
+    # Tests: is_done? → isDone, count_1 → countOne (StructNoInstance's typescript_field_names)
+    action :echo_struct_no_instance, AshTypescript.Test.InputParsing.StructNoInstance do
+      argument :value, AshTypescript.Test.InputParsing.StructNoInstance, allow_nil?: false
+
+      run fn input, _context -> {:ok, input.arguments.value} end
+    end
   end
 end

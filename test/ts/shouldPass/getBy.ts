@@ -14,6 +14,7 @@ import {
   InferGetUserByEmailNullableResult,
   getTodoByUserAndStatus,
   InferGetTodoByUserAndStatusResult,
+  getSubscriptionByUserAndActive,
   createUser,
   createTodo,
 } from "../generated";
@@ -702,6 +703,19 @@ if (getTodoByUserAndStatusComplex.success) {
       const selfTitle: string = data.self.title;
     }
   }
+}
+
+// getBy on a field with a field_names mapping (is_active? -> isActive)
+export const subscriptionByUserAndActive = await getSubscriptionByUserAndActive({
+  getBy: {
+    userId: "00000000-0000-0000-0000-000000000001",
+    isActive: true,
+  },
+  fields: ["id", "isActive"],
+});
+
+if (subscriptionByUserAndActive.success && subscriptionByUserAndActive.data) {
+  const isActive: boolean | null | undefined = subscriptionByUserAndActive.data.isActive;
 }
 
 console.log("GetBy tests should compile successfully!");

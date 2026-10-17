@@ -23,7 +23,7 @@ defmodule AshTypescript.Test.Task do
 
   typescript do
     type_name "Task"
-    field_names archived?: "isArchived"
+    field_names archived?: "isArchived", owner_1: "owner", owner_1_id: "ownerId"
     argument_names mark_completed: [is_task_completed_now?: "isCompleted"]
   end
 
@@ -73,6 +73,11 @@ defmodule AshTypescript.Test.Task do
     end
 
     timestamps()
+  end
+
+  relationships do
+    # Renamed for the client (owner_1 -> "owner"), so filter keys must use the override
+    belongs_to :owner_1, AshTypescript.Test.User, public?: true
   end
 
   actions do

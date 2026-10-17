@@ -12,6 +12,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes do
 
   import AshTypescript.Codegen
 
+  alias AshTypescript.Codegen.ClientNames
+
   defdelegate get_exposed_metadata_fields(rpc_action, ash_action), to: AshRpc.Introspection
   defdelegate metadata_enabled?(exposed_fields), to: AshRpc.Introspection
 
@@ -52,20 +54,15 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.MetadataTypes do
           metadata_field.name in exposed_fields
         end)
 
+      wire = ClientNames.wire_entrypoint!(rpc_action.name)
+
       metadata_field_defs =
         Enum.map(metadata_fields_to_include, fn metadata_field ->
           ts_type = get_ts_type(metadata_field)
 
           optional = Map.get(metadata_field, :allow_nil?, true)
 
-          mapped_name =
-            AshTypescript.Rpc.Info.get_mapped_metadata_field_name(rpc_action, metadata_field.name)
-
-          formatted_name =
-            AshTypescript.FieldFormatter.format_field_name(
-              mapped_name,
-              AshTypescript.Rpc.output_field_formatter()
-            )
+          formatted_name = ClientNames.metadata_field(wire, metadata_field.name)
 
           "  #{formatted_name}#{if optional, do: "?", else: ""}: #{ts_type};"
         end)

@@ -11,7 +11,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   into types like :primitive, :relationship, :embedded, :union, etc.
   """
 
-  alias AshTypescript.Codegen.{Helpers, TypeMapper}
+  alias AshTypescript.Codegen.{ClientNames, Helpers, TypeMapper}
   alias AshTypescript.Manifest.Custom
 
   # ─────────────────────────────────────────────────────────────────
@@ -396,7 +396,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     input_fields =
       attributes
       |> Enum.map_join("\n", fn field ->
-        formatted_name = format_client_field_name(resource, field.name)
+        formatted_name = ClientNames.resource_field(api_resource, field.name)
         base_type = TypeMapper.map_type(field.type, [], :input)
 
         if field.allow_nil? || field.has_default? do

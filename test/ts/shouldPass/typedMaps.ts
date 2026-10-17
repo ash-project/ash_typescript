@@ -11,6 +11,7 @@ import {
   updateTodo,
   listUsersMap,
   getMetadataReport,
+  processProfileInputParsing,
   buildCSRFHeaders,
 } from "../generated";
 
@@ -615,6 +616,23 @@ if (metadataReport.success) {
       row.isUrgent;
     }
   }
+}
+
+// Typed-map return NewType: typescript_field_names is_processed? -> "isProcessed"
+export const processedProfile = await processProfileInputParsing({
+  input: {
+    profile: {
+      displayName: "Test Profile",
+      bioText1: "bio",
+      isPublic: true,
+      followerCount: 500,
+    },
+  },
+  fields: ["profileName", "isProcessed"],
+});
+
+if (processedProfile.success) {
+  const processed: boolean = processedProfile.data.isProcessed;
 }
 
 console.log("Typed maps tests should compile successfully!");

@@ -8,6 +8,7 @@
 import {
   readTasksWithMetadata,
   readTasksWithMappedMetadata,
+  readTasksWithSnakeMappedMetadata,
   createTask,
   updateTask,
   markCompletedTask,
@@ -320,6 +321,18 @@ if (readMappedMetadataConst.success) {
     const title: string = task.title;
     const meta1: string = task.meta1;
     const isValid: boolean = task.isValid;
+  }
+}
+
+// A mapped metadata name containing "_" is used as written (some_string -> "some_string_value")
+export const readWithSnakeMappedMetadata = await readTasksWithSnakeMappedMetadata({
+  fields: ["id"],
+  metadataFields: ["some_string_value"],
+});
+
+if (readWithSnakeMappedMetadata.success) {
+  for (const task of readWithSnakeMappedMetadata.data) {
+    const someStringValue: string = task.some_string_value;
   }
 }
 

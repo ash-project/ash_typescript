@@ -20,7 +20,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
 
   Fields/relationships whose `filterable?` is `false` are skipped entirely.
   """
-  alias AshTypescript.Codegen.{Helpers, TypeMapper}
+  alias AshTypescript.Codegen.{ClientNames, Helpers, TypeMapper}
 
   # Mapping from canonical operator names (`%ApplicableOperator{}.name`, the
   # symbols that appear in `Ash.Query.filter` expressions) to the TS filter
@@ -125,10 +125,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
       |> Enum.map(& &1.name)
 
     fields =
-      (field_names ++ relationship_names)
-      |> Enum.map(
-        &AshTypescript.FieldFormatter.format_field_for_client(&1, resource, formatter())
-      )
+      Enum.map(field_names ++ relationship_names, &ClientNames.resource_field(api_resource, &1))
 
     if fields == [] do
       ""
@@ -185,13 +182,13 @@ defmodule AshTypescript.Codegen.FilterTypes do
       api_resource
       |> Ash.Info.Manifest.Resource.all_fields()
       |> Enum.filter(& &1.filterable?)
-      |> Enum.map_join("\n", &spec_field_filter(&1, resource))
+      |> Enum.map_join("\n", &spec_field_filter(&1, api_resource))
 
     relationship_filters =
       api_resource
       |> Ash.Info.Manifest.Resource.accessible_relationships(allowed_resources)
       |> Enum.filter(& &1.filterable?)
-      |> Enum.map_join("\n", &generate_relationship_filter/1)
+      |> Enum.map_join("\n", &generate_relationship_filter(api_resource, &1))
 
     logical_operators = generate_logical_operators(filter_type_name)
 
@@ -204,18 +201,13 @@ defmodule AshTypescript.Codegen.FilterTypes do
     """
   end
 
-  defp spec_field_filter(%Ash.Info.Manifest.Field{} = field, resource) do
+  defp spec_field_filter(%Ash.Info.Manifest.Field{} = field, api_resource) do
     base_type = TypeMapper.map_type(field.type, [], :output)
     operator_lines = manifest_operations(field, base_type)
     function_lines = manifest_function_operations(field, base_type)
     lines = operator_lines ++ function_lines
 
-    formatted_name =
-      AshTypescript.FieldFormatter.format_field_for_client(
-        field.name,
-        resource,
-        AshTypescript.Rpc.output_field_formatter()
-      )
+    formatted_name = ClientNames.resource_field(api_resource, field.name)
 
     """
       #{formatted_name}?: {
@@ -260,12 +252,12 @@ defmodule AshTypescript.Codegen.FilterTypes do
     |> Kernel.<>("\n")
   end
 
-  defp generate_relationship_filter(relationship) do
+  defp generate_relationship_filter(api_resource, relationship) do
     related_resource = relationship.destination
     related_resource_name = Helpers.build_resource_type_name(related_resource)
     filter_type_name = "#{related_resource_name}FilterInput"
 
-    formatted_name = format_field(relationship.name)
+    formatted_name = ClientNames.resource_field(api_resource, relationship.name)
 
     """
       #{formatted_name}?: #{filter_type_name};

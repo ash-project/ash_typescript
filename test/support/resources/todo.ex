@@ -808,6 +808,21 @@ defmodule AshTypescript.Test.Todo do
       filter expr(completed == false)
     end
 
+    # Struct argument on a domain resource that is not exposed over RPC: its
+    # nested keys are decorated with formatter-only names (display_name -> displayName)
+    action :assign_to_not_exposed, :map do
+      constraints fields: [target_name: [type: :string]]
+
+      argument :target, :struct do
+        constraints instance_of: AshTypescript.Test.NotExposed
+        allow_nil? false
+      end
+
+      run fn input, _context ->
+        {:ok, %{target_name: input.arguments.target.display_name}}
+      end
+    end
+
     action :assign_to_user, :map do
       constraints fields: [
                     assignee_id: [type: :uuid, allow_nil?: false],
