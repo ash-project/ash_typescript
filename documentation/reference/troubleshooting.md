@@ -447,18 +447,33 @@ end
 
 **Solution:** Fix the constraint keys/values to match what the type supports (e.g. `min_length`/`max_length`/`match` for `:string`, `min`/`max` for `:integer`).
 
+#### Every Request to a Typed Controller Returns 500
+
+**Cause:** The controller is not listed in the manifest module's `typed_controllers:` option, so the manifest has no routes for it. Codegen warns about it ("Found typed controllers or typed channels not listed in the manifest"). With `typed_controller_show_raised_errors: true`, the message reads "typed controller route ... is not in the AshTypescript manifest".
+
+**Solution:** Add the module to the manifest module and recompile:
+
+```elixir
+defmodule MyApp.AshTypescriptManifest do
+  use AshTypescript.Manifest,
+    otp_app: :my_app,
+    typed_controllers: [MyApp.Session]
+end
+```
+
 #### Routes Not Generated
 
-**Cause:** Missing configuration.
+**Cause:** The controller isn't listed on the manifest module (codegen prints a "not listed in the manifest" warning naming it), or the router isn't configured.
 
-**Solution:** Configure the typed controllers and router (`routes_output_file` auto-derives as `ash_routes.ts` in the `output_file` directory when not set):
+**Solution:** List the controller in the manifest module's `typed_controllers:` option (see above), and configure the router (`routes_output_file` auto-derives as `ash_routes.ts` in the `output_file` directory when not set):
 
 ```elixir
 config :ash_typescript,
-  typed_controllers: [MyApp.Session],       # Required (generation runs when non-empty)
   router: MyAppWeb.Router,                  # Required for path introspection
   routes_output_file: "assets/js/routes.ts" # Optional — auto-derived when unset
 ```
+
+`config :ash_typescript, typed_controllers: ...` is no longer read; compiling the manifest warns when it is still set.
 
 #### Multi-Mount Ambiguity Error
 
@@ -559,6 +574,14 @@ end
 - Regenerate types with `mix ash_typescript.codegen`
 - Ensure hook function names match the configuration exactly
 - Verify hook functions are exported from the configured module
+
+### Typed Channel Issues
+
+#### Channel Payloads Arrive Unformatted
+
+**Cause:** The channel is not listed in the manifest module's `typed_channels:` option (codegen warns about it, and generates no TypeScript for it). The payload is pushed as broadcast (snake_case keys) and a warning is logged: "... is not in the manifest; add the channel to the manifest module's `typed_channels:` option and recompile." An event whose publication has no `returns` is also pushed unformatted, without a warning.
+
+**Solution:** List the channel on the manifest module (`use AshTypescript.Manifest, otp_app: :my_app, typed_channels: [MyAppWeb.OrgChannel]`) and recompile. For an event without `returns`, add a calculation `transform` or an explicit `returns`. Typed channel code generation also covers only the listed channels.
 
 ### Channel Hook Issues
 

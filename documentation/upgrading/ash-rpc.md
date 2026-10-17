@@ -245,6 +245,86 @@ no longer read; remove it from `config/*.exs`. If you set it to something other
 than your `output_field_formatter`, update your clients to send the generated
 names.
 
+## Typed controller request keys are client names
+
+Before, a typed controller read its arguments from Phoenix's merged params and
+accepted either the generated client name or a key parsed with
+`input_field_formatter`, at the top level and in nested maps. Nested keys that
+matched nothing were left for Ash to reject or ignore.
+
+After, keys are resolved per source and matched exactly:
+
+- Query and body keys must be the argument's generated client name (`userId`
+  under `:camel_case`). Keys in another casing, and segment names sent outside
+  the path (`?user_id=`), are dropped.
+- Router path params resolve by their segment name (`:user_id`).
+- An argument reached by more than one key or source is an `ambiguous_param`
+  error.
+- Nested keys must be the client names of the argument's type, as in RPC
+  input. Any other key is an `unknown_input` error whose `path` starts with
+  the argument's client name.
+- Errors name the argument by its client name (`fields: ["userId"]`, not
+  `["user_id"]`), and every error is reported in one 422.
+
+Generated route helpers already send these names; only hand-written requests
+need to change.
+
+## Typed controllers and channels are listed on the manifest module
+
+Before, typed controller and typed channel modules were listed in config. After,
+they're options of `use AshTypescript.Manifest`, which is their only source:
+
+```elixir
+# Before (config/config.exs)
+config :ash_typescript,
+  typed_controllers: [MyAppWeb.Session],
+  typed_channels: [MyAppWeb.OrgChannel]
+
+# After (lib/my_app/ash_typescript_manifest.ex)
+defmodule MyApp.AshTypescriptManifest do
+  use AshTypescript.Manifest,
+    otp_app: :my_app,
+    typed_controllers: [MyAppWeb.Session],
+    typed_channels: [MyAppWeb.OrgChannel]
+end
+```
+
+`router`, `routes_output_file` and `typed_channels_output_file` stay in config.
+The old keys are ignored, and compiling the manifest prints a warning while
+either is still set. `AshTypescript.typed_controllers/0` and
+`AshTypescript.typed_channels/0` are removed.
+
+- Codegen generates nothing for a typed controller or channel that isn't
+  listed, and warns about it (`warn_on_unlisted_typed_modules`). At runtime an
+  unlisted typed controller answers every request with a 500, and an unlisted
+  typed channel pushes payloads unformatted and logs a warning.
+- The manifest depends on the listed modules at compile time, so they must not
+  read the manifest at compile time. In an umbrella app, the manifest module
+  must live in an app that compiles after them (usually the web app).
+- Codegen takes its route and channel sets from the compiled manifest. Tests
+  that set `:typed_controllers` / `:typed_channels` at runtime to change
+  codegen output build a scoped manifest with those options instead and pass
+  it with `AshTypescript.with_manifest/2`.
+- If you call `AshTypescript.TypedChannel.PayloadFormatter` yourself (for
+  example from your own `handle_out/3`), `format_payload/3` is now
+  `format_payload(channel_module, resource, event, payload)` and
+  `push_formatted/4` is now
+  `push_formatted(socket, channel_module, resource, event, payload)`.
+
+## Unknown metadata fields, sort and filter names are errors
+
+- A `metadataFields` entry that isn't the client name of a metadata field the
+  RPC action exposes is now an `unknown_metadata_fields` error (one error,
+  with the misses in `fields` and the allowed names in
+  `details.allowedFields`). Before, such entries were dropped silently.
+- A sort or filter field name that isn't a client name of the resource is now
+  `unknown_field`, and an unknown filter operator is
+  `unknown_filter_operator`. Before, both came back as `unknown_error`.
+- Embedded resources that don't use the `AshTypescript.Resource` extension now
+  have client names too, from the `output_field_formatter`. Their nested input
+  keys must be those names, and any other key is `unknown_input`. Before,
+  their keys were passed through as sent.
+
 ## Missing required inputs are reported as `required`
 
 Before, a missing required attribute or argument came back as

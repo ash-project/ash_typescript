@@ -217,6 +217,20 @@ Pass it explicitly where an API accepts one: `manifest: AshTypescript.manifest(M
 to `AshRpc.run_action/4`, or `AshTypescript.Manifest.verify_for_domains/1`.
 See `test/ash_typescript/manifest/` for worked examples.
 
+### Tests That Need Other Typed Controllers or Channels
+
+The manifest module's `typed_controllers:` / `typed_channels:` options are the only
+source of typed modules (`AshTypescript.Test.Manifest` lists the fixture ones), so a
+test never sets them with `Application.put_env/3`. Build a scoped manifest with
+`AshTypescript.Test.InlineManifest.build!/1` (`test/support/inline_manifest.ex`), which
+compiles one manifest module per distinct option set, and scope it:
+
+```elixir
+manifest = AshTypescript.Test.InlineManifest.build!(typed_controllers: [MyTest.Session], typed_channels: [])
+
+AshTypescript.with_manifest(manifest, fn -> ... end)
+```
+
 ## Asserting on Generated TypeScript in Elixir Tests
 
 **CRITICAL: Never read from `test/ts/generated.ts` in tests.** This file may be stale or out of sync with the current codebase. Instead, generate the TypeScript programmatically and assert on the resulting string.
@@ -386,6 +400,11 @@ Formatters and the global `not_found_error?` are baked into the manifest at
 compile time — `Application.put_env/3` in a test has **no effect**. Instead,
 build a re-decorated manifest and pass it explicitly (both are `async: true`
 safe):
+
+Always use `AshTypescript.Manifest.redecorate/2`, never `AshRpc.Manifest.redecorate/2`:
+the ash_rpc function rebuilds `custom.ash_rpc` only, so typed controller routes and
+channel publications would keep the old formatter's names.
+`test/ash_typescript/redecorate_guard_test.exs` fails on any other caller.
 
 ```elixir
 manifest = AshTypescript.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :pascal_case)

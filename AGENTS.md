@@ -69,11 +69,16 @@ config :ash_typescript, manifest: MyApp.AshTypescriptManifest
 
 # lib/my_app/ash_typescript_manifest.ex
 defmodule MyApp.AshTypescriptManifest do
-  use AshTypescript.Manifest, otp_app: :my_app
+  use AshTypescript.Manifest,
+    otp_app: :my_app,
+    typed_controllers: [MyApp.Session],   # default [], the only source
+    typed_channels: [MyApp.OrgChannel]    # default [], the only source
 end
 ```
 
-The module walks `Ash.Info.domains(otp_app)` by default. For scoped/inline manifests (e.g. building from a freshly-defined domain in a test) pass `domains: [MyTest.InlineDomain]`. `handle_opts/1` injects static compile-time dependencies on the configured domains, so editing a resource recompiles the manifest — incremental `mix test.codegen` is never stale. Access precomputed lookups via `AshTypescript.action_lookup/0`, `resource_lookup/0`, `type_lookup/0`, `typed_query_lookup/0`; ash_typescript-owned decoration lives under `custom.ash_typescript` and is read through `AshTypescript.Manifest.Custom`. `AshTypescript.RpcMappingSource` supplies the runtime's `custom.ash_rpc` decoration (see [rpc-integration.md](agent-docs/features/rpc-integration.md), Decoration). `output_field_formatter` and global `not_found_error?` are read when the manifest compiles (tracked via `Application.compile_env`) — runtime `put_env` has no effect. There is no input formatter: request keys must be the output formatter's client names exactly. Tests vary them with `AshTypescript.Manifest.redecorate(manifest, output_formatter: …)` (never `AshRpc.Manifest.redecorate/2`, which leaves routes and channel publications in the old formatter) + the `manifest:` option, or `AshTypescript.with_manifest/2` for codegen/typed controllers (`CodegenTestHelper` accepts `manifest:`).
+The manifest also stores typed controller routes (`%AshTypescript.Manifest.Route{}`, keyed `{source_module, name}`) and typed channel publications (`%AshTypescript.Manifest.Publication{}`, keyed `{channel_module, resource, event}`) for the modules in `typed_controllers:` / `typed_channels:`, under `custom.ash_typescript.routes` / `.publications` (read with `AshTypescript.Manifest.Custom.route/3`, `routes/1`, `publication/4`, `publications/1`). Codegen and the runtime take their typed module sets from there; `config :ash_typescript, :typed_controllers` / `:typed_channels` are no longer read, and setting either triggers a compile-time warning. The manifest has a compile-time edge on each listed module, so typed controllers and channels must never read the manifest at compile time. Tests build manifests with other lists via `AshTypescript.Test.InlineManifest.build!/1`, never `put_env`.
+
+The module walks `Ash.Info.domains(otp_app)` by default. For scoped/inline manifests (e.g. building from a freshly-defined domain in a test) pass `domains: [MyTest.InlineDomain]`. `handle_opts/1` injects static compile-time dependencies on the configured domains, so editing a resource recompiles the manifest — incremental `mix test.codegen` is never stale. Access precomputed lookups via `AshTypescript.action_lookup/0`, `resource_lookup/0`, `type_lookup/0`, `typed_query_lookup/0`; ash_typescript-owned decoration lives under `custom.ash_typescript` and is read through `AshTypescript.Manifest.Custom`. `AshTypescript.RpcMappingSource` supplies the runtime's `custom.ash_rpc` decoration (see [rpc-integration.md](agent-docs/features/rpc-integration.md), Decoration). `output_field_formatter` and global `not_found_error?` are read when the manifest compiles (tracked via `Application.compile_env`) — runtime `put_env` has no effect. There is no input formatter: request keys must be the output formatter's client names exactly. Tests vary them with `AshTypescript.Manifest.redecorate(manifest, output_formatter: …)` (never `AshRpc.Manifest.redecorate/2`, which leaves routes and channel publications in the old formatter; `test/ash_typescript/redecorate_guard_test.exs` enforces this) + the `manifest:` option, or `AshTypescript.with_manifest/2` for codegen/typed controllers (`CodegenTestHelper` accepts `manifest:`).
 
 ### Typed Controller Configuration
 
@@ -407,8 +412,8 @@ mix credo --strict                   # Linting
 | **Embedded resources** | [features/embedded-resources.md](agent-docs/features/embedded-resources.md) | `test/support/resources/embedded/` |
 | **Union types** | [features/union-systems-core.md](agent-docs/features/union-systems-core.md) | `test/ash_typescript/rpc/rpc_run_action_union_*_test.exs`, `test/ash_typescript/union_types_test.exs` |
 | **Namespaces, JSDoc, Manifest, JSON Manifest** | [features/developer-experience.md](agent-docs/features/developer-experience.md) | `test/ash_typescript/rpc/namespace_test.exs`, `test/ash_typescript/rpc/json_manifest_generator_test.exs` |
-| **Typed controllers & route helpers** | [features/typed-controller.md](agent-docs/features/typed-controller.md) | `test/ash_typescript/typed_controller/` |
-| **Typed channel event subscriptions** | [features/typed-channel.md](agent-docs/features/typed-channel.md) | `test/ash_typescript/typed_channel/` |
+| **Typed controllers & route helpers** | [features/typed-controller.md](agent-docs/features/typed-controller.md) | `test/ash_typescript/typed_controller/`, `test/ash_typescript/manifest/routes_test.exs` |
+| **Typed channel event subscriptions** | [features/typed-channel.md](agent-docs/features/typed-channel.md) | `test/ash_typescript/typed_channel/`, `test/ash_typescript/manifest/publications_test.exs` |
 | **Development patterns** | [development-workflows.md](agent-docs/development-workflows.md) | N/A |
 
 ## Key Architecture Concepts
@@ -471,8 +476,10 @@ The manifest is decorated twice: `AshTypescript.RpcMappingSource` supplies the r
 | Test reads stale generated.ts | Test uses `File.read!("test/ts/generated.ts")` | Use `AshTypescript.Test.CodegenTestHelper.generate_all_content/0` in `setup_all` |
 | Controller 422 error | Missing required argument, failed type cast, or a violated argument constraint (min_length/match/min/max — enforced since 0.18) | Check `allow_nil?`, argument types, and declared `constraints`. Note `""` on a nilable string is normalized to `nil`, and strings are trimmed by default |
 | "Invalid constraints for argument `x`" | Typed-controller route argument declares constraints the Ash type rejects | Fix the constraint keys/values to match `Ash.Type.constraints/1` for that type |
-| Controller 500 error | Handler doesn't return `%Plug.Conn{}` | Return `%Plug.Conn{}` from handler |
-| Routes not generated | Missing config | Set `typed_controllers:` (gates generation) and `router:`; `routes_output_file:` auto-derives as `ash_routes.ts` |
+| Controller 500 error | Handler doesn't return `%Plug.Conn{}`, or the controller isn't in the manifest module's `typed_controllers:` ("is not in the AshTypescript manifest") | Return `%Plug.Conn{}` from handler; list the controller on the manifest module |
+| Typed channel payload pushed unformatted, warning "is not in the manifest" | Channel not in the manifest module's `typed_channels:` | List it on the manifest module and recompile |
+| Codegen warning "Found typed controllers or typed channels not listed in the manifest" | A typed controller/channel of the app isn't in the manifest module's `typed_controllers:` / `typed_channels:`, so codegen skips it | List it on the manifest module and recompile, or `warn_on_unlisted_typed_modules: false` |
+| Routes not generated | Controller not on the manifest module, or no router | List it in `use AshTypescript.Manifest, typed_controllers: [...]`, set `router:` in config; `routes_output_file:` auto-derives as `ash_routes.ts` |
 | Multi-mount ambiguity | Duplicate mounts without `as:` | Add unique `as:` to each scope |
 | "load_not_allowed" error | Requested field not in `allowed_loads` | Add field to `allowed_loads` or remove the option |
 | "load_denied" error | Requested field in `denied_loads` | Remove field from `denied_loads` list |
@@ -524,16 +531,22 @@ Two additional compile-time warnings cover typed channels (both default to enabl
 - `config :ash_typescript, warn_on_non_public_publications: false` — silences warnings about publications that are not `public?`
 - `config :ash_typescript, warn_on_missing_channel_returns: false` — silences warnings about publications with no resolvable `returns` type
 
+### Unlisted Typed Module Warning
+
+`mix ash_typescript.codegen` warns about every typed controller (with routes) or typed channel (with publications) in the app's modules (`Application.spec(otp_app, :modules)`) that has nothing in the manifest. Built by `TypeDiscovery.build_unlisted_typed_modules_warning/3`, printed to stderr by the Orchestrator. Silence with `config :ash_typescript, warn_on_unlisted_typed_modules: false`. This repo's own codegen reports the intentionally unlisted fixtures `StaticTopicChannel` and `PublicationFixtures.FeedChannel`.
+
 **Note:** All of these warnings can be independently configured. See [Configuration Reference](documentation/reference/configuration.md#rpc-resource-warnings) for details.
 
 ## Typed Controller Configuration
 
-When `typed_controllers`, `router`, and `routes_output_file` are configured, `mix ash_typescript.codegen` generates typed TypeScript route helpers alongside RPC types.
+For the controllers listed in the manifest module's `typed_controllers:` option, `mix ash_typescript.codegen` generates typed TypeScript route helpers alongside RPC types.
 
 **Configuration:**
 ```elixir
+# lib/my_app/ash_typescript_manifest.ex
+use AshTypescript.Manifest, otp_app: :my_app, typed_controllers: [MyApp.Session]
+
 config :ash_typescript,
-  typed_controllers: [MyApp.Session],         # TypedController modules
   router: MyAppWeb.Router,                    # Phoenix router for path introspection
   routes_output_file: "assets/js/routes.ts",  # Output file for route helpers
   typed_controller_mode: :full,               # :full (default) or :paths_only
@@ -544,22 +557,24 @@ config :ash_typescript,
 
 **Base path:** When set (e.g., `"https://api.example.com"` or `{:runtime_expr, "AppConfig.getBasePath()"}`), all generated route URLs are prefixed with `_basePath`. Uses the same `{:runtime_expr, "..."}` pattern as RPC endpoints.
 
-**Implementation:** `lib/ash_typescript.ex` (`typed_controllers/0`, `router/0`, `routes_output_file/0`, `typed_controller_mode/0`, `typed_controller_base_path/0`) + `lib/mix/tasks/ash_typescript.codegen.ex` + `lib/ash_typescript/typed_controller/`
+**Implementation:** `lib/ash_typescript.ex` (`router/0`, `routes_output_file/0`, `typed_controller_mode/0`, `typed_controller_base_path/0`) + `lib/mix/tasks/ash_typescript.codegen.ex` + `lib/ash_typescript/typed_controller/`
 
 ## Typed Channel Configuration
 
-When `typed_channels` and `typed_channels_output_file` are configured, `mix ash_typescript.codegen` generates typed TypeScript event subscription helpers alongside RPC types.
+For the channels listed in the manifest module's `typed_channels:` option, when `typed_channels_output_file` is configured, `mix ash_typescript.codegen` generates typed TypeScript event subscription helpers alongside RPC types.
 
 **Configuration:**
 ```elixir
+# lib/my_app/ash_typescript_manifest.ex
+use AshTypescript.Manifest, otp_app: :my_app, typed_channels: [MyApp.OrgChannel]
+
 config :ash_typescript,
-  typed_channels: [MyApp.OrgChannel],                       # TypedChannel modules
   typed_channels_output_file: "assets/js/ash_typed_channels.ts"  # Output file for channel functions
 ```
 
 Channel types (branded types, payload aliases, event maps) are appended to `ash_types.ts`. Channel functions (factory, subscription helpers) go into the separate `typed_channels_output_file`.
 
-**Implementation:** `lib/ash_typescript.ex` (`typed_channels/0`, `typed_channels_output_file/0`) + `lib/ash_typescript/typed_channel/` + `lib/ash_typescript/codegen/orchestrator.ex`
+**Implementation:** `lib/ash_typescript.ex` (`typed_channels_output_file/0`) + `lib/ash_typescript/typed_channel/` + `lib/ash_typescript/codegen/orchestrator.ex`
 
 ## JSON Manifest (Machine-Readable)
 

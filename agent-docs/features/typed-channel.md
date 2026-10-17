@@ -58,7 +58,7 @@ The Orchestrator appends channel types to the end of `ash_types.ts` after all re
 
 ### Type Mapping
 
-Channel payload types use `TypeMapper.map_channel_payload_type/2` instead of `map_type/3`. The codegen reads the publication's `returns` type — which Ash auto-populates when `transform :some_calc` references a calculation, or which can be set explicitly via `returns:`. The difference from RPC types: typed containers (`Ash.Type.Map`/`Keyword`/`Tuple`/`Struct` carrying a `:fields` constraint) generate plain object types without the `__type`/`__primitiveFields` metadata that the RPC field-selection system needs. Containers with no `:fields` fall back to the configured `untyped_map_type`. Non-container types (primitives, lists, etc.) delegate to `map_type/3` with `:output` direction.
+Channel payload types use `TypeMapper.map_channel_payload_type/1` instead of `map_type/3`. It takes the decorated `%Ash.Info.Manifest.Type{}` of the channel's manifest `%Publication{}` (the publication's `returns`, which Ash auto-populates when `transform :some_calc` references a calculation, or which can be set explicitly via `returns:`), so field names match the pushed payload. A publication with `returns: nil` generates `unknown`. The difference from RPC types: typed containers (`Ash.Type.Map`/`Keyword`/`Tuple`/`Struct` carrying a `:fields` constraint) generate plain object types without the `__type`/`__primitiveFields` metadata that the RPC field-selection system needs. Containers with no `:fields` fall back to the configured `untyped_map_type`. Non-container types (primitives, lists, etc.) delegate to `map_type/3` with `:output` direction.
 
 ## DSL Reference
 
@@ -142,7 +142,7 @@ defmodule MyAppWeb.OrgChannel do
 end
 ```
 
-The module must also `use Phoenix.Channel` (compile warning otherwise). `use AshTypescript.TypedChannel` injects — via Spark's `handle_before_compile/1` and `AshTypescript.TypedChannel.Interception` — an intercept for every declared event plus `handle_out/3` clauses that format the broadcast payload through `AshTypescript.TypedChannel.PayloadFormatter` (the publication's `returns` type + `ValueFormatter`, same as RPC output) before pushing. This makes the wire payload match the generated TypeScript types, which use the `output_field_formatter`. User-defined `intercept` calls are merged into the intercept list, and no `handle_out/3` clause is injected for an event the module already handles itself (detected via `Module.get_definition/2`, since `before_compile` clauses shadow an identical clause head in the module body). Such a module should also `intercept` that event itself to avoid a spurious Phoenix definition-time warning. Interception disables Phoenix's fastlane for the declared events (per-subscriber encoding).
+The module must also `use Phoenix.Channel` (compile warning otherwise). `use AshTypescript.TypedChannel` injects — via Spark's `handle_before_compile/1` and `AshTypescript.TypedChannel.Interception` — an intercept for every declared event plus `handle_out/3` clauses that format the broadcast payload through `AshTypescript.TypedChannel.PayloadFormatter` (the decorated `returns` of the channel's manifest `%Publication{}` + `ValueFormatter`, same as RPC output; see [Publications in the Manifest](#publications-in-the-manifest)) before pushing. This makes the wire payload match the generated TypeScript types, which use the `output_field_formatter`. User-defined `intercept` calls are merged into the intercept list, and no `handle_out/3` clause is injected for an event the module already handles itself (detected via `Module.get_definition/2`, since `before_compile` clauses shadow an identical clause head in the module body). Such a module should also `intercept` that event itself to avoid a spurious Phoenix definition-time warning. Interception disables Phoenix's fastlane for the declared events (per-subscriber encoding).
 
 ### Section Options
 
@@ -251,26 +251,63 @@ Before deduplication, `validate_no_payload_type_conflicts!/2` checks that events
 
 This can happen when two resources declare publications with the same event name but different `returns` types (whether auto-derived from calculation transforms or explicitly declared), and those resources are used in separate channels. The verifier's unique-event check only applies within a single channel, so this cross-channel conflict is caught at codegen time instead.
 
+## Publications in the Manifest
+
+The manifest module's `typed_channels:` option is the only source of typed channels
+(`config :ash_typescript, :typed_channels` is ignored and triggers a compile-time
+warning). `BuildManifest` reads every declared event of each listed channel with
+`TypedRouteCollector`, and `AshTypescript.Manifest.TypedRoutes` decorates them during
+`DecorateManifest`.
+
+- `%AshTypescript.Manifest.Publication{}` (`lib/ash_typescript/manifest/publication.ex`):
+  `channel_module`, `resource`, `event` and the decorated `returns`, keyed
+  `{channel_module, resource, event}` under `custom.ash_typescript.publications`. Two
+  channels declaring the same publication get one entry each
+- `returns: nil` when the publication declares no `returns`: no type is resolved or
+  decorated, the payload is pushed unformatted without a warning, and codegen emits
+  `unknown`
+- Read with `AshTypescript.Manifest.Custom.publication/4` / `publications/1` (`nil`
+  source reads the configured manifest and honours `AshTypescript.with_manifest/2`)
+- `PayloadFormatter.format_payload(channel_module, resource, event, payload)` and
+  `push_formatted(socket, channel_module, resource, event, payload)` look the
+  publication up; the `handle_out/3` clauses `Interception` injects pass `__MODULE__`.
+  No publication for the key (channel not listed, or a stale manifest) → payload pushed
+  unchanged plus a `Logger.warning` naming the channel, event, resource and the
+  `typed_channels:` option. There is no DSL fallback
+- The manifest has a compile-time edge on every listed channel, so a typed channel must
+  never read the manifest at compile time
+- Codegen's channel set is `Orchestrator.channel_entries/0`: the unique
+  `channel_module`s of `Custom.publications/0`, with topic and declared events from the
+  channel's DSL. A channel whose events all lack `returns` is still generated
+- Codegen warns about typed channels (and typed controllers) among
+  `Application.spec(otp_app, :modules)` that declare publications (routes) but have
+  none in the manifest: `TypeDiscovery.build_unlisted_typed_modules_warning/3`, toggle
+  `warn_on_unlisted_typed_modules`
+- Tests that need other channels build a scoped manifest with
+  `AshTypescript.Test.InlineManifest.build!(typed_channels: [...])` and use
+  `AshTypescript.with_manifest/2`, never `Application.put_env/3`
+
 ## Configuration
 
 ```elixir
+use AshTypescript.Manifest, otp_app: :my_app, typed_channels: [MyApp.OrgChannel, MyApp.ContentFeedChannel]
+
 config :ash_typescript,
-  typed_channels: [MyApp.OrgChannel, MyApp.ContentFeedChannel],
   typed_channels_output_file: "assets/js/ash_typed_channels.ts"
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `typed_channels` | `list(module)` | `[]` | Modules using `AshTypescript.TypedChannel` |
 | `typed_channels_output_file` | `string \| nil` | `nil` | Output file for channel functions (when `nil`, no file is generated) |
 | `warn_on_non_public_publications` | `boolean` | `true` | Warn when a referenced publication is not `public?: true` |
 | `warn_on_missing_channel_returns` | `boolean` | `true` | Warn when a publication has no `returns` (payload types as `unknown`) |
+| `warn_on_unlisted_typed_modules` | `boolean` | `true` | Warn at codegen when a typed channel or controller isn't listed in the manifest |
 
 ## Orchestrator Integration
 
 The `Orchestrator.generate/2` handles typed channels in two steps:
 
-1. **Types**: `collect_typed_channel_entries/0` gathers `{module, topic}` tuples, then `generate_all_channel_types/1` appends branded types and event maps to `ash_types.ts`
+1. **Types**: `channel_entries/0` gathers `{module, topic}` tuples for the channels in the manifest, then `generate_all_channel_types/1` appends branded types and event maps to `ash_types.ts`
 2. **Functions**: `generate_all_channel_functions/1` produces subscription helpers, `ImportResolver` adds type imports, and the result is written to `typed_channels_output_file`
 
 Channel entries are collected once and reused for both steps.
@@ -284,9 +321,12 @@ Channel entries are collected once and reused for both steps.
 | `lib/ash_typescript/typed_channel/info.ex` | Spark introspection helpers |
 | `lib/ash_typescript/typed_channel/codegen.ex` | Type and function generation |
 | `lib/ash_typescript/typed_channel/verifiers/verify_typed_channel.ex` | Compile-time validation |
-| `lib/ash_typescript/codegen/type_mapper.ex` | `map_channel_payload_type/2` and `build_plain_map_type/2` |
+| `lib/ash_typescript/codegen/type_mapper.ex` | `map_channel_payload_type/1` |
+| `lib/ash_typescript/typed_channel/payload_formatter.ex` | Formats pushed payloads from the manifest publication |
+| `lib/ash_typescript/typed_channel/interception.ex` | Injected `intercept` and `handle_out/3` clauses |
+| `lib/ash_typescript/manifest/publication.ex` | `%Publication{}` stored in the manifest |
 | `lib/ash_typescript/codegen/orchestrator.ex` | Integration into multi-file generation |
-| `lib/ash_typescript.ex` | Config accessors (`typed_channels/0`, `typed_channels_output_file/0`) |
+| `lib/ash_typescript.ex` | Config accessor `typed_channels_output_file/0` |
 
 ## Testing
 
@@ -297,6 +337,8 @@ Channel entries are collected once and reused for both steps.
 | `test/ash_typescript/typed_channel/codegen_test.exs` | Single-channel codegen, static topic, deduplication, orchestrator integration |
 | `test/ash_typescript/typed_channel/multi_resource_codegen_test.exs` | Multi-resource channels, cross-channel isolation, batch generation, payload type conflict detection |
 | `test/ash_typescript/typed_channel/verify_typed_channel_test.exs` | Verifier tests: missing events, duplicate events, missing returns/public warnings |
+| `test/ash_typescript/typed_channel/interception_test.exs` | Injected `handle_out/3`, payload formatting, unlisted-channel warning |
+| `test/ash_typescript/manifest/publications_test.exs` | Stored `%Publication{}` data per channel, `returns: nil` |
 
 ### Test Resources
 
@@ -337,5 +379,6 @@ mix test test/ash_typescript/typed_channel/   # Typed channel tests
 | "Duplicate event names found" | Same event name used across multiple resources in one channel | Use unique event names per channel |
 | "Payload type name conflict" | Same event name across different channels maps to different TypeScript types | Rename conflicting events or ensure they return the same type |
 | `unknown` TypeScript payload type | Publication missing `returns` type (no `transform :calc` or explicit `returns:`) | Use `transform :some_calc` with an `:auto`-typed calculation (recommended), or add explicit `returns:` |
-| Channel types not in output | `typed_channels` not configured | Add modules to `typed_channels: [...]` in config |
+| Channel types not in output, codegen warning "not listed in the manifest" | Channel not in the manifest module's `typed_channels:` | Add it: `use AshTypescript.Manifest, ..., typed_channels: [...]` |
+| Payload pushed unformatted, warning "is not in the manifest" | Channel not in the manifest module's `typed_channels:`, or a stale manifest | List it on the manifest module and recompile |
 | Channel functions not generated | `typed_channels_output_file` not configured | Set `typed_channels_output_file:` in config |

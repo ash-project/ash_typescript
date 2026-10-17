@@ -31,6 +31,9 @@ These wire errors come from ash_rpc. What the client sent, and how to fix it:
 | `invalid_query_opts` | A query-options envelope on a non-relationship or to-one field, `args` combined with query options, or `page` combined with bare `limit`/`offset` | Use the envelope only on has_many/many_to_many; pick `page` or `limit`/`offset` |
 | `pagination_not_supported` | Nested `page` on a relationship whose read action has no pagination, or top-level `page` on a non-paginatable action | Add pagination to the read action, or use bare `limit`/`offset` |
 | `filter_not_supported` / `sort_not_supported` | `details.reason: "disabled"` (`enable_filter?`/`enable_sort?: false`) or `"unsupported"` (get-style or non-read action) | Remove the param, or enable the option |
+| `unknown_field` / `unknown_filter_operator` on `filter` or `sort` | A filter or sort name that isn't a client name of the resource, or an unknown filter operator | Send the client name (exact casing) and a supported operator |
+| `unknown_input` | An `input` key, or a nested key, that isn't a client name (`path` locates it). Embedded resources without the `AshTypescript.Resource` extension use formatter-only names, and are strict too | Send the client name from the generated types |
+| `unknown_metadata_fields` | A `metadataFields` entry that isn't the client name of a metadata field the action exposes | Request only names in `details.allowedFields` |
 
 ## Critical Environment Rules
 
@@ -108,6 +111,19 @@ to a TypeScript type.` as a backstop. Fix by implementing `typescript_type_name/
 on the type module, adding a `type_mapping_overrides` entry, or using a
 supported type.
 
+### Route or channel names keep the old formatter in a test
+The test redecorated with `AshRpc.Manifest.redecorate/2`, which rebuilds
+`custom.ash_rpc` only and leaves `custom.ash_typescript.routes` / `.publications`
+in the old formatter. Use `AshTypescript.Manifest.redecorate/2` (same arguments).
+`test/ash_typescript/redecorate_guard_test.exs` fails on any other caller.
+
+### "config :ash_typescript, :typed_controllers is no longer read"
+Compile-time warning from `AshTypescript.Manifest` when `:typed_controllers` or
+`:typed_channels` is still set in config. Move the list to
+`use AshTypescript.Manifest, typed_controllers: [...], typed_channels: [...]`. In
+tests, build a scoped manifest with `AshTypescript.Test.InlineManifest.build!/1`
+instead of `put_env`.
+
 ### Stale generated output
 Should no longer happen: the manifest module now carries compile-time
 dependencies on your domains (`Application.compile_env/3` + one
@@ -139,7 +155,9 @@ and then the manifest. If you still suspect staleness, `mix compile --force`.
 - Type inference problems: Check union storage mode configuration
 
 ### Typed Controllers
-- Routes not generated: Missing `typed_controllers`, `router`, or `routes_output_file` config — all three required
+- Codegen warning "Found typed controllers or typed channels not listed in the manifest": each named module uses the DSL but isn't in the manifest module's `typed_controllers:` / `typed_channels:`, so codegen skips it. List it and recompile, or silence with `warn_on_unlisted_typed_modules: false`. `mix test.codegen` reports the fixtures `StaticTopicChannel` and `PublicationFixtures.FeedChannel`, which stay unlisted on purpose (tests use them through scoped manifests)
+- Routes not generated: the controller isn't in the manifest module's `typed_controllers:` option, or `router` isn't configured (`routes_output_file` auto-derives)
+- 500 "typed controller route ... is not in the AshTypescript manifest" (message shown with `typed_controller_show_raised_errors`): the controller isn't in the manifest module's `typed_controllers:` option, so `Custom.route/3` finds no `%Route{}`. Add it and recompile; in a test, use `InlineManifest.build!(typed_controllers: [...])` + `AshTypescript.with_manifest/2`
 - Path shows as `nil`: Router not configured or action not in Phoenix router
 - Multi-mount ambiguity: Same controller at multiple scopes without unique `as:` options
 - 422 error: Missing required argument, failed type cast, **or a violated argument constraint** (`min_length`, `match`, `min`/`max`, …). Since 0.18 the handler runs `cast_input` → `apply_constraints` → `allow_nil?` recheck, so declared constraints are actually enforced
@@ -155,7 +173,8 @@ and then the manifest. If you still suspect staleness, `mix compile --force`.
 - "Payload type name conflict": Same event name across different channels maps to different TypeScript types — rename events or ensure same `returns` type
 - `unknown` payload type: Publication has no `returns` — use `transform :some_calc` with an `:auto`-typed calculation (recommended, lets Ash derive the type), or add an explicit `returns: SomeAshType`. Suppress with `config :ash_typescript, warn_on_missing_channel_returns: false`
 - Warning about a non-`public?` publication: set `public? true` on the publication, or suppress with `config :ash_typescript, warn_on_non_public_publications: false`
-- Channel types missing from output: `typed_channels` not configured in application config
+- Channel types missing from output: the channel isn't in the manifest module's `typed_channels:` option (codegen warns about it)
+- Channel payload pushed unformatted, with a "... is not in the manifest; add the channel to the manifest module's `typed_channels:` option" warning: the manifest has no `%Publication{}` for `{channel_module, resource, event}` (channel not listed, or a stale manifest). An event whose publication has no `returns` is pushed unformatted without a warning
 - Channel functions not generated: `typed_channels_output_file` not set in application config
 
 ## Validation Workflow

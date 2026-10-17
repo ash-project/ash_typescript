@@ -76,16 +76,17 @@ config :ash_typescript,
   warn_on_non_public_publications: true,
   warn_on_missing_channel_returns: true,
 
+  # Typed controllers/channels missing from the manifest
+  warn_on_unlisted_typed_modules: true,
+
   # RPC namespace files
   enable_namespace_files: false,      # Generate separate files for namespaced RPC actions
   namespace_output_dir: nil,          # Directory for RPC namespace files (defaults to output_file dir)
 
-  # Typed channel event subscriptions
-  typed_channels: [],
+  # Typed channel event subscriptions (channels are listed on the manifest module)
   typed_channels_output_file: nil,
 
-  # Typed controllers
-  typed_controllers: [],
+  # Typed controllers (controllers are listed on the manifest module)
   router: nil,
   routes_output_file: nil,
   typed_controller_mode: :full,
@@ -136,7 +137,7 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | Shared types | `types_output_file` | Auto-derived as `ash_types.ts` | Type aliases, resource schemas, filter types, utility types |
 | Shared Zod schemas | `zod_output_file` | Auto-derived as `ash_zod.ts` | Zod schemas for all resources, RPC actions, and typed controller routes (when `generate_zod_schemas: true`) |
 | Shared Valibot schemas | `valibot_output_file` | Auto-derived as `ash_valibot.ts` | Valibot schemas for all resources, RPC actions, and typed controller routes (when `generate_valibot_schemas: true`) |
-| Route helpers | `routes_output_file` | Auto-derived as `ash_routes.ts` | Path helpers, typed fetch functions, controller input types (generated when `typed_controllers` is non-empty) |
+| Route helpers | `routes_output_file` | Auto-derived as `ash_routes.ts` | Path helpers, typed fetch functions, controller input types (generated when the manifest module lists typed controllers) |
 | Typed channel functions | `typed_channels_output_file` | `nil` (disabled) | Channel factory, subscription helpers, cleanup functions |
 | RPC namespace re-exports | `namespace_output_dir` | Same dir as `output_file` | Per-namespace re-export files (when `enable_namespace_files: true`) |
 | Controller namespace re-exports | `controller_namespace_output_dir` | Same dir as `routes_output_file` | Per-namespace re-export files (when `enable_controller_namespace_files: true`) |
@@ -176,11 +177,10 @@ AshTypescript generates multiple TypeScript files, each with a specific responsi
 | `warn_on_non_rpc_references` | `boolean` | `true` | Warn about non-RPC resources referenced by RPC resources |
 | `warn_on_non_public_publications` | `boolean` | `true` | Warn about typed channel publications not marked `public?: true` |
 | `warn_on_missing_channel_returns` | `boolean` | `true` | Warn about typed channel publications with no `returns` type |
+| `warn_on_unlisted_typed_modules` | `boolean` | `true` | Warn at codegen about typed controllers/channels not listed in the manifest |
 | `enable_namespace_files` | `boolean` | `false` | Generate separate files for namespaced RPC actions |
 | `namespace_output_dir` | `string \| nil` | `nil` | Directory for RPC namespace files (defaults to `output_file` dir) |
-| `typed_channels` | `list(module)` | `[]` | TypedChannel modules to generate event subscription helpers for |
 | `typed_channels_output_file` | `string \| nil` | `nil` | Output file for typed channel functions (when `nil`, generation is skipped) |
-| `typed_controllers` | `list(module)` | `[]` | TypedController modules to generate route helpers for |
 | `router` | `module \| nil` | `nil` | Phoenix router module for path introspection |
 | `routes_output_file` | `string` | Auto-derived as `ash_routes.ts` in `output_file` dir | Output file path for generated route helpers |
 | `typed_controller_mode` | `:full \| :paths_only` | `:full` | Generation mode: `:full` generates path helpers + fetch functions, `:paths_only` generates only path helpers |
@@ -245,6 +245,30 @@ By default the module walks `Ash.Info.domains(otp_app)` to find every domain wit
 `output_field_formatter` and the global `not_found_error?` are baked into the manifest when it compiles. The manifest tracks them with `Application.compile_env/3`, so editing them in `config/*.exs` recompiles it, but changing them at runtime (`Application.put_env/3`, `config/runtime.exs`) has no effect on the RPC runtime or codegen.
 
 The runtime RPC endpoint is served by `AshTypescript.RpcProfile`, the `AshRpc.Profile` that points the `AshRpc` runtime at this manifest. Use it with `AshRpc.Plug.run/2` / `AshRpc.Plug.validate/2` in your controller, `use AshRpc.Channel, profile: AshTypescript.RpcProfile` in a channel, or `AshRpc.run_action/4` / `AshRpc.validate_action/4` directly.
+
+### Typed controllers and typed channels
+
+Typed controller and typed channel modules are listed on the manifest module. These options are the only source: the manifest stores the routes of every listed controller and the declared events of every listed channel, and codegen and the runtime read them from there.
+
+```elixir
+defmodule MyApp.AshTypescriptManifest do
+  use AshTypescript.Manifest,
+    otp_app: :my_app,
+    typed_controllers: [MyAppWeb.Session],
+    typed_channels: [MyAppWeb.OrgChannel]
+end
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `typed_controllers` | `list(module)` | `[]` | Modules using `AshTypescript.TypedController` |
+| `typed_channels` | `list(module)` | `[]` | Modules using `AshTypescript.TypedChannel` |
+
+- Editing either list recompiles the manifest, because the lists are its source. Editing a listed module recompiles it too.
+- The manifest depends on the listed modules at compile time, so they must not read the manifest at compile time.
+- In an umbrella app, the manifest module must live in an app that compiles after the listed modules (usually the web app).
+- Codegen generates nothing for a typed controller or channel that isn't listed, and warns about it (see [Unlisted Typed Module Warning](#unlisted-typed-module-warning)). At runtime, an unlisted typed controller answers every request with a 500, and an unlisted typed channel pushes its payloads unformatted and logs a warning.
+- `config :ash_typescript, typed_controllers: ...` and `typed_channels: ...` are no longer read. If either key is still set, compiling the manifest prints a warning.
 
 For scoped manifests — e.g. building from a freshly-defined domain in a test — pass an explicit `domains:` list instead of `otp_app:`:
 
@@ -364,6 +388,16 @@ config :ash_typescript,
   warn_on_missing_channel_returns: false
 ```
 
+## Unlisted Typed Module Warning
+
+`mix ash_typescript.codegen` warns about each module of your app that uses `AshTypescript.TypedController` or `AshTypescript.TypedChannel` and declares routes or publications, but isn't in the manifest module's `typed_controllers:` / `typed_channels:` option. Codegen generates nothing for such a module. Add it to the option and recompile.
+
+**To disable the warning:**
+
+```elixir
+config :ash_typescript, warn_on_unlisted_typed_modules: false
+```
+
 ## Always Regenerate Mode
 
 By default, `mix ash_typescript.codegen --check` compares the generated output against existing files and raises `Ash.Error.Framework.PendingCodegen` if they differ. This is useful for CI but in development—especially when using `AshPhoenix.Plug.CheckCodegenStatus`—you may want to skip the diff check and always write the generated files.
@@ -377,17 +411,15 @@ When enabled, `--dev --check` (which `AshPhoenix.Plug.CheckCodegenStatus` passes
 
 ## Typed Channel Configuration
 
-Configure typed channels to generate TypeScript event subscription helpers from Ash PubSub publications. Both `typed_channels` and `typed_channels_output_file` must be configured for generation to run.
+Configure typed channels to generate TypeScript event subscription helpers from Ash PubSub publications. Generation runs for the channels listed in the manifest module's `typed_channels:` option (see [Typed controllers and typed channels](#typed-controllers-and-typed-channels)) when `typed_channels_output_file` is set.
 
 ```elixir
 config :ash_typescript,
-  typed_channels: [MyApp.OrgChannel, MyApp.ActivityChannel],
   typed_channels_output_file: "assets/js/ash_typed_channels.ts"
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `typed_channels` | `list(module)` | `[]` | Modules using `AshTypescript.TypedChannel` |
 | `typed_channels_output_file` | `string \| nil` | `nil` | Output file for channel functions (when `nil`, generation is skipped) |
 
 Channel types (branded types, payload aliases, event maps) are appended to the shared types file (`ash_types.ts`). Channel functions (factory, subscription helpers) go into `typed_channels_output_file` and import their types from `ash_types.ts`.
@@ -396,13 +428,10 @@ See [Typed Channels](../guides/typed-channels.md) for complete documentation.
 
 ## Typed Controller Configuration
 
-Configure typed controllers to generate TypeScript path helpers and typed fetch functions for Phoenix controller routes. Route generation runs when `typed_controllers` is non-empty; `router` is required for path introspection, and `routes_output_file` auto-derives as `ash_routes.ts` in the `output_file` directory when not set explicitly.
+Configure typed controllers to generate TypeScript path helpers and typed fetch functions for Phoenix controller routes. Route generation runs for the controllers listed in the manifest module's `typed_controllers:` option (see [Typed controllers and typed channels](#typed-controllers-and-typed-channels)); `router` is required for path introspection, and `routes_output_file` auto-derives as `ash_routes.ts` in the `output_file` directory when not set explicitly.
 
 ```elixir
 config :ash_typescript,
-  # List of TypedController modules
-  typed_controllers: [MyApp.Session],
-
   # Phoenix router for path introspection
   router: MyAppWeb.Router,
 
@@ -433,7 +462,6 @@ config :ash_typescript,
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `typed_controllers` | `list(module)` | `[]` | Modules using `AshTypescript.TypedController` |
 | `router` | `module` | `nil` | Phoenix router for path introspection |
 | `routes_output_file` | `string` | Auto-derived as `ash_routes.ts` | Output file path for route helpers |
 | `typed_controller_mode` | `:full \| :paths_only` | `:full` | `:full` generates path helpers + fetch functions; `:paths_only` generates only path helpers |

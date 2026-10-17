@@ -153,12 +153,22 @@ A single channel can subscribe to events from any number of resources. All event
 
 ### 3. Configure AshTypescript
 
+List the channel on your manifest module, and set the output file in config:
+
 ```elixir
+# lib/my_app/ash_typescript_manifest.ex
+defmodule MyApp.AshTypescriptManifest do
+  use AshTypescript.Manifest,
+    otp_app: :my_app,
+    typed_channels: [MyAppWeb.OrgChannel]
+end
+
 # config/config.exs
 config :ash_typescript,
-  typed_channels: [MyAppWeb.OrgChannel],
   typed_channels_output_file: "assets/js/ash_typed_channels.ts"
 ```
+
+The manifest stores every declared event of each listed channel, with its publication's `returns` type. Codegen generates exactly the listed channels (topic and events come from the channel's DSL) and warns about any typed channel that isn't listed (`warn_on_unlisted_typed_modules`), and payloads are formatted from the stored type. The manifest depends on the listed channels at compile time, so a typed channel must not read the manifest at compile time. In an umbrella app, the manifest module must live in an app that compiles after the channels (usually the web app).
 
 ### 4. Generate TypeScript
 
@@ -341,6 +351,8 @@ Things to know:
 - Your own `intercept` calls and `handle_out/3` clauses are preserved — the typed events are merged into the intercept list, and no clause is injected for an event you already handle yourself, so your clause owns the push (and you are responsible for formatting that payload).
 - If you do write your own `handle_out/3` for a declared event, add it to your own `intercept/1` list as well. Phoenix checks the intercept list at definition time, before AshTypescript merges the typed events in, so it otherwise prints a spurious "An intercept for event ... has not yet been defined" warning. Listing it twice is harmless — the lists are deduplicated.
 - Intercepting disables Phoenix's fastlane optimization for the declared events: payloads are encoded once per subscriber instead of once per broadcast. This is the standard cost of `Phoenix.Channel.intercept/1` and is usually negligible.
+- The payload type comes from the manifest. A channel that isn't listed in the manifest module's `typed_channels:` option pushes its payloads unformatted and logs a warning naming the channel, event and resource.
+- An event whose publication has no `returns` is pushed unformatted, without a warning, and its generated payload type is `unknown`.
 - Because the interception must live in the channel that serves the topic, the DSL module must itself be a Phoenix channel — a compile warning is emitted otherwise, and payloads would reach clients unformatted.
 
 ## Frontend Usage Patterns
@@ -402,15 +414,27 @@ The DSL verifier checks your configuration at compile time:
 
 ## Configuration
 
+Channels are listed on the manifest module, not in config:
+
+```elixir
+defmodule MyApp.AshTypescriptManifest do
+  use AshTypescript.Manifest,
+    otp_app: :my_app,
+    typed_channels: [MyApp.OrgChannel, MyApp.ActivityChannel]
+end
+```
+
+| Manifest option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `typed_channels` | `list(module)` | `[]` | Modules using `AshTypescript.TypedChannel`. The only source of typed channels |
+
 ```elixir
 config :ash_typescript,
-  typed_channels: [MyApp.OrgChannel, MyApp.ActivityChannel],
   typed_channels_output_file: "assets/js/ash_typed_channels.ts"
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `typed_channels` | `list(module)` | `[]` | Modules using `AshTypescript.TypedChannel` |
 | `typed_channels_output_file` | `string \| nil` | `nil` | Output file for channel functions (when `nil`, no file is generated) |
 
 Channel types are appended to `ash_types.ts`. Channel functions go into the separate `typed_channels_output_file` and import their types from `ash_types.ts`.

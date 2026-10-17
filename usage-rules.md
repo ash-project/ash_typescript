@@ -72,7 +72,7 @@ SPDX-License-Identifier: MIT
 | **Route Description** | `description "..."` | JSDoc on route (inside do block) |
 | **Route Deprecated** | `deprecated true` | Deprecation notice (inside do block) |
 | **Route @see Tags** | `see [:auth, :logout]` | JSDoc `@see` cross-references |
-| **Typed Controllers** | `config :ash_typescript, typed_controllers: [M]` | Module discovery |
+| **Typed Controllers** | `use AshTypescript.Manifest, typed_controllers: [M]` | On the manifest module (not config) |
 | **Router Config** | `config :ash_typescript, router: MyWeb.Router` | Path introspection |
 | **Routes Output** | `config :ash_typescript, routes_output_file: "routes.ts"` | Route file path |
 | **Paths-Only Mode** | `config :ash_typescript, typed_controller_mode: :paths_only` | Skip fetch functions |
@@ -84,7 +84,7 @@ SPDX-License-Identifier: MIT
 | **Channel Create** | `createOrgChannel(socket, suffix)` | Factory with branded type |
 | **Channel Subscribe** | `onOrgChannelMessages(channel, handlers)` | Multi-event subscription |
 | **Channel Unsubscribe** | `unsubscribeOrgChannel(channel, refs)` | Cleanup all refs |
-| **Typed Channels** | `config :ash_typescript, typed_channels: [M]` | Module discovery |
+| **Typed Channels** | `use AshTypescript.Manifest, typed_channels: [M]` | On the manifest module (not config) |
 | **Channels Output** | `config :ash_typescript, typed_channels_output_file: "..."` | Channel functions file |
 | **JSON Manifest** | `config :ash_typescript, json_manifest_file: "manifest.json"` | Machine-readable action metadata |
 | **Manifest Filename** | `json_manifest_filename_format: :relative` | `:relative`, `:absolute`, or `:basename` |
@@ -370,8 +370,10 @@ for (const action of manifest.actions) {
 | Identity not found | Check `identities` config; use `{ field: value }` for named |
 | Load not allowed/denied | Check `allowed_loads`/`denied_loads` config |
 | Channel/validation fn undefined | Enable in config |
-| Typed controller 500 error | Handler must return `%Plug.Conn{}` |
-| Routes not generated | Set `typed_controllers:` (gates generation) and `router:` in config; `routes_output_file:` auto-derives |
+| Typed controller 500 error | Handler must return `%Plug.Conn{}`; the controller must be in the manifest module's `typed_controllers:` |
+| Typed channel payload unformatted, "is not in the manifest" warning | Add the channel to the manifest module's `typed_channels:` |
+| Codegen warning "not listed in the manifest" | Add the named modules to the manifest module's `typed_controllers:` / `typed_channels:` and recompile |
+| Routes not generated | List the controller in `use AshTypescript.Manifest, typed_controllers: [...]` and set `router:` in config; `routes_output_file:` auto-derives |
 | Multi-mount ambiguity error | Add unique `as:` option to each scope |
 | Path param without matching argument | Add `argument :param, :string` to route |
 | Path param `allow_nil?` mismatch | Always-present → `false`; sometimes-present → `true` |
@@ -380,7 +382,7 @@ for (const action of manifest.actions) {
 | Duplicate channel event names | Use unique event names across all resources in one channel |
 | Channel payload is `unknown` | Use `transform :some_calc` (an `:auto`-typed calculation) on the publication, or add explicit `returns:` |
 | TypedMap field with embedded-resource member rejects string selection | Use nested selection: `{ field: [{ rows: [...] }] }` (composite members require explicit field selection since 0.18) |
-| Typed channels not generated | Set `typed_channels:` and `typed_channels_output_file:` in config |
+| Typed channels not generated | List the channel in `use AshTypescript.Manifest, typed_channels: [...]` and set `typed_channels_output_file:` in config |
 
 ## Error Quick Reference
 
@@ -431,13 +433,13 @@ config :ash_typescript,
   warn_on_non_rpc_references: true,
   warn_on_non_public_publications: true,
   warn_on_missing_channel_returns: true,
+  warn_on_unlisted_typed_modules: true,   # typed controllers/channels missing from the manifest
   # Dev codegen behavior
   always_regenerate: false,
   # Imports/Types
   import_into_generated: [%{import_name: "CustomTypes", file: "./customTypes"}],
   type_mapping_overrides: [{MyApp.CustomType, "string"}],
-  # Typed Controller (route helpers)
-  typed_controllers: [MyApp.Session],
+  # Typed Controller (route helpers); list controllers on the manifest module
   router: MyAppWeb.Router,
   routes_output_file: "assets/js/routes.ts",
   typed_controller_mode: :full,                # :full or :paths_only
@@ -450,8 +452,7 @@ config :ash_typescript,
   # typed_controller_import_into_generated: [%{import_name: "RouteHooks", file: "./routeHooks"}],
   # typed_controller_error_handler: {MyApp.ErrorHandler, :handle, []},
   # typed_controller_show_raised_errors: false  # true only in dev
-  # Typed Channel (event subscriptions)
-  typed_channels: [MyApp.OrgChannel],
+  # Typed Channel (event subscriptions); list channels on the manifest module
   typed_channels_output_file: "assets/js/ash_typed_channels.ts"
 ```
 

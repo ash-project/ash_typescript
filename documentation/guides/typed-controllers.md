@@ -87,14 +87,25 @@ end
 
 ### 3. Configure Code Generation
 
-Add the typed controller configuration to your `config/config.exs`:
+List the typed controller on your manifest module:
+
+```elixir
+defmodule MyApp.AshTypescriptManifest do
+  use AshTypescript.Manifest,
+    otp_app: :my_app,
+    typed_controllers: [MyApp.Session]
+end
+```
+
+Then set the router and output file in `config/config.exs`:
 
 ```elixir
 config :ash_typescript,
-  typed_controllers: [MyApp.Session],
   router: MyAppWeb.Router,
   routes_output_file: "assets/js/routes.ts"
 ```
+
+The manifest stores the routes of every listed controller, and both codegen and the request handler read them from there. Codegen skips a controller that isn't listed and warns about it (`warn_on_unlisted_typed_modules`), and at runtime it answers every request with a 500. The manifest depends on the listed controllers at compile time, so a typed controller must not read the manifest at compile time. See [Configuration — Typed controllers and typed channels](../reference/configuration.md#typed-controllers-and-typed-channels).
 
 ### 4. Generate TypeScript
 
@@ -309,15 +320,15 @@ Handlers **must** return a `%Plug.Conn{}` struct. Returning anything else result
 
 When a request hits a typed controller route, AshTypescript automatically:
 
-1. **Resolves** param keys to argument names, per source. Query and body keys must be an argument's generated client name (from your `output_field_formatter`); router path params resolve by their segment name (`:user_id`). Keys matching no argument (another casing, an undeclared name) are dropped. An argument reached by more than one key or source is rejected with a 422
+1. **Resolves** param keys to argument names, per source. Query and body keys must be an argument's generated client name (from your `output_field_formatter`); router path params resolve by their segment name (`:user_id`). Keys matching no argument (another casing, an undeclared name, a segment name sent outside the path) are dropped. An argument reached by more than one key or source is rejected with an `ambiguous_param` 422
 2. **Strips** Phoenix internal params (`_format`, `action`, `controller`, params starting with `_`)
 3. **Extracts** only declared arguments (undeclared params are dropped)
 4. **Validates** required arguments (`allow_nil?: false`) — missing args produce 422 errors
-5. **Formats and casts** values. Nested keys are converted per the argument's type, as for RPC action inputs: nested keys must be the client names of their type (`typescript_field_names` mappings and embedded resource field names included; any other key is an `unknown_input` 422), wrapped union input is unwrapped, and untyped maps are passed through as sent. Values are then cast with `Ash.Type.cast_input/3`, and invalid values produce 422 errors
+5. **Formats and casts** values. Nested keys are converted per the argument's type, as for RPC action inputs: nested keys must be the client names of their type (`typescript_field_names` mappings and embedded resource field names included; any other key is an `unknown_input` 422 whose `path` locates it), wrapped union input is unwrapped, and untyped maps are passed through as sent. Values are then cast with `Ash.Type.cast_input/3`, and invalid values produce 422 errors
 6. **Applies constraints** using `Ash.Type.apply_constraints/3` — violations (e.g. `min_length`, `match`, `min`/`max`) produce 422 errors. This follows Ash string semantics: strings are trimmed by default (`trim?: true`), and `""` on a nilable string is normalized to `nil` (on a required string it produces a 422 "is required")
 7. **Dispatches** to the handler with atom-keyed params
 
-The `output_field_formatter` used here is the one baked into your AshTypescript manifest at compile time (the same one the RPC runtime uses); changing it at runtime has no effect. See [Configuration — Manifest Module](../reference/configuration.md#manifest-module-required).
+Errors from every argument are collected and returned in one 422; the handler is not called. The route's arguments, client names and formatter come from the manifest, so the controller must be listed in the manifest module's `typed_controllers:` option; otherwise every request returns a 500 (with `typed_controller_show_raised_errors` enabled, its message says the controller is not in the manifest). The `output_field_formatter` used here is the one baked into your AshTypescript manifest at compile time (the same one the RPC runtime uses); changing it at runtime has no effect. See [Configuration — Manifest Module](../reference/configuration.md#manifest-module-required).
 
 ### Error Responses
 
@@ -358,8 +369,9 @@ As with RPC errors, `message` keeps its `%{var}` placeholders and `vars` carries
 the values — interpolation is left to the client, so you can localize or reword
 messages. See [Message Interpolation](error-handling.md#message-interpolation).
 
-**500 Internal Server Error** (handler doesn't return `%Plug.Conn{}`, or the
-handler raised):
+**500 Internal Server Error** (handler doesn't return `%Plug.Conn{}`, the
+handler raised, or the controller isn't listed in the manifest module's
+`typed_controllers:` option):
 
 ```json
 {
@@ -1009,9 +1021,8 @@ When enabled, 500 responses include the real exception message (or the inspected
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `typed_controllers` | list of modules | `[]` | TypedController modules to generate route helpers for |
 | `router` | module | `nil` | Phoenix router for path introspection |
-| `routes_output_file` | string | `nil` | Output file path (when `nil`, route generation is skipped) |
+| `routes_output_file` | string | Auto-derived as `ash_routes.ts` | Output file path for route helpers |
 | `typed_controller_mode` | `:full` or `:paths_only` | `:full` | Generation mode |
 | `typed_controller_path_params_style` | `:object` or `:args` | `:object` | Path params style (see below) |
 | `typed_controller_base_path` | string or `{:runtime_expr, string}` | `""` | Base URL prefix for all generated route URLs |
@@ -1024,7 +1035,7 @@ When enabled, 500 responses include the real exception message (or the inspected
 | `enable_controller_namespace_files` | boolean | `false` | Generate separate files for namespaced routes |
 | `controller_namespace_output_dir` | string or nil | `nil` | Directory for namespace files (defaults to `routes_output_file` dir) |
 
-All three of `typed_controllers`, `router`, and `routes_output_file` must be configured for route generation to run.
+Route generation covers the controllers listed in the manifest module's `typed_controllers:` option (not a config key; see [Quick Start](#3-configure-code-generation)). `router` is needed for path introspection, and `routes_output_file` auto-derives as `ash_routes.ts` in the `output_file` directory.
 
 Route helpers are part of AshTypescript's multi-file output architecture — shared types and Zod/Valibot schemas are generated into separate files that both RPC and controller code import from. See [Configuration Reference — Multi-File Output](../reference/configuration.md#multi-file-output) for the full file layout.
 

@@ -68,7 +68,9 @@ end
 `RequestHandler.handle/4` provides the bridge between Phoenix and the route handler:
 
 1. **Look up** the route in the decorated manifest (`AshTypescript.Manifest.Custom.route/3`);
-   casting data (type, constraints, `default`) comes from the DSL route
+   casting data (type, constraints, `default`) comes from the DSL route. A controller
+   missing from the manifest module's `typed_controllers:` has no `%Route{}`: the
+   handler raises "is not in the AshTypescript manifest", rescued as a 500
 2. **Resolve** top-level keys per source (`resolve_inputs/2`), never from merged params:
    path params by router segment name (`path_input_names`), query and body keys by
    exact client name (`client_input_names`). Keys matching nothing are dropped. An
@@ -105,14 +107,47 @@ reads it, honouring `AshTypescript.with_manifest/2`), so it is fixed at compile 
 Tests vary it with
 `AshTypescript.with_manifest(AshTypescript.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :pascal_case), fn -> ... end)`
 rather than `Application.put_env/3`. Errors are formatted with `AshRpc.ErrorFormatter`.
-Undecorated types (route-only NewTypes) get their `typescript_field_names/0` mappings via
-`runtime.mapping_source.type_field_names/1` (`AshRpc.Introspection.type_field_name_overrides/2`).
+Named types that route arguments and `returns` reference (route-only NewTypes, embedded
+resources) are collected into `manifest.types` / `manifest.resources` when the manifest
+builds, so they are decorated like RPC types.
 
 Handlers **must** return `%Plug.Conn{}` — the request handler returns a 500 JSON error if they return anything else.
 
 **Error transformation:** When `typed_controller_error_handler` is configured, errors are passed through the handler before being sent to the client. The handler is called for both 422 validation errors and 500 server errors. Returning `nil` from the handler suppresses that error.
 
 **Exception handling:** The entire handler is wrapped in a `rescue` block. When `typed_controller_show_raised_errors` is `true`, the actual exception message is included in the 500 response; otherwise, a generic "Internal server error" is returned.
+
+### Routes in the Manifest
+
+The manifest module's `typed_controllers:` option is the only source of typed
+controllers (no config key; `config :ash_typescript, :typed_controllers` is ignored and
+triggers a compile-time warning). `BuildManifest` reads each listed module's DSL routes
+with `TypedRouteCollector` into undecorated structs, and `DecorateManifest` runs
+`AshTypescript.Manifest.TypedRoutes` (the step between the ash_rpc decorator and
+`AshTypescript.Manifest.Decorator`) to decorate their types and compute client names.
+
+- `%AshTypescript.Manifest.Route{}` (`lib/ash_typescript/manifest/route.ex`), keyed
+  `{source_module, name}` under `custom.ash_typescript.routes`: `source_module`,
+  `controller_module` (the generated Phoenix controller), `name`, `inputs`,
+  `client_input_names` (client name → argument), `path_input_names` (segment name →
+  argument) and the decorated `returns`
+- `%AshTypescript.Manifest.RouteArgument{}`: `name`, `client_name`, decorated `type`,
+  `allow_nil?`, `has_default?`, `description`
+- Read with `AshTypescript.Manifest.Custom.route/3` / `routes/1` (`nil` source reads the
+  configured manifest and honours `AshTypescript.with_manifest/2`). Two arguments with
+  the same client name are a `Spark.Error.DslError` when the manifest compiles
+- The manifest has a compile-time edge on every listed module, so a typed controller
+  must never read the manifest at compile time
+- Codegen's route set comes from `RouteConfigCollector.manifest_routes_config/1`, which
+  groups `Custom.routes/1` by source module and fetches each DSL route by name for
+  rendering-only options (method, namespace, description, schema names, `see`). The
+  router is joined by `controller_module`
+- Tests that need other controllers build a scoped manifest with
+  `AshTypescript.Test.InlineManifest.build!(typed_controllers: [...])` and pass it with
+  `AshTypescript.with_manifest/2`, never `Application.put_env/3`. Formatter variants use
+  `AshTypescript.Manifest.redecorate/2`, which also rebuilds the stored routes;
+  `AshRpc.Manifest.redecorate/2` would leave them in the old formatter
+  (`test/ash_typescript/redecorate_guard_test.exs`)
 
 ### Error Response Format
 
@@ -647,9 +682,14 @@ Returning `nil` from the handler suppresses that error from the response.
 
 ### Application Config
 
+Controllers are listed on the manifest module, not in config:
+
+```elixir
+use AshTypescript.Manifest, otp_app: :my_app, typed_controllers: [MyApp.Session]
+```
+
 ```elixir
 config :ash_typescript,
-  typed_controllers: [MyApp.Session],       # List of TypedController modules
   router: MyAppWeb.Router,                  # Phoenix router for path introspection
   routes_output_file: "assets/js/routes.ts", # Output file for route helpers
   typed_controller_mode: :full,             # :full (default) or :paths_only
@@ -673,13 +713,12 @@ config :ash_typescript,
   typed_controller_show_raised_errors: false
 ```
 
-`typed_controllers` lists all modules using `AshTypescript.TypedController`. Both `router` and `routes_output_file` are required for route generation. If `routes_output_file` is `nil`, route generation is skipped.
+The manifest module's `typed_controllers:` lists all modules using `AshTypescript.TypedController`. `router` is used for path introspection, and `routes_output_file` auto-derives as `ash_routes.ts` in the `output_file` directory.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `typed_controllers` | `list(module)` | `[]` | Modules using `AshTypescript.TypedController` |
 | `router` | `module` | `nil` | Phoenix router for path introspection |
-| `routes_output_file` | `string` | `nil` | Output file path (when `nil`, generation is skipped) |
+| `routes_output_file` | `string` | Auto-derived `ash_routes.ts` | Output file path for route helpers |
 | `typed_controller_mode` | `:full \| :paths_only` | `:full` | `:full` generates path helpers + fetch functions; `:paths_only` generates only path helpers |
 | `typed_controller_path_params_style` | `:object \| :args` | `:object` | Path parameter style in generated TypeScript |
 | `typed_controller_base_path` | `string \| {:runtime_expr, string}` | `""` | Base URL prefix for all generated route URLs |
@@ -717,7 +756,10 @@ The `Orchestrator` coordinates all file generation (types, Zod, Valibot, RPC, ro
 | `lib/ash_typescript/typed_controller/transformers/generate_controller.ex` | Compile-time controller module generation |
 | `lib/ash_typescript/typed_controller/verifiers/verify_typed_controller.ex` | Compile-time validation |
 | `lib/ash_typescript/typed_controller/codegen.ex` | Codegen orchestration entry point (namespace grouping, export collection) |
-| `lib/ash_typescript/typed_controller/codegen/route_config_collector.ex` | Discovers typed controllers from app config, resolves namespace precedence |
+| `lib/ash_typescript/typed_controller/codegen/route_config_collector.ex` | Route set from the manifest (`manifest_routes_config/1`), resolves namespace precedence |
+| `lib/ash_typescript/manifest/route.ex`, `lib/ash_typescript/manifest/route_argument.ex` | `%Route{}` / `%RouteArgument{}` stored in the manifest |
+| `lib/ash_typescript/manifest/typed_route_collector.ex` | Reads DSL routes into undecorated structs while the manifest builds |
+| `lib/ash_typescript/manifest/typed_routes.ex` | Decorates stored routes and publications (client names, reverse maps, types) |
 | `lib/ash_typescript/typed_controller/codegen/router_introspector.ex` | Phoenix router path matching and multi-mount handling |
 | `lib/ash_typescript/typed_controller/codegen/route_renderer.ex` | TypeScript function/type/Zod/Valibot schema generation |
 | `lib/ash_typescript/typed_controller/codegen/typescript_static.ex` | Static TS code: TypedControllerConfig, executeTypedControllerRequest, imports, hooks |
@@ -736,6 +778,9 @@ The `Orchestrator` coordinates all file generation (types, Zod, Valibot, RPC, ro
 | `test/ash_typescript/typed_controller/request_handler_test.exs` | Argument extraction, casting, validation, dispatch |
 | `test/ash_typescript/typed_controller/router_introspection_test.exs` | Router matching and multi-mount |
 | `test/ash_typescript/typed_controller/verify_typed_controller_test.exs` | Compile-time verification |
+| `test/ash_typescript/manifest/routes_test.exs` | Stored `%Route{}` data, client names, collisions |
+| `test/ash_typescript/manifest/access_invariant_test.exs` | Routes and publications leave RPC entrypoints and gates unchanged |
+| `test/support/inline_manifest.ex` | `InlineManifest.build!/1`: scoped manifests with other typed module lists |
 | `test/support/resources/session.ex` | Test typed controller module |
 | `test/support/routes_test_router.ex` | Test Phoenix router (single mount) |
 | `test/ts/generated_routes.ts` | Generated output for TS compilation validation |
@@ -760,11 +805,10 @@ cd test/ts && npm run compileGenerated            # Verify TS compilation
 
 | Error | Cause | Solution |
 |-------|-------|----------|
-| Routes not in generated output | `routes_output_file` not configured | Add to config: `routes_output_file: "assets/js/routes.ts"` |
 | Path shows as `nil` | Router not configured or action not in router | Configure `router:` in config and add routes to Phoenix router |
 | Multi-mount ambiguity error | Same controller at multiple scopes without `as:` | Add unique `as:` option to each scope |
 | 500 error from controller | Handler doesn't return `%Plug.Conn{}` | Ensure handler returns `%Plug.Conn{}` directly |
-| Module not in `typed_controllers` | Missing config entry | Add module to `typed_controllers: [MyApp.Session]` in config |
+| 500 "is not in the AshTypescript manifest", routes missing from codegen, or codegen warning "not listed in the manifest" | Controller not in the manifest module's `typed_controllers:` | Add it: `use AshTypescript.Manifest, ..., typed_controllers: [MyApp.Session]` |
 | Path param without matching argument | Router path has `:param` but no DSL argument | Add `argument :param, :string` to the route definition |
 | Invalid names for TypeScript | Route or argument names contain `_1` or `?` | Rename to avoid patterns that produce awkward camelCase |
 | `allow_nil?: true` on always-present path param | Path param always provided by router | Set `allow_nil?: false` on the argument |

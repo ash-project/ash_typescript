@@ -20,14 +20,28 @@ what ash_typescript feeds into them, and what a client sees as a result.
 
 `AshTypescript.Manifest.Transformers.DecorateManifest`
 (`lib/ash_typescript/manifest/transformers/decorate_manifest.ex`) runs after
-`BuildManifest` and pipes the manifest through three steps:
+`BuildManifest` and pipes the manifest through four steps:
 
 ```elixir
 manifest
 |> AshRpc.Manifest.Decorator.decorate(AshTypescript.RpcMappingSource)  # writes custom.ash_rpc
+|> AshTypescript.Manifest.TypedRoutes.decorate(routes, publications)   # custom.ash_typescript.routes / .publications
 |> AshTypescript.Manifest.Decorator.decorate()                         # writes custom.ash_typescript
 |> AshRpc.Manifest.put_lookups()                                       # rebuilds custom.ash_rpc.lookups
 ```
+
+`TypedRoutes` decorates the typed controller routes and typed channel publications
+that `BuildManifest` persisted for the manifest module's `typed_controllers:` /
+`typed_channels:` (types through `AshRpc.Manifest.Decorator.decorate_type/3`, client
+names, reverse maps); see [typed-controller.md](typed-controller.md) and
+[typed-channel.md](typed-channel.md). The named types they reference are generator
+`always:` roots, so they're in `manifest.resources` / `manifest.types` and decorated
+like RPC types.
+
+**Access invariant:** route and publication data never changes what an RPC request can
+call or load. Entrypoints are identical with or without typed modules, an unknown
+action stays `action_not_found`, and selecting through a relationship to an unexposed
+resource stays `unknown_field` (`test/ash_typescript/manifest/access_invariant_test.exs`).
 
 The lookups are rebuilt last so they carry both decorations. The transformer then
 persists `:manifest`, `:resource_lookup`, `:action_lookup`, `:type_lookup`
@@ -258,7 +272,9 @@ to the decorator, and `AshTypescript.Manifest.handle_opts/1` tracks them with
 `Application.compile_env/3`, so changing the config recompiles the manifest. A runtime
 `put_env` has no effect. To vary them, tests use:
 
-- **Runtime calls**: `AshTypescript.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :snake_case)`,
+- **Runtime calls**: `AshTypescript.Manifest.redecorate(AshTypescript.manifest(), output_formatter: :snake_case)`
+  (never `AshRpc.Manifest.redecorate/2`: it leaves the stored routes and publications in the
+  old formatter; `test/ash_typescript/redecorate_guard_test.exs` fails on any other caller),
   passed as the `manifest:` option to `AshRpc.run_action/4` / `validate_action/4` / `run_typed_query/4`.
 - **Codegen and typed controllers**: `AshTypescript.with_manifest(manifest, fn -> … end)`, or
   `CodegenTestHelper`'s `manifest:` option.
