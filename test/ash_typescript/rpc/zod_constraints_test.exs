@@ -123,14 +123,17 @@ defmodule AshTypescript.Rpc.ZodConstraintsTest do
     end
 
     test "applies nested array cardinality constraints at the correct level" do
-      action = AshTypescript.Test.SpecHelpers.spec_action(NestedArrayConstraints, :validate)
-
+      # NestedArrayConstraints is outside the app's manifest
       zod_schema =
-        ZodSchemaGenerator.generate_zod_schema(
-          NestedArrayConstraints,
-          action,
-          "array_constraints"
-        )
+        AshTypescript.with_manifest(AshTypescript.Test.SchemaFixtures.Domain.manifest(), fn ->
+          action = AshTypescript.Test.SpecHelpers.spec_action(NestedArrayConstraints, :validate)
+
+          ZodSchemaGenerator.generate_zod_schema(
+            NestedArrayConstraints,
+            action,
+            "array_constraints"
+          )
+        end)
 
       assert zod_schema =~
                "boundedMatrix: z.array(z.array(z.number().int()).min(2).max(3)).min(1).max(2)"

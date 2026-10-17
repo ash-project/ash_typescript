@@ -81,7 +81,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
       when is_map(resource_lookup) do
     case Map.get(resource_lookup, resource) do
       %Ash.Info.Manifest.Resource{} = api_resource ->
-        generate_filter_type_from_spec(resource, api_resource, allowed_resources)
+        generate_filter_type_from_spec(resource, api_resource, allowed_resources, resource_lookup)
 
       nil ->
         raise "FilterTypes: resource #{inspect(resource)} not found in resource_lookup"
@@ -102,14 +102,14 @@ defmodule AshTypescript.Codegen.FilterTypes do
   def generate_filter_field_array(resource, resource_lookup) do
     case Map.get(resource_lookup, resource) do
       %Ash.Info.Manifest.Resource{} = api_resource ->
-        do_generate_filter_field_array(resource, api_resource)
+        do_generate_filter_field_array(resource, api_resource, resource_lookup)
 
       nil ->
         raise "FilterTypes: resource #{inspect(resource)} not found in resource_lookup"
     end
   end
 
-  defp do_generate_filter_field_array(resource, api_resource) do
+  defp do_generate_filter_field_array(resource, api_resource, resource_lookup) do
     resource_name = Helpers.build_resource_type_name(resource)
 
     field_names =
@@ -121,7 +121,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
     relationship_names =
       api_resource
       |> Ash.Info.Manifest.Resource.all_relationships()
-      |> Enum.filter(& &1.filterable?)
+      |> Enum.filter(&(&1.filterable? and Helpers.exposed_relationship?(&1, resource_lookup)))
       |> Enum.map(& &1.name)
 
     fields =
@@ -174,7 +174,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
   # Spec-based implementation
   # ─────────────────────────────────────────────────────────────────
 
-  defp generate_filter_type_from_spec(resource, api_resource, allowed_resources) do
+  defp generate_filter_type_from_spec(resource, api_resource, allowed_resources, resource_lookup) do
     resource_name = Helpers.build_resource_type_name(resource)
     filter_type_name = "#{resource_name}FilterInput"
 
@@ -187,7 +187,7 @@ defmodule AshTypescript.Codegen.FilterTypes do
     relationship_filters =
       api_resource
       |> Ash.Info.Manifest.Resource.accessible_relationships(allowed_resources)
-      |> Enum.filter(& &1.filterable?)
+      |> Enum.filter(&(&1.filterable? and Helpers.exposed_relationship?(&1, resource_lookup)))
       |> Enum.map_join("\n", &generate_relationship_filter(api_resource, &1))
 
     logical_operators = generate_logical_operators(filter_type_name)

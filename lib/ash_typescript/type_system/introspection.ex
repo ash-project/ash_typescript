@@ -156,16 +156,19 @@ defmodule AshTypescript.TypeSystem.Introspection do
   def has_typescript_field_names?(_), do: false
 
   @doc """
-  Returns the full definition of a named type (a `:type_ref` module).
+  Returns the decorated definition of a named type (a `:type_ref` module) from
+  the manifest (`AshTypescript.with_manifest/2` applies).
 
-  Looks the type up in the manifest first. Named types outside the manifest —
-  e.g. a NewType referenced only by a typed controller route, which RPC
-  reachability never collects — are resolved directly from the module.
+  Raises `ArgumentError` for a type missing from the manifest: every named type
+  codegen renders, route-only types included, is in the manifest, so a miss is a
+  decoration gap.
   """
   @spec named_type_definition(module()) :: Ash.Info.Manifest.Type.t()
   def named_type_definition(module) do
-    Ash.Info.Manifest.get_type(AshTypescript.type_lookup(), module) ||
-      Ash.Info.Manifest.Generator.TypeResolver.resolve_definition(module)
+    AshTypescript.Codegen.ClientNames.resolve_type!(%Ash.Info.Manifest.Type{
+      kind: :type_ref,
+      module: module
+    })
   end
 
   @doc """

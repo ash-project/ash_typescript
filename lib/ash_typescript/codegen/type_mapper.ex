@@ -382,15 +382,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
     end
   end
 
-  defp map_union(%Type{} = type_info, direction) do
-    build_union_type_for_direction_from_members(type_info.members || [], direction)
-  end
-
-  defp build_union_type_for_direction_from_members(members, :input),
-    do: build_union_input_type_from_members(members)
-
-  defp build_union_type_for_direction_from_members(members, :output),
-    do: build_union_type_from_members(members)
+  defp map_union(%Type{} = union, :input), do: build_union_input_type_from_members(union)
+  defp map_union(%Type{} = union, :output), do: build_union_type_from_members(union)
 
   # Resource / embedded resource members reference their schema; other types
   # (typed structs and maps included) recurse, so their fields are named from
@@ -668,25 +661,23 @@ defmodule AshTypescript.Codegen.TypeMapper do
   defp is_nested_typed_map_field?(_), do: false
 
   @doc """
-  Builds a union output type from spec members (list of `%{name, type}` maps).
+  Builds a union output type from a decorated union `%Ash.Info.Manifest.Type{}`.
+  Member keys are the union's decorated member names.
   """
-  def build_union_type_from_members(members) do
+  def build_union_type_from_members(%Type{} = union) do
+    members = union.members || []
+
     primitive_fields =
       members
       |> Enum.filter(fn %{type: type} -> is_primitive_union_member?(type) end)
       |> Enum.map(fn %{name: name} -> name end)
 
-    primitive_union = generate_primitive_fields_union(primitive_fields)
+    primitive_union = generate_primitive_fields_union(union, primitive_fields)
 
     member_properties =
       members
       |> Enum.map_join("; ", fn %{name: name, type: type} ->
-        formatted_name =
-          AshTypescript.FieldFormatter.format_field_name(
-            name,
-            AshTypescript.Rpc.output_field_formatter()
-          )
-
+        formatted_name = ClientNames.union_member(union, name)
         ts_type = map_union_member_from_spec(type, :output)
 
         "#{formatted_name}?: #{ts_type}"
@@ -699,18 +690,14 @@ defmodule AshTypescript.Codegen.TypeMapper do
   end
 
   @doc """
-  Builds a union input type from spec members (discriminated union syntax).
+  Builds a union input type (discriminated union syntax) from a decorated union
+  `%Ash.Info.Manifest.Type{}`. Member keys are the union's decorated member names.
   """
-  def build_union_input_type_from_members(members) do
+  def build_union_input_type_from_members(%Type{} = union) do
     member_objects =
-      members
+      (union.members || [])
       |> Enum.map_join(" | ", fn %{name: name, type: type} ->
-        formatted_name =
-          AshTypescript.FieldFormatter.format_field_name(
-            name,
-            AshTypescript.Rpc.output_field_formatter()
-          )
-
+        formatted_name = ClientNames.union_member(union, name)
         ts_type = map_union_member_from_spec(type, :input)
 
         "{ #{formatted_name}: #{ts_type} }"
@@ -744,26 +731,13 @@ defmodule AshTypescript.Codegen.TypeMapper do
   end
 
   @doc """
-  Generates a TypeScript union of primitive field names.
+  Generates a TypeScript union of a union's primitive member names, named from
+  the union's decoration.
   """
-  def generate_primitive_fields_union(fields) do
-    if Enum.empty?(fields) do
-      "never"
-    else
-      fields
-      |> Enum.map_join(
-        " | ",
-        fn field_name ->
-          formatted =
-            AshTypescript.FieldFormatter.format_field_name(
-              field_name,
-              AshTypescript.Rpc.output_field_formatter()
-            )
+  def generate_primitive_fields_union(%Type{}, []), do: "never"
 
-          "\"#{formatted}\""
-        end
-      )
-    end
+  def generate_primitive_fields_union(%Type{} = union, member_names) do
+    Enum.map_join(member_names, " | ", &"\"#{ClientNames.union_member(union, &1)}\"")
   end
 
   # ─────────────────────────────────────────────────────────────────

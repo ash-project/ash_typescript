@@ -10,6 +10,13 @@ defmodule AshTypescript.Codegen.ClientNamesTest do
   alias Ash.Info.Manifest
   alias AshTypescript.Codegen.ClientNames
 
+  defmodule NotInManifest do
+    @moduledoc false
+    use Ash.Type.NewType,
+      subtype_of: :map,
+      constraints: [fields: [is_set?: [type: :boolean]]]
+  end
+
   test "resource fields come from the decoration (struct or module)" do
     user = AshTypescript.resource_lookup()[AshTypescript.Test.User]
     assert ClientNames.resource_field(user, :is_active?) == "isActive"
@@ -20,6 +27,16 @@ defmodule AshTypescript.Codegen.ClientNamesTest do
   test "a resource copy without custom.ash_rpc is resolved through the lookup" do
     user = AshTypescript.resource_lookup()[AshTypescript.Test.User]
     assert ClientNames.resource_field(%{user | custom: %{}}, :is_active?) == "isActive"
+  end
+
+  test "codegen raises for a named type outside the manifest instead of naming it itself" do
+    assert_raise ArgumentError, ~r/not in the manifest/, fn ->
+      AshTypescript.Codegen.TypeMapper.map_type(
+        %Manifest.Type{kind: :type_ref, module: NotInManifest},
+        [],
+        :output
+      )
+    end
   end
 
   test "names follow with_manifest/2" do

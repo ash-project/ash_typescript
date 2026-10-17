@@ -42,6 +42,29 @@ defmodule AshTypescript.Codegen.Helpers do
   end
 
   @doc """
+  Whether codegen emits `relationship` (in resource schemas, and so in field
+  selection, and in filter types, restricted schemas and the JSON manifest): only
+  when its destination is an exposed resource. The runtime rejects selecting or
+  filtering through any other relationship (`unknown_field`).
+  """
+  def exposed_relationship?(
+        %Ash.Info.Manifest.Relationship{destination: destination},
+        resource_lookup \\ AshTypescript.resource_lookup()
+      ) do
+    resource_lookup
+    |> Ash.Info.Manifest.get_resource(destination)
+    |> AshRpc.Manifest.Custom.exposed?()
+  end
+
+  @doc """
+  Whether a resource gets filter and sort types. Exposed resources do, and so do
+  embedded ones. An unexposed domain resource (a struct argument) is used only as
+  a value, so nothing references its filter or sort types.
+  """
+  def filter_and_sort_types?(%Ash.Info.Manifest.Resource{} = resource),
+    do: AshRpc.Manifest.Custom.exposed?(resource) or resource.embedded? == true
+
+  @doc """
   Determines if a return type is complex (requires special metadata handling).
   """
   def is_complex_return_type(Ash.Type.Struct, constraints) do

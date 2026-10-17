@@ -258,7 +258,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       |> Enum.map_join(
         " | ",
         fn field_name ->
-          formatted = format_client_field_name(resource, field_name)
+          formatted = ClientNames.resource_field(resource, field_name)
           "\"#{formatted}\""
         end
       )
@@ -299,7 +299,9 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       Enum.split_with(fields, &is_complex_attr?/1)
 
     relationships =
-      Ash.Info.Manifest.Resource.accessible_relationships(api_resource, allowed_resources)
+      api_resource
+      |> Ash.Info.Manifest.Resource.accessible_relationships(allowed_resources)
+      |> Enum.filter(&Helpers.exposed_relationship?(&1, resource_lookup))
 
     complex_fields = complex_fields ++ relationships
 
@@ -314,7 +316,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     all_field_lines =
       primitive_fields
       |> Enum.map(fn field ->
-        formatted_name = format_client_field_name(resource, field.name)
+        formatted_name = ClientNames.resource_field(resource, field.name)
         type_str = TypeMapper.map_type(field.type, [], :output)
 
         if field.allow_nil? do
@@ -363,7 +365,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     all_field_lines =
       primitive_attrs
       |> Enum.map(fn field ->
-        formatted_name = format_client_field_name(resource, field.name)
+        formatted_name = ClientNames.resource_field(resource, field.name)
         type_str = TypeMapper.map_type(field.type, [], :output)
 
         if field.allow_nil? do
@@ -427,7 +429,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
        ) do
     # Check for custom type name first
     if type_str = spec_type_name(field.type) do
-      formatted_name = format_client_field_name(resource, field.name)
+      formatted_name = ClientNames.resource_field(resource, field.name)
 
       if field.allow_nil? do
         "  #{formatted_name}: #{type_str} | null;"
@@ -464,7 +466,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
          _allowed_resources,
          _resource_lookup
        ) do
-    formatted_name = format_client_field_name(resource, rel.name)
+    formatted_name = ClientNames.resource_field(resource, rel.name)
     related_resource_name = Helpers.build_resource_type_name(rel.destination)
 
     resource_type =
@@ -535,7 +537,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         spec_typed_field(resource, field)
 
       :primitive ->
-        formatted_name = format_client_field_name(resource, field.name)
+        formatted_name = ClientNames.resource_field(resource, field.name)
         type_str = TypeMapper.map_type(field.type, [], :output)
 
         if field.allow_nil? do
@@ -566,7 +568,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         spec_typed_field(resource, field)
 
       _ ->
-        formatted_name = format_client_field_name(resource, field.name)
+        formatted_name = ClientNames.resource_field(resource, field.name)
         type_str = TypeMapper.map_type(field.type, [], :output)
 
         if field.allow_nil? do
@@ -583,7 +585,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
          allowed_resources,
          schema_suffix
        ) do
-    formatted_name = format_client_field_name(resource, field.name)
+    formatted_name = ClientNames.resource_field(resource, field.name)
 
     {inner_type, is_array} =
       case type do
@@ -619,7 +621,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   end
 
   defp spec_typed_field(resource, %Ash.Info.Manifest.Field{type: type} = field) do
-    formatted_name = format_client_field_name(resource, field.name)
+    formatted_name = ClientNames.resource_field(resource, field.name)
 
     {inner_type, is_array} =
       case type do
@@ -645,7 +647,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
   end
 
   defp spec_calculation_definition(resource, %Ash.Info.Manifest.Field{} = field) do
-    formatted_name = format_client_field_name(resource, field.name)
+    formatted_name = ClientNames.resource_field(resource, field.name)
     return_type = spec_calculation_return_type(field)
 
     arguments = field.arguments || []
@@ -654,7 +656,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
       if Enum.empty?(arguments) do
         "{ __type: \"ComplexCalculation\"; __returnType: #{return_type}; }"
       else
-        args_type = spec_calculation_args_type(arguments)
+        args_type = spec_calculation_args_type(resource, field.name, arguments)
         "{ __type: \"ComplexCalculation\"; __returnType: #{return_type}; __args: #{args_type}; }"
       end
 
@@ -687,18 +689,11 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
     end
   end
 
-  defp spec_calculation_args_type([]), do: "{}"
-
-  defp spec_calculation_args_type(arguments) do
+  defp spec_calculation_args_type(resource, calc, arguments) do
     args =
       arguments
       |> Enum.map_join("; ", fn arg ->
-        formatted_name =
-          AshTypescript.FieldFormatter.format_field_name(
-            arg.name,
-            AshTypescript.Rpc.output_field_formatter()
-          )
-
+        formatted_name = ClientNames.calculation_argument(resource, calc, arg.name)
         base_type = TypeMapper.map_type(arg.type, [], :input)
 
         type_str =
@@ -734,7 +729,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         spec_typed_field(resource, field)
 
       _ ->
-        formatted_name = format_client_field_name(resource, field.name)
+        formatted_name = ClientNames.resource_field(resource, field.name)
         type_str = TypeMapper.map_type(field.type, [], :output)
 
         if field.allow_nil? do
@@ -771,29 +766,12 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
 
   # ─────────────────────────────────────────────────────────────────
 
-  # Helper to format a resource field name for client output
-  # Uses field_names DSL mapping if available, otherwise applies formatter
   defp has_type_fields?(%Ash.Info.Manifest.Type{fields: fields})
        when is_list(fields) and fields != [],
        do: true
 
   defp has_type_fields?(%Ash.Info.Manifest.Type{constraints: constraints}) do
     Keyword.has_key?(constraints || [], :fields)
-  end
-
-  defp format_client_field_name(nil, field_name) do
-    AshTypescript.FieldFormatter.format_field_name(
-      field_name,
-      AshTypescript.Rpc.output_field_formatter()
-    )
-  end
-
-  defp format_client_field_name(resource, field_name) do
-    AshTypescript.FieldFormatter.format_field_for_client(
-      field_name,
-      resource,
-      AshTypescript.Rpc.output_field_formatter()
-    )
   end
 
   defp build_resource_lookup do

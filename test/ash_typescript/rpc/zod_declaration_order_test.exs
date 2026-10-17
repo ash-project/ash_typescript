@@ -27,6 +27,16 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
 
   alias AshTypescript.Test.ZodOrder.{NodeA, NodeB, NodeC, NodeD, NodeE}
 
+  # The ZodOrder resources are outside the app's manifest; codegen names their
+  # fields from the schema fixtures manifest.
+  defp zod_schemas(resources, domains \\ []) do
+    manifest = AshTypescript.Test.SchemaFixtures.Domain.manifest(domains)
+
+    AshTypescript.with_manifest(manifest, fn ->
+      ZodSchemaGenerator.generate_zod_schemas_for_resources(resources)
+    end)
+  end
+
   defp declaration_order(output) do
     ~r/export const (\w+ZodSchema) = z\.object/
     |> Regex.scan(output)
@@ -64,7 +74,7 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
   describe "diamond dependency graph (A→B→D→E, A→C→D→E)" do
     test "leaf nodes are declared before nodes that reference them" do
       resources = [NodeA, NodeB, NodeC, NodeD, NodeE]
-      output = ZodSchemaGenerator.generate_zod_schemas_for_resources(resources)
+      output = zod_schemas(resources)
       order = declaration_order(output)
 
       assert Enum.find_index(order, &(&1 == "ZodOrderNodeEZodSchema")) <
@@ -83,7 +93,7 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
 
     test "all references appear after their declarations" do
       resources = [NodeA, NodeB, NodeC, NodeD, NodeE]
-      output = ZodSchemaGenerator.generate_zod_schemas_for_resources(resources)
+      output = zod_schemas(resources)
       assert_all_references_after_declarations(output)
     end
 
@@ -96,14 +106,14 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
       ]
 
       for resources <- permutations do
-        output = ZodSchemaGenerator.generate_zod_schemas_for_resources(resources)
+        output = zod_schemas(resources)
         assert_all_references_after_declarations(output)
       end
     end
 
     test "array-wrapped dependencies are detected" do
       resources = [NodeD, NodeE]
-      output = ZodSchemaGenerator.generate_zod_schemas_for_resources(resources)
+      output = zod_schemas(resources)
 
       e_pos = declaration_position(output, "ZodOrderNodeEZodSchema")
       d_pos = declaration_position(output, "ZodOrderNodeDZodSchema")
@@ -160,7 +170,7 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
         AshTypescript.Test.TodoContent.TextContent
       ]
 
-      output = ZodSchemaGenerator.generate_zod_schemas_for_resources(resources)
+      output = zod_schemas(resources, [AshTypescript.Test.Domain])
       assert_all_references_after_declarations(output)
     end
   end
@@ -168,7 +178,7 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
   describe "subset of dependency chain" do
     test "partial chain still orders correctly" do
       resources = [NodeB, NodeD]
-      output = ZodSchemaGenerator.generate_zod_schemas_for_resources(resources)
+      output = zod_schemas(resources)
 
       d_pos = declaration_position(output, "ZodOrderNodeDZodSchema")
       b_pos = declaration_position(output, "ZodOrderNodeBZodSchema")
@@ -178,7 +188,7 @@ defmodule AshTypescript.Rpc.ZodDeclarationOrderTest do
 
     test "missing dependencies in resource list does not break generation" do
       resources = [NodeB, NodeD]
-      output = ZodSchemaGenerator.generate_zod_schemas_for_resources(resources)
+      output = zod_schemas(resources)
 
       assert output =~ "ZodOrderNodeDZodSchema = z.object"
       assert output =~ "ZodOrderNodeBZodSchema = z.object"

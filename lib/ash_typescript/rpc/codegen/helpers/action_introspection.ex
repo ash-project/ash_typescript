@@ -65,13 +65,11 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection do
   end
 
   @doc """
-  Resolves the TypeScript client name for an action input.
+  Computes the client name for an action input from the resource and formatter.
 
-  Accepted attributes (present in the resource's field map) use field-name
-  mapping via `format_field_for_client/3` (resource-aware, honors `field_names`
-  DSL). Declared action arguments use `argument_names` mapping via
-  `format_field_name/2` (formatter only — arguments don't carry resource field
-  metadata).
+  This is the verifiers' name check (`VerifyUniqueInputFieldNames`), which runs
+  before decoration. Codegen reads the decorated name instead, through
+  `AshTypescript.Codegen.ClientNames.action_input/3`.
   """
   def format_input_name(resource, action_name, input_name, resource_lookup, formatter \\ nil) do
     formatter = formatter || AshTypescript.Rpc.output_field_formatter()

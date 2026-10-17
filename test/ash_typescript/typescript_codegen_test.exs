@@ -15,8 +15,8 @@ defmodule AshTypescript.CodegenTest do
 
   alias AshTypescript.Test.{Todo, TodoComment, TodoMetadata}
 
-  # A typed container as the manifest holds it: resolved and decorated, so its
-  # field names come from the decoration.
+  # A typed container or union as the manifest holds it: resolved and decorated,
+  # so its field and member names come from the decoration.
   defp decorated(type, constraints) do
     type
     |> Ash.Info.Manifest.Generator.TypeResolver.resolve(constraints)
@@ -152,7 +152,7 @@ defmodule AshTypescript.CodegenTest do
   describe "get_ts_type/2 - union types" do
     test "converts empty union to any" do
       constraints = [types: []]
-      result = Codegen.get_ts_type(%{type: Ash.Type.Union, constraints: constraints})
+      result = Codegen.get_ts_type(%{type: decorated(Ash.Type.Union, constraints)})
       assert result == "{ __type: \"Union\"; __primitiveFields: never; }"
     end
 
@@ -164,7 +164,7 @@ defmodule AshTypescript.CodegenTest do
         ]
       ]
 
-      result = Codegen.get_ts_type(%{type: Ash.Type.Union, constraints: constraints})
+      result = Codegen.get_ts_type(%{type: decorated(Ash.Type.Union, constraints)})
 
       assert result ==
                "{ __type: \"Union\"; __primitiveFields: \"string\" | \"integer\"; string?: string; integer?: number; }"
@@ -179,7 +179,7 @@ defmodule AshTypescript.CodegenTest do
         ]
       ]
 
-      result = Codegen.get_ts_type(%{type: Ash.Type.Union, constraints: constraints})
+      result = Codegen.get_ts_type(%{type: decorated(Ash.Type.Union, constraints)})
 
       assert result ==
                "{ __type: \"Union\"; __primitiveFields: \"string1\" | \"string2\" | \"integer\"; string1?: string; string2?: string; integer?: number; }"
@@ -247,7 +247,7 @@ defmodule AshTypescript.CodegenTest do
         ]
       ]
 
-      result = Codegen.get_ts_type(%{type: Ash.Type.Union, constraints: constraints})
+      result = Codegen.get_ts_type(%{type: decorated(Ash.Type.Union, constraints)})
       assert String.contains?(result, "pending")
       assert String.contains?(result, "string")
     end

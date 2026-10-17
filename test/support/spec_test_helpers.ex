@@ -13,28 +13,24 @@ defmodule AshTypescript.Test.SpecHelpers do
   """
 
   @doc """
-  Builds an `%Ash.Info.Manifest.Action{}` for `resource`'s `action_name` action.
+  Returns the decorated `%Ash.Info.Manifest.Action{}` for `resource`'s
+  `action_name` entrypoint action, from `AshTypescript.action_lookup/0` (so
+  `AshTypescript.with_manifest/2` applies).
 
-  Its input and return types are decorated as the manifest decorates them, so
-  codegen names their typed-container fields from the decoration.
+  Codegen reads input, field and member names from the action's decoration, so
+  an action outside the manifest raises: build an
+  `AshTypescript.Test.InlineManifest` that contains it and wrap the call in
+  `AshTypescript.with_manifest/2`.
   """
   @spec spec_action(module(), atom()) :: Ash.Info.Manifest.Action.t()
   def spec_action(resource, action_name) do
-    raw = Ash.Resource.Info.action(resource, action_name)
-    action = Ash.Info.Manifest.Generator.ActionBuilder.build(resource, raw, [])
+    case Map.get(AshTypescript.action_lookup(), {resource, action_name}) do
+      %Ash.Info.Manifest.Action{} = action ->
+        action
 
-    %{
-      action
-      | inputs: Enum.map(action.inputs, &%{&1 | type: decorate(&1.type)}),
-        returns: action.returns && decorate(action.returns)
-    }
-  end
-
-  defp decorate(type) do
-    AshRpc.Manifest.Decorator.decorate_type(
-      type,
-      AshTypescript.output_field_formatter(),
-      AshTypescript.RpcMappingSource
-    )
+      nil ->
+        raise ArgumentError,
+              "#{inspect(resource)}.#{action_name} is not an entrypoint action in the manifest"
+    end
   end
 end

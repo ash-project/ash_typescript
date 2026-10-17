@@ -25,6 +25,8 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
 
   @tc_mutation_methods [:post, :patch, :put, :delete]
 
+  alias AshTypescript.Codegen.ClientNames
+  alias AshTypescript.Codegen.Helpers, as: CodegenHelpers
   alias AshTypescript.Codegen.ImportResolver
   alias AshTypescript.Codegen.SchemaCore
   alias AshTypescript.Codegen.ValibotSchemaGenerator
@@ -68,7 +70,7 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
     |> Enum.into(%{}, fn module ->
       resource_struct = Custom.resolve_resource(module)
 
-      {AshTypescript.Codegen.Helpers.build_resource_type_name(module),
+      {CodegenHelpers.build_resource_type_name(module),
        %{"relationships" => build_relationship_capabilities(resource_struct)}}
     end)
   end
@@ -78,19 +80,12 @@ defmodule AshTypescript.Rpc.Codegen.JsonManifestGenerator do
   # enable flags are already on each action entry — consumers combine both,
   # matching the type-system semantics.
   defp build_relationship_capabilities(resource_struct) do
-    formatter = AshTypescript.Rpc.output_field_formatter()
-
     resource_struct.relationships
     |> Enum.filter(fn {_name, rel} ->
-      rel.cardinality == :many and
-        Custom.typescript_resource?(Custom.resolve_resource(rel.destination))
+      rel.cardinality == :many and CodegenHelpers.exposed_relationship?(rel)
     end)
     |> Enum.into(%{}, fn {name, rel} ->
-      client_name =
-        Custom.formatted_field_name(resource_struct, name, formatter) ||
-          AshTypescript.FieldFormatter.format_field_name(name, formatter)
-
-      {client_name,
+      {ClientNames.resource_field(resource_struct, name),
        %{
          "pagination" => to_string(Custom.relationship_pagination(rel)),
          "filterable" => rel.filterable?,

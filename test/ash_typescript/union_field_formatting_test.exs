@@ -194,4 +194,32 @@ defmodule AshTypescript.UnionFieldFormattingTest do
              "statusInfo should NOT appear when :snake_case formatter is configured (indicates hardcoded camelCase)"
     end
   end
+
+  describe "union builders take the decorated union type" do
+    for formatter <- [:camel, :pascal_out, :snake_out] do
+      test "output and input member keys are the decorated member names (#{formatter})", %{
+        manifests: manifests
+      } do
+        AshTypescript.with_manifest(manifests[unquote(formatter)], fn ->
+          union =
+            AshTypescript.resource_lookup()
+            |> Map.fetch!(AshTypescript.Test.Todo)
+            |> Ash.Info.Manifest.Resource.get_field(:content)
+            |> Map.fetch!(:type)
+            |> AshTypescript.Codegen.ClientNames.resolve_type!()
+
+          names = AshRpc.Manifest.Custom.type_member_names(union)
+          assert map_size(names) > 1
+
+          output = AshTypescript.Codegen.TypeMapper.build_union_type_from_members(union)
+          input = AshTypescript.Codegen.TypeMapper.build_union_input_type_from_members(union)
+
+          for {_member, client_name} <- names do
+            assert output =~ "#{client_name}?: "
+            assert input =~ "{ #{client_name}: "
+          end
+        end)
+      end
+    end
+  end
 end

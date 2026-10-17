@@ -8,12 +8,13 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
 
   Input types describe the shape of data passed to RPC actions. With the
   Ash.Info.Manifest unified `inputs` list (action arguments + accepted
-  attributes), all entries are handled uniformly here; only the client-side
-  name resolution distinguishes argument-name mappings from field-name mappings.
+  attributes), all entries are handled uniformly here. Their client names are the
+  action's decorated expected input keys (`Codegen.ClientNames.action_input/3`).
   """
 
   import AshTypescript.Codegen
 
+  alias AshTypescript.Codegen.ClientNames
   alias AshTypescript.Rpc.Codegen.FunctionNames
   alias AshTypescript.Rpc.Codegen.Helpers.ActionIntrospection
 
@@ -27,9 +28,9 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
     * `resource` - The Ash resource
     * `action` - The Ash.Info.Manifest.Action
     * `rpc_action_name` - The snake_case name of the RPC action
-    * `resource_lookup` - The manifest resource lookup
+    * `resource_lookup` - Unused; kept for the call signature
   """
-  def generate_input_type(resource, action, rpc_action_name, resource_lookup) do
+  def generate_input_type(resource, action, rpc_action_name, _resource_lookup) do
     if ActionIntrospection.action_input_type(action) != :none do
       input_type_name = FunctionNames.input_type(rpc_action_name)
 
@@ -38,13 +39,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
           nullable = input.allow_nil?
           optional = not input.required?
 
-          formatted_name =
-            ActionIntrospection.format_input_name(
-              resource,
-              action.name,
-              input.name,
-              resource_lookup
-            )
+          formatted_name = ClientNames.action_input(resource, action, input.name)
 
           base_type = get_ts_input_type(input)
           field_type = if nullable, do: "#{base_type} | null", else: base_type

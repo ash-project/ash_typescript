@@ -11,10 +11,10 @@ defmodule AshTypescript.Codegen.SortTypes do
   - `{ResourceName}SortField` — a union type derived from the array
 
   Sortable fields are driven by `Ash.Info.Manifest`: any field whose
-  `sortable?` is `true` is included, formatted for the client (e.g. camelCase).
+  `sortable?` is `true` is included, under its decorated client name.
   """
 
-  alias AshTypescript.Codegen.Helpers
+  alias AshTypescript.Codegen.{ClientNames, Helpers}
 
   def generate_sort_types(resources, resource_lookup) when is_list(resources) do
     Enum.map_join(resources, "\n", &generate_sort_type(&1, resource_lookup))
@@ -41,15 +41,12 @@ defmodule AshTypescript.Codegen.SortTypes do
 
   defp do_generate_sort_type(resource, api_resource) do
     resource_name = Helpers.build_resource_type_name(resource)
-    formatter = AshTypescript.Rpc.output_field_formatter()
 
     fields =
       api_resource
       |> Ash.Info.Manifest.Resource.all_fields()
       |> Enum.filter(& &1.sortable?)
-      |> Enum.map(
-        &AshTypescript.FieldFormatter.format_field_for_client(&1.name, resource, formatter)
-      )
+      |> Enum.map(&ClientNames.resource_field(api_resource, &1.name))
 
     if fields == [] do
       ""

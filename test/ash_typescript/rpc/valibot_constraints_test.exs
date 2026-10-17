@@ -123,14 +123,17 @@ defmodule AshTypescript.Rpc.ValibotConstraintsTest do
     end
 
     test "applies nested array cardinality constraints at the correct level" do
-      action = AshTypescript.Test.SpecHelpers.spec_action(NestedArrayConstraints, :validate)
-
+      # NestedArrayConstraints is outside the app's manifest
       schema =
-        ValibotSchemaGenerator.generate_valibot_schema(
-          NestedArrayConstraints,
-          action,
-          "array_constraints"
-        )
+        AshTypescript.with_manifest(AshTypescript.Test.SchemaFixtures.Domain.manifest(), fn ->
+          action = AshTypescript.Test.SpecHelpers.spec_action(NestedArrayConstraints, :validate)
+
+          ValibotSchemaGenerator.generate_valibot_schema(
+            NestedArrayConstraints,
+            action,
+            "array_constraints"
+          )
+        end)
 
       assert schema =~
                "boundedMatrix: v.pipe(v.array(v.pipe(v.array(v.pipe(v.number(), v.integer())), v.minLength(2), v.maxLength(3))), v.minLength(1), v.maxLength(2))"

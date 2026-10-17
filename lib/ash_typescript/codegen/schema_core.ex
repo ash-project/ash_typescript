@@ -98,7 +98,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
         formatter.format_array(inner, type_info.constraints || [])
 
       :union ->
-        map_spec_union(formatter, type_info.members || [])
+        map_spec_union(formatter, type_info)
 
       kind when kind in [:resource, :embedded_resource] ->
         map_resource_ref(formatter, SpecType.effective_resource(type_info))
@@ -306,13 +306,9 @@ defmodule AshTypescript.Codegen.SchemaCore do
   def generate_action_schema(formatter, resource, action, rpc_action_name) do
     if action_has_schema?(action) do
       schema_name = action_schema_name(formatter, rpc_action_name)
-      resource_lookup = AshTypescript.resource_lookup()
 
       field_defs =
-        Enum.map(
-          action.inputs,
-          &process_input_field(formatter, resource, action, &1, resource_lookup)
-        )
+        Enum.map(action.inputs, &process_input_field(formatter, resource, action, &1))
 
       field_lines = Enum.map(field_defs, fn {name, type} -> "  #{name}: #{type}," end)
       kw = formatter.library_prefix()
@@ -331,14 +327,14 @@ defmodule AshTypescript.Codegen.SchemaCore do
   Generates schemas for a list of resources (embedded resources, struct args).
   Returns an empty string when generation is disabled or the list is empty.
 
-  Builds an augmented resource lookup that includes any orphan resources not
-  already present in the cached spec — letting callers pass arbitrary embedded
-  resources (e.g., test fixtures) without pre-registering them.
+  Every resource must be in the manifest (`AshTypescript.resource_lookup/0`,
+  `AshTypescript.with_manifest/2` applies), since field names come from its
+  decoration; a missing one raises `ArgumentError`.
   """
   def generate_schemas_for_resources(formatter, resources) do
     if formatter.generate_schemas_enabled?() and resources != [] do
       uniq_resources = Enum.uniq(resources)
-      resource_lookup = build_augmented_lookup(uniq_resources)
+      resource_lookup = manifest_lookup!(uniq_resources)
 
       schemas =
         uniq_resources
@@ -359,22 +355,22 @@ defmodule AshTypescript.Codegen.SchemaCore do
 
   @doc "Generates a schema for a single resource."
   def generate_schema_for_resource(formatter, resource, resource_lookup \\ nil) do
-    lookup = resource_lookup || build_augmented_lookup([resource])
+    lookup = resource_lookup || manifest_lookup!([resource])
     generate_schema_impl(formatter, resource, lookup)
   end
 
-  # Returns the cached resource lookup augmented with any orphan resources
-  # in `resources` that aren't already registered.
-  defp build_augmented_lookup(resources) do
-    current = AshTypescript.resource_lookup()
+  defp manifest_lookup!(resources) do
+    lookup = AshTypescript.resource_lookup()
 
-    Enum.reduce(resources, current, fn r, acc ->
-      if Map.has_key?(acc, r) do
-        acc
-      else
-        Map.put(acc, r, Ash.Info.Manifest.Generator.ResourceBuilder.build(r, []))
-      end
-    end)
+    case Enum.reject(resources, &Map.has_key?(lookup, &1)) do
+      [] ->
+        lookup
+
+      missing ->
+        raise ArgumentError,
+              "resources #{inspect(missing)} are not in the manifest; schemas are named " <>
+                "from decorated manifest resources only"
+    end
   end
 
   # ─────────────────────────────────────────────────────────────────
@@ -466,15 +462,15 @@ defmodule AshTypescript.Codegen.SchemaCore do
     formatter.wrap_object(field_schemas)
   end
 
-  defp map_spec_union(formatter, members) do
-    case members do
+  defp map_spec_union(formatter, %SpecType{} = union) do
+    case union.members || [] do
       [] ->
         formatter.any_schema()
 
-      _ ->
+      members ->
         union_schemas =
           Enum.map_join(members, ", ", fn %{name: name, type: %SpecType{} = type} ->
-            formatted_name = format_field(name)
+            formatted_name = ClientNames.union_member(union, name)
             schema_type = map_spec_type(formatter, type)
             formatter.wrap_object("#{formatted_name}: #{schema_type}")
           end)
@@ -487,9 +483,8 @@ defmodule AshTypescript.Codegen.SchemaCore do
   # Private — field processing
   # ─────────────────────────────────────────────────────────────────
 
-  defp process_input_field(formatter, resource, action, input, resource_lookup) do
-    formatted_name =
-      ActionIntrospection.format_input_name(resource, action.name, input.name, resource_lookup)
+  defp process_input_field(formatter, resource, action, input) do
+    formatted_name = ClientNames.action_input(resource, action, input.name)
 
     compose_input_field(formatter, formatted_name, input, input.allow_nil?, not input.required?)
   end
@@ -517,13 +512,6 @@ defmodule AshTypescript.Codegen.SchemaCore do
     if omittable?, do: formatter.wrap_optional(schema), else: schema
   end
 
-  defp format_field(field_name) do
-    AshTypescript.FieldFormatter.format_field_name(
-      field_name,
-      AshTypescript.Rpc.output_field_formatter()
-    )
-  end
-
   # ─────────────────────────────────────────────────────────────────
   # Private — resource schema generation
   # ─────────────────────────────────────────────────────────────────
@@ -538,13 +526,7 @@ defmodule AshTypescript.Codegen.SchemaCore do
       api_resource
       |> Ash.Info.Manifest.Resource.fields_by_kind(:attribute)
       |> Enum.map_join("\n", fn attr ->
-        formatted_name =
-          AshTypescript.FieldFormatter.format_field_for_client(
-            attr.name,
-            resource,
-            AshTypescript.Rpc.output_field_formatter()
-          )
-
+        formatted_name = ClientNames.resource_field(api_resource, attr.name)
         schema_type = get_type(formatter, attr)
         nullable = attr.allow_nil?
         omittable = attr.allow_nil? || attr.has_default?

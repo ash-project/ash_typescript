@@ -18,7 +18,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
 
   import AshTypescript.Helpers
 
-  alias AshTypescript.Codegen.Helpers
+  alias AshTypescript.Codegen.{ClientNames, Helpers}
 
   def has_load_restrictions?(rpc_action) do
     not is_nil(Map.get(rpc_action, :allowed_loads)) or
@@ -392,7 +392,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   end
 
   defp generate_attributes_only_relationship_override(resource, rel) do
-    formatted_name = format_client_field_name(resource, rel.name)
+    formatted_name = ClientNames.resource_field(resource, rel.name)
     dest_name = Helpers.build_resource_type_name(rel.destination)
 
     resource_type =
@@ -422,7 +422,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   end
 
   defp generate_attributes_only_embedded_override(resource, attr, embedded_resource) do
-    formatted_name = format_client_field_name(resource, attr.name)
+    formatted_name = ClientNames.resource_field(resource, attr.name)
     embedded_name = Helpers.build_resource_type_name(embedded_resource)
     is_array = api_field_is_array?(attr)
 
@@ -444,8 +444,9 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   end
 
   defp generate_attributes_only_union_override(resource, attr, union_types, resource_lookup) do
-    formatted_name = format_client_field_name(resource, attr.name)
+    formatted_name = ClientNames.resource_field(resource, attr.name)
     is_array = api_field_is_array?(attr)
+    union = resolve_inner_api_type(attr.type)
 
     member_type_strs =
       union_types
@@ -455,7 +456,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
 
         if is_atom(inner_type) and Map.has_key?(resource_lookup, inner_type) do
           resource_name = Helpers.build_resource_type_name(inner_type)
-          formatted_member = format_output_field(member_name)
+          formatted_member = ClientNames.union_member(union, member_name)
           member_is_array = match?({:array, _}, member_type)
 
           if member_is_array do
@@ -629,17 +630,14 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   defp resolve_field_info(resource, field_name, resource_lookup) do
     api_resource = Ash.Info.Manifest.get_resource!(resource_lookup, resource)
     rel = Ash.Info.Manifest.Resource.get_relationship(api_resource, field_name)
+    field = Ash.Info.Manifest.Resource.get_field(api_resource, field_name)
 
-    if rel do
-      {:relationship, rel}
-    else
-      field = Ash.Info.Manifest.Resource.get_field(api_resource, field_name)
-
-      if field do
-        resolve_field_type_info(field)
-      else
-        :not_found
-      end
+    cond do
+      rel && Helpers.exposed_relationship?(rel, resource_lookup) -> {:relationship, rel}
+      # The base schema has no relationship to an unexposed resource
+      rel -> :not_found
+      field -> resolve_field_type_info(field)
+      true -> :not_found
     end
   end
 
@@ -679,7 +677,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   defp unwrap_array_type(type), do: type
 
   defp generate_relationship_override(resource, rel, nested_schema_name) do
-    formatted_name = format_client_field_name(resource, rel.name)
+    formatted_name = ClientNames.resource_field(resource, rel.name)
 
     resource_type =
       if rel.type in [:has_many, :many_to_many] do
@@ -708,7 +706,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   end
 
   defp generate_embedded_override(resource, attr, nested_schema_name) do
-    formatted_name = format_client_field_name(resource, attr.name)
+    formatted_name = ClientNames.resource_field(resource, attr.name)
     is_array = api_field_is_array?(attr)
 
     resource_type =
@@ -729,8 +727,9 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
   end
 
   defp generate_union_override(resource, attr, union_types, member_overrides) do
-    formatted_name = format_client_field_name(resource, attr.name)
+    formatted_name = ClientNames.resource_field(resource, attr.name)
     is_array = api_field_is_array?(attr)
+    union = resolve_inner_api_type(attr.type)
 
     member_type_strs =
       union_types
@@ -739,7 +738,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
 
         case Enum.find(member_overrides, fn {name, _, _} -> name == member_name end) do
           {_, schema_name, _member_type} ->
-            generate_union_member_metadata(member_name, schema_name, member_type)
+            generate_union_member_metadata(union, member_name, schema_name, member_type)
 
           nil ->
             nil
@@ -763,9 +762,9 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     end
   end
 
-  defp generate_union_member_metadata(member_name, schema_name, member_type) do
+  defp generate_union_member_metadata(union, member_name, schema_name, member_type) do
     is_array = match?({:array, _}, member_type)
-    formatted_member_name = format_output_field(member_name)
+    formatted_member_name = ClientNames.union_member(union, member_name)
 
     if is_array do
       "{ #{formatted_member_name}: { __type: \"Relationship\"; __array: true; __resource: #{schema_name}; } }"
@@ -796,6 +795,7 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
     relationships =
       api_resource
       |> Ash.Info.Manifest.Resource.all_relationships()
+      |> Enum.filter(&Helpers.exposed_relationship?(&1, resource_lookup))
       |> Enum.map(& &1.name)
 
     calculations =
@@ -836,18 +836,10 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.RestrictedSchema do
 
   defp format_fields_for_typescript(_resource, fields) when fields == [], do: "never"
 
-  # Omit keys must match the resource schema's own keys, which are built with the
-  # resource-aware formatter - a `field_names is_active?: "isActive"` mapping
-  # would otherwise emit 'isActive?' and the Omit would silently do nothing.
+  # Omit keys must match the resource schema's own keys, the decorated client
+  # names - a `field_names is_active?: "isActive"` mapping would otherwise emit
+  # 'isActive?' and the Omit would silently do nothing.
   defp format_fields_for_typescript(resource, fields) do
-    Enum.map_join(fields, " | ", &"'#{format_client_field_name(resource, &1)}'")
-  end
-
-  defp format_client_field_name(resource, field_name) do
-    AshTypescript.FieldFormatter.format_field_for_client(
-      field_name,
-      resource,
-      AshTypescript.Rpc.output_field_formatter()
-    )
+    Enum.map_join(fields, " | ", &"'#{ClientNames.resource_field(resource, &1)}'")
   end
 end
