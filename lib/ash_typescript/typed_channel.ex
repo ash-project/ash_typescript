@@ -26,10 +26,11 @@ defmodule AshTypescript.TypedChannel do
   type information it needs without manual `returns` declarations. You can
   also use explicit `returns:` with an anonymous function transform.
 
-  Register typed channels in application config:
+  Register typed channels on the manifest module:
 
-      config :ash_typescript,
-        typed_channels: [MyApp.OrgAdminChannel]
+      defmodule MyApp.AshTypescriptManifest do
+        use AshTypescript.Manifest, otp_app: :my_app, typed_channels: [MyApp.OrgAdminChannel]
+      end
 
   ## Usage
 

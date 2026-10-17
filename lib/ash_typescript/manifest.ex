@@ -37,19 +37,38 @@ defmodule AshTypescript.Manifest do
         default: nil,
         doc:
           "Explicit list of domain modules to build the manifest from. When nil, walks `Ash.Info.domains(otp_app)`."
+      ],
+      typed_controllers: [
+        type: {:list, :atom},
+        default: [],
+        doc:
+          "Typed controller modules (`use AshTypescript.TypedController`) whose routes the manifest stores. The only source of typed controllers."
+      ],
+      typed_channels: [
+        type: {:list, :atom},
+        default: [],
+        doc:
+          "Typed channel modules (`use AshTypescript.TypedChannel`) whose declared events the manifest stores. The only source of typed channels."
       ]
     ]
 
   @impl Spark.Dsl
   def handle_opts(opts) do
+    warn_on_legacy_typed_config()
+    typed_controllers = opts[:typed_controllers] || []
+    typed_channels = opts[:typed_channels] || []
+
     quote do
       @persist {:domains, unquote(opts[:domains])}
+      @persist {:typed_controllers, unquote(typed_controllers)}
+      @persist {:typed_channels, unquote(typed_channels)}
       # AshTypescript.RpcMappingSource reads these while the manifest compiles;
       # tracking them recompiles the manifest when the config changes.
       _ = Application.compile_env(:ash_typescript, :input_field_formatter, :camel_case)
       _ = Application.compile_env(:ash_typescript, :output_field_formatter, :camel_case)
       _ = Application.compile_env(:ash_typescript, :not_found_error?, true)
       unquote_splicing(compile_dependency_asts(opts[:otp_app], opts[:domains]))
+      unquote_splicing(typed_module_dependency_asts(typed_controllers ++ typed_channels))
     end
   end
 
@@ -82,6 +101,30 @@ defmodule AshTypescript.Manifest do
       end
 
     config_tracking ++ domain_deps
+  end
+
+  # The lists live on the manifest module, so editing them recompiles it.
+  # Each listed module gets a compile-time edge, so editing a route or a
+  # channel declaration recompiles the manifest too. Those modules must never
+  # read the manifest at compile time: it depends on them.
+  defp typed_module_dependency_asts(modules) do
+    for module <- Enum.uniq(modules), do: quote(do: _ = unquote(module).module_info(:md5))
+  end
+
+  @legacy_typed_keys [:typed_controllers, :typed_channels]
+
+  # These config keys were removed. Nothing reads them, so a leftover setting
+  # would silently drop typed controllers or channels from the manifest. The
+  # read happens at macro-expansion time on purpose: it feeds a warning only.
+  defp warn_on_legacy_typed_config do
+    for key <- @legacy_typed_keys, not is_nil(Application.get_env(:ash_typescript, key)) do
+      IO.warn(
+        "config :ash_typescript, #{inspect(key)} is no longer read and is ignored. " <>
+          "List the modules on the manifest module instead: " <>
+          "use AshTypescript.Manifest, #{key}: [...]",
+        []
+      )
+    end
   end
 
   @doc """

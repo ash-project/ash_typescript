@@ -435,20 +435,12 @@ defmodule AshTypescript do
     Application.get_env(:ash_typescript, :router)
   end
 
-  @doc """
-  Gets the list of TypedController modules from application configuration.
-
-  ## Configuration
-
-      config :ash_typescript,
-        typed_controllers: [MyApp.Session, MyApp.Admin]
-
-  ## Returns
-  A list of module atoms, or an empty list if not configured.
-  """
-  def typed_controllers do
-    Application.get_env(:ash_typescript, :typed_controllers, [])
-  end
+  @doc false
+  # Interim: the configured manifest module's `typed_controllers:` option.
+  # Codegen moves to `AshTypescript.Manifest.Custom.routes/1` in Task 5.1;
+  # this function is deleted in Task 5.6.
+  def typed_controllers,
+    do: Spark.Dsl.Extension.get_persisted(manifest_module(), :typed_controllers, [])
 
   @doc """
   Gets the output file path for generated route helper TypeScript.
@@ -764,14 +756,12 @@ defmodule AshTypescript do
     Application.get_env(:ash_typescript, :controller_namespace_output_dir)
   end
 
-  @doc """
-  Gets the list of TypedChannel modules from application configuration.
-
-  Each module must `use AshTypescript.TypedChannel` and declare a `topic` in its DSL.
-  """
-  def typed_channels do
-    Application.get_env(:ash_typescript, :typed_channels, [])
-  end
+  @doc false
+  # Interim: the configured manifest module's `typed_channels:` option.
+  # Deleted in Task 5.6, after Task 5.3 moves channel codegen to
+  # `AshTypescript.Manifest.Custom.publications/1`.
+  def typed_channels,
+    do: Spark.Dsl.Extension.get_persisted(manifest_module(), :typed_channels, [])
 
   @doc """
   Gets the output file path for typed channel subscription functions.

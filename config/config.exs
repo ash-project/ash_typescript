@@ -35,14 +35,6 @@ if Mix.env() == :test do
       AshTypescript.Test.Domain,
       AshTypescript.Test.SecondDomain
     ],
-    typed_controllers: [AshTypescript.Test.Session],
-    typed_channels: [
-      AshTypescript.Test.OrgChannel,
-      AshTypescript.Test.ContentFeedChannel,
-      AshTypescript.Test.ModerationChannel,
-      AshTypescript.Test.FullActivityChannel,
-      AshTypescript.Test.TrackerChannel
-    ],
     typed_channels_output_file: "./test/ts/generated_typed_channels.ts",
     router: AshTypescript.Test.ControllerResourceTestRouter,
     routes_output_file: "./test/ts/generated_routes.ts",
