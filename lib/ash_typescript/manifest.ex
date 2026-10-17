@@ -128,6 +128,19 @@ defmodule AshTypescript.Manifest do
   end
 
   @doc """
+  Re-decorates `manifest` with a different `:output_formatter` (for tests).
+  Runs `AshRpc.Manifest.redecorate/2`, then rebuilds the stored typed
+  controller routes and typed channel publications, so their client names and
+  decorated types follow the new formatter.
+  """
+  @spec redecorate(Ash.Info.Manifest.t(), keyword()) :: Ash.Info.Manifest.t()
+  def redecorate(%Ash.Info.Manifest{} = manifest, opts) do
+    manifest
+    |> AshRpc.Manifest.redecorate(opts)
+    |> AshTypescript.Manifest.TypedRoutes.redecorate()
+  end
+
+  @doc """
   Runs every manifest verifier against `manifest_module`'s persisted DSL state.
 
   Returns `:ok` when all verifiers pass, or `{:error, formatted_message}`

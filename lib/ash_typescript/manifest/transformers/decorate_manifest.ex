@@ -16,12 +16,17 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
   `AshTypescript.RpcMappingSource`) writes `custom.ash_rpc`, then
   `AshTypescript.Manifest.Decorator` writes `custom.ash_typescript`. The
   embedded `custom.ash_rpc.lookups` are rebuilt last so they carry both.
+
+  Between the two, `AshTypescript.Manifest.TypedRoutes` decorates the typed
+  controller routes and typed channel publications `BuildManifest` persisted,
+  and stores them under `custom.ash_typescript.routes` / `.publications`.
   """
 
   use Spark.Dsl.Transformer
 
   alias AshTypescript.Manifest.Custom
   alias AshTypescript.Manifest.Decorator
+  alias AshTypescript.Manifest.TypedRoutes
   alias Spark.Dsl.Transformer
 
   @impl true
@@ -38,6 +43,10 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
         decorated =
           manifest
           |> AshRpc.Manifest.Decorator.decorate(AshTypescript.RpcMappingSource)
+          |> TypedRoutes.decorate(
+            Transformer.get_persisted(dsl_state, :typed_routes, []),
+            Transformer.get_persisted(dsl_state, :typed_publications, [])
+          )
           |> Decorator.decorate()
           |> AshRpc.Manifest.put_lookups()
 

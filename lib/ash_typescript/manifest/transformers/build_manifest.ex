@@ -14,11 +14,20 @@ defmodule AshTypescript.Manifest.Transformers.BuildManifest do
   by `AshTypescript.Manifest.Transformers.DecorateManifest`, which runs next and
   also annotates the manifest with ash_typescript-specific data under
   `custom.ash_typescript`.
+
+  Typed controller routes and typed channel publications come from the manifest
+  module's `typed_controllers:` and `typed_channels:` options (the only source).
+  `TypedRouteCollector` reads them into undecorated structs, persisted as
+  `:typed_routes` and `:typed_publications` for `DecorateManifest`. The named
+  modules their types reference become the generator's `always:` roots, so they
+  land in `manifest.resources` / `manifest.types` and get decorated like RPC
+  types. This never adds entrypoints.
   """
 
   use Spark.Dsl.Transformer
 
   alias AshTypescript.Codegen.TypeDiscovery
+  alias AshTypescript.Manifest.TypedRouteCollector
   alias AshTypescript.Rpc.Codegen.RpcConfigCollector
   alias Spark.Dsl.Transformer
 
@@ -59,9 +68,32 @@ defmodule AshTypescript.Manifest.Transformers.BuildManifest do
     # and `extra_root_tuples` is built from `rpc_resources`), so one pass suffices.
     Enum.each(rpc_resources, &Code.ensure_compiled!/1)
 
+    # The manifest module's options are the only source (no config fallback)
+    typed_controllers = Transformer.get_persisted(dsl_state, :typed_controllers, [])
+    typed_channels = Transformer.get_persisted(dsl_state, :typed_channels, [])
+
+    {typed_routes, typed_publications} =
+      TypedRouteCollector.collect(typed_controllers, typed_channels)
+
+    # Route and publication types become `always:` roots, so their named types
+    # are decorated like RPC ones. This never adds entrypoints: membership in the
+    # manifest decides naming, not what RPC can call.
+    {route_resources, route_types} =
+      typed_routes
+      |> Enum.flat_map(&[&1.returns | Enum.map(&1.inputs, fn input -> input.type end)])
+      # nil returns (no-returns publications) are skipped by named_modules/1
+      |> Kernel.++(Enum.map(typed_publications, & &1.returns))
+      |> TypedRouteCollector.named_modules()
+
+    Enum.each(route_resources, &Code.ensure_compiled!/1)
+
     # Generate unified Ash.Info.Manifest with action-scoped reachability and RPC config
     {:ok, manifest} =
-      Ash.Info.Manifest.Generator.generate(otp_app: otp_app, action_entrypoints: all_entrypoints)
+      Ash.Info.Manifest.Generator.generate(
+        otp_app: otp_app,
+        action_entrypoints: all_entrypoints,
+        overrides: [always: [resources: route_resources, types: route_types]]
+      )
 
     # Ensure every module the decorator will later interrogate is compiled.
     # Reachability can drag in additional resources (relationship destinations
@@ -79,6 +111,8 @@ defmodule AshTypescript.Manifest.Transformers.BuildManifest do
       dsl_state
       |> Transformer.persist(:manifest, manifest)
       |> Transformer.persist(:rpc_configs, rpc_configs)
+      |> Transformer.persist(:typed_routes, typed_routes)
+      |> Transformer.persist(:typed_publications, typed_publications)
 
     {:ok, dsl_state}
   end
