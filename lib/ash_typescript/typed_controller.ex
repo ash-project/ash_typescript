@@ -39,9 +39,11 @@ defmodule AshTypescript.TypedController do
   Sends `data` as the JSON response of the current route, formatted against the
   route's `returns` type.
 
-  Keys are formatted with the configured `output_field_formatter` (and any
-  `typescript_field_names` mappings) at every level, so the body matches the
-  route's generated TypeScript result type. Use it from a route handler:
+  The result type is the route's decorated `returns` type in the manifest, so
+  keys follow the manifest's client names (the configured
+  `output_field_formatter` plus any `typescript_field_names` mappings) at every
+  level, and the body matches the route's generated TypeScript result type.
+  Use it from a route handler:
 
       post :login do
         returns :map
@@ -69,19 +71,21 @@ defmodule AshTypescript.TypedController do
   """
   @spec format_result(Plug.Conn.t(), term()) :: term()
   def format_result(%Plug.Conn{private: private}, data) do
-    case Map.fetch(private, :ash_typescript_route) do
-      {:ok, %{returns: nil, name: name}} ->
+    case Map.fetch(private, :ash_typescript_manifest_route) do
+      {:ok, %AshTypescript.Manifest.Route{returns: nil, name: name}} ->
         raise ArgumentError,
               "route #{inspect(name)} does not declare `returns`, so there is no " <>
                 "result type to format against"
 
-      {:ok, route} ->
+      {:ok, %AshTypescript.Manifest.Route{returns: returns}} ->
+        manifest = AshTypescript.manifest()
+
         AshRpc.ValueFormatter.format(
           data,
-          route.returns,
-          route.constraints,
+          returns,
+          [],
           :output,
-          AshRpc.Runtime.from_manifest(AshTypescript.manifest())
+          AshRpc.Runtime.from_manifest(manifest)
         )
 
       :error ->

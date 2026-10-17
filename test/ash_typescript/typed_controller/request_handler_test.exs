@@ -17,22 +17,13 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       :typed_controller_show_raised_errors
     ])
 
-    base = AshTypescript.manifest()
+    base = manifest()
 
     %{
       manifests: %{
-        pascal_out: AshRpc.Manifest.redecorate(base, output_formatter: :pascal_case),
-        pascal:
-          AshRpc.Manifest.redecorate(base,
-            input_formatter: :pascal_case,
-            output_formatter: :pascal_case
-          ),
-        prefixed_in:
-          AshRpc.Manifest.redecorate(base,
-            input_formatter: {AshTypescript.Test.Formatters, :parse_input_with_prefix}
-          ),
+        pascal_out: AshTypescript.Manifest.redecorate(base, output_formatter: :pascal_case),
         uppercase_out:
-          AshRpc.Manifest.redecorate(base,
+          AshTypescript.Manifest.redecorate(base,
             output_formatter: {AshTypescript.Test.Formatters, :uppercase_format}
           )
       }
@@ -148,8 +139,32 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       post :reply_without_returns do
         run fn conn, _params -> AshTypescript.TypedController.json(conn, %{a: 1}) end
       end
+
+      # A required multi-word argument, for errors that name it by client name
+      post :require_user do
+        run fn conn, _params -> Plug.Conn.send_resp(conn, 200, "OK") end
+        argument :user_id, :string, allow_nil?: false
+      end
     end
   end
+
+  # The test-local typed controllers are in no manifest module option (adding
+  # them would change the generated snapshots), so requests run against an
+  # inline manifest that lists them.
+  @typed_controllers [
+    AshTypescript.Test.Session,
+    __MODULE__.AllowlistSession,
+    __MODULE__.BadReturnSession,
+    __MODULE__.ReservedSession,
+    __MODULE__.FormattingSession
+  ]
+
+  defp manifest,
+    do:
+      AshTypescript.Test.InlineManifest.build!(
+        typed_controllers: @typed_controllers,
+        typed_channels: []
+      )
 
   defp echoed(conn) do
     assert conn.status == 200, "expected 200, got #{conn.status}: #{conn.resp_body}"
@@ -162,17 +177,31 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     on_exit(fn -> reset_env(key, prev) end)
   end
 
-  defp call(action, params) do
-    :get
-    |> Plug.Test.conn("/test", "")
-    |> RequestHandler.handle(AshTypescript.Test.Session, action, params)
+  # Builds the conn the way Phoenix would hand it to the controller. Body params
+  # keep their JSON types, `path:` becomes conn.path_params, `query:` is
+  # encoded into the URI, and `params` is their merge (path wins, like Phoenix).
+  # The handler resolves keys per source, so tests must say where a key comes from.
+  defp request(source_module, action, opts) do
+    body = Keyword.get(opts, :body, %{})
+    query = Keyword.get(opts, :query)
+    uri = if query, do: "/test?" <> Plug.Conn.Query.encode(query), else: "/test"
+
+    conn =
+      Plug.Test.conn(:post, uri, body)
+      |> Map.put(:path_params, Keyword.get(opts, :path, %{}))
+      |> Plug.Conn.fetch_query_params()
+
+    params = conn.query_params |> Map.merge(conn.body_params) |> Map.merge(conn.path_params)
+
+    AshTypescript.with_manifest(Keyword.get_lazy(opts, :manifest, &manifest/0), fn ->
+      RequestHandler.handle(conn, source_module, action, params)
+    end)
   end
 
-  defp call(source_module, action, params) do
-    :get
-    |> Plug.Test.conn("/test", "")
-    |> RequestHandler.handle(source_module, action, params)
-  end
+  defp call(action, params) when is_atom(action),
+    do: request(AshTypescript.Test.Session, action, body: params)
+
+  defp call(source_module, action, params), do: request(source_module, action, body: params)
 
   defp json_body(conn) do
     conn.resp_body |> Jason.decode!()
@@ -365,10 +394,9 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       assert conn.status == 200
     end
 
-    test "snake_case param keys still work" do
-      conn = call(:login, %{"code" => "abc", "remember_me" => "true"})
-
-      assert conn.status == 200
+    test "a non-client spelling of a body key is dropped" do
+      assert echoed(call(FormattingSession, :echo, %{"display_name" => "Alice"})).display_name ==
+               nil
     end
 
     test "camelCase required field is resolved after normalization" do
@@ -403,7 +431,7 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       assert params.settings == %{enabled?: true, level_1: 2}
     end
 
-    test "nested typed map keys are parsed with the input formatter" do
+    test "nested typed map keys resolve by client name" do
       params =
         call(FormattingSession, :echo, %{"summary" => %{"totalCount" => 3, "status" => "ok"}})
         |> echoed()
@@ -412,58 +440,37 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
       assert params.summary.status == :ok
     end
 
-    test "arguments match both their generated client name and the raw path param name" do
-      # Router path params arrive under the segment name (`:user_id`), while
-      # body/query keys use the generated client name (`userId`)
-      assert %{user_id: "from-body"} =
-               call(FormattingSession, :echo, %{"userId" => "from-body"}) |> echoed()
-
-      assert %{user_id: "from-path"} =
-               call(FormattingSession, :echo, %{"user_id" => "from-path"}) |> echoed()
-    end
-
     test "untyped map arguments are passed through as sent" do
       params = call(FormattingSession, :echo, %{"notes" => %{"someKey" => 1}}) |> echoed()
 
       assert params.notes == %{"someKey" => 1}
     end
 
-    test "a custom input_field_formatter parses top-level and nested keys", %{manifests: m} do
-      AshTypescript.with_manifest(m.prefixed_in, fn ->
-        params =
-          call(FormattingSession, :echo, %{
-            "input_display_name" => "Alice",
-            "summary" => %{"input_total_count" => 1, "input_status" => "pending"}
-          })
-          |> echoed()
-
-        assert params.display_name == "Alice"
-        assert params.summary.total_count == 1
-        assert params.summary.status == :pending
-      end)
-    end
-
     test "top-level keys match the client names generated by a custom output_field_formatter",
          %{manifests: m} do
-      AshTypescript.with_manifest(m.uppercase_out, fn ->
-        params = call(FormattingSession, :echo, %{"DISPLAY_NAME" => "Alice"}) |> echoed()
+      params =
+        request(FormattingSession, :echo,
+          body: %{"DISPLAY_NAME" => "Alice"},
+          manifest: m.uppercase_out
+        )
+        |> echoed()
 
-        assert params.display_name == "Alice"
-      end)
+      assert params.display_name == "Alice"
     end
 
     test "pascal_case formatters are honored end to end", %{manifests: m} do
-      AshTypescript.with_manifest(m.pascal, fn ->
-        params =
-          call(FormattingSession, :echo, %{
+      params =
+        request(FormattingSession, :echo,
+          body: %{
             "DisplayName" => "Alice",
             "Summary" => %{"TotalCount" => 2, "Status" => "ok"}
-          })
-          |> echoed()
+          },
+          manifest: m.pascal_out
+        )
+        |> echoed()
 
-        assert params.display_name == "Alice"
-        assert params.summary.total_count == 2
-      end)
+      assert params.display_name == "Alice"
+      assert params.summary.total_count == 2
     end
   end
 
@@ -482,14 +489,36 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     end
 
     test "honors a non-default output formatter", %{manifests: m} do
-      AshTypescript.with_manifest(m.pascal_out, fn ->
-        body = call(FormattingSession, :reply, %{}) |> json_body()
+      body = request(FormattingSession, :reply, manifest: m.pascal_out) |> json_body()
 
-        assert body["UserId"] == "u1"
-        assert body["Items"] == [%{"TagName" => "x"}]
-        # ValueFormatter emits typescript_field_names mappings as-is, unformatted
-        assert body["Metadata"]["isActive"] == true
-      end)
+      assert body["UserId"] == "u1"
+      assert body["Items"] == [%{"TagName" => "x"}]
+      # ValueFormatter emits typescript_field_names mappings as-is, unformatted
+      assert body["Metadata"]["isActive"] == true
+    end
+
+    test "format_result/2 formats against the manifest route, not the DSL route" do
+      route = AshTypescript.Manifest.Custom.route(manifest(), FormattingSession, :reply)
+
+      conn =
+        Plug.Test.conn(:post, "/test", %{})
+        |> Plug.Conn.put_private(:ash_typescript_manifest_route, route)
+        |> Plug.Conn.put_private(:ash_typescript_route, %{returns: :map, name: :reply})
+
+      result =
+        AshTypescript.with_manifest(manifest(), fn ->
+          AshTypescript.TypedController.format_result(conn, %{
+            user_id: "u1",
+            metadata: %{field_1: "a", is_active?: true, line_2: nil},
+            items: [%{tag_name: "x"}]
+          })
+        end)
+
+      assert result == %{
+               "userId" => "u1",
+               "metadata" => %{"field1" => "a", "isActive" => true, "line2" => nil},
+               "items" => [%{"tagName" => "x"}]
+             }
     end
 
     test "raises (and so fails the request) on a route without returns" do
@@ -503,22 +532,36 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
   end
 
   describe "parameter collision (CVE-3217)" do
-    test "two request keys folding to one argument name are rejected, not silently merged" do
-      # Mirrors the IDOR vector: a route `/users/:userId` merges the trusted
-      # path param `userId` last, but an attacker appends `?user_id=<victim>`.
-      # Both fold to `user_id`. Before the fix, Map.new/2 silently kept the
-      # attacker's value and the handler ran; now the ambiguous request is a 422.
+    # The IDOR vector: the trusted path param `provider` plus an appended
+    # `?provider=<victim>` both reach one argument. We can't tell which the
+    # caller meant, so the request is a 422 rather than a silent pick.
+    test "a one-word name in both path and query is ambiguous" do
       conn =
-        call(:echo_params, %{
-          "name" => "alice",
-          "userId" => "alice-1",
-          "user_id" => "victim-999"
-        })
+        request(AshTypescript.Test.Session, :provider_page,
+          path: %{"provider" => "github"},
+          query: %{"provider" => "evil"}
+        )
 
       assert conn.status == 422
 
-      assert %{"errors" => [%{"type" => "ambiguous_param", "fields" => ["user_id"]}]} =
+      assert %{"errors" => [%{"type" => "ambiguous_param", "fields" => ["provider"]}]} =
                json_body(conn)
+    end
+
+    test "the same client key in query and body is ambiguous, and other arguments are still checked" do
+      conn =
+        request(AshTypescript.Test.Session, :echo_params,
+          query: %{"count" => "1"},
+          body: %{"count" => "2"}
+        )
+
+      assert conn.status == 422
+
+      types =
+        conn |> json_body() |> Map.fetch!("errors") |> Enum.map(&{&1["type"], &1["fields"]})
+
+      assert {"ambiguous_param", ["count"]} in types
+      assert {"required", ["name"]} in types
     end
 
     test "distinct keys that do not collide still succeed" do
@@ -534,6 +577,143 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
 
       assert before.status == 200
       assert before.resp_body == "action=nil"
+
+      # The client name itself is reserved, so `action` never reaches the handler
+      reserved = request(ReservedSession, :reserved_echo, query: %{"action" => "evil"})
+
+      assert reserved.status == 200
+      assert reserved.resp_body == "action=nil"
+    end
+  end
+
+  describe "key resolution per source" do
+    test "path params resolve by segment name" do
+      conn =
+        request(AshTypescript.Test.Session, :provider_page, path: %{"provider" => "github"})
+
+      assert conn.status == 200
+    end
+
+    test "body and query keys resolve by client name" do
+      assert %{user_id: "from-body"} =
+               request(FormattingSession, :echo, body: %{"userId" => "from-body"}) |> echoed()
+
+      assert %{display_name: "q"} =
+               request(FormattingSession, :echo, query: %{"displayName" => "q"}) |> echoed()
+    end
+
+    test "a path param resolves under its segment name" do
+      assert %{user_id: "from-path"} =
+               request(FormattingSession, :echo, path: %{"user_id" => "from-path"}) |> echoed()
+    end
+
+    test "a query param spelled like a segment name is dropped (?user_id=)" do
+      assert %{user_id: nil} =
+               request(FormattingSession, :echo, query: %{"user_id" => "victim-999"})
+               |> echoed()
+    end
+
+    test "undeclared, reserved and underscore-prefixed keys are dropped" do
+      params =
+        request(FormattingSession, :echo,
+          body: %{"nope" => 1, "_csrf" => "x", "controller" => "y", "displayName" => "A"}
+        )
+        |> echoed()
+
+      assert params.display_name == "A"
+      refute Map.has_key?(params, :nope)
+    end
+  end
+
+  describe "errors name multi-word arguments by client name" do
+    test "required" do
+      conn = call(FormattingSession, :require_user, %{})
+
+      assert conn.status == 422
+
+      assert %{
+               "errors" => [
+                 %{"type" => "required", "fields" => ["userId"], "vars" => %{"field" => "userId"}}
+               ]
+             } = json_body(conn)
+    end
+
+    test "invalid_argument" do
+      conn =
+        call(:register, %{
+          "username" => "alice",
+          "email" => "a@b.co",
+          "age" => 20,
+          "inviteCode" => "short"
+        })
+
+      assert conn.status == 422
+      assert %{"type" => "invalid_argument"} = error_for(conn, "inviteCode")
+    end
+
+    test "ambiguous_param" do
+      conn =
+        request(FormattingSession, :echo,
+          path: %{"user_id" => "from-path"},
+          body: %{"userId" => "from-body"}
+        )
+
+      assert conn.status == 422
+
+      assert %{"errors" => [%{"type" => "ambiguous_param", "fields" => ["userId"]}]} =
+               json_body(conn)
+    end
+  end
+
+  describe "nested unknown input" do
+    test "nested misses are unknown_input with the argument's client name in the path" do
+      conn =
+        call(FormattingSession, :echo, %{
+          "summary" => %{"total_count" => 3, "status" => "ok"},
+          "metadata" => %{"field_1" => "a", "isActive" => true}
+        })
+
+      assert conn.status == 422
+      errors = json_body(conn)["errors"]
+
+      assert %{
+               "type" => "unknown_input",
+               "fields" => ["total_count"],
+               "path" => ["summary"],
+               "vars" => %{"field" => "total_count"},
+               "shortMessage" => "Unknown input"
+             } = Enum.find(errors, &(&1["fields"] == ["total_count"]))
+
+      assert Enum.find(errors, &(&1["fields"] == ["field_1"]))["path"] == ["metadata"]
+    end
+
+    test "nested misses are reported in one 422 together with required and invalid_argument errors" do
+      # create_task: title is required, metadata is TaskMetadata (an exposed
+      # embedded resource, so strict), priority is an integer
+      conn = call(:create_task, %{"metadata" => %{"bogus" => 1}, "priority" => "not_a_number"})
+
+      assert conn.status == 422
+      errors = json_body(conn)["errors"]
+      by_type = Enum.group_by(errors, & &1["type"], & &1["fields"])
+
+      assert ["title"] in by_type["required"]
+      assert ["priority"] in by_type["invalid_argument"]
+      assert %{"path" => ["metadata"]} = Enum.find(errors, &(&1["fields"] == ["bogus"]))
+    end
+  end
+
+  describe "route missing from the manifest" do
+    test "returns 500, with detail only when show_raised_errors? is on" do
+      put_env(:typed_controller_show_raised_errors, false)
+      default = AshTypescript.manifest(AshTypescript.Test.Manifest)
+
+      conn = request(FormattingSession, :echo, manifest: default)
+      assert conn.status == 500
+      assert hd(json_body(conn)["errors"])["message"] == "Internal server error"
+
+      put_env(:typed_controller_show_raised_errors, true)
+      conn = request(FormattingSession, :echo, manifest: default)
+      assert hd(json_body(conn)["errors"])["message"] =~ "`typed_controllers:` option"
     end
   end
 
@@ -632,12 +812,10 @@ defmodule AshTypescript.TypedController.RequestHandlerTest do
     end
 
     test "error keys respect the configured output_field_formatter", %{manifests: m} do
-      AshTypescript.with_manifest(m.pascal_out, fn ->
-        conn = call(:login, %{})
+      conn = request(AshTypescript.Test.Session, :login, manifest: m.pascal_out)
 
-        assert %{"Errors" => [%{"Type" => "required", "ShortMessage" => "Required field"} | _]} =
-                 json_body(conn)
-      end)
+      assert %{"Errors" => [%{"Type" => "required", "ShortMessage" => "Required field"} | _]} =
+               json_body(conn)
     end
 
     test "cast errors and required errors can appear together" do
