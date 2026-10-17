@@ -25,7 +25,7 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
   * hand-written channel `handle_in("run" | "validate", …)` → `use AshRpc.Channel, profile: AshTypescript.RpcProfile` (or `AshRpc.Channel.run/3` / `validate/3`)
 
-  * `input_field_formatter`, `output_field_formatter` and global `not_found_error?` are read when the manifest compiles; runtime changes have no effect
+  * `output_field_formatter` and global `not_found_error?` are read when the manifest compiles; runtime changes have no effect
 
   * validation is native (no AshPhoenix; the `ash_phoenix` dependency is replaced by `phoenix`): missing required inputs report `required` instead of `invalid_attribute` with the message `attribute title is required` / `argument user_id is required` instead of `is required`, bad argument casts report `invalid_argument`, and atomic validations on update/destroy only run during `run_action`
 
@@ -50,6 +50,34 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
     * `AshTypescript.TypeSystem.Introspection.is_resource_instance_of?/1`
 
   * request errors a generated client never produces no longer carry `details.hint` (the "generated typescript file is not up to date" hint): `invalid_input_format`, `invalid_fields_type`, `invalid_pagination` (page not a map, unknown page keys), `duplicate_field`, `empty_fields_array`, `invalid_union_input` with several member keys, non-scalar `invalid_identity` / `invalid_get_by` values, `invalid_query_opts` for args combined with query options or `page` combined with `limit`/`offset`, and `unknown_error`. The hint text is set by `AshTypescript.RpcProfile.stale_client_hint/0`
+
+* rpc: `input_field_formatter` is removed (the config key, `AshTypescript.input_field_formatter/0`, `AshTypescript.Rpc.input_field_formatter/0`, `AshTypescript.RpcMappingSource.input_formatter/0` and the installer entry). Request keys must be the client names the `output_field_formatter` produces, matched exactly
+
+* rpc: a `metadataFields` entry that isn't the client name of a metadata field the action exposes is now an `unknown_metadata_fields` error (misses in `fields`, allowed names in `details.allowedFields`) instead of being dropped silently
+
+* rpc: a sort or filter field name that isn't a client name of the resource now returns `unknown_field`, and an unknown filter operator `unknown_filter_operator`, instead of `unknown_error`
+
+* rpc: embedded resources without the `AshTypescript.Resource` extension now have client names from the `output_field_formatter`. Their nested input keys must be those names, and any other key is `unknown_input`
+
+* typed-controller: request keys are resolved per source. Query and body keys must be the argument's generated client name, and segment-name spellings outside the path are dropped. Path params resolve by segment name. An argument reached by more than one key or source is `ambiguous_param`
+
+* typed-controller: nested input keys must be client names, and other keys are `unknown_input` with a `path`. Error `fields` / `vars.field` name the argument by its client name (`userId`, not `user_id`). All errors are reported in one 422
+
+* typed-controller, typed-channel: `config :ash_typescript, :typed_controllers` and `:typed_channels` are removed. List the modules on the manifest module instead (`use AshTypescript.Manifest, otp_app: :my_app, typed_controllers: [...], typed_channels: [...]`, default `[]`); see the [AshRpc upgrade guide](documentation/upgrading/ash-rpc.md#typed-controllers-and-channels-are-listed-on-the-manifest-module). A leftover config key is ignored and triggers a compile-time warning. `AshTypescript.typed_controllers/0` and `AshTypescript.typed_channels/0` are removed
+
+* typed-controller, typed-channel: typed controller and typed channel modules must be listed in those options. Codegen generates nothing for an unlisted module. An unlisted controller answers every request with a 500, and an unlisted channel pushes payloads unformatted and logs a warning. The manifest now depends on the listed modules at compile time, so they must not read the manifest at compile time (in an umbrella app, the manifest module must live in an app that compiles after them)
+
+* codegen: the typed controller route set and the typed channel set come from the manifest (stored when it compiled). Code that changed `:typed_controllers` / `:typed_channels` at runtime to change codegen output must build a scoped manifest and use `AshTypescript.with_manifest/2`
+
+* typed-channel: `AshTypescript.TypedChannel.PayloadFormatter.format_payload/3` → `format_payload/4` and `push_formatted/4` → `push_formatted/5`; both take the channel module first (after the socket, for `push_formatted/5`)
+
+* codegen: `TypedController.Codegen.RouteConfigCollector.get_typed_controllers/0` is replaced by `manifest_routes_config/1`. `TypeMapper.map_route_result_type/1` and `map_channel_payload_type/1` take an `%Ash.Info.Manifest.Type{}`. `TypedController.Codegen.collect_referenced_resources/1` (internal) is replaced by `referenced_embedded_resources/1`
+
+### Improvements:
+
+* typed-controller, typed-channel: route argument names, route result types and channel payload types are decorated in the manifest, so the names codegen emits and the names the runtime accepts and sends always agree
+
+* codegen: warn about typed controller and typed channel modules of the app that aren't listed in the manifest module's `typed_controllers:` / `typed_channels:` option. Toggle with `config :ash_typescript, warn_on_unlisted_typed_modules: false` (default `true`)
 
 ## [v0.19.0](https://github.com/ash-project/ash_typescript/compare/v0.18.4...v0.19.0) (2026-10-03)
 
