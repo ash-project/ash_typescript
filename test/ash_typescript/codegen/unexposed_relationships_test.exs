@@ -58,6 +58,28 @@ defmodule AshTypescript.Codegen.UnexposedRelationshipsTest do
     refute types =~ "ashTypescriptTestNotExposedSortFields"
   end
 
+  test "the unexposed resource gets no resource or attributes-only schema", %{types: types} do
+    refute types =~ "AshTypescriptTestNotExposedResourceSchema"
+    refute types =~ "AshTypescriptTestNotExposedAttributesOnlySchema"
+  end
+
+  test "unexposed embedded resources keep their schemas but get no filter or sort types",
+       %{types: types} do
+    for name <- [
+          "AshTypescriptTestTodoContentLinkContent",
+          "AshTypescriptTestTodoContentTextContent"
+        ] do
+      camel = "a" <> String.slice(name, 1..-1//1)
+
+      assert types =~ "export type #{name}ResourceSchema = {"
+      assert types =~ "export type #{name}InputSchema = {"
+
+      refute types =~ "#{name}FilterInput"
+      refute types =~ "#{camel}FilterFields"
+      refute types =~ "#{camel}SortFields"
+    end
+  end
+
   test "the JSON manifest lists no unexposed relationship", %{manifest: manifest} do
     assert lines_with(manifest, "notExposedItems") == []
   end

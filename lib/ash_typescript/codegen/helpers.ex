@@ -57,29 +57,13 @@ defmodule AshTypescript.Codegen.Helpers do
   end
 
   @doc """
-  Whether a resource gets filter and sort types. Exposed resources do, and so do
-  embedded ones. An unexposed domain resource (a struct argument) is used only as
-  a value, so nothing references its filter or sort types.
+  Whether a resource gets filter and sort types: only exposed ones do. An
+  unexposed resource (a struct argument, or an embedded resource the mapping
+  source doesn't expose) is used only as a value, so nothing references its
+  filter or sort types.
   """
   def filter_and_sort_types?(%Ash.Info.Manifest.Resource{} = resource),
-    do: AshRpc.Manifest.Custom.exposed?(resource) or resource.embedded? == true
-
-  @doc """
-  Determines if a return type is complex (requires special metadata handling).
-  """
-  def is_complex_return_type(Ash.Type.Struct, constraints) do
-    instance_of = Keyword.get(constraints, :instance_of)
-    instance_of != nil
-  end
-
-  def is_complex_return_type(Ash.Type.Map, constraints) do
-    fields = Keyword.get(constraints, :fields)
-    fields != nil
-  end
-
-  def is_complex_return_type(Ash.Type.Keyword, _constraints), do: true
-  def is_complex_return_type(Ash.Type.Tuple, _constraints), do: true
-  def is_complex_return_type(_, _), do: false
+    do: AshRpc.Manifest.Custom.exposed?(resource)
 
   @doc """
   Converts a PascalCase name to camelCase by lowercasing the first character.

@@ -188,16 +188,6 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
          input_schema_resources,
          resource_lookup
        ) do
-    resource_name = Helpers.build_resource_type_name(resource)
-
-    unified_schema =
-      generate_unified_resource_schema_from_spec(
-        resource,
-        api_resource,
-        allowed_resources,
-        resource_lookup
-      )
-
     needs_input_schema = api_resource.embedded? || resource in input_schema_resources
 
     input_schema =
@@ -207,6 +197,36 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         ""
       end
 
+    output_schemas =
+      if output_schemas?(api_resource) do
+        output_schemas_from_spec(resource, api_resource, allowed_resources, resource_lookup)
+      else
+        []
+      end
+
+    header = "// #{Helpers.build_resource_type_name(resource)} Schema"
+
+    case Enum.reject(output_schemas ++ [input_schema], &(&1 == "")) do
+      [first | rest] -> Enum.join([header <> "\n" <> first | rest], "\n\n")
+      [] -> ""
+    end
+  end
+
+  # An unexposed domain resource (a struct argument) is only ever sent as input,
+  # so nothing references its resource or attributes-only schema. Unexposed
+  # embedded resources keep theirs: union members and attributes select into them.
+  defp output_schemas?(api_resource),
+    do: AshRpc.Manifest.Custom.exposed?(api_resource) or api_resource.embedded? == true
+
+  defp output_schemas_from_spec(resource, api_resource, allowed_resources, resource_lookup) do
+    unified_schema =
+      generate_unified_resource_schema_from_spec(
+        resource,
+        api_resource,
+        allowed_resources,
+        resource_lookup
+      )
+
     attributes_only_schema =
       generate_attributes_only_schema_from_spec(
         resource,
@@ -215,14 +235,7 @@ defmodule AshTypescript.Codegen.ResourceSchemas do
         resource_lookup
       )
 
-    base_schemas = """
-    // #{resource_name} Schema
-    #{unified_schema}
-    """
-
-    [base_schemas, attributes_only_schema, input_schema]
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.join("\n\n")
+    [unified_schema <> "\n", attributes_only_schema]
   end
 
   @doc """
