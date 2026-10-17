@@ -114,7 +114,7 @@ Fixture: `Todo.metadata_report` calculation (`test/support/resources/todo.ex`). 
 - `lib/ash_typescript/codegen/type_discovery.ex` - Embedded-resource discovery (`find_embedded_resources/1`)
 - `lib/ash_typescript/codegen/resource_schemas.ex` - Schema generation & field classification
 - `lib/ash_typescript/codegen/type_mapper.ex` - TypedMap member wrappers, `__primitiveFields`
-- `lib/ash_typescript/type_system/introspection.ex` - Type introspection (`is_embedded_resource?/1`)
+- `AshRpc.Introspection.embedded_resource?/1` (ash_rpc) - Embedded-resource detection
 - `test/support/resources/embedded/` - Fixtures (`TodoMetadata`, `TaskMetadata`, `TodoContent.*`)
 
 ## Critical Implementation Details
@@ -125,8 +125,8 @@ Embedded resources have both attribute and relationship characteristics:
 
 ### Detecting an embedded resource
 ```elixir
-# lib/ash_typescript/type_system/introspection.ex
-def is_embedded_resource?(module) when is_atom(module) do
+# AshRpc.Introspection (ash_rpc)
+def embedded_resource?(module) when is_atom(module) do
   Ash.Resource.Info.resource?(module) and Ash.Resource.Info.embedded?(module)
 end
 ```

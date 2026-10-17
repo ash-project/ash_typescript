@@ -426,7 +426,7 @@ end
 | `lib/ash_typescript/manifest/verifiers/verify_metadata_field_names.ex` | Metadata name **and** conflict verification (runs at manifest-module compile) |
 | `lib/ash_typescript/manifest/custom.ex` | Codegen-side accessors: `exposed_metadata_fields/1`, `metadata_field_mappings/1`, `reverse_metadata_field_mappings/1` |
 | `lib/ash_typescript/rpc/codegen/type_generators/metadata_types.ex` | `get_exposed_metadata_fields/2`, `metadata_enabled?/1`, metadata TS types |
-| `lib/ash_typescript/rpc/info.ex` | `get_mapped_metadata_field_name/2` / `get_original_metadata_field_name/2` |
+| `lib/ash_typescript/rpc/info.ex` | `get_mapped_metadata_field_name/2` |
 | `lib/ash_typescript/rpc/codegen.ex` | RPC client generation with metadata support |
 | `test/ash_typescript/rpc/verify_metadata_field_names_test.exs` | Verifier tests |
 | `test/ash_typescript/rpc/rpc_metadata_test.exs` | End-to-end metadata tests |

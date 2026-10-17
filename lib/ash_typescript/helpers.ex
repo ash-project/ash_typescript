@@ -132,11 +132,4 @@ defmodule AshTypescript.Helpers do
       %{}
     end
   end
-
-  @doc "Returns the reverse typescript field name mapping (client name → internal name)."
-  @spec typescript_field_names_reverse(atom()) :: %{String.t() => atom()}
-  def typescript_field_names_reverse(module) do
-    typescript_field_names(module)
-    |> Enum.into(%{}, fn {k, v} -> {v, k} end)
-  end
 end

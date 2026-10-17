@@ -19,7 +19,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
          %{resource_lookup: lookup} do
       user = lookup[AshTypescript.Test.User]
       assert %Manifest.Resource{custom: %{ash_typescript: _}} = user
-      assert Custom.typescript_resource?(user)
+      assert AshRpc.Manifest.Custom.exposed?(user)
     end
 
     test "field_name_mappings round-trips field_names DSL", %{resource_lookup: lookup} do
@@ -72,7 +72,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
          %{resource_lookup: lookup} do
       not_exposed = lookup[AshTypescript.Test.NotExposed]
       assert %Manifest.Resource{} = not_exposed
-      refute Custom.typescript_resource?(not_exposed)
+      refute AshRpc.Manifest.Custom.exposed?(not_exposed)
       assert Custom.field_name_mappings(not_exposed) == %{}
     end
   end
@@ -86,7 +86,7 @@ defmodule AshTypescript.Manifest.DecoratorTest do
       assert %Manifest.Type{kind: :embedded_resource, resource: %Manifest.Resource{} = inner} =
                task_metadata
 
-      assert Custom.typescript_resource?(inner)
+      assert AshRpc.Manifest.Custom.exposed?(inner)
 
       assert Custom.field_name_mappings(inner) == %{
                created_by?: "createdBy",
@@ -160,11 +160,10 @@ defmodule AshTypescript.Manifest.DecoratorTest do
   describe "Custom accessors with nil / undecorated inputs" do
     test "all accessors handle nil gracefully" do
       assert Custom.ash_typescript(nil) == nil
-      refute Custom.typescript_resource?(nil)
+      refute AshRpc.Manifest.Custom.exposed?(nil)
       assert Custom.field_name_mappings(nil) == %{}
       assert Custom.original_field_name(nil, "foo") == nil
       assert Custom.mapped_field_name(nil, :foo) == nil
-      assert Custom.formatted_field_name(nil, :foo, :camel_case) == nil
       assert Custom.rpc_action(nil) == nil
       assert Custom.metadata_field_mappings(nil) == %{}
     end

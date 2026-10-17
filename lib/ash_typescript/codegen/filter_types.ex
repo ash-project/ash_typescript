@@ -148,28 +148,6 @@ defmodule AshTypescript.Codegen.FilterTypes do
     generate_filter_type(resource, all_resources, resource_lookup)
   end
 
-  def generate_filter_type(resource, allowed_resources) do
-    resource_lookup = build_resource_lookup()
-    generate_filter_type(resource, allowed_resources, resource_lookup)
-  end
-
-  # Legacy list-based convenience forms
-  def generate_filter_types(resources) when is_list(resources) do
-    resource_lookup = build_resource_lookup()
-    all_resources = Map.keys(resource_lookup)
-    Enum.map(resources, &generate_filter_type(&1, all_resources, resource_lookup))
-  end
-
-  def generate_filter_types(resources, allowed_resources) when is_list(resources) do
-    resource_lookup = build_resource_lookup()
-    Enum.map(resources, &generate_filter_type(&1, allowed_resources, resource_lookup))
-  end
-
-  def generate_filter_field_arrays(resources) when is_list(resources) do
-    resource_lookup = build_resource_lookup()
-    generate_filter_field_arrays(resources, resource_lookup)
-  end
-
   # ─────────────────────────────────────────────────────────────────
   # Spec-based implementation
   # ─────────────────────────────────────────────────────────────────

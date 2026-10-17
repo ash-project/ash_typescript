@@ -225,8 +225,7 @@ defmodule AshTypescript.Rpc.Codegen do
     action = augment_action_with_rpc_settings(action, rpc_action, resource)
     render_opts = if namespace, do: [namespace: namespace], else: []
 
-    input_type =
-      InputTypes.generate_input_type(resource, action, rpc_action_name, resource_lookup)
+    input_type = InputTypes.generate_input_type(resource, action, rpc_action_name)
 
     result_type =
       ResultTypes.generate_result_type(

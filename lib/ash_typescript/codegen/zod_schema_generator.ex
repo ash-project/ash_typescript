@@ -164,10 +164,6 @@ defmodule AshTypescript.Codegen.ZodSchemaGenerator do
   # Public API (delegates to SchemaCore)
   # ─────────────────────────────────────────────────────────────────
 
-  @doc "Maps Ash type structs (attribute/argument maps) to a Zod schema string."
-  def get_zod_type(type_and_constraints, context \\ nil),
-    do: SchemaCore.get_type(__MODULE__, type_and_constraints, context)
-
   @doc "Generates a Zod schema definition for an RPC action's input."
   def generate_zod_schema(resource, action, rpc_action_name),
     do: SchemaCore.generate_action_schema(__MODULE__, resource, action, rpc_action_name)

@@ -110,11 +110,6 @@ if Code.ensure_loaded?(Igniter) do
 
     def get_inertia_entry_file(_), do: "js/index.ts"
 
-    def get_inertia_ssr_entry_file("react"),
-      do: "ssr.tsx"
-
-    def get_inertia_ssr_entry_file(_), do: "ssr.ts"
-
     # -- Private --
 
     defp npm_install_task(use_bun) do

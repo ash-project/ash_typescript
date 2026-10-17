@@ -28,9 +28,8 @@ defmodule AshTypescript.Rpc.Codegen.TypeGenerators.InputTypes do
     * `resource` - The Ash resource
     * `action` - The Ash.Info.Manifest.Action
     * `rpc_action_name` - The snake_case name of the RPC action
-    * `resource_lookup` - Unused; kept for the call signature
   """
-  def generate_input_type(resource, action, rpc_action_name, _resource_lookup) do
+  def generate_input_type(resource, action, rpc_action_name) do
     if ActionIntrospection.action_input_type(action) != :none do
       input_type_name = FunctionNames.input_type(rpc_action_name)
 

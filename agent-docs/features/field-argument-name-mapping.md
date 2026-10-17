@@ -348,13 +348,15 @@ The mappings reach the runtime through `AshTypescript.RpcMappingSource`: `field_
 `argument_names/2` and `type_field_names/1` supply client names when the manifest is decorated
 (see [rpc-integration.md](rpc-integration.md)).
 
-Codegen still reads the `custom.ash_typescript` decoration through
-`AshTypescript.Manifest.Custom` (`formatted_field_name/3`, `mapped_argument_name/3`,
-`type_field_name_mappings_pair/1`, …).
+Codegen reads the same `custom.ash_rpc` decoration the runtime does, through
+`AshTypescript.Codegen.ClientNames`, so generated and runtime names can't drift.
+Only `RpcMappingSource` and the compile-time verifiers read `field_names`,
+`argument_names` and `typescript_field_names/0` directly
+(`test/ash_typescript/codegen_name_source_guard_test.exs` enforces this for codegen).
 
 The pre-0.18 helpers `AshTypescript.Resource.Info.get_original_field_name/2` and
 `get_original_argument_name/3` were **deleted** — do not reintroduce them.
-`get_mapped_argument_name/3` still exists and is used by codegen and verifiers.
+`get_mapped_argument_name/3` still exists and is used by the verifiers.
 
 ## Testing Strategy
 
@@ -478,7 +480,7 @@ end
 | `lib/ash_typescript/codegen/resource_schemas.ex` | Resource schema generation with mapped names |
 | `lib/ash_typescript/codegen/type_mapper.ex` | TypeScript type mapping |
 | `lib/ash_typescript/rpc_mapping_source.ex` | `AshRpc.MappingSource` impl — supplies client names to the `custom.ash_rpc` decoration |
-| `lib/ash_typescript/manifest/custom.ex` | **Codegen-side decoration accessors** (`custom.ash_typescript`) — `field_name_mappings/1`, `mapped_field_name/2`, `original_field_name/2`, `formatted_field_name/3`, `mapped_argument_name/3`, `original_argument_name/3`, `type_field_name_mappings_pair/1` |
+| `lib/ash_typescript/manifest/custom.ex` | **Codegen-side decoration accessors** (`custom.ash_typescript`) — `field_name_mappings/1`, `mapped_field_name/2`, `original_field_name/2`, `mapped_argument_name/3`, `original_argument_name/3`, `type_field_name_mappings_pair/1` |
 | `lib/ash_typescript/codegen/zod_schema_generator.ex` | Zod schema with mapped names |
 | `test/ash_typescript/rpc/rpc_field_argument_mapping_test.exs` | End-to-end mapping tests |
 | `test/support/resources/user.ex` | Example resource with mappings |

@@ -14,7 +14,6 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
 
   alias AshRpc.InputFormatter
   alias AshRpc.ValueFormatter
-  alias AshTypescript.TypeSystem.Introspection
 
   describe "LocationTuple NewType introspection" do
     test "unwraps correctly" do
@@ -25,26 +24,6 @@ defmodule AshTypescript.Rpc.TupleNewtypeInputTest do
 
       assert unwrapped == Ash.Type.Tuple
       assert Keyword.has_key?(constraints, :fields)
-    end
-
-    test "unwraps correctly with instance_of" do
-      type = AshTypescript.Test.InputParsing.LocationTuple
-
-      {unwrapped, constraints} = Introspection.unwrap_new_type(type, [])
-
-      assert unwrapped == Ash.Type.Tuple
-      assert constraints[:instance_of] == type
-      assert Keyword.has_key?(constraints, :fields)
-    end
-
-    test "unwrap_new_type preserves an existing instance_of (outermost wins)" do
-      type = AshTypescript.Test.InputParsing.LocationTuple
-
-      {unwrapped, constraints} =
-        Introspection.unwrap_new_type(type, instance_of: AshTypescript.Test.Todo)
-
-      assert unwrapped == Ash.Type.Tuple
-      assert constraints[:instance_of] == AshTypescript.Test.Todo
     end
 
     test "has typescript_field_names callback" do
