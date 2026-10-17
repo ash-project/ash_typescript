@@ -21,6 +21,7 @@ defmodule AshTypescript.WithManifestTest do
       assert AshTypescript.manifest() == pascal
       assert AshTypescript.output_field_formatter() == :pascal_case
       assert AshTypescript.resource_lookup() == AshRpc.Manifest.resource_lookup(pascal)
+      assert AshTypescript.entrypoints() == pascal.entrypoints
     end)
 
     assert AshTypescript.output_field_formatter() == :camel_case

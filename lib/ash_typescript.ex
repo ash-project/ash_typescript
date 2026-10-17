@@ -847,8 +847,11 @@ defmodule AshTypescript do
   def manifest(module) when is_atom(module),
     do: Spark.Dsl.Extension.get_persisted(module, :manifest)
 
-  @doc "Returns the entrypoints from `manifest_module` (defaults to the configured manifest module)."
-  def entrypoints(manifest_module \\ manifest_module()), do: manifest(manifest_module).entrypoints
+  @doc """
+  Returns the entrypoints of `source` (a manifest module or `%Ash.Info.Manifest{}`;
+  defaults to `manifest/0`, `with_manifest/2` override included).
+  """
+  def entrypoints(source \\ nil), do: manifest(source).entrypoints
 
   @doc """
   Returns the resource lookup map for `source` (a manifest module or
