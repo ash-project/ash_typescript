@@ -24,8 +24,7 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
       :generate_phx_channel_rpc_actions,
       :generate_validation_functions,
       :generate_zod_schemas,
-      :typed_controller_mode,
-      :typed_controllers
+      :typed_controller_mode
     ])
   end
 
@@ -623,17 +622,13 @@ defmodule AshTypescript.Rpc.ManifestGeneratorTest do
   end
 
   describe "ManifestGenerator - no typed controllers" do
-    test "omits section when no typed controllers configured" do
-      original = Application.get_env(:ash_typescript, :typed_controllers)
+    test "omits section when the manifest has no typed controller routes" do
+      empty = AshTypescript.Test.InlineManifest.build!(typed_controllers: [], typed_channels: [])
 
-      try do
-        Application.put_env(:ash_typescript, :typed_controllers, [])
-        manifest = ManifestGenerator.generate_manifest()
+      manifest =
+        AshTypescript.with_manifest(empty, fn -> ManifestGenerator.generate_manifest() end)
 
-        refute manifest =~ "## Typed Controller Routes"
-      after
-        restore_config(:typed_controllers, original)
-      end
+      refute manifest =~ "## Typed Controller Routes"
     end
   end
 

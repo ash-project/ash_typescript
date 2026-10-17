@@ -220,10 +220,14 @@ defmodule AshTypescript.EmbeddedGenericActionReturnTest do
     end
   end
 
+  # No typed controllers or channels: codegen's route and channel sets come
+  # from this manifest, so none of the shared fixtures leak into the output.
   defmodule Manifest do
     use AshTypescript.Manifest,
       otp_app: :ash_typescript,
-      domains: [AshTypescript.EmbeddedGenericActionReturnTest.Domain]
+      domains: [AshTypescript.EmbeddedGenericActionReturnTest.Domain],
+      typed_controllers: [],
+      typed_channels: []
   end
 
   # Codegen resolves resources through `Ash.Info.domains/1`, so generation runs
@@ -231,17 +235,11 @@ defmodule AshTypescript.EmbeddedGenericActionReturnTest do
   @otp_app :embedded_generic_action_return_test_app
 
   setup do
-    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([
-      :manifest,
-      :typed_controllers,
-      :typed_channels
-    ])
+    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:manifest])
 
     AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:ash_domains], @otp_app)
 
     Application.put_env(:ash_typescript, :manifest, Manifest)
-    Application.put_env(:ash_typescript, :typed_controllers, [])
-    Application.put_env(:ash_typescript, :typed_channels, [])
     Application.put_env(@otp_app, :ash_domains, [Domain])
 
     {:ok, files} = AshTypescript.Codegen.Orchestrator.generate(@otp_app, [])
@@ -259,7 +257,12 @@ defmodule AshTypescript.EmbeddedGenericActionReturnTest do
     refute types_content == "", "no types file was generated"
     refute rpc_content == "", "no RPC file was generated"
 
-    %{types: types_content, rpc: rpc_content}
+    %{types: types_content, rpc: rpc_content, files: files}
+  end
+
+  test "no typed controller routes or typed channels leak into the output", %{files: files} do
+    refute Enum.any?(Map.values(files), &(&1 =~ "providerPage"))
+    refute Enum.any?(Map.values(files), &(&1 =~ "createOrgChannel"))
   end
 
   test "the domain really does reach the generic action's resource by relationship first" do

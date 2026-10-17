@@ -9,12 +9,16 @@ defmodule AshTypescript.EmptyManifestCodegenTest do
   @moduletag :ash_typescript
 
   defmodule EmptyManifest do
-    use AshTypescript.Manifest, otp_app: :ash_typescript, domains: []
+    use AshTypescript.Manifest,
+      otp_app: :ash_typescript,
+      domains: [],
+      typed_controllers: [],
+      typed_channels: []
   end
 
   test "codegen terminates and succeeds with an empty manifest (fresh install)" do
     # A fresh install has a manifest but no domains, controllers, or channels yet.
-    overrides = [manifest: EmptyManifest, typed_controllers: [], typed_channels: []]
+    overrides = [manifest: EmptyManifest]
 
     previous =
       Enum.map(overrides, fn {key, value} ->
@@ -39,6 +43,12 @@ defmodule AshTypescript.EmptyManifestCodegenTest do
     case Task.yield(task, 10_000) || Task.shutdown(task, :brutal_kill) do
       {:ok, {:ok, files}} ->
         assert is_map(files)
+
+        # The route and channel sets come from the manifest, which has none
+        refute Enum.any?(
+                 Map.values(files),
+                 &(&1 =~ "createOrgChannel" or &1 =~ "providerPage")
+               )
 
       {:ok, {:error, message}} ->
         flunk("codegen errored on empty manifest: #{inspect(message)}")

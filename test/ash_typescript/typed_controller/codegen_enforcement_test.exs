@@ -5,9 +5,9 @@
 defmodule AshTypescript.TypedController.CodegenEnforcementTest do
   @moduledoc """
   Codegen-time behavior for typed controllers that depends on which modules are
-  configured: verifier failures (which Spark only reports as compile warnings)
-  must fail codegen, and named types referenced only by routes — absent from
-  the manifest — must still generate.
+  in the manifest: verifier failures (which Spark only reports as compile
+  warnings) must fail codegen, and named types referenced only by routes, which
+  the manifest stores alongside the routes, must generate.
   """
   use ExUnit.Case, async: false
 
@@ -16,8 +16,6 @@ defmodule AshTypescript.TypedController.CodegenEnforcementTest do
   @moduletag :ash_typescript
 
   setup_all do
-    AshTypescript.Test.TestHelpers.restore_application_env_on_exit([:typed_controllers])
-
     # Defined at runtime under a stderr capture: compiling it emits the Spark
     # verifier warning this module is about.
     ExUnit.CaptureIO.capture_io(:stderr, fn ->
@@ -37,12 +35,6 @@ defmodule AshTypescript.TypedController.CodegenEnforcementTest do
     end)
 
     :ok
-  end
-
-  defp with_typed_controllers(modules) do
-    previous = Application.get_env(:ash_typescript, :typed_controllers)
-    Application.put_env(:ash_typescript, :typed_controllers, modules)
-    on_exit(fn -> Application.put_env(:ash_typescript, :typed_controllers, previous) end)
   end
 
   defmodule RouteOnlyTypes do
@@ -70,24 +62,40 @@ defmodule AshTypescript.TypedController.CodegenEnforcementTest do
     end
 
     test "VerifierChecker accepts valid typed controllers and channels" do
-      assert :ok =
-               AshTypescript.VerifierChecker.check_all_verifiers(
-                 AshTypescript.typed_controllers() ++ AshTypescript.typed_channels()
-               )
+      modules =
+        Enum.map(
+          AshTypescript.TypedController.Codegen.RouteConfigCollector.manifest_routes_config(),
+          &elem(&1, 0)
+        ) ++ Enum.map(AshTypescript.Codegen.Orchestrator.channel_entries(), &elem(&1, 0))
+
+      assert :ok = AshTypescript.VerifierChecker.check_all_verifiers(modules)
     end
 
-    test "codegen fails for a configured typed controller with invalid names" do
-      with_typed_controllers([__MODULE__.InvalidFieldNames])
+    # Building the manifest succeeds (decorating `done?` is fine); the
+    # verifier run during codegen is what fails.
+    test "codegen fails for a manifest typed controller with invalid names" do
+      manifest =
+        AshTypescript.Test.InlineManifest.build!(
+          typed_controllers: [__MODULE__.InvalidFieldNames],
+          typed_channels: []
+        )
 
-      assert {:error, message} = CodegenTestHelper.generate_files()
+      assert {:error, message} =
+               CodegenTestHelper.generate_files(:ash_typescript, manifest: manifest)
+
       assert message =~ "route :status, returns field `done?`"
     end
   end
 
   describe "named types referenced only by routes" do
     setup do
-      with_typed_controllers([RouteOnlyTypes])
-      assert {:ok, files} = CodegenTestHelper.generate_files()
+      manifest =
+        AshTypescript.Test.InlineManifest.build!(
+          typed_controllers: [RouteOnlyTypes],
+          typed_channels: []
+        )
+
+      assert {:ok, files} = CodegenTestHelper.generate_files(:ash_typescript, manifest: manifest)
       %{routes: CodegenTestHelper.routes_content(files), files: files}
     end
 

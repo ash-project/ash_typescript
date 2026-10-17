@@ -116,7 +116,9 @@ defmodule AshTypescript.Codegen.EmbeddedEntrypointDiscoveryTest do
   defmodule Manifest do
     use AshTypescript.Manifest,
       otp_app: :ash_typescript,
-      domains: [AshTypescript.Codegen.EmbeddedEntrypointDiscoveryTest.Domain]
+      domains: [AshTypescript.Codegen.EmbeddedEntrypointDiscoveryTest.Domain],
+      typed_controllers: [],
+      typed_channels: []
   end
 
   # Codegen resolves resources through `Ash.Info.domains/1`, so generation runs
@@ -124,7 +126,7 @@ defmodule AshTypescript.Codegen.EmbeddedEntrypointDiscoveryTest do
   @otp_app :embedded_entrypoint_discovery_test_app
 
   setup do
-    overrides = [manifest: Manifest, typed_controllers: [], typed_channels: []]
+    overrides = [manifest: Manifest]
 
     previous =
       Enum.map(overrides, fn {key, value} ->
