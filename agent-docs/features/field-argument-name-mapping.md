@@ -348,15 +348,49 @@ The mappings reach the runtime through `AshTypescript.RpcMappingSource`: `field_
 `argument_names/2` and `type_field_names/1` supply client names when the manifest is decorated
 (see [rpc-integration.md](rpc-integration.md)).
 
-Codegen reads the same `custom.ash_rpc` decoration the runtime does, through
-`AshTypescript.Codegen.ClientNames`, so generated and runtime names can't drift.
-Only `RpcMappingSource` and the compile-time verifiers read `field_names`,
-`argument_names` and `typescript_field_names/0` directly
-(`test/ash_typescript/codegen_name_source_guard_test.exs` enforces this for codegen).
+Codegen reads the same decoration; see the next section.
 
 The pre-0.18 helpers `AshTypescript.Resource.Info.get_original_field_name/2` and
 `get_original_argument_name/3` were **deleted** — do not reintroduce them.
 `get_mapped_argument_name/3` still exists and is used by the verifiers.
+
+## Where codegen gets names
+
+Every client name codegen emits comes from the `custom.ash_rpc` decoration, the one
+the runtime matches requests against, through `AshTypescript.Codegen.ClientNames`
+(`lib/ash_typescript/codegen/client_names.ex`):
+
+| Reader | Reads | Used for |
+|---|---|---|
+| `resource_field/2` | `AshRpc.Manifest.Custom.field_names/1` | Attributes, calculations, aggregates and relationships of resources and embedded resources (schemas, field selection, filter/sort types, `getBy` / `identity` keys, typed queries) |
+| `calculation_argument/3` | `Custom.calculation_argument_names/2` (inverted) | Calculation `args` |
+| `action_input/3` | `Custom.action_expected_input_keys/1` (inverted) | Action inputs and Zod/Valibot input schemas |
+| `type_field/2` | `Custom.type_field_names/1` (`:type_ref` resolved through `AshTypescript.type_lookup/0`) | Typed maps, structs, keywords and tuples |
+| `union_member/2` | `Custom.type_member_names/1` | Union members |
+| `metadata_field/2` | `Custom.entrypoint_metadata_field_names/1` on the wire entrypoint (`wire_entrypoint!/1`) | Action metadata names, used as written |
+
+- Resources and named types are looked up through `AshTypescript.resource_lookup/0` /
+  `type_lookup/0`, so `AshTypescript.with_manifest/2` applies.
+- A miss raises `ArgumentError` ("no client name for …", "is not in the manifest",
+  "is not decorated"). There is no formatter fallback: a gap is fixed by decorating the
+  node when the manifest is built. Every named type codegen renders, route-only types
+  included, is in the manifest
+  (`AshTypescript.TypeSystem.Introspection.named_type_definition/1` raises otherwise).
+- Resources take overrides only from the `typescript` DSL (`field_names`,
+  `argument_names`). A `typescript_field_names/0` function on a resource is ignored;
+  the callback applies to types.
+- Resources without the `AshTypescript.Resource` extension that are reached as struct
+  arguments, and embedded resources without it, are decorated with formatter-only names
+  (`exposed: false`).
+- Only `AshTypescript.RpcMappingSource` and the compile-time verifiers read the DSL and
+  `typescript_field_names/0`. `test/ash_typescript/codegen_name_source_guard_test.exs`
+  fails if any other codegen module does (the allowlist is `ClientNames`).
+- `test/ash_typescript/codegen/client_names_agreement_test.exs` checks that emitted names
+  equal the decorated names under camel, pascal and snake case, and
+  `test/ash_typescript/codegen/manifest_names_mismatch_test.exs` pins the cases that used
+  to disagree.
+- Formatter-only names remain for the static vocabulary, filter operators, TS
+  identifiers and path-param keys (`AshTypescript.FieldFormatter.format_field_name/2`).
 
 ## Testing Strategy
 
@@ -480,7 +514,8 @@ end
 | `lib/ash_typescript/codegen/resource_schemas.ex` | Resource schema generation with mapped names |
 | `lib/ash_typescript/codegen/type_mapper.ex` | TypeScript type mapping |
 | `lib/ash_typescript/rpc_mapping_source.ex` | `AshRpc.MappingSource` impl — supplies client names to the `custom.ash_rpc` decoration |
-| `lib/ash_typescript/manifest/custom.ex` | **Codegen-side decoration accessors** (`custom.ash_typescript`) — `field_name_mappings/1`, `mapped_field_name/2`, `original_field_name/2`, `mapped_argument_name/3`, `original_argument_name/3`, `type_field_name_mappings_pair/1` |
+| `lib/ash_typescript/codegen/client_names.ex` | **Every client name codegen emits**, read from `custom.ash_rpc` |
+| `lib/ash_typescript/manifest/custom.ex` | Override accessors over `custom.ash_rpc` (`field_name_mappings/1`, `mapped_field_name/2`, `original_field_name/2`, `mapped_argument_name/3`, `original_argument_name/3`, `type_field_name_mappings_pair/1`); public, not used by codegen |
 | `lib/ash_typescript/codegen/zod_schema_generator.ex` | Zod schema with mapped names |
 | `test/ash_typescript/rpc/rpc_field_argument_mapping_test.exs` | End-to-end mapping tests |
 | `test/support/resources/user.ex` | Example resource with mappings |
@@ -612,6 +647,6 @@ field_names address_line_1: "addressLine1"
    only from the manifest:
    ```elixir
    AshTypescript.Manifest.Custom.resolve_resource(MyApp.User)
-   |> AshTypescript.Manifest.Custom.field_name_mappings()
+   |> AshRpc.Manifest.Custom.field_names()
    ```
 3. If the mapping is missing there, the manifest is stale: force a recompile with `mix compile --force`

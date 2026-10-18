@@ -158,6 +158,29 @@ every unmappable reachable type into one `DslError`, and `TypeMapper` raises
 backstop. Remaining `any`s are deliberate (`:term`, File/Function, module-less
 unknowns). To audit them: `grep -c ': any' test/ts/ash_types.ts`.
 
+**Client names.** Codegen takes every client name from `AshTypescript.Codegen.ClientNames`
+(see [field-argument-name-mapping.md](features/field-argument-name-mapping.md#where-codegen-gets-names)).
+When a change touches naming, also run:
+
+| Test | Pins |
+|---|---|
+| `test/ash_typescript/codegen_name_source_guard_test.exs` | No codegen module but `ClientNames` reads `field_names`, `argument_names` or `typescript_field_names/0` |
+| `test/ash_typescript/codegen/client_names_test.exs` | `ClientNames` readers, and the `ArgumentError` on a miss |
+| `test/ash_typescript/codegen/client_names_agreement_test.exs` | Emitted resource and type keys equal the decorated names under camel, snake and pascal case |
+| `test/ash_typescript/codegen/manifest_names_mismatch_test.exs` | Each place codegen once disagreed with the runtime (typed-map returns, `getBy`, metadata, typed queries, `:struct` without `instance_of`, relationship filter keys), generated and run |
+| `test/ash_typescript/codegen/unexposed_relationships_test.exs` | No relationship, filter/sort type or output schema for unexposed resources |
+| `test/ts/shouldFail/getByMappedField.ts`, `test/ts/shouldFail/unexposedRelationships.ts` | The unmapped `getBy` key and unexposed relationships don't type-check |
+
+Their fixtures: `get_subscription_by_user_and_active` (`get_by: [:user_id, :is_active?]`),
+`Task.owner_1` (`field_names owner_1: "owner"`), `AshTypescript.Test.InputParsing.StructNoInstance`,
+`NotExposed` as the struct argument of `Todo.assign_to_not_exposed`, and
+`test/support/resources/schema_fixtures/domain.ex` (makes the schema-fixture embedded
+resources reachable, so their manifest decorates them).
+
+Generated `test/ts` output (`generated.ts`, `ash_types.ts`, the manifests, …) is
+gitignored, so `git diff` shows nothing: review a codegen change with the snapshot
+diff under [Breaking Change Detection](#breaking-change-detection).
+
 Note `mix test.codegen --dry-run` only prints files whose content **differs**
 from disk — it is silent when generated output is already current, so it is not
 a usable inspection tool on a clean tree.

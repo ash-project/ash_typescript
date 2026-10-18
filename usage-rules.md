@@ -45,7 +45,7 @@ SPDX-License-Identifier: MIT
 | **Denied Loads** | `denied_loads: [:user]` | Blacklist loadable fields |
 | **Field Mapping** | `field_names [field_1: "field1"]` | Map invalid field names |
 | **Arg Mapping** | `argument_names [action: [arg_1: "arg1"]]` | Map invalid arg names |
-| **Type Mapping** | `def typescript_field_names, do: [...]` | NewType/TypedStruct callback |
+| **Type Mapping** | `def typescript_field_names, do: [...]` | NewType/TypedStruct callback (ignored on resources; use `field_names`) |
 | **Metadata Config** | `show_metadata: [:field1]` | Control metadata exposure |
 | **Metadata Mapping** | `metadata_field_names: [field_1: "field1"]` | Map metadata names |
 | **Metadata (Read)** | `metadataFields: ["field1"]` | Merged into records |

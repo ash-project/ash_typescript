@@ -78,7 +78,7 @@ end
 
 The manifest also stores typed controller routes (`%AshTypescript.Manifest.Route{}`, keyed `{source_module, name}`) and typed channel publications (`%AshTypescript.Manifest.Publication{}`, keyed `{channel_module, resource, event}`) for the modules in `typed_controllers:` / `typed_channels:`, under `custom.ash_typescript.routes` / `.publications` (read with `AshTypescript.Manifest.Custom.route/3`, `routes/1`, `publication/4`, `publications/1`). Codegen and the runtime take their typed module sets from there; `config :ash_typescript, :typed_controllers` / `:typed_channels` are no longer read, and setting either triggers a compile-time warning. The manifest has a compile-time edge on each listed module, so typed controllers and channels must never read the manifest at compile time. Tests build manifests with other lists via `AshTypescript.Test.InlineManifest.build!/1`, never `put_env`.
 
-The module walks `Ash.Info.domains(otp_app)` by default. For scoped/inline manifests (e.g. building from a freshly-defined domain in a test) pass `domains: [MyTest.InlineDomain]`. `handle_opts/1` injects static compile-time dependencies on the configured domains, so editing a resource recompiles the manifest — incremental `mix test.codegen` is never stale. Access precomputed lookups via `AshTypescript.action_lookup/0`, `resource_lookup/0`, `type_lookup/0`, `typed_query_lookup/0`; ash_typescript-owned decoration lives under `custom.ash_typescript` and is read through `AshTypescript.Manifest.Custom`. `AshTypescript.RpcMappingSource` supplies the runtime's `custom.ash_rpc` decoration (see [rpc-integration.md](agent-docs/features/rpc-integration.md), Decoration). `output_field_formatter` and global `not_found_error?` are read when the manifest compiles (tracked via `Application.compile_env`) — runtime `put_env` has no effect. There is no input formatter: request keys must be the output formatter's client names exactly. Tests vary them with `AshTypescript.Manifest.redecorate(manifest, output_formatter: …)` (never `AshRpc.Manifest.redecorate/2`, which leaves routes and channel publications in the old formatter; `test/ash_typescript/redecorate_guard_test.exs` enforces this) + the `manifest:` option, or `AshTypescript.with_manifest/2` for codegen/typed controllers (`CodegenTestHelper` accepts `manifest:`).
+The module walks `Ash.Info.domains(otp_app)` by default. For scoped/inline manifests (e.g. building from a freshly-defined domain in a test) pass `domains: [MyTest.InlineDomain]`. `handle_opts/1` injects static compile-time dependencies on the configured domains, so editing a resource recompiles the manifest — incremental `mix test.codegen` is never stale. Access precomputed lookups via `AshTypescript.action_lookup/0`, `resource_lookup/0`, `type_lookup/0`, `typed_query_lookup/0`; ash_typescript-owned decoration lives under `custom.ash_typescript` and is read through `AshTypescript.Manifest.Custom`. `AshTypescript.RpcMappingSource` supplies the runtime's `custom.ash_rpc` decoration (see [rpc-integration.md](agent-docs/features/rpc-integration.md), Decoration). Codegen reads every client name (resource fields, calculation arguments, action inputs, type fields, union members, metadata) from that same `custom.ash_rpc` decoration through `AshTypescript.Codegen.ClientNames`, so generated names always equal the names the runtime accepts; see [field-argument-name-mapping.md](agent-docs/features/field-argument-name-mapping.md#where-codegen-gets-names). `output_field_formatter` and global `not_found_error?` are read when the manifest compiles (tracked via `Application.compile_env`) — runtime `put_env` has no effect. There is no input formatter: request keys must be the output formatter's client names exactly. Tests vary them with `AshTypescript.Manifest.redecorate(manifest, output_formatter: …)` (never `AshRpc.Manifest.redecorate/2`, which leaves routes and channel publications in the old formatter; `test/ash_typescript/redecorate_guard_test.exs` enforces this) + the `manifest:` option, or `AshTypescript.with_manifest/2` for codegen/typed controllers (`CodegenTestHelper` accepts `manifest:`).
 
 ### Typed Controller Configuration
 
@@ -306,7 +306,8 @@ runtime.entrypoints["list_todos"]
 | **ash_typescript RPC profile** | `lib/ash_typescript/rpc_profile.ex` (`AshTypescript.RpcProfile`) |
 | **ash_typescript mapping source** | `lib/ash_typescript/rpc_mapping_source.ex` (`AshTypescript.RpcMappingSource`) |
 | **AshAuthentication error impls** | `lib/ash_typescript/rpc/ash_authentication_errors.ex` |
-| **Codegen-side field-name formatting** | `lib/ash_typescript/field_formatter.ex` |
+| **Codegen client names (every emitted resource/type/action name)** | `lib/ash_typescript/codegen/client_names.ex` (reads `custom.ash_rpc`; guarded by `test/ash_typescript/codegen_name_source_guard_test.exs`) |
+| **Formatter-only names (static vocabulary, TS identifiers)** | `lib/ash_typescript/field_formatter.ex` |
 | **Type aliases generation** | `lib/ash_typescript/codegen/type_aliases.ex` |
 | **TypeScript type mapping** | `lib/ash_typescript/codegen/type_mapper.ex` |
 | **Resource schema generation** | `lib/ash_typescript/codegen/resource_schemas.ex` |
@@ -419,7 +420,7 @@ mix credo --strict                   # Linting
 ## Key Architecture Concepts
 
 ### Runtime Integration
-The manifest is decorated twice: `AshTypescript.RpcMappingSource` supplies the runtime's `custom.ash_rpc` decoration, and ash_typescript writes `custom.ash_typescript` for codegen. Each `rpc_action` becomes one `AshRpc.Entrypoint`, which carries its DSL options (`enable_filter?`, `load_restrictions`, `get_by`, …) to the runtime. `AshTypescript.RpcProfile` supplies the per-domain `error_handler` / `show_raised_errors?` from each domain's `typescript_rpc` block. Do not reintroduce `Ash.Resource.Info.action/2` or global `AshTypescript.*_lookup/0` reads into ash_rpc; codegen keeps using `ActionIntrospection` and `AshTypescript.action_lookup/0`. Details: [rpc-integration.md](agent-docs/features/rpc-integration.md).
+The manifest is decorated twice: `AshTypescript.RpcMappingSource` supplies the runtime's `custom.ash_rpc` decoration, and ash_typescript writes `custom.ash_typescript` for codegen (type names, rpc/typed-query config, routes, publications). Client names are not duplicated there: codegen reads them from `custom.ash_rpc` through `AshTypescript.Codegen.ClientNames`, and a missing name or an undecorated node raises `ArgumentError` (no formatter fallback). Only `RpcMappingSource` and the compile-time verifiers read the `field_names` / `argument_names` DSL and `typescript_field_names/0`. Each `rpc_action` becomes one `AshRpc.Entrypoint`, which carries its DSL options (`enable_filter?`, `load_restrictions`, `get_by`, …) to the runtime. `AshTypescript.RpcProfile` supplies the per-domain `error_handler` / `show_raised_errors?` from each domain's `typescript_rpc` block. Do not reintroduce `Ash.Resource.Info.action/2` or global `AshTypescript.*_lookup/0` reads into ash_rpc; codegen keeps using `ActionIntrospection` and `AshTypescript.action_lookup/0`. Details: [rpc-integration.md](agent-docs/features/rpc-integration.md).
 
 ### Key Modules
 - **AshTypescript.RpcProfile** / **AshTypescript.RpcMappingSource** - ash_typescript's `AshRpc.Profile` / `AshRpc.MappingSource`
@@ -447,7 +448,7 @@ The manifest is decorated twice: `AshTypescript.RpcMappingSource` supplies the r
 - **Nested Relationship Query Options**: has_many/many_to_many loads accept an envelope `{ comments: { page, filter, sort, limit, offset, fields } }` — capability-gated in TS, validated at runtime, `page` yields the top-level page shape
 - **Union Input Format**: REQUIRED wrapped format `{member_name: value}` for all union inputs
 - **Headers Support**: All RPC functions accept optional headers for custom authentication
-- **Strict Exposure**: Selecting fields through a relationship to a resource without the `AshTypescript.Resource` extension is `unknown_field`
+- **Strict Exposure**: Selecting fields through a relationship to a resource without the `AshTypescript.Resource` extension is `unknown_field`, so codegen doesn't emit such relationships (resource and restricted schemas, filter types, JSON manifest). Unexposed resources (struct-argument targets, and embedded resources without the extension) have formatter-only names and get no filter/sort types; unexposed non-embedded ones also get no `ResourceSchema` / `AttributesOnlySchema`, only their input schema
 - **Tenant Param**: A `tenant` request param overrides the transport tenant (conn or `socket.assigns[:ash_tenant]`) on both HTTP and channels
 
 ## Common Errors
@@ -471,6 +472,7 @@ The manifest is decorated twice: `AshTypescript.RpcMappingSource` supplies the r
 | `missing_required_parameter` for `action` on a typed-query request | The typed-query wire param was removed | Run typed queries server-side with `AshTypescript.run_typed_query/4` |
 | Formatter / `not_found_error?` change in a test has no effect | Read at manifest compile time | `AshTypescript.Manifest.redecorate(manifest, output_formatter: …)` + `manifest:` option, or `AshTypescript.with_manifest/2` |
 | "has no custom.ash_rpc decoration" `ArgumentError` | Manifest passed to `AshRpc` wasn't decorated | Use `AshTypescript.manifest/0` (or `redecorate/2` of it), not a raw `Ash.Info.Manifest` |
+| Codegen `ArgumentError` "no client name for …" / "is not in the manifest" / "is not decorated" | Codegen asked `AshTypescript.Codegen.ClientNames` for a name the `custom.ash_rpc` decoration doesn't carry | A decoration gap: decorate the node at manifest build time (`RpcMappingSource` / `AshRpc.Manifest.Decorator`); never add a formatter fallback |
 | `AshRpc.Manifest.NameCollisionError` at compile time | Two fields/args map to the same client name | Rename or fix `field_names`/`argument_names` mappings |
 | `filter_not_supported` / `sort_not_supported` | Client sent `filter`/`sort` to an action with `enable_filter?`/`enable_sort?: false` (`details.reason: "disabled"`), or to a get-style or non-read action (`"unsupported"`) | Remove the param, or enable the option |
 | Test reads stale generated.ts | Test uses `File.read!("test/ts/generated.ts")` | Use `AshTypescript.Test.CodegenTestHelper.generate_all_content/0` in `setup_all` |
@@ -676,6 +678,14 @@ _A declarative, extensible framework for building Elixir applications._
 ## ash:relationships usage
 @deps/ash/usage-rules/relationships.md
 <!-- ash:relationships-end -->
+<!-- ash:signals-start -->
+## ash:signals usage
+@deps/ash/usage-rules/signals.md
+<!-- ash:signals-end -->
+<!-- ash:temporal-start -->
+## ash:temporal usage
+@deps/ash/usage-rules/temporal.md
+<!-- ash:temporal-end -->
 <!-- ash:testing-start -->
 ## ash:testing usage
 @deps/ash/usage-rules/testing.md

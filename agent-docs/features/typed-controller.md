@@ -457,17 +457,17 @@ routes return `Promise<TypedControllerResponse<{Route}Result>>` instead of
 - **Enforcement.** Spark reports verifier failures as compile warnings only.
   `Orchestrator.generate/2` re-runs them through `VerifierChecker` for every configured
   typed controller and typed channel (independent of RPC output), so codegen fails.
-- **Route-only named types.** A NewType referenced only by routes isn't in the manifest
-  type lookup. `AshTypescript.TypeSystem.Introspection.named_type_definition/1` (used by
-  `TypeMapper`, `SchemaCore`) and `AshRpc.Introspection.named_type_definition/2` (used by
-  `AshRpc.ValueFormatter`) fall back to `TypeResolver.resolve_definition/1` for such types.
-- The type comes from `TypeMapper.map_route_result_type/2`: plain wire types (no
+- **Route-only named types.** Named types referenced only by routes are generator
+  `always:` roots, so they're in the manifest type lookup and decorated like RPC types.
+  `AshTypescript.TypeSystem.Introspection.named_type_definition/1` (used by `TypeMapper`,
+  `SchemaCore`) reads them from there and raises for a type missing from the manifest.
+- The type comes from `TypeMapper.map_route_result_type/1`: plain wire types (no
   `__type`/`__primitiveFields` field-selection metadata). It recurses through arrays
-  and typed maps/structs, applying `typescript_field_names` and the output field
-  formatter. Containers without `fields` map to `AshTypescript.untyped_map_type()`.
-  NewType/enum `:type_ref`s are expanded via `TypeResolver.resolve_definition/1`, **not**
-  the manifest `type_lookup`, because a type used only by a route isn't reachable
-  from RPC. Enums become inline literal unions, so result types never depend on
+  and typed maps/structs of the decorated `%Ash.Info.Manifest.Type{}`, using their
+  decorated client names (`typescript_field_names` overrides included). Containers
+  without `fields` map to `AshTypescript.untyped_map_type()`. NewType/enum
+  `:type_ref`s are expanded through `named_type_definition/1` (the manifest type
+  lookup). Enums become inline literal unions, so result types never depend on
   types in `ash_types.ts` beyond scalar aliases (`UUID`, `UtcDateTime`, …).
 - `returns` doesn't enforce anything: `RequestHandler` never checks the handler's
   response. Handlers opt in to matching output via `AshTypescript.TypedController.json/2`.

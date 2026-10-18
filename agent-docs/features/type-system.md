@@ -161,7 +161,9 @@ defmodule MyApp.CustomMetadata do
 end
 ```
 
-**Note**: The callback returns a keyword list where values are **strings** (not atoms). The system uses these mappings for both codegen and runtime formatting.
+**Note**: The callback returns a keyword list where values are **strings** (not atoms). `RpcMappingSource.type_field_names/1` reads it once, when the manifest is decorated; codegen and the runtime both use the decorated names (codegen through `AshTypescript.Codegen.ClientNames.type_field/2`, so a typed-map return, a `:struct` NewType without `instance_of` and a union member all use them). The callback applies to types only: on a resource it is ignored (use `field_names`).
+
+Typed containers are rendered from their decorated `%Ash.Info.Manifest.Type{}`: `AshTypescript.Codegen.build_map_type/2` takes the container type (plus an optional field selection), and `TypeMapper.build_union_type_from_members/1` / `build_union_input_type_from_members/1` take the union type. A `:type_ref` resolves through `AshTypescript.TypeSystem.Introspection.named_type_definition/1`, which raises for a type missing from the manifest. See [field-argument-name-mapping.md](field-argument-name-mapping.md#where-codegen-gets-names).
 
 ### Custom Type Detection
 

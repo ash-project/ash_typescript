@@ -94,11 +94,15 @@ exist. If an error's site or timing seems wrong, look in
 `lib/ash_typescript/manifest/verifiers/`. Resource-scoped name/type verifiers
 still live in `lib/ash_typescript/resource/verifiers/`.
 
-### RPC-config warnings don't reappear
+### RPC-config warnings
 Warnings ("Found resources with AshTypescript.Resource extension...",
-"Found non-RPC resources referenced by RPC resources...") are emitted **once**,
-at manifest-module compile — `mix test.codegen` no longer re-prints them.
-`touch` the manifest module (or `mix compile --force`) to see them again.
+"Found non-RPC resources referenced by RPC resources...") come from
+`VerifyRpcWarnings`, which runs when the manifest module compiles **and** on every
+codegen run (the Orchestrator re-runs the manifest verifiers), so `mix test.codegen`
+prints them each time. In this repo it reports `AshTypescript.Test.NotExposed`
+(referenced by `Todo`'s `:not_exposed_items` relationship), which is unexposed on
+purpose: codegen emits no relationship to it, and it keeps only the input schema it
+needs as the struct argument of `assign_to_not_exposed`.
 The non-RPC-references warning lists one-hop attribution
 (`Referenced by: - MyApp.Todo (relationship :thing)`).
 Suppress via `warn_on_missing_rpc_config: false` / `warn_on_non_rpc_references: false`.
@@ -110,6 +114,17 @@ locations; `TypeMapper` raises `unsupported type ... AshTypescript cannot map it
 to a TypeScript type.` as a backstop. Fix by implementing `typescript_type_name/0`
 on the type module, adding a `type_mapping_overrides` entry, or using a
 supported type.
+
+### Codegen `ArgumentError` "no client name for …" / "is not in the manifest" / "is not decorated"
+Raised by `AshTypescript.Codegen.ClientNames`: codegen asked for a client name
+that the `custom.ash_rpc` decoration doesn't carry (a resource, named type,
+action input, union member or metadata field missing from the manifest, or a
+node built without decoration, e.g. a raw type in a unit test). This is a
+decoration gap. Fix it when the manifest is built (`RpcMappingSource`,
+`AshRpc.Manifest.Decorator`), or pass a decorated type in the test
+(`AshRpc.Manifest.Decorator.decorate_type/3`, `InlineManifest.build!/1`). Never
+add a formatter fallback: the name it produced could differ from what the
+runtime accepts.
 
 ### Route or channel names keep the old formatter in a test
 The test redecorated with `AshRpc.Manifest.redecorate/2`, which rebuilds

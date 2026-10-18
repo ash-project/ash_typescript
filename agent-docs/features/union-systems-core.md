@@ -60,12 +60,16 @@ Union field selection uses selective member fetching:
 
 ## Key Files
 - `lib/ash_typescript/codegen/type_mapper.ex` - `build_union_type_from_members/1`,
-  `build_union_input_type_from_members/1`, `is_primitive_union_member?/1`
+  `build_union_input_type_from_members/1` (both take the decorated union
+  `%Ash.Info.Manifest.Type{}`), `is_primitive_union_member?/1`
 - `lib/ash_typescript/codegen/resource_schemas.ex` - `spec_typed_field/2` (emits the union
   field into the resource schema)
 
 Union member data comes from `%Ash.Info.Manifest.Type{members: [...]}` (hydrated with
-`tag`/`tag_value`), not from raw Ash constraints.
+`tag`/`tag_value`), not from raw Ash constraints. Member names come from the union's
+`custom.ash_rpc` decoration (`AshTypescript.Codegen.ClientNames.union_member/2`). For a
+`:map_with_tag` member, the tag key is the member type's client name for the tag field
+(its `typescript_field_names/0` override included) in the output.
 
 ## Common Issues
 - **:map_with_tag Creation Failures**: Ensure every member declares `tag` + `tag_value`;

@@ -266,6 +266,14 @@ Explicit string mappings (`field_names`, `argument_names`, `typescript_field_nam
 always take precedence over the formatter: those names are used exactly as written and
 never reformatted.
 
+The generated TypeScript and the RPC runtime read these names from the same place, so
+every name in the generated client is one the server accepts and sends: resource
+fields, action inputs, `getBy` and `identity` keys, metadata fields, typed-query
+selections, relationship keys in filter types, and the fields of typed maps and
+structs (including a `:struct` without `instance_of`). `typescript_field_names/0`
+applies to types (NewTypes and typed structs), not to resources: on a resource it is
+ignored, so use `field_names` in the `typescript` section instead.
+
 **Available formatters:**
 - `:camel_case` - Converts to camelCase (default)
 - `:snake_case` - Keeps snake_case

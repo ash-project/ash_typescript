@@ -48,8 +48,13 @@ persists `:manifest`, `:resource_lookup`, `:action_lookup`, `:type_lookup`
 and `:typed_query_lookup`, which `AshTypescript.manifest/0` and
 `AshTypescript.*_lookup/0,1` read.
 
-- **Codegen** reads `custom.ash_typescript` through `AshTypescript.Manifest.Custom`
-  (`lib/ash_typescript/manifest/custom.ex`).
+- **Codegen** reads every client name from `custom.ash_rpc` through
+  `AshTypescript.Codegen.ClientNames` (`lib/ash_typescript/codegen/client_names.ex`), so
+  it emits exactly the names the runtime accepts; a missing name raises (no formatter
+  fallback). Everything else ash_typescript-specific (type names, rpc/typed-query config,
+  routes, publications) comes from `custom.ash_typescript` through
+  `AshTypescript.Manifest.Custom` (`lib/ash_typescript/manifest/custom.ex`). See
+  [field-argument-name-mapping.md](field-argument-name-mapping.md#where-codegen-gets-names).
 - **The runtime** reads `custom.ash_rpc` through `AshRpc.Manifest.Custom`. A manifest
   without that decoration raises "has no custom.ash_rpc decoration"; always pass
   `AshTypescript.manifest/0`, or a `redecorate/2` of it.
@@ -61,8 +66,8 @@ and `:typed_query_lookup`, which `AshTypescript.manifest/0` and
 | Callback | Reads | Effect |
 |---|---|---|
 | `output_formatter/0` | `Application.get_env(:ash_typescript, :output_field_formatter, :camel_case)` | Fixed into the manifest at compile time; client input is matched against its names exactly. See [Compile-Time Config](#compile-time-config) |
-| `exposed_resource?/1` | The module is an Ash resource with the `AshTypescript.Resource` extension | Strict exposure: selecting through a relationship to a non-extended resource is `unknown_field` |
-| `field_names/1` | The resource's `typescript` `field_names` | Client names for attributes, calculations, aggregates and relationships |
+| `exposed_resource?/1` | The module is an Ash resource with the `AshTypescript.Resource` extension | Strict exposure: selecting through a relationship to a non-extended resource is `unknown_field`, and codegen emits no such relationship. A non-extended resource used as a struct argument (or embedded) is still decorated, with formatter-only names and `exposed: false`: it gets an input schema but no filter/sort types (and, unless embedded, no `ResourceSchema` / `AttributesOnlySchema`) |
+| `field_names/1` | The resource's `typescript` `field_names` (a `typescript_field_names/0` function on a resource is ignored) | Client names for attributes, calculations, aggregates and relationships |
 | `argument_names/2` | The resource's `typescript` `argument_names` for that action (`%{}` if none) | Client names for action arguments |
 | `type_field_names/1` | The type's `typescript_field_names/0`, or `nil` | Client names inside maps, keywords, tuples and typed structs |
 | `entrypoint/1` | The `rpc_action` on the manifest entrypoint | One `%AshRpc.Entrypoint{}` per `rpc_action`; see the next section |
@@ -277,7 +282,9 @@ to the decorator, and `AshTypescript.Manifest.handle_opts/1` tracks them with
   old formatter; `test/ash_typescript/redecorate_guard_test.exs` fails on any other caller),
   passed as the `manifest:` option to `AshRpc.run_action/4` / `validate_action/4` / `run_typed_query/4`.
 - **Codegen and typed controllers**: `AshTypescript.with_manifest(manifest, fn -> … end)`, or
-  `CodegenTestHelper`'s `manifest:` option.
+  `CodegenTestHelper`'s `manifest:` option. Everything codegen reads honours it: the
+  lookups, `AshTypescript.manifest/0`, `AshTypescript.entrypoints/1`,
+  `AshTypescript.Manifest.Custom.resolve_resource/2` and `Codegen.ClientNames`.
 
 Unconstrained map inputs and outputs bypass the formatter: their keys pass through as-is.
 
