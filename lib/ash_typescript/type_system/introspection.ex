@@ -42,12 +42,9 @@ defmodule AshTypescript.TypeSystem.Introspection do
   decoration gap.
   """
   @spec named_type_definition(module()) :: Ash.Info.Manifest.Type.t()
-  def named_type_definition(module) do
-    AshTypescript.Codegen.ClientNames.resolve_type!(%Ash.Info.Manifest.Type{
-      kind: :type_ref,
-      module: module
-    })
-  end
+  defdelegate named_type_definition(module),
+    to: AshTypescript.Codegen.ClientNames,
+    as: :named_type!
 
   @doc """
   Gets the typescript_field_names as a map, or empty map if not available.

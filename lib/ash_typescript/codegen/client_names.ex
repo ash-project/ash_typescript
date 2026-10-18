@@ -107,12 +107,16 @@ defmodule AshTypescript.Codegen.ClientNames do
 
   @doc "Resolves a `:type_ref` to its named type; other types are returned as they are."
   @spec resolve_type!(Manifest.Type.t()) :: Manifest.Type.t()
-  def resolve_type!(%Manifest.Type{kind: :type_ref, module: module}) do
+  def resolve_type!(%Manifest.Type{kind: :type_ref, module: module}), do: named_type!(module)
+
+  def resolve_type!(%Manifest.Type{} = type), do: type
+
+  @doc "The decorated named type for a `:type_ref` module."
+  @spec named_type!(module()) :: Manifest.Type.t()
+  def named_type!(module) do
     Manifest.get_type(AshTypescript.type_lookup(), module) ||
       raise ArgumentError, "named type #{inspect(module)} is not in the manifest"
   end
-
-  def resolve_type!(%Manifest.Type{} = type), do: type
 
   defp resource!(%Manifest.Resource{custom: %{ash_rpc: _}} = resource), do: resource
   defp resource!(%Manifest.Resource{module: module}), do: resource!(module)

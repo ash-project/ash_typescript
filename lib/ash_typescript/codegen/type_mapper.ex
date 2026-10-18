@@ -602,10 +602,10 @@ defmodule AshTypescript.Codegen.TypeMapper do
   # InferFieldValue select into that shape, while a bare `Array<{...}>` matches
   # none of their branches and the member could not be selected at all.
   defp typed_map_array_item(%Type{kind: :type_ref} = ref),
-    do: ref |> resolve_type_ref() |> typed_map_array_item()
+    do: ref |> ClientNames.resolve_type!() |> typed_map_array_item()
 
   defp typed_map_array_item(%Type{kind: :array, item_type: %Type{} = item}) do
-    case resolve_type_ref(item) do
+    case ClientNames.resolve_type!(item) do
       %Type{kind: :map, fields: [_ | _]} = typed_map -> typed_map
       _ -> nil
     end
@@ -613,16 +613,10 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
   defp typed_map_array_item(_type), do: nil
 
-  defp resolve_type_ref(%Type{kind: :type_ref, module: mod}),
-    do: Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), mod)
-
-  defp resolve_type_ref(type), do: type
-
   # Returns {resource_module, array?} when the (possibly array-wrapped,
   # type_ref-resolved) type is a resource or embedded resource; nil otherwise.
-  defp resource_member(%Type{kind: :type_ref, module: mod}) do
-    resource_member(Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), mod))
-  end
+  defp resource_member(%Type{kind: :type_ref, module: mod}),
+    do: mod |> ClientNames.named_type!() |> resource_member()
 
   defp resource_member(%Type{kind: kind} = type)
        when kind in [:resource, :embedded_resource] do
@@ -640,10 +634,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
 
   defp extract_field_name(%{name: field_name}), do: field_name
 
-  defp is_nested_typed_map_field?(%{type: %Type{kind: :type_ref} = ref}) do
-    full = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), ref.module)
-    is_nested_typed_map_field?(%{type: full})
-  end
+  defp is_nested_typed_map_field?(%{type: %Type{kind: :type_ref} = ref}),
+    do: is_nested_typed_map_field?(%{type: ClientNames.resolve_type!(ref)})
 
   defp is_nested_typed_map_field?(%{type: %Type{kind: :map, fields: fields}})
        when fields in [nil, []],
@@ -716,10 +708,8 @@ defmodule AshTypescript.Codegen.TypeMapper do
   @doc """
   Determines if a union member is a "primitive" (no selectable fields).
   """
-  def is_primitive_union_member?(%Ash.Info.Manifest.Type{kind: :type_ref} = type_info) do
-    full_type = Ash.Info.Manifest.get_type!(AshTypescript.type_lookup(), type_info.module)
-    is_primitive_union_member?(full_type)
-  end
+  def is_primitive_union_member?(%Ash.Info.Manifest.Type{kind: :type_ref} = type_info),
+    do: type_info |> ClientNames.resolve_type!() |> is_primitive_union_member?()
 
   def is_primitive_union_member?(%Ash.Info.Manifest.Type{} = type_info) do
     case type_info.kind do
