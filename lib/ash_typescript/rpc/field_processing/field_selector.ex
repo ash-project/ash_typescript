@@ -255,9 +255,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
             {[], [], []}
         end
 
-      :any ->
-        select_generic_fields(requested_fields, path)
-
       _ ->
         if requested_fields != [] do
           throw({:invalid_field_selection, :primitive_type, type_info, requested_fields, path})
@@ -1436,20 +1433,6 @@ defmodule AshTypescript.Rpc.FieldProcessing.FieldSelector do
   defp convert_union_member_name(name) when is_binary(name) do
     formatter = AshTypescript.Rpc.input_field_formatter()
     FieldFormatter.parse_input_field(name, formatter)
-  end
-
-  # ---------------------------------------------------------------------------
-  # Generic Field Selection (for :any return type)
-  # ---------------------------------------------------------------------------
-
-  defp select_generic_fields(requested_fields, _path) do
-    template =
-      Enum.map(requested_fields, fn
-        field_name when is_atom(field_name) -> field_name
-        %{} = field_map -> Enum.map(field_map, fn {k, v} -> {k, v} end)
-      end)
-
-    {[], [], List.flatten(template)}
   end
 
   # ---------------------------------------------------------------------------

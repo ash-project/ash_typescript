@@ -58,6 +58,7 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :set_priority_todo, :set_priority
       rpc_action :update_todo_with_untyped_data, :update_with_untyped_data
       rpc_action :bulk_complete_todo, :bulk_complete
+      rpc_action :ping_todo, :ping
       rpc_action :get_statistics_todo, :get_statistics
       rpc_action :search_todos, :search
       rpc_action :search_paginated_todos, :search_paginated

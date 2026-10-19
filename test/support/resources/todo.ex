@@ -621,6 +621,10 @@ defmodule AshTypescript.Test.Todo do
       end
     end
 
+    action :ping do
+      run fn _input, _context -> :ok end
+    end
+
     action :get_statistics, :map do
       constraints fields: [
                     total: [type: :integer, allow_nil?: false],
