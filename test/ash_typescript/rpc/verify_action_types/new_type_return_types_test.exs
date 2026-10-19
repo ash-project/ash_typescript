@@ -33,9 +33,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
         end
 
         actions do
-          action :get_stats, :struct do
-            constraints instance_of: InvalidFieldsTypedStruct
-
+          action :get_stats, InvalidFieldsTypedStruct do
             run fn _input, _context ->
               {:ok, %InvalidFieldsTypedStruct{total_count: 10, completed?: true}}
             end
@@ -84,9 +82,7 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
         end
 
         actions do
-          action :get_stats, :struct do
-            constraints instance_of: AshTypescript.Test.TaskStats
-
+          action :get_stats, AshTypescript.Test.TaskStats do
             run fn _input, _context ->
               {:ok, %AshTypescript.Test.TaskStats{total_count: 10, completed?: true}}
             end
@@ -116,28 +112,16 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
     end
   end
 
-  describe "verify/1 - Struct types with typed_struct_fields" do
-    test "detects invalid field names in custom struct via instance_of" do
-      defmodule CustomPointStruct do
-        defstruct [:x_1, :y_2, :is_valid?]
-
-        def typed_struct_fields do
-          [
-            {:x_1, [type: :float]},
-            {:y_2, [type: :float]},
-            {:is_valid?, [type: :boolean]}
-          ]
-        end
-      end
-
-      defmodule TestResourceCustomStructType do
+  describe "verify/1 - :struct with instance_of an Ash.TypedStruct" do
+    test "rejects it with the hint to use the TypedStruct as the type" do
+      defmodule TestResourceInstanceOfTaskStats do
         use Ash.Resource,
           domain: nil,
           data_layer: Ash.DataLayer.Ets,
           extensions: [AshTypescript.Resource]
 
         typescript do
-          type_name "TestResourceCustomStructType"
+          type_name "TestResourceInstanceOfTaskStats"
         end
 
         attributes do
@@ -146,108 +130,41 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
 
         actions do
           action :get_point, :struct do
-            constraints instance_of: CustomPointStruct
+            constraints instance_of: AshTypescript.Test.TaskStats
 
             run fn _input, _context ->
-              {:ok, %CustomPointStruct{x_1: 1.0, y_2: 2.0, is_valid?: true}}
+              {:ok, %AshTypescript.Test.TaskStats{total_count: 10, completed?: true}}
             end
           end
         end
       end
 
-      defmodule TestDomainCustomStructType do
+      defmodule TestDomainInstanceOfTaskStats do
         use Ash.Domain,
           otp_app: :ash_typescript,
           extensions: [AshTypescript.Rpc]
 
         typescript_rpc do
-          resource TestResourceCustomStructType do
+          resource TestResourceInstanceOfTaskStats do
             rpc_action :get_point, :get_point
           end
         end
 
         resources do
-          resource TestResourceCustomStructType
+          resource TestResourceInstanceOfTaskStats
         end
       end
 
-      result = silent_verify_for_domains([TestDomainCustomStructType])
+      message =
+        assert_untyped_struct_rejected(
+          [TestDomainInstanceOfTaskStats],
+          TestResourceInstanceOfTaskStats,
+          AshTypescript.Test.TaskStats
+        )
 
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "x_1"
-      assert error_message =~ "y_2"
-      assert error_message =~ "is_valid?"
-    end
-
-    test "passes when custom struct has typescript_field_names mappings" do
-      defmodule CustomPointStructWithMappings do
-        defstruct [:x_1, :y_2, :is_valid?]
-
-        def typed_struct_fields do
-          [
-            {:x_1, [type: :float]},
-            {:y_2, [type: :float]},
-            {:is_valid?, [type: :boolean]}
-          ]
-        end
-
-        def typescript_field_names do
-          [
-            x_1: :x1,
-            y_2: :y2,
-            is_valid?: :isValid
-          ]
-        end
-      end
-
-      defmodule TestResourceCustomStructTypeWithMappings do
-        use Ash.Resource,
-          domain: nil,
-          data_layer: Ash.DataLayer.Ets,
-          extensions: [AshTypescript.Resource]
-
-        typescript do
-          type_name "TestResourceCustomStructTypeWithMappings"
-        end
-
-        attributes do
-          uuid_primary_key :id
-        end
-
-        actions do
-          action :get_point, :struct do
-            constraints instance_of: CustomPointStructWithMappings
-
-            run fn _input, _context ->
-              {:ok, %CustomPointStructWithMappings{x_1: 1.0, y_2: 2.0, is_valid?: true}}
-            end
-          end
-        end
-      end
-
-      defmodule TestDomainCustomStructTypeWithMappings do
-        use Ash.Domain,
-          otp_app: :ash_typescript,
-          extensions: [AshTypescript.Rpc]
-
-        typescript_rpc do
-          resource TestResourceCustomStructTypeWithMappings do
-            rpc_action :get_point, :get_point
-          end
-        end
-
-        resources do
-          resource TestResourceCustomStructTypeWithMappings
-        end
-      end
-
-      result =
-        silent_verify_for_domains([
-          TestDomainCustomStructTypeWithMappings
-        ])
-
-      assert result == :ok
+      assert message =~
+               "* AshTypescript.Test.TaskStats is an Ash type: use it as the type instead of " <>
+                 "`:struct` with `instance_of`"
     end
   end
 
@@ -513,6 +430,21 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.NewTypeReturnTypesTest do
       assert error_message =~ "quantity_2"
       assert error_message =~ "in_stock?"
     end
+  end
+
+  # A `:struct` with `instance_of` and no `fields` constraint is untyped to the
+  # manifest, so ash_rpc's decorator rejects the RPC action while the manifest
+  # compiles.
+  defp assert_untyped_struct_rejected(domains, resource, struct_module) do
+    error = assert_raise RuntimeError, fn -> silent_verify_for_domains(domains) end
+    message = Exception.message(error)
+
+    assert message =~
+             ~s[Entrypoint "get_point" (#{inspect(resource)}, action :get_point) returns ] <>
+               "an untyped struct, #{inspect(struct_module)}, at returns."
+
+    assert message =~ "* an Ash.TypedStruct"
+    message
   end
 
   # Compiling the throwaway manifest module makes Elixir's parallel checker echo

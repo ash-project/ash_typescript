@@ -6,10 +6,11 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.StructTypesTest do
   use ExUnit.Case, async: false
 
   describe "verify/1 - Struct types with typed_struct_fields" do
-    # Tests for custom struct modules used via :struct type with instance_of constraint
-    # These are plain Elixir structs that define typed_struct_fields/0 for field introspection
+    # Plain Elixir structs used via :struct with an instance_of constraint. Defining
+    # typed_struct_fields/0 doesn't make them typed: the manifest has no field types
+    # for them, so the RPC action is rejected when the manifest compiles.
 
-    test "detects invalid field names in custom struct via instance_of" do
+    test "rejects a plain struct with typed_struct_fields/0 via instance_of" do
       defmodule CustomPointStruct do
         defstruct [:x_1, :y_2, :is_valid?]
 
@@ -63,16 +64,14 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.StructTypesTest do
         end
       end
 
-      result = silent_verify_for_domains([TestDomainCustomStructType])
-
-      assert {:error, error_message} = result
-      assert error_message =~ ~r/Invalid field names found in action return types/
-      assert error_message =~ "x_1"
-      assert error_message =~ "y_2"
-      assert error_message =~ "is_valid?"
+      assert_untyped_struct_rejected(
+        [TestDomainCustomStructType],
+        TestResourceCustomStructType,
+        CustomPointStruct
+      )
     end
 
-    test "passes when custom struct has typescript_field_names mappings" do
+    test "rejects it even with typescript_field_names mappings" do
       defmodule CustomPointStructWithMappings do
         defstruct [:x_1, :y_2, :is_valid?]
 
@@ -134,13 +133,25 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.StructTypesTest do
         end
       end
 
-      result =
-        silent_verify_for_domains([
-          TestDomainCustomStructTypeWithMappings
-        ])
-
-      assert result == :ok
+      assert_untyped_struct_rejected(
+        [TestDomainCustomStructTypeWithMappings],
+        TestResourceCustomStructTypeWithMappings,
+        CustomPointStructWithMappings
+      )
     end
+  end
+
+  # A plain struct is untyped to the manifest (`typed_struct_fields/0` isn't read),
+  # so ash_rpc's decorator rejects the RPC action while the manifest compiles.
+  defp assert_untyped_struct_rejected(domains, resource, struct_module) do
+    error = assert_raise RuntimeError, fn -> silent_verify_for_domains(domains) end
+    message = Exception.message(error)
+
+    assert message =~
+             ~s[Entrypoint "get_point" (#{inspect(resource)}, action :get_point) returns ] <>
+               "an untyped struct, #{inspect(struct_module)}, at returns."
+
+    assert message =~ "* an Ash.TypedStruct"
   end
 
   # Compiling the throwaway manifest module makes Elixir's parallel checker echo

@@ -9,13 +9,26 @@ defmodule AshTypescript.Manifest.TypedRoutes do
   # reverse maps, and stores the structs under `manifest.custom.ash_typescript`.
   # Runs after `AshRpc.Manifest.Decorator.decorate/3`. Named types live in
   # `manifest.types` (decorated there), and `decorate_type/3` leaves the
-  # `type_ref`/resource nodes that point at them unchanged.
+  # `type_ref`/resource nodes that point at them unchanged. Before that, every
+  # route argument, route `returns` and publication `returns` goes through
+  # `AshRpc.Introspection.find_untyped_root/2`, and an untyped struct raises a
+  # `Spark.Error.DslError`. RPC entrypoints (ash_rpc's decorator) and typed
+  # queries (`AshTypescript.Manifest.Decorator`) raise
+  # `AshRpc.Manifest.UntypedStructError` instead.
 
   alias Ash.Info.Manifest
   alias AshTypescript.Manifest.{Publication, Route, RouteArgument}
 
   @spec decorate(Manifest.t(), [Route.t()], [Publication.t()]) :: Manifest.t()
   def decorate(%Manifest{} = manifest, routes, publications) do
+    lookups = %{
+      resource_lookup: AshRpc.Manifest.resource_lookup(manifest),
+      type_lookup: AshRpc.Manifest.type_lookup(manifest)
+    }
+
+    Enum.each(routes, &reject_untyped_route!(&1, lookups))
+    Enum.each(publications, &reject_untyped_publication!(&1, lookups))
+
     formatter = AshRpc.Manifest.output_formatter(manifest)
 
     data = %{
@@ -72,6 +85,35 @@ defmodule AshTypescript.Manifest.TypedRoutes do
       publication
       | returns: publication.returns && decorate_type(publication.returns, formatter)
     }
+
+  defp reject_untyped_route!(%Route{} = route, lookups) do
+    roots =
+      Enum.map(route.inputs, &{"argument #{inspect(&1.name)}", &1.type, "accepts"}) ++
+        [{"returns", route.returns, "returns"}]
+
+    with {path, type, verb} <- AshRpc.Introspection.find_untyped_root(roots, lookups) do
+      raise Spark.Error.DslError,
+        module: route.source_module,
+        path: [:typed_controller, route.name],
+        message:
+          "#{inspect(route.source_module)} route #{inspect(route.name)} #{verb} " <>
+            AshRpc.Manifest.UntypedStructError.details(type, path)
+    end
+  end
+
+  defp reject_untyped_publication!(%Publication{} = publication, lookups) do
+    roots = [{"returns", publication.returns, "returns"}]
+
+    with {path, type, verb} <- AshRpc.Introspection.find_untyped_root(roots, lookups) do
+      raise Spark.Error.DslError,
+        module: publication.channel_module,
+        path: [:typed_channel],
+        message:
+          "#{inspect(publication.channel_module)} publication #{inspect(publication.event)} " <>
+            "of #{inspect(publication.resource)} #{verb} " <>
+            AshRpc.Manifest.UntypedStructError.details(type, path)
+    end
+  end
 
   defp decorate_type(type, formatter),
     do: AshRpc.Manifest.Decorator.decorate_type(type, formatter, AshTypescript.RpcMappingSource)
