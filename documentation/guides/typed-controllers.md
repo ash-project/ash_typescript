@@ -619,7 +619,8 @@ if (response.ok) {
 | Primitives (`:string`, `:integer`, `:float`, `:boolean`, `:uuid`, dates, …) | The matching scalar type (`string`, `number`, `UUID`, …) |
 | `:atom` with `one_of`, `Ash.Type.Enum` modules | String literal union (`"ok" \| "pending"`) |
 | `:map`, `:keyword`, `:tuple`, `:struct` **with** `fields` constraints | Object type with exactly those fields (`allow_nil?` fields become `T \| null`) |
-| The same **without** `fields` constraints | `Record<string, any>` (or your `untyped_map_type`) |
+| `:map`, `:keyword`, `:tuple` **without** `fields` constraints | `Record<string, any>` (or your `untyped_map_type`) |
+| `:struct` **without** `fields` constraints (or with `fields: []`, unless `instance_of` is an Ash type) | Rejected when the manifest compiles (use an `Ash.TypedStruct`, `fields` constraints, `instance_of` an Ash resource or a plain `:map`) |
 | `{:array, inner}` | `Array<inner>` |
 | `Ash.Type.NewType` of any of the above | Expanded inline |
 

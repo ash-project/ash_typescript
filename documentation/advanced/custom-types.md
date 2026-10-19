@@ -324,9 +324,27 @@ This configuration applies to all map-like types without field constraints:
 - `Ash.Type.Map` without `fields` constraint
 - `Ash.Type.Keyword` without `fields` constraint
 - `Ash.Type.Tuple` without `fields` constraint
-- `Ash.Type.Struct` without `instance_of` or `fields` constraint
 
 **Maps with field constraints are NOT affected** and will still generate typed objects.
+An `Ash.Type.Struct` without `fields` constraints (or with an empty `fields`
+list, unless `instance_of` is an Ash type such as an empty `Ash.TypedStruct`)
+is rejected when the manifest compiles,
+wherever an RPC action, typed query, typed controller route or typed channel
+publication can reach it.
+
+The same applies inside a composite custom type (`composite?/1` returns
+`true`): each `composite_types/1` entry is checked, so an entry like
+`{:point, :struct, [instance_of: MyApp.Point]}` without `fields` fails the
+manifest. Use `{:point, MyApp.Point, []}` when `MyApp.Point` is an
+`Ash.TypedStruct`. Custom types that aren't composite aren't inspected, so a
+plain struct they return isn't caught here.
+
+At runtime, a value of an `Ash.Type.Map` without `fields` constraints is
+sent exactly as the action produced it and encoded by Jason: nothing converts
+keyword lists, tuples, `Duration`s or structs inside it. A value Jason can't
+encode fails the response: the RPC controller answers with a 500, and an RPC
+channel's process crashes. Convert it in the action, or give the type `fields`
+constraints.
 
 ### Type Safety Comparison
 
