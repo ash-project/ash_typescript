@@ -119,24 +119,14 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
   end
 
   defp validate_type(resource, %Type{kind: :struct} = type, context, visited, type_lookup) do
-    cond do
-      # Manifest already populated `.fields` (e.g. NewType subtype of :struct
-      # whose `fields:` constraint resolved successfully during generation).
-      is_list(type.fields) and type.fields != [] ->
-        validate_field_list(resource, type, context, visited, type_lookup)
-
-      # `Ash.TypedStruct` and other NewType-of-struct modules: unwrap to read
-      # the declared field constraints.
-      is_atom(type.instance_of) and Ash.Type.NewType.new_type?(type.instance_of) ->
-        validate_new_type_callback(resource, type.instance_of, context, visited, type_lookup)
-
-      # Plain Elixir structs that opt in via `typed_struct_fields/0` aren't
-      # known to the manifest builder — fall back to direct introspection.
-      is_atom(type.instance_of) and function_exported?(type.instance_of, :typed_struct_fields, 0) ->
-        validate_typed_struct_callback(resource, type.instance_of, context, visited, type_lookup)
-
-      true ->
-        []
+    # Manifest already populated `.fields` (e.g. NewType subtype of :struct
+    # whose `fields:` constraint resolved successfully during generation).
+    # Decoration rejects a `:struct` without `fields` anywhere it can reach,
+    # composite custom types included, so there is nothing else to read.
+    if is_list(type.fields) and type.fields != [] do
+      validate_field_list(resource, type, context, visited, type_lookup)
+    else
+      []
     end
   end
 
@@ -152,15 +142,10 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
        when is_atom(mod) and not is_nil(mod) do
     constraints = type.constraints || []
 
-    cond do
-      composite_type?(mod, constraints) ->
-        validate_composite_callback(resource, mod, constraints, context, visited, type_lookup)
-
-      function_exported?(mod, :typed_struct_fields, 0) ->
-        validate_typed_struct_callback(resource, mod, context, visited, type_lookup)
-
-      true ->
-        []
+    if composite_type?(mod, constraints) do
+      validate_composite_callback(resource, mod, constraints, context, visited, type_lookup)
+    else
+      []
     end
   end
 
@@ -249,49 +234,6 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
   defp field_error_kind(%Type{kind: :struct}), do: :struct_field
   defp field_error_kind(_), do: :field
 
-  defp validate_new_type_callback(resource, new_type_module, context, visited, type_lookup) do
-    if Map.has_key?(visited, new_type_module) do
-      []
-    else
-      visited = Map.put(visited, new_type_module, true)
-      mappings = mappings_from_module(new_type_module)
-
-      constraints =
-        case new_type_module.do_init([]) do
-          {:ok, merged} -> merged
-          _ -> []
-        end
-
-      fields = Keyword.get(constraints, :fields, [])
-
-      Enum.flat_map(fields, fn {field_name, field_config} ->
-        mapped_name = Map.get(mappings, field_name, field_name)
-
-        name_errors =
-          if invalid_name?(mapped_name) do
-            [{resource, context, :struct_field, field_name, make_name_better(field_name)}]
-          else
-            []
-          end
-
-        field_type = Keyword.get(field_config, :type)
-        field_constraints = Keyword.get(field_config, :constraints, [])
-
-        nested_errors =
-          if field_type do
-            resolved =
-              Ash.Info.Manifest.Generator.TypeResolver.resolve(field_type, field_constraints)
-
-            validate_type(resource, resolved, context, visited, type_lookup)
-          else
-            []
-          end
-
-        name_errors ++ nested_errors
-      end)
-    end
-  end
-
   defp composite_type?(mod, constraints) do
     function_exported?(mod, :composite?, 1) and mod.composite?(constraints)
   rescue
@@ -337,43 +279,6 @@ defmodule AshTypescript.Manifest.Verifiers.VerifyActionTypes do
           else
             []
           end
-
-        nested_errors =
-          if field_type do
-            resolved =
-              Ash.Info.Manifest.Generator.TypeResolver.resolve(field_type, field_constraints)
-
-            validate_type(resource, resolved, context, visited, type_lookup)
-          else
-            []
-          end
-
-        name_errors ++ nested_errors
-      end)
-    end
-  end
-
-  defp validate_typed_struct_callback(resource, struct_module, context, visited, type_lookup) do
-    if Map.has_key?(visited, struct_module) do
-      []
-    else
-      visited = Map.put(visited, struct_module, true)
-      mappings = mappings_from_module(struct_module)
-
-      struct_module.typed_struct_fields()
-      |> Enum.flat_map(fn {field_name, field_opts} ->
-        mapped_name = Map.get(mappings, field_name, field_name)
-
-        name_errors =
-          if invalid_name?(mapped_name) do
-            [{resource, context, :typed_struct_field, field_name, make_name_better(field_name)}]
-          else
-            []
-          end
-
-        # Recurse into the field's declared type via TypeResolver (raw Ash type → manifest Type)
-        field_type = Keyword.get(field_opts, :type)
-        field_constraints = Keyword.get(field_opts, :constraints, [])
 
         nested_errors =
           if field_type do

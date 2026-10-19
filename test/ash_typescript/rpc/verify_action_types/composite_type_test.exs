@@ -347,6 +347,295 @@ defmodule AshTypescript.Rpc.VerifyActionTypes.CompositeTypeTest do
       assert error_message =~ "inner_1"
       assert error_message =~ "is_nested?"
     end
+
+    # ash_rpc walks a composite type's composite_types/1, so a :struct entry
+    # without fields is rejected when the manifest compiles, as at the top level.
+    test "rejects a :struct with instance_of a TypedStruct nested in a composite type" do
+      defmodule NestedTypedStructPoint do
+        use Ash.TypedStruct
+
+        typed_struct do
+          field :x_1, :float
+        end
+      end
+
+      defmodule CompositeWithTypedStructField do
+        use Ash.Type
+
+        def typescript_type_name, do: "PointHolder"
+
+        @impl true
+        def storage_type(_), do: :map
+        @impl true
+        def cast_input(value, _), do: {:ok, value}
+        @impl true
+        def cast_stored(value, _), do: {:ok, value}
+        @impl true
+        def dump_to_native(value, _), do: {:ok, value}
+        @impl true
+        def composite?(_), do: true
+        @impl true
+        def composite_types(_),
+          do: [{:point, :struct, [instance_of: NestedTypedStructPoint]}]
+      end
+
+      defmodule TestResourceCompositeWithTypedStruct do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "TestResourceCompositeWithTypedStruct"
+        end
+
+        attributes do
+          uuid_primary_key :id
+        end
+
+        actions do
+          action :get_holder, CompositeWithTypedStructField do
+            run fn _input, _context -> {:ok, %{}} end
+          end
+        end
+      end
+
+      defmodule TestDomainCompositeWithTypedStruct do
+        use Ash.Domain,
+          otp_app: :ash_typescript,
+          extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource TestResourceCompositeWithTypedStruct do
+            rpc_action :get_holder, :get_holder
+          end
+        end
+
+        resources do
+          resource TestResourceCompositeWithTypedStruct
+        end
+      end
+
+      error =
+        assert_raise RuntimeError, fn ->
+          silent_verify_for_domains([TestDomainCompositeWithTypedStruct])
+        end
+
+      message = Exception.message(error)
+
+      assert message =~
+               ~s[Entrypoint "get_holder" (#{inspect(TestResourceCompositeWithTypedStruct)}, ] <>
+                 "action :get_holder) returns an untyped struct, " <>
+                 "#{inspect(NestedTypedStructPoint)}, at returns → point."
+
+      assert message =~
+               "#{inspect(NestedTypedStructPoint)} is an Ash type: use it as the type instead"
+    end
+
+    test "rejects a plain struct with typed_struct_fields/0 nested in a composite type" do
+      defmodule NestedPlainPoint do
+        defstruct [:x_1]
+
+        def typed_struct_fields, do: [x_1: [type: :float]]
+      end
+
+      defmodule CompositeWithPlainStructField do
+        use Ash.Type
+
+        def typescript_type_name, do: "PlainPointHolder"
+
+        @impl true
+        def storage_type(_), do: :map
+        @impl true
+        def cast_input(value, _), do: {:ok, value}
+        @impl true
+        def cast_stored(value, _), do: {:ok, value}
+        @impl true
+        def dump_to_native(value, _), do: {:ok, value}
+        @impl true
+        def composite?(_), do: true
+        @impl true
+        def composite_types(_), do: [{:point, :struct, [instance_of: NestedPlainPoint]}]
+      end
+
+      defmodule TestResourceCompositeWithPlainStruct do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "TestResourceCompositeWithPlainStruct"
+        end
+
+        attributes do
+          uuid_primary_key :id
+        end
+
+        actions do
+          action :get_holder, CompositeWithPlainStructField do
+            run fn _input, _context -> {:ok, %{}} end
+          end
+        end
+      end
+
+      defmodule TestDomainCompositeWithPlainStruct do
+        use Ash.Domain,
+          otp_app: :ash_typescript,
+          extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource TestResourceCompositeWithPlainStruct do
+            rpc_action :get_holder, :get_holder
+          end
+        end
+
+        resources do
+          resource TestResourceCompositeWithPlainStruct
+        end
+      end
+
+      error =
+        assert_raise RuntimeError, fn ->
+          silent_verify_for_domains([TestDomainCompositeWithPlainStruct])
+        end
+
+      message = Exception.message(error)
+
+      assert message =~
+               ~s[Entrypoint "get_holder" (#{inspect(TestResourceCompositeWithPlainStruct)}, ] <>
+                 "action :get_holder) returns an untyped struct, " <>
+                 "#{inspect(NestedPlainPoint)}, at returns → point."
+
+      assert message =~ "* an Ash.TypedStruct"
+      refute message =~ "is an Ash type"
+    end
+
+    test "accepts a TypedStruct typed as itself in a composite type" do
+      defmodule NestedTypedStructPointOk do
+        use Ash.TypedStruct
+
+        typed_struct do
+          field :x, :float
+        end
+      end
+
+      defmodule CompositeWithTypedStructEntry do
+        use Ash.Type
+
+        def typescript_type_name, do: "TypedStructEntryHolder"
+
+        @impl true
+        def storage_type(_), do: :map
+        @impl true
+        def cast_input(value, _), do: {:ok, value}
+        @impl true
+        def cast_stored(value, _), do: {:ok, value}
+        @impl true
+        def dump_to_native(value, _), do: {:ok, value}
+        @impl true
+        def composite?(_), do: true
+        @impl true
+        def composite_types(_), do: [{:point, NestedTypedStructPointOk, []}]
+      end
+
+      defmodule TestResourceCompositeWithTypedStructEntry do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "TestResourceCompositeWithTypedStructEntry"
+        end
+
+        attributes do
+          uuid_primary_key :id
+        end
+
+        actions do
+          action :get_holder, CompositeWithTypedStructEntry do
+            run fn _input, _context -> {:ok, %{}} end
+          end
+        end
+      end
+
+      defmodule TestDomainCompositeWithTypedStructEntry do
+        use Ash.Domain,
+          otp_app: :ash_typescript,
+          extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource TestResourceCompositeWithTypedStructEntry do
+            rpc_action :get_holder, :get_holder
+          end
+        end
+
+        resources do
+          resource TestResourceCompositeWithTypedStructEntry
+        end
+      end
+
+      assert :ok = silent_verify_for_domains([TestDomainCompositeWithTypedStructEntry])
+    end
+
+    test "a custom type's typed_struct_fields/0 isn't read" do
+      defmodule CustomTypeWithTypedStructFields do
+        use Ash.Type
+
+        def typescript_type_name, do: "TypedStructFieldsCustom"
+
+        def typed_struct_fields, do: [x_1: [type: :float]]
+
+        @impl true
+        def storage_type(_), do: :map
+        @impl true
+        def cast_input(value, _), do: {:ok, value}
+        @impl true
+        def cast_stored(value, _), do: {:ok, value}
+        @impl true
+        def dump_to_native(value, _), do: {:ok, value}
+      end
+
+      defmodule TestResourceCustomTypedStructFields do
+        use Ash.Resource,
+          domain: nil,
+          data_layer: Ash.DataLayer.Ets,
+          extensions: [AshTypescript.Resource]
+
+        typescript do
+          type_name "TestResourceCustomTypedStructFields"
+        end
+
+        attributes do
+          uuid_primary_key :id
+        end
+
+        actions do
+          action :get_custom, CustomTypeWithTypedStructFields do
+            run fn _input, _context -> {:ok, %{}} end
+          end
+        end
+      end
+
+      defmodule TestDomainCustomTypedStructFields do
+        use Ash.Domain,
+          otp_app: :ash_typescript,
+          extensions: [AshTypescript.Rpc]
+
+        typescript_rpc do
+          resource TestResourceCustomTypedStructFields do
+            rpc_action :get_custom, :get_custom
+          end
+        end
+
+        resources do
+          resource TestResourceCustomTypedStructFields
+        end
+      end
+
+      assert :ok = silent_verify_for_domains([TestDomainCustomTypedStructFields])
+    end
   end
 
   # Compiling the throwaway manifest module makes Elixir's parallel checker echo
