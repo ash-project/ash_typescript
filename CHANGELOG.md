@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.19.2](https://github.com/ash-project/ash_typescript/compare/v0.19.1...v0.19.2) (2026-10-19)
+
+
+
+
+### Bug Fixes:
+
+* rpc: reject field selection on generic actions without returns by [@Torkan](https://github.com/Torkan)
+
 ## [v0.19.1](https://github.com/ash-project/ash_typescript/compare/v0.19.0...v0.19.1) (2026-10-12)
 
 
