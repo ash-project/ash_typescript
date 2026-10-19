@@ -338,12 +338,6 @@ defmodule AshTypescript.Test.Domain do
       rpc_action :struct_no_instance_value, :struct_no_instance_value
     end
 
-    # Test resource for `Rpc.StructFieldFilteringTest` — exercises public-field
-    # filtering on struct values. No rpc_actions needed; presence in the
-    # typescript_rpc block alone makes it a reachability root so it shows up
-    # in the manifest's resource_lookup.
-    resource AshTypescript.Test.StructFilterUser
-
     # Test resource for nested map field formatting bugs
     resource AshTypescript.Test.NestedMapResource do
       rpc_action :list_users_map, :list_users_map
@@ -373,6 +367,5 @@ defmodule AshTypescript.Test.Domain do
     resource AshTypescript.Test.TenantSetting
     resource AshTypescript.Test.InputParsing.Resource
     resource AshTypescript.Test.NestedMapResource
-    resource AshTypescript.Test.StructFilterUser
   end
 end

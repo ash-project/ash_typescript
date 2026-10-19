@@ -127,7 +127,7 @@ defmodule AshTypescript.Rpc.PipelineTest do
       # Create extraction template for id and title only (list format used by implementation)
       extraction_template = [:id, :title]
 
-      # Need to provide an action for unconstrained_map_action? check
+      # process_result/2 reads the action's returns
       action = AshRpc.Introspection.get_action!(rpc_runtime(), Todo, :read)
 
       request = %AshRpc.Request{
