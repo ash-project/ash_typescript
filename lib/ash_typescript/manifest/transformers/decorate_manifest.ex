@@ -20,6 +20,8 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
   Between the two, `AshTypescript.Manifest.TypedRoutes` decorates the typed
   controller routes and typed channel publications `BuildManifest` persisted,
   and stores them under `custom.ash_typescript.routes` / `.publications`.
+  The `custom_types` declarations and built-ins `NormalizeCustomTypes`
+  persisted are stored beside them, under `custom.ash_typescript.custom_types`.
   """
 
   use Spark.Dsl.Transformer
@@ -48,6 +50,7 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
             Transformer.get_persisted(dsl_state, :typed_publications, [])
           )
           |> Decorator.decorate()
+          |> put_custom_types(Transformer.get_persisted(dsl_state, :custom_types))
           |> AshRpc.Manifest.put_lookups()
 
         dsl_state =
@@ -60,6 +63,15 @@ defmodule AshTypescript.Manifest.Transformers.DecorateManifest do
 
         {:ok, dsl_state}
     end
+  end
+
+  # The `custom_types` declarations and built-ins `NormalizeCustomTypes`
+  # persisted, read through `Custom.declared_custom_type/2` and
+  # `Custom.builtin_custom_type/2`.
+  defp put_custom_types(%Ash.Info.Manifest{} = manifest, custom_types) do
+    data = %{custom_types: custom_types}
+    custom = Map.update(manifest.custom, :ash_typescript, data, &Map.merge(&1, data))
+    %Ash.Info.Manifest{manifest | custom: custom}
   end
 
   # Typed-query entrypoints keyed by name (as a string), read through

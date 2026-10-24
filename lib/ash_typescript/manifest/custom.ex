@@ -372,6 +372,31 @@ defmodule AshTypescript.Manifest.Custom do
       |> Map.values()
       |> Enum.sort_by(&{&1.channel_module, &1.resource, &1.event})
 
+  # ─────────────────────────────────────────────────────────────────
+  # Custom type declarations (manifest-level custom.ash_typescript)
+  # ─────────────────────────────────────────────────────────────────
+
+  @doc """
+  The manifest module's `custom_types` entry for `module`
+  (`AshTypescript.CustomTypes.Scalar` or `MapType`), or `nil`. `nil` source
+  reads the configured manifest (`with_manifest/2` override included).
+  """
+  @spec declared_custom_type(module() | Manifest.t() | nil, module()) ::
+          AshTypescript.CustomTypes.Scalar.t() | AshTypescript.CustomTypes.MapType.t() | nil
+  def declared_custom_type(source, module), do: custom_type(source, :declared, module)
+
+  @doc """
+  The built-in entry for `module` (`AshTypescript.CustomTypes.Builtin`), or
+  `nil`. A declared entry for the same module replaces it.
+  """
+  @spec builtin_custom_type(module() | Manifest.t() | nil, module()) ::
+          AshTypescript.CustomTypes.Scalar.t() | AshTypescript.CustomTypes.MapType.t() | nil
+  def builtin_custom_type(source, module), do: custom_type(source, :builtin, module)
+
+  defp custom_type(source, kind, module) do
+    source |> typed_data(:custom_types) |> Map.get(kind, %{}) |> Map.get(module)
+  end
+
   defp typed_data(source, key) do
     case AshTypescript.manifest(source) do
       %Manifest{custom: %{ash_typescript: data}} when is_map(data) -> Map.get(data, key, %{})
