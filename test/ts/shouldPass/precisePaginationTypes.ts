@@ -5,7 +5,7 @@
 // Precise Pagination Type Tests - shouldPass
 // Tests that pagination result types are inferred correctly based on what params are used
 
-import { listRecentTodos, listTodos } from "../generated";
+import { listRecentTodos, listTodoCommentsKeyset, listTodos } from "../generated";
 
 // Test 1: Offset pagination → result should be precisely the offset type
 export const testOffsetPagination = await listTodos({
@@ -160,6 +160,17 @@ if (testNestedWithPagination.success) {
   // Should NOT have keyset fields
   // @ts-expect-error - offset pagination should not have 'after'
   const after = testNestedWithPagination.data.after;
+}
+
+// Countable keyset-only action → count is accepted and returned
+export const testCountableKeysetPagination = await listTodoCommentsKeyset({
+  fields: ["id", "content"],
+  page: { limit: 1, count: true },
+});
+
+if (testCountableKeysetPagination.success) {
+  const count: number | null | undefined = testCountableKeysetPagination.data.count;
+  const type: "keyset" = testCountableKeysetPagination.data.type;
 }
 
 console.log("Precise pagination type tests should compile successfully!");

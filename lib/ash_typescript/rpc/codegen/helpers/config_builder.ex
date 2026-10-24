@@ -131,7 +131,11 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
           )
 
         supports_keyset ->
-          generate_keyset_pagination_config_fields(limit_required, optional_mark)
+          generate_keyset_pagination_config_fields(
+            limit_required,
+            supports_countable,
+            optional_mark
+          )
       end
     else
       []
@@ -431,13 +435,15 @@ defmodule AshTypescript.Rpc.Codegen.Helpers.ConfigBuilder do
       ]
   end
 
-  defp generate_keyset_pagination_config_fields(limit_required, optional_mark) do
+  defp generate_keyset_pagination_config_fields(limit_required, supports_countable, optional_mark) do
+    count_type = if supports_countable, do: "boolean", else: "never"
+
     fields = [
       "    #{formatted_limit_field()}#{limit_required}: number;",
       "    #{formatted_after_field()}?: string;",
       "    #{formatted_before_field()}?: string;",
       "    #{formatted_offset_field()}?: never;",
-      "    #{format_output_field(:count)}?: never;"
+      "    #{format_output_field(:count)}?: #{count_type};"
     ]
 
     [
