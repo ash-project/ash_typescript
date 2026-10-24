@@ -102,7 +102,8 @@ defmodule AshTypescript.Codegen.Orchestrator do
             all_resources: all_resources,
             rpc_resources: rpc_resources,
             struct_argument_resources: struct_argument_resources,
-            types_output_file: types_output_file
+            types_output_file: types_output_file,
+            extra_alias_types: ChannelCodegen.payload_return_types(channel_entries)
           )
 
         channel_types = generate_channel_types_content(channel_entries)

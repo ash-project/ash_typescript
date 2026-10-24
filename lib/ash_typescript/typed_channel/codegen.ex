@@ -136,6 +136,27 @@ defmodule AshTypescript.TypedChannel.Codegen do
   end
 
   @doc """
+  Resolves the `returns` type of every declared event's publication across
+  the given `{module, topic}` channel entries, as `%Ash.Info.Manifest.Type{}`.
+
+  Payload types are appended to `ash_types.ts`, so the type aliases they
+  reference (`Duration`, `AshDate`, ...) are collected from these roots.
+  Events whose publication has no `returns` are skipped.
+  """
+  @spec payload_return_types([{module(), String.t()}]) :: [Ash.Info.Manifest.Type.t()]
+  def payload_return_types(channel_entries) do
+    for {mod, _topic} <- channel_entries,
+        channel_resource <- Info.typed_channel(mod),
+        publications = Ash.Notifier.PubSub.Info.publications(channel_resource.module),
+        pub <- channel_resource.publications,
+        %{returns: returns} = matching_pub <-
+          [Info.find_publication(publications, to_string(pub.event))],
+        not is_nil(returns) do
+      Ash.Info.Manifest.Generator.TypeResolver.resolve(returns, matching_pub.constraints || [])
+    end
+  end
+
+  @doc """
   Generates TypeScript type declarations for a single typed channel module.
 
   The optional `topic` (e.g. `"org:*"`) causes a branded `OrgChannel` type to be
