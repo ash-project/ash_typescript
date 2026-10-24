@@ -900,7 +900,7 @@ defmodule AshTypescript.Rpc.Pipeline do
           {:ok, record}
 
         %Ash.BulkResult{status: :success, records: []} ->
-          {:ok, %{}}
+          {:error, Ash.Error.Query.NotFound.exception(resource: request.resource)}
 
         %Ash.BulkResult{errors: errors} when errors != [] ->
           {:error, errors}

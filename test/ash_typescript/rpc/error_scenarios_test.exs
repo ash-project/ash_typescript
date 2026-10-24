@@ -100,6 +100,31 @@ defmodule AshTypescript.Rpc.NewErrorTest do
              end)
     end
 
+    test "destroy and update of a missing record return not_found" do
+      conn = TestHelpers.build_rpc_conn()
+      id = Ash.UUID.generate()
+
+      destroy_result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "destroy_todo",
+          "identity" => id
+        })
+
+      assert destroy_result["success"] == false
+      assert [%{"type" => "not_found"}] = destroy_result["errors"]
+
+      update_result =
+        Rpc.run_action(:ash_typescript, conn, %{
+          "action" => "update_todo",
+          "identity" => id,
+          "input" => %{"title" => "x"},
+          "fields" => ["id"]
+        })
+
+      assert update_result["success"] == false
+      assert [%{"type" => "not_found"}] = update_result["errors"]
+    end
+
     test "invalid enum value returns invalid_attribute" do
       conn = TestHelpers.build_rpc_conn()
       user = TestHelpers.create_test_user(conn, fields: ["id"])
