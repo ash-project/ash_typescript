@@ -11,6 +11,19 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.19.3](https://github.com/ash-project/ash_typescript/compare/v0.19.2...v0.19.3) (2026-10-24)
+
+
+
+
+### Bug Fixes:
+
+* typed-channel: format payloads like RPC results and reject non-map payloads by [@Torkan](https://github.com/Torkan)
+
+* codegen: declare type aliases for nested types, metadata and channel payloads by [@Torkan](https://github.com/Torkan)
+
+* rpc: allow count in keyset-only pagination config when countable by [@Torkan](https://github.com/Torkan)
+
 ## [v0.19.2](https://github.com/ash-project/ash_typescript/compare/v0.19.1...v0.19.2) (2026-10-19)
 
 
