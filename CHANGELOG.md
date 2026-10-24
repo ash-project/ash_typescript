@@ -11,6 +11,15 @@ See [Conventional Commits](Https://conventionalcommits.org) for commit guideline
 
 <!-- changelog -->
 
+## [v0.19.4](https://github.com/ash-project/ash_typescript/compare/v0.19.3...v0.19.4) (2026-10-24)
+
+
+
+
+### Bug Fixes:
+
+* rpc: return not_found when destroying a missing record by [@Torkan](https://github.com/Torkan)
+
 ## [v0.19.3](https://github.com/ash-project/ash_typescript/compare/v0.19.2...v0.19.3) (2026-10-24)
 
 
