@@ -8,12 +8,12 @@ defmodule AshTypescript.Test.FullActivityChannel do
 
   Used to stress-test generation with all event/type combinations:
   - article_published: :map → {id: UUID, title: string | null}
-  - article_updated: :string → string
-  - article_archived: :boolean → boolean
-  - review_submitted: :integer → number
-  - review_approved: :boolean → boolean
+  - article_updated: :map → {title: string}
+  - article_archived: :map → {archived: boolean}
+  - review_submitted: :map → {rating: number}
+  - review_approved: :map → {approved: boolean}
   - alert_sent: :map → {id: UUID, message: string | null, severity: string | null}
-  - alert_cleared: :utc_datetime → UtcDateTime
+  - alert_cleared: :map → {clearedAt: UtcDateTime}
   """
   use Phoenix.Channel
   use AshTypescript.TypedChannel

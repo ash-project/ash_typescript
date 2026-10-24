@@ -60,7 +60,7 @@ defmodule MyApp.Post do
       public? true
     end
 
-    calculate :post_title, :auto, expr(title) do
+    calculate :post_title, :auto, expr(%{title: title}) do
       public? true
     end
   end
@@ -68,6 +68,11 @@ defmodule MyApp.Post do
   # ... attributes, actions, etc.
 end
 ```
+
+Payloads must be maps: Phoenix can only push a map to a channel, so a
+publication declared in a typed channel whose `returns` type is a string,
+number, boolean, date, atom, enum or array is refused at compile time. Wrap a
+single value in a map, as `post_title` does with `expr(%{title: title})`.
 
 You can also use explicit `returns` with an anonymous function transform, but
 this requires manually keeping the type and transform in sync:
@@ -182,8 +187,8 @@ const refs = onOrgChannelMessages(channel, {
     console.log("New post:", payload.title);
   },
   post_updated: (payload) => {
-    // payload is typed as string
-    console.log("Updated title:", payload);
+    // payload is typed as { title: string | null }
+    console.log("Updated title:", payload.title);
   },
 });
 
@@ -242,7 +247,7 @@ export type OrgChannel = {
 
 // Payload type aliases (one per event)
 export type PostCreatedPayload = {id: UUID, title: string | null};
-export type PostUpdatedPayload = string;
+export type PostUpdatedPayload = {title: string | null};
 export type CommentCreatedPayload = unknown;
 
 // Events map - maps event names to payload types
@@ -307,15 +312,18 @@ Wildcard topics require a `suffix` parameter that replaces the `*`. The factory 
 
 The TypeScript payload type is derived from the publication's `returns` type. When using `transform :some_calc`, Ash auto-populates `returns` from the calculation's type. You can also set `returns` explicitly.
 
+The payload must be pushed as a JSON object, so `returns` must be a map-like type:
+
 | `returns` Value | TypeScript Type | How to Get It |
 |----------------|-----------------|---------------|
-| `:string` | `string` | `calculate :my_calc, :auto, expr(name)` or explicit `returns: :string` |
-| `:integer` | `number` | `calculate :my_calc, :auto, expr(priority)` or explicit `returns: :integer` |
-| `:boolean` | `boolean` | `calculate :my_calc, :auto, expr(active == true)` or explicit `returns: :boolean` |
-| `:uuid` | `UUID` | `calculate :my_calc, :auto, expr(id)` or explicit `returns: :uuid` |
-| `:utc_datetime` | `UtcDateTime` | Explicit `returns: :utc_datetime` |
 | `:map` with `fields` | `{fieldName: type, ...}` | `calculate :my_calc, :auto, expr(%{id: id, name: name})` or explicit `returns: :map` with `constraints` |
+| `:map`, `:keyword` or `:tuple` | object type (from `fields`, or an untyped map without them) | Explicit `returns:` |
+| Embedded resource, or `:struct` with `instance_of` | The resource's type | Explicit `returns:` |
+| `:union` | `{memberName: value}` | Explicit `returns: :union` with `types` constraints |
+| `Ash.Type.NewType` of any of the above | As above | Explicit `returns: MyApp.MyType` |
 | Not set | `unknown` | Missing `transform :calc` and no explicit `returns` |
+
+Field types inside a map map as they do in RPC results (`:string` → `string`, `:integer` → `number`, `:boolean` → `boolean`, `:uuid` → `UUID`, `:utc_datetime` → `UtcDateTime`, ...). A scalar, enum or array `returns` type is refused at compile time — wrap the value in a map instead (`expr(%{count: count(comments)})`).
 
 Map types with `:fields` constraints generate plain object types without the `__type`/`__primitiveFields` metadata used by the RPC field-selection system.
 
@@ -337,6 +345,7 @@ The generated payload types use the configured `output_field_formatter` (e.g. `c
 
 Things to know:
 
+- Resource structs in the payload (embedded resources, or a record via `returns: :struct, constraints: [instance_of: MyApp.Post]`) are formatted like an RPC read: only public fields are sent, under their client names, with unloaded or forbidden values as `null`. Union values and scalars such as dates, decimals and durations are sent in the same form as RPC results, so no `Jason.Encoder` is needed on your resources. Any other struct (for example in a `:term` field) is passed to the serializer as-is, so its own `Jason.Encoder` decides what is sent.
 - Formatting happens at the websocket boundary only. Elixir-side subscribers of the same PubSub topics (e.g. LiveViews) still receive the raw, untransformed payload.
 - Your own `intercept` calls and `handle_out/3` clauses are preserved — the typed events are merged into the intercept list, and no clause is injected for an event you already handle yourself, so your clause owns the push (and you are responsible for formatting that payload).
 - If you do write your own `handle_out/3` for a declared event, add it to your own `intercept/1` list as well. Phoenix checks the intercept list at definition time, before AshTypescript merges the typed events in, so it otherwise prints a spurious "An intercept for event ... has not yet been defined" warning. Listing it twice is harmless — the lists are deduplicated.
@@ -362,7 +371,7 @@ channel.off("post_created", ref);
 ```typescript
 const refs = onOrgChannelMessages(channel, {
   post_created: (payload) => addPostToList(payload),
-  post_updated: (payload) => updatePostTitle(payload),
+  post_updated: (payload) => updatePostTitle(payload.title),
   comment_created: (payload) => showNotification(payload),
 });
 
@@ -397,6 +406,7 @@ The DSL verifier checks your configuration at compile time:
 |-------|----------|----------------|
 | Event exists | Error | Declared event doesn't match any publication on the resource |
 | Unique events | Error | Same event name used across multiple resources in one channel |
+| Map payload | Error | Publication `returns` type is not pushed as a JSON object (a string, number, boolean, date, atom, enum or array) — Phoenix can only push map payloads. Types whose shape isn't known (`:term`, custom types) aren't checked |
 | `public?: true` | Warning | Publication not marked as public |
 | `returns` set | Warning | Publication missing `returns` — no `transform :calc` or explicit `returns:` (payload type becomes `unknown`) |
 

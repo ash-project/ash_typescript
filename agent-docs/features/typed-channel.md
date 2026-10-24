@@ -29,7 +29,7 @@ Typed channels rely on `returns`, `public?`, and calculation `transform` support
 │  DSL Layer: AshTypescript.TypedChannel.Dsl               │
 │  - Topic pattern configuration                          │
 │  - Resource + publish declarations                      │
-│  - Compile-time verification (event existence, uniq)    │
+│  - Compile-time verification (events, uniq, map payload)│
 ├─────────────────────────────────────────────────────────┤
 │  Type Resolution Layer: Codegen                          │
 │  - Reads `returns` type from publication (auto-derived  │
@@ -54,11 +54,11 @@ Types and functions are split across two files:
 | Branded types, payload aliases, events maps, handlers/refs types | `ash_types.ts` | Shared types importable by other generated files |
 | Factory functions, subscription helpers, cleanup functions | `typed_channels_output_file` | Runtime code, imports types from `ash_types.ts` |
 
-The Orchestrator appends channel types to the end of `ash_types.ts` after all resource schemas. Channel functions go into a separate file configured via `typed_channels_output_file`.
+The Orchestrator appends channel types to the end of `ash_types.ts` after all resource schemas, and passes the publications' resolved `returns` types (`Codegen.payload_return_types/1`) to `TypeAliases` so the aliases they reference (`Duration`, `AshDate`, ...) are declared even when no RPC resource uses them. Channel functions go into a separate file configured via `typed_channels_output_file`.
 
 ### Type Mapping
 
-Channel payload types use `TypeMapper.map_channel_payload_type/2` instead of `map_type/3`. The codegen reads the publication's `returns` type — which Ash auto-populates when `transform :some_calc` references a calculation, or which can be set explicitly via `returns:`. The difference from RPC types: typed containers (`Ash.Type.Map`/`Keyword`/`Tuple`/`Struct` carrying a `:fields` constraint) generate plain object types without the `__type`/`__primitiveFields` metadata that the RPC field-selection system needs. Containers with no `:fields` fall back to the configured `untyped_map_type`. Non-container types (primitives, lists, etc.) delegate to `map_type/3` with `:output` direction.
+Channel payload types use `TypeMapper.map_channel_payload_type/2` instead of `map_type/3`. The codegen reads the publication's `returns` type — which Ash auto-populates when `transform :some_calc` references a calculation, or which can be set explicitly via `returns:`. The difference from RPC types: typed containers (`Ash.Type.Map`/`Keyword`/`Tuple`/`Struct` carrying a `:fields` constraint) generate plain object types without the `__type`/`__primitiveFields` metadata that the RPC field-selection system needs. Containers with no `:fields` fall back to the configured `untyped_map_type`. Other types (resources, embedded resources, unions) delegate to `map_type/3` with `:output` direction. Scalar, enum and array payload types never reach codegen: the verifier refuses them, because Phoenix only pushes map payloads (`Phoenix.Socket.V2.JSONSerializer` raises `expected payload to be a map`).
 
 ## DSL Reference
 
@@ -98,7 +98,7 @@ defmodule MyApp.Comment do
   end
 
   calculations do
-    calculate :comment_body, :auto, expr(body) do
+    calculate :comment_body, :auto, expr(%{body: body}) do
       public? true
     end
   end
@@ -142,7 +142,7 @@ defmodule MyAppWeb.OrgChannel do
 end
 ```
 
-The module must also `use Phoenix.Channel` (compile warning otherwise). `use AshTypescript.TypedChannel` injects — via Spark's `handle_before_compile/1` and `AshTypescript.TypedChannel.Interception` — an intercept for every declared event plus `handle_out/3` clauses that format the broadcast payload through `AshTypescript.TypedChannel.PayloadFormatter` (the publication's `returns` type + `ValueFormatter`, same as RPC output) before pushing. This makes the wire payload match the generated TypeScript types, which use the `output_field_formatter`. User-defined `intercept` calls are merged into the intercept list, and no `handle_out/3` clause is injected for an event the module already handles itself (detected via `Module.get_definition/2`, since `before_compile` clauses shadow an identical clause head in the module body). Such a module should also `intercept` that event itself to avoid a spurious Phoenix definition-time warning. Interception disables Phoenix's fastlane for the declared events (per-subscriber encoding).
+The module must also `use Phoenix.Channel` (compile warning otherwise). `use AshTypescript.TypedChannel` injects — via Spark's `handle_before_compile/1` and `AshTypescript.TypedChannel.Interception` — an intercept for every declared event plus `handle_out/3` clauses that format the broadcast payload through `AshTypescript.TypedChannel.PayloadFormatter` (the publication's `returns` type + `ValueFormatter`, same as RPC output) before pushing. This makes the wire payload match the generated TypeScript types, which use the `output_field_formatter`. Since the payload is the raw `transform` result (no `ResultProcessor` pass), `ValueFormatter` also handles what RPC output never contains: resource structs are reduced to their public fields (manifest fields/relationships, or `Ash.Resource.Info.public_fields/1` for a resource missing from the manifest, whose fields are then formatted from their `Ash.Resource.Info` types; `%Ash.NotLoaded{}`/`%Ash.ForbiddenField{}` become `nil`), `%Ash.Union{}` becomes `%{member => value}`, and the scalar structs (`DateTime`, `Date`, `Time`, `NaiveDateTime`, `Duration`, `Decimal`, `Ash.CiString`) go through `ResultProcessor.normalize_value_for_json/1`. Any other struct (e.g. under `:term`) is left to its own `Jason.Encoder`. User-defined `intercept` calls are merged into the intercept list, and no `handle_out/3` clause is injected for an event the module already handles itself (detected via `Module.get_definition/2`, since `before_compile` clauses shadow an identical clause head in the module body). Such a module should also `intercept` that event itself to avoid a spurious Phoenix definition-time warning. Interception disables Phoenix's fastlane for the declared events (per-subscriber encoding).
 
 ### Section Options
 
@@ -170,10 +170,11 @@ The `VerifyTypedChannel` verifier runs at compile time:
 |-------|----------|---------------|-------------|
 | Event exists | Error | — | Each declared event must match a publication on the resource |
 | Unique events | Error | — | Event names must be unique across all resources in a channel |
+| Map payload | Error | — | A publication's resolved `returns` type (through NewTypes) must be pushed as a JSON object: `:map`, `:struct`, `:keyword`, `:tuple`, resource, embedded resource or `:union`. Scalars, enums and arrays are refused. `:term`/`:any` and hand-rolled custom types (kind `:unknown`) aren't checked, nor are publications without `returns` |
 | `public?: true` | Warning | `warn_on_non_public_publications` (default `true`) | Publications should be marked `public?: true` |
 | `returns` set | Warning | `warn_on_missing_channel_returns` (default `true`) | Publications without `returns` (no `transform :calc` or explicit `returns:`) produce `unknown` TypeScript type |
 
-Both warnings can be silenced independently via config; the two hard errors cannot.
+Both warnings can be silenced independently via config; the three hard errors cannot.
 
 ## Generated TypeScript
 
@@ -189,7 +190,7 @@ export type OrgChannel = {
 
 // Payload type aliases (deduplicated across channels)
 export type PostCreatedPayload = {id: UUID, title: string | null};
-export type CommentCreatedPayload = string;
+export type CommentCreatedPayload = {body: string | null};
 
 // Events map
 export type OrgChannelEvents = {
@@ -296,17 +297,19 @@ Channel entries are collected once and reused for both steps.
 |------|---------|
 | `test/ash_typescript/typed_channel/codegen_test.exs` | Single-channel codegen, static topic, deduplication, orchestrator integration |
 | `test/ash_typescript/typed_channel/multi_resource_codegen_test.exs` | Multi-resource channels, cross-channel isolation, batch generation, payload type conflict detection |
-| `test/ash_typescript/typed_channel/verify_typed_channel_test.exs` | Verifier tests: missing events, duplicate events, missing returns/public warnings |
+| `test/ash_typescript/typed_channel/verify_typed_channel_test.exs` | Verifier tests: missing events, duplicate events, non-map payloads, missing returns/public warnings |
+| `test/ash_typescript/typed_channel/payload_formatter_test.exs` | Runtime payload formatting: resource structs, unlisted resources, unions, `:term` structs |
+| `test/ash_typescript/typed_channel/payload_type_aliases_test.exs` | Type aliases declared for channel-only payload types |
 
 ### Test Resources
 
 | File | Purpose |
 |------|---------|
-| `test/support/resources/channel_item.ex` | Resource with map, integer, string publications (explicit `returns:` + fn transforms) |
-| `test/support/resources/channel_article.ex` | Resource with map, string, boolean publications (explicit `returns:`) |
-| `test/support/resources/channel_review.ex` | Resource with integer, boolean publications (explicit `returns:`) |
-| `test/support/resources/channel_alert.ex` | Resource with map, utc_datetime publications (explicit `returns:`) |
-| `test/support/resources/channel_tracker.ex` | **Calculation-transform fixtures** (`transform :calc` + `:auto` calcs) — the recommended path. 10 publications covering string, aggregate, boolean, nested-map and relationship-loading calculations |
+| `test/support/resources/channel_item.ex` | Resource with map publications whose fields cover integer and string (explicit `returns:` + fn transforms) |
+| `test/support/resources/channel_article.ex` | Resource with map publications whose fields cover string and boolean (explicit `returns:`) |
+| `test/support/resources/channel_review.ex` | Resource with map publications whose fields cover integer and boolean (explicit `returns:`) |
+| `test/support/resources/channel_alert.ex` | Resource with map publications, one with a utc_datetime field (explicit `returns:`) |
+| `test/support/resources/channel_tracker.ex` | **Calculation-transform fixtures** (`transform :calc` + `:auto` calcs) — the recommended path. 10 map publications covering string, aggregate, boolean, nested-map and relationship-loading calculations (scalars wrapped in single-field maps) |
 | `test/support/resources/channel_tracker_author.ex` | Related resource loaded through tracker calculations |
 | `test/support/resources/channel_tracker_entry.ex` | Related resource behind tracker aggregate calculations |
 | `test/support/resources/org_channel.ex` | Single-resource channel (ChannelItem) |
@@ -321,7 +324,7 @@ Inline test resources (defined in test files to avoid compile-time warnings in C
 |------|---------------|---------|
 | `codegen_test.exs` | `NoReturnsItem`, `NoReturnsChannel`, `StaticTopicChannel` | Unknown payload type, static topic factory |
 | `multi_resource_codegen_test.exs` | `ConflictItemA/B`, `ConflictChannelA/B` | Payload type conflict detection |
-| `verify_typed_channel_test.exs` | `VerifierNoReturnsItem/Channel`, `VerifierNotPublicItem/Channel`, `DuplicateEventItem`, `ChannelWithMissingEvent`, `ChannelWithDuplicateEvents` | Verifier error and warning paths |
+| `verify_typed_channel_test.exs` | `NoReturnsItem/Channel`, `NotPublicItem/Channel`, `DuplicateEventItem`, `ChannelWithMissingEvent`, `ChannelWithDuplicateEvents`, `NonMapPayloadItem`, `ObjectPayloadItem/Channel` | Verifier error and warning paths |
 
 ### Running Tests
 
@@ -335,6 +338,7 @@ mix test test/ash_typescript/typed_channel/   # Typed channel tests
 |-------|-------|----------|
 | "No publication with event X found" | Event name doesn't match any publication on the resource | Check the `event:` option (or action name fallback) on the resource's `pub_sub` block |
 | "Duplicate event names found" | Same event name used across multiple resources in one channel | Use unique event names per channel |
+| "Event X on Y in typed channel Z has payload type T, which is not pushed as a JSON object" | Publication `returns` is a scalar, enum or array; Phoenix only pushes map payloads | Return a map, e.g. `calculate :title_payload, :auto, expr(%{title: title})` with `transform: :title_payload`, or `returns: :map` with `fields` |
 | "Payload type name conflict" | Same event name across different channels maps to different TypeScript types | Rename conflicting events or ensure they return the same type |
 | `unknown` TypeScript payload type | Publication missing `returns` type (no `transform :calc` or explicit `returns:`) | Use `transform :some_calc` with an `:auto`-typed calculation (recommended), or add explicit `returns:` |
 | Channel types not in output | `typed_channels` not configured | Add modules to `typed_channels: [...]` in config |

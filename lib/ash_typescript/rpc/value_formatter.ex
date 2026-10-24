@@ -192,7 +192,7 @@ defmodule AshTypescript.Rpc.ValueFormatter do
             format_map_keys_only(value, formatter, direction)
 
           true ->
-            value
+            format_scalar(value, direction)
         end
     end
   end
@@ -214,6 +214,20 @@ defmodule AshTypescript.Rpc.ValueFormatter do
   def format(value, _type, _constraints, _formatter, _direction, _resource_lookups, _type_index) do
     value
   end
+
+  # Scalar structs (`%Duration{}`, `%DateTime{}`, `%Decimal{}`, ...) only reach
+  # the formatter on output paths that skip the RPC result processor (typed
+  # channel payloads, typed controller results). Normalize them exactly as
+  # `ResultProcessor` does, so the wire format matches RPC and serializers
+  # without an encoder for them (`Duration` has no `Jason.Encoder`) don't
+  # crash. Any other struct (e.g. under `:term`) is left to its own encoder,
+  # which may deliberately hide fields.
+  @scalar_structs [DateTime, Date, Time, NaiveDateTime, Duration, Decimal, Ash.CiString]
+
+  defp format_scalar(%module{} = value, :output) when module in @scalar_structs,
+    do: AshTypescript.Rpc.ResultProcessor.normalize_value_for_json(value)
+
+  defp format_scalar(value, _direction), do: value
 
   defp is_custom_type_with_map_storage?(module) when is_atom(module) do
     Ash.Type.ash_type?(module) and
@@ -312,7 +326,12 @@ defmodule AshTypescript.Rpc.ValueFormatter do
         end
 
       formatted_value =
-        format(field_value, field_or_rel, [], formatter, direction, resource_lookups)
+        if is_nil(field_or_rel) and direction == :output and
+             unlisted_resource?(resource, resource_lookups) do
+          format_unlisted_field(field_value, resource, internal_key, formatter, resource_lookups)
+        else
+          format(field_value, field_or_rel, [], formatter, direction, resource_lookups)
+        end
 
       output_key =
         case direction do
@@ -324,7 +343,75 @@ defmodule AshTypescript.Rpc.ValueFormatter do
     end)
   end
 
+  # Resource structs only reach the formatter on output paths that skip the RPC
+  # result processor — typed channel payloads carry the publication's
+  # `transform` result verbatim. Reduce them to their public fields the way
+  # `ResultProcessor` does (unloaded and forbidden values become `nil`) and
+  # format the resulting map, so nothing private reaches the serializer.
+  defp format_resource(%module{} = value, _resource, formatter, :output, resource_lookups) do
+    if Helpers.ash_resource?(module) do
+      value
+      |> public_resource_map(module, resource_lookups)
+      |> format_resource(module, formatter, :output, resource_lookups)
+    else
+      value
+    end
+  end
+
   defp format_resource(value, _resource, _formatter, _direction, _resource_lookups), do: value
+
+  defp public_resource_map(struct, module, resource_lookups) do
+    public? = public_field_predicate(module, resource_lookups)
+
+    struct
+    |> Map.from_struct()
+    |> Enum.reduce(%{}, fn {key, field_value}, acc ->
+      if public?.(key), do: Map.put(acc, key, drop_unavailable(field_value)), else: acc
+    end)
+  end
+
+  # The manifest lists only public fields and relationships. A resource missing
+  # from it (e.g. an embedded resource that no RPC resource references) falls
+  # back to Ash's own public field list rather than exposing every struct key.
+  defp public_field_predicate(module, resource_lookups) do
+    case is_map(resource_lookups) && Map.get(resource_lookups, module) do
+      %Ash.Info.Manifest.Resource{} = res ->
+        &Ash.Info.Manifest.Resource.has_field?(res, &1)
+
+      _ ->
+        names = module |> Ash.Resource.Info.public_fields() |> MapSet.new(& &1.name)
+        &MapSet.member?(names, &1)
+    end
+  end
+
+  # A resource the manifest doesn't list (an embedded resource reachable only
+  # from a typed channel payload, say) has no manifest field types, so its
+  # fields are formatted from Ash's own field definitions instead.
+  defp unlisted_resource?(resource, resource_lookups) do
+    is_atom(resource) and not is_nil(resource) and Helpers.ash_resource?(resource) and
+      not (is_map(resource_lookups) and Map.has_key?(resource_lookups, resource))
+  end
+
+  defp format_unlisted_field(value, resource, key, formatter, resource_lookups) do
+    case Ash.Resource.Info.field(resource, key) do
+      %{destination: dest, cardinality: :many} when is_list(value) ->
+        Enum.map(value, &format_resource(&1, dest, formatter, :output, resource_lookups))
+
+      %{destination: dest} ->
+        format_resource(value, dest, formatter, :output, resource_lookups)
+
+      %{type: type} = field when not is_nil(type) ->
+        constraints = Map.get(field, :constraints) || []
+        format(value, type, constraints, formatter, :output, resource_lookups)
+
+      _ ->
+        value
+    end
+  end
+
+  defp drop_unavailable(%Ash.NotLoaded{}), do: nil
+  defp drop_unavailable(%Ash.ForbiddenField{}), do: nil
+  defp drop_unavailable(value), do: value
 
   defp convert_resource_key(key, res_struct, formatter, :input) when is_binary(key) do
     case Custom.original_field_name(res_struct, key) do
@@ -526,6 +613,19 @@ defmodule AshTypescript.Rpc.ValueFormatter do
       {:error, error} ->
         throw(error)
     end
+  end
+
+  # Raw union values only appear on output paths that skip the RPC result
+  # processor (typed channel payloads); give them the `%{member => value}` shape
+  # `ResultProcessor` produces.
+  defp format_union_output(
+         %Ash.Union{type: type, value: value},
+         members,
+         storage_type,
+         formatter,
+         resource_lookups
+       ) do
+    format_union_output(%{type => value}, members, storage_type, formatter, resource_lookups)
   end
 
   defp format_union_output(value, members, storage_type, formatter, resource_lookups) do

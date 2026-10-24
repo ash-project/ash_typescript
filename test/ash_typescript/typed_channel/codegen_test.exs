@@ -58,12 +58,12 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
       assert content =~ "export type ItemCreatedPayload = {id: UUID, name: string | null};"
     end
 
-    test "generates number payload type for item_updated (:integer)", %{content: content} do
-      assert content =~ "export type ItemUpdatedPayload = number;"
+    test "generates map payload type with a number field for item_updated", %{content: content} do
+      assert content =~ "export type ItemUpdatedPayload = {count: number};"
     end
 
-    test "generates string payload type for item_deleted (:string)", %{content: content} do
-      assert content =~ "export type ItemDeletedPayload = string;"
+    test "generates map payload type with a string field for item_deleted", %{content: content} do
+      assert content =~ "export type ItemDeletedPayload = {id: string};"
     end
 
     test "generates channel events map type", %{content: content} do
@@ -323,10 +323,10 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
       %{types_content: types_content, channels_content: channels_content}
     end
 
-    test "string calc transform payload types", %{types_content: content} do
-      assert content =~ "export type TrackerSummaryPayload = string;"
-      assert content =~ "export type TrackerLabelPayload = string;"
-      assert content =~ "export type TrackerStatusChangedPayload = string;"
+    test "map calc transform payload types wrapping string concat", %{types_content: content} do
+      assert content =~ "export type TrackerSummaryPayload = {summary: string};"
+      assert content =~ "export type TrackerLabelPayload = {label: string | null};"
+      assert content =~ "export type TrackerStatusChangedPayload = {status: string};"
     end
 
     test "map calc transform payload type with local fields and correct nullability", %{
@@ -348,15 +348,15 @@ defmodule AshTypescript.TypedChannel.CodegenTest do
     end
 
     test "integer calc payload type (count aggregate)", %{types_content: content} do
-      assert content =~ "export type TrackerEntryCountPayload = number;"
+      assert content =~ "export type TrackerEntryCountPayload = {count: number | null};"
     end
 
     test "boolean expression calc transform payload type", %{types_content: content} do
-      assert content =~ "export type TrackerIsActivePayload = boolean;"
+      assert content =~ "export type TrackerIsActivePayload = {active: boolean | null};"
     end
 
     test "integer aggregate calc payload type (max)", %{types_content: content} do
-      assert content =~ "export type TrackerTopScorePayload = number;"
+      assert content =~ "export type TrackerTopScorePayload = {score: number | null};"
     end
 
     test "map with nested relationship fields (first on related FK)", %{types_content: content} do

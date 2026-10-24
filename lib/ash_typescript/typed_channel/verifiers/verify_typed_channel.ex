@@ -9,17 +9,24 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
   Checks:
   1. All declared events exist as publications on their respective resources.
   2. Event names are unique across all resources in the channel.
-  3. Publications are marked `public?: true` (warning if not).
-  4. Publications have `returns` set — either auto-derived via `transform :calc`
+  3. Publications whose `returns` type is known are pushed as a JSON object.
+     Phoenix only pushes map payloads (`Phoenix.Socket.V2.JSONSerializer`
+     raises for anything else), so a string, number, boolean, date, atom, enum
+     or array payload would crash the channel when broadcast. Maps, structs,
+     resources, embedded resources, unions, keywords and tuples (and NewTypes
+     of them) are all formatted to a map before the push. Types whose shape is
+     not known (`:term`, hand-rolled custom types) are not checked.
+  4. Publications are marked `public?: true` (warning if not).
+  5. Publications have `returns` set — either auto-derived via `transform :calc`
      or explicitly declared (warning if not — TypeScript type falls back to `unknown`).
 
-  Checks 1 and 2 are hard errors. Checks 3 and 4 write to stderr and are each
+  Checks 1 to 3 are hard errors. Checks 4 and 5 write to stderr and are each
   gated by an application-level toggle (mirroring `VerifyRpcWarnings`):
 
     * `config :ash_typescript, warn_on_non_public_publications: true` (default)
     * `config :ash_typescript, warn_on_missing_channel_returns: true` (default)
 
-  Checks 3 and 4 deliberately use `IO.puts(:stderr, ...)` rather than `IO.warn/1`.
+  Checks 4 and 5 deliberately use `IO.puts(:stderr, ...)` rather than `IO.warn/1`.
   This verifier runs during compilation of the channel module, where `IO.warn/1`
   would register a compiler diagnostic and so fail `mix compile
   --warnings-as-errors`. A non-`public?` publication or a missing `returns` may
@@ -28,14 +35,24 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
 
   use Spark.Dsl.Verifier
 
+  alias Ash.Info.Manifest.Generator.TypeResolver
   alias AshTypescript.TypedChannel.Info
+
+  # Resolved type kinds that `ValueFormatter` turns into a map on output.
+  @object_kinds [:map, :struct, :keyword, :tuple, :resource, :embedded_resource, :union]
+
+  # Kinds whose runtime shape is not known from the type, so they cannot be
+  # refused (`:unknown` covers hand-rolled custom types).
+  @unknown_shape_kinds [:term, :any, :unknown]
 
   @impl true
   def verify(dsl) do
     channel_resources = Spark.Dsl.Verifier.get_entities(dsl, [:typed_channel])
+    channel = Spark.Dsl.Verifier.get_persisted(dsl, :module)
 
     with :ok <- verify_events_exist(channel_resources),
-         :ok <- verify_unique_event_names(channel_resources) do
+         :ok <- verify_unique_event_names(channel_resources),
+         :ok <- verify_object_payloads(channel_resources, channel) do
       warn_missing_returns(channel_resources)
       :ok
     end
@@ -97,6 +114,59 @@ defmodule AshTypescript.TypedChannel.Verifiers.VerifyTypedChannel do
          """
        )}
     end
+  end
+
+  defp verify_object_payloads(channel_resources, channel) do
+    channel_resources
+    |> Enum.flat_map(fn channel_resource ->
+      resource_module = channel_resource.module
+      publications = Ash.Notifier.PubSub.Info.publications(resource_module)
+
+      Enum.flat_map(channel_resource.publications, fn pub ->
+        case Info.find_publication(publications, to_string(pub.event)) do
+          %{returns: returns} = matching_pub when not is_nil(returns) ->
+            if object_payload?(TypeResolver.resolve(returns, matching_pub.constraints || [])) do
+              []
+            else
+              [{pub, resource_module, returns}]
+            end
+
+          _ ->
+            []
+        end
+      end)
+    end)
+    |> case do
+      [] ->
+        :ok
+
+      [{pub, resource_module, returns} | _] ->
+        {:error, non_object_error(pub, resource_module, returns, channel)}
+    end
+  end
+
+  defp object_payload?(%{kind: :type_ref, module: module}),
+    do: object_payload?(TypeResolver.resolve_definition(module))
+
+  defp object_payload?(%{kind: kind}), do: kind in @object_kinds or kind in @unknown_shape_kinds
+
+  defp non_object_error(pub, resource_module, returns, channel) do
+    Spark.Error.DslError.exception(
+      module: channel,
+      path: [:typed_channel, :resource, :publish, pub.event],
+      location: Spark.Dsl.Entity.anno(pub),
+      message: """
+      Event #{inspect(pub.event)} on #{inspect(resource_module)} in typed channel \
+      #{inspect(channel)} has payload type #{inspect(Ash.Type.get_type(returns))}, \
+      which is not pushed as a JSON object.
+
+      Phoenix channels can only push map payloads, so broadcasting this event \
+      would raise and crash every subscribed channel. Return a map instead, for \
+      example a calculation such as `calculate :title_payload, :auto, \
+      expr(%{title: title})` used as `transform: :title_payload`, or \
+      `returns: :map` with `fields` constraints.
+      """
+    )
   end
 
   defp warn_missing_returns(channel_resources) do

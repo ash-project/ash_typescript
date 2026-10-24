@@ -6,7 +6,7 @@ defmodule AshTypescript.Test.ChannelArticle do
   @moduledoc """
   Test resource for TypedChannel multi-resource stress testing.
 
-  Declares three publications covering map, string, and boolean return types.
+  Declares three map publications whose fields cover map, string, and boolean types.
   """
   use Ash.Resource,
     domain: nil,
@@ -33,14 +33,16 @@ defmodule AshTypescript.Test.ChannelArticle do
     publish :update, [:id],
       event: "article_updated",
       public?: true,
-      returns: :string,
-      transform: fn notification -> notification.data.title end
+      returns: :map,
+      constraints: [fields: [title: [type: :string, allow_nil?: false]]],
+      transform: fn notification -> %{title: notification.data.title} end
 
     publish :destroy, [:id],
       event: "article_archived",
       public?: true,
-      returns: :boolean,
-      transform: fn _notification -> true end
+      returns: :map,
+      constraints: [fields: [archived: [type: :boolean, allow_nil?: false]]],
+      transform: fn _notification -> %{archived: true} end
   end
 
   attributes do

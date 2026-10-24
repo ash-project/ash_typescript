@@ -9,8 +9,11 @@ defmodule AshTypescript.Test.ChannelTracker do
   All publications use `transform: :calc_name`. Ash auto-populates the
   `returns` type from the calculation, which AshTypescript reads directly.
 
+  Phoenix only pushes map payloads, so every calculation returns a map; the
+  single-field maps wrap the expression kind under test.
+
   Expression types covered:
-  - String concat (explicit and :auto)
+  - String concat (explicitly typed `:map` with `fields`, and :auto)
   - Map with local fields (:auto)
   - Map with relationship traversal via first() (:auto)
   - Map with nested relationship traversal via first() with dot access (:auto)
@@ -28,19 +31,19 @@ defmodule AshTypescript.Test.ChannelTracker do
     module AshTypescript.Test.TestEndpoint
     prefix "tracker"
 
-    # String calc (explicitly typed)
+    # String concat in an explicitly typed map calc
     publish :create, [:id],
       event: "tracker_summary",
       public?: true,
       transform: :summary
 
-    # String calc (:auto typed)
+    # String concat in an :auto typed map calc
     publish :update, [:id],
       event: "tracker_label",
       public?: true,
       transform: :label
 
-    # String calc (explicitly typed)
+    # String concat in an explicitly typed map calc
     publish :destroy, [:id],
       event: "tracker_status_changed",
       public?: true,
@@ -103,18 +106,20 @@ defmodule AshTypescript.Test.ChannelTracker do
   end
 
   calculations do
-    # Explicitly typed string calculation used as transform
-    calculate :summary, :string, expr(name <> " [" <> status <> "]") do
+    # Explicitly typed map calculation used as transform
+    calculate :summary, :map, expr(%{summary: name <> " [" <> status <> "]"}) do
+      constraints fields: [summary: [type: :string, allow_nil?: false]]
       public?(true)
     end
 
     # :auto typed string concat — type inferred from expression
-    calculate :label, :auto, expr(name <> " tracker") do
+    calculate :label, :auto, expr(%{label: name <> " tracker"}) do
       public?(true)
     end
 
-    # Explicitly typed string — used without returns on publication
-    calculate :status_display, :string, expr("Status: " <> status) do
+    # Explicitly typed map — used without returns on publication
+    calculate :status_display, :map, expr(%{status: "Status: " <> status}) do
+      constraints fields: [status: [type: :string, allow_nil?: false]]
       public?(true)
     end
 
@@ -131,17 +136,17 @@ defmodule AshTypescript.Test.ChannelTracker do
     end
 
     # :auto count aggregate — should resolve to integer
-    calculate :entry_count, :auto, expr(count(entries)) do
+    calculate :entry_count, :auto, expr(%{count: count(entries)}) do
       public?(true)
     end
 
     # :auto boolean expression — type inferred as boolean
-    calculate :is_active, :auto, expr(status == "active" and priority > 0) do
+    calculate :is_active, :auto, expr(%{active: status == "active" and priority > 0}) do
       public?(true)
     end
 
     # :auto max aggregate on related field — should resolve to integer
-    calculate :top_entry_score, :auto, expr(max(entries, field: :score)) do
+    calculate :top_entry_score, :auto, expr(%{score: max(entries, field: :score)}) do
       public?(true)
     end
 

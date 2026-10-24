@@ -52,10 +52,16 @@ onOrgChannelMessage(orgChannel, "item_created", (payload) => {
   console.log(payload.nonExistentProp);
 });
 
-// Test 5: Wrong payload type for numeric event
+// Test 5: Wrong field type for a numeric field
 onOrgChannelMessage(orgChannel, "item_updated", (payload) => {
-  // @ts-expect-error - payload is number, not string
-  const s: string = payload;
+  // @ts-expect-error - payload.count is number, not string
+  const s: string = payload.count;
+});
+
+// Test 5b: A map payload is not its field's scalar type
+onOrgChannelMessage(orgChannel, "item_updated", (payload) => {
+  // @ts-expect-error - payload is {count: number}, not number
+  const n: number = payload;
 });
 
 // Test 6: Invalid event in multi-event handler

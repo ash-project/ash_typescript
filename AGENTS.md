@@ -473,6 +473,7 @@ mix credo --strict                   # Linting
 | "AshTypescript.TypedChannel is being used in module X without `use Phoenix.Channel`" | Typed channel module isn't a Phoenix channel, so payload interception can't be injected | Add `use Phoenix.Channel` and a `join/3` to the module |
 | "No publication with event X found" | Typed channel event doesn't match any publication | Check `event:` option on the resource's `pub_sub` block |
 | "Duplicate event names found in typed_channel" | Same event name across resources in one channel | Use unique event names per channel |
+| "Event X on Y in typed channel Z has payload type T, which is not pushed as a JSON object" | Typed channel publication `returns` is a scalar, enum or array — Phoenix only pushes map payloads | Return a map: `calculate :title_payload, :auto, expr(%{title: title})` with `transform: :title_payload`, or `returns: :map` with `fields` |
 | "Payload type name conflict" | Same event name across different channels maps to different TS types | Rename events or ensure same `returns` type |
 | Channel `unknown` payload type | Publication missing `returns` type (no `transform :calc` or explicit `returns`) | Use `transform :some_calc` with an `:auto`-typed calculation (recommended), or add explicit `returns:` |
 | "not `public?`" error on RPC action | Action has `public? false` | Set `public? true` on the action or remove it from `typescript_rpc` |

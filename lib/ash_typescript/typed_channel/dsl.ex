@@ -65,7 +65,9 @@ defmodule AshTypescript.TypedChannel.Dsl do
     The event name must match the `event` option (or action name fallback) of
     a publication on the resource. The publication must have a `returns` type
     for TypeScript type generation — either auto-derived via `transform :calc`
-    or explicitly set via `returns:`.
+    or explicitly set via `returns:`. A known `returns` type must be map-like
+    (a map, struct, resource, union, ...), since Phoenix only pushes map
+    payloads; a scalar, enum or array payload is refused at compile time.
     """,
     args: [:event],
     schema: [
